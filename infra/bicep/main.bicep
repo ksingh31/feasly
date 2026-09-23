@@ -156,8 +156,10 @@ var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //
 // Deployer (CI OIDC identity or manual deployer) can write/read secrets in the vault.
 // principalType is intentionally omitted so ARM infers it — manual deploys run
 // as a User principal, CI OIDC deploys as a ServicePrincipal.
+// The guid includes the deployer principal so manual (user) and CI (OIDC)
+// deployers each get their own assignment instead of colliding on one name.
 resource deployerSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, keyVaultName, kvSecretsOfficerRoleId)
+  name: guid(resourceGroup().id, keyVaultName, kvSecretsOfficerRoleId, deployer().objectId)
   scope: kv
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsOfficerRoleId)
