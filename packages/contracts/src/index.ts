@@ -1,6 +1,20 @@
 /**
- * @feasly/contracts — shared data-transfer contracts.
- * zod schemas for API DTOs and embed postMessage events land here.
- * Both apps/api and apps/web depend on these (types only for web).
+ * @feasly/contracts — frozen UI/API data-transfer contracts (FE0-001).
+ *
+ * Shapes only: no logic, no math, no secrets. The Angular client imports types
+ * from here; the mock harness (FE0-003) and the real backend both implement them.
+ * See CHANGELOG.md for the contract-change policy.
  */
-export const CONTRACTS_VERSION = '0.1.0';
+export * from './common';
+export * from './property';
+export * from './estimate';
+export * from './lead';
+export * from './magic-link';
+export * from './report';
+export * from './callback';
+export * from './share';
+export * from './events';
+export * from './embed';
+export * from './community';
+export * from './error';
+export * from './registry';

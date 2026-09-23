@@ -17,3 +17,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc -b
+      - run: npm run test --workspaces --if-present
+      - run: npm run lint --workspaces --if-present
