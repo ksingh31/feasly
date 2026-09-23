@@ -9,3 +9,8 @@ coverage/
 .vscode/
 .DS_Store
 *.log
+
+# Bicep compiled ARM output (sources are .bicep / .bicepparam)
+infra/bicep/main.json
+infra/bicep/modules/*.json
+infra/bicep/environments/*.json
