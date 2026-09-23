@@ -1,13 +1,15 @@
 # Branch protection — `main` (FND-002)
 
-Intended settings (to apply once CI is green on main):
+**Status: APPLIED 2026-09-23** via the API command below.
+
+Settings:
 
 - Require a pull request before merging (min 1 approval)
-- Require status checks to pass: `build` (the CI workflow job)
-- Do not allow bypassing the above settings
+- Require status checks to pass: `build` (the CI workflow job), strict
+- Enforce on admins (no bypassing)
 - No direct pushes to `main`
 
-Apply with:
+Applied with:
 
 ```bash
 gh api repos/ksingh31/feasly/branches/main/protection -X PUT \
@@ -18,5 +20,5 @@ gh api repos/ksingh31/feasly/branches/main/protection -X PUT \
   -f restrictions=null
 ```
 
-Note: while Muse is the primary builder, PR-required means every change
-needs Karan's approval tap. Decide: protection now, or after M0 sprint.
+Working agreement: Muse builds on feature branches, opens PRs, Karan
+reviews/approves from his phone, PR merges on green CI.
