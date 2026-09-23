@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "test": "tsc --noEmit -p tsconfig.typecheck.json",
+    "lint": "node scripts/check-no-any.js"
   }
 }
