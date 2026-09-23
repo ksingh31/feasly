@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 120" width="280" height="120" role="img" aria-label="Feasly — know what it costs to build">
+  <!-- monochrome variant for dark surfaces: uses currentColor -->
+  <path d="M118 30 L144 10 L170 30" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="34" y="84" font-family="Syne, 'Arial Black', sans-serif" font-size="60" font-weight="800" letter-spacing="-2" fill="currentColor">feasly</text>
+  <rect x="34" y="96" width="212" height="6" rx="3" fill="currentColor"/>
+</svg>
