@@ -25,7 +25,7 @@ on:
         description: "Environment to deploy"
         required: true
         type: choice
-        options: [staging, production]
+        options: [staging, prod]
 
 # Avoid overlapping deploys: one CD run at a time, never cancel an in-flight
 # deploy (a cancelled half-deploy is worse than a queued one).
@@ -135,20 +135,33 @@ jobs:
           skip_api_build: true
           skip_app_build: true
 
+      - name: Discover resource names
+        id: names
+        run: |
+          set -euo pipefail
+          # Bicep appends a unique suffix to globally-unique resource names;
+          # discover them instead of hardcoding.
+          SWA_NAME=$(az staticwebapp list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-web')].name | [0]" -o tsv)
+          FUNC_NAME=$(az functionapp list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-api')].name | [0]" -o tsv)
+          echo "swa=$SWA_NAME" >> "$GITHUB_OUTPUT"
+          echo "func=$FUNC_NAME" >> "$GITHUB_OUTPUT"
+
       - name: Deploy API (Function App)
         uses: Azure/functions-action@v1
         with:
-          app-name: feasly-dev-api
+          app-name: ${{ steps.names.outputs.func }}
           package: apps/api
 
       - name: Smoke test
         run: |
           set -euo pipefail
           SWA_HOST=$(az staticwebapp show \
-            --name feasly-dev-web --resource-group rg-feasly-dev \
+            --name "${{ steps.names.outputs.swa }}" --resource-group rg-feasly-dev \
             --query defaultHostname -o tsv)
           FUNC_HOST=$(az functionapp show \
-            --name feasly-dev-api --resource-group rg-feasly-dev \
+            --name "${{ steps.names.outputs.func }}" --resource-group rg-feasly-dev \
             --query defaultHostName -o tsv)
           echo "SWA:  https://$SWA_HOST"
           echo "API:  https://$FUNC_HOST/api/health"
@@ -230,19 +243,19 @@ jobs:
       # once staging resource names are provisioned.
 
   # ---------------------------------------------------------------------------
-  # Prod: workflow_dispatch ONLY. environment: production.
+  # Prod: workflow_dispatch ONLY. environment: prod.
   #
   # >>> PROD DEPLOYS REQUIRE KARAN'S APPROVAL EVERY TIME. <<<
-  # This is enforced by the `production` GitHub Environment's required-reviewer
+  # This is enforced by the `prod` GitHub Environment's required-reviewer
   # rule (Karan is the required reviewer). There is no auto-promote from
   # staging/dev, no standing approval, no tag-triggered release. Each run of
   # this job waits for his explicit approval on that specific run.
   # ---------------------------------------------------------------------------
   deploy-prod:
     name: deploy-prod
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'prod'
     runs-on: ubuntu-latest
-    environment: production
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
