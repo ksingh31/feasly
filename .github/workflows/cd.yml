@@ -160,9 +160,9 @@ jobs:
           SWA_HOST=$(az staticwebapp show \
             --name "${{ steps.names.outputs.swa }}" --resource-group rg-feasly-dev \
             --query defaultHostname -o tsv)
-          FUNC_HOST=$(az functionapp show \
-            --name "${{ steps.names.outputs.func }}" --resource-group rg-feasly-dev \
-            --query defaultHostName -o tsv)
+          # az functionapp show omits defaultHostName for Flex Consumption apps;
+          # the public hostname is deterministic.
+          FUNC_HOST="${{ steps.names.outputs.func }}.azurewebsites.net"
           echo "SWA:  https://$SWA_HOST"
           echo "API:  https://$FUNC_HOST/api/health"
           check() {
