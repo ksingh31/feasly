@@ -1,0 +1,10 @@
+{
+  "name": "@feasly/cost-engine",
+  "version": "0.1.0",
+  "description": "Deterministic build-cost engine: pure TS, zero I/O, zero deps. NEVER imported by apps/web (epic 02).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

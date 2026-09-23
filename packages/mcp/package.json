@@ -1,0 +1,6 @@
+{
+  "name": "@feasly/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server — thin wrapper over @feasly/cost-engine + @feasly/contracts (epic 07)."
+}

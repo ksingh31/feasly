@@ -1,0 +1,6 @@
+{
+  "name": "@feasly/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Azure Functions (TypeScript) — versioned /api/v1. Endpoints land here (epics 07, 10)."
+}
