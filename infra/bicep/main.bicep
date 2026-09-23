@@ -42,12 +42,6 @@ param postgresSkuName string = 'Standard_B1ms'
 param postgresBackupRetentionDays int = 7
 
 @description('Principal type of the deployer identity (CI uses the OIDC managed identity)')
-@allowed([
-  'User'
-  'ServicePrincipal'
-])
-param deployerPrincipalType string = 'ServicePrincipal'
-
 // --- Naming ---
 // Globally-unique resource types (SWA, Function App, Postgres, Key Vault, Storage)
 // get a 6-char hash suffix from the resource group ID; regional/RG-scoped ones do not.
@@ -160,13 +154,14 @@ var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Se
 var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
 
 // Deployer (CI OIDC identity or manual deployer) can write/read secrets in the vault.
+// principalType is intentionally omitted so ARM infers it — manual deploys run
+// as a User principal, CI OIDC deploys as a ServicePrincipal.
 resource deployerSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, keyVaultName, kvSecretsOfficerRoleId)
   scope: kv
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsOfficerRoleId)
     principalId: deployer().objectId
-    principalType: deployerPrincipalType
   }
   dependsOn: [
     keyVault

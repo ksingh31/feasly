@@ -13,5 +13,4 @@ param location = 'canadacentral'
 param postgresSkuName = 'Standard_B2s'
 param postgresBackupRetentionDays = 30
 param domainName = ''
-param deployerPrincipalType = 'ServicePrincipal'
 param postgresAdminPassword = readEnvironmentVariable('FEASLY_POSTGRES_ADMIN_PASSWORD', '')

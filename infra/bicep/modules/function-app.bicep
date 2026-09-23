@@ -84,29 +84,29 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           value: '20' // FC1/Linux requires explicit major (20|22|24); '~20' is rejected
         }
       ]
-      // functionAppConfig is the documented Flex Consumption shape (runtime +
-      // deployment storage + scaleAndConcurrency). The Bicep type definition for
-      // Microsoft.Web/sites@2024-04-01 has not caught up, so the warning is
-      // suppressed deliberately — the shape is validated by what-if at deploy time.
-      #disable-next-line BCP037
-      functionAppConfig: {
-        runtime: {
-          name: 'node'
-          version: '20'
-        }
-        deployment: {
-          storage: {
-            type: 'blobContainer'
-            value: deploymentStorageContainerUrl
-            authentication: {
-              type: 'SystemAssignedIdentity'
-            }
+    }
+    // functionAppConfig MUST be a direct child of properties (sibling of
+    // siteConfig) — Flex Consumption requires it on site create. The Bicep
+    // type definition for Microsoft.Web/sites@2024-04-01 has not caught up,
+    // so the warning is suppressed deliberately.
+    #disable-next-line BCP037
+    functionAppConfig: {
+      runtime: {
+        name: 'node'
+        version: '20'
+      }
+      deployment: {
+        storage: {
+          type: 'blobContainer'
+          value: deploymentStorageContainerUrl
+          authentication: {
+            type: 'SystemAssignedIdentity'
           }
         }
-        scaleAndConcurrency: {
-          maximumInstanceCount: 100
-          instanceMemoryMB: 2048
-        }
+      }
+      scaleAndConcurrency: {
+        maximumInstanceCount: 100
+        instanceMemoryMB: 2048
       }
     }
   }
