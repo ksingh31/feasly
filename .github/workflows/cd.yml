@@ -1,0 +1,258 @@
+# Feasly CD pipeline (FND-009)
+#
+# NOTE: this file is additive. The merge gate lives in ci.yml (job `build`,
+# required status check `build`). Do NOT rename that job or break ci.yml.
+#
+# Auth model: Azure OIDC federation (azure/login@v2) with
+# client-id / tenant-id / subscription-id read from GitHub *Variables*
+# (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID) — never secrets.
+# The single allowed long-lived secret is FEASLY_SWA_DEPLOY_TOKEN
+# (repo secret), used by the Static Web Apps deploy action (standard SWA practice).
+# Postgres admin password is read from Key Vault at deploy time and masked
+# via ::add-mask:: — it is never echoed or stored.
+
+name: CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options: [staging, production]
+
+# Avoid overlapping deploys: one CD run at a time, never cancel an in-flight
+# deploy (a cancelled half-deploy is worse than a queued one).
+concurrency:
+  group: feasly-cd
+  cancel-in-progress: false
+
+# OIDC into Azure requires id-token: write. contents: read is for checkout.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PR preview environments (Static Web Apps). One ephemeral env per PR.
+  # ---------------------------------------------------------------------------
+  preview:
+    name: preview (SWA)
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy SWA preview environment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "apps/web"
+          skip_api_build: true
+
+  preview-close:
+    name: preview-close (SWA)
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete SWA preview environment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
+          action: "close"
+
+  # ---------------------------------------------------------------------------
+  # Dev: auto-deploy on every push to main.
+  # Order: Bicep what-if (fail on errors) -> Bicep deploy -> SWA -> Functions
+  # -> smoke test. Dev is the integration environment: main is always live here.
+  # ---------------------------------------------------------------------------
+  deploy-dev:
+    name: deploy-dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read Postgres admin password from Key Vault
+        run: |
+          set -euo pipefail
+          # Prefer discovery over hardcoding: Key Vault names may carry a
+          # unique suffix from Bicep. Fall back to the conventional name.
+          KV_NAME=$(az keyvault list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-kv')].name | [0]" -o tsv)
+          if [ -z "$KV_NAME" ] || [ "$KV_NAME" = "None" ]; then
+            KV_NAME="feasly-dev-kv"
+          fi
+          PGPASS=$(az keyvault secret show \
+            --vault-name "$KV_NAME" \
+            --name feasly-dev-postgres-admin \
+            --query value -o tsv)
+          echo "::add-mask::$PGPASS"
+          # Masked value only — never echo $PGPASS or print it in logs.
+          echo "PGPASS=$PGPASS" >> "$GITHUB_ENV"
+
+      - name: Bicep what-if (fail pipeline on errors)
+        run: |
+          set -euo pipefail
+          az deployment group what-if \
+            --resource-group rg-feasly-dev \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/environments/dev.bicepparam \
+            --parameters postgresAdminPassword="$PGPASS"
+
+      - name: Bicep deploy
+        run: |
+          set -euo pipefail
+          az deployment group create \
+            --resource-group rg-feasly-dev \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/environments/dev.bicepparam \
+            --parameters postgresAdminPassword="$PGPASS"
+
+      - name: Deploy web (Static Web App)
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "apps/web"
+          skip_api_build: true
+
+      - name: Deploy API (Function App)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: feasly-dev-api
+          package: apps/api
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          SWA_HOST=$(az staticwebapp show \
+            --name feasly-dev-web --resource-group rg-feasly-dev \
+            --query defaultHostname -o tsv)
+          FUNC_HOST=$(az functionapp show \
+            --name feasly-dev-api --resource-group rg-feasly-dev \
+            --query defaultHostName -o tsv)
+          echo "SWA:  https://$SWA_HOST"
+          echo "API:  https://$FUNC_HOST/api/health"
+          check() {
+            local url="$1" tries=0
+            while [ $tries -lt 3 ]; do
+              code=$(curl -fsS -o /dev/null -w "%{http_code}" \
+                --max-time 30 "$url" 2>/dev/null || echo "000")
+              if [ "$code" = "200" ]; then
+                echo "OK ($code): $url"
+                return 0
+              fi
+              tries=$((tries + 1))
+              echo "got $code from $url, retry $tries/3 in 15s..."
+              sleep 15
+            done
+            echo "SMOKE TEST FAILED: $url never returned 200"
+            return 1
+          }
+          check "https://$SWA_HOST"
+          check "https://$FUNC_HOST/api/health"
+
+  # ---------------------------------------------------------------------------
+  # Staging: workflow_dispatch ONLY. environment: staging.
+  #
+  # >>> STAGING INFRASTRUCTURE DOES NOT EXIST YET. <<<
+  # This job is intentionally manual. The Bicep deploy below targets a future
+  # staging resource group and infra/bicep/environments/staging.bicepparam
+  # (authored per FND-004, applied only after Karan approves provisioning).
+  # Do NOT point this at dev resources; do NOT auto-trigger it from main.
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: deploy-staging
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read Postgres admin password from Key Vault (staging)
+        run: |
+          set -euo pipefail
+          # Staging RG/KV do not exist yet — placeholders until FND-004 staging
+          # params + Karan-approved provisioning land.
+          KV_NAME="feasly-staging-kv"
+          PGPASS=$(az keyvault secret show \
+            --vault-name "$KV_NAME" \
+            --name feasly-staging-postgres-admin \
+            --query value -o tsv)
+          echo "::add-mask::$PGPASS"
+          echo "PGPASS=$PGPASS" >> "$GITHUB_ENV"
+
+      - name: Bicep what-if (fail pipeline on errors)
+        run: |
+          set -euo pipefail
+          az deployment group what-if \
+            --resource-group rg-feasly-staging \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/environments/staging.bicepparam \
+            --parameters postgresAdminPassword="$PGPASS"
+
+      - name: Bicep deploy
+        run: |
+          set -euo pipefail
+          az deployment group create \
+            --resource-group rg-feasly-staging \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/environments/staging.bicepparam \
+            --parameters postgresAdminPassword="$PGPASS"
+
+      # TODO(FND-009): add SWA + Functions staging deploys and smoke test
+      # once staging resource names are provisioned.
+
+  # ---------------------------------------------------------------------------
+  # Prod: workflow_dispatch ONLY. environment: production.
+  #
+  # >>> PROD DEPLOYS REQUIRE KARAN'S APPROVAL EVERY TIME. <<<
+  # This is enforced by the `production` GitHub Environment's required-reviewer
+  # rule (Karan is the required reviewer). There is no auto-promote from
+  # staging/dev, no standing approval, no tag-triggered release. Each run of
+  # this job waits for his explicit approval on that specific run.
+  # ---------------------------------------------------------------------------
+  deploy-prod:
+    name: deploy-prod
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # TODO(FND-009): Bicep what-if + deploy against
+      # infra/bicep/environments/prod.bicepparam, then SWA + Functions prod
+      # deploys and the smoke test — wired up only after Karan provisions prod
+      # infra and approves the first release. Nothing here runs until the
+      # environment's required-reviewer gate approves it.
