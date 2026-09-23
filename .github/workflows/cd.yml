@@ -57,6 +57,7 @@ jobs:
           action: "upload"
           app_location: "apps/web"
           skip_api_build: true
+          skip_app_build: true
 
   preview-close:
     name: preview-close (SWA)
@@ -132,6 +133,7 @@ jobs:
           action: "upload"
           app_location: "apps/web"
           skip_api_build: true
+          skip_app_build: true
 
       - name: Deploy API (Function App)
         uses: Azure/functions-action@v1
