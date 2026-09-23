@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 120" width="280" height="120" role="img" aria-label="Feasly — know what it costs to build">
+  <defs>
+    <linearGradient id="feasly-brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D9A441"/>
+      <stop offset="0.55" stop-color="#C08A24"/>
+      <stop offset="1" stop-color="#A8761A"/>
+    </linearGradient>
+  </defs>
+  <!-- roofline: the "home" cue, floating above the wordmark -->
+  <path d="M118 30 L144 10 L170 30" fill="none" stroke="url(#feasly-brass)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- wordmark -->
+  <text x="34" y="84" font-family="Syne, 'Arial Black', sans-serif" font-size="60" font-weight="800" letter-spacing="-2" fill="url(#feasly-brass)">feasly</text>
+  <!-- foundation bar: the "build" cue -->
+  <rect x="34" y="96" width="212" height="6" rx="3" fill="url(#feasly-brass)"/>
+</svg>
