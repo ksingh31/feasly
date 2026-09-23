@@ -75,14 +75,9 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           name: 'POSTGRES_PASSWORD'
           value: '@Microsoft.KeyVault(SecretUri=${postgresPasswordSecretUri})'
         }
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'node'
-        }
-        {
-          name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '20' // FC1/Linux requires explicit major (20|22|24); '~20' is rejected
-        }
+        // NOTE: no FUNCTIONS_WORKER_RUNTIME / WEBSITE_NODE_DEFAULT_VERSION here —
+        // Flex Consumption rejects them; the runtime is declared in
+        // functionAppConfig.runtime below.
       ]
     }
     // functionAppConfig MUST be a direct child of properties (sibling of
