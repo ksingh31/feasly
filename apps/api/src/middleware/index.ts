@@ -7,6 +7,7 @@
  * - rate-limit: in-memory fixed-window limiter (config-driven)
  * - pipeline: correlation → rate limit → handler → errors, framework-agnostic
  *   (BE-3's Functions trigger adapters drive it)
+ * - cors: origin allowlist enforcement for the Functions adapters (HRD-01)
  *
  * BE-4 lands here next: requireAuth, requireRole('builder' | 'admin').
  *
@@ -14,6 +15,7 @@
  * from src/db/ — it operates on the request/response, never the database.
  */
 export * from './correlation';
+export * from './cors';
 export * from './errors';
 export * from './rate-limit';
 export * from './pipeline';

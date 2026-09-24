@@ -27,7 +27,7 @@
   "private": true,
   "scripts": {
     "build": "ng build",
-    "lint": "node tools/check-no-hardcode.mjs",
+    "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs",
     "ng": "ng",
     "prebuild": "npm run build --workspace @feasly/contracts",
     "start": "ng serve",
