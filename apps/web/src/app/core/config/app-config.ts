@@ -81,6 +81,11 @@ export interface AppConfig {
       heroTitle: string;
       heroSub: string;
       trustItems: string[];
+      /**
+       * Shown instead of `trustItems` while `api.useMockApi` is true: the
+       * mock harness must never claim live City data (trust rule).
+       */
+      trustItemsMock: string[];
       howItWorksTitle: string;
       howItWorksSub: string;
       steps: { n: string; title: string; body: string }[];
@@ -125,6 +130,14 @@ export interface AppConfig {
       detailsPreviewNote: string;
       detailsEmpty: string;
       detailsEmptyCta: string;
+    };
+    /** Property card (shared) copy. */
+    propertyCard: {
+      /**
+       * Freshness line while `api.useMockApi` is true: sample values must
+       * never masquerade as City records (trust rule).
+       */
+      freshnessMock: string;
     };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {

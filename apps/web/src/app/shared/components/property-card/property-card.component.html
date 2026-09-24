@@ -26,7 +26,11 @@
           </div>
         </dl>
         <p class="pcard-freshness">
-          City-assessed value, {{ p.assessmentYear }} — data as of {{ formatDate(p.dataAsOf) }}
+          @if (isMockData) {
+            {{ freshnessMock }}
+          } @else {
+            City-assessed value, {{ p.assessmentYear }} — data as of {{ formatDate(p.dataAsOf) }}
+          }
         </p>
       </article>
     }
