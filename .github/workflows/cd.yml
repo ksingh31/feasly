@@ -182,7 +182,12 @@ jobs:
           POSTGRES_HOST="$PGHOST" npm run db:migrate --workspace @feasly/api
 
       - name: Bundle Functions
-        run: npm run bundle:functions --workspace @feasly/api
+        # The workspace packages (contracts, cost-engine) publish from
+        # dist/ (package.json main -> dist/index.js), so they must be built
+        # before esbuild can resolve them into the self-contained bundles.
+        run: |
+          npx tsc -b
+          npm run bundle:functions --workspace @feasly/api
 
       - name: Build web app (production, prerendered)
         run: npm run build --workspace @feasly/web
