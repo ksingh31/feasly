@@ -23,7 +23,7 @@ src/
 ├── db/            # Drizzle schema/client (BE-1). Imported ONLY by services/ + composition.ts.
 ├── middleware/    # errorHandler, correlationId, rateLimit (BE0-003); requireAuth/requireRole (BE-4).
 ├── lib/           # Pure utils: no I/O, no db. Unit-tested.
-├── config.ts      # The ONLY module that reads process.env (zod schema lands in BE0-002).
+├── config.ts      # The ONLY module that reads process.env (zod-validated, BE0-002).
 └── composition.ts # The ONLY place concretes are constructed.
 ```
 
