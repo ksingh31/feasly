@@ -137,7 +137,7 @@ describe('AddressAutocompleteComponent', () => {
     expect(component.pickTop()).toBe(false);
     component.nudgeIfEmpty();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.ac-hint')?.textContent).toContain(
+    expect(fixture.nativeElement.querySelector('.form-error')?.textContent).toContain(
       'Enter your Calgary address',
     );
   });

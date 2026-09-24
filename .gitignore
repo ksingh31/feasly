@@ -1,6 +1,9 @@
 node_modules/
 dist/
 *.tsbuildinfo
+# tsc -b emits .js next to .ts in apps/web/src (PR #20 accidentally
+# committed them); they are build artifacts, never source.
+apps/web/src/**/*.js
 .env
 .env.*
 !.env.example

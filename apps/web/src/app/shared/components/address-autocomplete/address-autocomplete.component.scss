@@ -15,6 +15,8 @@
   text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 10px;
+  /* NOTE: .hero-cta in the landing page offsets by this label's block
+     height (24px) to stay glued to the input. Keep in sync. */
 }
 
 .ac-field {
@@ -66,19 +68,10 @@
   }
 }
 
-.ac-hint,
 .ac-empty {
   font-size: 14px;
   line-height: 1.6;
   margin-top: 10px;
-}
-
-.ac-hint {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.ac-empty {
   color: var(--muted);
 }
 
