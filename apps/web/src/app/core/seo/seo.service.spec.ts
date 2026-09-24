@@ -47,4 +47,14 @@ describe('SeoService', () => {
     expect(TestBed.inject(Title).getTitle()).toBe('Two');
     expect(document.querySelectorAll('link[rel="canonical"]').length).toBe(1);
   });
+
+  it('sets absolute og:image and twitter:image from the configured site url', () => {
+    service.setPage({ title: 'T', description: 'D', path: '/x' });
+    expect(TestBed.inject(Meta).getTag('property="og:image"')?.content).toBe(
+      'https://feasly.com/assets/og-image.png',
+    );
+    expect(TestBed.inject(Meta).getTag('name="twitter:image"')?.content).toBe(
+      'https://feasly.com/assets/og-image.png',
+    );
+  });
 });

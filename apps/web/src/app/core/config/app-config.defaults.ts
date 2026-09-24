@@ -15,6 +15,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   site: {
     url: 'https://feasly.com',
     name: 'Feasly',
+    socialImage: '/assets/og-image.png',
   },
   api: {
     baseUrl: '',

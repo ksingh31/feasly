@@ -1,1 +1,1 @@
-{"navigationFallback":{"exclude":["/assets/*","/robots.txt","/sitemap.xml"],"rewrite":"/index.html"}}
+{"navigationFallback":{"exclude":["/assets/*","/robots.txt","/sitemap.xml","/llms.txt"],"rewrite":"/index.html"}}

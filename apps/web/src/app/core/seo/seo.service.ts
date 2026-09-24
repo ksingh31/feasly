@@ -26,14 +26,18 @@ export class SeoService {
   private readonly config = inject(ConfigService);
 
   setPage(page: PageSeo): void {
-    const url = `${this.config.get('site').url}${page.path}`;
+    const site = this.config.get('site');
+    const url = `${site.url}${page.path}`;
+    const socialImage = `${site.url}${site.socialImage}`;
     this.title.setTitle(page.title);
     this.meta.updateTag({ name: 'description', content: page.description });
     this.meta.updateTag({ property: 'og:title', content: page.title });
     this.meta.updateTag({ property: 'og:description', content: page.description });
     this.meta.updateTag({ property: 'og:url', content: url });
+    this.meta.updateTag({ property: 'og:image', content: socialImage });
     this.meta.updateTag({ name: 'twitter:title', content: page.title });
     this.meta.updateTag({ name: 'twitter:description', content: page.description });
+    this.meta.updateTag({ name: 'twitter:image', content: socialImage });
     let canonical = this.document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
       canonical = this.document.createElement('link');
