@@ -19,7 +19,7 @@
         <button type="button" class="link-btn" (click)="retry()">{{ copy.retryLabel }}</button>
       </p>
     }
-    <p class="report-sub">{{ unlocked() ? copy.subPostGate : copy.subPreGate }}</p>
+    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? copy.pendingSub : copy.subPreGate }}</p>
     @if (unlocked()) {
       <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
     }
@@ -77,7 +77,11 @@
             <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
           </div>
         </div>
-        <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
+        @if (pendingLead()) {
+          <p class="pending-note" role="status">{{ copy.pendingNote }}</p>
+        } @else {
+          <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
+        }
       }
     </section>
 

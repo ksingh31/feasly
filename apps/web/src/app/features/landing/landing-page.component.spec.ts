@@ -9,7 +9,9 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
-import { WizardState, type WizardStateModel } from '../wizard';
+import { LeadState, StoreLeadResult, WizardState, type WizardStateModel } from '../wizard';
+import { ReportState } from '../report/report.state';
+import { SetReportToken } from '../report/report.actions';
 import { LandingPageComponent } from './landing-page.component';
 
 /**
@@ -41,7 +43,7 @@ describe('LandingPageComponent', () => {
         providePropertyData(),
         provideApi(),
         provideRouter([{ path: 'estimate/scope', component: LandingPageComponent }]),
-        provideStore([WizardState]),
+        provideStore([WizardState, LeadState, ReportState]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -122,6 +124,22 @@ describe('LandingPageComponent', () => {
     expect(state.property?.addressKey).toBe(fakeProperty.addressKey);
     expect(state.step).toBe(2);
     expect(navigate).toHaveBeenCalledWith(['/estimate/scope']);
+  });
+
+  it('selecting a new property clears the previous lead receipt and report snapshot', () => {
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-old',
+        email: 'old@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new SetReportToken('token-old'));
+    component.onSelected(fakeProperty);
+    // A stale unlock must not leak into the new property's funnel.
+    expect(store.selectSnapshot(LeadState.leadId)).toBeNull();
+    expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
   });
 
   it('submit with an empty query shows the hint (no dead end)', () => {

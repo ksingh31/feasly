@@ -1,13 +1,14 @@
 import { inject, Injectable, Optional } from '@angular/core';
 import { Action, NgxsOnInit, Selector, State, StateContext } from '@ngxs/store';
 import { STORAGE_ENGINE } from '@ngxs/storage-plugin';
-import type { EstimateInputs, PropertyRecord } from '@feasly/contracts';
+import type { EstimateInputs, PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ChooseProjectType,
   GoToStep,
   ResetWizard,
   SelectProperty,
+  StorePreviewEstimate,
   UpdateInputs,
   type ProjectType,
   type WizardStep,
@@ -25,6 +26,12 @@ export interface WizardStateModel {
   inputs: EstimateInputs;
   /** Current wizard step (1 address → 2 scope → 3 details). */
   step: WizardStep;
+  /**
+   * Blurred pre-gate preview from the analyzing screen. Null until the
+   * pipeline runs. Carries no PII and no real dollar figures, so persisting
+   * it via the storage plugin is safe.
+   */
+  preview: PreviewEstimateResponse | null;
 }
 
 /**
@@ -44,6 +51,7 @@ export interface WizardStateModel {
       basement: 'unfinished',
     },
     step: 1,
+    preview: null,
   },
 })
 @Injectable()
@@ -87,6 +95,11 @@ export class WizardState implements NgxsOnInit {
     return state.projectType;
   }
 
+  @Selector()
+  static preview(state: WizardStateModel): PreviewEstimateResponse | null {
+    return state.preview;
+  }
+
   @Action(SelectProperty)
   selectProperty(ctx: StateContext<WizardStateModel>, action: SelectProperty): void {
     ctx.patchState({ property: action.property });
@@ -107,6 +120,11 @@ export class WizardState implements NgxsOnInit {
     ctx.patchState({ step: action.step });
   }
 
+  @Action(StorePreviewEstimate)
+  storePreviewEstimate(ctx: StateContext<WizardStateModel>, action: StorePreviewEstimate): void {
+    ctx.patchState({ preview: action.preview });
+  }
+
   @Action(ResetWizard)
   resetWizard(ctx: StateContext<WizardStateModel>): void {
     const wizard = this.config.get('wizard');
@@ -120,6 +138,7 @@ export class WizardState implements NgxsOnInit {
         basement: 'unfinished',
       },
       step: 1,
+      preview: null,
     });
   }
 }

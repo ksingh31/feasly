@@ -8,7 +8,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import { UpdateInputs, WizardState } from '../wizard';
+import { UpdateInputs, WizardState, LeadState } from '../wizard';
 import { LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 
@@ -70,10 +70,21 @@ export class ReportPageComponent implements OnInit {
   protected readonly reportToken = this.store.selectSignal(ReportState.reportToken);
   protected readonly status = this.store.selectSignal(ReportState.status);
   protected readonly loadError = this.store.selectSignal(ReportState.error);
+  protected readonly leadEmail = this.store.selectSignal(LeadState.email);
 
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
   protected readonly loading = computed(() => this.status() === 'loading');
+
+  /**
+   * A lead was submitted this session but the report is still locked: the
+   * magic-link email is on its way (real backend) — sending the user back to
+   * the gate here would loop them to an empty form, so the locked view shows
+   * the "check your email" state instead of the unlock CTA.
+   */
+  protected readonly pendingLead = computed(
+    () => !this.unlocked() && this.leadEmail() !== null,
+  );
 
   /** Currently selected tier (snapshot post-gate, wizard inputs pre-gate). */
   protected readonly activeTier = computed<FinishTier>(
@@ -201,8 +212,15 @@ export class ReportPageComponent implements OnInit {
 
   shareWithPartner(): void {
     const token = this.reportToken();
-    if (this.shareStatus() === 'sending' || !token || this.shareForm.invalid) {
+    if (this.shareStatus() === 'sending' || this.shareForm.invalid) {
       this.shareForm.markAllAsTouched();
+      return;
+    }
+    if (!token) {
+      // The token is memory-only: after a reload it is gone, and the
+      // magic-link email is the only re-verification path. Fail honestly
+      // instead of flagging the user's valid email as invalid.
+      this.shareStatus.set('error');
       return;
     }
     this.shareStatus.set('sending');
@@ -217,8 +235,13 @@ export class ReportPageComponent implements OnInit {
 
   requestCallback(): void {
     const token = this.reportToken();
-    if (this.callbackStatus() === 'sending' || !token || this.callbackForm.invalid) {
+    if (this.callbackStatus() === 'sending' || this.callbackForm.invalid) {
       this.callbackForm.markAllAsTouched();
+      return;
+    }
+    if (!token) {
+      // Same memory-only token note as shareWithPartner: fail honestly.
+      this.callbackStatus.set('error');
       return;
     }
     this.callbackStatus.set('sending');

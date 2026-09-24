@@ -31,7 +31,10 @@ import { MockApiService } from './mock-api.service';
  * Every method mirrors one FE0-001 contract, returning RxJS Observables so
  * components can use the async pipe with takeUntilDestroyed. Components inject
  * {@link API_SERVICE} — they never know (or care) which implementation is
- * wired: there are no mock-only code paths in components.
+ * wired. The one deliberate exception is the optional `devTokenForLead` hook:
+ * it is implemented only by the mock, and components treat `undefined`
+ * (the real backend) as the honest "check your email" path, never as a
+ * shortcut around verification.
  */
 export interface ApiService {
   /** Address autocomplete. Short queries resolve to zero suggestions. */
@@ -48,6 +51,15 @@ export interface ApiService {
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
   verifyMagicLink(token: string): Observable<MagicLinkVerifyResponse>;
+  /**
+   * DEV ONLY unlock: the report token the mock issued for a lead, so the
+   * analyzing screen can complete the same-session unlock without an email
+   * round-trip. OPTIONAL — only the mock implements it. The production
+   * implementation MUST NOT: in production the magic-link email is the only
+   * unlock path, and this must return undefined. Components treat `undefined`
+   * as "check your email" and land the user on the locked report.
+   */
+  devTokenForLead?(leadId: string): string | undefined;
   /** Re-sends the magic link. */
   reissueMagicLink(
     request: MagicLinkReissueRequest,
@@ -125,6 +137,10 @@ class LazyApiService implements ApiService {
 
   verifyMagicLink(token: string): Observable<MagicLinkVerifyResponse> {
     return this.resolve().verifyMagicLink(token);
+  }
+
+  devTokenForLead(leadId: string): string | undefined {
+    return this.resolve().devTokenForLead?.(leadId);
   }
 
   reissueMagicLink(request: MagicLinkReissueRequest): Observable<MagicLinkReissueResponse> {

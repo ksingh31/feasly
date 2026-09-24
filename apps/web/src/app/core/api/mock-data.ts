@@ -119,11 +119,38 @@ export function mockPropertyFor(addressKey: string): PropertyRecord | undefined 
   };
 }
 
+/**
+ * Stable estimate identity. The estimate ID is deterministic over the FULL
+ * canonical request (property + size + tier + garage + basement + cost data
+ * version), so the gate, the analyzing screen, and the report page all resolve
+ * the SAME estimate ID for the same inputs instead of minting unrelated
+ * estimates — and two different properties can never collide on one ID.
+ */
+export function stableMockEstimateId(addressKey: string, inputs: EstimateInputs): string {
+  const canonical = [
+    addressKey,
+    inputs.sqft,
+    inputs.tier,
+    inputs.garage,
+    inputs.basement,
+    MOCK_COST_DATA_VERSION,
+  ].join('|');
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i++) {
+    hash ^= canonical.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `est-mock-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 /** Pre-gate preview: blurred figures only — the type makes leaks a compile error. */
-export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResponse {
+export function mockPreviewEstimate(
+  addressKey: string,
+  inputs: EstimateInputs,
+): PreviewEstimateResponse {
   return {
-    estimateId: `est-mock-${inputs.sqft}-${inputs.tier}`,
-    addressKey: mockProperty().addressKey,
+    estimateId: stableMockEstimateId(addressKey, inputs),
+    addressKey,
     inputs,
     figures: {
       build: { blurred: true },
@@ -131,6 +158,36 @@ export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResp
       land: { blurred: true },
     },
     rows: [],
+    costDataVersion: MOCK_COST_DATA_VERSION,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** Canned post-gate figures. Never served pre-gate. */
+export function mockEstimateFigures(): Pick<EstimateResponse, 'figures' | 'rows'> {
+  return {
+    figures: {
+      build: { low: 608000, base: 671500, high: 735000 },
+      total: { low: 1003000, base: 1091500, high: 1180000 },
+      land: { low: 395000, base: 420000, high: 445000 },
+    },
+    rows: mockRows(),
+  };
+}
+
+/** Post-gate estimate: canned ranges scaled to the selected tier/size. Never served pre-gate. */
+export function mockEstimate(
+  addressKey: string,
+  inputs: EstimateInputs,
+  referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
+): EstimateResponse {
+  const scaled = scaledMockFigures(inputs, referenceSqft);
+  return {
+    estimateId: stableMockEstimateId(addressKey, inputs),
+    addressKey,
+    inputs,
+    figures: scaled.figures,
+    rows: scaled.rows,
     costDataVersion: MOCK_COST_DATA_VERSION,
     createdAt: new Date().toISOString(),
   };
@@ -149,23 +206,6 @@ function mockRows(): CostRow[] {
   ];
 }
 
-/** Post-gate estimate: canned ranges. Never served pre-gate. */
-export function mockEstimate(inputs: EstimateInputs): EstimateResponse {
-  return {
-    estimateId: `est-mock-${inputs.sqft}-${inputs.tier}`,
-    addressKey: mockProperty().addressKey,
-    inputs,
-    figures: {
-      build: { low: 608000, base: 671500, high: 735000 },
-      total: { low: 1003000, base: 1091500, high: 1180000 },
-      land: { low: 395000, base: 420000, high: 445000 },
-    },
-    rows: mockRows(),
-    costDataVersion: MOCK_COST_DATA_VERSION,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 /** Mock tier pricing: relative to premium. Real pricing comes from the cost engine. */
 export const MOCK_TIER_FACTORS: Record<FinishTier, number> = {
   standard: 0.92,
@@ -177,6 +217,36 @@ export const MOCK_TIER_FACTORS: Record<FinishTier, number> = {
 export function scaleRange(range: CostRange, factor: number): CostRange {
   const round = (n: number) => Math.round((n * factor) / 1000) * 1000;
   return { low: round(range.low), base: round(range.base), high: round(range.high) };
+}
+
+/**
+ * Applies the selected finish tier and size to the canned base figures.
+ * Tier and size factors are ABSOLUTE (relative to the base figures), never
+ * relative to a previous revision — so re-running the same inputs always
+ * reproduces the same figures, and toggling tiers round-trips exactly.
+ * Land is the City assessed value: independent of tier and size, never scaled.
+ * Total is recomputed as build + land so the parts always add up.
+ */
+export function scaledMockFigures(
+  inputs: EstimateInputs,
+  referenceSqft: number,
+): Pick<EstimateResponse, 'figures' | 'rows'> {
+  const base = mockEstimateFigures();
+  const factor = (MOCK_TIER_FACTORS[inputs.tier] * inputs.sqft) / referenceSqft;
+  const build = scaleRange(base.figures.build, factor);
+  const land = base.figures.land;
+  return {
+    figures: {
+      build,
+      land,
+      total: {
+        low: build.low + land.low,
+        base: build.base + land.base,
+        high: build.high + land.high,
+      },
+    },
+    rows: base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) })),
+  };
 }
 
 export function mockLeadResponse(leadId: string): LeadResponse {
@@ -209,17 +279,18 @@ export function mockReport(
   leadId: string,
   inputs: EstimateInputs,
   narrativeDisclaimer: string,
+  referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
 ): GetReportResponse {
-  const estimate = mockEstimate(inputs);
+  const scaled = scaledMockFigures(inputs, referenceSqft);
   return {
     snapshotId: `snap-mock-${estimateId}-1`,
     estimateId,
     leadId,
     inputs,
-    buildRange: estimate.figures.build,
-    totalRange: estimate.figures.total,
-    landRange: estimate.figures.land,
-    rows: estimate.rows,
+    buildRange: scaled.figures.build,
+    totalRange: scaled.figures.total,
+    landRange: scaled.figures.land,
+    rows: scaled.rows,
     narrative: `${MOCK_NARRATIVE} ${narrativeDisclaimer}`,
     preparedAt: new Date().toISOString(),
     version: 1,

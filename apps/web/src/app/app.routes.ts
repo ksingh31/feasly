@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
+import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
+import { GatePageComponent } from './features/wizard/gate-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
@@ -10,6 +12,7 @@ import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
+import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -26,6 +29,21 @@ export const routes: Routes = [
     path: 'estimate/reno-scope',
     component: RenoScopePageComponent,
     canActivate: [robotsGuard, wizardPropertyGuard],
+    data: { noindex: true },
+  },
+  // Lead gate (FE-004): the single gate — needs property + scope, else address step.
+  // Private lead data: noindex like the other wizard routes.
+  {
+    path: 'estimate/gate',
+    component: GatePageComponent,
+    canActivate: [robotsGuard, wizardScopeGuard],
+    data: { noindex: true },
+  },
+  // Analyzing (FE-004): runs the real estimate pipeline, then the report.
+  {
+    path: 'estimate/analyzing',
+    component: AnalyzingPageComponent,
+    canActivate: [robotsGuard, wizardScopeGuard],
     data: { noindex: true },
   },
   { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },

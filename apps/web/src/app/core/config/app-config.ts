@@ -8,7 +8,7 @@
  *
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
-import type { CallbackWindow, FinishTier } from '@feasly/contracts';
+import type { CallbackWindow, FinishTier, TimelineOption } from '@feasly/contracts';
 
 export interface AppConfig {
   /** Public site facts. */
@@ -185,10 +185,10 @@ export interface AppConfig {
       freshnessMock: string;
     };
     /**
-     * Estimate report page (M1) copy. Ranges render as low/mid/high — the
-     * word "base" is the engine's internal term; the frozen contract seam
-     * carries low/high only, so the middle figure is the labeled midpoint.
-     * Nothing here may carry ±, %, or accuracy claims (copy-linted).
+     * Estimate report page (M1) copy. Ranges render as low/base/high — the
+     * middle figure is the engine's deterministic best estimate (the
+     * contract seam's `base`, not a client midpoint). Nothing here may
+     * carry ±, %, or accuracy claims (copy-linted).
      */
     report: {
       heading: string;
@@ -203,6 +203,8 @@ export interface AppConfig {
       uncalibratedNote: string;
       lockedNote: string;
       unlockCta: string;
+      pendingSub: string;
+      pendingNote: string;
       breakdownTitle: string;
       breakdownLocked: string;
       landRowLabel: string;
@@ -243,6 +245,60 @@ export interface AppConfig {
       loadError: string;
       retryLabel: string;
       versionLabel: string;
+    },
+    /**
+     * Lead-gate step (FE-004) copy. The single gate in the flow: name/email
+     * required, phone/timeline optional, CASL opt-in unchecked by default.
+     */
+    gate: {
+      heading: string;
+      sub: string;
+      nameLabel: string;
+      namePlaceholder: string;
+      nameRequired: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      emailRequired: string;
+      emailInvalid: string;
+      phoneLabel: string;
+      phonePlaceholder: string;
+      /** Short "(optional)" marker rendered beside optional labels. */
+      optionalMarker: string;
+      phoneInvalid: string;
+      /** JS RegExp source for the optional phone field (no hardcode). */
+      phonePattern: string;
+      timelineLabel: string;
+      timelinePlaceholder: string;
+      /** `id`s must match the TimelineOption contract union. */
+      timelineOptions: { id: TimelineOption; label: string }[];
+      /** Plain-language CASL opt-in; the box starts unchecked. */
+      caslLabel: string;
+      privacyNote: string;
+      privacyLinkLabel: string;
+      submitLabel: string;
+      submittingLabel: string;
+      submitError: string;
+      retryLabel: string;
+      backLabel: string;
+    };
+    /**
+     * Analyzing screen (FE-004) copy. Stages describe real pipeline work —
+     * never fake progress.
+     */
+    analyzing: {
+      heading: string;
+      sub: string;
+      stageValidate: string;
+      stageFetch: string;
+      stageEstimate: string;
+      /** Screen-reader status words for each stage. */
+      statusPending: string;
+      statusActive: string;
+      statusDone: string;
+      statusError: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
     };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {
