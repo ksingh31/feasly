@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
+import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SelectProperty, UpdateInputs, WizardState } from '../wizard';
 import { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } from './report.actions';
@@ -45,7 +46,9 @@ describe('ReportState', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideStore([WizardState, ReportState])],
     });
     // provideApi is a factory provider; register it explicitly.
-    TestBed.configureTestingModule({ providers: [{ provide: API_SERVICE, useClass: MockApiService }] });
+    TestBed.configureTestingModule({
+      providers: [providePropertyData(), { provide: API_SERVICE, useClass: MockApiService }],
+    });
     const httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
