@@ -254,6 +254,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       reportTitle: 'Feasly — Your build estimate report',
       report: 'Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps.',
+      sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
+      sampleReport:
+        'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
       privacyTitle: 'Feasly — Privacy Policy',
       privacy:
         'How Feasly collects, uses, and protects your information when you generate a build estimate.',

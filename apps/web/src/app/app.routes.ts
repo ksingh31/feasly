@@ -5,6 +5,7 @@ import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
+import { SampleReportPageComponent } from './features/sample-report';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
@@ -29,6 +30,15 @@ export const routes: Routes = [
   },
   { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },
   { path: 'terms', component: TermsPageComponent, canActivate: [robotsGuard] },
+  // Labelled sample report (seo/09): fictional data, watermarked, never
+  // gated/emailed/persisted. noindex like the wizard routes — it's a trust
+  // page for visitors, not a search landing page.
+  {
+    path: 'sample-report',
+    component: SampleReportPageComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
   {
     path: 'estimate/details',
     component: DetailsPageComponent,

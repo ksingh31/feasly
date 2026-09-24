@@ -253,6 +253,8 @@ export interface AppConfig {
       details: string;
       reportTitle: string;
       report: string;
+      sampleReportTitle: string;
+      sampleReport: string;
       privacyTitle: string;
       privacy: string;
       termsTitle: string;
