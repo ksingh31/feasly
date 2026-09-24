@@ -31,16 +31,14 @@
 .cap {
   text-transform: capitalize;
 }
-/* Details-step CTA: full-width + disabled until the lead-gate story lands
-   (base button styling lives in the shared wizard shell). */
+/* Details-step CTA: full-width link to the preview step (base button
+   styling lives in the shared wizard shell). */
 .cta {
   width: 100%;
-}
-.note {
-  text-align: center;
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 12px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 /* Back-link row: centered on mobile, left-aligned on desktop (matches scope). */
 .back-wrap {

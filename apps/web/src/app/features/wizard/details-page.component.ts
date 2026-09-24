@@ -7,9 +7,9 @@ import { GoToStep, WizardState } from '../wizard';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 
 /**
- * S3 details step (FE1-001 scaffolding — TODO WEB-006 builds the full step).
- * Shows the seeded input defaults read-only; the preview CTA stays disabled
- * with honest helper text until the analyzing/preview stories land.
+ * S3 details step.
+ * Shows the seeded input defaults; the preview CTA routes to the S5
+ * estimate preview step (the single lead-gate point).
  */
 @Component({
   selector: 'app-details-page',

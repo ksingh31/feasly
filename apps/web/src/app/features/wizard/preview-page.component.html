@@ -1,0 +1,49 @@
+<app-site-nav />
+<main class="wrap" id="main-content" tabindex="-1">
+  <a class="back" routerLink="/estimate/details" (click)="goBack()">{{ copy.backLabel }}</a>
+  <h1 class="preview-heading">{{ copy.heading }}</h1>
+
+  @if (property(); as p) {
+    <app-property-card [property]="p" />
+    <dl class="inputs-summary">
+      <div>
+        <dt>{{ wizardCopy.detailsLivingArea }}</dt>
+        <dd>{{ inputs().sqft.toLocaleString('en-CA') }} sq ft</dd>
+      </div>
+      <div>
+        <dt>{{ wizardCopy.detailsFinishTier }}</dt>
+        <dd class="cap">{{ inputs().tier }}</dd>
+      </div>
+    </dl>
+  }
+
+  @if (loading()) {
+    <p class="loading" role="status">{{ reportCopy.loadingLabel }}</p>
+  } @else if (loadFailed()) {
+    <div class="error-card" role="alert">
+      <p>{{ reportCopy.loadError }}</p>
+      <button class="cta" type="button" (click)="retry()">{{ reportCopy.retryLabel }}</button>
+    </div>
+  } @else if (ready()) {
+    <p class="ready-note">{{ copy.readyNote }}</p>
+
+    <!-- Blurred pre-gate figures: CSS-only placeholders — no real dollar
+         figures exist in the markup (the API type forbids them). -->
+    <section class="figures" aria-label="Locked estimate figures">
+      <div class="figure-card hero-total locked">
+        <h2>{{ reportCopy.totalLabel }}</h2>
+        <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-lg"></span></p>
+        <p class="locked-note">{{ reportCopy.lockedNote }}</p>
+      </div>
+      <div class="figure-card locked">
+        <h2>{{ reportCopy.buildLabel }}</h2>
+        <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
+        <p class="locked-note">{{ reportCopy.lockedNote }}</p>
+      </div>
+    </section>
+
+    <p class="tier-hint">{{ reportCopy.tierLockedNote }}</p>
+    <a class="cta unlock" routerLink="/estimate/gate">{{ reportCopy.unlockCta }}</a>
+  }
+</main>
+<app-site-footer />

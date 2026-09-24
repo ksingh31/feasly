@@ -3,6 +3,7 @@ import { AnalyzingPageComponent } from './features/wizard/analyzing-page.compone
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
+import { PreviewPageComponent } from './features/wizard/preview-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
@@ -59,6 +60,14 @@ export const routes: Routes = [
     path: 'estimate/report',
     component: ReportPageComponent,
     canActivate: [robotsGuard, reportEstimateGuard],
+    data: { noindex: true },
+  },
+  // Preview (S5): the single lead-gate point. Deep links without a selected
+  // property bounce to the address step.
+  {
+    path: 'estimate/preview',
+    component: PreviewPageComponent,
+    canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
   // No dead ends: unknown paths return to the landing page.

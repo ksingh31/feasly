@@ -163,10 +163,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       detailsGarage: 'Garage',
       detailsBasement: 'Basement',
       detailsPreviewCta: 'See My Preview →',
-      detailsPreviewNote: 'The preview step arrives in the next build.',
       detailsEmpty: 'No address selected yet.',
       detailsEmptyCta: 'Find your address to start →',
       detailsBackLabel: '← Back to scope',
+    },
+    preview: {
+      heading: 'Your estimate preview',
+      readyNote: 'Your numbers are ready.',
+      backLabel: '← Back to details',
     },
     propertyCard: {
       freshnessMock: 'Sample data for illustration — live City records coming soon',
@@ -304,6 +308,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       detailsTitle: 'Feasly — Configure your build details',
       details:
         'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
+      previewTitle: 'Feasly — Your estimate preview',
+      preview:
+        'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
       reportTitle: 'Feasly — Your build estimate report',
       report: 'Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps.',
       gateTitle: 'Feasly — Get your estimate',
