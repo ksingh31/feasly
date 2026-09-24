@@ -1,0 +1,238 @@
+<app-site-nav />
+<main class="wrap report">
+  <h1 class="report-heading">{{ copy.heading }}</h1>
+  @if (property(); as p) {
+    <p class="report-address">{{ p.address }}</p>
+  }
+
+  @if (status() === 'loading' && !snapshot()) {
+    <p class="loading" role="status">{{ copy.loadingLabel }}</p>
+  } @else if (showFullError) {
+    <div class="error-card" role="alert">
+      <p>{{ copy.loadError }}</p>
+      <button class="cta" type="button" (click)="retry()">{{ copy.retryLabel }}</button>
+    </div>
+  } @else {
+    @if (showInlineError) {
+      <p class="inline-error" role="alert">
+        {{ copy.loadError }}
+        <button type="button" class="link-btn" (click)="retry()">{{ copy.retryLabel }}</button>
+      </p>
+    }
+    <p class="report-sub">{{ unlocked() ? copy.subPostGate : copy.subPreGate }}</p>
+
+    <!-- HERO: blurred pre-gate, real ranges post-gate. -->
+    <section class="hero" [attr.aria-label]="copy.heading">
+      @if (unlocked() && figures(); as f) {
+        <div class="figure-card hero-total">
+          <h2>{{ copy.totalLabel }}</h2>
+          <div class="range-grid">
+            <div>
+              <span class="range-label">{{ copy.lowLabel }}</span>
+              <span class="range-value">{{ formatCad(f.total.low) }}</span>
+            </div>
+            <div>
+              <span class="range-label">{{ copy.midLabel }}</span>
+              <span class="range-value hero-mid">{{ formatCad(mid(f.total)) }}</span>
+            </div>
+            <div>
+              <span class="range-label">{{ copy.highLabel }}</span>
+              <span class="range-value">{{ formatCad(f.total.high) }}</span>
+            </div>
+          </div>
+          @if (version(); as v) {
+            <p class="version">{{ copy.versionLabel }} {{ v }}</p>
+          }
+        </div>
+        <div class="hero-sub">
+          <div class="figure-card">
+            <h2>{{ copy.buildLabel }}</h2>
+            <p class="figure-range">
+              {{ formatCad(f.build.low) }} – {{ formatCad(f.build.high) }}
+            </p>
+          </div>
+          <div class="figure-card">
+            <h2>{{ copy.landLabel }}</h2>
+            <p class="figure-range">
+              {{ formatCad(f.land.low) }} – {{ formatCad(f.land.high) }}
+            </p>
+          </div>
+        </div>
+      } @else {
+        <div class="figure-card hero-total locked">
+          <h2>{{ copy.totalLabel }}</h2>
+          <p class="blur-value" aria-hidden="true">$0,000,000</p>
+          <p class="locked-note">{{ copy.lockedNote }}</p>
+        </div>
+        <div class="hero-sub">
+          <div class="figure-card locked">
+            <h2>{{ copy.buildLabel }}</h2>
+            <p class="blur-value" aria-hidden="true">$000,000</p>
+          </div>
+          <div class="figure-card locked">
+            <h2>{{ copy.landLabel }}</h2>
+            <p class="blur-value" aria-hidden="true">$000,000</p>
+          </div>
+        </div>
+        <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
+      }
+    </section>
+
+    <!-- COST BREAKDOWN -->
+    <section class="card" [attr.aria-label]="copy.breakdownTitle">
+      <h2>{{ copy.breakdownTitle }}</h2>
+      @if (unlocked()) {
+        <ul class="rows">
+          @for (row of rows(); track row.key) {
+            <li class="row">
+              <span class="row-label">{{ row.label }}</span>
+              <span class="row-range">{{ formatCad(row.range.low) }} – {{ formatCad(row.range.high) }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="hint">{{ copy.breakdownLocked }}</p>
+        <div class="blur-teaser" aria-hidden="true"></div>
+      }
+    </section>
+
+    <!-- TIER WHAT-IF -->
+    <section class="card no-print" [attr.aria-label]="copy.tierTitle">
+      <div class="section-head">
+        <h2>{{ copy.tierTitle }}</h2>
+      </div>
+      <p class="hint">{{ unlocked() ? copy.tierHint : copy.tierLockedNote }}</p>
+      <div class="tier-toggle" role="group" [attr.aria-label]="copy.tierTitle">
+        @for (t of tierOptions; track t.id) {
+          <button
+            type="button"
+            class="tier-btn"
+            [class.selected]="activeTier() === t.id"
+            [disabled]="!unlocked() || loading()"
+            (click)="chooseTier(t.id)"
+          >
+            {{ t.name }}
+          </button>
+        }
+      </div>
+      @if (loading() && unlocked()) {
+        <p class="hint rerunning" role="status">{{ copy.rerunningLabel }}</p>
+      }
+    </section>
+
+    <!-- INLINE ADJUST + RE-RUN -->
+    <section class="card no-print" [attr.aria-label]="copy.adjustTitle">
+      <h2>{{ copy.adjustTitle }}</h2>
+      <p class="hint">{{ unlocked() ? copy.adjustHint : copy.adjustLockedNote }}</p>
+      <div class="stepper">
+        <button
+          type="button"
+          class="step-btn"
+          [disabled]="!unlocked() || loading()"
+          (click)="adjustSqft(-wizard.sqftStep)"
+          aria-label="decrease"
+        >
+          −
+        </button>
+        <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+        <button
+          type="button"
+          class="step-btn"
+          [disabled]="!unlocked() || loading()"
+          (click)="adjustSqft(wizard.sqftStep)"
+          aria-label="increase"
+        >
+          +
+        </button>
+      </div>
+      <button class="cta secondary" type="button" [disabled]="!unlocked() || loading()" (click)="rerun()">
+        {{ copy.adjustCta }}
+      </button>
+    </section>
+
+    <!-- AI NARRATIVE (placeholder — never renders mock narrative text) -->
+    <section class="card" [attr.aria-label]="copy.narrativeTitle">
+      <h2>{{ copy.narrativeTitle }}</h2>
+      <p class="hint">{{ copy.narrativeComingSoon }}</p>
+      <p class="disclaimer">{{ narrativeDisclaimer }}</p>
+    </section>
+
+    <!-- NEXT 3 STEPS -->
+    <section class="card" [attr.aria-label]="copy.stepsTitle">
+      <h2>{{ copy.stepsTitle }}</h2>
+      <ol class="steps">
+        @for (s of copy.steps; track s.title) {
+          <li>
+            <strong>{{ s.title }}</strong>
+            <p>{{ s.body }}</p>
+          </li>
+        }
+      </ol>
+    </section>
+
+    @if (unlocked()) {
+      <!-- PARTNER SHARE -->
+      <section class="card no-print" [attr.aria-label]="copy.shareTitle">
+        <h2>{{ copy.shareTitle }}</h2>
+        <p class="hint">{{ copy.shareHint }}</p>
+        <form [formGroup]="shareForm" (ngSubmit)="shareWithPartner()" class="form">
+          <label class="field">
+            <span>{{ copy.shareEmailLabel }}</span>
+            <input type="email" formControlName="email" autocomplete="email" inputmode="email" />
+          </label>
+          @if (shareEmailInvalid) {
+            <p class="field-error" role="alert">{{ copy.shareInvalid }}</p>
+          }
+          <button class="cta" type="submit" [disabled]="shareStatus() === 'sending'">
+            {{ copy.shareCta }}
+          </button>
+        </form>
+        @if (shareStatus() === 'sent') {
+          <p class="form-success" role="status">{{ copy.shareSuccess }}</p>
+        }
+        @if (shareStatus() === 'error') {
+          <p class="field-error" role="alert">{{ copy.shareError }}</p>
+        }
+      </section>
+
+      <!-- CALLBACK -->
+      <section class="card no-print" [attr.aria-label]="copy.callbackTitle">
+        <h2>{{ copy.callbackTitle }}</h2>
+        <p class="hint">{{ copy.callbackHint }}</p>
+        <form [formGroup]="callbackForm" (ngSubmit)="requestCallback()" class="form">
+          <label class="field">
+            <span>{{ copy.callbackNameLabel }}</span>
+            <input type="text" formControlName="name" autocomplete="name" />
+          </label>
+          <label class="field">
+            <span>{{ copy.callbackPhoneLabel }}</span>
+            <input type="tel" formControlName="phone" autocomplete="tel" inputmode="tel" />
+          </label>
+          <label class="field">
+            <span>{{ copy.callbackWindowLabel }}</span>
+            <select formControlName="window">
+              @for (w of copy.callbackWindows; track w.id) {
+                <option [value]="w.id">{{ w.label }}</option>
+              }
+            </select>
+          </label>
+          @if (callbackDetailsInvalid) {
+            <p class="field-error" role="alert">{{ copy.callbackInvalid }}</p>
+          }
+          <button class="cta" type="submit" [disabled]="callbackStatus() === 'sending'">
+            {{ copy.callbackCta }}
+          </button>
+        </form>
+        @if (callbackStatus() === 'sent') {
+          <p class="form-success" role="status">{{ copy.callbackSuccess }}</p>
+        }
+        @if (callbackStatus() === 'error') {
+          <p class="field-error" role="alert">{{ copy.callbackError }}</p>
+        }
+      </section>
+
+      <button class="cta ghost no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
+    }
+  }
+</main>
+<app-site-footer />

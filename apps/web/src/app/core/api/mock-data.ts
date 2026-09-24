@@ -144,6 +144,8 @@ function mockRows(): CostRow[] {
     { key: 'envelope', label: 'Exterior envelope', range: { low: 88000, high: 104000 } },
     { key: 'interior', label: 'Interior finishes', range: { low: 145000, high: 172000 } },
     { key: 'mechanical', label: 'Mechanical & electrical', range: { low: 64000, high: 78000 } },
+    { key: 'soft', label: 'Soft costs (permits, design, fees)', range: { low: 45000, high: 58000 } },
+    { key: 'contingency', label: 'Contingency', range: { low: 50000, high: 65000 } },
   ];
 }
 
@@ -154,8 +156,8 @@ export function mockEstimate(inputs: EstimateInputs): EstimateResponse {
     addressKey: mockProperty().addressKey,
     inputs,
     figures: {
-      build: { low: 485000, high: 560000 },
-      total: { low: 880000, high: 1005000 },
+      build: { low: 608000, high: 735000 },
+      total: { low: 1003000, high: 1180000 },
       land: { low: 395000, high: 445000 },
     },
     rows: mockRows(),

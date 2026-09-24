@@ -2,6 +2,8 @@ import { Routes } from '@angular/router';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
+import { ReportPageComponent } from './features/report/report-page.component';
+import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
@@ -22,6 +24,14 @@ export const routes: Routes = [
     path: 'estimate/details',
     component: DetailsPageComponent,
     canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  // Report (M1): needs a completed estimate basis (property + sqft), else the address step.
+  // Private estimate data: noindex like the other wizard routes.
+  {
+    path: 'estimate/report',
+    component: ReportPageComponent,
+    canActivate: [robotsGuard, reportEstimateGuard],
     data: { noindex: true },
   },
   // No dead ends: unknown paths return to the landing page.
