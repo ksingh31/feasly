@@ -12,6 +12,6 @@
   },
   "version": "0.1.0",
   "dependencies": {
-    "@feasly/contracts": "^0.1.0"
+    "@feasly/contracts": "^0.2.0"
   }
 }
