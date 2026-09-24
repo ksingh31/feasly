@@ -91,7 +91,15 @@ export class SeoService {
    * 4. the compiled placeholder (prerender without SITE_URL — see SEO.md).
    */
   private resolveSiteUrl(): string {
-    const fromEnv = process?.env['SITE_URL']?.trim().replace(/\/+$/, '') ?? '';
+    // `process` exists only in Node (prerender/SSR). The ambient declaration
+    // at the top of this file is type-only — it emits no runtime binding, so
+    // a bare `process?.env` reference throws `ReferenceError: process is not
+    // defined` in browsers (optional chaining does not guard undeclared
+    // bindings). `typeof` is the only safe check here.
+    const fromEnv =
+      typeof process !== 'undefined'
+        ? process.env['SITE_URL']?.trim().replace(/\/+$/, '') ?? ''
+        : '';
     if (fromEnv) return fromEnv;
     const configured = (this.config.get('site').url ?? '').trim().replace(/\/+$/, '');
     if (configured) return configured;
