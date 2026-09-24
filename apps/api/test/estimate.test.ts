@@ -56,7 +56,7 @@ function fakeStore(): EstimateStore & { saved: EstimateRecord[] } {
 describe('estimate service', () => {
   it('returns the contracts EstimateResponse shape with the version pin', async () => {
     const store = fakeStore();
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store });
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true });
     const result = await service.estimate(VALID_BODY);
 
     // Contract conformance: exact top-level keys of EstimateResponse.
@@ -90,7 +90,7 @@ describe('estimate service', () => {
 
   it('persists the immutable record before returning', async () => {
     const store = fakeStore();
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store });
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true });
     const result = await service.estimate(VALID_BODY);
     expect(store.saved).toHaveLength(1);
     const saved = store.saved[0];
@@ -105,6 +105,7 @@ describe('estimate service', () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
+      allowDraftCostData: true,
     });
     const error = await service.estimate({ property: {} }).catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
@@ -116,6 +117,7 @@ describe('estimate service', () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
+      allowDraftCostData: true,
     });
     const error = await service
       .estimate({
@@ -131,6 +133,7 @@ describe('estimate service', () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
+      allowDraftCostData: true,
     });
     const error = await service
       .estimate({ ...VALID_BODY, scope: { buildSqft: 'lots', tier: 'premium' } })
@@ -143,6 +146,7 @@ describe('estimate service', () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
+      allowDraftCostData: true,
     });
     const error = await service
       .estimate({ ...VALID_BODY, scope: { buildSqft: 50_000, tier: 'standard' } })
@@ -159,7 +163,7 @@ describe('estimate service', () => {
       },
       findById: async () => null,
     };
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken });
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken, allowDraftCostData: true });
     const error = await service.estimate(VALID_BODY).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(HttpError);
@@ -171,6 +175,7 @@ describe('estimate route', () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
+      allowDraftCostData: true,
     });
     const route = createEstimateRoute({ estimate: service });
     const viaRoute = await route.handle(VALID_BODY);
@@ -242,6 +247,230 @@ describe('estimate through the request pipeline (PGlite-backed stores)', () => {
       }
     } finally {
       await brokenApp.db.close();
+    }
+  });
+});
+
+/**
+ * Renovation estimate path (RENO-01).
+ *
+ * Covers the story's API-level acceptance criteria:
+ *  - happy paths per reno type (extensive/addition/basement/combined)
+ *  - RFC 7807 422s naming the field: bad renoType, negative renoSqft,
+ *    missing addressKey (AC7)
+ *  - serialized responses leak no per_sqft/margin/param terms (AC6)
+ *  - one immutable row per call, pinned to the frozen cost-data version (AC8)
+ *  - draft-data gate: 503 without COST_ENGINE_ALLOW_DRAFT, 200 with it
+ *  - new-build output shape unchanged (AC5 regression — see the exact-keys
+ *    test in 'estimate service' above, which still passes unmodified)
+ */
+const RENO_BODY = {
+  projectType: 'renovation',
+  addressKey: 'calgary-456-reno-ave-nw',
+  renoType: 'extensive',
+  renoSqft: 1_000,
+  tier: 'premium',
+};
+
+function renoService(allowDraftCostData = true) {
+  const store = fakeStore();
+  const service = createEstimateService({
+    costData: PLACEHOLDER_COST_DATA,
+    store,
+    allowDraftCostData,
+  });
+  return { service, store };
+}
+
+describe('estimate service — renovation', () => {
+  it('returns a reno estimate with ranges, rows, assumptions and visibility hints', async () => {
+    const { service } = renoService();
+    const result = await service.estimate(RENO_BODY);
+    expect(result.projectType).toBe('renovation');
+    expect(result.addressKey).toBe('calgary-456-reno-ave-nw');
+    expect(result.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(result.figures.build).toEqual({ low: 184_000, base: 230_000, high: 288_000 });
+    expect(result.figures.total).toEqual(result.figures.build);
+    expect(result.figures.land).toEqual({ low: 0, base: 0, high: 0 });
+    expect(result.rows.map((r) => r.key)).toEqual(['reno.extensive']);
+    expect(result.renoInputs).toEqual({
+      projectType: 'renovation',
+      renoType: 'extensive',
+      renoSqft: 1_000,
+      tier: 'premium',
+      underpinning: false,
+    });
+    expect(result.assumptions!.length).toBeGreaterThan(0);
+    expect(result.assumptions!.some((a) => a.includes('PLACEHOLDER'))).toBe(true);
+    expect(result.visibility).toEqual({ land: 'not_applicable', build: 'blurred', total: 'blurred' });
+  });
+
+  it.each([
+    ['extensive', ['reno.extensive']],
+    ['addition', ['reno.addition']],
+    ['basement', ['reno.basement']],
+    ['combined', ['reno.extensive', 'reno.addition', 'reno.basement']],
+  ] as const)('prices renoType %s with component rows %o', async (renoType, keys) => {
+    const { service } = renoService();
+    const result = await service.estimate({ ...RENO_BODY, renoType });
+    expect(result.rows.map((r) => r.key)).toEqual([...keys]);
+    expect(result.figures.total.low).toBeLessThanOrEqual(result.figures.total.base);
+  });
+
+  it('caps addition billing at 400 sqft', async () => {
+    const { service } = renoService();
+    const capped = await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 600 });
+    const exact = await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 400 });
+    expect(capped.figures.total).toEqual(exact.figures.total);
+  });
+
+  it('adds the underpinning row for basement when requested', async () => {
+    const { service } = renoService();
+    const result = await service.estimate({
+      ...RENO_BODY,
+      renoType: 'basement',
+      renoSqft: 800,
+      underpinning: true,
+    });
+    expect(result.rows.map((r) => r.key)).toEqual(['reno.basement', 'reno.underpinning']);
+    expect(result.renoInputs!.underpinning).toBe(true);
+  });
+
+  it('rejects an invalid renoType with 400 naming the field (AC7)', async () => {
+    const { service } = renoService();
+    const error = await service
+      .estimate({ ...RENO_BODY, renoType: 'gut-rehab' })
+      .catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.status).toBe(400);
+    expect(error.code).toBe('VALIDATION_FAILED');
+    expect(String(error.message)).toContain('renoType');
+  });
+
+  it('rejects a negative renoSqft with 400 naming the field (AC7)', async () => {
+    const { service } = renoService();
+    const error = await service.estimate({ ...RENO_BODY, renoSqft: -50 }).catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.status).toBe(400);
+    expect(String(error.message)).toContain('renoSqft');
+  });
+
+  it('rejects a missing addressKey with 400 naming the field (AC7)', async () => {
+    const { service } = renoService();
+    const { addressKey: _omitted, ...noAddress } = RENO_BODY;
+    const error = await service.estimate(noAddress).catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.status).toBe(400);
+    expect(String(error.message)).toContain('addressKey');
+  });
+
+  it('leaks no per_sqft/margin/param terms in the serialized response (AC6)', async () => {
+    const { service } = renoService();
+    const result = await service.estimate({
+      ...RENO_BODY,
+      renoType: 'combined',
+      renoSqft: 600,
+      underpinning: true,
+    });
+    const serialized = JSON.stringify(result).toLowerCase();
+    for (const fragment of ['per_sqft', 'persqft', 'unit_rate', 'margin', 'param']) {
+      expect(serialized).not.toContain(fragment);
+    }
+  });
+
+  it('persists exactly one immutable row per call pinned to the version (AC8)', async () => {
+    const { service, store } = renoService();
+    const first = await service.estimate(RENO_BODY);
+    const second = await service.estimate({ ...RENO_BODY, renoType: 'basement' });
+    expect(store.saved).toHaveLength(2);
+    for (const [saved, result] of [
+      [store.saved[0], first],
+      [store.saved[1], second],
+    ] as const) {
+      expect(saved.id).toBe(result.estimateId);
+      expect(saved.projectType).toBe('renovation');
+      expect(saved.costDataVersion).toBe('v0.1.0-unclibrated');
+      expect(saved.addressKey).toBe(result.addressKey);
+    }
+    expect(store.saved[0].id).not.toBe(store.saved[1].id);
+  });
+
+  it('refuses reno on draft data without the flag (503)', async () => {
+    const { service } = renoService(false);
+    const error = await service.estimate(RENO_BODY).catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.status).toBe(503);
+  });
+
+  it('still serves new_build on draft data without the flag', async () => {
+    const { service } = renoService(false);
+    const result = await service.estimate(VALID_BODY);
+    expect(result.addressKey).toBe('calgary-123-fake-st-nw');
+    expect(result.projectType).toBeUndefined();
+  });
+});
+
+describe('renovation through the request pipeline (PGlite-backed stores)', () => {
+  let testDb: TestDb;
+  let app: AppComposition;
+
+  const DRAFT_ENV = {
+    ...TEST_ENV,
+    COST_ENGINE_ALLOW_DRAFT: 'true',
+  } as NodeJS.ProcessEnv;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+    app = createComposition(DRAFT_ENV, {
+      estimateStore: createDrizzleEstimateStore({ db: testDb.db }),
+    });
+  }, 60_000);
+  afterAll(async () => {
+    await app.db.close();
+    await testDb.close();
+  });
+
+  it('persists a renovation row with project_type=renovation and serves it back', async () => {
+    const outcome = await app.requestPipeline.run(
+      { headers: {}, clientIp: '127.0.0.4' },
+      () =>
+        app.estimateRoute.handle({
+          projectType: 'renovation',
+          addressKey: 'calgary-789-pipeline-rd-nw',
+          renoType: 'basement',
+          renoSqft: 800,
+          tier: 'standard',
+          underpinning: true,
+        }),
+    );
+    expect(isProblemDetails(outcome)).toBe(false);
+    if (!isProblemDetails(outcome)) {
+      const body = outcome as unknown as { estimateId: string; projectType: string };
+      expect(body.projectType).toBe('renovation');
+      const record = await app.estimateStore.findById(body.estimateId);
+      expect(record).not.toBeNull();
+      expect(record!.projectType).toBe('renovation');
+      expect(record!.costDataVersion).toBe('v0.1.0-unclibrated');
+    }
+  });
+
+  it('returns RFC 7807 for an invalid reno body', async () => {
+    const outcome = await app.requestPipeline.run(
+      { headers: {}, clientIp: '127.0.0.5' },
+      () =>
+        app.estimateRoute.handle({
+          projectType: 'renovation',
+          addressKey: 'calgary-789-pipeline-rd-nw',
+          renoType: 'nope',
+          renoSqft: 800,
+          tier: 'standard',
+        }),
+    );
+    expect(isProblemDetails(outcome)).toBe(true);
+    if (isProblemDetails(outcome)) {
+      expect(outcome.status).toBe(400);
+      expect(outcome.code).toBe('VALIDATION_FAILED');
+      expect(String(outcome.detail)).toContain('renoType');
     }
   });
 });

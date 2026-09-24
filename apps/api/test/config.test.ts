@@ -25,7 +25,13 @@ describe('loadConfig', () => {
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
       health: { dbTimeoutMs: 2_000 },
+      costEngine: { allowDraftCostData: false },
     });
+  });
+
+  it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
+    const config = loadConfig({ ...VALID_ENV, COST_ENGINE_ALLOW_DRAFT: 'true' });
+    expect(config.costEngine.allowDraftCostData).toBe(true);
   });
 
   it('composes DATABASE_URL from POSTGRES_* pieces when it is absent', () => {

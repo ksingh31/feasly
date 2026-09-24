@@ -8,7 +8,7 @@
  * stays reproducible via its pinned cost_data_version.
  */
 import rawPlaceholder from '../cost-data/v0.1.0-unclibrated.json';
-import type { CostData, HardCostCategory, SoftCostCategory } from './types';
+import type { CostData, HardCostCategory, RenoSpec, SoftCostCategory } from './types';
 
 const KNOWN_TIERS: readonly string[] = ['standard', 'premium', 'luxury'];
 
@@ -63,6 +63,73 @@ function checkSoftCategory(value: unknown, path: string): asserts value is SoftC
   }
   if (!isUnitFraction(value['spread'])) {
     throw new Error(`${path}.spread: expected a fraction in [0, 1)`);
+  }
+}
+
+function checkLabelAndFormula(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  if (typeof value['label'] !== 'string' || value['label'].length === 0) {
+    throw new Error(`${path}.label: expected a non-empty string`);
+  }
+  if (typeof value['formula'] !== 'string' || value['formula'].length === 0) {
+    throw new Error(`${path}.formula: expected a non-empty string`);
+  }
+}
+
+const RENO_COMPONENTS: readonly string[] = ['extensive', 'addition', 'basement'];
+
+/** Shape-check the renovation calibration section (RENO-01). */
+function checkRenoSpec(value: unknown, path: string): asserts value is RenoSpec {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  if (typeof value['draft'] !== 'boolean') {
+    throw new Error(`${path}.draft: expected a boolean`);
+  }
+  if (typeof value['draftNote'] !== 'string' || value['draftNote'].length === 0) {
+    throw new Error(`${path}.draftNote: expected a non-empty string`);
+  }
+  const components = value['components'];
+  if (!isRecord(components)) throw new Error(`${path}.components: expected an object`);
+  for (const key of RENO_COMPONENTS) {
+    const component = components[key];
+    checkLabelAndFormula(component, `${path}.components.${key}`);
+    checkTierRates(
+      (component as Record<string, unknown>)['rates'],
+      `${path}.components.${key}.rates`,
+    );
+  }
+  if (!isNonNegativeNumber(value['additionCapSqft']) || value['additionCapSqft'] === 0) {
+    throw new Error(`${path}.additionCapSqft: expected a positive number`);
+  }
+  const underpinning = value['underpinning'];
+  checkLabelAndFormula(underpinning, `${path}.underpinning`);
+  const u = underpinning as Record<string, unknown>;
+  if (!isNonNegativeNumber(u['low']) || !isNonNegativeNumber(u['high'])) {
+    throw new Error(`${path}.underpinning.low/high: expected non-negative numbers`);
+  }
+  if ((u['high'] as number) < (u['low'] as number)) {
+    throw new Error(`${path}.underpinning: high must be >= low`);
+  }
+  // Asymmetric band factors: low = base × lowFactor (≤ 1), high = base × highFactor (≥ 1).
+  const lowFactor = value['lowFactor'];
+  if (!isNonNegativeNumber(lowFactor) || lowFactor === 0 || lowFactor > 1) {
+    throw new Error(`${path}.lowFactor: expected a fraction in (0, 1]`);
+  }
+  if (
+    !isNonNegativeNumber(value['highFactor']) ||
+    (value['highFactor'] as number) < 1
+  ) {
+    throw new Error(`${path}.highFactor: expected a number >= 1`);
+  }
+  if (!Number.isInteger(value['roundTo']) || (value['roundTo'] as number) <= 0) {
+    throw new Error(`${path}.roundTo: expected a positive integer`);
+  }
+  const bounds = value['inputBounds'];
+  if (!isRecord(bounds)) throw new Error(`${path}.inputBounds: expected an object`);
+  if (!isNonNegativeNumber(bounds['minRenoSqft']) || !isNonNegativeNumber(bounds['maxRenoSqft'])) {
+    throw new Error(`${path}.inputBounds.minRenoSqft/maxRenoSqft: expected non-negative numbers`);
+  }
+  if ((bounds['minRenoSqft'] as number) > (bounds['maxRenoSqft'] as number)) {
+    throw new Error(`${path}.inputBounds: minRenoSqft must be <= maxRenoSqft`);
   }
 }
 
@@ -130,6 +197,7 @@ export function assertValidCostData(value: unknown): asserts value is CostData {
   if (!isUnitFraction(value['landSpread'])) {
     throw new Error('cost data: landSpread must be a fraction in [0, 1)');
   }
+  checkRenoSpec(value['reno'], 'cost data.reno');
 }
 
 const placeholder: unknown = rawPlaceholder;

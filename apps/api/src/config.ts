@@ -79,6 +79,11 @@ const EnvSchema = z.object({
   QUEUE_EMAIL_NAME: z.string().min(1).default('email-queue'),
   QUEUE_PDF_NAME: z.string().min(1).default('pdf-queue'),
   QUEUE_SHEETS_NAME: z.string().min(1).default('sheets-queue'),
+
+  // Reno rates are uncalibrated draft placeholders (RENO-01). Renovation
+  // estimates are refused unless this is true — and production refuses to
+  // boot on draft data even then (see composition.ts). Set it in dev only.
+  COST_ENGINE_ALLOW_DRAFT: z.coerce.boolean().default(false),
 });
 
 export interface RateLimitConfig {
@@ -116,6 +121,14 @@ export interface HealthConfig {
   readonly dbTimeoutMs: number;
 }
 
+export interface CostEngineConfig {
+  /**
+   * Whether renovation estimates may run on uncalibrated draft rate tables
+   * (RENO-01). False by default; production refuses draft data entirely.
+   */
+  readonly allowDraftCostData: boolean;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -129,6 +142,7 @@ export interface ApiConfig {
   readonly corsOrigins: readonly string[];
   readonly queues: QueueConfig;
   readonly health: HealthConfig;
+  readonly costEngine: CostEngineConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -243,6 +257,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     health: {
       dbTimeoutMs: e.HEALTH_DB_TIMEOUT_MS,
+    },
+    costEngine: {
+      allowDraftCostData: e.COST_ENGINE_ALLOW_DRAFT,
     },
   };
 }

@@ -13,6 +13,8 @@ import { estimates } from '../db/schema';
 /** The persisted shape — mirrors the contract `EstimateResponse` fields. */
 export interface EstimateRecord {
   readonly id: string;
+  /** 'new_build' | 'renovation' — which engine branch produced the row. */
+  readonly projectType: string;
   readonly addressKey: string;
   readonly inputs: unknown;
   readonly figures: unknown;
@@ -38,6 +40,7 @@ export function createDrizzleEstimateStore(
     async save(record: EstimateRecord): Promise<void> {
       await db.insert(estimates).values({
         id: record.id,
+        projectType: record.projectType,
         addressKey: record.addressKey,
         inputs: record.inputs,
         figures: record.figures,
@@ -57,6 +60,7 @@ export function createDrizzleEstimateStore(
       if (!row) return null;
       return {
         id: row.id,
+        projectType: row.projectType,
         addressKey: row.addressKey,
         inputs: row.inputs,
         figures: row.figures,

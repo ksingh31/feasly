@@ -33,6 +33,8 @@ export const estimates = pgTable(
   {
     /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
     id: uuid('id').primaryKey(),
+    /** Which engine branch produced the row: 'new_build' or 'renovation'. */
+    projectType: text('project_type').notNull().default('new_build'),
     addressKey: text('address_key').notNull(),
     /** The contract `EstimateInputs` the estimate was computed from. */
     inputs: jsonb('inputs').notNull(),
