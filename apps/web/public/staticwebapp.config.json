@@ -1,0 +1,1 @@
+{"$schema":"https://json.schemastore.org/staticwebapp.config.json","navigationFallback":{"exclude":["/assets/*","/robots.txt","/sitemap.xml"],"rewrite":"/index.html"}}
