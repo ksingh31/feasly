@@ -21,7 +21,7 @@ describe('loadConfig', () => {
         rateLimit: { windowMs: 60_000, maxRequests: 10 },
         dedupWindowDays: 90,
       },
-      auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 900 },
+      auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
       health: { dbTimeoutMs: 2_000 },

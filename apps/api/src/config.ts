@@ -63,10 +63,11 @@ const EnvSchema = z.object({
   // the existing lead instead of inserting a duplicate (BE3-003).
   LEAD_DEDUP_WINDOW_DAYS: z.coerce.number().int().positive().default(90),
 
-  // Provisional defaults — Karan has not confirmed magic-link-only V1 or the
-  // session/magic-link lifetimes. Revisit when the login ADR lands (BE-4).
+  // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
+  // or the session lifetime. Revisit when the login ADR lands (BE-4).
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
-  MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  // Magic-link lifetime decided by Karan 2026-09-24: 7 days (604_800 s).
+  MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
 
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),

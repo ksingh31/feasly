@@ -110,7 +110,7 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     if (isProblemDetails(outcome)) throw new Error(`unexpected problem: ${outcome.title}`);
     expect(outcome.leadId).toBeDefined();
     expect(outcome.magicLinkSent).toBe(false);
-    expect(outcome.expiresInDays).toBe(1);
+    expect(outcome.expiresInDays).toBe(7); // 7-day magic-link TTL (Karan decision 2026-09-24)
   });
 
   it('dedups a repeat POST inside the window (same lead id)', async () => {
