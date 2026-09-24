@@ -1,8 +1,13 @@
 /**
  * Estimate contracts. The deterministic cost engine lives server-side; the client
  * only ever receives ranges (post-gate) or blurred placeholders (pre-gate).
+ *
+ * Pre-gate and post-gate are separate types on purpose: `PreviewEstimateResponse`
+ * cannot carry a single real dollar amount — not in `figures`, not in `rows` —
+ * so a route typed to return it cannot leak figures even by accident.
+ * (Backend: BE2-002 pre-gate blur guarantee, BE3-002 preview endpoint.)
  */
-import type { CostRange, Figure } from './common';
+import type { BlurredFigure, CostRange } from './common';
 
 export type FinishTier = 'standard' | 'premium' | 'luxury';
 export type GarageOption = 'none' | 'double' | 'triple';
@@ -27,18 +32,38 @@ export interface CostRow {
   readonly range: CostRange;
 }
 
-export interface EstimateFigures {
-  readonly build: Figure;
-  readonly total: Figure;
-  readonly land: Figure;
+/**
+ * Pre-gate preview. Every figure is `{ blurred: true }` and rows is empty —
+ * assigning a real CostRange anywhere in here is a compile error.
+ */
+export interface PreviewEstimateResponse {
+  readonly estimateId: string;
+  readonly addressKey: string;
+  readonly inputs: EstimateInputs;
+  readonly figures: {
+    readonly build: BlurredFigure;
+    readonly total: BlurredFigure;
+    readonly land: BlurredFigure;
+  };
+  /** Always empty pre-gate — enforced by the type, not by convention. */
+  readonly rows: readonly [];
+  readonly costDataVersion: string;
+  readonly createdAt: string;
 }
 
+/**
+ * Post-gate estimate. Every figure is a real range — a blurred placeholder here
+ * is a compile error. Snapshots and report figures only exist after verification.
+ */
 export interface EstimateResponse {
   readonly estimateId: string;
   readonly addressKey: string;
   readonly inputs: EstimateInputs;
-  /** Pre-gate every figure is `{ blurred: true }`; rows is empty. */
-  readonly figures: EstimateFigures;
+  readonly figures: {
+    readonly build: CostRange;
+    readonly total: CostRange;
+    readonly land: CostRange;
+  };
   readonly rows: readonly CostRow[];
   readonly costDataVersion: string;
   readonly createdAt: string;

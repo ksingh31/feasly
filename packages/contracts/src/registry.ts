@@ -3,7 +3,7 @@
  * every name listed here must have a mock implementation returning exactly the
  * registered shape. Add a contract here when you add one to the barrel.
  */
-export const CONTRACTS_VERSION = '0.1.0';
+export const CONTRACTS_VERSION = '0.2.0';
 
 export const CONTRACT_NAMES = [
   'common',
