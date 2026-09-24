@@ -1,0 +1,33 @@
+    <app-site-nav />
+    <main class="wrap">
+      <app-wizard-steps [current]="3" />
+      @if (property(); as p) {
+        <app-property-card [property]="p" />
+        <dl class="inputs">
+          <div>
+            <dt>{{ copy.detailsLivingArea }}</dt>
+            <dd>{{ inputs().sqft.toLocaleString('en-CA') }} sq ft</dd>
+          </div>
+          <div>
+            <dt>{{ copy.detailsFinishTier }}</dt>
+            <dd class="cap">{{ inputs().tier }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.detailsGarage }}</dt>
+            <dd class="cap">{{ inputs().garage }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.detailsBasement }}</dt>
+            <dd class="cap">{{ inputs().basement }}</dd>
+          </div>
+        </dl>
+        <button class="cta" type="button" disabled aria-disabled="true">{{ copy.detailsPreviewCta }}</button>
+        <p class="note">{{ copy.detailsPreviewNote }}</p>
+      } @else {
+        <div class="empty">
+          <p>{{ copy.detailsEmpty }}</p>
+          <a routerLink="/">{{ copy.detailsEmptyCta }}</a>
+        </div>
+      }
+    </main>
+    <app-site-footer />

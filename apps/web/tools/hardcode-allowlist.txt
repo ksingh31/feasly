@@ -6,14 +6,12 @@
 # for when /assets/config/app-config.json is missing or malformed (FE0-002).
 apps/web/src/app/core/config/app-config.defaults.ts
 
-# Generated Angular welcome template; replaced by the real shell in FE0-004.
-# TODO(FE0-004): remove this line when the shell lands.
-apps/web/src/app/app.html
-
-# Temporary placeholder route; removed in FE1-001.
-# TODO(FE1-001): remove this line when the landing page lands.
-apps/web/src/app/placeholder-home.ts
-
 # Canned fake data for the mock API harness (FE0-003): fixture figures and
 # copy are inherently literal — the conformance specs pin every value.
 apps/web/src/app/core/api/mock-data.ts
+
+# Legal prose (FE1-001): privacy/terms change by legal review, not by deploy
+# tuning — stuffing them in app-config.json would bypass that. Copy-pinned by
+# the landing spec's route tests (pages render, links resolve).
+apps/web/src/app/features/legal/privacy-page.component.ts
+apps/web/src/app/features/legal/terms-page.component.ts

@@ -1,0 +1,35 @@
+/* Shared legal-page layout (privacy + terms). */
+
+.legal {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 120px 24px 64px;
+}
+
+.legal h1 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.legal .updated {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 32px;
+}
+
+.legal h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  margin: 32px 0 10px;
+}
+
+.legal p {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.75;
+  margin-bottom: 14px;
+}

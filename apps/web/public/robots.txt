@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# TODO(launch): confirm the production domain (feasly.com unverified as of 2026-09-24).
+Sitemap: https://feasly.com/sitemap.xml

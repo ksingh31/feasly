@@ -1,0 +1,41 @@
+.steps {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  margin: 0 0 32px;
+  padding: 0;
+}
+.step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--cream-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.step-n {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  opacity: 0.7;
+}
+.step-done {
+  color: var(--text);
+}
+.step-done .step-n {
+  color: var(--accent);
+  opacity: 1;
+}
+.step-current {
+  background: var(--canvas);
+  color: var(--on-dark);
+}
+.step-current .step-n {
+  color: var(--accent-dark);
+  opacity: 1;
+}
