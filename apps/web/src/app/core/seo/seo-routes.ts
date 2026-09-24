@@ -39,6 +39,12 @@ const ROUTES: SeoRouteConfig[] = [
     noindex: true,
   },
   {
+    pattern: 'estimate/reno-scope',
+    titleKey: 'renoScopeTitle',
+    descriptionKey: 'renoScope',
+    noindex: true,
+  },
+  {
     pattern: 'estimate/details',
     titleKey: 'detailsTitle',
     descriptionKey: 'details',

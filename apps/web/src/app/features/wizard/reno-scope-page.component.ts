@@ -31,11 +31,7 @@ export class RenoScopePageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').wizard;
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.renoScopeTitle,
-      description: this.config.get('copy').seo.renoScope,
-      path: '/estimate/reno-scope',
-    });
+    this.seo.setForRoute('estimate/reno-scope');
   }
 
   goBack(): void {

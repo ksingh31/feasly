@@ -43,6 +43,7 @@ describe('seo-routes', () => {
   it('every declared noindex pattern actually matches a concrete path', () => {
     const samples: Record<string, string> = {
       'estimate/scope': 'estimate/scope',
+      'estimate/reno-scope': 'estimate/reno-scope',
       'estimate/details': 'estimate/details',
       'estimate/report': 'estimate/report',
       '404': '404',
