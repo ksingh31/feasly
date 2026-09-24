@@ -49,6 +49,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app (production, prerendered)
+        run: npm run build --workspace @feasly/web
+
       - name: Deploy SWA preview environment
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -56,6 +67,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "apps/web"
+          output_location: "dist/web/browser"
           skip_api_build: true
           skip_app_build: true
 
@@ -125,6 +137,18 @@ jobs:
             --parameters infra/bicep/environments/dev.bicepparam \
             --parameters postgresAdminPassword="$PGPASS"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app (production, prerendered)
+        run: npm run build --workspace @feasly/web
+
       - name: Deploy web (Static Web App)
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -132,6 +156,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "apps/web"
+          output_location: "dist/web/browser"
           skip_api_build: true
           skip_app_build: true
 

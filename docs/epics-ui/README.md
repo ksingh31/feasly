@@ -50,6 +50,16 @@ not change the screen requirements.
   view-source, or prerendered HTML.
 - **Mock = contract-shaped.** `MockApiService` implements the frozen contracts with
   fixture data. Provider swap in `app.config.ts` (`useMockApi` from config).
+- **NGXS for state.** Wizard, gate, report, and embed state live in NGXS stores
+  (`@ngxs/storage-plugin` for persistence). No ad-hoc state services.
+- **No leaked subscriptions.** Every `subscribe` uses `takeUntilDestroyed()`; no bare
+  subscribes, no orphaned `setTimeout` (prefer RxJS `timer`/`delay` with takeUntil).
+- **DRY.** Shared UI in `app/shared/`, shared logic in `app/core/`. No copy-paste
+  across stories.
+- **Current packages only.** Latest stable of widely-used, maintained packages; check
+  support status before adding a dependency.
+- **Pattern review before PR.** After implementing, review the new code against the
+  patterns above before opening the PR.
 - **PR per story.** Branch `feat/<story-id>-<slug>` → PR → green CI → merge to `main`.
   Branch protection enforces it; 0-approval rule is deliberate (solo account).
 - **Tests before merge, every story:** unit specs (`*.spec.ts`), UI + functionality test
