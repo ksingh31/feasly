@@ -51,12 +51,31 @@
       "stepAddress": "Address",
       "stepScope": "Scope",
       "stepDetails": "Details",
-      "scopeNewBuildTitle": "New Build",
-      "scopeNewBuildTag": "Custom infill home",
-      "scopeNewBuildCta": "Continue →",
-      "scopeRenoTitle": "Renovation",
-      "scopeRenoTag": "Existing home",
-      "scopeRenoBadge": "Coming soon",
+      "scopeHeading": "Configure your build scope",
+      "scopeSqftLabel": "Living area",
+      "scopeSqftHint": "Approximate above-grade living area. Most Calgary infills land between 1,800 and 3,500 sq ft — a rough number is fine.",
+      "scopeSqftUnit": "sq ft",
+      "scopeTierLabel": "Finish tier",
+      "scopeTierHint": "The level of finishes throughout the home. It shapes the estimate range — there are no prices on this page.",
+      "scopeTiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "blurb": "Durable, builder-grade finishes: quartz-look counters, LVP or carpet flooring, and standard lighting and plumbing packages."
+        },
+        {
+          "id": "premium",
+          "name": "Premium",
+          "blurb": "A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer lighting and plumbing fixtures."
+        },
+        {
+          "id": "luxury",
+          "name": "Luxury",
+          "blurb": "Top shelf throughout: custom millwork, natural stone, premium appliances, spa-style bathrooms, and smart-home rough-ins."
+        }
+      ],
+      "scopeBackLabel": "← Back to address",
+      "scopeCta": "See My Preview →",
       "scopeEmpty": "No address selected yet.",
       "scopeEmptyCta": "Find your address to start →",
       "detailsLivingArea": "Living area",
@@ -69,8 +88,8 @@
       "detailsEmptyCta": "Find your address to start →"
     },
     "seo": {
-      "scopeTitle": "Feasly — Choose your project scope",
-      "scope": "Choose new build or renovation scope for your Calgary infill estimate — step 2 of 3.",
+      "scopeTitle": "Feasly — Configure your build scope",
+      "scope": "Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.",
       "detailsTitle": "Feasly — Configure your build details",
       "details": "Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.",
       "privacyTitle": "Feasly — Privacy Policy",
@@ -99,7 +118,8 @@
   },
   "wizard": {
     "sqftDefault": 2200,
-    "sqftMax": 6000,
-    "sqftMin": 800
+    "sqftMax": 4000,
+    "sqftMin": 1200,
+    "sqftStep": 50
   }
 }
