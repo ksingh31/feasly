@@ -310,6 +310,8 @@ export interface AppConfig {
       details: string;
       reportTitle: string;
       report: string;
+      sampleReportTitle: string;
+      sampleReport: string;
       gateTitle: string;
       gate: string;
       analyzingTitle: string;
