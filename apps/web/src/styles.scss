@@ -119,3 +119,26 @@ body {
   top: 12px;
   outline-color: #fff;
 }
+
+/* ── Sticky footer ────────────────────────── */
+/* Pages bring their own chrome: each page host is nav + main + footer with no
+   wrapper element, so the host itself is the flex column shell. `main` grows
+   to fill leftover space, pinning the footer to the viewport bottom on short
+   pages; on long pages the footer is pushed below the content as normal. */
+app-landing-page,
+app-scope-page,
+app-details-page,
+app-privacy-page,
+app-terms-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+app-landing-page > main,
+app-scope-page > main,
+app-details-page > main,
+app-privacy-page > main,
+app-terms-page > main {
+  flex: 1;
+}

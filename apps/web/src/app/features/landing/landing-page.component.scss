@@ -1,8 +1,7 @@
 /* S0 landing — prototype cream/charcoal/brass language. */
 
-:host {
-  display: block;
-}
+/* NOTE: the sticky-footer flex shell lives in global styles.scss (applies to
+   every page host); do not set display on :host here — it would override it. */
 
 .page {
   background: var(--cream);
@@ -15,9 +14,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Top-anchored, not centered: centering stacked the top padding on top of
+     the leftover (100svh − content) / 2, leaving a huge dead band above the
+     eyebrow and pushing the trust strip below the fold. */
+  justify-content: flex-start;
   text-align: center;
-  padding: 120px 24px 64px;
+  /* 68px = fixed nav height on desktop (12px padding × 2 + 44px brand);
+     48px breathing room below it. */
+  padding: calc(68px + 48px) 24px 64px;
 }
 
 .eyebrow {
