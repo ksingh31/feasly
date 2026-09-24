@@ -82,7 +82,7 @@ describe('LandingPageComponent', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    // Default test config has useMockApi: true → mock items, never live-data claims.
+    // Default test config has propertyData.source 'mock' → mock items, never live-data claims.
     expect(items).toEqual([
       'Range-based estimates',
       'Sample property data — live City records coming soon',
@@ -94,8 +94,8 @@ describe('LandingPageComponent', () => {
     }
   });
 
-  it('trust strip claims live City data only when the mock harness is off', async () => {
-    await setup({ api: { useMockApi: false } });
+  it('trust strip claims live City data only when live property data serves the page', async () => {
+    await setup({ propertyData: { source: 'live' } });
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
     );

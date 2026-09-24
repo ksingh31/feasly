@@ -8,7 +8,9 @@ import { ConfigService } from '../../../core/config';
  * and the address step (S1) later — built once, reused (DRY).
  *
  * Freshness line is mock-aware: sample values never masquerade as
- * City records while `api.useMockApi` is true.
+ * City records while the mock property harness is active. Keyed off
+ * `propertyData.source` (not `api.useMockApi`): the property backend is
+ * an independent switch and can be live while estimate/lead flows mock.
  */
 @Component({
   selector: 'app-property-card',
@@ -21,8 +23,8 @@ export class PropertyCardComponent {
 
   readonly property = input.required<PropertyRecord | null>();
 
-  /** True while the mock property harness is active (never claim live data). */
-  protected readonly isMockData = this.config.get('api').useMockApi;
+  /** True while the mock property harness serves the data (never claim live data). */
+  protected readonly isMockData = this.config.get('propertyData').source === 'mock';
 
   /** Mock-mode freshness copy (config-owned, no hardcode). */
   protected readonly freshnessMock = this.config.get('copy').propertyCard.freshnessMock;

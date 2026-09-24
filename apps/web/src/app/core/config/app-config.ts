@@ -106,8 +106,9 @@ export interface AppConfig {
       heroSub: string;
       trustItems: string[];
       /**
-       * Shown instead of `trustItems` while `api.useMockApi` is true: the
-       * mock harness must never claim live City data (trust rule).
+       * Shown instead of `trustItems` while the mock property harness
+       * serves the data (`propertyData.source === 'mock'`): sample values
+       * must never claim live City data (trust rule).
        */
       trustItemsMock: string[];
       howItWorksTitle: string;
@@ -162,8 +163,9 @@ export interface AppConfig {
     /** Property card (shared) copy. */
     propertyCard: {
       /**
-       * Freshness line while `api.useMockApi` is true: sample values must
-       * never masquerade as City records (trust rule).
+       * Freshness line while the mock property harness serves the data
+       * (`propertyData.source === 'mock'`): sample values must never
+       * masquerade as City records (trust rule).
        */
       freshnessMock: string;
     };
