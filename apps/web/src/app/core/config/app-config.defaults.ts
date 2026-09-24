@@ -159,6 +159,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       lowLabel: 'Low',
       baseLabel: 'Base',
       highLabel: 'High',
+      uncalibratedNote:
+        'Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.',
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my full report →',
       breakdownTitle: 'Cost breakdown',

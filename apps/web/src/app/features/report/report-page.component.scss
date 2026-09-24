@@ -1,7 +1,7 @@
 /* M1 report page (the payoff screen). Mobile-first; mirrors the wizard shell. */
 
 .report-heading {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 28px;
   font-weight: 700;
   color: var(--text);
@@ -18,7 +18,22 @@
   font-size: 15px;
   line-height: 1.5;
   color: var(--muted);
+  margin: 0 0 12px;
+}
+
+/* Uncalibrated-cost notice: visible badge while the cost model is dummy data. */
+.uncalibrated-note {
+  display: inline-block;
   margin: 0 0 20px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
 }
 
 .loading {
@@ -70,7 +85,7 @@
 }
 
 .card h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
@@ -100,7 +115,7 @@
 }
 
 .figure-card h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 700;
   color: var(--muted);
@@ -150,7 +165,7 @@
 }
 
 .range-value {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
@@ -162,7 +177,7 @@
 }
 
 .figure-range {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
@@ -278,7 +293,7 @@
 }
 
 .row-range {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
@@ -379,7 +394,7 @@
 }
 
 .stepper-value {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 22px;
   font-weight: 700;
   color: var(--text);
@@ -443,7 +458,7 @@
   border-radius: 50%;
   background: var(--accent-bg);
   color: var(--accent);
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-weight: 700;
   font-size: 15px;
   display: flex;

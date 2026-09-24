@@ -20,6 +20,9 @@
       </p>
     }
     <p class="report-sub">{{ unlocked() ? copy.subPostGate : copy.subPreGate }}</p>
+    @if (unlocked()) {
+      <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
+    }
 
     <!-- HERO: blurred pre-gate, real ranges post-gate. -->
     <section class="hero" [attr.aria-label]="copy.heading">

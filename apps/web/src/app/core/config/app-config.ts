@@ -187,6 +187,7 @@ export interface AppConfig {
       lowLabel: string;
       baseLabel: string;
       highLabel: string;
+      uncalibratedNote: string;
       lockedNote: string;
       unlockCta: string;
       breakdownTitle: string;
