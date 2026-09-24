@@ -1,12 +1,19 @@
 .inputs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   margin: 24px 0;
   padding: 24px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+/* Inputs sit side by side on desktop, matching the property card above
+   (and the scope-step 640px breakpoint); they stack cleanly on mobile. */
+@media (min-width: 640px) {
+  .inputs {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 .inputs dt {
   font-size: 11px;
