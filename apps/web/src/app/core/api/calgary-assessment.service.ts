@@ -45,6 +45,85 @@ const DETAIL_FIELDS = [
 /** Minimum query length, mirroring the autocomplete component's gate. */
 const MIN_QUERY_CHARS = 3;
 
+/**
+ * Natural street-type spellings users type, mapped to the abbreviations the
+ * City dataset actually stores. Sourced from the City of Calgary's official
+ * STREET_TYPE list (Street Names dataset hjbp-5p9j, verified 2026-09-24) plus
+ * a live 300k-row sample of the assessment dataset 4bsw-nn7w: every one of the
+ * 43 distinct street-type tokens observed is a two-letter abbreviation
+ * ("1600 90 AV SW", never "AVE"). Without this, natural input like
+ * "1600 90 Ave SW" prefix-matches zero rows and the UI reports
+ * "address not found" for valid Calgary addresses.
+ *
+ * Only the token in street-type position (immediately before a trailing
+ * quadrant, else the last token) is rewritten, so street names containing
+ * these words are never corrupted: "PARK AVE SW" -> "PARK AV SW".
+ * Tokens already abbreviated ("AV") or unknown pass through untouched.
+ */
+const STREET_TYPE_ABBREVIATIONS: Readonly<Record<string, string>> = {
+  ALLEY: 'AL',
+  AVENUE: 'AV',
+  AVE: 'AV',
+  BAY: 'BA',
+  BOULEVARD: 'BV',
+  BLVD: 'BV',
+  CAPE: 'CA',
+  CENTRE: 'CE',
+  CTR: 'CE',
+  CIRCLE: 'CI',
+  CIR: 'CI',
+  CLOSE: 'CL',
+  COMMON: 'CM',
+  COURT: 'CO',
+  CRT: 'CO',
+  COVE: 'CV',
+  CRESCENT: 'CR',
+  CRES: 'CR',
+  DRIVE: 'DR',
+  GATE: 'GA',
+  GARDEN: 'GD',
+  GARDENS: 'GD',
+  GREEN: 'GR',
+  GROVE: 'GV',
+  HEATH: 'HE',
+  HEIGHTS: 'HT',
+  HIGHWAY: 'HI',
+  HWY: 'HI',
+  HILL: 'HL',
+  ISLAND: 'IS',
+  ISLE: 'IS',
+  LANDING: 'LD',
+  LANE: 'LN',
+  LINK: 'LI',
+  MANOR: 'MR',
+  MEWS: 'ME',
+  MOUNT: 'MT',
+  PARADE: 'PR',
+  PARK: 'PA',
+  PARKWAY: 'PY',
+  PKY: 'PY',
+  PASS: 'PS',
+  PASSAGE: 'PS',
+  PATH: 'PH',
+  PLACE: 'PL',
+  PLAZA: 'PZ',
+  PLZ: 'PZ',
+  POINT: 'PT',
+  RISE: 'RI',
+  ROAD: 'RD',
+  ROW: 'RO',
+  SQUARE: 'SQ',
+  STREET: 'ST',
+  TERRACE: 'TC',
+  TERR: 'TC',
+  TRAIL: 'TR',
+  VIEW: 'VW',
+  VILLA: 'VI',
+  VILLAS: 'VI',
+  WALK: 'WK',
+  WAY: 'WY',
+};
+
 /** Trailing quadrant token stays uppercase: "16 AVE NW" -> "16 Ave NW". */
 const QUADRANT = /^(NW|NE|SW|SE)$/i;
 
@@ -82,7 +161,7 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-/** Dataset addresses are uppercase ("918 16 AVE NW"); display title-cased. */
+/** Dataset addresses are uppercase ("918 16 AV NW"); display title-cased. */
 function formatAddress(raw: string): string {
   const words = raw.trim().split(/\s+/);
   return words
@@ -133,9 +212,22 @@ export class CalgaryAssessmentService implements PropertyDataService {
     cache.set(key, { expires: Date.now() + this.config.get('propertyData').cacheTtlMs, value });
   }
 
-  /** Normalizes for SoQL prefix search: uppercase, single-spaced. */
+  /**
+   * Normalizes for SoQL prefix search: uppercase, single-spaced, and natural
+   * street-type spellings ("AVE", "STREET") rewritten to the abbreviations the
+   * City dataset stores ("AV", "ST") — see STREET_TYPE_ABBREVIATIONS.
+   */
   private normalizeQuery(query: string): string {
-    return query.trim().replace(/\s+/g, ' ').toUpperCase();
+    const tokens = query.trim().replace(/\s+/g, ' ').toUpperCase().split(' ');
+    // The street-type token sits immediately before a trailing quadrant;
+    // without a quadrant it is the last token.
+    const typeIndex =
+      tokens.length >= 2 && QUADRANT.test(tokens[tokens.length - 1])
+        ? tokens.length - 2
+        : tokens.length - 1;
+    const abbreviation = STREET_TYPE_ABBREVIATIONS[tokens[typeIndex]];
+    if (abbreviation !== undefined) tokens[typeIndex] = abbreviation;
+    return tokens.join(' ');
   }
 
   private cityUnavailable(): Observable<never> {
