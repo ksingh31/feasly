@@ -28,9 +28,22 @@
   /* Status */
   --danger: #b3261e;
   --focus-ring: rgba(168, 118, 26, 0.35);
-  /* Typography — --font-display aliases the prototype's --font-d (Syne). */
-  --font-display: 'Syne', sans-serif;
+  /* Typography — font demotion (Karan-approved rev-3 mockup, 2026-09-24).
+   * --font-wordmark  Syne — Feasly wordmark/logo ONLY.
+   * --font-headline  Manrope — hero headlines and major marketing headings.
+   * --font-ui        Instrument Sans — EVERYTHING else (form labels, wizard
+   *   steps, report UI, property cards, body copy, product numbers).
+   * Never use Syne for body or headline text: its flat-terminal lowercase
+   * "g" is the font's natural letterform, not a CSS bug (verified 2026-09-24). */
+  --font-wordmark: 'Syne', sans-serif;
+  --font-headline: 'Manrope', sans-serif;
   --font-ui: 'Instrument Sans', sans-serif;
+  /* Type scale — larger than the S0 prototype, per the approved mockup. */
+  --type-hero: clamp(34px, 5vw, 64px);
+  --type-hero-sub: clamp(18px, 2vw, 22px);
+  --type-section-body: 18px;
+  --type-step-body: 17px;
+  --type-eyebrow: 13px;
 }
 
 *,

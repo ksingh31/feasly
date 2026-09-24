@@ -11,8 +11,8 @@ import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } f
 /**
  * S0 landing (FE1-001): one job — get the address.
  *
- * Visual language locked to the prototype (cream/charcoal/brass, Syne +
- * Instrument Sans); hero content follows the story: the address question,
+ * Visual language locked to the prototype (cream/charcoal/brass; Syne wordmark,
+ * Manrope headlines, Instrument Sans UI); hero content follows the story: the address question,
  * autocomplete (3+ chars, config debounce, max 6 suggestions), and selection
  * routes to `/estimate/scope` with wizard state populated at step 2.
  * All user-facing copy comes from ConfigService (no-hardcode tripwire).
