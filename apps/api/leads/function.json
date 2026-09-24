@@ -1,1 +1,1 @@
-{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["post"],"name":"req","route":"v1/leads","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["post","options"],"name":"req","route":"v1/leads","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

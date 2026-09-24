@@ -76,7 +76,6 @@ const EnvSchema = z.object({
     .string()
     .default('')
     .transform(csvToList),
-
   QUEUE_EMAIL_NAME: z.string().min(1).default('email-queue'),
   QUEUE_PDF_NAME: z.string().min(1).default('pdf-queue'),
   QUEUE_SHEETS_NAME: z.string().min(1).default('sheets-queue'),
@@ -149,6 +148,34 @@ type ParsedEnv = z.infer<typeof EnvSchema>;
  * URL-encoded here so special characters can't break parsing). Azure Postgres
  * requires TLS, hence sslmode=require on the composed form.
  */
+/**
+ * Localhost origins the dev server (`ng serve`, port 4200) runs on. These are
+ * added to the CORS allowlist ONLY when NODE_ENV=development (HRD-01) — never
+ * in staging/production, and never in test (tests set CORS_ORIGINS explicitly).
+ */
+const DEV_LOCALHOST_ORIGINS = ['http://localhost:4200', 'http://127.0.0.1:4200'];
+
+/**
+ * Effective CORS allowlist: the explicit CORS_ORIGINS CSV, plus localhost
+ * defaults when developing locally. Env-gated here — the middleware only
+ * ever receives the resolved list, so a production deploy can never inherit
+ * dev origins by accident.
+ */
+function resolveCorsOrigins(e: ParsedEnv): readonly string[] {
+  if (e.NODE_ENV !== 'development') return e.CORS_ORIGINS;
+  const merged = [...e.CORS_ORIGINS];
+  for (const origin of DEV_LOCALHOST_ORIGINS) {
+    if (!merged.some((o) => o.toLowerCase() === origin.toLowerCase())) merged.push(origin);
+  }
+  return merged;
+}
+
+/**
+ * Prefer an explicit DATABASE_URL; otherwise compose one from the POSTGRES_*
+ * pieces the Azure Function App provides (password via Key Vault reference —
+ * URL-encoded here so special characters can't break parsing). Azure Postgres
+ * requires TLS, hence sslmode=require on the composed form.
+ */
 function resolveDatabaseUrl(e: ParsedEnv): string {
   if (e.DATABASE_URL && e.DATABASE_URL.length > 0) {
     return e.DATABASE_URL;
@@ -208,7 +235,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
     },
-    corsOrigins: e.CORS_ORIGINS,
+    corsOrigins: resolveCorsOrigins(e),
     queues: {
       email: e.QUEUE_EMAIL_NAME,
       pdf: e.QUEUE_PDF_NAME,

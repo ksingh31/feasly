@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   createComposition,
+  loadConfig,
   middleware,
   type AppComposition,
 } from '../index';
@@ -40,6 +41,20 @@ export async function leadsHandler(
   context: FunctionContext,
   req: FunctionRequest,
 ): Promise<void> {
+  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
+  // config alone — the full composition (DB pool, rate limiters) is never
+  // loaded for an OPTIONS request. Non-allowlisted origins get no
+  // Access-Control-Allow-Origin (fail-closed).
+  const origin = req.headers?.['origin'];
+  const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
+  if (middleware.isPreflight(req.method, origin)) {
+    context.res = {
+      status: 204,
+      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+    };
+    return;
+  }
+
   const app = getApp();
   const headers: Record<string, string | string[] | undefined> = {
     ...(req.headers ?? {}),
@@ -61,6 +76,7 @@ export async function leadsHandler(
       headers: {
         'Content-Type': 'application/problem+json',
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
+        ...corsHeaders,
       },
       body: result,
     };
@@ -71,6 +87,7 @@ export async function leadsHandler(
     headers: {
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
+      ...corsHeaders,
     },
     body: result,
   };
