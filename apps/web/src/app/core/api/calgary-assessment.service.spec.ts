@@ -130,6 +130,28 @@ describe('CalgaryAssessmentService', () => {
         );
       });
 
+      it('covers the official City street-type list (Cape, Centre, Highway, Mount, Path, Villas)', async () => {
+        // Verified against the City's STREET_TYPE list (dataset hjbp-5p9j).
+        await expect(whereFor('120 coral shores cape ne')).resolves.toBe(
+          "starts_with(upper(address),'120 CORAL SHORES CA NE')",
+        );
+        await expect(whereFor('142 bowness centre nw')).resolves.toBe(
+          "starts_with(upper(address),'142 BOWNESS CE NW')",
+        );
+        await expect(whereFor('trans canada highway')).resolves.toBe(
+          "starts_with(upper(address),'TRANS CANADA HI')",
+        );
+        await expect(whereFor('24 discovery ridge mount sw')).resolves.toBe(
+          "starts_with(upper(address),'24 DISCOVERY RIDGE MT SW')",
+        );
+        await expect(whereFor('4 prominence path sw')).resolves.toBe(
+          "starts_with(upper(address),'4 PROMINENCE PH SW')",
+        );
+        await expect(whereFor('214 coral keys villas ne')).resolves.toBe(
+          "starts_with(upper(address),'214 CORAL KEYS VI NE')",
+        );
+      });
+
       it('leaves unknown tokens alone', async () => {
         await expect(whereFor('kensington')).resolves.toBe(
           "starts_with(upper(address),'KENSINGTON')",

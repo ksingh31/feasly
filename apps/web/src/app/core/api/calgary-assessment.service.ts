@@ -47,11 +47,13 @@ const MIN_QUERY_CHARS = 3;
 
 /**
  * Natural street-type spellings users type, mapped to the abbreviations the
- * City dataset actually stores. Derived from a 50k-row live sample of dataset
- * 4bsw-nn7w (2026-09-24): every one of the 45 distinct street-type tokens is a
- * two-letter abbreviation ("1600 90 AV SW", never "AVE"). Without this,
- * natural input like "1600 90 Ave SW" prefix-matches zero rows and the UI
- * reports "address not found" for valid Calgary addresses.
+ * City dataset actually stores. Sourced from the City of Calgary's official
+ * STREET_TYPE list (Street Names dataset hjbp-5p9j, verified 2026-09-24) plus
+ * a live 300k-row sample of the assessment dataset 4bsw-nn7w: every one of the
+ * 43 distinct street-type tokens observed is a two-letter abbreviation
+ * ("1600 90 AV SW", never "AVE"). Without this, natural input like
+ * "1600 90 Ave SW" prefix-matches zero rows and the UI reports
+ * "address not found" for valid Calgary addresses.
  *
  * Only the token in street-type position (immediately before a trailing
  * quadrant, else the last token) is rewritten, so street names containing
@@ -59,55 +61,67 @@ const MIN_QUERY_CHARS = 3;
  * Tokens already abbreviated ("AV") or unknown pass through untouched.
  */
 const STREET_TYPE_ABBREVIATIONS: Readonly<Record<string, string>> = {
+  ALLEY: 'AL',
   AVENUE: 'AV',
   AVE: 'AV',
+  BAY: 'BA',
   BOULEVARD: 'BV',
   BLVD: 'BV',
-  STREET: 'ST',
-  DRIVE: 'DR',
-  CRESCENT: 'CR',
-  CRES: 'CR',
-  ROAD: 'RD',
-  PLACE: 'PL',
-  WAY: 'WY',
-  CLOSE: 'CL',
+  CAPE: 'CA',
+  CENTRE: 'CE',
+  CTR: 'CE',
   CIRCLE: 'CI',
   CIR: 'CI',
+  CLOSE: 'CL',
+  COMMON: 'CM',
   COURT: 'CO',
   CRT: 'CO',
-  PARK: 'PA',
-  PARADE: 'PR',
-  PARKWAY: 'PY',
-  PKY: 'PY',
-  TERRACE: 'TC',
-  MANOR: 'MR',
-  GREEN: 'GR',
-  COMMON: 'CM',
+  COVE: 'CV',
+  CRESCENT: 'CR',
+  CRES: 'CR',
+  DRIVE: 'DR',
+  GATE: 'GA',
   GARDEN: 'GD',
   GARDENS: 'GD',
-  VIEW: 'VW',
-  RISE: 'RI',
-  BAY: 'BA',
-  HEIGHTS: 'HT',
-  POINT: 'PT',
-  LANDING: 'LD',
-  SQUARE: 'SQ',
+  GREEN: 'GR',
   GROVE: 'GV',
-  MEWS: 'ME',
-  LANE: 'LN',
-  WALK: 'WK',
-  LINK: 'LI',
-  VISTA: 'VI',
-  HILL: 'HL',
-  GATE: 'GA',
-  PLAZA: 'PZ',
-  TRAIL: 'TR',
   HEATH: 'HE',
-  COVE: 'CV',
-  ROW: 'RO',
-  PASS: 'PS',
+  HEIGHTS: 'HT',
+  HIGHWAY: 'HI',
+  HWY: 'HI',
+  HILL: 'HL',
   ISLAND: 'IS',
   ISLE: 'IS',
+  LANDING: 'LD',
+  LANE: 'LN',
+  LINK: 'LI',
+  MANOR: 'MR',
+  MEWS: 'ME',
+  MOUNT: 'MT',
+  PARADE: 'PR',
+  PARK: 'PA',
+  PARKWAY: 'PY',
+  PKY: 'PY',
+  PASS: 'PS',
+  PASSAGE: 'PS',
+  PATH: 'PH',
+  PLACE: 'PL',
+  PLAZA: 'PZ',
+  PLZ: 'PZ',
+  POINT: 'PT',
+  RISE: 'RI',
+  ROAD: 'RD',
+  ROW: 'RO',
+  SQUARE: 'SQ',
+  STREET: 'ST',
+  TERRACE: 'TC',
+  TERR: 'TC',
+  TRAIL: 'TR',
+  VIEW: 'VW',
+  VILLA: 'VI',
+  VILLAS: 'VI',
+  WALK: 'WK',
+  WAY: 'WY',
 };
 
 /** Trailing quadrant token stays uppercase: "16 AVE NW" -> "16 Ave NW". */
