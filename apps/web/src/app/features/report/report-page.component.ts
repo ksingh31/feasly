@@ -138,11 +138,7 @@ export class ReportPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.reportTitle,
-      description: this.config.get('copy').seo.report,
-      path: '/estimate/report',
-    });
+    this.seo.setForRoute('estimate/report');
     this.sqftDraft.set(this.wizardInputs().sqft);
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());

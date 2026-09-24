@@ -16,6 +16,17 @@ apps/web/src/app/core/api/mock-data.ts
 apps/web/src/app/features/legal/privacy-page.component.ts
 apps/web/src/app/features/legal/terms-page.component.ts
 
+# Branded 404 copy (SEO-01): the exact strings are pinned by the story's
+# acceptance criteria — they change by product decision, not by deploy
+# tuning. Copy-pinned by not-found-page.component.spec.ts.
+apps/web/src/app/features/not-found/not-found-page.component.ts
+
+# The `/404` route path (SEO-01): 404 is the HTTP status code — a web
+# standard, not a tunable. The no-hardcode tripwire's magic-number rule
+# cannot distinguish it from a tunable threshold.
+apps/web/src/app/app.routes.ts
+apps/web/src/app/core/seo/seo-routes.ts
+
 # Labelled sample report (seo/09): canned fictional data — the address,
 # figures, and banner copy are inherently literal, exactly like mock-data.ts
 # above. Every value is pinned by sample-report-page.component.spec.ts.

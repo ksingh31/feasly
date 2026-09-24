@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { robotsGuard } from './robots.guard';
 
-/** QA audit P2: /estimate/* routes carry noindex; other routes remove it. */
+/** SEO-01: /estimate/* and other private routes carry noindex,nofollow; other routes remove it. */
 describe('robotsGuard', () => {
   function runGuard(data: Record<string, unknown>): boolean | unknown {
     TestBed.resetTestingModule();
@@ -18,7 +18,7 @@ describe('robotsGuard', () => {
 
   it('sets robots=noindex when route data opts in', () => {
     expect(runGuard({ noindex: true })).toBe(true);
-    expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex');
+    expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
   });
 
   it('removes the robots tag on ordinary routes', () => {

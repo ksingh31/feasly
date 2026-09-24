@@ -29,9 +29,10 @@
     "build": "ng build",
     "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs",
     "ng": "ng",
-    "prebuild": "npm run build --workspace @feasly/contracts",
+    "prebuild": "npm run build --workspace @feasly/contracts && node tools/apply-site-url.mjs",
     "start": "ng serve",
     "test": "ng test",
+    "verify:seo": "ng build --configuration=production && node tools/check-prerender-seo.mjs",
     "watch": "ng build --watch --configuration development"
   },
   "version": "0.1.0"

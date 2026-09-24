@@ -1,2 +1,5 @@
 /
+/privacy
+/terms
+/404
 /sample-report

@@ -312,6 +312,8 @@ export interface AppConfig {
     };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {
+      landingTitle: string;
+      landing: string;
       scopeTitle: string;
       scope: string;
       renoScopeTitle: string;
@@ -332,6 +334,8 @@ export interface AppConfig {
       privacy: string;
       termsTitle: string;
       terms: string;
+      notFoundTitle: string;
+      notFound: string;
     };
   };
 }

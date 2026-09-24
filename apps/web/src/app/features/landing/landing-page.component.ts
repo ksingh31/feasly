@@ -55,12 +55,7 @@ export class LandingPageComponent implements OnInit {
   private readonly autocomplete?: AddressAutocompleteComponent;
 
   ngOnInit(): void {
-    const siteName = this.config.get('site').name;
-    this.seo.setPage({
-      title: `${siteName} — ${this.copy.heroTitle}`,
-      description: this.copy.heroSub,
-      path: '/',
-    });
+    this.seo.setForRoute('');
   }
 
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */

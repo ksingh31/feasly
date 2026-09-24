@@ -1,5 +1,4 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent } from '../../shared/components/site-footer/site-footer.component';
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
@@ -52,13 +51,8 @@ import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.comp
 })
 export class TermsPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
-  private readonly config = inject(ConfigService);
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.termsTitle,
-      description: this.config.get('copy').seo.terms,
-      path: '/terms',
-    });
+    this.seo.setForRoute('terms');
   }
 }
