@@ -1,0 +1,179 @@
+/* S5 estimate preview step. Mobile-first; mirrors the wizard shell. */
+
+/* Back link uses the shared .back class from the wizard shell. */
+
+.preview-heading {
+  font-family: var(--font-ui);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 8px 0 20px;
+}
+
+/* Visible estimate basis: chosen sqft + tier (labels reused from the
+   details step; two-up on desktop, stacked on mobile). */
+.inputs-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+@media (min-width: 640px) {
+  .inputs-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.inputs-summary dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.inputs-summary dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cap {
+  text-transform: capitalize;
+}
+
+.loading {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.error-card {
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--text);
+}
+
+.error-card .cta {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.ready-note {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 28px 0 16px;
+}
+
+/* Blurred pre-gate figures: total as the hero, build below; side by side
+   on desktop. */
+.figures {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .figures {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+}
+
+.figure-card {
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.figure-card h2 {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 12px;
+}
+
+.hero-total {
+  border-width: 2px;
+}
+
+/* Blurred pre-gate placeholders: view-source reveals nothing real. */
+.blur-value {
+  margin: 0;
+  user-select: none;
+}
+
+/* CSS-only locked placeholder: no fake dollar figures in markup. */
+.blur-bar {
+  display: inline-block;
+  height: 1em;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
+  background-size: 200% 100%;
+  animation: blur-shimmer 2.4s ease-in-out infinite;
+  font-size: 32px;
+  vertical-align: middle;
+}
+
+.blur-bar-lg {
+  width: 7ch;
+}
+
+.blur-bar-sm {
+  width: 5.5ch;
+}
+
+@keyframes blur-shimmer {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blur-bar {
+    animation: none;
+  }
+}
+
+.locked-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+
+.tier-hint {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 20px 0 0;
+}
+
+/* The one "Unlock" CTA in the flow: full-width primary (base button
+   styling lives in the shared wizard shell). */
+.cta.unlock {
+  width: 100%;
+  margin-top: 16px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -63,6 +63,7 @@ describe('DetailsPageComponent', () => {
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },
           { path: 'estimate/details', component: BlankComponent },
+          { path: 'estimate/preview', component: BlankComponent },
           { path: 'estimate/reno-scope', component: BlankComponent },
         ]),
         provideStore([WizardState]),
@@ -117,10 +118,19 @@ describe('DetailsPageComponent', () => {
     expect(store.selectSnapshot(WizardState.step)).toBe(2);
   });
 
-  it('keeps the disabled preview CTA and next-build note as-is', () => {
-    const cta = fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement;
-    expect(cta.disabled).toBe(true);
-    expect(cta.getAttribute('aria-disabled')).toBe('true');
-    expect(fixture.nativeElement.textContent).toMatch(/next build/i);
+  it('renders an enabled preview CTA toward /estimate/preview (no next-build note)', () => {
+    const cta = fixture.nativeElement.querySelector('a.cta') as HTMLAnchorElement;
+    expect(cta).not.toBeNull();
+    expect(cta.getAttribute('href')).toBe('/estimate/preview');
+    expect(fixture.nativeElement.textContent).not.toMatch(/next build/i);
+  });
+
+  it('navigates to /estimate/preview while keeping wizard state', async () => {
+    (fixture.nativeElement.querySelector('a.cta') as HTMLAnchorElement).click();
+    fixture.detectChanges();
+    await pollUrl('/estimate/preview');
+
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+    expect(store.selectSnapshot(WizardState.property)?.addressKey).toBe('calgary-918-16-ave-nw');
   });
 });

@@ -21,8 +21,7 @@
             <dd class="cap">{{ inputs().basement }}</dd>
           </div>
         </dl>
-        <button class="cta" type="button" disabled aria-disabled="true">{{ copy.detailsPreviewCta }}</button>
-        <p class="note">{{ copy.detailsPreviewNote }}</p>
+        <a class="cta" routerLink="/estimate/preview">{{ copy.detailsPreviewCta }}</a>
         <div class="back-wrap">
           <a class="back" routerLink="/estimate/scope" (click)="goBack()">{{ copy.detailsBackLabel }}</a>
         </div>

@@ -170,10 +170,20 @@ export interface AppConfig {
       detailsGarage: string;
       detailsBasement: string;
       detailsPreviewCta: string;
-      detailsPreviewNote: string;
       detailsEmpty: string;
       detailsEmptyCta: string;
       detailsBackLabel: string;
+    };
+    /**
+     * Estimate preview step (S5) copy — the single lead-gate point.
+     * Figure labels, the locked note, and the one "Unlock" CTA live with the
+     * report copy (single source); the loading/error/retry strings are reused
+     * from there too. Nothing here may carry ±, %, or accuracy claims.
+     */
+    preview: {
+      heading: string;
+      readyNote: string;
+      backLabel: string;
     };
     /** Property card (shared) copy. */
     propertyCard: {
@@ -308,6 +318,8 @@ export interface AppConfig {
       renoScope: string;
       detailsTitle: string;
       details: string;
+      previewTitle: string;
+      preview: string;
       reportTitle: string;
       report: string;
       sampleReportTitle: string;
