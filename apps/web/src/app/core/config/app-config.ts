@@ -173,6 +173,7 @@ export interface AppConfig {
       detailsPreviewNote: string;
       detailsEmpty: string;
       detailsEmptyCta: string;
+      detailsBackLabel: string;
     };
     /** Property card (shared) copy. */
     propertyCard: {

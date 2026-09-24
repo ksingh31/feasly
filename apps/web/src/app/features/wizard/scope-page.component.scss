@@ -153,23 +153,6 @@
   width: 100%;
 }
 
-.back {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 10px 16px;
-}
-
-.back:hover {
-  text-decoration: underline;
-}
-
 @media (min-width: 640px) {
   .actions {
     flex-direction: row;
@@ -180,10 +163,6 @@
   .actions .cta {
     width: auto;
     flex: 0 1 320px;
-  }
-
-  .back {
-    justify-content: flex-start;
   }
 }
 
