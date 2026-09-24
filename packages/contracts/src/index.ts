@@ -18,3 +18,4 @@ export * from './embed';
 export * from './community';
 export * from './error';
 export * from './registry';
+export * from './privacy';
