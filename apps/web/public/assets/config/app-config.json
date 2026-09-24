@@ -115,6 +115,68 @@
       "detailsEmpty": "No address selected yet.",
       "detailsEmptyCta": "Find your address to start →"
     },
+    "gate": {
+      "heading": "Where should we send your estimate?",
+      "sub": "One quick step and your personalized cost report is on its way. We only email what you ask for — no spam, no sales calls.",
+      "nameLabel": "Full name",
+      "namePlaceholder": "Jane Doe",
+      "nameRequired": "Please enter your name.",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "jane@example.com",
+      "emailRequired": "Please enter your email address.",
+      "emailInvalid": "That email doesn’t look right — please check it and try again.",
+      "phoneLabel": "Phone",
+      "phonePlaceholder": "(403) 555-0123",
+      "optionalMarker": "(optional)",
+      "phoneInvalid": "That phone number doesn’t look right — digits and basic punctuation only.",
+      "phonePattern": "^[+()\\-.\\s\\d]{7,20}$",
+      "timelineLabel": "When are you looking to build?",
+      "timelinePlaceholder": "Choose one…",
+      "timelineOptions": [
+        {
+          "id": "0-3mo",
+          "label": "Within 3 months"
+        },
+        {
+          "id": "3-6mo",
+          "label": "3–6 months"
+        },
+        {
+          "id": "6-12mo",
+          "label": "6–12 months"
+        },
+        {
+          "id": "12+mo",
+          "label": "12+ months"
+        },
+        {
+          "id": "exploring",
+          "label": "Just exploring"
+        }
+      ],
+      "caslLabel": "It’s okay to email me occasional updates about Feasly and Calgary infill costs. I can unsubscribe anytime.",
+      "privacyNote": "We only use your details to deliver your estimate — never sold, never shared. See our",
+      "privacyLinkLabel": "Privacy Policy",
+      "submitLabel": "Unlock My Preview →",
+      "submittingLabel": "Sending…",
+      "submitError": "We couldn’t save your details. Please check your connection and try again.",
+      "retryLabel": "Try again",
+      "backLabel": "← Back to scope"
+    },
+    "analyzing": {
+      "heading": "Building your estimate…",
+      "sub": "Give us a moment — we’re pulling your property details and running the numbers for real. Nothing here is made up.",
+      "stageValidate": "Checking your inputs",
+      "stageFetch": "Fetching your City property record",
+      "stageEstimate": "Running your cost estimate",
+      "statusPending": "Waiting",
+      "statusActive": "In progress",
+      "statusDone": "Done",
+      "statusError": "Failed",
+      "errorHeading": "We couldn’t build your estimate",
+      "errorBody": "Something went wrong on our end. Nothing was lost — please try again.",
+      "retryLabel": "Try again"
+    },
     "seo": {
       "scopeTitle": "Feasly — Configure your build scope",
       "scope": "Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.",
@@ -122,6 +184,10 @@
       "renoScope": "Describe your Calgary renovation — type, area, and finishes — step 2 of 3.",
       "detailsTitle": "Feasly — Configure your build details",
       "details": "Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.",
+      "gateTitle": "Feasly — Get your estimate",
+      "gate": "Enter your details to unlock your personalized Calgary infill cost estimate.",
+      "analyzingTitle": "Feasly — Building your estimate",
+      "analyzing": "We’re preparing your personalized Calgary infill cost estimate right now.",
       "privacyTitle": "Feasly — Privacy Policy",
       "privacy": "How Feasly collects, uses, and protects your information when you generate a build estimate.",
       "termsTitle": "Feasly — Terms of Use",

@@ -6,7 +6,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, GoToStep, ResetWizard, SelectProperty, UpdateInputs } from './wizard.actions';
+import { ChooseProjectType, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateInputs } from './wizard.actions';
 import { WizardState, type WizardStateModel } from './wizard.state';
 
 /** FE1-001: wizard state transitions + config-seeded input defaults. */
@@ -86,6 +86,28 @@ describe('WizardState', () => {
     expect(state.property).toBeNull();
     expect(state.step).toBe(1);
     expect(state.inputs.sqft).toBe(2200);
+  });
+
+  it('preview starts null; StorePreviewEstimate stores it; ResetWizard clears it', () => {
+    expect(snapshot().preview).toBeNull();
+    const preview = {
+      estimateId: 'est-mock-2200-standard',
+      addressKey: fakeProperty.addressKey,
+      inputs: snapshot().inputs,
+      figures: {
+        build: { blurred: true },
+        total: { blurred: true },
+        land: { blurred: true },
+      },
+      rows: [],
+      costDataVersion: 'mock-v1',
+      createdAt: '2026-09-24T00:00:00.000Z',
+    } as const;
+    store.dispatch(new StorePreviewEstimate(preview));
+    expect(snapshot().preview?.estimateId).toBe('est-mock-2200-standard');
+    expect(store.selectSnapshot(WizardState.preview)?.estimateId).toBe('est-mock-2200-standard');
+    store.dispatch(new ResetWizard());
+    expect(snapshot().preview).toBeNull();
   });
 
   it('selectors expose property, inputs, and step', () => {

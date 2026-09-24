@@ -1,4 +1,4 @@
-import type { EstimateInputs, PropertyRecord } from '@feasly/contracts';
+import type { EstimateInputs, PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 
 /** Project types the wizard supports: new builds (M1) and renovations (RENO-02). */
 export type ProjectType = 'new-build' | 'renovation';
@@ -33,4 +33,14 @@ export class GoToStep {
 /** NGXS action: start over (used by "Estimate another address"). */
 export class ResetWizard {
   static readonly type = '[Wizard] Reset';
+}
+
+/**
+ * NGXS action: the analyzing screen finished the real estimate pipeline and
+ * stored the blurred pre-gate preview. The report page reads it from here —
+ * it is persisted by the storage plugin, so a refresh keeps the preview.
+ */
+export class StorePreviewEstimate {
+  static readonly type = '[Wizard] Store preview estimate';
+  constructor(public readonly preview: PreviewEstimateResponse) {}
 }

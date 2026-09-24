@@ -122,6 +122,10 @@ export class ReportState {
   reviseReport(ctx: StateContext<ReportStateModel>, action: ReviseReport): void {
     const token = ctx.getState().reportToken;
     if (!token) {
+      // No token (e.g. after a reload — the token is memory-only by design).
+      // Fail honestly with the inline error instead of silently doing nothing:
+      // the magic-link email is the only re-verification path.
+      this.fail(ctx);
       return;
     }
     this.beginLoad(ctx);
