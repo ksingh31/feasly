@@ -77,10 +77,10 @@ describe('CalgaryAssessmentService', () => {
   describe('autocomplete', () => {
     it('queries Socrata with a prefix search on the normalized query', async () => {
       const pending = firstValueFrom(service.autocomplete('16 ave'));
-      const req = expectSearch('16 AVE');
+      const req = expectSearch('16 AV');
       expect(req.request.params.get('$select')).toBe('address,comm_name');
       expect(req.request.params.get('$where')).toBe(
-        "starts_with(upper(address),'16 AVE')",
+        "starts_with(upper(address),'16 AV')",
       );
       expect(req.request.params.get('$order')).toBe('address');
       expect(req.request.params.get('$limit')).toBe('50');
@@ -89,10 +89,80 @@ describe('CalgaryAssessmentService', () => {
       expect(res.suggestions).toEqual([]);
     });
 
+    describe('street-type normalization', () => {
+      async function whereFor(input: string): Promise<string | null> {
+        const pending = firstValueFrom(service.autocomplete(input));
+        const req = httpMock.expectOne((r) => r.url === RESOURCE);
+        const where = req.request.params.get('$where');
+        req.flush([]);
+        await pending;
+        return where;
+      }
+
+      it('rewrites AVE to the dataset abbreviation AV', async () => {
+        await expect(whereFor('1600 90 ave sw')).resolves.toBe(
+          "starts_with(upper(address),'1600 90 AV SW')",
+        );
+      });
+
+      it('rewrites full spellings like STREET to ST', async () => {
+        await expect(whereFor('101 9 street nw')).resolves.toBe(
+          "starts_with(upper(address),'101 9 ST NW')",
+        );
+      });
+
+      it('rewrites the type token even without a trailing quadrant', async () => {
+        await expect(whereFor('16 avenue')).resolves.toBe(
+          "starts_with(upper(address),'16 AV')",
+        );
+      });
+
+      it('leaves already-abbreviated queries untouched', async () => {
+        await expect(whereFor('1600 90 av sw')).resolves.toBe(
+          "starts_with(upper(address),'1600 90 AV SW')",
+        );
+      });
+
+      it('never rewrites a street name that contains a type word', async () => {
+        // PARK is the street name here; only AVE (the type token) is rewritten.
+        await expect(whereFor('park ave sw')).resolves.toBe(
+          "starts_with(upper(address),'PARK AV SW')",
+        );
+      });
+
+      it('covers the official City street-type list (Cape, Centre, Highway, Mount, Path, Villas)', async () => {
+        // Verified against the City's STREET_TYPE list (dataset hjbp-5p9j).
+        await expect(whereFor('120 coral shores cape ne')).resolves.toBe(
+          "starts_with(upper(address),'120 CORAL SHORES CA NE')",
+        );
+        await expect(whereFor('142 bowness centre nw')).resolves.toBe(
+          "starts_with(upper(address),'142 BOWNESS CE NW')",
+        );
+        await expect(whereFor('trans canada highway')).resolves.toBe(
+          "starts_with(upper(address),'TRANS CANADA HI')",
+        );
+        await expect(whereFor('24 discovery ridge mount sw')).resolves.toBe(
+          "starts_with(upper(address),'24 DISCOVERY RIDGE MT SW')",
+        );
+        await expect(whereFor('4 prominence path sw')).resolves.toBe(
+          "starts_with(upper(address),'4 PROMINENCE PH SW')",
+        );
+        await expect(whereFor('214 coral keys villas ne')).resolves.toBe(
+          "starts_with(upper(address),'214 CORAL KEYS VI NE')",
+        );
+      });
+
+      it('leaves unknown tokens alone', async () => {
+        await expect(whereFor('kensington')).resolves.toBe(
+          "starts_with(upper(address),'KENSINGTON')",
+        );
+      });
+    });
+
     it('maps rows to suggestions with formatted addresses, deduped', async () => {
       const pending = firstValueFrom(service.autocomplete('16 ave'));
       // Same address twice (two parcels) collapses to one suggestion.
-      expectSearch('16 AVE').flush([ROW_918, { ...ROW_918, assessed_value: '900000' }, ROW_222]);
+      expectSearch('16 AV').flush([ROW_918, { ...ROW_918, assessed_value: '900000' }, ROW_222]);
       const res = await pending;
       expect(res.suggestions).toEqual([
         {
@@ -111,7 +181,7 @@ describe('CalgaryAssessmentService', () => {
     it('caps suggestions at the configured limit', async () => {
       await wire({ limits: { autocompleteSuggestionLimit: 1 } });
       const pending = firstValueFrom(service.autocomplete('16 ave'));
-      expectSearch('16 AVE').flush([ROW_918, ROW_222]);
+      expectSearch('16 AV').flush([ROW_918, ROW_222]);
       const res = await pending;
       expect(res.suggestions).toHaveLength(1);
     });
@@ -138,7 +208,7 @@ describe('CalgaryAssessmentService', () => {
 
     it('maps transport failures to a retryable city_data_unavailable error', async () => {
       const pending = firstValueFrom(service.autocomplete('16 ave'));
-      expectSearch('16 AVE').flush('boom', { status: 500, statusText: 'Server Error' });
+      expectSearch('16 AV').flush('boom', { status: 500, statusText: 'Server Error' });
       await expect(pending).rejects.toMatchObject({
         code: 'city_data_unavailable',
         retryable: true,
@@ -157,7 +227,7 @@ describe('CalgaryAssessmentService', () => {
 
     it('caches repeated queries within the TTL', async () => {
       const first = firstValueFrom(service.autocomplete('16 ave'));
-      expectSearch('16 AVE').flush([ROW_918]);
+      expectSearch('16 AV').flush([ROW_918]);
       expect((await first).suggestions).toHaveLength(1);
       // Second identical query: served from cache, no new HTTP.
       const second = await firstValueFrom(service.autocomplete('16 ave'));
