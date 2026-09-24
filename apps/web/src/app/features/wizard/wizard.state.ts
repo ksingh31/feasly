@@ -19,7 +19,7 @@ const WizardStateName = 'wizard';
 export interface WizardStateModel {
   /** Selected City property record. Null until the user picks an address. */
   property: PropertyRecord | null;
-  /** M1 supports new builds only; reno arrives in FE-2. */
+  /** New build or renovation (RENO-02); null until the user picks on the scope step. */
   projectType: ProjectType | null;
   /** Scope/detail inputs for the estimate request. */
   inputs: EstimateInputs;
@@ -29,8 +29,8 @@ export interface WizardStateModel {
 
 /**
  * Wizard state (FE1-001): the single source of truth for the estimate flow.
- * Persisted to localStorage via the NGXS storage plugin — property and
- * inputs only; nothing sensitive is stored pre-gate (no email/name here).
+ * Persisted to localStorage via the NGXS storage plugin — property, project
+ * type, and inputs only; nothing sensitive is stored pre-gate (no email/name here).
  */
 @State<WizardStateModel>({
   name: WizardStateName,
@@ -80,6 +80,11 @@ export class WizardState implements NgxsOnInit {
   @Selector()
   static step(state: WizardStateModel): WizardStep {
     return state.step;
+  }
+
+  @Selector()
+  static projectType(state: WizardStateModel): ProjectType | null {
+    return state.projectType;
   }
 
   @Action(SelectProperty)

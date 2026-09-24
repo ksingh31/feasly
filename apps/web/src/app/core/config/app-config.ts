@@ -153,6 +153,18 @@ export interface AppConfig {
       scopeCta: string;
       scopeEmpty: string;
       scopeEmptyCta: string;
+      /**
+       * Project-type selector (RENO-02): both cards enabled, no "coming soon".
+       * `id`s must match the ProjectType union in the wizard actions.
+       */
+      scopeProjectTypeLabel: string;
+      scopeProjectTypes: { id: 'new-build' | 'renovation'; name: string; blurb: string }[];
+      /** Shown under the cards when Renovation is selected (no prices, ever). */
+      renoSelectedNote: string;
+      /** Placeholder for the reno scope-inputs step until RENO-03 builds it. */
+      renoScopePendingTitle: string;
+      renoScopePendingBody: string;
+      renoScopeBackLabel: string;
       detailsLivingArea: string;
       detailsFinishTier: string;
       detailsGarage: string;
@@ -235,6 +247,8 @@ export interface AppConfig {
     seo: {
       scopeTitle: string;
       scope: string;
+      renoScopeTitle: string;
+      renoScope: string;
       detailsTitle: string;
       details: string;
       reportTitle: string;

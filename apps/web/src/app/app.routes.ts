@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
+import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
@@ -15,6 +16,14 @@ export const routes: Routes = [
   {
     path: 'estimate/scope',
     component: ScopePageComponent,
+    canActivate: [robotsGuard, wizardPropertyGuard],
+    data: { noindex: true },
+  },
+  // Reno scope-inputs step (RENO-02 placeholder, RENO-03 builds the real
+  // page): deep links without a selected property bounce to the address step.
+  {
+    path: 'estimate/reno-scope',
+    component: RenoScopePageComponent,
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },

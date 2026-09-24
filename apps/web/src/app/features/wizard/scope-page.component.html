@@ -6,52 +6,83 @@
 
         <h1 class="scope-heading">{{ copy.scopeHeading }}</h1>
 
-        <section class="scope-section" aria-labelledby="sqft-label">
-          <div class="section-head">
-            <h2 id="sqft-label">{{ copy.scopeSqftLabel }}</h2>
-            <output class="sqft-value" [attr.aria-live]="'polite'">{{ inputs().sqft.toLocaleString('en-CA') }} {{ copy.scopeSqftUnit }}</output>
-          </div>
-          <p class="hint">{{ copy.scopeSqftHint }}</p>
-          <input
-            class="sqft-slider"
-            type="range"
-            [min]="wizard.sqftMin"
-            [max]="wizard.sqftMax"
-            [step]="wizard.sqftStep"
-            [value]="inputs().sqft"
-            (input)="onSqftInput($event)"
-            [attr.aria-label]="copy.scopeSqftLabel"
-          />
-          <div class="slider-scale" aria-hidden="true">
-            <span>{{ wizard.sqftMin.toLocaleString('en-CA') }}</span>
-            <span>{{ wizard.sqftMax.toLocaleString('en-CA') }}</span>
-          </div>
-        </section>
-
-        <section class="scope-section" aria-labelledby="tier-label">
-          <h2 id="tier-label">{{ copy.scopeTierLabel }}</h2>
-          <p class="hint">{{ copy.scopeTierHint }}</p>
-          <div class="tiers" role="radiogroup" [attr.aria-label]="copy.scopeTierLabel">
-            @for (tier of copy.scopeTiers; track tier.id) {
+        <section class="scope-section" aria-labelledby="ptype-label">
+          <h2 id="ptype-label">{{ copy.scopeProjectTypeLabel }}</h2>
+          <div
+            class="ptypes"
+            role="radiogroup"
+            [attr.aria-label]="copy.scopeProjectTypeLabel"
+            (keydown)="onProjectTypeKeydown($event)"
+          >
+            @for (pt of copy.scopeProjectTypes; track pt.id) {
               <button
-                class="tier-card"
+                class="ptype-card"
                 type="button"
                 role="radio"
-                [attr.data-tier]="tier.id"
-                [attr.aria-checked]="inputs().tier === tier.id"
-                [class.selected]="inputs().tier === tier.id"
-                (click)="chooseTier(tier.id)"
+                [attr.data-ptype]="pt.id"
+                [attr.aria-checked]="projectType() === pt.id"
+                [class.selected]="projectType() === pt.id"
+                (click)="chooseProjectType(pt.id)"
               >
-                <span class="tier-name">{{ tier.name }}</span>
-                <span class="tier-blurb">{{ tier.blurb }}</span>
+                <span class="ptype-name">{{ pt.name }}</span>
+                <span class="ptype-blurb">{{ pt.blurb }}</span>
               </button>
             }
           </div>
         </section>
 
+        @if (projectType() === 'new-build') {
+          <section class="scope-section" aria-labelledby="sqft-label">
+            <div class="section-head">
+              <h2 id="sqft-label">{{ copy.scopeSqftLabel }}</h2>
+              <output class="sqft-value" [attr.aria-live]="'polite'">{{ inputs().sqft.toLocaleString('en-CA') }} {{ copy.scopeSqftUnit }}</output>
+            </div>
+            <p class="hint">{{ copy.scopeSqftHint }}</p>
+            <input
+              class="sqft-slider"
+              type="range"
+              [min]="wizard.sqftMin"
+              [max]="wizard.sqftMax"
+              [step]="wizard.sqftStep"
+              [value]="inputs().sqft"
+              (input)="onSqftInput($event)"
+              [attr.aria-label]="copy.scopeSqftLabel"
+            />
+            <div class="slider-scale" aria-hidden="true">
+              <span>{{ wizard.sqftMin.toLocaleString('en-CA') }}</span>
+              <span>{{ wizard.sqftMax.toLocaleString('en-CA') }}</span>
+            </div>
+          </section>
+
+          <section class="scope-section" aria-labelledby="tier-label">
+            <h2 id="tier-label">{{ copy.scopeTierLabel }}</h2>
+            <p class="hint">{{ copy.scopeTierHint }}</p>
+            <div class="tiers" role="radiogroup" [attr.aria-label]="copy.scopeTierLabel">
+              @for (tier of copy.scopeTiers; track tier.id) {
+                <button
+                  class="tier-card"
+                  type="button"
+                  role="radio"
+                  [attr.data-tier]="tier.id"
+                  [attr.aria-checked]="inputs().tier === tier.id"
+                  [class.selected]="inputs().tier === tier.id"
+                  (click)="chooseTier(tier.id)"
+                >
+                  <span class="tier-name">{{ tier.name }}</span>
+                  <span class="tier-blurb">{{ tier.blurb }}</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @if (projectType() === 'renovation') {
+          <p class="hint reno-note">{{ copy.renoSelectedNote }}</p>
+        }
+
         <div class="actions">
           <a class="back" routerLink="/" (click)="goBack()">{{ copy.scopeBackLabel }}</a>
-          <button class="cta" type="button" (click)="seePreview()">{{ copy.scopeCta }}</button>
+          <button class="cta" type="button" [disabled]="projectType() == null" (click)="seePreview()">{{ copy.scopeCta }}</button>
         </div>
       } @else {
         <div class="empty">

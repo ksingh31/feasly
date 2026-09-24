@@ -61,6 +61,13 @@ describe('WizardState', () => {
   it('ChooseProjectType records the project type', () => {
     store.dispatch(new ChooseProjectType('new-build'));
     expect(snapshot().projectType).toBe('new-build');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+  });
+
+  it('ChooseProjectType records the renovation project type', () => {
+    store.dispatch(new ChooseProjectType('renovation'));
+    expect(snapshot().projectType).toBe('renovation');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
   });
 
   it('UpdateInputs merges partial input changes', () => {
