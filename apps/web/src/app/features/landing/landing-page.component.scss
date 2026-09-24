@@ -238,11 +238,6 @@
 /* ── Mobile ───────────────────────────────── */
 
 @media (max-width: 639px) {
-  /* Clearance so the fixed CTA never covers the footer. */
-  :host {
-    padding-bottom: 76px;
-  }
-
   .hero {
     padding: 104px 20px 48px;
     min-height: auto;
@@ -252,17 +247,17 @@
     display: block;
   }
 
-  /* Sticky CTA: fixed bottom bar, visible at 390×844 without scrolling. */
+  /* In-flow CTA directly under the address input (Karan 2026-09-24):
+     the old fixed bottom bar overlapped page content while scrolling. */
   .hero-cta {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 100;
+    display: block;
     width: 100%;
-    border-radius: 0;
+    /* The base rule's 24px offset glued the button to the input in the
+       desktop flex row (offsetting the label block); the stacked mobile
+       layout needs only the form gap. */
+    margin-top: 12px;
     font-size: 16px;
-    padding: 18px 24px calc(18px + env(safe-area-inset-bottom));
+    padding: 18px 24px;
   }
 
   .how-grid {
