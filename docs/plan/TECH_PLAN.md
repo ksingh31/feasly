@@ -109,7 +109,7 @@ flowchart TB
 |---|---|---|---|
 | 1 | `apps/web` (Angular 18+, TS) | Azure Static Web Apps (Free) | Prerendered marketing/SEO pages, wizard, report, builder dashboard, admin (M4) |
 | 2 | `packages/embed-loader` | CDN-ish static file on `embed.feasly.com/loader.js` (served by SWA) | Snippet: iframe injection, postMessage bridge, resize, token relay, fallback |
-| 3 | `apps/api` (Azure Functions, Node 20, TS) | Functions **Flex Consumption** plan, Canada Central | All HTTP APIs, queue/timer triggers |
+| 3 | `apps/api` (Azure Functions, Node 22, TS) | Functions **Flex Consumption** plan, Canada Central | All HTTP APIs, queue/timer triggers |
 | 4 | `packages/cost-engine` | Imported by `apps/api` and `packages/mcp`; unit-tested | Deterministic estimate math (per COST_ENGINE.md) |
 | 5 | `packages/contracts` | Build-time shared | DTO types, postMessage message schemas, `/api/v1` JSON schemas |
 | 6 | `packages/mcp` (M5) | Standalone Node process (later: hosted SSE) | MCP tools wrapping engine + API |
@@ -1158,7 +1158,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
   `accent_color` validated against `^#[0-9a-fA-F]{6}$`; `estimate_path` must
   start with `/`.
 - **Dependencies:** `npm audit` in CI (fail on high+), Dependabot weekly,
-  Functions runtime pinned (Node 20 LTS).
+  Functions runtime pinned (Node 22 LTS).
 
 ---
 

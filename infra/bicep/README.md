@@ -38,7 +38,7 @@ infra/bicep/
     prod.bicepparam             # B2s, 30-day backup retention (param change, not a migration)
   modules/
     static-web-app.bicep        # SWA, SKU Free, no custom domain
-    function-app.bicep          # Flex Consumption FC1 plan + Function App (Node 20)
+    function-app.bicep          # Flex Consumption FC1 plan + Function App (Node 22)
     postgres.bicep              # PG16 Flexible Server, Burstable, one `feasly` database
     key-vault.bicep             # Standard, RBAC authorization, soft delete
     monitoring.bicep            # Log Analytics + workspace-based App Insights
