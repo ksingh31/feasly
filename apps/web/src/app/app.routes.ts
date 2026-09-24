@@ -4,11 +4,12 @@ import { LandingPageComponent } from './features/landing/landing-page.component'
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
+import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent },
-  // Wizard shell scaffolding (FE1-001): full steps land in WEB-005/WEB-006.
-  { path: 'estimate/scope', component: ScopePageComponent },
+  // Scope step (FE-2): deep links without a selected property bounce to the address step.
+  { path: 'estimate/scope', component: ScopePageComponent, canActivate: [wizardPropertyGuard] },
   { path: 'privacy', component: PrivacyPageComponent },
   { path: 'terms', component: TermsPageComponent },
   { path: 'estimate/details', component: DetailsPageComponent },
