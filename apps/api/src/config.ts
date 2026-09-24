@@ -84,6 +84,41 @@ const EnvSchema = z.object({
   // estimates are refused unless this is true — and production refuses to
   // boot on draft data even then (see composition.ts). Set it in dev only.
   COST_ENGINE_ALLOW_DRAFT: z.coerce.boolean().default(false),
+
+  // --- Transactional email (story email/01) ---
+  // Provider: Azure Communication Services (Karan-approved 2026-09-24).
+  // The ACS resource + sender domain are NOT provisioned by this story —
+  // provisioning, DNS, and credentials are Karan-gated (standing Azure-spend
+  // rule). Default 'log' keeps dev/test fully local; the log provider
+  // refuses to run in production (fail-closed).
+  EMAIL_PROVIDER: z.enum(['log', 'postmark', 'acs']).default('log'),
+  // Sender identity placeholder — swapped when the domain is confirmed.
+  EMAIL_FROM_ADDRESS: z.string().email().default('noreply@feasly.example'),
+  EMAIL_FROM_NAME: z.string().min(1).default('Feasly'),
+  // Provider credentials: Key Vault references in staging/production, never
+  // committed. Absent credentials fail closed at send time with the exact
+  // variable named.
+  EMAIL_POSTMARK_SERVER_TOKEN: z.string().min(1).optional(),
+  EMAIL_POSTMARK_ENDPOINT: z
+    .string()
+    .url()
+    .default('https://api.postmarkapp.com/email'),
+  EMAIL_ACS_CONNECTION_STRING: z.string().min(1).optional(),
+  // Base URL the web app lives at — magic-link / resume links are built
+  // from this. Placeholder until the production domain is confirmed.
+  APP_BASE_URL: z.string().url().default('https://feasly.example'),
+  // Placeholder hook for the unsubscribe center (review-drafts/05, not built
+  // yet): templates render `${UNSUBSCRIBE_URL_BASE}?token=…`.
+  UNSUBSCRIBE_URL_BASE: z.string().url().default('https://feasly.example/unsubscribe'),
+  // Team inbox for callback confirmations. Standing test email until Karan
+  // names the ops inbox.
+  OPS_INBOX_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
+  // Dev/test behavior: the log provider logs full links so magic-link flows
+  // can be exercised without a provider. Never render links in UI.
+  EMAIL_LOG_LINKS: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 
 export interface RateLimitConfig {
@@ -116,6 +151,25 @@ export interface QueueConfig {
   readonly sheets: string;
 }
 
+export interface EmailConfig {
+  /** 'log' = dev/test console transport (refuses production). */
+  readonly provider: 'log' | 'postmark' | 'acs';
+  readonly fromAddress: string;
+  readonly fromName: string;
+  /** Key Vault reference in staging/production; absent = fail-closed sends. */
+  readonly postmarkServerToken?: string;
+  readonly postmarkEndpoint: string;
+  readonly acsConnectionString?: string;
+  /** Web-app base URL that magic-link / resume links are built from. */
+  readonly appBaseUrl: string;
+  /** Placeholder hook for the future unsubscribe center. */
+  readonly unsubscribeUrlBase: string;
+  /** Team inbox for callback confirmations (standing test email for now). */
+  readonly opsInbox: string;
+  /** Log provider logs full links when true (dev/test behavior). */
+  readonly logLinks: boolean;
+}
+
 export interface HealthConfig {
   /** A dependency ping slower than this marks the check failed, not hung. */
   readonly dbTimeoutMs: number;
@@ -141,6 +195,7 @@ export interface ApiConfig {
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
   readonly queues: QueueConfig;
+  readonly email: EmailConfig;
   readonly health: HealthConfig;
   readonly costEngine: CostEngineConfig;
 }
@@ -254,6 +309,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       email: e.QUEUE_EMAIL_NAME,
       pdf: e.QUEUE_PDF_NAME,
       sheets: e.QUEUE_SHEETS_NAME,
+    },
+    email: {
+      provider: e.EMAIL_PROVIDER,
+      fromAddress: e.EMAIL_FROM_ADDRESS,
+      fromName: e.EMAIL_FROM_NAME,
+      postmarkServerToken: e.EMAIL_POSTMARK_SERVER_TOKEN,
+      postmarkEndpoint: e.EMAIL_POSTMARK_ENDPOINT,
+      acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
+      appBaseUrl: e.APP_BASE_URL,
+      unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,
+      opsInbox: e.OPS_INBOX_EMAIL,
+      logLinks: e.EMAIL_LOG_LINKS,
     },
     health: {
       dbTimeoutMs: e.HEALTH_DB_TIMEOUT_MS,

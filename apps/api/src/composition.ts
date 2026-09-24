@@ -17,6 +17,14 @@ import {
 } from './services/estimate.store';
 import { createLeadService, type LeadService } from './services/lead.service';
 import { createDrizzleLeadStore, type LeadStore } from './services/lead.store';
+import {
+  createAcsEmailProvider,
+  createEmailService,
+  createLogEmailProvider,
+  createPostmarkEmailProvider,
+  type EmailProvider,
+  type EmailService,
+} from './services/email';
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
@@ -43,6 +51,8 @@ export interface AppComposition {
   readonly leadStore: LeadStore;
   readonly leadService: LeadService;
   readonly leadRoute: LeadRoute;
+  /** The one email service — all send paths funnel through here. */
+  readonly emailService: EmailService;
 }
 
 export interface CompositionOptions {
@@ -127,6 +137,20 @@ export function createComposition(
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
+  // Transactional email (story email/01): provider chosen by config.
+  // 'log' is dev/test-only and refuses production; 'postmark' fails closed
+  // without EMAIL_POSTMARK_SERVER_TOKEN; 'acs' (Karan-approved 2026-09-24)
+  // fails closed without EMAIL_ACS_CONNECTION_STRING. Provisioning the ACS
+  // resource + sender domain is a separate, Karan-gated step — never here.
+  const emailProvider: EmailProvider = createEmailProvider(config);
+  const emailService: EmailService = createEmailService({
+    provider: emailProvider,
+    fromAddress: config.email.fromAddress,
+    fromName: config.email.fromName,
+    appBaseUrl: config.email.appBaseUrl,
+    unsubscribeBaseUrl: config.email.unsubscribeUrlBase,
+    opsInbox: config.email.opsInbox,
+  });
   return {
     config,
     db,
@@ -142,5 +166,33 @@ export function createComposition(
     leadStore,
     leadService,
     leadRoute,
+    emailService,
   };
+}
+
+/**
+ * Provider switch — the ONLY place a concrete email provider is chosen.
+ * Kept outside createComposition's body flow for readability; still part of
+ * the composition root (nothing else may construct providers).
+ */
+function createEmailProvider(config: ApiConfig): EmailProvider {
+  switch (config.email.provider) {
+    case 'postmark':
+      return createPostmarkEmailProvider({
+        serverToken: config.email.postmarkServerToken,
+        fromAddress: config.email.fromAddress,
+        endpoint: config.email.postmarkEndpoint,
+      });
+    case 'acs':
+      return createAcsEmailProvider({
+        connectionString: config.email.acsConnectionString,
+        fromAddress: config.email.fromAddress,
+      });
+    case 'log':
+    default:
+      return createLogEmailProvider({
+        env: config.env,
+        logLinks: config.email.logLinks,
+      });
+  }
 }

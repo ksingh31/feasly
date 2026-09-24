@@ -24,6 +24,18 @@ describe('loadConfig', () => {
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
+      email: {
+        provider: 'log',
+        fromAddress: 'noreply@feasly.example',
+        fromName: 'Feasly',
+        postmarkServerToken: undefined,
+        postmarkEndpoint: 'https://api.postmarkapp.com/email',
+        acsConnectionString: undefined,
+        appBaseUrl: 'https://feasly.example',
+        unsubscribeUrlBase: 'https://feasly.example/unsubscribe',
+        opsInbox: 'karanbirsingh667@gmail.com',
+        logLinks: true,
+      },
       health: { dbTimeoutMs: 2_000 },
       costEngine: { allowDraftCostData: false },
     });

@@ -13,12 +13,14 @@
     "build": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
     "bundle:functions": "node tools/bundle-functions.mjs"
   },
   "version": "0.1.0",
   "dependencies": {
+    "@azure/communication-email": "^1.1.0",
     "@feasly/contracts": "^0.2.0",
     "@feasly/cost-engine": "^0.1.0",
     "drizzle-orm": "^0.45.3",
