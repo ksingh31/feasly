@@ -4,6 +4,7 @@ import {
   ErrorCodes,
   HttpError,
   isProblemDetails,
+  problemResponseHeaders,
   rateLimitedProblem,
   toProblemDetails,
 } from '../src/middleware/errors';
@@ -136,5 +137,25 @@ describe('isProblemDetails', () => {
     expect(isProblemDetails({ ok: true })).toBe(false);
     expect(isProblemDetails(null)).toBe(false);
     expect(isProblemDetails('nope')).toBe(false);
+  });
+});
+
+describe('problemResponseHeaders', () => {
+  it('adds Retry-After in whole seconds on 429s', () => {
+    const headers = problemResponseHeaders(rateLimitedProblem(CID, 61_500));
+    expect(headers['Content-Type']).toBe('application/problem+json');
+    expect(headers['Retry-After']).toBe('62');
+  });
+
+  it('never emits Retry-After: 0', () => {
+    const headers = problemResponseHeaders(rateLimitedProblem(CID, 100));
+    expect(headers['Retry-After']).toBe('1');
+  });
+
+  it('omits Retry-After on non-429 problems', () => {
+    const headers = problemResponseHeaders(
+      toProblemDetails(new HttpError(400, ErrorCodes.VALIDATION_FAILED, 'bad'), CID),
+    );
+    expect(headers['Retry-After']).toBeUndefined();
   });
 });

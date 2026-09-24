@@ -6,6 +6,7 @@
  * pipeline a thin route handler. Public routes run through this pipeline;
  * BE-4 adds authentication in front of it for dashboard/admin routes.
  */
+import { createHash } from 'node:crypto';
 import { ensureCorrelationId, type HeaderValue } from './correlation';
 import {
   rateLimitedProblem,
@@ -17,6 +18,13 @@ import type { RateLimiter } from './rate-limit';
 export interface PipelineRequest {
   readonly headers: Record<string, HeaderValue>;
   readonly clientIp: string | undefined;
+  /**
+   * Present only on builder embeds (the adapter copies it from the request
+   * body). Available to custom `keyFor` functions so a future rate-limit
+   * policy can aggregate per tenant as well as per IP (see the estimates
+   * rate-limit story).
+   */
+  readonly tenantKey?: string;
 }
 
 export interface PipelineContext {
@@ -45,6 +53,12 @@ export interface RequestPipeline {
 export interface RequestPipelineDeps {
   readonly rateLimiter: RateLimiter;
   /**
+   * Derives the limiter key from the request. Defaults to the client IP.
+   * Override for composite keys — e.g. `ip::tenantKey` for embed traffic —
+   * when a policy must aggregate across dimensions.
+   */
+  readonly keyFor?: (request: PipelineRequest) => string;
+  /**
    * Defaults to console. BE-3 injects the Functions context logger so
    * entries land in Application Insights with the correlation ID.
    */
@@ -53,9 +67,21 @@ export interface RequestPipelineDeps {
 
 const UNKNOWN_CLIENT = 'unknown';
 
+/**
+ * One-way hash of a client IP for log lines (HRD-03). Raw IPs are PII and
+ * must never reach structured logs — the hash is enough to correlate
+ * abuse patterns across entries.
+ */
+export function hashClientIp(clientIp: string): string {
+  return createHash('sha256').update(clientIp, 'utf8').digest('hex');
+}
+
 export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipeline {
-  const { rateLimiter, logger = (entry) => console[entry.level](entry.message) } =
-    deps;
+  const {
+    rateLimiter,
+    keyFor = (request) => request.clientIp ?? UNKNOWN_CLIENT,
+    logger = (entry) => console[entry.level](entry.message),
+  } = deps;
 
   return {
     async run<T>(
@@ -65,11 +91,13 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
       const correlationId = ensureCorrelationId(request.headers);
       const ctx: PipelineContext = { correlationId, clientIp: request.clientIp };
 
-      const verdict = rateLimiter.check(request.clientIp ?? UNKNOWN_CLIENT);
+      const verdict = rateLimiter.check(keyFor(request));
       if (!verdict.allowed) {
         logger({
           level: 'warn',
-          message: `rate-limited clientIp=${request.clientIp ?? UNKNOWN_CLIENT}`,
+          message: `rate-limited clientIpHash=${hashClientIp(
+            request.clientIp ?? UNKNOWN_CLIENT,
+          )}`,
           correlationId,
         });
         return rateLimitedProblem(correlationId, verdict.retryAfterMs);
