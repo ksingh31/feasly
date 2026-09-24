@@ -57,10 +57,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Branches that predate the web scaffold (e.g. backend-only PRs) have no
+      # apps/web yet. Skip the preview cleanly instead of failing the check —
+      # a missing web app is not a broken web app.
+      - name: Check for web workspace
+        id: web
+        run: |
+          if [ -f apps/web/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No apps/web on this branch — skipping SWA preview."
+          fi
+
       - name: Build web app (production, prerendered)
+        if: steps.web.outputs.present == 'true'
         run: npm run build --workspace @feasly/web
 
       - name: Deploy SWA preview environment
+        if: steps.web.outputs.present == 'true'
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
