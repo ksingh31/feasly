@@ -1,6 +1,6 @@
 {
   "name": "@feasly/contracts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared TypeScript DTO shapes for the Feasly REST API and embed postMessage protocol. Types only — no runtime code, no validation schemas.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -12,6 +12,16 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## 0.3.0 — 2026-09-24 (additive)
+
+PIPEDA self-service privacy endpoints (legal/02):
+
+- **Added** `privacy.ts`: `PrivacyExportResponse` (leads, estimate snapshots,
+  magic-link lifecycle metadata — token hashes never included — erasure-request
+  history, draft retention notice; `reportShares` / `callbackRequests` ship as
+  empty arrays until their server-side stores land), `ErasureRequestResponse`
+  (consequences statement), `ErasureConfirmResponse`.
+
 ## 0.2.0 — 2026-09-24 (breaking, pre-1.0)
 
 Post-merge audit fixes (FE0-001 corrective):

@@ -14,10 +14,37 @@ import { describe, expect, it } from 'vitest';
 import { createLeadService } from '../src/services/lead.service';
 import type { EstimateRecord, EstimateStore } from '../src/services/estimate.store';
 import type { LeadRecord, LeadStore, NewLead } from '../src/services/lead.store';
+import type {
+  IssuedMagicLink,
+  MagicLinkRecord,
+  MagicLinkStore,
+} from '../src/services/magic-link.store';
 import { HttpError } from '../src/middleware/errors';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-24T12:00:00Z');
+
+/** Minimal magic-link fake: records issuance, never used for verification here. */
+function fakeMagicLinkStore(): MagicLinkStore & {
+  issued: { token: string; leadId: string }[];
+} {
+  const issued: { token: string; leadId: string }[] = [];
+  return {
+    issued,
+    issue: async (args) => {
+      const record: IssuedMagicLink = {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        token: `raw-token-for-${args.leadId}`,
+        expiresAt: new Date(NOW.getTime() + args.ttlSeconds * 1000),
+      };
+      issued.push({ token: record.token, leadId: args.leadId });
+      return record;
+    },
+    findByToken: async () => null,
+    findByLeadIds: async () => [] as MagicLinkRecord[],
+    revokeByLeadIds: async () => 0,
+  };
+}
 
 function fakeEstimateStore(): EstimateStore {
   const record: EstimateRecord = {
@@ -54,6 +81,35 @@ function fakeLeadStore(): FakeLeadStore {
     },
     findRecentByEmailAndAddress: async () => recent,
     listLeads: async () => [],
+    findById: async (id: string) => {
+      const found = inserted.find((l) => l.id === id);
+      return found
+        ? {
+            ...found,
+            phone: found.phone ?? null,
+            tenantKey: found.tenantKey ?? null,
+            quarantined: false,
+            createdAt: NOW,
+          }
+        : null;
+    },
+    findAllByEmail: async (email: string) =>
+      inserted
+        .filter((l) => l.email === email)
+        .map((l) => ({
+          ...l,
+          phone: l.phone ?? null,
+          tenantKey: l.tenantKey ?? null,
+          quarantined: false,
+          createdAt: NOW,
+        })),
+    deleteByEmail: async (email: string) => {
+      const before = inserted.length;
+      for (let i = inserted.length - 1; i >= 0; i--) {
+        if (inserted[i]?.email === email) inserted.splice(i, 1);
+      }
+      return before - inserted.length;
+    },
     insert: async (lead: NewLead) => {
       inserted.push(lead);
       return {
@@ -69,6 +125,7 @@ function fakeLeadStore(): FakeLeadStore {
 
 const DEPS = {
   estimateStore: fakeEstimateStore(),
+  magicLinks: fakeMagicLinkStore(),
   dedupWindowDays: 90,
   magicLinkTtlSeconds: 900,
   clock: () => NOW,
@@ -263,6 +320,16 @@ describe('lead service', () => {
     expect(error).not.toBeInstanceOf(HttpError);
     expect(error.message).toBe('lead store lookup failed');
     expect(error.message).not.toContain('sam@example.com');
+  });
+
+  it('issues a magic-link bearer token on every captured lead (legal/02)', async () => {
+    const magicLinks = fakeMagicLinkStore();
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store, magicLinks });
+    const result = await service.submitLead(VALID_BODY);
+    expect(magicLinks.issued).toHaveLength(1);
+    expect(magicLinks.issued[0]!.leadId).toBe(result.leadId);
+    expect(magicLinks.issued[0]!.token.length).toBeGreaterThan(0);
   });
 
   it('derives expiresInDays from a longer TTL', async () => {

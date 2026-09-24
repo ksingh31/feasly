@@ -25,9 +25,23 @@ import {
   type EmailProvider,
   type EmailService,
 } from './services/email';
+import {
+  createDrizzleMagicLinkStore,
+  type MagicLinkStore,
+} from './services/magic-link.store';
+import {
+  createNoopBlockerChecker,
+  createPrivacyService,
+  type PrivacyService,
+} from './services/privacy.service';
+import {
+  createDrizzlePrivacyStore,
+  type PrivacyStore,
+} from './services/privacy.store';
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
+import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -53,6 +67,10 @@ export interface AppComposition {
   readonly leadRoute: LeadRoute;
   /** The one email service — all send paths funnel through here. */
   readonly emailService: EmailService;
+  readonly magicLinkStore: MagicLinkStore;
+  readonly privacyStore: PrivacyStore;
+  readonly privacyService: PrivacyService;
+  readonly privacyRoute: PrivacyRoute;
 }
 
 export interface CompositionOptions {
@@ -68,6 +86,8 @@ export interface CompositionOptions {
    */
   readonly estimateStore?: EstimateStore;
   readonly leadStore?: LeadStore;
+  readonly magicLinkStore?: MagicLinkStore;
+  readonly privacyStore?: PrivacyStore;
 }
 
 /**
@@ -130,9 +150,12 @@ export function createComposition(
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =
     options.leadStore ?? createDrizzleLeadStore({ db: db.db });
+  const magicLinkStore: MagicLinkStore =
+    options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
+    magicLinks: magicLinkStore,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
   });
@@ -151,6 +174,20 @@ export function createComposition(
     unsubscribeBaseUrl: config.email.unsubscribeUrlBase,
     opsInbox: config.email.opsInbox,
   });
+  const privacyStore: PrivacyStore =
+    options.privacyStore ?? createDrizzlePrivacyStore({ db: db.db });
+  // Erasure blockers (open disputes, in-review invoices) don't exist yet —
+  // the dispute/invoice stories will replace this no-op with real checks.
+  const privacyService: PrivacyService = createPrivacyService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    estimates: estimateStore,
+    privacy: privacyStore,
+    blockers: createNoopBlockerChecker(),
+  });
+  const privacyRoute: PrivacyRoute = createPrivacyRoute({
+    privacy: privacyService,
+  });
   return {
     config,
     db,
@@ -167,6 +204,10 @@ export function createComposition(
     leadService,
     leadRoute,
     emailService,
+    magicLinkStore,
+    privacyStore,
+    privacyService,
+    privacyRoute,
   };
 }
 

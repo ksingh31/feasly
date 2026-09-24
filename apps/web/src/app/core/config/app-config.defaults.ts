@@ -166,6 +166,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       detailsPreviewNote: 'The preview step arrives in the next build.',
       detailsEmpty: 'No address selected yet.',
       detailsEmptyCta: 'Find your address to start →',
+      detailsBackLabel: '← Back to scope',
     },
     propertyCard: {
       freshnessMock: 'Sample data for illustration — live City records coming soon',

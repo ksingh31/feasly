@@ -4,3 +4,6 @@ export * from './estimate.store';
 export * from './lead.service';
 export * from './lead.store';
 export * from './email';
+export * from './magic-link.store';
+export * from './privacy.service';
+export * from './privacy.store';
