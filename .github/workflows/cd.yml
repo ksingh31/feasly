@@ -164,6 +164,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run database migrations
+        env:
+          POSTGRES_DB: feasly
+          POSTGRES_USER: feaslyadmin
+          POSTGRES_PASSWORD: ${{ env.PGPASS }}
+        run: |
+          set -euo pipefail
+          # Discover the Postgres FQDN (Bicep appends a unique suffix).
+          PGHOST=$(az postgres flexible-server list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-pg')].fullyQualifiedDomainName | [0]" -o tsv)
+          if [ -z "$PGHOST" ] || [ "$PGHOST" = "None" ]; then
+            echo "could not discover Postgres server in rg-feasly-dev" >&2
+            exit 1
+          fi
+          # PGPASS is masked; db:migrate composes the URL with sslmode=require.
+          POSTGRES_HOST="$PGHOST" npm run db:migrate --workspace @feasly/api
+
+      - name: Bundle Functions
+        run: npm run bundle:functions --workspace @feasly/api
+
       - name: Build web app (production, prerendered)
         run: npm run build --workspace @feasly/web
 
@@ -229,6 +249,28 @@ jobs:
           }
           check "https://$SWA_HOST"
           check "https://$FUNC_HOST/api/health"
+          # New in BE-3: prove the estimate/lead routes are registered and the
+          # pipeline returns RFC 7807 errors. Invalid bodies → 400, and no
+          # rows are written to the dev database by these probes.
+          check_status() {
+            local url="$1" expected="$2" data="$3" tries=0
+            while [ $tries -lt 3 ]; do
+              code=$(curl -fsS -o /dev/null -w "%{http_code}" \
+                --max-time 30 -X POST "$url" \
+                -H "Content-Type: application/json" -d "$data" 2>/dev/null || echo "000")
+              if [ "$code" = "$expected" ]; then
+                echo "OK ($code): POST $url"
+                return 0
+              fi
+              tries=$((tries + 1))
+              echo "got $code from POST $url (want $expected), retry $tries/3 in 15s..."
+              sleep 15
+            done
+            echo "SMOKE TEST FAILED: POST $url never returned $expected"
+            return 1
+          }
+          check_status "https://$FUNC_HOST/api/v1/estimate" "400" '{"nope":true}'
+          check_status "https://$FUNC_HOST/api/v1/leads" "400" '{"nope":true}'
 
   # ---------------------------------------------------------------------------
   # Staging: workflow_dispatch ONLY. environment: staging.

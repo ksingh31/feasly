@@ -15,12 +15,47 @@ describe('loadConfig', () => {
       version: packageVersion,
       env: 'test',
       databaseUrl: 'postgresql://user:pass@localhost:5432/feasly',
+      db: { poolMaxSize: 5 },
       rateLimit: { windowMs: 60_000, maxRequests: 100, maxTrackedKeys: 10_000 },
+      lead: {
+        rateLimit: { windowMs: 60_000, maxRequests: 10 },
+        dedupWindowDays: 90,
+      },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 900 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
       health: { dbTimeoutMs: 2_000 },
     });
+  });
+
+  it('composes DATABASE_URL from POSTGRES_* pieces when it is absent', () => {
+    const config = loadConfig({
+      NODE_ENV: 'test',
+      POSTGRES_HOST: 'feasly-dev-pg-abc.postgres.database.azure.com',
+      POSTGRES_DB: 'feasly',
+      POSTGRES_USER: 'feaslyadmin',
+      POSTGRES_PASSWORD: 'p@ss:w/rd?',
+    } as NodeJS.ProcessEnv);
+    expect(config.databaseUrl).toBe(
+      'postgresql://feaslyadmin:p%40ss%3Aw%2Frd%3F@feasly-dev-pg-abc.postgres.database.azure.com:5432/feasly?sslmode=require',
+    );
+  });
+
+  it('prefers an explicit DATABASE_URL over POSTGRES_* pieces', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      POSTGRES_HOST: 'other.example.com',
+      POSTGRES_DB: 'feasly',
+      POSTGRES_USER: 'feaslyadmin',
+      POSTGRES_PASSWORD: 'x',
+    });
+    expect(config.databaseUrl).toBe('postgresql://user:pass@localhost:5432/feasly');
+  });
+
+  it('fails fast naming DATABASE_URL when neither form is configured', () => {
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', POSTGRES_HOST: 'h' } as NodeJS.ProcessEnv),
+    ).toThrow(/DATABASE_URL/);
   });
 
   it('fails fast naming DATABASE_URL when it is missing', () => {

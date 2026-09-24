@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["post"],"name":"req","route":"v1/estimate","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

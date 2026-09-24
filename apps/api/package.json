@@ -1,6 +1,10 @@
 {
   "description": "Azure Functions (TypeScript) — versioned /api/v1. Endpoints land here (epics 07, 10).",
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "vitest": "^5.0.1"
   },
   "name": "@feasly/api",
@@ -8,12 +12,17 @@
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node tools/migrate.mjs",
+    "bundle:functions": "node tools/bundle-functions.mjs"
   },
   "version": "0.1.0",
   "dependencies": {
     "@feasly/contracts": "^0.2.0",
     "@feasly/cost-engine": "^0.1.0",
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.0",
     "zod": "^4.6.5"
   }
 }
