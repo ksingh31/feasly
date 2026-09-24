@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
+import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
@@ -43,6 +44,15 @@ export const routes: Routes = [
     canActivate: [robotsGuard, reportEstimateGuard],
     data: { noindex: true },
   },
-  // No dead ends: unknown paths return to the landing page.
-  { path: '**', redirectTo: '' },
+  // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
+  // setForRoute('404')); the CTA returns visitors home. SWA's
+  // responseOverrides.404 rewrites platform-level 404s to /index.html so the
+  // app — and this page — can render (see SEO.md for the status-code nuance).
+  {
+    path: '404',
+    component: NotFoundPageComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },
 ];

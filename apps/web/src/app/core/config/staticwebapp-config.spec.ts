@@ -7,9 +7,13 @@ import { describe, expect, it } from 'vitest';
  * Regression guard for the missing-SPA-fallback bug found by browser QA
  * (2026-09-24): without `navigationFallback` in staticwebapp.config.json,
  * deep links and refreshes on /estimate/*, /privacy, and /terms served the
- * raw Azure Static Web Apps 404 page instead of the app. The app's own
- * wildcard route already redirects unknown paths to the landing page, but it
- * can only run if the host rewrites those requests to index.html first.
+ * raw Azure Static Web Apps 404 page instead of the app.
+ *
+ * SEO-01: platform 404s are overridden to `/index.html` so the branded
+ * `/404` SPA route renders; `trailingSlash` is deliberately NOT set —
+ * it is global (it would 301 assets, /robots.txt, /sitemap.xml, and
+ * /api/* POSTs) and SWA redirect targets are static strings, so per-slug
+ * 301s ship with the community-page story instead (see SEO.md).
  */
 describe('staticwebapp.config.json SPA fallback', () => {
   const configPath = join(
@@ -43,6 +47,23 @@ describe('staticwebapp.config.json SPA fallback', () => {
     expect(exclude).toContain('/robots.txt');
     expect(exclude).toContain('/sitemap.xml');
     expect(exclude.some((pattern) => pattern.startsWith('/assets'))).toBe(true);
+  });
+
+  it('overrides platform 404s to the SPA shell (branded /404 route)', () => {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      responseOverrides?: { '404'?: { rewrite?: string } };
+    };
+    expect(config.responseOverrides?.['404']?.rewrite).toBe('/index.html');
+  });
+
+  it('does not set the global trailingSlash flag', () => {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      trailingSlash?: string;
+    };
+    // Deliberate: trailing-slash 301s are per-route (community slugs) and
+    // ship with the community-page story. A global flag would 301 assets,
+    // /robots.txt, /sitemap.xml, and /api/* POSTs (see SEO.md).
+    expect(config.trailingSlash).toBeUndefined();
   });
 
   it('every literal excluded path exists in public/', () => {

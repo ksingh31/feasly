@@ -19,3 +19,9 @@ jobs:
       - run: npx tsc -b
       - run: npm run test --workspaces --if-present
       - run: npm run lint --workspaces --if-present
+      # SEO-01: production build + prerendered-SEO regression (per-page tags,
+      # canonicals, noindex, 404 copy, 1200x630 OG image). Local: `npm run
+      # verify:seo` inside apps/web.
+      - run: npm run build --workspace=@feasly/web -- --configuration=production
+      - run: node tools/check-prerender-seo.mjs
+        working-directory: apps/web

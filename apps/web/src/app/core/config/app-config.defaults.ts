@@ -6,16 +6,22 @@ import type { AppConfig } from './app-config';
  * This is the ONLY place in `src/app` where tunable literals may live, and it
  * exists so the app degrades gracefully instead of white-screening when
  * `/assets/config/app-config.json` is missing or malformed (e.g. a bad deploy).
- * Every value here must mirror `public/assets/config/app-config.json`.
+ * Every value here must mirror `public/assets/config/app-config.json`,
+ * EXCEPT `site.url`: the JSON ships `""` ("use the request origin at runtime")
+ * while this file keeps the `https://feasly.com` placeholder so prerendered
+ * HTML still emits absolute tags. See `apps/web/SEO.md` for the SITE_URL story.
  *
  * Changing behavior = editing the JSON, never this file.
  * Allowlisted in tools/hardcode-allowlist.txt.
  */
 export const DEFAULT_APP_CONFIG: AppConfig = {
   site: {
+    // PLACEHOLDER — the production domain is undecided (feasly.com unverified).
+    // Prerender fallback only: at runtime the JSON's "" wins and SeoService
+    // uses the request origin. Swap when Karan confirms the domain (SEO.md).
     url: 'https://feasly.com',
     name: 'Feasly',
-    socialImage: '/assets/og-image.png',
+    socialImage: '/assets/og/og-default.png',
   },
   api: {
     baseUrl: '',
@@ -245,6 +251,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       versionLabel: 'Report version',
     },
     seo: {
+      landingTitle: 'Feasly — What will it really cost to build your home in Calgary?',
+      landing:
+        'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
       scopeTitle: 'Feasly — Configure your build scope',
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
@@ -259,6 +268,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'How Feasly collects, uses, and protects your information when you generate a build estimate.',
       termsTitle: 'Feasly — Terms of Use',
       terms: 'The terms that apply when you use Feasly to generate a build estimate.',
+      notFoundTitle: 'Feasly — Page not found',
+      notFound: "The page you're looking for moved or never existed.",
     },
   },
 };

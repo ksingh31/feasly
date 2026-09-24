@@ -1,0 +1,54 @@
+/* Branded 404 — prototype cream/charcoal/brass language. */
+
+/* NOTE: the sticky-footer flex shell lives in global styles.scss (applies to
+   every page host); do not set display on :host here — it would override it. */
+
+.not-found {
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 24px 96px;
+  gap: 16px;
+}
+
+.code {
+  font-size: var(--type-eyebrow);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 500;
+  margin: 0;
+}
+
+.not-found h1 {
+  font-family: var(--font-headline);
+  font-size: var(--type-hero);
+  color: var(--text);
+  margin: 0;
+}
+
+.body {
+  font-size: var(--type-hero-sub);
+  color: var(--muted);
+  margin: 0 0 16px;
+  max-width: 44ch;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--cream);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cta:hover {
+  text-decoration: underline;
+}

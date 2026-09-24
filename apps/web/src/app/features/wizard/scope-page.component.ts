@@ -48,11 +48,7 @@ export class ScopePageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').wizard;
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.scopeTitle,
-      description: this.config.get('copy').seo.scope,
-      path: '/estimate/scope',
-    });
+    this.seo.setForRoute('estimate/scope');
   }
 
   /** Project-type card: stores the selection in NGXS (persisted). */

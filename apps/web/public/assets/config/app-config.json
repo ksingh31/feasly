@@ -116,6 +116,8 @@
       "detailsEmptyCta": "Find your address to start →"
     },
     "seo": {
+      "landingTitle": "Feasly — What will it really cost to build your home in Calgary?",
+      "landing": "A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.",
       "scopeTitle": "Feasly — Configure your build scope",
       "scope": "Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.",
       "renoScopeTitle": "Feasly — Describe your renovation",
@@ -127,7 +129,9 @@
       "termsTitle": "Feasly — Terms of Use",
       "terms": "The terms that apply when you use Feasly to generate a build estimate.",
       "reportTitle": "Feasly — Your build estimate report",
-      "report": "Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps."
+      "report": "Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps.",
+      "notFoundTitle": "Feasly — Page not found",
+      "notFound": "The page you're looking for moved or never existed."
     },
     "report": {
       "heading": "Your build estimate",
@@ -220,7 +224,8 @@
   },
   "site": {
     "name": "Feasly",
-    "url": "https://feasly.com"
+    "url": "",
+    "socialImage": "/assets/og/og-default.png"
   },
   "timings": {
     "debounceMs": 250,

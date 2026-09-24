@@ -35,10 +35,6 @@ export class DetailsPageComponent implements OnInit {
   protected readonly inputs = this.store.selectSignal(WizardState.inputs);
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.detailsTitle,
-      description: this.config.get('copy').seo.details,
-      path: '/estimate/details',
-    });
+    this.seo.setForRoute('estimate/details');
   }
 }
