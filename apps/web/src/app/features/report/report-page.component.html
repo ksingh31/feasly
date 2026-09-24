@@ -32,8 +32,8 @@
               <span class="range-value">{{ formatCad(f.total.low) }}</span>
             </div>
             <div>
-              <span class="range-label">{{ copy.midLabel }}</span>
-              <span class="range-value hero-mid">{{ formatCad(mid(f.total)) }}</span>
+              <span class="range-label">{{ copy.baseLabel }}</span>
+              <span class="range-value hero-mid">{{ formatCad(f.total.base) }}</span>
             </div>
             <div>
               <span class="range-label">{{ copy.highLabel }}</span>
@@ -61,17 +61,17 @@
       } @else {
         <div class="figure-card hero-total locked">
           <h2>{{ copy.totalLabel }}</h2>
-          <p class="blur-value" aria-hidden="true">$0,000,000</p>
+          <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-lg"></span></p>
           <p class="locked-note">{{ copy.lockedNote }}</p>
         </div>
         <div class="hero-sub">
           <div class="figure-card locked">
             <h2>{{ copy.buildLabel }}</h2>
-            <p class="blur-value" aria-hidden="true">$000,000</p>
+            <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
           </div>
           <div class="figure-card locked">
             <h2>{{ copy.landLabel }}</h2>
-            <p class="blur-value" aria-hidden="true">$000,000</p>
+            <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
           </div>
         </div>
         <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
@@ -86,7 +86,7 @@
           @for (row of rows(); track row.key) {
             <li class="row">
               <span class="row-label">{{ row.label }}</span>
-              <span class="row-range">{{ formatCad(row.range.low) }} – {{ formatCad(row.range.high) }}</span>
+              <span class="row-range">{{ formatCad(row.range.low) }} – <strong>{{ formatCad(row.range.base) }}</strong> – {{ formatCad(row.range.high) }}<span class="sr-only"> ({{ copy.lowLabel }} / {{ copy.baseLabel }} / {{ copy.highLabel }})</span></span>
             </li>
           }
         </ul>
@@ -130,7 +130,7 @@
           class="step-btn"
           [disabled]="!unlocked() || loading()"
           (click)="adjustSqft(-wizard.sqftStep)"
-          aria-label="decrease"
+          [attr.aria-label]="copy.decreaseLabel"
         >
           −
         </button>
@@ -140,7 +140,7 @@
           class="step-btn"
           [disabled]="!unlocked() || loading()"
           (click)="adjustSqft(wizard.sqftStep)"
-          aria-label="increase"
+          [attr.aria-label]="copy.increaseLabel"
         >
           +
         </button>

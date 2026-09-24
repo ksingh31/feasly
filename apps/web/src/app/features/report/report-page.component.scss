@@ -190,13 +190,44 @@
 
 /* Blurred pre-gate placeholders: view-source reveals nothing real. */
 .blur-value {
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-weight: 700;
   margin: 0;
-  filter: blur(9px);
   user-select: none;
-  color: var(--muted);
+}
+
+/* CSS-only locked placeholder: no fake dollar figures in markup. */
+.blur-bar {
+  display: inline-block;
+  height: 1em;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
+  background-size: 200% 100%;
+  animation: blur-shimmer 2.4s ease-in-out infinite;
+  font-size: 32px;
+  vertical-align: middle;
+}
+
+.blur-bar-lg {
+  width: 7ch;
+}
+
+.blur-bar-sm {
+  width: 5.5ch;
+}
+
+@keyframes blur-shimmer {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blur-bar {
+    animation: none;
+  }
 }
 
 .locked-note {

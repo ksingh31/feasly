@@ -57,7 +57,7 @@ assertType<readonly CostRow[]>(estimateRes.rows);
 
 const mixedFigures = {
   build: { blurred: true },
-  total: { low: 100, high: 200 },
+  total: { low: 100, base: 150, high: 200 },
   land: { blurred: true },
 } as const;
 // @ts-expect-error — a real range cannot appear in pre-gate figures
@@ -66,10 +66,10 @@ void mixed;
 
 const blurredFigure = { blurred: true } as const;
 const blurredPost: EstimateResponse['figures'] = {
-  build: { low: 1, high: 2 },
+  build: { low: 1, base: 2, high: 3 },
   // @ts-expect-error — a blur placeholder cannot appear in a post-gate estimate
   total: blurredFigure,
-  land: { low: 1, high: 2 },
+  land: { low: 1, base: 2, high: 3 },
 };
 void blurredPost;
 

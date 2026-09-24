@@ -75,7 +75,7 @@ describe('drizzle stores', () => {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       addressKey: 'calgary-123-fake-st-nw',
       inputs: { sqft: 2200, tier: 'standard', garage: 'none', basement: 'unfinished' },
-      figures: { build: { low: 1, high: 2 }, total: { low: 1, high: 3 }, land: { low: 1, high: 1 } },
+      figures: { build: { low: 1, base: 2, high: 2 }, total: { low: 1, base: 2, high: 3 }, land: { low: 1, base: 1, high: 1 } },
       rows: [],
       costDataVersion: 'v0.1.0-unclibrated',
       createdAt,

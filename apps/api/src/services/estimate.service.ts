@@ -15,8 +15,9 @@
  * require a code change here. The engine output already carries the pinned
  * cost_data_version.
  *
- * Note: the contract's `CostRange` is { low, high } — the engine's `base`
- * midpoint is intentionally not exposed. Dollar figures stay ranges.
+ * Note: the contract's `CostRange` is { low, base, high } — the engine's
+ * deterministic base is exposed (not a client midpoint). Dollar figures stay
+ * ranges; base is the model's best estimate within the range.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -71,9 +72,9 @@ export interface EstimateServiceDeps {
   readonly store: EstimateStore;
 }
 
-/** Engine bands are { low, base, high }; the contract exposes { low, high }. */
+/** Engine bands are { low, base, high }; the contract carries all three. */
 function toCostRange(band: RangedAmount): CostRange {
-  return { low: band.low, high: band.high };
+  return { low: band.low, base: band.base, high: band.high };
 }
 
 function toResponse(

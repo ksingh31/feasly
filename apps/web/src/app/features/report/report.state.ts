@@ -11,7 +11,7 @@ export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
 export interface ReportStateModel {
   /** Pre-gate blurred preview. Never carries real figures (by contract type). */
   preview: PreviewEstimateResponse | null;
-  /** Bearer token from magic-link verification. Memory + storage-persisted. */
+  /** Bearer token from magic-link verification. Memory-only — stripped before storage persistence. */
   reportToken: string | null;
   /** Post-gate verified snapshot. Null until unlocked. */
   snapshot: ReportSnapshot | null;

@@ -74,10 +74,11 @@ describe('estimate service', () => {
       garage: 'none',
       basement: 'unfinished',
     });
-    // Contract CostRange is { low, high } — the engine's base is not exposed.
+    // Contract CostRange is { low, base, high } — the engine's deterministic base is exposed.
     for (const key of ['build', 'total', 'land'] as const) {
-      expect(Object.keys(result.figures[key]).sort()).toEqual(['high', 'low']);
-      expect(result.figures[key].low).toBeLessThanOrEqual(result.figures[key].high);
+      expect(Object.keys(result.figures[key]).sort()).toEqual(['base', 'high', 'low']);
+      expect(result.figures[key].low).toBeLessThanOrEqual(result.figures[key].base);
+      expect(result.figures[key].base).toBeLessThanOrEqual(result.figures[key].high);
     }
     expect(result.figures.total.low).toBeGreaterThan(0);
     expect(result.rows.length).toBeGreaterThan(0);

@@ -32,7 +32,17 @@ export const appConfig: ApplicationConfig = {
     // Wizard + report state in NGXS, persisted to localStorage (FE1-001, M1).
     // The storage plugin is SSR-safe (no-ops on the server); nothing sensitive
     // is stored pre-gate — email/name live in the future lead state, not here.
-    // The report token is a bearer credential scoped to one estimate.
-    provideStore([WizardState, ReportState], withNgxsStoragePlugin({ keys: [WizardState, ReportState] })),
+    // Security: the report token is a bearer credential — it lives in memory
+    // only and is stripped before persistence. The snapshot (the user's own
+    // figures) persists, so the report still renders after a refresh;
+    // token-authenticated actions (tier/sqft re-run, share, callback) dispatch
+    // UnlockReport to re-establish the token if it is missing.
+    provideStore(
+      [WizardState, ReportState],
+      withNgxsStoragePlugin({
+        keys: [WizardState, ReportState],
+        beforeSerialize: (obj, key) => (key === 'report' ? { ...obj, reportToken: null } : obj),
+      }),
+    ),
   ],
 };

@@ -11,6 +11,11 @@
 /** A closed CAD range. Integers, no cents — cents never leave the server. */
 export interface CostRange {
   readonly low: number;
+  /**
+   * Deterministic best estimate from the cost model (not a client midpoint).
+   * Invariant: low <= base <= high.
+   */
+  readonly base: number;
   readonly high: number;
 }
 

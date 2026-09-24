@@ -21,8 +21,8 @@ import { ReportPageComponent, withLandRowFirst } from './report-page.component';
 class BlankComponent {}
 
 describe('withLandRowFirst', () => {
-  const landRange = { low: 395000, high: 445000 };
-  const rows = [{ key: 'site', label: 'Site', range: { low: 1, high: 2 } }];
+  const landRange = { low: 395000, base: 420000, high: 445000 };
+  const rows = [{ key: 'site', label: 'Site', range: { low: 1, base: 2, high: 3 } }];
 
   it('synthesizes the land row first when the API sent none', () => {
     const out = withLandRowFirst(rows, landRange, 'Land (assessed value)');
@@ -195,7 +195,7 @@ describe('ReportPageComponent', () => {
       await unlock();
     });
 
-    it('renders low/mid/high hero ranges', () => {
+    it('renders low/base/high hero ranges from the deterministic base (not a client midpoint)', () => {
       const values = [...fixture.nativeElement.querySelectorAll('.hero-total .range-value')].map(
         (el: Element) => el.textContent?.trim(),
       );
@@ -203,6 +203,12 @@ describe('ReportPageComponent', () => {
       for (const v of values) {
         expect(v).toMatch(/^\$\d{1,3}(,\d{3})*$/);
       }
+      // Mock total base is the contract's deterministic base, not (low+high)/2.
+      expect(values[1]).toBe('$1,091,500');
+      const labels = [...fixture.nativeElement.querySelectorAll('.hero-total .range-label')].map((el: Element) =>
+        el.textContent?.trim(),
+      );
+      expect(labels).toEqual(['Low', 'Base', 'High']);
     });
 
     it('renders the itemized breakdown: land, hard costs, soft costs, contingency', () => {

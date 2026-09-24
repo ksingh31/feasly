@@ -39,9 +39,7 @@ export function withLandRowFirst(
  * placeholder, next steps, partner share, PDF, and callback.
  *
  * Money rule: the component never computes dollar figures — it displays what
- * the API returned. The one exception is the labeled midpoint of a returned
- * low/high range (the frozen contract seam carries no base), derived purely
- * for display.
+ * the API returned, including the deterministic base from each range.
  */
 @Component({
   selector: 'app-report-page',
@@ -140,11 +138,6 @@ export class ReportPageComponent implements OnInit {
     } else {
       this.store.dispatch(new LoadPreview());
     }
-  }
-
-  /** Labeled midpoint of a returned range (display derivation only). */
-  protected mid(range: CostRange): number {
-    return Math.round((range.low + range.high) / 2);
   }
 
   protected formatCad(value: number): string {

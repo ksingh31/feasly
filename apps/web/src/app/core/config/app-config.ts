@@ -185,7 +185,7 @@ export interface AppConfig {
       buildLabel: string;
       landLabel: string;
       lowLabel: string;
-      midLabel: string;
+      baseLabel: string;
       highLabel: string;
       lockedNote: string;
       unlockCta: string;
@@ -196,6 +196,8 @@ export interface AppConfig {
       tierHint: string;
       tierLockedNote: string;
       adjustTitle: string;
+      decreaseLabel: string;
+      increaseLabel: string;
       adjustHint: string;
       adjustUnit: string;
       adjustCta: string;
