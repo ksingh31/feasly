@@ -1,10 +1,1 @@
-{
-  "name": "@feasly/cost-engine",
-  "version": "0.1.0",
-  "description": "Deterministic build-cost engine: pure TS, zero I/O, zero deps. NEVER imported by apps/web (epic 02).",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc -b"
-  }
-}
+{"description":"Deterministic build-cost engine: pure TS, zero I/O, zero deps. NEVER imported by apps/web (epic 02).","devDependencies":{"vitest":"^5.0.1"},"main":"dist/index.js","name":"@feasly/cost-engine","scripts":{"build":"tsc -b","test":"vitest run","test:watch":"vitest","typecheck":"tsc --noEmit -p tsconfig.test.json"},"types":"dist/index.d.ts","version":"0.1.0"}
