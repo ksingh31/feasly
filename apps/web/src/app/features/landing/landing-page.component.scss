@@ -10,18 +10,17 @@
 /* ── Hero ─────────────────────────────────── */
 
 .hero {
-  min-height: 100svh;
   display: flex;
   flex-direction: column;
   align-items: center;
   /* Top-anchored, not centered: centering stacked the top padding on top of
-     the leftover (100svh − content) / 2, leaving a huge dead band above the
-     eyebrow and pushing the trust strip below the fold. */
+     leftover space, leaving a dead band above the eyebrow. No min-height —
+     the hero sizes to its content (Karan 2026-09-24). */
   justify-content: flex-start;
   text-align: center;
   /* 68px = fixed nav height on desktop (12px padding × 2 + 44px brand);
-     48px breathing room below it. */
-  padding: calc(68px + 48px) 24px 64px;
+     48px breathing room below it; +15px top/bottom per Karan 2026-09-24. */
+  padding: calc(68px + 48px + 15px) 24px 79px;
 }
 
 .eyebrow {
