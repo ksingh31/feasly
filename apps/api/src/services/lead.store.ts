@@ -68,6 +68,19 @@ export interface LeadStore {
     readonly includeQuarantined?: boolean;
     readonly limit?: number;
   }): Promise<LeadRecord[]>;
+  /** One lead by id, or null. */
+  findById(id: string): Promise<LeadRecord | null>;
+  /**
+   * Every lead for this normalized email (the PIPEDA "household" view).
+   * Used by the privacy export and erasure flows.
+   */
+  findAllByEmail(email: string): Promise<LeadRecord[]>;
+  /**
+   * Delete every lead for this normalized email. Erasure only — there is
+   * no other delete path (leads are otherwise append-only).
+   * Returns the number of rows deleted.
+   */
+  deleteByEmail(email: string): Promise<number>;
 }
 
 export interface DrizzleLeadStoreDeps {
@@ -145,6 +158,31 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .orderBy(desc(leads.createdAt))
         .limit(args?.limit ?? 100);
       return rows.map(toRecord);
+    },
+    async findById(id: string): Promise<LeadRecord | null> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async findAllByEmail(email: string): Promise<LeadRecord[]> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.email, email));
+      return rows.map(toRecord);
+    },
+
+    async deleteByEmail(email: string): Promise<number> {
+      const rows = await db
+        .delete(leads)
+        .where(eq(leads.email, email))
+        .returning({ id: leads.id });
+      return rows.length;
     },
   };
 }

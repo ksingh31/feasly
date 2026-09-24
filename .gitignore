@@ -26,3 +26,6 @@ apps/web/src/**/*.js
 # function.json files ARE committed, the bundles are not).
 apps/api/estimate/index.js
 apps/api/leads/index.js
+apps/api/privacy-export/index.js
+apps/api/privacy-erase/index.js
+apps/api/privacy-erase-confirm/index.js

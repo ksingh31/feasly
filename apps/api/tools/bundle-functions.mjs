@@ -9,6 +9,12 @@
  *
  *   src/functions/estimate.ts → estimate/index.js   (POST /api/v1/estimate)
  *   src/functions/leads.ts    → leads/index.js      (POST /api/v1/leads)
+ *   src/functions/privacy-export.ts        → privacy-export/index.js
+ *     (GET /api/v1/privacy/export)
+ *   src/functions/privacy-erase.ts         → privacy-erase/index.js
+ *     (POST /api/v1/privacy/erase-requests)
+ *   src/functions/privacy-erase-confirm.ts → privacy-erase-confirm/index.js
+ *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -22,6 +28,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const targets = [
   { entry: 'src/functions/estimate.ts', out: 'estimate/index.js' },
   { entry: 'src/functions/leads.ts', out: 'leads/index.js' },
+  { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },
+  { entry: 'src/functions/privacy-erase.ts', out: 'privacy-erase/index.js' },
+  {
+    entry: 'src/functions/privacy-erase-confirm.ts',
+    out: 'privacy-erase-confirm/index.js',
+  },
 ];
 
 for (const { entry, out } of targets) {

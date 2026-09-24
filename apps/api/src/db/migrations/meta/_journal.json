@@ -1,13 +1,12 @@
 {
-  "version": "7",
   "dialect": "postgresql",
   "entries": [
     {
+      "breakpoints": true,
       "idx": 0,
-      "version": "7",
-      "when": 1790272502261,
       "tag": "0000_far_toad",
-      "breakpoints": true
+      "version": "7",
+      "when": 1790272502261
     },
     {
       "idx": 1,
@@ -22,6 +21,14 @@
       "when": 1791000000000,
       "tag": "0002_dizzy_honeypot",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790283322128,
+      "tag": "0003_powerful_edwin_jarvis",
+      "breakpoints": true
     }
-  ]
+  ],
+  "version": "7"
 }

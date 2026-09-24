@@ -27,6 +27,7 @@ import type { LeadResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
+import type { MagicLinkStore } from './magic-link.store';
 
 /**
  * Contract-shaped validation. `timeline` defaults to 'exploring' and
@@ -63,6 +64,8 @@ export interface LeadServiceDeps {
   readonly store: LeadStore;
   /** Used to verify the estimateId references a persisted estimate. */
   readonly estimateStore: EstimateStore;
+  /** Issues the magic-link bearer token for every captured lead. */
+  readonly magicLinks: MagicLinkStore;
   /** 90-day window: same email + address → existing lead. */
   readonly dedupWindowDays: number;
   /** Magic-link TTL, seconds — drives the UI's `expiresInDays`. */
@@ -146,6 +149,20 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         });
       } catch (error) {
         throw new Error('lead store insert failed', { cause: error });
+      }
+      // legal/02: every captured lead gets a magic-link bearer token — the
+      // credential for the PIPEDA self-service endpoints. The store returns
+      // the raw token exactly once; the BE-5/email story enqueues it with
+      // the magic-link email at this seam (until then it is intentionally
+      // discarded — hashes only, never persisted raw).
+      try {
+        await deps.magicLinks.issue({
+          leadId: inserted.id,
+          ttlSeconds: deps.magicLinkTtlSeconds,
+          clock,
+        });
+      } catch (error) {
+        throw new Error('magic link issuance failed', { cause: error });
       }
       return { leadId: inserted.id, magicLinkSent: false, expiresInDays };
     },

@@ -21,7 +21,7 @@
   "version": "0.1.0",
   "dependencies": {
     "@azure/communication-email": "^1.1.0",
-    "@feasly/contracts": "^0.2.0",
+    "@feasly/contracts": "^0.3.0",
     "@feasly/cost-engine": "^0.1.0",
     "drizzle-orm": "^0.45.3",
     "pg": "^8.23.0",
