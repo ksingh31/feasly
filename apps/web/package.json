@@ -1,1 +1,38 @@
-{"dependencies":{"@angular/common":"^22.2.0","@angular/compiler":"^22.2.0","@angular/core":"^22.2.0","@angular/forms":"^22.2.0","@angular/platform-browser":"^22.2.0","@angular/router":"^22.2.0","@ngxs/storage-plugin":"^22.0.0","@ngxs/store":"^22.0.0","rxjs":"~7.8.0","tslib":"^2.3.0"},"description":"Feasly consumer site: Angular 22, static prerender, NGXS state, contract-driven mocks.","devDependencies":{"@angular/build":"^22.2.0","@angular/cli":"^22.2.0","@angular/compiler-cli":"^22.2.0","@angular/platform-server":"^22.2.0","@angular/ssr":"^22.2.0","jsdom":"^30.0.0","prettier":"^3.8.1","typescript":"~6.0.2","vitest":"^5.0.0"},"name":"@feasly/web","private":true,"scripts":{"build":"ng build","ng":"ng","prebuild":"npm run build --workspace @feasly/contracts","start":"ng serve","test":"ng test","watch":"ng build --watch --configuration development"},"version":"0.1.0"}
+{
+  "dependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "@ngxs/storage-plugin": "^22.0.0",
+    "@ngxs/store": "^22.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "description": "Feasly consumer site: Angular 22, static prerender, NGXS state, contract-driven mocks.",
+  "devDependencies": {
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.2.0",
+    "@angular/compiler-cli": "^22.2.0",
+    "@angular/platform-server": "^22.2.0",
+    "@angular/ssr": "^22.2.0",
+    "jsdom": "^30.0.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  },
+  "name": "@feasly/web",
+  "private": true,
+  "scripts": {
+    "build": "ng build",
+    "lint": "node tools/check-no-hardcode.mjs",
+    "ng": "ng",
+    "prebuild": "npm run build --workspace @feasly/contracts",
+    "start": "ng serve",
+    "test": "ng test",
+    "watch": "ng build --watch --configuration development"
+  },
+  "version": "0.1.0"
+}

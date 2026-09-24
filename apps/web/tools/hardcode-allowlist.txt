@@ -1,0 +1,15 @@
+# Hardcode allowlist — files exempt from tools/check-no-hardcode.mjs.
+# One repo-relative path per line. Every entry MUST have a reason comment.
+# "Rare justified exception" only: the default is to put the value in config.
+
+# The single intentional home for tunable literals: compiled fallback defaults
+# for when /assets/config/app-config.json is missing or malformed (FE0-002).
+apps/web/src/app/core/config/app-config.defaults.ts
+
+# Generated Angular welcome template; replaced by the real shell in FE0-004.
+# TODO(FE0-004): remove this line when the shell lands.
+apps/web/src/app/app.html
+
+# Temporary placeholder route; removed in FE1-001.
+# TODO(FE1-001): remove this line when the landing page lands.
+apps/web/src/app/placeholder-home.ts
