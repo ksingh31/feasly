@@ -73,6 +73,7 @@ describe('drizzle stores', () => {
     const createdAt = new Date('2026-09-24T12:00:00Z');
     await store.save({
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      projectType: 'new_build',
       addressKey: 'calgary-123-fake-st-nw',
       inputs: { sqft: 2200, tier: 'standard', garage: 'none', basement: 'unfinished' },
       figures: { build: { low: 1, base: 2, high: 2 }, total: { low: 1, base: 2, high: 3 }, land: { low: 1, base: 1, high: 1 } },
@@ -101,6 +102,7 @@ describe('drizzle stores', () => {
     for (const id of [estimateId, otherEstimateId]) {
       await estimates.save({
         id,
+        projectType: 'new_build',
         addressKey,
         inputs: {},
         figures: {},
@@ -156,5 +158,40 @@ describe('drizzle stores', () => {
       since: new Date('2026-09-01T00:00:00Z'),
     });
     expect(other).toBeNull();
+  });
+});
+
+describe('migration 0001 — estimates.project_type', () => {
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('adds project_type with a new_build default', async () => {
+    const cols = await testDb.rows<{ column_name: string; column_default: string | null }>(
+      `select column_name, column_default from information_schema.columns where table_name = 'estimates' and column_name = 'project_type'`,
+    );
+    expect(cols).toHaveLength(1);
+    expect(cols[0].column_default).toContain('new_build');
+  });
+
+  it('round-trips project_type through the Drizzle store', async () => {
+    const store = createDrizzleEstimateStore({ db: testDb.db });
+    const id = '33333333-3333-4333-8333-333333333333';
+    await store.save({
+      id,
+      projectType: 'renovation',
+      addressKey: 'calgary-reno-migration-test',
+      inputs: { renoType: 'basement' },
+      figures: {},
+      rows: [],
+      costDataVersion: 'v0.1.0-unclibrated',
+      createdAt: new Date(),
+    });
+    const found = await store.findById(id);
+    expect(found?.projectType).toBe('renovation');
   });
 });

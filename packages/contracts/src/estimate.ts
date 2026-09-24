@@ -13,12 +13,41 @@ export type FinishTier = 'standard' | 'premium' | 'luxury';
 export type GarageOption = 'none' | 'double' | 'triple';
 export type BasementOption = 'unfinished' | 'finished';
 
+/** Which estimate path produced the response. Absent on legacy new-build rows. */
+export type ProjectType = 'new_build' | 'renovation';
+
+/** Renovation scope kinds the engine prices (RENO-01). */
+export type RenoType = 'extensive' | 'addition' | 'basement' | 'combined';
+
 export interface EstimateInputs {
   /** Living area in square feet. */
   readonly sqft: number;
   readonly tier: FinishTier;
   readonly garage: GarageOption;
   readonly basement: BasementOption;
+}
+
+/** Inputs captured for a renovation estimate (RENO-01). */
+export interface RenoEstimateInputs {
+  readonly projectType: 'renovation';
+  readonly renoType: RenoType;
+  /** Renovation area in square feet (additions bill at most 400). */
+  readonly renoSqft: number;
+  readonly tier: FinishTier;
+  readonly underpinning: boolean;
+}
+
+/**
+ * Per-figure display hint. The API returns real ranges post-gate; clients
+ * blur `build`/`total` until the lead gate is verified. `land` is visible
+ * where applicable — renovation estimates carry no land figure.
+ */
+export type VisibilityHint = 'visible' | 'blurred' | 'not_applicable';
+
+export interface EstimateVisibility {
+  readonly land: VisibilityHint;
+  readonly build: VisibilityHint;
+  readonly total: VisibilityHint;
 }
 
 export interface EstimateRequest extends EstimateInputs {
@@ -67,4 +96,18 @@ export interface EstimateResponse {
   readonly rows: readonly CostRow[];
   readonly costDataVersion: string;
   readonly createdAt: string;
+  /**
+   * Present on renovation estimates (RENO-01). New-build responses omit it —
+   * their output shape is pinned by contract-conformance tests.
+   */
+  readonly projectType?: ProjectType;
+  /** Renovation inputs, present only when projectType is 'renovation'. */
+  readonly renoInputs?: RenoEstimateInputs;
+  /**
+   * Engine-authored assumptions (the only engine→narrative channel).
+   * Present on renovation estimates; new-build responses omit it.
+   */
+  readonly assumptions?: readonly string[];
+  /** Per-figure display hints. Present on renovation estimates. */
+  readonly visibility?: EstimateVisibility;
 }

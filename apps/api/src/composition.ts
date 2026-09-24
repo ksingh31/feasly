@@ -69,6 +69,18 @@ export function createComposition(
   options: CompositionOptions = {},
 ): AppComposition {
   const config: ApiConfig = loadConfig(env);
+  // Reno rates are uncalibrated draft placeholders (RENO-01): production
+  // must never serve them, with or without the flag. Dev sets
+  // COST_ENGINE_ALLOW_DRAFT=true to exercise the reno path.
+  if (
+    config.env === 'production' &&
+    !PLACEHOLDER_COST_DATA.calibrated &&
+    config.costEngine.allowDraftCostData
+  ) {
+    throw new Error(
+      'Refusing to boot: COST_ENGINE_ALLOW_DRAFT=true in production while the cost table is uncalibrated.',
+    );
+  }
   const db: DbClient = createDbClient({
     connectionString: config.databaseUrl,
     maxPoolSize: config.db.poolMaxSize,
@@ -103,6 +115,7 @@ export function createComposition(
   const estimateService: EstimateService = createEstimateService({
     costData: PLACEHOLDER_COST_DATA,
     store: estimateStore,
+    allowDraftCostData: config.costEngine.allowDraftCostData,
   });
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =

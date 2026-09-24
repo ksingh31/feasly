@@ -22,6 +22,7 @@ const NOW = new Date('2026-09-24T12:00:00Z');
 function fakeEstimateStore(): EstimateStore {
   const record: EstimateRecord = {
     id: ESTIMATE_ID,
+    projectType: 'new_build',
     addressKey: 'calgary-123-fake-st-nw',
     inputs: {},
     figures: {},
@@ -167,6 +168,7 @@ describe('lead service', () => {
         id === OTHER_ESTIMATE
           ? {
               id: OTHER_ESTIMATE,
+              projectType: 'new_build',
               // Same property as ESTIMATE_ID's fixture.
               addressKey: 'calgary-123-fake-st-nw',
               inputs: {},

@@ -1,0 +1,1 @@
+ALTER TABLE "estimates" ADD COLUMN "project_type" text DEFAULT 'new_build' NOT NULL;

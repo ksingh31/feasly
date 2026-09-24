@@ -18,10 +18,46 @@ export interface PropertyFacts {
   readonly zoning: string;
 }
 
+/** Renovation scope kinds the engine prices (RENO-01). */
+export type RenoType = 'extensive' | 'addition' | 'basement' | 'combined';
+
+/** Component keys with their own calibration rows ('combined' sums them). */
+export type RenoComponentKey = 'extensive' | 'addition' | 'basement';
+
 export interface BuildScope {
   /** Above-grade living area in square feet. */
   readonly buildSqft: number;
   readonly tier: FinishTier;
+}
+
+/** Input to the renovation estimate branch (RENO-01). */
+export interface RenoInput {
+  readonly renoType: RenoType;
+  /** Renovation area in square feet. */
+  readonly renoSqft: number;
+  readonly tier: FinishTier;
+  /**
+   * Foundation underpinning. Only meaningful for `basement`/`combined`
+   * inputs — ignored (not an error) for other reno types.
+   */
+  readonly underpinning: boolean;
+}
+
+/** Result of the renovation estimate branch (RENO-01). */
+export interface RenoEstimateResult {
+  /** Pinned calibration-table version this estimate was computed with. */
+  readonly costDataVersion: string;
+  /** False until Karan's real cost Sheet calibrates a successor table. */
+  readonly calibrated: boolean;
+  /** One row per priced component (underpinning is its own row). */
+  readonly rows: readonly CostRow[];
+  /** Sum of the component ranges, componentwise. */
+  readonly total: RangedAmount;
+  /**
+   * Engine-authored assumptions — the only engine→narrative channel.
+   * Includes the draft-placeholder note while reno rates are uncalibrated.
+   */
+  readonly assumptions: readonly string[];
 }
 
 export interface EngineInput {
@@ -107,6 +143,48 @@ export interface InputBounds {
   readonly maxZoningLength: number;
 }
 
+/** One priced renovation component (RENO-01). */
+export interface RenoComponentSpec {
+  readonly label: string;
+  readonly formula: string;
+  readonly rates: TierRates;
+}
+
+/** Flat (unbanded) underpinning allowance (RENO-01). */
+export interface RenoUnderpinningSpec {
+  readonly label: string;
+  readonly formula: string;
+  readonly low: number;
+  readonly high: number;
+}
+
+export interface RenoInputBounds {
+  readonly minRenoSqft: number;
+  readonly maxRenoSqft: number;
+}
+
+/**
+ * Renovation calibration section (RENO-01). Rates are draft placeholders
+ * until Karan's cost Sheet calibrates a successor table — `draft: true`
+ * marks that, and the API refuses reno requests on draft tables unless
+ * COST_ENGINE_ALLOW_DRAFT is set (never in production).
+ */
+export interface RenoSpec {
+  /** True while the reno rates are uncalibrated stand-ins. */
+  readonly draft: boolean;
+  readonly draftNote: string;
+  readonly components: Record<RenoComponentKey, RenoComponentSpec>;
+  /** Billable-area ceiling for additions (400). */
+  readonly additionCapSqft: number;
+  readonly underpinning: RenoUnderpinningSpec;
+  /** Asymmetric reno band: low = base × lowFactor, high = base × highFactor. */
+  readonly lowFactor: number;
+  readonly highFactor: number;
+  /** Renovation figures round to this dollar granularity (1000). */
+  readonly roundTo: number;
+  readonly inputBounds: RenoInputBounds;
+}
+
 /**
  * Shape of a versioned cost-data file. EVERY tunable the engine uses lives
  * here — the engine source contains no calibration numbers, limits or
@@ -125,6 +203,8 @@ export interface CostData {
   readonly contingency: ContingencySpec;
   /** Symmetric ± spread applied to the assessed land value. */
   readonly landSpread: number;
+  /** Renovation calibration section (RENO-01). */
+  readonly reno: RenoSpec;
 }
 
 /** Thrown when an input violates the cost-data input bounds. */
