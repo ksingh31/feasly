@@ -71,3 +71,18 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* Shared form-validation treatment. Validation messages must be impossible
+   to miss — never accent-on-cream. Use this class for every form error/hint
+   site-wide (lead gate, callback, partner share, …). */
+.form-error {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #fdf0ef;
+  border: 1px solid rgba(179, 38, 30, 0.25);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--danger);
+  font-weight: 600;
+}

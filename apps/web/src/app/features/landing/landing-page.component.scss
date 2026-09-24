@@ -47,7 +47,8 @@
   font-family: var(--font-display);
   font-size: clamp(34px, 5vw, 64px);
   font-weight: 700;
-  line-height: 1.04;
+  /* 1.1+ so Syne's long descenders (g, y, ?) never clip. */
+  line-height: 1.1;
   letter-spacing: -0.03em;
   color: var(--text);
   margin-bottom: 18px;
@@ -68,7 +69,9 @@
   max-width: 640px;
   display: flex;
   gap: 12px;
-  align-items: flex-end;
+  /* Top-aligned: validation messages grow downward under the input;
+     the CTA never jumps. */
+  align-items: flex-start;
   text-align: left;
 }
 
@@ -79,6 +82,10 @@
 
 .hero-cta {
   flex-shrink: 0;
+  /* Glues the button to the input field, not the label above it:
+     24px = .ac-label block height (12px/600/uppercase + 10px margin).
+     If the label style changes, update this to match. */
+  margin-top: 24px;
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
