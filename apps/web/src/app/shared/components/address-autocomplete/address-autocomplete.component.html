@@ -24,7 +24,7 @@
   </div>
 
   @if (hint()) {
-    <p class="ac-hint" role="status">{{ hint() }}</p>
+    <p class="form-error" role="alert">{{ hint() }}</p>
   }
 
   @if (status() === 'error') {
