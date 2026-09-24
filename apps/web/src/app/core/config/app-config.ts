@@ -322,6 +322,8 @@ export interface AppConfig {
       preview: string;
       reportTitle: string;
       report: string;
+      sampleReportTitle: string;
+      sampleReport: string;
       gateTitle: string;
       gate: string;
       analyzingTitle: string;

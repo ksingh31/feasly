@@ -15,3 +15,9 @@ apps/web/src/app/core/api/mock-data.ts
 # the landing spec's route tests (pages render, links resolve).
 apps/web/src/app/features/legal/privacy-page.component.ts
 apps/web/src/app/features/legal/terms-page.component.ts
+
+# Labelled sample report (seo/09): canned fictional data — the address,
+# figures, and banner copy are inherently literal, exactly like mock-data.ts
+# above. Every value is pinned by sample-report-page.component.spec.ts.
+apps/web/src/app/features/sample-report/sample-report-page.component.ts
+apps/web/src/app/features/sample-report/sample-report-page.component.html

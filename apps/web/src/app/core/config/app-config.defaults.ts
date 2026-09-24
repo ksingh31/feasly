@@ -313,6 +313,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
       reportTitle: 'Feasly — Your build estimate report',
       report: 'Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps.',
+      sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
+      sampleReport:
+        'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
       gateTitle: 'Feasly — Get your estimate',
       gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
       analyzingTitle: 'Feasly — Building your estimate',

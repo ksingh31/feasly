@@ -1,0 +1,112 @@
+<app-site-nav />
+<!-- Unmissable SAMPLE watermark: fixed, so it stays visible on every viewport while scrolling. -->
+<div class="sample-watermark" aria-hidden="true">
+  <span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span>
+  <span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span>
+</div>
+<main class="wrap report">
+  <p class="sample-banner" role="note">{{ banner }}</p>
+  <h1 class="report-heading">Sample build estimate <span class="sample-tag">SAMPLE</span></h1>
+  <p class="report-address">{{ data.address }}</p>
+  <p class="report-address-note">Fictional address — for illustration only.</p>
+
+  <p class="report-sub">{{ copy.subPostGate }}</p>
+  <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
+
+  <!-- HERO: full fictional ranges, as the unlocked report shows them. -->
+  <section class="hero" [attr.aria-label]="copy.heading">
+    <div class="figure-card hero-total">
+      <h2>{{ copy.totalLabel }}</h2>
+      <div class="range-grid">
+        <div>
+          <span class="range-label">{{ copy.lowLabel }}</span>
+          <span class="range-value">{{ formatCad(data.total.low) }}</span>
+        </div>
+        <div>
+          <span class="range-label">{{ copy.baseLabel }}</span>
+          <span class="range-value hero-mid">{{ formatCad(data.total.base) }}</span>
+        </div>
+        <div>
+          <span class="range-label">{{ copy.highLabel }}</span>
+          <span class="range-value">{{ formatCad(data.total.high) }}</span>
+        </div>
+      </div>
+      <p class="version">Sample figures — not a real estimate</p>
+    </div>
+    <div class="hero-sub">
+      <div class="figure-card">
+        <h2>{{ copy.buildLabel }}</h2>
+        <p class="figure-range">
+          {{ formatCad(data.build.low) }} – {{ formatCad(data.build.high) }}
+        </p>
+      </div>
+      <div class="figure-card">
+        <h2>{{ copy.landLabel }}</h2>
+        <p class="figure-range">
+          {{ formatCad(data.land.low) }} – {{ formatCad(data.land.high) }}
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COST BREAKDOWN -->
+  <section class="card" [attr.aria-label]="copy.breakdownTitle">
+    <h2>{{ copy.breakdownTitle }}</h2>
+    <ul class="rows">
+      @for (row of data.rows; track row.key) {
+        <li class="row">
+          <span class="row-label">{{ row.label }}</span>
+          <span class="row-range">{{ formatCad(row.range.low) }} – <strong>{{ formatCad(row.range.base) }}</strong> – {{ formatCad(row.range.high) }}<span class="sr-only"> ({{ copy.lowLabel }} / {{ copy.baseLabel }} / {{ copy.highLabel }})</span></span>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <!-- TIER WHAT-IF (inert on the sample — shows the control, changes nothing) -->
+  <section class="card no-print" [attr.aria-label]="copy.tierTitle">
+    <div class="section-head">
+      <h2>{{ copy.tierTitle }}</h2>
+    </div>
+    <p class="hint">{{ tierNote }}</p>
+    <div class="tier-toggle" role="group" [attr.aria-label]="copy.tierTitle">
+      @for (t of tierOptions; track t.id) {
+        <button type="button" class="tier-btn" [class.selected]="data.tier === t.id" disabled>
+          {{ t.name }}
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- INLINE ADJUST (inert on the sample) -->
+  <section class="card no-print" [attr.aria-label]="copy.adjustTitle">
+    <h2>{{ copy.adjustTitle }}</h2>
+    <p class="hint">{{ adjustNote }}</p>
+    <div class="stepper">
+      <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
+      <span class="stepper-value">{{ formatSqft(data.sqft) }}</span>
+      <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
+    </div>
+    <button class="cta secondary" type="button" disabled>{{ copy.adjustCta }}</button>
+  </section>
+
+  <!-- AI NARRATIVE (placeholder — never renders mock narrative text) -->
+  <section class="card" [attr.aria-label]="copy.narrativeTitle">
+    <h2>{{ copy.narrativeTitle }}</h2>
+    <p class="hint">{{ copy.narrativeComingSoon }}</p>
+    <p class="disclaimer">{{ narrativeDisclaimer }}</p>
+  </section>
+
+  <!-- NEXT 3 STEPS -->
+  <section class="card" [attr.aria-label]="copy.stepsTitle">
+    <h2>{{ copy.stepsTitle }}</h2>
+    <ol class="steps">
+      @for (s of copy.steps; track s.title) {
+        <li>
+          <strong>{{ s.title }}</strong>
+          <p>{{ s.body }}</p>
+        </li>
+      }
+    </ol>
+  </section>
+</main>
+<app-site-footer />
