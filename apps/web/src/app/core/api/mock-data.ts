@@ -138,12 +138,14 @@ export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResp
 
 function mockRows(): CostRow[] {
   return [
-    { key: 'site', label: 'Site preparation & excavation', range: { low: 38000, high: 46000 } },
-    { key: 'foundation', label: 'Foundation & concrete', range: { low: 62000, high: 74000 } },
-    { key: 'framing', label: 'Framing & structure', range: { low: 118000, high: 138000 } },
-    { key: 'envelope', label: 'Exterior envelope', range: { low: 88000, high: 104000 } },
-    { key: 'interior', label: 'Interior finishes', range: { low: 145000, high: 172000 } },
-    { key: 'mechanical', label: 'Mechanical & electrical', range: { low: 64000, high: 78000 } },
+    { key: 'site', label: 'Site preparation & excavation', range: { low: 38000, base: 42000, high: 46000 } },
+    { key: 'foundation', label: 'Foundation & concrete', range: { low: 62000, base: 68000, high: 74000 } },
+    { key: 'framing', label: 'Framing & structure', range: { low: 118000, base: 128000, high: 138000 } },
+    { key: 'envelope', label: 'Exterior envelope', range: { low: 88000, base: 96000, high: 104000 } },
+    { key: 'interior', label: 'Interior finishes', range: { low: 145000, base: 158500, high: 172000 } },
+    { key: 'mechanical', label: 'Mechanical & electrical', range: { low: 64000, base: 71000, high: 78000 } },
+    { key: 'soft', label: 'Soft costs (permits, design, fees)', range: { low: 45000, base: 51500, high: 58000 } },
+    { key: 'contingency', label: 'Contingency', range: { low: 50000, base: 57500, high: 65000 } },
   ];
 }
 
@@ -154,9 +156,9 @@ export function mockEstimate(inputs: EstimateInputs): EstimateResponse {
     addressKey: mockProperty().addressKey,
     inputs,
     figures: {
-      build: { low: 485000, high: 560000 },
-      total: { low: 880000, high: 1005000 },
-      land: { low: 395000, high: 445000 },
+      build: { low: 608000, base: 671500, high: 735000 },
+      total: { low: 1003000, base: 1091500, high: 1180000 },
+      land: { low: 395000, base: 420000, high: 445000 },
     },
     rows: mockRows(),
     costDataVersion: MOCK_COST_DATA_VERSION,
@@ -174,7 +176,7 @@ export const MOCK_TIER_FACTORS: Record<FinishTier, number> = {
 /** Scales a range, rounding to the nearest thousand (integers, no cents). */
 export function scaleRange(range: CostRange, factor: number): CostRange {
   const round = (n: number) => Math.round((n * factor) / 1000) * 1000;
-  return { low: round(range.low), high: round(range.high) };
+  return { low: round(range.low), base: round(range.base), high: round(range.high) };
 }
 
 export function mockLeadResponse(leadId: string): LeadResponse {

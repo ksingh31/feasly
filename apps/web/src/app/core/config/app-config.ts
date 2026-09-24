@@ -8,7 +8,7 @@
  *
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
-import type { FinishTier } from '@feasly/contracts';
+import type { CallbackWindow, FinishTier } from '@feasly/contracts';
 
 export interface AppConfig {
   /** Public site facts. */
@@ -171,12 +171,74 @@ export interface AppConfig {
        */
       freshnessMock: string;
     };
+    /**
+     * Estimate report page (M1) copy. Ranges render as low/mid/high — the
+     * word "base" is the engine's internal term; the frozen contract seam
+     * carries low/high only, so the middle figure is the labeled midpoint.
+     * Nothing here may carry ±, %, or accuracy claims (copy-linted).
+     */
+    report: {
+      heading: string;
+      subPreGate: string;
+      subPostGate: string;
+      totalLabel: string;
+      buildLabel: string;
+      landLabel: string;
+      lowLabel: string;
+      baseLabel: string;
+      highLabel: string;
+      uncalibratedNote: string;
+      lockedNote: string;
+      unlockCta: string;
+      breakdownTitle: string;
+      breakdownLocked: string;
+      landRowLabel: string;
+      tierTitle: string;
+      tierHint: string;
+      tierLockedNote: string;
+      adjustTitle: string;
+      decreaseLabel: string;
+      increaseLabel: string;
+      adjustHint: string;
+      adjustUnit: string;
+      adjustCta: string;
+      adjustLockedNote: string;
+      rerunningLabel: string;
+      narrativeTitle: string;
+      narrativeComingSoon: string;
+      stepsTitle: string;
+      steps: { title: string; body: string }[];
+      shareTitle: string;
+      shareHint: string;
+      shareEmailLabel: string;
+      shareCta: string;
+      shareSuccess: string;
+      shareError: string;
+      shareInvalid: string;
+      callbackTitle: string;
+      callbackHint: string;
+      callbackNameLabel: string;
+      callbackPhoneLabel: string;
+      callbackWindowLabel: string;
+      callbackWindows: { id: CallbackWindow; label: string }[];
+      callbackCta: string;
+      callbackSuccess: string;
+      callbackError: string;
+      callbackInvalid: string;
+      pdfCta: string;
+      loadingLabel: string;
+      loadError: string;
+      retryLabel: string;
+      versionLabel: string;
+    };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {
       scopeTitle: string;
       scope: string;
       detailsTitle: string;
       details: string;
+      reportTitle: string;
+      report: string;
       privacyTitle: string;
       privacy: string;
       termsTitle: string;

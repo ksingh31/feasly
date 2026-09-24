@@ -1,4 +1,4 @@
-import { inject, InjectionToken } from '@angular/core';
+import { inject, InjectionToken, Injector } from '@angular/core';
 import type { Provider } from '@angular/core';
 import type { Observable } from 'rxjs';
 import type { AutocompleteResponse, PropertyRecord } from '@feasly/contracts';
@@ -38,16 +38,40 @@ export const PROPERTY_DATA_SERVICE = new InjectionToken<PropertyDataService>(
 export function providePropertyData(): Provider {
   return {
     provide: PROPERTY_DATA_SERVICE,
-    useFactory: () => {
-      const source = inject(ConfigService).get('propertyData').source;
-      switch (source) {
-        case 'mock':
-          return inject(MockPropertyDataService);
-        case 'backend':
-          return inject(BackendPropertyDataService);
-        default:
-          return inject(CalgaryAssessmentService);
-      }
-    },
+    // The implementation is chosen per CALL, not when this factory runs.
+    // The factory can execute before ConfigService.load() finishes: NGXS v22
+    // instantiates states inside an *environment* initializer, which Angular
+    // runs before APP_INITIALIZERs (ReportState injects API_SERVICE, which
+    // pulls PROPERTY_DATA_SERVICE in). An eager choice froze the compiled
+    // default ('live'), so a served `propertyData.source: 'mock'` was silently
+    // ignored and the app always hit the City API (found by browser QA
+    // 2026-09-24). Calls only happen after bootstrap, on user interaction, so
+    // resolving then honors the loaded config — including config reloads.
+    useFactory: () => new LazyPropertyDataService(),
   };
+}
+
+/** Defers the property-data implementation choice to call time (see above). */
+class LazyPropertyDataService implements PropertyDataService {
+  private readonly injector = inject(Injector);
+
+  private resolve(): PropertyDataService {
+    const source = this.injector.get(ConfigService).get('propertyData').source;
+    switch (source) {
+      case 'mock':
+        return this.injector.get(MockPropertyDataService);
+      case 'backend':
+        return this.injector.get(BackendPropertyDataService);
+      default:
+        return this.injector.get(CalgaryAssessmentService);
+    }
+  }
+
+  autocomplete(query: string): Observable<AutocompleteResponse> {
+    return this.resolve().autocomplete(query);
+  }
+
+  getProperty(addressKey: string): Observable<PropertyRecord> {
+    return this.resolve().getProperty(addressKey);
+  }
 }
