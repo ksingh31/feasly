@@ -1,0 +1,13 @@
+    <ol class="steps" aria-label="Estimate progress">
+      @for (s of steps; track s.n) {
+        <li
+          class="step"
+          [class.step-done]="s.n < current()"
+          [class.step-current]="s.n === current()"
+          [attr.aria-current]="s.n === current() ? 'step' : null"
+        >
+          <span class="step-n" aria-hidden="true">{{ s.n }}</span>
+          <span class="step-label">{{ s.label }}</span>
+        </li>
+      }
+    </ol>

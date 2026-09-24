@@ -1,0 +1,54 @@
+.pcard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(26, 22, 18, 0.04);
+}
+.pcard-address {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.pcard-community {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+.pcard-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin: 0 0 16px;
+}
+.pcard-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.pcard-facts dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.pcard-stale {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+  vertical-align: middle;
+}
+.pcard-freshness {
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.8;
+}

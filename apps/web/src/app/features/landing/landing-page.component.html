@@ -1,0 +1,61 @@
+<app-site-nav />
+
+<main class="page">
+  <!-- ── Hero ─────────────────────────────────── -->
+  <section class="hero">
+    <p class="eyebrow">
+      <span class="eyebrow-line" aria-hidden="true"></span>
+      {{ copy.eyebrow }}
+      <span class="eyebrow-line" aria-hidden="true"></span>
+    </p>
+
+    <h1 class="hero-title">{{ copy.heroTitle }}</h1>
+    <p class="hero-sub">{{ copy.heroSub }}</p>
+
+    <form class="hero-form" (ngSubmit)="onSubmit()" aria-label="Address search">
+      <app-address-autocomplete
+        class="hero-search"
+        (selected)="onSelected($event)"
+        (submitted)="onSubmit()"
+      />
+      <button class="hero-cta" type="submit">{{ searchCopy.submitLabel }}</button>
+    </form>
+    <!-- Sample report: behind features.sampleReport; entry point lands with the report story (FE2-x). -->
+  </section>
+
+  <!-- ── Trust strip (never ±, %, or accuracy claims — copy-linted) ── -->
+  <section class="trust" aria-label="Why Feasly">
+    <ul class="trust-list">
+      @for (item of copy.trustItems; track item) {
+        <li class="trust-item">{{ item }}</li>
+      }
+    </ul>
+  </section>
+
+  <!-- ── How it works ─────────────────────────── -->
+  <section class="how">
+    <div class="how-grid">
+      <div class="how-intro">
+        <p class="eyebrow eyebrow-left">
+          <span class="eyebrow-line" aria-hidden="true"></span>
+          How it works
+        </p>
+        <h2 class="how-title">{{ copy.howItWorksTitle }}</h2>
+        <p class="how-sub">{{ copy.howItWorksSub }}</p>
+      </div>
+      <ol class="how-steps">
+        @for (step of copy.steps; track step.n) {
+          <li class="how-step">
+            <span class="how-step-n" aria-hidden="true">{{ step.n }}</span>
+            <div>
+              <h3 class="how-step-title">{{ step.title }}</h3>
+              <p class="how-step-body">{{ step.body }}</p>
+            </div>
+          </li>
+        }
+      </ol>
+    </div>
+  </section>
+</main>
+
+<app-site-footer />

@@ -1,0 +1,32 @@
+    @if (property(); as p) {
+      <article class="pcard" aria-label="Selected property">
+        <h2 class="pcard-address">{{ p.address }}</h2>
+        <p class="pcard-community">{{ p.community }} · Calgary</p>
+        <dl class="pcard-facts">
+          <div>
+            <dt>Assessed value</dt>
+            <dd>
+              {{ formatCad(p.assessedValue) }}
+              @if (p.stale) {
+                <span class="pcard-stale">May be outdated</span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Lot size</dt>
+            <dd>{{ p.lotSqft.toLocaleString('en-CA') }} sq ft</dd>
+          </div>
+          <div>
+            <dt>Zoning</dt>
+            <dd>{{ p.zoning }}</dd>
+          </div>
+          <div>
+            <dt>Year built</dt>
+            <dd>{{ p.yearBuilt ?? '—' }}</dd>
+          </div>
+        </dl>
+        <p class="pcard-freshness">
+          City-assessed value, {{ p.assessmentYear }} — data as of {{ formatDate(p.dataAsOf) }}
+        </p>
+      </article>
+    }

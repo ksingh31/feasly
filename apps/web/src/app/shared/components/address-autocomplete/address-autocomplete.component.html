@@ -1,0 +1,64 @@
+<div class="ac">
+  <label class="ac-label" [for]="inputId">{{ copy.label }}</label>
+  <div class="ac-field">
+    <input
+      [id]="inputId"
+      class="ac-input"
+      type="text"
+      role="combobox"
+      aria-autocomplete="list"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listboxId"
+      [attr.aria-activedescendant]="activeIndex() >= 0 ? listboxId + '-opt-' + activeIndex() : null"
+      [placeholder]="copy.placeholder"
+      autocomplete="off"
+      spellcheck="false"
+      [formControl]="query"
+      (keydown)="onKeydown($event)"
+      (focus)="onFocus()"
+      (blur)="onBlur()"
+    />
+    @if (status() === 'searching') {
+      <span class="ac-spinner" aria-hidden="true"></span>
+    }
+  </div>
+
+  @if (hint()) {
+    <p class="ac-hint" role="status">{{ hint() }}</p>
+  }
+
+  @if (status() === 'error') {
+    <div class="ac-error" role="alert">
+      <p>{{ copy.error }}</p>
+      <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
+    </div>
+  } @else if (
+    searched() &&
+    suggestions().length === 0 &&
+    status() === 'idle'
+  ) {
+    <p class="ac-empty" role="status">{{ copy.noResults }}</p>
+  }
+
+  @if (open() && suggestions().length > 0) {
+    <ul class="ac-list" role="listbox" [id]="listboxId" [attr.aria-label]="copy.label">
+      @for (
+      s of suggestions(); track s.addressKey; let i = $index
+    ) {
+        <li
+          role="option"
+          [id]="listboxId + '-opt-' + i"
+          class="ac-option"
+          [class.ac-option-active]="i === activeIndex()"
+          [attr.aria-selected]="i === activeIndex()"
+          (mousedown)="$event.preventDefault()"
+          (click)="choose(i)"
+          (mouseenter)="activeIndex.set(i)"
+        >
+          <span class="ac-option-address">{{ s.address }}</span>
+          <span class="ac-option-community">{{ s.community }}</span>
+        </li>
+      }
+    </ul>
+  }
+</div>

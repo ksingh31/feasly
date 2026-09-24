@@ -57,6 +57,68 @@ export function mockSuggestions(): AutocompleteSuggestion[] {
   ];
 }
 
+/** Property record for EVERY address the mock autocomplete can suggest.
+ *
+ * A suggestion the user can pick but the lookup then rejects is a dead end
+ * on the front door (bug found by browser QA 2026-09-24: selecting any
+ * suggestion other than the single fixture addressKey errored). The primary
+ * fixture stays pinned for the conformance specs; every other suggestion
+ * derives a stable, obviously-fake record deterministically from its
+ * addressKey so values never shift between page loads. */
+const MOCK_LOT_SQFT = [4200, 4800, 5200, 5600, 6100] as const;
+const MOCK_ZONING = ['R-C1', 'R-C2', 'R-CG'] as const;
+const MOCK_ASSESSED = [612400, 748500, 823000, 915000] as const;
+const MOCK_YEAR_BUILT = [1951, 1958, 1974, 1983] as const;
+
+function pickFor<T>(addressKey: string, pool: readonly T[]): T {
+  let hash = 0;
+  for (const ch of addressKey) {
+    hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  }
+  return pool[hash % pool.length];
+}
+
+/**
+ * Explicit mock facts per suggested address so no two addresses share an
+ * identical card (hash-picking from small pools collided). Values are
+ * plausible inner-city Calgary figures; the real API replaces this file.
+ */
+const MOCK_PROPERTY_DETAILS: Record<
+  string,
+  { lotSqft: number; zoning: string; assessedValue: number; yearBuilt: number }
+> = {
+  'calgary-1410-14-st-nw': { lotSqft: 4800, zoning: 'R-CG', assessedValue: 748500, yearBuilt: 1958 },
+  'calgary-222-7-ave-ne': { lotSqft: 5600, zoning: 'R-C2', assessedValue: 915000, yearBuilt: 1983 },
+  'calgary-918-16-ave-nw': { lotSqft: 6100, zoning: 'R-C1', assessedValue: 823000, yearBuilt: 1974 },
+  'calgary-4708-22-st-nw': { lotSqft: 5200, zoning: 'R-C2', assessedValue: 612400, yearBuilt: 1951 },
+  'calgary-3311-33-ave-sw': { lotSqft: 4200, zoning: 'R-CG', assessedValue: 685000, yearBuilt: 1962 },
+  'calgary-101-8-ave-se': { lotSqft: 3900, zoning: 'R-C2', assessedValue: 742000, yearBuilt: 1948 },
+  'calgary-2704-24-st-sw': { lotSqft: 5900, zoning: 'R-C1', assessedValue: 879000, yearBuilt: 1967 },
+};
+
+export function mockPropertyFor(addressKey: string): PropertyRecord | undefined {
+  const suggestion = mockSuggestions().find((s) => s.addressKey === addressKey);
+  if (!suggestion) {
+    return undefined;
+  }
+  if (addressKey === mockProperty().addressKey) {
+    return mockProperty();
+  }
+  const details = MOCK_PROPERTY_DETAILS[addressKey];
+  return {
+    addressKey,
+    address: suggestion.address,
+    community: suggestion.community,
+    lotSqft: details?.lotSqft ?? pickFor(addressKey, MOCK_LOT_SQFT),
+    zoning: details?.zoning ?? pickFor(addressKey, MOCK_ZONING),
+    assessedValue: details?.assessedValue ?? pickFor(addressKey, MOCK_ASSESSED),
+    assessmentYear: 2025,
+    yearBuilt: details?.yearBuilt ?? pickFor(addressKey, MOCK_YEAR_BUILT),
+    dataAsOf: '2025-07-01',
+    stale: false,
+  };
+}
+
 /** Pre-gate preview: blurred figures only — the type makes leaks a compile error. */
 export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResponse {
   return {

@@ -1,0 +1,25 @@
+    <app-site-nav />
+    <main class="wrap">
+      <app-wizard-steps [current]="2" />
+      @if (property(); as p) {
+        <app-property-card [property]="p" />
+        <div class="cards">
+          <button class="card card-active" type="button" (click)="chooseNewBuild()">
+            <span class="card-title">{{ copy.scopeNewBuildTitle }}</span>
+            <span class="card-tag">{{ copy.scopeNewBuildTag }}</span>
+            <span class="card-cta">{{ copy.scopeNewBuildCta }}</span>
+          </button>
+          <button class="card" type="button" disabled aria-disabled="true">
+            <span class="card-title">{{ copy.scopeRenoTitle }}</span>
+            <span class="card-tag">{{ copy.scopeRenoTag }}</span>
+            <span class="card-badge">{{ copy.scopeRenoBadge }}</span>
+          </button>
+        </div>
+      } @else {
+        <div class="empty">
+          <p>{{ copy.scopeEmpty }}</p>
+          <a routerLink="/">{{ copy.scopeEmptyCta }}</a>
+        </div>
+      }
+    </main>
+    <app-site-footer />
