@@ -41,11 +41,16 @@ const EnvSchema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+  // Safety valve: bounds the limiter's in-memory key map (DoS resistance).
+  RATE_LIMIT_MAX_TRACKED_KEYS: z.coerce.number().int().positive().default(10_000),
 
   // Provisional defaults — Karan has not confirmed magic-link-only V1 or the
   // session/magic-link lifetimes. Revisit when the login ADR lands (BE-4).
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
   MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+
+  // A hanging dependency must not hang the health endpoint (BE0-003).
+  HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 
   CORS_ORIGINS: z
     .string()
@@ -60,6 +65,7 @@ const EnvSchema = z.object({
 export interface RateLimitConfig {
   readonly windowMs: number;
   readonly maxRequests: number;
+  readonly maxTrackedKeys: number;
 }
 
 export interface AuthConfig {
@@ -75,6 +81,11 @@ export interface QueueConfig {
   readonly sheets: string;
 }
 
+export interface HealthConfig {
+  /** A dependency ping slower than this marks the check failed, not hung. */
+  readonly dbTimeoutMs: number;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -85,6 +96,7 @@ export interface ApiConfig {
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
   readonly queues: QueueConfig;
+  readonly health: HealthConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -121,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     rateLimit: {
       windowMs: e.RATE_LIMIT_WINDOW_MS,
       maxRequests: e.RATE_LIMIT_MAX_REQUESTS,
+      maxTrackedKeys: e.RATE_LIMIT_MAX_TRACKED_KEYS,
     },
     auth: {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
@@ -131,6 +144,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       email: e.QUEUE_EMAIL_NAME,
       pdf: e.QUEUE_PDF_NAME,
       sheets: e.QUEUE_SHEETS_NAME,
+    },
+    health: {
+      dbTimeoutMs: e.HEALTH_DB_TIMEOUT_MS,
     },
   };
 }
