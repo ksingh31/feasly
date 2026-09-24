@@ -17,10 +17,19 @@ describe('composition root', () => {
   it('resolves every wired service (none undefined)', () => {
     const app = createComposition(TEST_ENV);
     expect(app.config).toBeDefined();
+    expect(app.db).toBeDefined();
     expect(app.rateLimiter).toBeDefined();
     expect(app.requestPipeline).toBeDefined();
+    expect(app.leadRateLimiter).toBeDefined();
+    expect(app.leadPipeline).toBeDefined();
     expect(app.healthService).toBeDefined();
     expect(app.healthRoute).toBeDefined();
+    expect(app.estimateStore).toBeDefined();
+    expect(app.estimateService).toBeDefined();
+    expect(app.estimateRoute).toBeDefined();
+    expect(app.leadStore).toBeDefined();
+    expect(app.leadService).toBeDefined();
+    expect(app.leadRoute).toBeDefined();
   });
 
   it('injects config into the health service', async () => {
