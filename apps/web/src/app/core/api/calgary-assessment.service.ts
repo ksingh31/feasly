@@ -45,6 +45,71 @@ const DETAIL_FIELDS = [
 /** Minimum query length, mirroring the autocomplete component's gate. */
 const MIN_QUERY_CHARS = 3;
 
+/**
+ * Natural street-type spellings users type, mapped to the abbreviations the
+ * City dataset actually stores. Derived from a 50k-row live sample of dataset
+ * 4bsw-nn7w (2026-09-24): every one of the 45 distinct street-type tokens is a
+ * two-letter abbreviation ("1600 90 AV SW", never "AVE"). Without this,
+ * natural input like "1600 90 Ave SW" prefix-matches zero rows and the UI
+ * reports "address not found" for valid Calgary addresses.
+ *
+ * Only the token in street-type position (immediately before a trailing
+ * quadrant, else the last token) is rewritten, so street names containing
+ * these words are never corrupted: "PARK AVE SW" -> "PARK AV SW".
+ * Tokens already abbreviated ("AV") or unknown pass through untouched.
+ */
+const STREET_TYPE_ABBREVIATIONS: Readonly<Record<string, string>> = {
+  AVENUE: 'AV',
+  AVE: 'AV',
+  BOULEVARD: 'BV',
+  BLVD: 'BV',
+  STREET: 'ST',
+  DRIVE: 'DR',
+  CRESCENT: 'CR',
+  CRES: 'CR',
+  ROAD: 'RD',
+  PLACE: 'PL',
+  WAY: 'WY',
+  CLOSE: 'CL',
+  CIRCLE: 'CI',
+  CIR: 'CI',
+  COURT: 'CO',
+  CRT: 'CO',
+  PARK: 'PA',
+  PARADE: 'PR',
+  PARKWAY: 'PY',
+  PKY: 'PY',
+  TERRACE: 'TC',
+  MANOR: 'MR',
+  GREEN: 'GR',
+  COMMON: 'CM',
+  GARDEN: 'GD',
+  GARDENS: 'GD',
+  VIEW: 'VW',
+  RISE: 'RI',
+  BAY: 'BA',
+  HEIGHTS: 'HT',
+  POINT: 'PT',
+  LANDING: 'LD',
+  SQUARE: 'SQ',
+  GROVE: 'GV',
+  MEWS: 'ME',
+  LANE: 'LN',
+  WALK: 'WK',
+  LINK: 'LI',
+  VISTA: 'VI',
+  HILL: 'HL',
+  GATE: 'GA',
+  PLAZA: 'PZ',
+  TRAIL: 'TR',
+  HEATH: 'HE',
+  COVE: 'CV',
+  ROW: 'RO',
+  PASS: 'PS',
+  ISLAND: 'IS',
+  ISLE: 'IS',
+};
+
 /** Trailing quadrant token stays uppercase: "16 AVE NW" -> "16 Ave NW". */
 const QUADRANT = /^(NW|NE|SW|SE)$/i;
 
@@ -82,7 +147,7 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-/** Dataset addresses are uppercase ("918 16 AVE NW"); display title-cased. */
+/** Dataset addresses are uppercase ("918 16 AV NW"); display title-cased. */
 function formatAddress(raw: string): string {
   const words = raw.trim().split(/\s+/);
   return words
@@ -133,9 +198,22 @@ export class CalgaryAssessmentService implements PropertyDataService {
     cache.set(key, { expires: Date.now() + this.config.get('propertyData').cacheTtlMs, value });
   }
 
-  /** Normalizes for SoQL prefix search: uppercase, single-spaced. */
+  /**
+   * Normalizes for SoQL prefix search: uppercase, single-spaced, and natural
+   * street-type spellings ("AVE", "STREET") rewritten to the abbreviations the
+   * City dataset stores ("AV", "ST") — see STREET_TYPE_ABBREVIATIONS.
+   */
   private normalizeQuery(query: string): string {
-    return query.trim().replace(/\s+/g, ' ').toUpperCase();
+    const tokens = query.trim().replace(/\s+/g, ' ').toUpperCase().split(' ');
+    // The street-type token sits immediately before a trailing quadrant;
+    // without a quadrant it is the last token.
+    const typeIndex =
+      tokens.length >= 2 && QUADRANT.test(tokens[tokens.length - 1])
+        ? tokens.length - 2
+        : tokens.length - 1;
+    const abbreviation = STREET_TYPE_ABBREVIATIONS[tokens[typeIndex]];
+    if (abbreviation !== undefined) tokens[typeIndex] = abbreviation;
+    return tokens.join(' ');
   }
 
   private cityUnavailable(): Observable<never> {
