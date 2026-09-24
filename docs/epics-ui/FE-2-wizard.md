@@ -6,20 +6,23 @@ states that never strand the user.
 
 ## Stories (build order)
 
-### FE2-001 — Wizard shell: state service, step indicator, routing
+### FE2-001 — Wizard shell: NGXS store, step indicator, routing
 **Size:** M
-**Description:** `WizardStateService` (signals) holding `{ address_key, property,
-sqft, tier, garage, basement, step }`; persists to `localStorage` (`feasly.wizard.v1`)
-on every change; refresh restores and lands on the current step. Step indicator
-("Step X of 3"), back navigation, focus moves to the step heading on every advance.
+**Description:** NGXS `WizardState` holding `{ address_key, property,
+sqft, tier, garage, basement, step }` with typed actions (`SetAddress`, `SetScope`,
+`SetDetails`, `GoToStep`, `ResetWizard`); `@ngxs/storage-plugin` persists the state
+to `localStorage` (`feasly.wizard.v1`) on every change — refresh restores and lands
+on the current step. Step indicator ("Step X of 3"), back navigation, focus moves to
+the step heading on every advance.
 Routes: `/estimate/address`, `/estimate/scope`, `/estimate/details` (only address
 prerenders as the deep-link entry; scope/details are CSR + `noindex`).
 **Acceptance criteria:**
-- Refresh mid-wizard restores inputs and step; stored payload contains zero
-  `email`/`name`/`phone` keys pre-gate (assertion).
+- Refresh mid-wizard restores inputs and step via the storage plugin; stored payload
+  contains zero `email`/`name`/`phone` keys pre-gate (assertion on the storage key).
 - Focus lands on the step heading on advance (scripted keyboard test).
 - Direct URL entry to `/estimate/details` with empty state redirects to S1 (no broken state).
-**Tests:** spec — persistence, restore, key allowlist; UI — indicator renders.
+- State changes only via actions (no direct state mutation; store test asserts).
+**Tests:** spec — actions/reducers, persistence round-trip, key allowlist; UI — indicator renders.
 **Mobile:** indicator compact at 390px; back button ≥44px.
 **Config notes:** storage key + version from config (bump version = clean migration).
 **Dependencies:** FE0-001…FE0-003.
@@ -64,7 +67,7 @@ flips it without code changes.
 range 800–6,000, out-of-range clamps with an inline note — never silently),
 finish tier segmented (Standard/Premium/Luxury), garage segmented
 (None/Double/Triple), basement toggle (Unfinished/Finished). CTA "See My Preview →".
-Every change persists via `WizardStateService`. "Edit my details" (from S5) returns
+Every change dispatches to the wizard store (persisted via the storage plugin). "Edit my details" (from S5) returns
 here with state intact.
 **Acceptance criteria:**
 - Slider ↔ numeric stay in sync; clamp note appears on out-of-range entry.
