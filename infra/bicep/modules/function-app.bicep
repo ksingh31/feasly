@@ -1,4 +1,4 @@
-// Feasly — Function App on Flex Consumption (FC1) plan, Node 20.
+// Feasly — Function App on Flex Consumption (FC1) plan, Node 22.
 // Flex Consumption requires functionAppConfig.deployment.storage pointing at a blob
 // container; auth is via the app's system-assigned managed identity (the "Storage Blob
 // Data Contributor" role on the storage account is granted in main.bicep).
@@ -88,7 +88,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
     functionAppConfig: {
       runtime: {
         name: 'node'
-        version: '20'
+        version: '22'
       }
       deployment: {
         storage: {
