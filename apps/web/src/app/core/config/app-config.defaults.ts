@@ -137,6 +137,27 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scopeCta: 'See My Preview →',
       scopeEmpty: 'No address selected yet.',
       scopeEmptyCta: 'Find your address to start →',
+      scopeProjectTypeLabel: 'What are you planning?',
+      scopeProjectTypes: [
+        {
+          id: 'new-build',
+          name: 'New Build',
+          blurb:
+            'A brand-new home on your lot, from foundation to finishes.',
+        },
+        {
+          id: 'renovation',
+          name: 'Renovation',
+          blurb:
+            'Remodel, addition, or basement work on your existing home.',
+        },
+      ],
+      renoSelectedNote:
+        'You will describe your renovation — type, area, and finishes — on the next step.',
+      renoScopePendingTitle: 'Renovation scope',
+      renoScopePendingBody:
+        'Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.',
+      renoScopeBackLabel: '← Back to project type',
       detailsLivingArea: 'Living area',
       detailsFinishTier: 'Finish tier',
       detailsGarage: 'Garage',
@@ -226,6 +247,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     seo: {
       scopeTitle: 'Feasly — Configure your build scope',
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
+      renoScopeTitle: 'Feasly — Describe your renovation',
+      renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
       detailsTitle: 'Feasly — Configure your build details',
       details:
         'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',

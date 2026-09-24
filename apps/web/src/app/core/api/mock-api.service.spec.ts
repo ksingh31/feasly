@@ -185,7 +185,9 @@ describe('MockApiService', () => {
     it('rejects an unknown token as invalid', async () => {
       const res = await firstValueFrom(service.verifyMagicLink('bogus-token'));
       expect(res.valid).toBe(false);
-      if (!res.valid) {
+      // NOTE: `res.valid === false` (not `!res.valid`) — without
+      // strictNullChecks, TS does not narrow the negated boolean discriminant.
+      if (res.valid === false) {
         expect(res.reason).toBe('invalid');
         expect(res.reissueAllowed).toBe(true);
       }

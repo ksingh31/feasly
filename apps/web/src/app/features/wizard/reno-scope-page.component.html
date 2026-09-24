@@ -1,0 +1,10 @@
+    <app-site-nav />
+    <main class="wrap" id="main-content" tabindex="-1">
+      <app-wizard-steps [current]="2" />
+      <div class="empty">
+        <h1 class="pending-heading">{{ copy.renoScopePendingTitle }}</h1>
+        <p>{{ copy.renoScopePendingBody }}</p>
+        <a routerLink="/estimate/scope" (click)="goBack()">{{ copy.renoScopeBackLabel }}</a>
+      </div>
+    </main>
+    <app-site-footer />

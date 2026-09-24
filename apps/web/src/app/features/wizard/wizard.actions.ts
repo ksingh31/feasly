@@ -1,7 +1,7 @@
 import type { EstimateInputs, PropertyRecord } from '@feasly/contracts';
 
-/** Project types the wizard supports. M1: new builds only (FE-2 adds reno). */
-export type ProjectType = 'new-build';
+/** Project types the wizard supports: new builds (M1) and renovations (RENO-02). */
+export type ProjectType = 'new-build' | 'renovation';
 
 /** Wizard steps: 1 address → 2 scope → 3 details. */
 export type WizardStep = 1 | 2 | 3;
