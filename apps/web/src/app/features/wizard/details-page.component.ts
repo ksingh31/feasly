@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { WizardState } from '../wizard';
+import { GoToStep, WizardState } from '../wizard';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 
 /**
@@ -40,5 +40,10 @@ export class DetailsPageComponent implements OnInit {
       description: this.config.get('copy').seo.details,
       path: '/estimate/details',
     });
+  }
+
+  goBack(): void {
+    this.store.dispatch(new GoToStep(2));
+    // The routerLink on the template anchor performs the navigation.
   }
 }
