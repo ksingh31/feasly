@@ -15,10 +15,11 @@ describe('loadConfig', () => {
       version: packageVersion,
       env: 'test',
       databaseUrl: 'postgresql://user:pass@localhost:5432/feasly',
-      rateLimit: { windowMs: 60_000, maxRequests: 100 },
+      rateLimit: { windowMs: 60_000, maxRequests: 100, maxTrackedKeys: 10_000 },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 900 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
+      health: { dbTimeoutMs: 2_000 },
     });
   });
 

@@ -3,4 +3,4 @@
  * Deterministic math belongs in packages/cost-engine instead.
  * Everything here is unit-tested.
  */
-export {};
+export * from './async';

@@ -12,6 +12,6 @@
   },
   "version": "0.1.0",
   "dependencies": {
-    "zod": "^4.6.5"
+    "@feasly/contracts": "^0.2.0"
   }
 }
