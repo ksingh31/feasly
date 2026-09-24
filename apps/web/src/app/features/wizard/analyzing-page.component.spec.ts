@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Subject } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi } from '../../core/api/api.service';
+import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, SelectProperty, WizardState } from '../wizard';
 import { AnalyzingPageComponent } from './analyzing-page.component';
@@ -82,6 +83,7 @@ describe('AnalyzingPageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         apiProvider as never,
+        providePropertyData(),
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/report', component: BlankComponent },
@@ -92,9 +94,10 @@ describe('AnalyzingPageComponent', () => {
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
-    httpMock
-      .expectOne('/assets/config/app-config.json')
-      .flush({ timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 2 } });
+    httpMock.expectOne('/assets/config/app-config.json').flush({
+      timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 2 },
+      propertyData: { source: 'mock' },
+    });
     await pending;
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);

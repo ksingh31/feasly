@@ -9,6 +9,7 @@ import { of, throwError } from 'rxjs';
 import type { PropertyRecord, PreviewEstimateResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { provideApi } from '../../core/api/api.service';
+import { providePropertyData } from '../../core/api/property-data.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, LeadState, SelectProperty, WizardState } from '../wizard';
@@ -84,6 +85,7 @@ describe('GatePageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         apiProvider as never,
+        providePropertyData(),
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },
@@ -96,10 +98,11 @@ describe('GatePageComponent', () => {
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
     // Tiny mock latency; the gate/analyzing copy falls back to the compiled
-    // defaults under test.
-    httpMock
-      .expectOne('/assets/config/app-config.json')
-      .flush({ timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 2 } });
+    // defaults under test. propertyData.source=mock keeps the fixture harness.
+    httpMock.expectOne('/assets/config/app-config.json').flush({
+      timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 2 },
+      propertyData: { source: 'mock' },
+    });
     await pending;
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
