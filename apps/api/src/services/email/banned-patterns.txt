@@ -1,0 +1,22 @@
+# Banned email-copy patterns (story email/01, acceptance criterion 5).
+#
+# One regex source per line. Lines starting with '#' are comments.
+# Single source of truth, consumed by BOTH:
+#   - apps/api/test/email.service.test.ts  (renders every template, asserts no match)
+#   - apps/api/tools/check-email-copy.mjs  (scans templates.ts string literals, CI lint)
+#
+# Why these: no public accuracy figure until calibration (tighter claims = more
+# liability), no promises the product can't keep, no dollar figures in email
+# copy at all (figures live in the report behind the deterministic-math
+# disclaimer).
+
+±
+\d+\s*%\s*accurat
+accurate\s+(within|to)
+guaranteed
+risk-free
+100%\s+accurate
+certified\s+estimate
+official\s+quote
+approved\s+by\s+the\s+City
+\$\s?\d
