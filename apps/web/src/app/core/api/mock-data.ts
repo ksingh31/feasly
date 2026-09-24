@@ -119,11 +119,38 @@ export function mockPropertyFor(addressKey: string): PropertyRecord | undefined 
   };
 }
 
+/**
+ * Stable estimate identity. The estimate ID is deterministic over the FULL
+ * canonical request (property + size + tier + garage + basement + cost data
+ * version), so the gate, the analyzing screen, and the report page all resolve
+ * the SAME estimate ID for the same inputs instead of minting unrelated
+ * estimates — and two different properties can never collide on one ID.
+ */
+export function stableMockEstimateId(addressKey: string, inputs: EstimateInputs): string {
+  const canonical = [
+    addressKey,
+    inputs.sqft,
+    inputs.tier,
+    inputs.garage,
+    inputs.basement,
+    MOCK_COST_DATA_VERSION,
+  ].join('|');
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i++) {
+    hash ^= canonical.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `est-mock-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 /** Pre-gate preview: blurred figures only — the type makes leaks a compile error. */
-export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResponse {
+export function mockPreviewEstimate(
+  addressKey: string,
+  inputs: EstimateInputs,
+): PreviewEstimateResponse {
   return {
-    estimateId: `est-mock-${inputs.sqft}-${inputs.tier}`,
-    addressKey: mockProperty().addressKey,
+    estimateId: stableMockEstimateId(addressKey, inputs),
+    addressKey,
     inputs,
     figures: {
       build: { blurred: true },
@@ -131,6 +158,30 @@ export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResp
       land: { blurred: true },
     },
     rows: [],
+    costDataVersion: MOCK_COST_DATA_VERSION,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** Canned post-gate figures. Never served pre-gate. */
+export function mockEstimateFigures(): Pick<EstimateResponse, 'figures' | 'rows'> {
+  return {
+    figures: {
+      build: { low: 608000, base: 671500, high: 735000 },
+      total: { low: 1003000, base: 1091500, high: 1180000 },
+      land: { low: 395000, base: 420000, high: 445000 },
+    },
+    rows: mockRows(),
+  };
+}
+
+/** Post-gate estimate: canned ranges. Never served pre-gate. */
+export function mockEstimate(addressKey: string, inputs: EstimateInputs): EstimateResponse {
+  return {
+    estimateId: stableMockEstimateId(addressKey, inputs),
+    addressKey,
+    inputs,
+    ...mockEstimateFigures(),
     costDataVersion: MOCK_COST_DATA_VERSION,
     createdAt: new Date().toISOString(),
   };
@@ -147,23 +198,6 @@ function mockRows(): CostRow[] {
     { key: 'soft', label: 'Soft costs (permits, design, fees)', range: { low: 45000, base: 51500, high: 58000 } },
     { key: 'contingency', label: 'Contingency', range: { low: 50000, base: 57500, high: 65000 } },
   ];
-}
-
-/** Post-gate estimate: canned ranges. Never served pre-gate. */
-export function mockEstimate(inputs: EstimateInputs): EstimateResponse {
-  return {
-    estimateId: `est-mock-${inputs.sqft}-${inputs.tier}`,
-    addressKey: mockProperty().addressKey,
-    inputs,
-    figures: {
-      build: { low: 608000, base: 671500, high: 735000 },
-      total: { low: 1003000, base: 1091500, high: 1180000 },
-      land: { low: 395000, base: 420000, high: 445000 },
-    },
-    rows: mockRows(),
-    costDataVersion: MOCK_COST_DATA_VERSION,
-    createdAt: new Date().toISOString(),
-  };
 }
 
 /** Mock tier pricing: relative to premium. Real pricing comes from the cost engine. */
@@ -210,7 +244,7 @@ export function mockReport(
   inputs: EstimateInputs,
   narrativeDisclaimer: string,
 ): GetReportResponse {
-  const estimate = mockEstimate(inputs);
+  const estimate = mockEstimateFigures();
   return {
     snapshotId: `snap-mock-${estimateId}-1`,
     estimateId,

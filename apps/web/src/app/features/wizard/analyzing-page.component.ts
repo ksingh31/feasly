@@ -8,7 +8,8 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import { StorePreviewEstimate, WizardState } from '../wizard';
+import { SetReportToken } from '../report/report.actions';
+import { LeadState, StorePreviewEstimate, WizardState } from '../wizard';
 
 type StageKey = 'validate' | 'fetch' | 'estimate';
 type StageState = 'pending' | 'active' | 'done' | 'error';
@@ -26,8 +27,10 @@ interface PipelineStage {
  * config bounds, fetching the City property record over the API, then
  * running the estimate over the API. There is no timed or fake progress:
  * a stage flips to done only when its underlying work resolves. On success
- * the blurred pre-gate preview is stored in NGXS and the user moves to the
- * report; on failure an honest error with retry is shown.
+ * the blurred pre-gate preview is stored in NGXS, the report token is
+ * established for the same-session lead (dev/mock unlock — see
+ * ApiService.devTokenForLead), and the user moves to the report; on failure
+ * an honest error with retry is shown.
  */
 @Component({
   selector: 'app-analyzing-page',
@@ -117,7 +120,22 @@ export class AnalyzingPageComponent implements OnInit {
       .subscribe({
         next: (preview) => {
           this.setStage('estimate', 'done');
-          this.store.dispatch(new StorePreviewEstimate(preview));
+          // Same-session unlock: the lead was submitted moments ago in this
+          // session. In dev/mock the token the "email" carried is available via
+          // the optional devTokenForLead hook, so the report token is
+          // established here and the report lands unlocked. Against the real
+          // backend the hook is undefined and the report stays locked until the
+          // user clicks the magic link in their email (the report page shows
+          // the pending "check your email" state instead).
+          const leadId = this.store.selectSnapshot(LeadState.leadId);
+          const devToken = leadId ? this.api.devTokenForLead?.(leadId) : undefined;
+          const actions: Array<StorePreviewEstimate | SetReportToken> = [
+            new StorePreviewEstimate(preview),
+          ];
+          if (devToken) {
+            actions.push(new SetReportToken(devToken));
+          }
+          this.store.dispatch(actions);
           void this.router.navigate(['/estimate/report']);
         },
         error: () => {

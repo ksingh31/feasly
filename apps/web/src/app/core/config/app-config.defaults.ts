@@ -185,6 +185,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.',
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my full report →',
+      pendingSub: 'Your magic link is on its way.',
+      pendingNote:
+        'We emailed your magic link — click the link in the email to unlock your full numbers.',
       breakdownTitle: 'Cost breakdown',
       breakdownLocked: 'The itemized breakdown unlocks with your full report.',
       landRowLabel: 'Land (assessed value)',

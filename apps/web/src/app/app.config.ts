@@ -29,19 +29,23 @@ export const appConfig: ApplicationConfig = {
     providePropertyData(),
     // Mock vs real backend from config (FE0-003). Flip `api.useMockApi` only.
     provideApi(),
-    // Wizard + report state in NGXS, persisted to localStorage (FE1-001, M1).
-    // The storage plugin is SSR-safe (no-ops on the server); nothing sensitive
-    // is stored pre-gate — email/name live in the in-memory-only LeadState
-    // (FE-004), which is deliberately NOT in the storage plugin's keys.
+    // Wizard + report + lead state in NGXS, persisted to localStorage (FE1-001,
+    // M1, FE-004). The storage plugin is SSR-safe (no-ops on the server).
+    // The lead receipt (leadId, email, magicLinkSent, expiresInDays) persists
+    // so a reload mid-flow doesn't loop the user back to an empty gate —
+    // email is needed anyway for the pending "check your email" state. The
+    // lead's NAME never enters the store (it stays in the gate form), and
+    // there is no bearer credential here — see the report token note below.
     // Security: the report token is a bearer credential — it lives in memory
     // only and is stripped before persistence. The snapshot (the user's own
     // figures) persists, so the report still renders after a refresh;
-    // token-authenticated actions (tier/sqft re-run, share, callback) dispatch
-    // UnlockReport to re-establish the token if it is missing.
+    // token-authenticated actions (tier/sqft re-run, share, callback) surface
+    // an honest inline error when the token is missing (e.g. after a reload),
+    // because the magic-link email is the only re-verification path.
     provideStore(
       [WizardState, ReportState, LeadState],
       withNgxsStoragePlugin({
-        keys: [WizardState, ReportState],
+        keys: [WizardState, ReportState, LeadState],
         beforeSerialize: (obj, key) => (key === 'report' ? { ...obj, reportToken: null } : obj),
       }),
     ),

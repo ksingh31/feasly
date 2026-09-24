@@ -7,7 +7,7 @@ import type { EstimateRequest } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import { MockApiService } from './mock-api.service';
 import { providePropertyData } from './property-data.service';
-import { mockSuggestions } from './mock-data';
+import { mockSuggestions, stableMockEstimateId } from './mock-data';
 
 /**
  * Contract-conformance for the mock harness (FE0-003): every mock response
@@ -171,7 +171,7 @@ describe('MockApiService', () => {
       expect(lead.magicLinkSent).toBe(true);
       expect(lead.expiresInDays).toBeGreaterThan(0);
 
-      const token = service.devMagicLinkForLead(lead.leadId);
+      const token = service.devTokenForLead(lead.leadId);
       expect(token).toBeTruthy();
       const verified = await firstValueFrom(service.verifyMagicLink(token!));
       expect(verified.valid).toBe(true);
@@ -211,7 +211,7 @@ describe('MockApiService', () => {
           estimateId: preview.estimateId,
         }),
       );
-      const verified = await firstValueFrom(service.verifyMagicLink(service.devMagicLinkForLead(lead.leadId)!));
+      const verified = await firstValueFrom(service.verifyMagicLink(service.devTokenForLead(lead.leadId)!));
       if (!verified.valid) throw new Error('mock verify failed');
       return verified.reportToken;
     }
@@ -274,6 +274,55 @@ describe('MockApiService', () => {
 
     it('trackEvent completes without emitting', async () => {
       await firstValueFrom(service.trackEvent({ event: 'step_view', route: '/', ts: new Date().toISOString() }));
+    });
+  });
+
+  describe('stable estimate identity', () => {
+    it('returns the same estimate ID when the gate, analyzing, and report repeat the same request', async () => {
+      const first = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      const second = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      expect(second.estimateId).toBe(first.estimateId);
+      expect(first.estimateId).toMatch(/^est-mock-[0-9a-f]{8}$/);
+    });
+
+    it('derives different IDs for different properties and different inputs', () => {
+      const base = stableMockEstimateId('calgary-1234-14-st-nw', {
+        sqft: 2200,
+        tier: 'standard',
+        garage: 'double',
+        basement: 'unfinished',
+      });
+      // Different property, same size/tier: must not collide.
+      expect(
+        stableMockEstimateId('calgary-999-1-ave-nw', {
+          sqft: 2200,
+          tier: 'standard',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+      // Same property, changed inputs: must not collide.
+      expect(
+        stableMockEstimateId('calgary-1234-14-st-nw', {
+          sqft: 2400,
+          tier: 'standard',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+      expect(
+        stableMockEstimateId('calgary-1234-14-st-nw', {
+          sqft: 2200,
+          tier: 'luxury',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+    });
+
+    it('carries the request address key on the preview (not a hardcoded fixture)', async () => {
+      const res = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      expect(res.addressKey).toBe(estimateRequest.addressKey);
     });
   });
 });

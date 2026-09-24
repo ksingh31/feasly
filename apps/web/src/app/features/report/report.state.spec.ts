@@ -96,7 +96,7 @@ describe('ReportState', () => {
         estimateId: preview.estimateId,
       }),
     );
-    const token = api.devMagicLinkForLead(lead.leadId);
+    const token = api.devTokenForLead(lead.leadId);
     expect(token).toBeTruthy();
     return token!;
   }
@@ -157,9 +157,9 @@ describe('ReportState', () => {
     expect(after.totalRange.low).toBeGreaterThan(before.totalRange.low);
   });
 
-  it('reviseTier without a token is a no-op', async () => {
+  it('reviseTier without a token fails honestly (inline error, not a silent no-op)', async () => {
     store.dispatch(new ReviseReport('luxury'));
-    expect(store.selectSnapshot(ReportState.status)).toBe('idle');
+    expect(store.selectSnapshot(ReportState.status)).toBe('error');
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
   });
 

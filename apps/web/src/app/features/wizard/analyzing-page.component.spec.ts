@@ -5,12 +5,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Subject } from 'rxjs';
+import { Subject, firstValueFrom, of } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi } from '../../core/api/api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { GoToStep, SelectProperty, WizardState } from '../wizard';
+import { GoToStep, LeadState, SelectProperty, StoreLeadResult, WizardState } from '../wizard';
+import { ReportState } from '../report/report.state';
 import { AnalyzingPageComponent } from './analyzing-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -88,7 +89,9 @@ describe('AnalyzingPageComponent', () => {
           { path: '', component: BlankComponent },
           { path: 'estimate/report', component: BlankComponent },
         ]),
-        provideStore([WizardState]),
+        // LeadState + ReportState: the pipeline reads the lead receipt and
+        // dispatches SetReportToken for the same-session unlock.
+        provideStore([WizardState, LeadState, ReportState]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -119,6 +122,87 @@ describe('AnalyzingPageComponent', () => {
       expect(preview?.figures.build).toEqual({ blurred: true });
       expect(preview?.figures.total).toEqual({ blurred: true });
       expect(preview?.rows).toEqual([]);
+    });
+  });
+
+  describe('same-session unlock (mock API)', () => {
+    /** Simulates the gate: preview estimate, then lead submit, then analyzing. */
+    async function submitLeadAsGate(): Promise<string> {
+      const api = TestBed.inject(API_SERVICE);
+      const preview = await firstValueFrom(
+        api.getPreviewEstimate({
+          addressKey: fakeProperty.addressKey,
+          sqft: 2200,
+          tier: 'standard',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      );
+      const lead = await firstValueFrom(
+        api.submitLead({
+          name: 'Test User',
+          email: 'test@example.com',
+          timeline: 'exploring',
+          marketingConsent: false,
+          estimateId: preview.estimateId,
+        }),
+      );
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: lead.leadId,
+          email: 'test@example.com',
+          magicLinkSent: lead.magicLinkSent,
+          expiresInDays: lead.expiresInDays,
+        }),
+      );
+      return preview.estimateId;
+    }
+
+    it('establishes the report token so the report lands unlocked', async () => {
+      await setup();
+      store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+      const gateEstimateId = await submitLeadAsGate();
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+
+      await pollUrl('/estimate/report');
+      const token = store.selectSnapshot(ReportState.reportToken);
+      expect(token).toBeTruthy();
+      // The token resolves to the SAME estimate the gate submitted — stable
+      // identity across gate → analyzing → report.
+      const api = TestBed.inject(API_SERVICE);
+      const verified = await firstValueFrom(api.verifyMagicLink(token!));
+      expect(verified.valid).toBe(true);
+      if (verified.valid) {
+        expect(verified.estimateId).toBe(gateEstimateId);
+      }
+    });
+
+    it('lands on the locked report (no token) when the dev unlock is unavailable', async () => {
+      await setup({
+        provide: API_SERVICE,
+        useValue: {
+          getProperty: () => of(fakeProperty),
+          getPreviewEstimate: () => of(fakePreview),
+          // No devTokenForLead — like the real backend.
+        },
+      });
+      store.dispatch([
+        new SelectProperty(fakeProperty),
+        new GoToStep(3),
+        new StoreLeadResult({
+          leadId: 'lead-real-1',
+          email: 'test@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      ]);
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+
+      await pollUrl('/estimate/report');
+      expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+      expect(store.selectSnapshot(WizardState.preview)?.estimateId).toBe(fakePreview.estimateId);
     });
   });
 

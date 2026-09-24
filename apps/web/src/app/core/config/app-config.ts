@@ -203,6 +203,8 @@ export interface AppConfig {
       uncalibratedNote: string;
       lockedNote: string;
       unlockCta: string;
+      pendingSub: string;
+      pendingNote: string;
       breakdownTitle: string;
       breakdownLocked: string;
       landRowLabel: string;

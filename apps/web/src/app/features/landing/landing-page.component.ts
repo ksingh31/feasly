@@ -5,7 +5,8 @@ import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
-import { GoToStep, SelectProperty } from '../wizard';
+import { ClearLead, GoToStep, SelectProperty } from '../wizard';
+import { ClearReport } from '../report/report.actions';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 
 /**
@@ -64,7 +65,9 @@ export class LandingPageComponent implements OnInit {
 
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */
   onSelected(property: PropertyRecord): void {
-    this.store.dispatch([new SelectProperty(property), new GoToStep(2)]);
+    // A new property starts a new funnel: drop the previous lead receipt and
+    // report snapshot so a stale unlock can't leak into the new estimate.
+    this.store.dispatch([new ClearLead(), new ClearReport(), new SelectProperty(property), new GoToStep(2)]);
     void this.router.navigate(['/estimate/scope']);
   }
 

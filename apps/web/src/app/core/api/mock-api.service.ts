@@ -32,6 +32,7 @@ import {
   MOCK_VERIFY_FAILURE,
   mockCallbackOk,
   mockEstimate,
+  mockEstimateFigures,
   mockLeadResponse,
   mockPreviewEstimate,
   mockReport,
@@ -114,14 +115,14 @@ export class MockApiService implements ApiService {
 
   getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {
     const inputs = this.toInputs(request);
-    const response = mockPreviewEstimate(inputs);
+    const response = mockPreviewEstimate(request.addressKey, inputs);
     this.estimateInputs.set(response.estimateId, inputs);
     return this.roundTrip(response);
   }
 
   getEstimate(request: EstimateRequest): Observable<EstimateResponse> {
     const inputs = this.toInputs(request);
-    const response = mockEstimate(inputs);
+    const response = mockEstimate(request.addressKey, inputs);
     this.estimateInputs.set(response.estimateId, inputs);
     return this.roundTrip(response);
   }
@@ -134,10 +135,13 @@ export class MockApiService implements ApiService {
   }
 
   /**
-   * DEV ONLY helper (not on the ApiService interface — components can't see
-   * it): the token the mock "emailed" for a lead, for the `?mock-token=` flow.
+   * DEV ONLY unlock (implements the optional {@link ApiService.devTokenForLead}
+   * hook): the token the mock "emailed" for a lead, so the analyzing screen
+   * can complete the same-session unlock without an email round-trip. The
+   * production implementation must never implement this — the magic-link
+   * email is the only unlock path there.
    */
-  devMagicLinkForLead(leadId: string): string | undefined {
+  devTokenForLead(leadId: string): string | undefined {
     for (const [token, ids] of this.issuedTokens) {
       if (ids.leadId === leadId) return token;
     }
@@ -193,7 +197,7 @@ export class MockApiService implements ApiService {
     const tierFactor = MOCK_TIER_FACTORS[next.tier] / MOCK_TIER_FACTORS[current.tier];
     const sqftFactor = next.sqft / current.sqft;
     const factor = tierFactor * sqftFactor;
-    const base = mockEstimate(current);
+    const base = mockEstimateFigures();
     const revised = mockReport(
       ids.estimateId,
       ids.leadId,
