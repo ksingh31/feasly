@@ -19,9 +19,16 @@
 }
 .pcard-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   margin: 0 0 16px;
+}
+/* Facts sit side by side on desktop (matches the scope-step 640px
+   breakpoint); they stack cleanly on mobile. */
+@media (min-width: 640px) {
+  .pcard-facts {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 .pcard-facts dt {
   font-size: 11px;
