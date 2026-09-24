@@ -239,8 +239,12 @@ jobs:
           check() {
             local url="$1" tries=0
             while [ $tries -lt 3 ]; do
-              code=$(curl -fsS -o /dev/null -w "%{http_code}" \
-                --max-time 30 "$url" 2>/dev/null || echo "000")
+              # NOTE: no -f here. With -f, curl still prints %{http_code} via
+              # -w before exiting non-zero, so `|| echo "000"` would append
+              # and corrupt the code (e.g. "400000"). Without -f, -w alone
+              # prints the real code, or 000 on connection failure.
+              code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                --max-time 30 "$url" 2>/dev/null)
               if [ "$code" = "200" ]; then
                 echo "OK ($code): $url"
                 return 0
@@ -260,9 +264,10 @@ jobs:
           check_status() {
             local url="$1" expected="$2" data="$3" tries=0
             while [ $tries -lt 3 ]; do
-              code=$(curl -fsS -o /dev/null -w "%{http_code}" \
+              # Same -f note as check(): -w prints the code; 000 on failure.
+              code=$(curl -sS -o /dev/null -w "%{http_code}" \
                 --max-time 30 -X POST "$url" \
-                -H "Content-Type: application/json" -d "$data" 2>/dev/null || echo "000")
+                -H "Content-Type: application/json" -d "$data" 2>/dev/null)
               if [ "$code" = "$expected" ]; then
                 echo "OK ($code): POST $url"
                 return 0
