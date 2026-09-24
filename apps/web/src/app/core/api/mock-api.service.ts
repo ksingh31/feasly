@@ -33,7 +33,7 @@ import {
   mockEstimate,
   mockLeadResponse,
   mockPreviewEstimate,
-  mockProperty,
+  mockPropertyFor,
   mockReport,
   mockShareOk,
   mockSuggestions,
@@ -113,8 +113,8 @@ export class MockApiService implements ApiService {
   }
 
   getProperty(addressKey: string): Observable<PropertyRecord> {
-    const property = mockProperty();
-    if (addressKey !== property.addressKey) {
+    const property = mockPropertyFor(addressKey);
+    if (!property) {
       return this.roundTripError({
         code: 'not_found',
         message: 'No City record for that address yet.',

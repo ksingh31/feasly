@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { EstimateRequest } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import { MockApiService } from './mock-api.service';
+import { mockSuggestions } from './mock-data';
 
 /**
  * Contract-conformance for the mock harness (FE0-003): every mock response
@@ -76,6 +77,30 @@ describe('MockApiService', () => {
         code: 'not_found',
         retryable: false,
       });
+    });
+
+    it('resolves every addressKey the autocomplete can suggest (no dead-end picks)', async () => {
+      const suggestions = mockSuggestions();
+      expect(suggestions.length).toBeGreaterThan(1);
+      for (const suggestion of suggestions) {
+        const property = await firstValueFrom(service.getProperty(suggestion.addressKey));
+        expect(property.addressKey).toBe(suggestion.addressKey);
+        expect(property.address).toBe(suggestion.address);
+        expect(property.community).toBe(suggestion.community);
+        expect(property.assessedValue).toBeGreaterThan(0);
+      }
+    });
+
+    it('resolves the previously-failing "222 7 Ave NE" suggestion', async () => {
+      const property = await firstValueFrom(service.getProperty('calgary-222-7-ave-ne'));
+      expect(property.address).toBe('222 7 Ave NE, Calgary, AB');
+      expect(property.community).toBe('Bridgeland');
+    });
+
+    it('returns stable records across lookups (no per-load drift)', async () => {
+      const first = await firstValueFrom(service.getProperty('calgary-222-7-ave-ne'));
+      const second = await firstValueFrom(service.getProperty('calgary-222-7-ave-ne'));
+      expect(second).toEqual(first);
     });
   });
 

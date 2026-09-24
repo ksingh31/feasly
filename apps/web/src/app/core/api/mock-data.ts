@@ -57,6 +57,49 @@ export function mockSuggestions(): AutocompleteSuggestion[] {
   ];
 }
 
+/** Property record for EVERY address the mock autocomplete can suggest.
+ *
+ * A suggestion the user can pick but the lookup then rejects is a dead end
+ * on the front door (bug found by browser QA 2026-09-24: selecting any
+ * suggestion other than the single fixture addressKey errored). The primary
+ * fixture stays pinned for the conformance specs; every other suggestion
+ * derives a stable, obviously-fake record deterministically from its
+ * addressKey so values never shift between page loads. */
+const MOCK_LOT_SQFT = [4200, 4800, 5200, 5600, 6100] as const;
+const MOCK_ZONING = ['R-C1', 'R-C2', 'R-CG'] as const;
+const MOCK_ASSESSED = [612400, 748500, 823000, 915000] as const;
+const MOCK_YEAR_BUILT = [1951, 1958, 1974, 1983] as const;
+
+function pickFor<T>(addressKey: string, pool: readonly T[]): T {
+  let hash = 0;
+  for (const ch of addressKey) {
+    hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  }
+  return pool[hash % pool.length];
+}
+
+export function mockPropertyFor(addressKey: string): PropertyRecord | undefined {
+  const suggestion = mockSuggestions().find((s) => s.addressKey === addressKey);
+  if (!suggestion) {
+    return undefined;
+  }
+  if (addressKey === mockProperty().addressKey) {
+    return mockProperty();
+  }
+  return {
+    addressKey,
+    address: suggestion.address,
+    community: suggestion.community,
+    lotSqft: pickFor(addressKey, MOCK_LOT_SQFT),
+    zoning: pickFor(addressKey, MOCK_ZONING),
+    assessedValue: pickFor(addressKey, MOCK_ASSESSED),
+    assessmentYear: 2025,
+    yearBuilt: pickFor(addressKey, MOCK_YEAR_BUILT),
+    dataAsOf: '2025-07-01',
+    stale: false,
+  };
+}
+
 /** Pre-gate preview: blurred figures only — the type makes leaks a compile error. */
 export function mockPreviewEstimate(inputs: EstimateInputs): PreviewEstimateResponse {
   return {
