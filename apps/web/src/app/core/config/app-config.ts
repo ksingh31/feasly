@@ -1,0 +1,73 @@
+/**
+ * Typed application configuration.
+ *
+ * Everything tunable lives here — never as literals in components or services.
+ * The JSON file at `/assets/config/app-config.json` is deep-merged over
+ * {@link DEFAULT_APP_CONFIG} at startup (see ConfigService), so any key may be
+ * omitted there and the compiled default applies.
+ *
+ * FE1-001+ will extend the `copy` section with page-level strings.
+ */
+export interface AppConfig {
+  /** Public site facts. */
+  site: {
+    /** Canonical origin, e.g. https://feasly.com. No trailing slash. */
+    url: string;
+    /** Brand name shown in the shell. */
+    name: string;
+  };
+  /** Backend wiring. */
+  api: {
+    /** Base URL for /api/v1. Empty string = same origin. */
+    baseUrl: string;
+    /** True while the backend is unimplemented: use the mock harness (FE0-003). */
+    useMockApi: boolean;
+    /** HTTP timeout for API calls. */
+    timeoutMs: number;
+  };
+  /** Feature flags. */
+  features: {
+    /** Show the "view sample report" entry point. */
+    sampleReport: boolean;
+    /** Show the renovation waitlist capture instead of the estimator. */
+    renovationWaitlist: boolean;
+  };
+  /** Wizard tunables (FE-2). */
+  wizard: {
+    sqftDefault: number;
+    sqftMin: number;
+    sqftMax: number;
+  };
+  /** UX timings. */
+  timings: {
+    /** Address-autocomplete debounce. */
+    debounceMs: number;
+    /** Cooldown between magic-link resends. */
+    resendCooldownSec: number;
+    /** Mock API latency window (FE0-003). Real API ignores these. */
+    mockLatencyMinMs: number;
+    mockLatencyMaxMs: number;
+  };
+  /** Collection limits. */
+  limits: {
+    /** Max communities rendered on community listing pages. */
+    communityPageLimit: number;
+  };
+  /** Analytics consent. */
+  analytics: {
+    enabled: boolean;
+    /** Exact opt-in wording shown to the user. */
+    optInWording: string;
+  };
+  /** User-facing copy, namespaced by area. Extended by FE1-001. */
+  copy: {
+    /** Short brand tagline used in the shell footer / meta fallbacks. */
+    tagline: string;
+    /**
+     * Verbatim footer on every AI narrative (moved out of @feasly/contracts in
+     * the FE0-001 audit — contracts are shapes-only; copy lives in config).
+     * Exact wording is copy-linted: do not paraphrase.
+     */
+    narrativeDisclaimer: string;
+  };
+}
