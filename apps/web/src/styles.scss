@@ -86,3 +86,23 @@ body {
   color: var(--danger);
   font-weight: 600;
 }
+
+/* Skip-to-content link: visually hidden until it takes keyboard focus. */
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -80px;
+  z-index: 300;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus-visible {
+  top: 12px;
+  outline-color: #fff;
+}

@@ -17,6 +17,8 @@ export interface AppConfig {
     url: string;
     /** Brand name shown in the shell. */
     name: string;
+    /** Site-root-relative path of the 1200×630 social share image. */
+    socialImage: string;
   };
   /** Backend wiring. */
   api: {

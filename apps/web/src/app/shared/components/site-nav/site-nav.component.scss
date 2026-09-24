@@ -6,19 +6,20 @@
   z-index: 200;
   display: flex;
   align-items: center;
-  padding: 14px 24px;
+  padding: 8px 24px;
   background: var(--canvas);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 @media (min-width: 640px) {
   .nav {
-    padding: 18px 60px;
+    padding: 12px 60px;
   }
 }
 .nav-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
   text-decoration: none;
 }
 .nav-mark {
