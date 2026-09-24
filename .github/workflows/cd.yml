@@ -66,8 +66,11 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "apps/web"
-          output_location: "dist/web/browser"
+          # NOTE: app_location points at the build OUTPUT, not the source.
+          # The SWA action version pinned behind v1 resolves the artifact dir
+          # from app_location when skip_app_build is true (it ignores
+          # output_location), so we build in a prior step and upload dist/.
+          app_location: "apps/web/dist/web/browser"
           skip_api_build: true
           skip_app_build: true
 
@@ -155,8 +158,11 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "apps/web"
-          output_location: "dist/web/browser"
+          # NOTE: app_location points at the build OUTPUT, not the source.
+          # The SWA action version pinned behind v1 resolves the artifact dir
+          # from app_location when skip_app_build is true (it ignores
+          # output_location), so we build in a prior step and upload dist/.
+          app_location: "apps/web/dist/web/browser"
           skip_api_build: true
           skip_app_build: true
 
