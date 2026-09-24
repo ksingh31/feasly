@@ -14,3 +14,6 @@ coverage/
 infra/bicep/main.json
 infra/bicep/modules/*.json
 infra/bicep/environments/*.json
+
+# tsc output accidentally emitted next to sources (sources are .ts only)
+apps/web/src/**/*.js

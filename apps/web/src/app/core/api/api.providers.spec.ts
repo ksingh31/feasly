@@ -6,6 +6,7 @@ import { ConfigService } from '../config/config.service';
 import { API_SERVICE, provideApi } from './api.service';
 import { HttpApiService } from './http-api.service';
 import { MockApiService } from './mock-api.service';
+import { providePropertyData } from './property-data.service';
 
 /**
  * Proves the wiring (FE0-003): `provideApi()` selects the implementation
@@ -17,7 +18,12 @@ describe('provideApi', () => {
   async function wireWith(useMockApi: boolean) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideApi()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        providePropertyData(),
+        provideApi(),
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);

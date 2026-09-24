@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { EstimateRequest } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import { MockApiService } from './mock-api.service';
+import { providePropertyData } from './property-data.service';
 import { mockSuggestions } from './mock-data';
 
 /**
@@ -28,17 +29,20 @@ describe('MockApiService', () => {
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), providePropertyData()],
     });
-    service = TestBed.inject(MockApiService);
     httpMock = TestBed.inject(HttpTestingController);
     // Tiny latency window so the suite stays fast; the window itself is tested separately.
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
-    httpMock
-      .expectOne('/assets/config/app-config.json')
-      .flush({ timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 5 } });
+    httpMock.expectOne('/assets/config/app-config.json').flush({
+      timings: { mockLatencyMinMs: 1, mockLatencyMaxMs: 5 },
+      propertyData: { source: 'mock' },
+    });
     await pending;
+    // Inject after config loads: the property-data factory selects its
+    // implementation from config at injection time.
+    service = TestBed.inject(MockApiService);
   });
 
   describe('autocomplete', () => {

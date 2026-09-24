@@ -1,11 +1,10 @@
-import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, throwError, timeout } from 'rxjs';
+import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
-  ApiError,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -26,29 +25,8 @@ import type {
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { ApiService } from './api.service';
-
-/**
- * Maps an HTTP failure onto the contract ApiError envelope.
- * 5xx and network failures (status 0) are retryable; anything else isn't.
- */
-function toApiError(error: unknown): Observable<never> {
-  if (error instanceof HttpErrorResponse) {
-    const body = error.error as Partial<ApiError> | undefined;
-    return throwError((): ApiError => {
-      const code = typeof body?.code === 'string' ? body.code : `http_${error.status}`;
-      const message =
-        typeof body?.message === 'string' && body.message.length > 0
-          ? body.message
-          : 'Request failed. Please try again.';
-      const retryable =
-        error.status === 0 || error.status >= HttpStatusCode.InternalServerError;
-      return { code, message, retryable };
-    });
-  }
-  return throwError(
-    (): ApiError => ({ code: 'unknown', message: 'Request failed. Please try again.', retryable: false }),
-  );
-}
+import { toApiError } from './api-error';
+import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
 /**
  * Real backend client (FE0-003): speaks the versioned `/api/v1` routes with
@@ -56,13 +34,17 @@ function toApiError(error: unknown): Observable<never> {
  * `api.useMockApi` is false — flipping that flag is the only change needed
  * to point at the live backend.
  *
- * Route shapes here are the client's proposal; the backend (BE-3+) implements
- * the same contract DTOs, so any route rename is a paired change.
+ * Property data (autocomplete + records) delegates to PROPERTY_DATA_SERVICE
+ * (FE1-002): the live City API by default, our /api/v1 property routes when
+ * `propertyData.source` is 'backend'. Route shapes here are the client's
+ * proposal; the backend (BE-3+) implements the same contract DTOs, so any
+ * route rename is a paired change.
  */
 @Injectable({ providedIn: 'root' })
 export class HttpApiService implements ApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
+  private readonly propertyData = inject(PROPERTY_DATA_SERVICE);
 
   private get base(): string {
     return `${this.config.get('api').baseUrl}/api/v1`;
@@ -74,13 +56,11 @@ export class HttpApiService implements ApiService {
   }
 
   autocomplete(query: string): Observable<AutocompleteResponse> {
-    return this.call(
-      this.http.post<AutocompleteResponse>(`${this.base}/properties/autocomplete`, { query }),
-    );
+    return this.propertyData.autocomplete(query);
   }
 
   getProperty(addressKey: string): Observable<PropertyRecord> {
-    return this.call(this.http.get<PropertyRecord>(`${this.base}/properties/${addressKey}`));
+    return this.propertyData.getProperty(addressKey);
   }
 
   getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {

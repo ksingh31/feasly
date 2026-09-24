@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../../core/api';
+import { providePropertyData } from '../../../core/api/property-data.service';
 import { ConfigService } from '../../../core/config';
 import { AddressAutocompleteComponent } from './address-autocomplete.component';
 
@@ -40,13 +41,21 @@ describe('AddressAutocompleteComponent', () => {
     api: { useMockApi: true },
     timings: { debounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
     limits: { autocompleteSuggestionLimit: 6 },
+    // Component behavior is specified against the mock harness (FE1-002);
+    // the live City client is covered by its own service spec.
+    propertyData: { source: 'mock' },
   };
 
   beforeEach(async () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AddressAutocompleteComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideApi()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        providePropertyData(),
+        provideApi(),
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
@@ -177,13 +186,19 @@ describe('AddressAutocompleteComponent with a slow backend', () => {
     api: { useMockApi: true },
     timings: { debounceMs: 1, mockLatencyMinMs: 40, mockLatencyMaxMs: 40 },
     limits: { autocompleteSuggestionLimit: 6 },
+    propertyData: { source: 'mock' },
   };
 
   beforeEach(async () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AddressAutocompleteComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideApi()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        providePropertyData(),
+        provideApi(),
+      ],
     });
     const http = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);

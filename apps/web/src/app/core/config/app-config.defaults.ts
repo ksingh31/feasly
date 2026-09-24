@@ -21,6 +21,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     useMockApi: true,
     timeoutMs: 15000,
   },
+  propertyData: {
+    source: 'live',
+    baseUrl: 'https://data.calgary.ca',
+    datasetId: '4bsw-nn7w',
+    searchRowLimit: 50,
+    cacheTtlMs: 300000,
+  },
   features: {
     // Q4 unconfirmed (Karan): the slot renders only when this is true AND a
     // sample report route exists — never a dead link.

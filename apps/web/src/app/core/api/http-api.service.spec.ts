@@ -6,6 +6,7 @@ import type { Observable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../config/config.service';
 import { HttpApiService } from './http-api.service';
+import { providePropertyData } from './property-data.service';
 
 /**
  * Proves the real client maps every ApiService method onto the /api/v1
@@ -20,16 +21,20 @@ describe('HttpApiService', () => {
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), providePropertyData()],
     });
-    service = TestBed.inject(HttpApiService);
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
-    httpMock
-      .expectOne('/assets/config/app-config.json')
-      .flush({ api: { baseUrl: '', useMockApi: false, timeoutMs: 15000 } });
+    httpMock.expectOne('/assets/config/app-config.json').flush({
+      api: { baseUrl: '', useMockApi: false, timeoutMs: 15000 },
+      // Property routes come from our backend here (FE1-002).
+      propertyData: { source: 'backend' },
+    });
     await pending;
+    // Inject after config loads: the property-data factory selects its
+    // implementation from config at injection time.
+    service = TestBed.inject(HttpApiService);
   });
 
   interface RouteCase {
