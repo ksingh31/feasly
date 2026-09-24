@@ -28,17 +28,14 @@ import type { ApiService } from './api.service';
 import { simulateLatency } from './latency';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 import {
-  MOCK_TIER_FACTORS,
   MOCK_VERIFY_FAILURE,
   mockCallbackOk,
   mockEstimate,
-  mockEstimateFigures,
   mockLeadResponse,
   mockPreviewEstimate,
   mockReport,
   mockShareOk,
   mockVerifySuccess,
-  scaleRange,
 } from './mock-data';
 
 /**
@@ -122,7 +119,7 @@ export class MockApiService implements ApiService {
 
   getEstimate(request: EstimateRequest): Observable<EstimateResponse> {
     const inputs = this.toInputs(request);
-    const response = mockEstimate(request.addressKey, inputs);
+    const response = mockEstimate(request.addressKey, inputs, this.referenceSqft());
     this.estimateInputs.set(response.estimateId, inputs);
     return this.roundTrip(response);
   }
@@ -161,6 +158,11 @@ export class MockApiService implements ApiService {
     return this.roundTrip({ sent: true });
   }
 
+  /** Reference size the canned figures are calibrated to (config default). */
+  private referenceSqft(): number {
+    return this.config.get('wizard').sqftDefault;
+  }
+
   getReport(reportToken: string): Observable<GetReportResponse> {
     const ids = this.issuedTokens.get(reportToken);
     if (!ids) {
@@ -173,7 +175,10 @@ export class MockApiService implements ApiService {
     const inputs = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
     const disclaimer = this.config.get('copy').narrativeDisclaimer;
     const version = this.reportVersions.get(ids.estimateId) ?? 1;
-    return this.roundTrip({ ...mockReport(ids.estimateId, ids.leadId, inputs, disclaimer), version });
+    return this.roundTrip({
+      ...mockReport(ids.estimateId, ids.leadId, inputs, disclaimer, this.referenceSqft()),
+      version,
+    });
   }
 
   reviseTier(
@@ -194,27 +199,19 @@ export class MockApiService implements ApiService {
       tier: request.tier ?? current.tier,
       sqft: request.sqft ?? current.sqft,
     };
-    const tierFactor = MOCK_TIER_FACTORS[next.tier] / MOCK_TIER_FACTORS[current.tier];
-    const sqftFactor = next.sqft / current.sqft;
-    const factor = tierFactor * sqftFactor;
-    const base = mockEstimateFigures();
+    // Absolute scaling from the base figures (see scaledMockFigures): re-running
+    // the same inputs always reproduces the same figures, so tier toggles round-trip.
     const revised = mockReport(
       ids.estimateId,
       ids.leadId,
       next,
       this.config.get('copy').narrativeDisclaimer,
+      this.referenceSqft(),
     );
     this.estimateInputs.set(ids.estimateId, next);
     const version = (this.reportVersions.get(ids.estimateId) ?? 1) + 1;
     this.reportVersions.set(ids.estimateId, version);
-    return this.roundTrip({
-      ...revised,
-      buildRange: scaleRange(base.figures.build, factor),
-      totalRange: scaleRange(base.figures.total, factor),
-      landRange: scaleRange(base.figures.land, factor),
-      rows: base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) })),
-      version,
-    });
+    return this.roundTrip({ ...revised, version });
   }
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {

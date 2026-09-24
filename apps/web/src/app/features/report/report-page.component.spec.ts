@@ -223,7 +223,8 @@ describe('ReportPageComponent', () => {
         expect(v).toMatch(/^\$\d{1,3}(,\d{3})*$/);
       }
       // Mock total base is the contract's deterministic base, not (low+high)/2.
-      expect(values[1]).toBe('$1,091,500');
+      // The mock rounds ranges to the nearest thousand, so 1091500 -> 1092000.
+      expect(values[1]).toBe('$1,092,000');
       const labels = [...fixture.nativeElement.querySelectorAll('.hero-total .range-label')].map((el: Element) =>
         el.textContent?.trim(),
       );

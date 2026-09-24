@@ -249,6 +249,38 @@ describe('MockApiService', () => {
       const reread = await firstValueFrom(service.getReport(token));
       expect(reread.version).toBe(second.version);
     });
+
+    it('initial estimate applies the selected tier and size', async () => {
+      const estimate = await firstValueFrom(
+        service.getEstimate({ ...estimateRequest, tier: 'standard', sqft: 2200 }),
+      );
+      // 0.92 tier factor on the canned build base (608000 -> 559000).
+      expect(estimate.figures.build.low).toBe(559000);
+      expect(estimate.inputs.tier).toBe('standard');
+      // Land is the City assessed value: never scaled by tier or size.
+      expect(estimate.figures.land).toEqual({ low: 395000, base: 420000, high: 445000 });
+      // Total is always build + land.
+      expect(estimate.figures.total.low).toBe(
+        estimate.figures.build.low + estimate.figures.land.low,
+      );
+    });
+
+    it('tier toggles round-trip: switching back restores the exact figures', async () => {
+      const token = await verifiedToken();
+      const initial = await firstValueFrom(service.getReport(token));
+      await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
+      const back = await firstValueFrom(service.reviseTier(token, { tier: initial.inputs.tier }));
+      expect(back.totalRange).toEqual(initial.totalRange);
+      expect(back.buildRange).toEqual(initial.buildRange);
+      expect(back.rows).toEqual(initial.rows);
+    });
+
+    it('land assessed value stays fixed across tier revisions', async () => {
+      const token = await verifiedToken();
+      const before = await firstValueFrom(service.getReport(token));
+      const revised = await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
+      expect(revised.landRange).toEqual(before.landRange);
+    });
   });
 
   describe('callbacks, sharing, analytics', () => {

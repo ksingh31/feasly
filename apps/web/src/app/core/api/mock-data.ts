@@ -175,13 +175,19 @@ export function mockEstimateFigures(): Pick<EstimateResponse, 'figures' | 'rows'
   };
 }
 
-/** Post-gate estimate: canned ranges. Never served pre-gate. */
-export function mockEstimate(addressKey: string, inputs: EstimateInputs): EstimateResponse {
+/** Post-gate estimate: canned ranges scaled to the selected tier/size. Never served pre-gate. */
+export function mockEstimate(
+  addressKey: string,
+  inputs: EstimateInputs,
+  referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
+): EstimateResponse {
+  const scaled = scaledMockFigures(inputs, referenceSqft);
   return {
     estimateId: stableMockEstimateId(addressKey, inputs),
     addressKey,
     inputs,
-    ...mockEstimateFigures(),
+    figures: scaled.figures,
+    rows: scaled.rows,
     costDataVersion: MOCK_COST_DATA_VERSION,
     createdAt: new Date().toISOString(),
   };
@@ -211,6 +217,36 @@ export const MOCK_TIER_FACTORS: Record<FinishTier, number> = {
 export function scaleRange(range: CostRange, factor: number): CostRange {
   const round = (n: number) => Math.round((n * factor) / 1000) * 1000;
   return { low: round(range.low), base: round(range.base), high: round(range.high) };
+}
+
+/**
+ * Applies the selected finish tier and size to the canned base figures.
+ * Tier and size factors are ABSOLUTE (relative to the base figures), never
+ * relative to a previous revision — so re-running the same inputs always
+ * reproduces the same figures, and toggling tiers round-trips exactly.
+ * Land is the City assessed value: independent of tier and size, never scaled.
+ * Total is recomputed as build + land so the parts always add up.
+ */
+export function scaledMockFigures(
+  inputs: EstimateInputs,
+  referenceSqft: number,
+): Pick<EstimateResponse, 'figures' | 'rows'> {
+  const base = mockEstimateFigures();
+  const factor = (MOCK_TIER_FACTORS[inputs.tier] * inputs.sqft) / referenceSqft;
+  const build = scaleRange(base.figures.build, factor);
+  const land = base.figures.land;
+  return {
+    figures: {
+      build,
+      land,
+      total: {
+        low: build.low + land.low,
+        base: build.base + land.base,
+        high: build.high + land.high,
+      },
+    },
+    rows: base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) })),
+  };
 }
 
 export function mockLeadResponse(leadId: string): LeadResponse {
@@ -243,17 +279,18 @@ export function mockReport(
   leadId: string,
   inputs: EstimateInputs,
   narrativeDisclaimer: string,
+  referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
 ): GetReportResponse {
-  const estimate = mockEstimateFigures();
+  const scaled = scaledMockFigures(inputs, referenceSqft);
   return {
     snapshotId: `snap-mock-${estimateId}-1`,
     estimateId,
     leadId,
     inputs,
-    buildRange: estimate.figures.build,
-    totalRange: estimate.figures.total,
-    landRange: estimate.figures.land,
-    rows: estimate.rows,
+    buildRange: scaled.figures.build,
+    totalRange: scaled.figures.total,
+    landRange: scaled.figures.land,
+    rows: scaled.rows,
     narrative: `${MOCK_NARRATIVE} ${narrativeDisclaimer}`,
     preparedAt: new Date().toISOString(),
     version: 1,
