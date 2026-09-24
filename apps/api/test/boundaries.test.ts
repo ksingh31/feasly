@@ -59,6 +59,21 @@ function readsProcessEnv(file: string): boolean {
   return /process\.env\b/.test(code);
 }
 
+/**
+ * String literals containing a URL. Tunables (connection strings, origins,
+ * …) live in config.ts; routes/services/middleware must not embed them.
+ */
+function urlLiterals(file: string): string[] {
+  const code = stripComments(readFileSync(file, 'utf8'));
+  const hits: string[] = [];
+  const literalRe = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g;
+  let m: RegExpExecArray | null;
+  while ((m = literalRe.exec(code)) !== null) {
+    if (/https?:\/\/|postgres(?:ql)?:\/\//.test(m[0])) hits.push(m[0].slice(0, 60));
+  }
+  return hits;
+}
+
 describe('layer boundaries', () => {
   const files = allTsFiles(SRC);
 
@@ -79,5 +94,15 @@ describe('layer boundaries', () => {
 
   it('config.ts is the single env reader (guard against the rule being vacuous)', () => {
     expect(readsProcessEnv(join(SRC, 'config.ts'))).toBe(true);
+  });
+
+  it('routes/, services/ and middleware/ contain no hardcoded URL literals', () => {
+    const violations = files
+      .filter(
+        (f) =>
+          underDir(f, 'routes') || underDir(f, 'services') || underDir(f, 'middleware'),
+      )
+      .flatMap((f) => urlLiterals(f).map((lit) => `${relative(SRC, f)} -> ${lit}`));
+    expect(violations).toEqual([]);
   });
 });

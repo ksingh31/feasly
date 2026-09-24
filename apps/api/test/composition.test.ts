@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createComposition } from '../src/composition';
 
-const TEST_ENV = { NODE_ENV: 'test' } as NodeJS.ProcessEnv;
+const TEST_ENV = {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://user:pass@localhost:5432/feasly',
+} as NodeJS.ProcessEnv;
 
 describe('composition root', () => {
   it('resolves every wired service (none undefined)', () => {
