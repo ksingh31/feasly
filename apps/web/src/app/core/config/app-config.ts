@@ -256,6 +256,10 @@ export interface AppConfig {
       report: string;
       sampleReportTitle: string;
       sampleReport: string;
+      gateTitle: string;
+      gate: string;
+      analyzingTitle: string;
+      analyzing: string;
       privacyTitle: string;
       privacy: string;
       termsTitle: string;

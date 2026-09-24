@@ -258,6 +258,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
+      gateTitle: 'Feasly — Get your estimate',
+      gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
+      analyzingTitle: 'Feasly — Building your estimate',
+      analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
       privacyTitle: 'Feasly — Privacy Policy',
       privacy:
         'How Feasly collects, uses, and protects your information when you generate a build estimate.',
