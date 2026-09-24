@@ -8,6 +8,8 @@
  *
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
+import type { FinishTier } from '@feasly/contracts';
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -57,6 +59,8 @@ export interface AppConfig {
     sqftDefault: number;
     sqftMin: number;
     sqftMax: number;
+    /** Slider step in sq ft. */
+    sqftStep: number;
   };
   /** UX timings. */
   timings: {
@@ -122,19 +126,23 @@ export interface AppConfig {
       searchingLabel: string;
     };
     /**
-     * Wizard scaffolding copy (S2/S3 shells — WEB-005/WEB-006 extend this).
-     * Step labels are structural; everything user-facing stays tunable here.
+     * Wizard scope-step copy (S2 — FE-2). Step labels are structural;
+     * everything user-facing stays tunable here. Tier `id`s must match the
+     * FinishTier contract union; blurbs carry no prices, ever.
      */
     wizard: {
       stepAddress: string;
       stepScope: string;
       stepDetails: string;
-      scopeNewBuildTitle: string;
-      scopeNewBuildTag: string;
-      scopeNewBuildCta: string;
-      scopeRenoTitle: string;
-      scopeRenoTag: string;
-      scopeRenoBadge: string;
+      scopeHeading: string;
+      scopeSqftLabel: string;
+      scopeSqftHint: string;
+      scopeSqftUnit: string;
+      scopeTierLabel: string;
+      scopeTierHint: string;
+      scopeTiers: { id: FinishTier; name: string; blurb: string }[];
+      scopeBackLabel: string;
+      scopeCta: string;
       scopeEmpty: string;
       scopeEmptyCta: string;
       detailsLivingArea: string;

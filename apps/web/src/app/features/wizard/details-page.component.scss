@@ -24,18 +24,10 @@
 .cap {
   text-transform: capitalize;
 }
+/* Details-step CTA: full-width + disabled until the lead-gate story lands
+   (base button styling lives in the shared wizard shell). */
 .cta {
   width: 100%;
-  font-family: var(--font-ui);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--on-dark);
-  background: var(--canvas);
-  border: none;
-  border-radius: 12px;
-  padding: 17px 28px;
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 .note {
   text-align: center;

@@ -1,4 +1,4 @@
-/* Shared wizard-step shell (scope + details scaffolding). */
+/* Shared wizard-step shell (scope + details steps). */
 
 .wrap {
   max-width: 720px;
@@ -15,4 +15,23 @@
 .empty a {
   color: var(--accent);
   font-weight: 600;
+}
+
+/* Primary wizard CTA (shared by the scope + details steps). */
+.cta {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--on-dark);
+  background: var(--canvas);
+  border: none;
+  border-radius: 12px;
+  padding: 17px 28px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
