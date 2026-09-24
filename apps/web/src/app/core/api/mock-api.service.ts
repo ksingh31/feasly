@@ -26,6 +26,7 @@ import type {
 import { ConfigService } from '../config/config.service';
 import type { ApiService } from './api.service';
 import { simulateLatency } from './latency';
+import { PROPERTY_DATA_SERVICE } from './property-data.service';
 import {
   MOCK_TIER_FACTORS,
   MOCK_VERIFY_FAILURE,
@@ -33,10 +34,8 @@ import {
   mockEstimate,
   mockLeadResponse,
   mockPreviewEstimate,
-  mockPropertyFor,
   mockReport,
   mockShareOk,
-  mockSuggestions,
   mockVerifySuccess,
   scaleRange,
 } from './mock-data';
@@ -52,10 +51,14 @@ import {
  *   `verifyMagicLink` resolves tokens this instance issued.
  * - Pre-gate responses are typed `PreviewEstimateResponse`: a leak is a
  *   compile error, and the conformance spec asserts it at runtime too.
+ * - Property data (autocomplete + records) delegates to PROPERTY_DATA_SERVICE
+ *   (FE1-002): the fixture harness there, unless `propertyData.source` points
+ *   at the live City API or our backend.
  */
 @Injectable({ providedIn: 'root' })
 export class MockApiService implements ApiService {
   private readonly config = inject(ConfigService);
+  private readonly propertyData = inject(PROPERTY_DATA_SERVICE);
 
   /** Tokens this instance issued: token → { estimateId, leadId }. */
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
@@ -102,26 +105,11 @@ export class MockApiService implements ApiService {
   }
 
   autocomplete(query: string): Observable<AutocompleteResponse> {
-    const q = query.trim().toLowerCase();
-    const suggestions =
-      q.length < 3
-        ? []
-        : mockSuggestions()
-            .filter((s) => s.address.toLowerCase().includes(q))
-            .slice(0, 6);
-    return this.roundTrip({ suggestions });
+    return this.propertyData.autocomplete(query);
   }
 
   getProperty(addressKey: string): Observable<PropertyRecord> {
-    const property = mockPropertyFor(addressKey);
-    if (!property) {
-      return this.roundTripError({
-        code: 'not_found',
-        message: 'No City record for that address yet.',
-        retryable: false,
-      });
-    }
-    return this.roundTrip(property);
+    return this.propertyData.getProperty(addressKey);
   }
 
   getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {

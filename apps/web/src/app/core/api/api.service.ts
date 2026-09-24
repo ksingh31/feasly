@@ -75,8 +75,10 @@ export const API_SERVICE = new InjectionToken<ApiService>('feasly.api-service');
 /**
  * Wires the ApiService implementation from config: `api.useMockApi` selects
  * the mock harness (FE0-003). Flipping that flag is the ONLY change needed to
- * point at the real backend later — the HttpApiService already speaks the
- * /api/v1 routes. Call once in app.config.ts.
+ * point the estimate/lead/magic-link contracts at the real backend — the
+ * HttpApiService already speaks the /api/v1 routes. Property data
+ * (autocomplete + records) has its own switch: `propertyData.source`
+ * (see `providePropertyData()`). Call once in app.config.ts.
  */
 export function provideApi(): Provider {
   return {

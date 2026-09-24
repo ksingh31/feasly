@@ -7,6 +7,7 @@ import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
+import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
 import { WizardState, type WizardStateModel } from '../wizard';
 import { LandingPageComponent } from './landing-page.component';
@@ -26,6 +27,8 @@ describe('LandingPageComponent', () => {
     api: { useMockApi: true },
     timings: { debounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
     limits: { autocompleteSuggestionLimit: 6 },
+    // Landing flows are specified against the mock harness (FE1-002).
+    propertyData: { source: 'mock' },
   };
 
   async function setup(configOverrides: Record<string, unknown> = {}): Promise<void> {
@@ -35,6 +38,7 @@ describe('LandingPageComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        providePropertyData(),
         provideApi(),
         provideRouter([{ path: 'estimate/scope', component: LandingPageComponent }]),
         provideStore([WizardState]),

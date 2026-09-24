@@ -25,6 +25,26 @@ export interface AppConfig {
     /** HTTP timeout for API calls. */
     timeoutMs: number;
   };
+  /** Property-data wiring (FE1-002): autocomplete + property records. */
+  propertyData: {
+    /**
+     * Which property backend serves autocomplete + property records:
+     * - 'live': City of Calgary open-data Socrata API (free, no key).
+     * - 'mock': FE0-003 fixture harness (offline dev / CI).
+     * - 'backend': our own /api/v1 property routes (BE-3+, when they exist).
+     * Independent from `api.useMockApi`, which still switches the estimate /
+     * lead / magic-link contracts.
+     */
+    source: 'live' | 'mock' | 'backend';
+    /** Socrata host for the City dataset. No trailing slash. */
+    baseUrl: string;
+    /** Socrata dataset id for Current Year Property Assessments (Parcel). */
+    datasetId: string;
+    /** Rows fetched per autocomplete query before client-side dedupe. */
+    searchRowLimit: number;
+    /** TTL for cached Socrata responses (courtesy rate limiting). */
+    cacheTtlMs: number;
+  };
   /** Feature flags. */
   features: {
     /** Show the "view sample report" entry point. */
