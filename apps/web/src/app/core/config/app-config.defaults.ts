@@ -64,6 +64,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       heroSub:
         'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
       trustItems: ['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown'],
+      trustItemsMock: [
+        'Range-based estimates',
+        'Sample property data — live City records coming soon',
+        'AI cost breakdown',
+      ],
       howItWorksTitle: 'Estimate in 2 minutes',
       howItWorksSub: 'No registration required. No phone calls. No salesperson involved.',
       steps: [
@@ -139,6 +144,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       detailsPreviewNote: 'The preview step arrives in the next build.',
       detailsEmpty: 'No address selected yet.',
       detailsEmptyCta: 'Find your address to start →',
+    },
+    propertyCard: {
+      freshnessMock: 'Sample data for illustration — live City records coming soon',
     },
     seo: {
       scopeTitle: 'Feasly — Configure your build scope',
