@@ -2,7 +2,7 @@
 
 **Stack (locked 2026-09-23):** TypeScript on Azure Functions (Node 22), Drizzle ORM,
 PostgreSQL 16 (already provisioned), Vitest, zod. The deterministic cost engine lives
-in `packages/engine` (pure TS, zero I/O) and is shared by the API and the future MCP
+in `packages/cost-engine` (pure TS, zero I/O) and is shared by the API and the future MCP
 server. API shapes are imported from `@feasly/contracts` — the backend cannot drift
 from the contracts; a shape change is a compile error, not a runtime surprise.
 

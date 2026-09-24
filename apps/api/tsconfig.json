@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": [
+      "node"
+    ]
+  },
+  "extends": "../../packages/tsconfig/node.json",
+  "include": [
+    "src",
+    "test"
+  ]
+}
