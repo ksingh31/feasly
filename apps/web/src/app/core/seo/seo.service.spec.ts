@@ -122,6 +122,29 @@ describe('SeoService', () => {
     expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
   });
 
+  it('works when the Node process global is absent (browser runtime)', () => {
+    // Browsers have no `process` binding at all — the ambient TS declaration
+    // in seo.service.ts emits nothing at runtime. Optional chaining does not
+    // guard undeclared bindings, so a bare `process?.env` reference throws
+    // `ReferenceError: process is not defined` in every browser (issue #49:
+    // blank wizard pages, stale titles). `delete` reproduces a true browser
+    // here; `vi.stubGlobal('process', undefined)` would NOT — an undefined
+    // binding is still declared and `?.` would silently pass.
+    const g = globalThis as Record<string, unknown>;
+    const realProcess = g['process'];
+    delete g['process'];
+    try {
+      expect(() => service.setForRoute('estimate/scope')).not.toThrow();
+    } finally {
+      g['process'] = realProcess;
+    }
+    expect(TestBed.inject(Title).getTitle()).toBe('Feasly — Scope');
+    expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
+    expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href).toBe(
+      'https://feasly.com/estimate/scope/',
+    );
+  });
+
   it('covers every story-required noindex pattern', () => {
     const patterns = noindexPatterns();
     for (const required of [
