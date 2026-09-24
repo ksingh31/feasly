@@ -78,11 +78,24 @@ describe('LandingPageComponent', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(items).toEqual(['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown']);
+    // Default test config has useMockApi: true → mock items, never live-data claims.
+    expect(items).toEqual([
+      'Range-based estimates',
+      'Sample property data — live City records coming soon',
+      'AI cost breakdown',
+    ]);
     for (const item of items) {
       expect(item).not.toMatch(/[±%]/);
       expect(item?.toLowerCase()).not.toContain('accura');
     }
+  });
+
+  it('trust strip claims live City data only when the mock harness is off', async () => {
+    await setup({ api: { useMockApi: false } });
+    const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    expect(items).toEqual(['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown']);
   });
 
   it('hides the sample-report slot while the flag is off', () => {

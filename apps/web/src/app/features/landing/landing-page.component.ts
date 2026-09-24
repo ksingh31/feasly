@@ -39,6 +39,14 @@ export class LandingPageComponent implements OnInit {
   readonly copy = this.config.get('copy').landing;
   readonly searchCopy = this.config.get('copy').search;
 
+  /**
+   * Trust items with mock-aware substitution: while the mock harness is
+   * active the property-data item must not claim live City data.
+   */
+  readonly trustItems = this.config.get('api').useMockApi
+    ? this.copy.trustItemsMock
+    : this.copy.trustItems;
+
   @ViewChild(AddressAutocompleteComponent)
   private readonly autocomplete?: AddressAutocompleteComponent;
 
