@@ -1,0 +1,98 @@
+    <app-site-nav />
+    <main class="wrap">
+      <app-wizard-steps [current]="3" />
+      <h1 class="gate-heading">{{ copy.heading }}</h1>
+      <p class="gate-sub">{{ copy.sub }}</p>
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="gate-form" novalidate>
+        <div class="field">
+          <label for="gate-name">{{ copy.nameLabel }}</label>
+          <input
+            id="gate-name"
+            type="text"
+            formControlName="name"
+            [placeholder]="copy.namePlaceholder"
+            autocomplete="name"
+            [attr.aria-invalid]="showError('name')"
+            aria-describedby="gate-name-error"
+          />
+          @if (showError('name')) {
+            <p class="field-error" id="gate-name-error" role="alert">{{ copy.nameRequired }}</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="gate-email">{{ copy.emailLabel }}</label>
+          <input
+            id="gate-email"
+            type="email"
+            formControlName="email"
+            [placeholder]="copy.emailPlaceholder"
+            autocomplete="email"
+            inputmode="email"
+            [attr.aria-invalid]="showError('email')"
+            aria-describedby="gate-email-error"
+          />
+          @if (showError('email')) {
+            <p class="field-error" id="gate-email-error" role="alert">
+              {{ form.get('email')?.hasError('required') ? copy.emailRequired : copy.emailInvalid }}
+            </p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="gate-phone">
+            {{ copy.phoneLabel }} <span class="optional">{{ copy.optionalMarker }}</span>
+          </label>
+          <input
+            id="gate-phone"
+            type="tel"
+            formControlName="phone"
+            [placeholder]="copy.phonePlaceholder"
+            autocomplete="tel"
+            inputmode="tel"
+            [attr.aria-invalid]="showError('phone')"
+            aria-describedby="gate-phone-error"
+          />
+          @if (showError('phone')) {
+            <p class="field-error" id="gate-phone-error" role="alert">{{ copy.phoneInvalid }}</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="gate-timeline">
+            {{ copy.timelineLabel }} <span class="optional">{{ copy.optionalMarker }}</span>
+          </label>
+          <select id="gate-timeline" formControlName="timeline">
+            <option value="">{{ copy.timelinePlaceholder }}</option>
+            @for (option of copy.timelineOptions; track option.id) {
+              <option [value]="option.id">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
+        <label class="casl">
+          <input type="checkbox" formControlName="casl" />
+          <span>{{ copy.caslLabel }}</span>
+        </label>
+
+        @if (status === 'error') {
+          <div class="form-error" role="alert">
+            <p>{{ copy.submitError }}</p>
+            <button type="button" class="retry" (click)="onSubmit()">{{ copy.retryLabel }}</button>
+          </div>
+        }
+
+        <div class="actions">
+          <button type="button" class="back" (click)="goBack()">{{ copy.backLabel }}</button>
+          <button class="cta" type="submit" [disabled]="status === 'sending'">
+            {{ status === 'sending' ? copy.submittingLabel : copy.submitLabel }}
+          </button>
+        </div>
+
+        <p class="privacy-note">
+          {{ copy.privacyNote }} <a routerLink="/privacy">{{ copy.privacyLinkLabel }}</a>
+        </p>
+      </form>
+    </main>
+    <app-site-footer />

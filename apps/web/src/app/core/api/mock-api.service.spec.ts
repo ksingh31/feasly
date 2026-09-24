@@ -7,7 +7,7 @@ import type { EstimateRequest } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import { MockApiService } from './mock-api.service';
 import { providePropertyData } from './property-data.service';
-import { mockSuggestions } from './mock-data';
+import { mockSuggestions, stableMockEstimateId } from './mock-data';
 
 /**
  * Contract-conformance for the mock harness (FE0-003): every mock response
@@ -171,7 +171,7 @@ describe('MockApiService', () => {
       expect(lead.magicLinkSent).toBe(true);
       expect(lead.expiresInDays).toBeGreaterThan(0);
 
-      const token = service.devMagicLinkForLead(lead.leadId);
+      const token = service.devTokenForLead(lead.leadId);
       expect(token).toBeTruthy();
       const verified = await firstValueFrom(service.verifyMagicLink(token!));
       expect(verified.valid).toBe(true);
@@ -211,7 +211,7 @@ describe('MockApiService', () => {
           estimateId: preview.estimateId,
         }),
       );
-      const verified = await firstValueFrom(service.verifyMagicLink(service.devMagicLinkForLead(lead.leadId)!));
+      const verified = await firstValueFrom(service.verifyMagicLink(service.devTokenForLead(lead.leadId)!));
       if (!verified.valid) throw new Error('mock verify failed');
       return verified.reportToken;
     }
@@ -249,6 +249,38 @@ describe('MockApiService', () => {
       const reread = await firstValueFrom(service.getReport(token));
       expect(reread.version).toBe(second.version);
     });
+
+    it('initial estimate applies the selected tier and size', async () => {
+      const estimate = await firstValueFrom(
+        service.getEstimate({ ...estimateRequest, tier: 'standard', sqft: 2200 }),
+      );
+      // 0.92 tier factor on the canned build base (608000 -> 559000).
+      expect(estimate.figures.build.low).toBe(559000);
+      expect(estimate.inputs.tier).toBe('standard');
+      // Land is the City assessed value: never scaled by tier or size.
+      expect(estimate.figures.land).toEqual({ low: 395000, base: 420000, high: 445000 });
+      // Total is always build + land.
+      expect(estimate.figures.total.low).toBe(
+        estimate.figures.build.low + estimate.figures.land.low,
+      );
+    });
+
+    it('tier toggles round-trip: switching back restores the exact figures', async () => {
+      const token = await verifiedToken();
+      const initial = await firstValueFrom(service.getReport(token));
+      await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
+      const back = await firstValueFrom(service.reviseTier(token, { tier: initial.inputs.tier }));
+      expect(back.totalRange).toEqual(initial.totalRange);
+      expect(back.buildRange).toEqual(initial.buildRange);
+      expect(back.rows).toEqual(initial.rows);
+    });
+
+    it('land assessed value stays fixed across tier revisions', async () => {
+      const token = await verifiedToken();
+      const before = await firstValueFrom(service.getReport(token));
+      const revised = await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
+      expect(revised.landRange).toEqual(before.landRange);
+    });
   });
 
   describe('callbacks, sharing, analytics', () => {
@@ -274,6 +306,55 @@ describe('MockApiService', () => {
 
     it('trackEvent completes without emitting', async () => {
       await firstValueFrom(service.trackEvent({ event: 'step_view', route: '/', ts: new Date().toISOString() }));
+    });
+  });
+
+  describe('stable estimate identity', () => {
+    it('returns the same estimate ID when the gate, analyzing, and report repeat the same request', async () => {
+      const first = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      const second = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      expect(second.estimateId).toBe(first.estimateId);
+      expect(first.estimateId).toMatch(/^est-mock-[0-9a-f]{8}$/);
+    });
+
+    it('derives different IDs for different properties and different inputs', () => {
+      const base = stableMockEstimateId('calgary-1234-14-st-nw', {
+        sqft: 2200,
+        tier: 'standard',
+        garage: 'double',
+        basement: 'unfinished',
+      });
+      // Different property, same size/tier: must not collide.
+      expect(
+        stableMockEstimateId('calgary-999-1-ave-nw', {
+          sqft: 2200,
+          tier: 'standard',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+      // Same property, changed inputs: must not collide.
+      expect(
+        stableMockEstimateId('calgary-1234-14-st-nw', {
+          sqft: 2400,
+          tier: 'standard',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+      expect(
+        stableMockEstimateId('calgary-1234-14-st-nw', {
+          sqft: 2200,
+          tier: 'luxury',
+          garage: 'double',
+          basement: 'unfinished',
+        }),
+      ).not.toBe(base);
+    });
+
+    it('carries the request address key on the preview (not a hardcoded fixture)', async () => {
+      const res = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
+      expect(res.addressKey).toBe(estimateRequest.addressKey);
     });
   });
 });

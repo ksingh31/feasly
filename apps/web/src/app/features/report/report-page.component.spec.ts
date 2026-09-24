@@ -11,7 +11,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { SelectProperty, UpdateInputs, WizardState } from '../wizard';
+import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
 import { SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPageComponent, withLandRowFirst } from './report-page.component';
@@ -93,7 +93,7 @@ describe('ReportPageComponent', () => {
           { path: 'estimate/report', component: ReportPageComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
-        provideStore([WizardState, ReportState]),
+        provideStore([WizardState, ReportState, LeadState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
       ],
@@ -131,7 +131,7 @@ describe('ReportPageComponent', () => {
         estimateId: preview.estimateId,
       }),
     );
-    const token = api.devMagicLinkForLead(lead.leadId);
+    const token = api.devTokenForLead(lead.leadId);
     expect(token).toBeTruthy();
     store.dispatch([new SetReportToken(token!), new UnlockReport()]);
     await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'unlock');
@@ -188,6 +188,25 @@ describe('ReportPageComponent', () => {
       expect(dump).not.toMatch(/[±%]/);
       expect(dump.toLowerCase()).not.toContain('accura');
     });
+
+    it('shows the pending "check your email" state (no unlock CTA) when a lead was submitted but the report is still locked', () => {
+      // Real-backend shape: lead submitted, magic link on its way, no token.
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-pending-1',
+          email: 'buyer@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      );
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('a.unlock')).toBeNull();
+      const pending = fixture.nativeElement.querySelector('.pending-note');
+      expect(pending).not.toBeNull();
+      expect(pending.textContent).toContain('magic link');
+      // Still blurred — no figures leak while locked.
+      expect(text()).not.toMatch(/\d{6}/);
+    });
   });
 
   describe('post-gate', () => {
@@ -204,7 +223,8 @@ describe('ReportPageComponent', () => {
         expect(v).toMatch(/^\$\d{1,3}(,\d{3})*$/);
       }
       // Mock total base is the contract's deterministic base, not (low+high)/2.
-      expect(values[1]).toBe('$1,091,500');
+      // The mock rounds ranges to the nearest thousand, so 1091500 -> 1092000.
+      expect(values[1]).toBe('$1,092,000');
       const labels = [...fixture.nativeElement.querySelectorAll('.hero-total .range-label')].map((el: Element) =>
         el.textContent?.trim(),
       );

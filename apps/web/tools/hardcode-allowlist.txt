@@ -26,3 +26,9 @@ apps/web/src/app/features/not-found/not-found-page.component.ts
 # cannot distinguish it from a tunable threshold.
 apps/web/src/app/app.routes.ts
 apps/web/src/app/core/seo/seo-routes.ts
+
+# Labelled sample report (seo/09): canned fictional data — the address,
+# figures, and banner copy are inherently literal, exactly like mock-data.ts
+# above. Every value is pinned by sample-report-page.component.spec.ts.
+apps/web/src/app/features/sample-report/sample-report-page.component.ts
+apps/web/src/app/features/sample-report/sample-report-page.component.html
