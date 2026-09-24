@@ -91,7 +91,7 @@ export async function estimateHandler(
     context.res = {
       status: result.status,
       headers: {
-        'Content-Type': 'application/problem+json',
+        ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
       },

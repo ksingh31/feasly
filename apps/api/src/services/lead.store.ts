@@ -8,7 +8,7 @@
  * created within the window. The window bound is a parameter
  * (config-driven), not a constant.
  */
-import { and, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { leads } from '../db/schema';
 
@@ -25,6 +25,8 @@ export interface LeadRecord {
   readonly consentTs: Date;
   readonly tenantKey: string | null;
   readonly source: string;
+  /** HRD-03: honeypot-tripped rows. Excluded from default listings. */
+  readonly quarantined: boolean;
   readonly createdAt: Date;
 }
 
@@ -40,6 +42,8 @@ export interface NewLead {
   readonly consentTs: Date;
   readonly tenantKey?: string;
   readonly source: string;
+  /** Set by the service when the honeypot field arrives filled. */
+  readonly quarantined?: boolean;
 }
 
 export interface LeadStore {
@@ -53,6 +57,17 @@ export interface LeadStore {
     readonly since: Date;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
+  /**
+   * Default lead listing, newest first. Quarantined rows are EXCLUDED
+   * unless `includeQuarantined` is true — the admin `GET /api/v1/admin/leads`
+   * default listing, counts, and the Sheets sync worker must all consume
+   * this default so spam never leaks into the pipeline; the admin
+   * quarantine tab passes `includeQuarantined: true` explicitly.
+   */
+  listLeads(args?: {
+    readonly includeQuarantined?: boolean;
+    readonly limit?: number;
+  }): Promise<LeadRecord[]>;
 }
 
 export interface DrizzleLeadStoreDeps {
@@ -72,6 +87,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     consentTs: row.consentTs,
     tenantKey: row.tenantKey,
     source: row.source,
+    quarantined: row.quarantined,
     createdAt: row.createdAt,
   };
 }
@@ -110,11 +126,25 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           consentTs: lead.consentTs,
           tenantKey: lead.tenantKey ?? null,
           source: lead.source,
+          quarantined: lead.quarantined ?? false,
         })
         .returning();
       const row = rows[0];
       if (!row) throw new Error('lead insert returned no row');
       return toRecord(row);
+    },
+
+    async listLeads(args): Promise<LeadRecord[]> {
+      const conditions = args?.includeQuarantined
+        ? []
+        : [eq(leads.quarantined, false)];
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(leads.createdAt))
+        .limit(args?.limit ?? 100);
+      return rows.map(toRecord);
     },
   };
 }

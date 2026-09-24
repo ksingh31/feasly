@@ -131,3 +131,22 @@ export function isProblemDetails(value: unknown): value is ProblemDetails {
     typeof v['correlationId'] === 'string'
   );
 }
+
+/**
+ * HTTP response headers for a ProblemDetails body (HRD-03). 429s carry a
+ * `Retry-After` header in whole seconds (ceil, minimum 1) so well-behaved
+ * clients — and the acceptance tests — don't have to parse the body.
+ */
+export function problemResponseHeaders(
+  problem: ProblemDetails,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/problem+json',
+  };
+  if (problem.status === 429 && typeof problem.retryAfterMs === 'number') {
+    headers['Retry-After'] = String(
+      Math.max(1, Math.ceil(problem.retryAfterMs / 1000)),
+    );
+  }
+  return headers;
+}

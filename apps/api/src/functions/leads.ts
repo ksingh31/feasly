@@ -64,8 +64,17 @@ export async function leadsHandler(
   }
   const correlationId = middleware.ensureCorrelationId(headers);
 
+  const rawBody =
+    typeof req.body === 'object' && req.body !== null
+      ? (req.body as Record<string, unknown>)
+      : {};
   const result = await app.leadPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    {
+      headers,
+      clientIp: clientIpFrom(req),
+      tenantKey:
+        typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
+    },
     // The body is never logged — see module docstring.
     () => app.leadRoute.handle(req.body),
   );
@@ -74,7 +83,7 @@ export async function leadsHandler(
     context.res = {
       status: result.status,
       headers: {
-        'Content-Type': 'application/problem+json',
+        ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
       },
@@ -83,7 +92,10 @@ export async function leadsHandler(
     return;
   }
   context.res = {
-    status: 200,
+    // HRD-03: lead capture returns 201 — including honeypot-trapped
+    // submissions, which are quarantined server-side but answer identically
+    // so bots learn nothing.
+    status: 201,
     headers: {
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,

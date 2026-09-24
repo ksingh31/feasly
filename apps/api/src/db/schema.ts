@@ -76,6 +76,13 @@ export const leads = pgTable(
     tenantKey: text('tenant_key'),
     /** web | api | mcp — which surface captured the lead. */
     source: text('source').notNull().default('api'),
+    /**
+     * Anti-spam quarantine (HRD-03). Set when the honeypot field arrives
+     * filled. Quarantined rows are excluded from the default lead listing
+     * (see `LeadStore.listLeads`), admin counts, and Sheets sync — they
+     * surface only in the admin quarantine tab.
+     */
+    quarantined: boolean('quarantined').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

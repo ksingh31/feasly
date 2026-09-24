@@ -53,12 +53,14 @@ function fakeLeadStore(): FakeLeadStore {
       recent = value;
     },
     findRecentByEmailAndAddress: async () => recent,
+    listLeads: async () => [],
     insert: async (lead: NewLead) => {
       inserted.push(lead);
       return {
         ...lead,
         phone: lead.phone ?? null,
         tenantKey: lead.tenantKey ?? null,
+        quarantined: lead.quarantined ?? false,
         createdAt: NOW,
       };
     },
@@ -151,6 +153,7 @@ describe('lead service', () => {
       consentTs: NOW,
       tenantKey: null,
       source: 'api',
+      quarantined: false,
       createdAt: NOW,
     };
     const service = createLeadService({ ...DEPS, store });
@@ -192,6 +195,7 @@ describe('lead service', () => {
       consentTs: NOW,
       tenantKey: null,
       source: 'api',
+      quarantined: false,
       createdAt: NOW,
     };
     const service = createLeadService({ ...DEPS, store, estimateStore });
@@ -270,5 +274,50 @@ describe('lead service', () => {
     });
     const result = await service.submitLead(VALID_BODY);
     expect(result.expiresInDays).toBe(3);
+  });
+
+  it('quarantines a honeypot-filled submission but answers with the normal shape', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    const clean = await service.submitLead(VALID_BODY);
+    const trapped = await service.submitLead({
+      ...VALID_BODY,
+      email: 'bot@example.com',
+      website: 'http://spam.example',
+    });
+    // Bots learn nothing: same keys, same magicLinkSent, no quarantine hint.
+    expect(Object.keys(trapped).sort()).toEqual(Object.keys(clean).sort());
+    expect(trapped.magicLinkSent).toBe(false);
+    expect(store.inserted).toHaveLength(2);
+    expect(store.inserted[0].quarantined).toBe(false);
+    expect(store.inserted[1].quarantined).toBe(true);
+  });
+
+  it('treats a blank honeypot field as a clean submission', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead({ ...VALID_BODY, website: '   ' });
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0].quarantined).toBe(false);
+  });
+
+  it('a rapid double-submit still creates exactly one lead (regression)', async () => {
+    const store = fakeLeadStore();
+    // Second call sees the first call's row via the dedup lookup.
+    store.findRecentByEmailAndAddress = async () =>
+      store.inserted.length > 0
+        ? {
+            ...store.inserted[0],
+            phone: store.inserted[0].phone ?? null,
+            tenantKey: store.inserted[0].tenantKey ?? null,
+            quarantined: store.inserted[0].quarantined ?? false,
+            createdAt: NOW,
+          }
+        : null;
+    const service = createLeadService({ ...DEPS, store });
+    const first = await service.submitLead(VALID_BODY);
+    const second = await service.submitLead(VALID_BODY);
+    expect(second.leadId).toBe(first.leadId);
+    expect(store.inserted).toHaveLength(1);
   });
 });

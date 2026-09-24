@@ -32,6 +32,11 @@ import type { LeadStore } from './lead.store';
  * Contract-shaped validation. `timeline` defaults to 'exploring' and
  * `marketingConsent` is required-but-possibly-false — the UI sends false when
  * the CASL checkbox is unchecked, and the service must honor that.
+ *
+ * `website` is the HRD-03 honeypot: the UI renders it as a visually-hidden
+ * input no real user fills. A non-empty value does NOT fail validation —
+ * the lead is captured with `quarantined: true` and the caller gets the
+ * normal response, so bots learn nothing.
  */
 export const LeadRequestSchema = z.object({
   email: z.string().trim().min(1).max(254).email(),
@@ -41,6 +46,7 @@ export const LeadRequestSchema = z.object({
   marketingConsent: z.boolean(),
   estimateId: z.string().uuid(),
   tenantKey: z.string().trim().min(1).max(120).optional(),
+  website: z.string().max(500).optional(),
 });
 
 export type LeadRequest = z.infer<typeof LeadRequestSchema>;
@@ -117,6 +123,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         return { leadId: existing.id, magicLinkSent: false, expiresInDays };
       }
 
+      // HRD-03 honeypot: a filled trap field quarantines the row instead of
+      // rejecting the request — the response shape is identical to a clean
+      // capture so bots can't probe for the trap.
+      const quarantined = (input.website ?? '').trim().length > 0;
+
       let inserted;
       try {
         inserted = await deps.store.insert({
@@ -131,6 +142,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           consentTs: now,
           tenantKey: input.tenantKey,
           source: 'api',
+          quarantined,
         });
       } catch (error) {
         throw new Error('lead store insert failed', { cause: error });

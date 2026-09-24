@@ -30,6 +30,7 @@ describe('lead route', () => {
     };
     const leadStore = {
       findRecentByEmailAndAddress: async () => null,
+    listLeads: async () => [],
       insert: async (lead: {
         id: string;
         estimateId: string;
@@ -44,6 +45,7 @@ describe('lead route', () => {
         ...lead,
         phone: null,
         tenantKey: null,
+        quarantined: false,
         createdAt: new Date(),
       }),
     };

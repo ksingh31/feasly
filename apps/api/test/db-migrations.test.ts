@@ -195,3 +195,70 @@ describe('migration 0001 — estimates.project_type', () => {
     expect(found?.projectType).toBe('renovation');
   });
 });
+
+describe('migration 0002 — leads.quarantined', () => {
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('adds quarantined with a false default', async () => {
+    const cols = await testDb.rows<{ column_name: string; column_default: string | null }>(
+      `select column_name, column_default from information_schema.columns where table_name = 'leads' and column_name = 'quarantined'`,
+    );
+    expect(cols).toHaveLength(1);
+    expect(cols[0].column_default).toContain('false');
+  });
+
+  it('round-trips quarantined through the Drizzle store', async () => {
+    const estimates = createDrizzleEstimateStore({ db: testDb.db });
+    const leads = createDrizzleLeadStore({ db: testDb.db });
+    const estimateId = '44444444-4444-4333-8444-444444444444';
+    await estimates.save({
+      id: estimateId,
+      projectType: 'new_build',
+      addressKey: 'calgary-quarantine-test',
+      inputs: {},
+      figures: {},
+      rows: [],
+      costDataVersion: 'v0.1.0-unclibrated',
+      createdAt: new Date(),
+    });
+    const clean = await leads.insert({
+      id: '55555555-5555-4333-8555-555555555555',
+      estimateId,
+      addressKey: 'calgary-quarantine-test',
+      email: 'clean@example.com',
+      name: 'Clean',
+      timeline: 'exploring',
+      marketingConsent: false,
+      consentTs: new Date('2026-09-24T12:00:00Z'),
+      source: 'api',
+    });
+    expect(clean.quarantined).toBe(false);
+    const trapped = await leads.insert({
+      id: '66666666-6666-4333-8666-666666666666',
+      estimateId,
+      addressKey: 'calgary-quarantine-test',
+      email: 'bot@example.com',
+      name: 'Bot',
+      timeline: 'exploring',
+      marketingConsent: false,
+      consentTs: new Date('2026-09-24T12:01:00Z'),
+      source: 'api',
+      quarantined: true,
+    });
+    expect(trapped.quarantined).toBe(true);
+
+    // Default listing excludes quarantined rows — newest first.
+    const listed = await leads.listLeads();
+    expect(listed.map((r) => r.email)).toEqual(['clean@example.com']);
+
+    // The admin quarantine tab opts in explicitly.
+    const all = await leads.listLeads({ includeQuarantined: true });
+    expect(all.map((r) => r.email)).toEqual(['bot@example.com', 'clean@example.com']);
+  });
+});

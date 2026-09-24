@@ -15,6 +15,13 @@
       "when": 1790281363380,
       "tag": "0001_chubby_barracuda",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0002_dizzy_honeypot",
+      "breakpoints": true
     }
   ]
 }

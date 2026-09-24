@@ -20,6 +20,13 @@ export interface LeadRequest {
   readonly estimateId: string;
   /** Present only on builder embeds. */
   readonly tenantKey?: string;
+  /**
+   * Honeypot anti-spam field (HRD-03). The UI renders this input visually
+   * hidden; a real user never fills it. Any non-empty value marks the lead
+   * as quarantined server-side — the caller still gets the normal 201-shaped
+   * response so bots learn nothing.
+   */
+  readonly website?: string;
 }
 
 export interface LeadResponse {
