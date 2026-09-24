@@ -1,5 +1,5 @@
     <app-site-nav />
-    <main class="wrap">
+    <main class="wrap" id="main-content" tabindex="-1">
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
         <app-property-card [property]="p" />

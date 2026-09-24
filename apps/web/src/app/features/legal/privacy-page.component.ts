@@ -16,7 +16,7 @@ import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.comp
   imports: [SiteFooterComponent, SiteNavComponent],
   template: `
     <app-site-nav />
-    <main class="legal">
+    <main class="legal" id="main-content" tabindex="-1">
       <h1>Privacy Policy</h1>
       <p class="updated">Last updated: September 2026</p>
 
