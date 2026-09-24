@@ -23,6 +23,9 @@
         </dl>
         <button class="cta" type="button" disabled aria-disabled="true">{{ copy.detailsPreviewCta }}</button>
         <p class="note">{{ copy.detailsPreviewNote }}</p>
+        <div class="back-wrap">
+          <a class="back" routerLink="/estimate/scope" (click)="goBack()">{{ copy.detailsBackLabel }}</a>
+        </div>
       } @else {
         <div class="empty">
           <p>{{ copy.detailsEmpty }}</p>
