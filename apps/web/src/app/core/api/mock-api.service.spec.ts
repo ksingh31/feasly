@@ -102,6 +102,22 @@ describe('MockApiService', () => {
       const second = await firstValueFrom(service.getProperty('calgary-222-7-ave-ne'));
       expect(second).toEqual(first);
     });
+
+    it('gives every suggested address a distinct property card', async () => {
+      const suggestions = mockSuggestions();
+      const seen = new Set<string>();
+      for (const suggestion of suggestions) {
+        const property = await firstValueFrom(service.getProperty(suggestion.addressKey));
+        const facts = [
+          property.lotSqft,
+          property.zoning,
+          property.assessedValue,
+          property.yearBuilt,
+        ].join('|');
+        expect(seen.has(facts)).toBe(false);
+        seen.add(facts);
+      }
+    });
   });
 
   describe('estimates', () => {

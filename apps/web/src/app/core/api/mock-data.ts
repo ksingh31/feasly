@@ -78,6 +78,24 @@ function pickFor<T>(addressKey: string, pool: readonly T[]): T {
   return pool[hash % pool.length];
 }
 
+/**
+ * Explicit mock facts per suggested address so no two addresses share an
+ * identical card (hash-picking from small pools collided). Values are
+ * plausible inner-city Calgary figures; the real API replaces this file.
+ */
+const MOCK_PROPERTY_DETAILS: Record<
+  string,
+  { lotSqft: number; zoning: string; assessedValue: number; yearBuilt: number }
+> = {
+  'calgary-1410-14-st-nw': { lotSqft: 4800, zoning: 'R-CG', assessedValue: 748500, yearBuilt: 1958 },
+  'calgary-222-7-ave-ne': { lotSqft: 5600, zoning: 'R-C2', assessedValue: 915000, yearBuilt: 1983 },
+  'calgary-918-16-ave-nw': { lotSqft: 6100, zoning: 'R-C1', assessedValue: 823000, yearBuilt: 1974 },
+  'calgary-4708-22-st-nw': { lotSqft: 5200, zoning: 'R-C2', assessedValue: 612400, yearBuilt: 1951 },
+  'calgary-3311-33-ave-sw': { lotSqft: 4200, zoning: 'R-CG', assessedValue: 685000, yearBuilt: 1962 },
+  'calgary-101-8-ave-se': { lotSqft: 3900, zoning: 'R-C2', assessedValue: 742000, yearBuilt: 1948 },
+  'calgary-2704-24-st-sw': { lotSqft: 5900, zoning: 'R-C1', assessedValue: 879000, yearBuilt: 1967 },
+};
+
 export function mockPropertyFor(addressKey: string): PropertyRecord | undefined {
   const suggestion = mockSuggestions().find((s) => s.addressKey === addressKey);
   if (!suggestion) {
@@ -86,15 +104,16 @@ export function mockPropertyFor(addressKey: string): PropertyRecord | undefined 
   if (addressKey === mockProperty().addressKey) {
     return mockProperty();
   }
+  const details = MOCK_PROPERTY_DETAILS[addressKey];
   return {
     addressKey,
     address: suggestion.address,
     community: suggestion.community,
-    lotSqft: pickFor(addressKey, MOCK_LOT_SQFT),
-    zoning: pickFor(addressKey, MOCK_ZONING),
-    assessedValue: pickFor(addressKey, MOCK_ASSESSED),
+    lotSqft: details?.lotSqft ?? pickFor(addressKey, MOCK_LOT_SQFT),
+    zoning: details?.zoning ?? pickFor(addressKey, MOCK_ZONING),
+    assessedValue: details?.assessedValue ?? pickFor(addressKey, MOCK_ASSESSED),
     assessmentYear: 2025,
-    yearBuilt: pickFor(addressKey, MOCK_YEAR_BUILT),
+    yearBuilt: details?.yearBuilt ?? pickFor(addressKey, MOCK_YEAR_BUILT),
     dataAsOf: '2025-07-01',
     stale: false,
   };
