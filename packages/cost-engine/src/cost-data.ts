@@ -1,0 +1,147 @@
+/**
+ * Bundled calibration tables. The JSON files under ../cost-data/ are the
+ * versioned, auditable source of every number the engine uses; this module
+ * only loads and shape-checks them.
+ *
+ * Versioning rule: a data file is NEVER edited in place. A recalibration
+ * ships as a new file (e.g. v0.2.0-calgary.json) so every historic estimate
+ * stays reproducible via its pinned cost_data_version.
+ */
+import rawPlaceholder from '../cost-data/v0.1.0-unclibrated.json';
+import type { CostData, HardCostCategory, SoftCostCategory } from './types';
+
+const KNOWN_TIERS: readonly string[] = ['standard', 'premium', 'luxury'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isUnitFraction(value: unknown): value is number {
+  return isNonNegativeNumber(value) && value < 1;
+}
+
+function checkTierRates(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  for (const tier of KNOWN_TIERS) {
+    if (!isNonNegativeNumber(value[tier])) {
+      throw new Error(`${path}.${tier}: expected a non-negative number`);
+    }
+  }
+}
+
+function checkHardCategory(value: unknown, path: string): asserts value is HardCostCategory {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  if (typeof value['label'] !== 'string' || value['label'].length === 0) {
+    throw new Error(`${path}.label: expected a non-empty string`);
+  }
+  if (value['scalesWith'] !== 'buildSqft' && value['scalesWith'] !== 'lotSizeSqft') {
+    throw new Error(`${path}.scalesWith: expected buildSqft|lotSizeSqft`);
+  }
+  if (typeof value['formula'] !== 'string' || value['formula'].length === 0) {
+    throw new Error(`${path}.formula: expected a non-empty string`);
+  }
+  checkTierRates(value['rates'], `${path}.rates`);
+  if (!isUnitFraction(value['spread'])) {
+    throw new Error(`${path}.spread: expected a fraction in [0, 1)`);
+  }
+}
+
+function checkSoftCategory(value: unknown, path: string): asserts value is SoftCostCategory {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  if (typeof value['label'] !== 'string' || value['label'].length === 0) {
+    throw new Error(`${path}.label: expected a non-empty string`);
+  }
+  if (typeof value['formula'] !== 'string' || value['formula'].length === 0) {
+    throw new Error(`${path}.formula: expected a non-empty string`);
+  }
+  if (!isUnitFraction(value['fraction']) || value['fraction'] === 0) {
+    throw new Error(`${path}.fraction: expected a fraction in (0, 1)`);
+  }
+  if (!isUnitFraction(value['spread'])) {
+    throw new Error(`${path}.spread: expected a fraction in [0, 1)`);
+  }
+}
+
+/** Shape-check a parsed cost-data file; throws on the first problem. */
+export function assertValidCostData(value: unknown): asserts value is CostData {
+  if (!isRecord(value)) throw new Error('cost data: expected an object');
+  if (typeof value['version'] !== 'string' || value['version'].length === 0) {
+    throw new Error('cost data: version must be a non-empty string');
+  }
+  if (typeof value['calibrated'] !== 'boolean') {
+    throw new Error('cost data: calibrated must be a boolean');
+  }
+  if (typeof value['source'] !== 'string' || typeof value['notes'] !== 'string') {
+    throw new Error('cost data: source and notes must be strings');
+  }
+  if (!Array.isArray(value['tiers']) || value['tiers'].length === 0) {
+    throw new Error('cost data: tiers must be a non-empty array');
+  }
+  for (const tier of value['tiers'] as unknown[]) {
+    if (typeof tier !== 'string' || !KNOWN_TIERS.includes(tier)) {
+      throw new Error(`cost data: unknown tier ${String(tier)}`);
+    }
+  }
+  const bounds = value['inputBounds'];
+  if (!isRecord(bounds)) throw new Error('cost data: inputBounds must be an object');
+  for (const key of [
+    'minBuildSqft',
+    'maxBuildSqft',
+    'minLotSizeSqft',
+    'maxLotSizeSqft',
+    'minAssessedLandValue',
+    'maxAssessedLandValue',
+    'maxZoningLength',
+  ]) {
+    if (!isNonNegativeNumber(bounds[key])) {
+      throw new Error(`cost data: inputBounds.${key} must be a non-negative number`);
+    }
+  }
+  if (!isRecord(value['hardCosts']) || Object.keys(value['hardCosts']).length === 0) {
+    throw new Error('cost data: hardCosts must be a non-empty object');
+  }
+  for (const [key, category] of Object.entries(value['hardCosts'])) {
+    checkHardCategory(category, `hardCosts.${key}`);
+  }
+  if (!isRecord(value['softCosts']) || Object.keys(value['softCosts']).length === 0) {
+    throw new Error('cost data: softCosts must be a non-empty object');
+  }
+  for (const [key, category] of Object.entries(value['softCosts'])) {
+    checkSoftCategory(category, `softCosts.${key}`);
+  }
+  const contingency = value['contingency'];
+  if (!isRecord(contingency)) throw new Error('cost data: contingency must be an object');
+  if (typeof contingency['label'] !== 'string' || contingency['label'].length === 0) {
+    throw new Error('cost data: contingency.label must be a non-empty string');
+  }
+  if (typeof contingency['formula'] !== 'string' || contingency['formula'].length === 0) {
+    throw new Error('cost data: contingency.formula must be a non-empty string');
+  }
+  if (!isUnitFraction(contingency['fraction'])) {
+    throw new Error('cost data: contingency.fraction must be a fraction in [0, 1)');
+  }
+  if (!isUnitFraction(contingency['spread'])) {
+    throw new Error('cost data: contingency.spread must be a fraction in [0, 1)');
+  }
+  if (!isUnitFraction(value['landSpread'])) {
+    throw new Error('cost data: landSpread must be a fraction in [0, 1)');
+  }
+}
+
+const placeholder: unknown = rawPlaceholder;
+assertValidCostData(placeholder);
+
+/**
+ * The bundled placeholder calibration table (v0.1.0-unclibrated,
+ * calibrated: false). Stand-in numbers until Karan's real cost Sheet
+ * arrives — see the file's _comment. Composition wires this in; the
+ * engine itself only ever sees it as a CostData parameter.
+ */
+export const PLACEHOLDER_COST_DATA: CostData = placeholder;
+
+/** Every bundled table version, for future multi-version support. */
+export const BUNDLED_COST_DATA_VERSIONS: readonly string[] = [PLACEHOLDER_COST_DATA.version];
