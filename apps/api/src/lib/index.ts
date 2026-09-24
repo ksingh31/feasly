@@ -4,3 +4,4 @@
  * Everything here is unit-tested.
  */
 export * from './async';
+export * from './legal-copy';

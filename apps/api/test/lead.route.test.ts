@@ -12,6 +12,8 @@ import { createLeadRoute } from '../src/routes/lead.route';
 import { createLeadService } from '../src/services/lead.service';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
+import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
+import { createDrizzlePrivacyStore } from '../src/services/privacy.store';
 import { isProblemDetails } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
 
@@ -48,10 +50,23 @@ describe('lead route', () => {
         quarantined: false,
         createdAt: new Date(),
       }),
+      findById: async () => null,
+      findAllByEmail: async () => [],
+      deleteByEmail: async () => 0,
     };
     const service = createLeadService({
       store: leadStore,
       estimateStore,
+      magicLinks: {
+        issue: async () => ({
+          id: 'mlink-1',
+          token: 'raw-token',
+          expiresAt: new Date(),
+        }),
+        findByToken: async () => null,
+        findByLeadIds: async () => [],
+        revokeByLeadIds: async () => 0,
+      },
       dedupWindowDays: 90,
       magicLinkTtlSeconds: 900,
     });
@@ -79,6 +94,11 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     app = createComposition(TEST_ENV, {
       estimateStore: createDrizzleEstimateStore({ db: testDb.db }),
       leadStore: createDrizzleLeadStore({ db: testDb.db }),
+      // Back every store by the same PGlite DB — the magic-link FK points
+      // at leads, so the default (real-pool) store would see a different
+      // database and every issuance would fail the FK check.
+      magicLinkStore: createDrizzleMagicLinkStore({ db: testDb.db }),
+      privacyStore: createDrizzlePrivacyStore({ db: testDb.db }),
     });
     // Seed one estimate for the lead to attach to (real store path).
     const estimate = await app.estimateRoute.handle({
