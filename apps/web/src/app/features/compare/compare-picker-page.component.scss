@@ -224,39 +224,86 @@
   text-align: center;
 }
 
-/* Interim confirmation panel (NBH-04 only — replaced by NBH-03). */
-.interim-panel {
+/* Analyzing beat (NBH-03): honest pipeline stages, no timers. */
+.analyzing-panel {
   margin-top: 24px;
-  padding: 32px 24px;
+  padding: 48px 24px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
   text-align: center;
 }
 
-.interim-picks {
+.analyzing-stages {
   list-style: none;
-  margin: 20px 0 8px;
+  margin: 32px auto 0;
   padding: 0;
+  max-width: 24rem;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
 }
 
-.interim-picks li {
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  background: var(--accent-bg);
-  border: 1.5px solid var(--accent);
-  border-radius: 999px;
-}
-
-.interim-meta {
-  font-size: 14px;
+.analyzing-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
   color: var(--muted);
-  margin: 0 0 8px;
-  text-transform: capitalize;
+
+  &[data-state='active'] {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  &[data-state='done'] {
+    color: var(--text);
+  }
+}
+
+.analyzing-stage__marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.analyzing-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: analyzing-spin 0.9s linear infinite;
+}
+
+@keyframes analyzing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.analyzing-error-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

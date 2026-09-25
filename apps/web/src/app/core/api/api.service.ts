@@ -18,6 +18,8 @@ import type {
   PartnerShareResponse,
   PreviewEstimateResponse,
   EstimateResponse,
+  ComparisonEstimateRequest,
+  ComparisonEstimateResponse,
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
@@ -25,6 +27,22 @@ import type {
 import { ConfigService } from '../config/config.service';
 import { HttpApiService } from './http-api.service';
 import { MockApiService } from './mock-api.service';
+
+/**
+ * Community stats for one Calgary community (NBH-01 / NBH-03).
+ * Mirrors the backend's snake_case `CommunityStatsResponse` — the frontend
+ * does not rename the wire shape.
+ */
+export interface CommunityStats {
+  readonly slug: string;
+  readonly name: string;
+  /** Whole CAD dollars — City-assessed value (not market value). */
+  readonly avg_assessed_value: number;
+  readonly assessment_count: number;
+  readonly avg_lot_sqft: number | null;
+  readonly refreshed_at: string;
+  readonly stale: boolean;
+}
 
 /**
  * The single seam between the UI and the backend (FE0-003).
@@ -48,6 +66,20 @@ export interface ApiService {
   ): Observable<PreviewEstimateResponse>;
   /** Post-gate estimate: real ranges. Only reachable after verification. */
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse>;
+  /**
+   * Neighbourhood comparison estimate (NBH-02 / NBH-03): one row-set per
+   * community with real ranges. The API returns full figures; clients blur
+   * build/total until the lead gate converts (`EstimateVisibility` documents
+   * the per-figure hints). Land stays visible pre-gate.
+   */
+  getComparisonEstimate(
+    request: ComparisonEstimateRequest,
+  ): Observable<ComparisonEstimateResponse>;
+  /**
+   * Community stats (NBH-01 / NBH-03): real average City-assessed value per
+   * community. Errors `not_found` when the slug is unknown.
+   */
+  getCommunityStats(slug: string): Observable<CommunityStats>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -130,6 +162,16 @@ class LazyApiService implements ApiService {
 
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
     return this.resolve().getEstimate(request);
+  }
+
+  getComparisonEstimate(
+    request: ComparisonEstimateRequest,
+  ): Observable<ComparisonEstimateResponse> {
+    return this.resolve().getComparisonEstimate(request);
+  }
+
+  getCommunityStats(slug: string): Observable<CommunityStats> {
+    return this.resolve().getCommunityStats(slug);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
