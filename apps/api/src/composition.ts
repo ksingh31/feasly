@@ -30,6 +30,10 @@ import {
   type MagicLinkStore,
 } from './services/magic-link.store';
 import {
+  createMagicLinkService,
+  type MagicLinkService,
+} from './services/magic-link.service';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -41,6 +45,10 @@ import {
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
+import {
+  createMagicLinkRoute,
+  type MagicLinkRoute,
+} from './routes/magic-link.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
@@ -68,6 +76,9 @@ export interface AppComposition {
   /** The one email service — all send paths funnel through here. */
   readonly emailService: EmailService;
   readonly magicLinkStore: MagicLinkStore;
+  /** consumer/02: verify + reissue lifecycle for magic-link tokens. */
+  readonly magicLinkService: MagicLinkService;
+  readonly magicLinkRoute: MagicLinkRoute;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -157,19 +168,13 @@ export function createComposition(
     options.leadStore ?? createDrizzleLeadStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
-  const leadService: LeadService = createLeadService({
-    store: leadStore,
-    estimateStore,
-    magicLinks: magicLinkStore,
-    dedupWindowDays: config.lead.dedupWindowDays,
-    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
-  });
-  const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   // Transactional email (story email/01): provider chosen by config.
   // 'log' is dev/test-only and refuses production; 'postmark' fails closed
   // without EMAIL_POSTMARK_SERVER_TOKEN; 'acs' (Karan-approved 2026-09-24)
   // fails closed without EMAIL_ACS_CONNECTION_STRING. Provisioning the ACS
   // resource + sender domain is a separate, Karan-gated step — never here.
+  // Built before the lead service: consumer/02 wires the magic-link email
+  // into lead capture and the dedupe reissue path.
   const emailProvider: EmailProvider = createEmailProvider(config);
   const emailService: EmailService = createEmailService({
     provider: emailProvider,
@@ -178,6 +183,26 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     unsubscribeBaseUrl: config.email.unsubscribeUrlBase,
     opsInbox: config.email.opsInbox,
+  });
+  const leadService: LeadService = createLeadService({
+    store: leadStore,
+    estimateStore,
+    magicLinks: magicLinkStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    dedupWindowDays: config.lead.dedupWindowDays,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+  });
+  const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
+  const magicLinkService: MagicLinkService = createMagicLinkService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+  });
+  const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
+    magicLinks: magicLinkService,
   });
   const privacyStore: PrivacyStore =
     options.privacyStore ?? createDrizzlePrivacyStore({ db: db.db });
@@ -210,6 +235,8 @@ export function createComposition(
     leadRoute,
     emailService,
     magicLinkStore,
+    magicLinkService,
+    magicLinkRoute,
     privacyStore,
     privacyService,
     privacyRoute,

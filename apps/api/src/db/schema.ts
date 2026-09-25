@@ -21,6 +21,7 @@
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -83,6 +84,17 @@ export const leads = pgTable(
      * surface only in the admin quarantine tab.
      */
     quarantined: boolean('quarantined').notNull().default(false),
+    /**
+     * Heuristic lead score (consumer/02, `src/lib/lead-score.ts` v1).
+     * Recomputed on every dedupe update from the latest submission.
+     */
+    leadScore: integer('lead_score').notNull().default(0),
+    /**
+     * Pipeline status. Advanced by the admin UI (admin/02); the consumer
+     * dedupe update never touches it. Values: new | contacted | quoting |
+     * won | lost.
+     */
+    status: text('status').notNull().default('new'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -97,6 +109,52 @@ export const leads = pgTable(
       t.createdAt,
     ),
   ],
+);
+
+/**
+ * Append-only lead notes (consumer/02; admin/02 adds the HTTP endpoints).
+ *
+ * Notes are history, not fields: the consumer dedupe update (90-day
+ * repeat-estimate rule) never modifies or deletes them — it only rewrites
+ * the scalar columns on `leads`. Tests assert this explicitly.
+ */
+export const leadNotes = pgTable(
+  'lead_notes',
+  {
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id, { onDelete: 'cascade' }),
+    note: text('note').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('lead_notes_lead_id_idx').on(t.leadId)],
+);
+
+/**
+ * Lead status history (consumer/02; admin/02 adds the HTTP endpoints).
+ *
+ * Every status transition appends a row. Like notes, this is history the
+ * dedupe update never touches.
+ */
+export const leadStatusHistory = pgTable(
+  'lead_status_history',
+  {
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id, { onDelete: 'cascade' }),
+    oldStatus: text('old_status'),
+    newStatus: text('new_status').notNull(),
+    /** Admin email or 'system'. Never PII beyond what's already on the lead. */
+    changedBy: text('changed_by'),
+    changedAt: timestamp('changed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('lead_status_history_lead_id_idx').on(t.leadId)],
 );
 
 /**

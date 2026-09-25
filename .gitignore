@@ -27,6 +27,8 @@ apps/web/src/**/*.js
 apps/api/estimate/index.js
 apps/api/leads/index.js
 apps/api/health/index.js
+apps/api/magic-link-verify/index.js
+apps/api/magic-link-reissue/index.js
 apps/api/privacy-export/index.js
 apps/api/privacy-erase/index.js
 apps/api/privacy-erase-confirm/index.js

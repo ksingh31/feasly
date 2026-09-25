@@ -66,6 +66,8 @@ function lead(id: string, email: string, estimateId: string): LeadRecord {
     tenantKey: null,
     source: 'api',
     quarantined: false,
+    leadScore: 0,
+    status: 'new',
     createdAt: NOW,
   };
 }
@@ -163,6 +165,14 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       world.leads = world.leads.filter((l) => l.email !== email);
       return before - world.leads.length;
     },
+    updateOnRepeat: async () => {
+      throw new Error('not used in these tests');
+    },
+    findNewestEstimateIdByEmailAndAddress: async () => null,
+    appendNote: async () => {},
+    getNotes: async () => [],
+    appendStatusHistory: async () => {},
+    getStatusHistory: async () => [],
   };
 
   const estimates: EstimateStore = {

@@ -1,23 +1,13 @@
 /**
- * Azure Functions v3 trigger adapter — POST /api/v1/estimate.
+ * Azure Functions v3 trigger adapter — POST /api/v1/magic-link/reissue.
  *
- * Thin by design: build the pipeline request from the Functions `req`,
- * run it through the BE0-003 pipeline (correlation + rate limiting +
- * RFC 7807 errors), and translate the outcome to `context.res`.
+ * Same adapter pattern as `leads.ts`. The request body carries an email
+ * address and is never logged. Unknown emails answer `{ sent: false }` —
+ * identical to the live-link case — so the endpoint can't enumerate
+ * addresses.
  *
- * - Imports only from the package public surface (`../index`), never deep
- *   paths — see src/index.ts.
- * - The composition (config, pool, engine) is built once per instance and
- *   cached module-level; the pg pool stays warm across invocations.
- * - Logging uses the pipeline's default console logger: the Functions host
- *   captures console output into Application Insights, and every entry
- *   carries the correlation ID. (A per-request `context.log` can't be bound
- *   to a cached composition, so it is deliberately not injected.)
- * - The correlation ID is derived here and injected into the headers handed
- *   to the pipeline, so the `x-correlation-id` response header always
- *   matches the ID in logs and error bodies.
- * - Bundled by `npm run bundle:functions` into `estimate/index.js`
- *   (self-contained — the Function App has no node_modules).
+ * Bundled by `npm run bundle:functions` into `magic-link-reissue/index.js`
+ * (self-contained — the Function App has no node_modules).
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -26,20 +16,7 @@ import {
   middleware,
   type AppComposition,
 } from '../index';
-
-/** Minimal structural types — no @azure/functions dependency needed. */
-export interface FunctionContext {
-  res?: unknown;
-  log: (...args: unknown[]) => void;
-}
-
-export interface FunctionRequest {
-  method?: string;
-  headers?: Record<string, string | string[] | undefined>;
-  body?: unknown;
-  /** Query-string params (Azure Functions v3). Never logged — may carry tokens. */
-  query?: Record<string, string | undefined>;
-}
+import type { FunctionContext, FunctionRequest } from './estimate';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -57,14 +34,10 @@ function clientIpFrom(req: FunctionRequest): string | undefined {
   return ip ? ip : undefined;
 }
 
-export async function estimateHandler(
+export async function magicLinkReissueHandler(
   context: FunctionContext,
   req: FunctionRequest,
 ): Promise<void> {
-  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
-  // config alone — the full composition (DB pool, rate limiters) is never
-  // loaded for an OPTIONS request. Non-allowlisted origins get no
-  // Access-Control-Allow-Origin (fail-closed).
   const origin = req.headers?.['origin'];
   const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
   if (middleware.isPreflight(req.method, origin)) {
@@ -84,9 +57,10 @@ export async function estimateHandler(
   }
   const correlationId = middleware.ensureCorrelationId(headers);
 
+  // The body is never logged — it carries an email address.
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.estimateRoute.handle(req.body),
+    () => app.magicLinkRoute.reissue(req.body),
   );
 
   if (middleware.isProblemDetails(result)) {
@@ -113,4 +87,4 @@ export async function estimateHandler(
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).
-module.exports = estimateHandler;
+module.exports = magicLinkReissueHandler;

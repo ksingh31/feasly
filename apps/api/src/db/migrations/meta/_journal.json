@@ -28,6 +28,13 @@
       "when": 1790283322128,
       "tag": "0003_powerful_edwin_jarvis",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790296494702,
+      "tag": "0004_flat_firestar",
+      "breakpoints": true
     }
   ],
   "version": "7"
