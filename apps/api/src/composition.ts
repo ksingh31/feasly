@@ -42,6 +42,10 @@ import {
   createDrizzlePrivacyStore,
   type PrivacyStore,
 } from './services/privacy.store';
+import {
+  createDrizzleCommunityStatsService,
+  type CommunityStatsService,
+} from './services/community-stats.service';
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
@@ -50,6 +54,10 @@ import {
   type MagicLinkRoute,
 } from './routes/magic-link.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
+import {
+  createCommunityStatsRoute,
+  type CommunityStatsRoute,
+} from './routes/community-stats.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -89,6 +97,9 @@ export interface AppComposition {
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
+  /** Cache-first community stats (neighbourhood/01). */
+  readonly communityStatsService: CommunityStatsService;
+  readonly communityStatsRoute: CommunityStatsRoute;
 }
 
 export interface CompositionOptions {
@@ -106,6 +117,11 @@ export interface CompositionOptions {
   readonly leadStore?: LeadStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
+  /**
+   * Test seam: substitute the database liveness probe (defaults to pinging
+   * the real pool). Production wiring always uses the real ping.
+   */
+  readonly dbPing?: () => Promise<void>;
 }
 
 /**
@@ -182,7 +198,13 @@ export function createComposition(
     ],
     logger: options.logger,
   });
-  const healthService: HealthService = createHealthService({ config });
+  // HRD-06: the health endpoint reports real dependency state. A sick
+  // database yields `degraded` (never a 500) via the service's timeout.
+  // The probe is overridable for tests; production always pings the pool.
+  const healthService: HealthService = createHealthService({
+    config,
+    dbPing: options.dbPing ?? (() => db.ping()),
+  });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
     options.estimateStore ?? createDrizzleEstimateStore({ db: db.db });
@@ -249,6 +271,13 @@ export function createComposition(
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
   });
+  // Community stats (neighbourhood/01): cache-first reads over the
+  // community_stats table; populated by the seed script + monthly refresh.
+  const communityStatsService: CommunityStatsService =
+    createDrizzleCommunityStatsService({ db: db.db });
+  const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
+    communityStats: communityStatsService,
+  });
   return {
     config,
     db,
@@ -274,6 +303,8 @@ export function createComposition(
     privacyStore,
     privacyService,
     privacyRoute,
+    communityStatsService,
+    communityStatsRoute,
   };
 }
 

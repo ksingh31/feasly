@@ -20,6 +20,15 @@ export interface CostRange {
 }
 
 /**
+ * A single fixed CAD figure — not a range. Integers, no cents. Used for the
+ * assessed land value, which is a City fact rather than an estimated range.
+ * Assigning a CostRange where a FixedFigure is expected is a compile error.
+ */
+export interface FixedFigure {
+  readonly value: number;
+}
+
+/**
  * Placeholder returned pre-gate so real figures never reach the client.
  * The UI renders blur + lock icon for these; view-source reveals nothing.
  */

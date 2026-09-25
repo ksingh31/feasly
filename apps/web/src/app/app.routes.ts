@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
@@ -84,6 +85,15 @@ export const routes: Routes = [
     path: 'estimate/preview',
     component: PreviewPageComponent,
     canActivate: [robotsGuard, wizardPropertyGuard],
+    data: { noindex: true },
+  },
+  // Branded error page (HRD-02): uncaught client failures land here via the
+  // global error handler — never a blank screen. Static story-pinned copy
+  // only, so no error text or PII can leak into the DOM. noindexed.
+  {
+    path: 'error',
+    component: ErrorPageComponent,
+    canActivate: [robotsGuard],
     data: { noindex: true },
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via

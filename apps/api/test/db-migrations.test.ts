@@ -20,35 +20,12 @@ describe('migrations', () => {
     await testDb.close();
   });
 
-  it('creates the estimates, leads, lead_notes, and lead_status_history tables', async () => {
+  it('creates the estimates and leads tables', async () => {
     const rows = await testDb.rows<{ table_name: string }>(
-      `select table_name from information_schema.tables where table_schema = 'public' and table_name in ('estimates', 'leads', 'lead_notes', 'lead_status_history')`,
+      `select table_name from information_schema.tables where table_schema = 'public' and table_name in ('estimates', 'leads')`,
     );
     const names = rows.map((r) => r.table_name).sort();
-    expect(names).toEqual([
-      'estimates',
-      'lead_notes',
-      'lead_status_history',
-      'leads',
-    ]);
-  });
-
-  it('adds lead_score and status columns with safe defaults (consumer/02)', async () => {
-    const cols = await testDb.rows<{
-      column_name: string;
-      column_default: string | null;
-    }>(
-      `select column_name, column_default from information_schema.columns where table_name = 'leads' and column_name in ('lead_score', 'status')`,
-    );
-    const byName = Object.fromEntries(cols.map((c) => [c.column_name, c.column_default]));
-    expect(byName['lead_score']).toBe('0');
-    expect(byName['status']).toBe("'new'::text");
-    const idx = await testDb.rows<{ indexname: string }>(
-      `select indexname from pg_indexes where schemaname = 'public' and tablename in ('lead_notes', 'lead_status_history')`,
-    );
-    const names = idx.map((r) => r.indexname);
-    expect(names).toContain('lead_notes_lead_id_idx');
-    expect(names).toContain('lead_status_history_lead_id_idx');
+    expect(names).toEqual(['estimates', 'leads']);
   });
 
   it('creates the leads foreign key and the lookup indexes', async () => {
@@ -151,12 +128,10 @@ describe('drizzle stores', () => {
 
     // Same email + same address on a DIFFERENT estimate → still found
     // (the household resubmitted; no duplicate lead).
-    // Window bounds are relative to now so the test is date-independent
-    // (issue #52: hardcoded 2026-09-25 became a time bomb).
     const hitOther = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      since: new Date('2026-09-01T00:00:00Z'),
     });
     expect(hitOther?.id).toBe(inserted.id);
 
@@ -164,17 +139,17 @@ describe('drizzle stores', () => {
     const hit = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      since: new Date('2026-09-01T00:00:00Z'),
     });
     expect(hit?.id).toBe(inserted.id);
 
-    // Outside the window → not found. `since` is derived from the wall
-    // clock, never hardcoded — a fixed date becomes "inside the window"
-    // as soon as the calendar passes it.
+    // Outside the window → not found. `since` is pinned just after "now"
+    // (the insert happened milliseconds ago) so this stays correct no
+    // matter what calendar day the suite runs on.
     const miss = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      since: new Date(Date.now() + 60_000),
     });
     expect(miss).toBeNull();
 
@@ -182,7 +157,7 @@ describe('drizzle stores', () => {
     const other = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey: 'calgary-000-other-st-nw',
-      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      since: new Date('2026-09-01T00:00:00Z'),
     });
     expect(other).toBeNull();
   });

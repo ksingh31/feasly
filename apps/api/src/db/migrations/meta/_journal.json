@@ -35,6 +35,13 @@
       "when": 1790296494702,
       "tag": "0004_flat_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790298186970,
+      "tag": "0005_mute_exiles",
+      "breakpoints": true
     }
   ],
   "version": "7"

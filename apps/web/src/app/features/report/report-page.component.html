@@ -24,41 +24,67 @@
       <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
     }
 
-    <!-- HERO: blurred pre-gate, real ranges post-gate. -->
+    <!-- HERO: one prominent total + planning range; blurred pre-gate. -->
     <section class="hero" [attr.aria-label]="copy.heading">
       @if (unlocked() && figures(); as f) {
         <div class="figure-card hero-total">
           <h2>{{ copy.totalLabel }}</h2>
-          <div class="range-grid">
-            <div>
-              <span class="range-label">{{ copy.lowLabel }}</span>
-              <span class="range-value">{{ formatCad(f.total.low) }}</span>
-            </div>
-            <div>
-              <span class="range-label">{{ copy.baseLabel }}</span>
-              <span class="range-value hero-mid">{{ formatCad(f.total.base) }}</span>
-            </div>
-            <div>
-              <span class="range-label">{{ copy.highLabel }}</span>
-              <span class="range-value">{{ formatCad(f.total.high) }}</span>
-            </div>
-          </div>
+          <p class="hero-value">{{ formatCad(f.total.base) }}</p>
+          <p class="planning-range">
+            {{ copy.planningRangeLabel }}
+            <strong>{{ formatCad(f.total.low) }}–{{ formatCad(f.total.high) }}</strong>
+          </p>
           @if (version(); as v) {
             <p class="version">{{ copy.versionLabel }} {{ v }}</p>
           }
         </div>
-        <div class="hero-sub">
-          <div class="figure-card">
-            <h2>{{ copy.buildLabel }}</h2>
-            <p class="figure-range">
-              {{ formatCad(f.build.low) }} – {{ formatCad(f.build.high) }}
-            </p>
+
+        <!-- Living-area stepper: always visible, no toggle, no re-run button. -->
+        <div class="stepper-card no-print">
+          <div class="stepper-head">
+            <h2>{{ copy.adjustTitle }}</h2>
+            @if (loading()) {
+              <p class="updating" role="status">{{ copy.updatingLabel }}</p>
+            }
           </div>
-          <div class="figure-card">
+          <p class="hint">{{ copy.adjustHint }}</p>
+          <div class="stepper">
+            <button
+              type="button"
+              class="step-btn"
+              (click)="adjustSqft(-wizard.sqftStep)"
+              [attr.aria-label]="copy.decreaseLabel"
+            >
+              −
+            </button>
+            <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+            <button
+              type="button"
+              class="step-btn"
+              (click)="adjustSqft(wizard.sqftStep)"
+              [attr.aria-label]="copy.increaseLabel"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-sub">
+          <div class="figure-card build-highlight">
+            <h2>{{ copy.buildLabel }}</h2>
+            <p class="figure-single">{{ formatCad(f.build.base) }}</p>
+            <p class="build-note">{{ copy.buildCostNote }}</p>
+            @if (perSqft(); as psqft) {
+              <p class="per-sqft">
+                {{ formatCad(psqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(snapshotSqft()) }}
+              </p>
+            }
+            <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierLabel() }}</p>
+          </div>
+          <div class="figure-card land-card">
             <h2>{{ copy.landLabel }}</h2>
-            <p class="figure-range">
-              {{ formatCad(f.land.low) }} – {{ formatCad(f.land.high) }}
-            </p>
+            <p class="figure-single">{{ formatCad(f.landValue.value) }}</p>
+            <p class="land-note">{{ copy.landFixedNote }}</p>
           </div>
         </div>
       } @else {
@@ -77,6 +103,15 @@
             <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
           </div>
         </div>
+        <div class="stepper-card no-print">
+          <h2>{{ copy.adjustTitle }}</h2>
+          <p class="hint">{{ copy.adjustLockedNote }}</p>
+          <div class="stepper" aria-disabled="true">
+            <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
+            <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+            <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
+          </div>
+        </div>
         @if (pendingLead()) {
           <p class="pending-note" role="status">{{ copy.pendingNote }}</p>
         } @else {
@@ -85,15 +120,21 @@
       }
     </section>
 
-    <!-- COST BREAKDOWN -->
+    <!-- COST BREAKDOWN: exactly three buckets, land excluded. -->
     <section class="card" [attr.aria-label]="copy.breakdownTitle">
       <h2>{{ copy.breakdownTitle }}</h2>
       @if (unlocked()) {
-        <ul class="rows">
-          @for (row of rows(); track row.key) {
-            <li class="row">
-              <span class="row-label">{{ row.label }}</span>
-              <span class="row-range">{{ formatCad(row.range.low) }} – <strong>{{ formatCad(row.range.base) }}</strong> – {{ formatCad(row.range.high) }}<span class="sr-only"> ({{ copy.lowLabel }} / {{ copy.baseLabel }} / {{ copy.highLabel }})</span></span>
+        <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
+          @for (b of buckets(); track b.key) {
+            <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
+          }
+        </div>
+        <ul class="bucket-legend">
+          @for (b of buckets(); track b.key) {
+            <li>
+              <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
+              <span class="bucket-label">{{ b.label }}</span>
+              <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
             </li>
           }
         </ul>
@@ -103,65 +144,14 @@
       }
     </section>
 
-    <!-- TIER WHAT-IF -->
-    <section class="card no-print" [attr.aria-label]="copy.tierTitle">
-      <div class="section-head">
-        <h2>{{ copy.tierTitle }}</h2>
-      </div>
-      <p class="hint">{{ unlocked() ? copy.tierHint : copy.tierLockedNote }}</p>
-      <div class="tier-toggle" role="group" [attr.aria-label]="copy.tierTitle">
-        @for (t of tierOptions; track t.id) {
-          <button
-            type="button"
-            class="tier-btn"
-            [class.selected]="activeTier() === t.id"
-            [disabled]="!unlocked() || loading()"
-            (click)="chooseTier(t.id)"
-          >
-            {{ t.name }}
-          </button>
-        }
-      </div>
-      @if (loading() && unlocked()) {
-        <p class="hint rerunning" role="status">{{ copy.rerunningLabel }}</p>
-      }
-    </section>
-
-    <!-- INLINE ADJUST + RE-RUN -->
-    <section class="card no-print" [attr.aria-label]="copy.adjustTitle">
-      <h2>{{ copy.adjustTitle }}</h2>
-      <p class="hint">{{ unlocked() ? copy.adjustHint : copy.adjustLockedNote }}</p>
-      <div class="stepper">
-        <button
-          type="button"
-          class="step-btn"
-          [disabled]="!unlocked() || loading()"
-          (click)="adjustSqft(-wizard.sqftStep)"
-          [attr.aria-label]="copy.decreaseLabel"
-        >
-          −
-        </button>
-        <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
-        <button
-          type="button"
-          class="step-btn"
-          [disabled]="!unlocked() || loading()"
-          (click)="adjustSqft(wizard.sqftStep)"
-          [attr.aria-label]="copy.increaseLabel"
-        >
-          +
-        </button>
-      </div>
-      <button class="cta secondary" type="button" [disabled]="!unlocked() || loading()" (click)="rerun()">
-        {{ copy.adjustCta }}
-      </button>
-    </section>
-
-    <!-- AI NARRATIVE (placeholder — never renders mock narrative text) -->
+    <!-- AI SUMMARY: deterministic narrative only — engine figures, no LLM-invented numbers. -->
     <section class="card" [attr.aria-label]="copy.narrativeTitle">
       <h2>{{ copy.narrativeTitle }}</h2>
-      <p class="hint">{{ copy.narrativeComingSoon }}</p>
-      <p class="disclaimer">{{ narrativeDisclaimer }}</p>
+      @if (unlocked() && narrative()) {
+        <p class="narrative">{{ narrative() }}</p>
+      } @else {
+        <p class="hint">{{ copy.aiSummaryLocked }}</p>
+      }
     </section>
 
     <!-- NEXT 3 STEPS -->
@@ -178,11 +168,11 @@
     </section>
 
     @if (unlocked()) {
-      <!-- PARTNER SHARE -->
+      <!-- EMAIL SHARE: opens a mailto: draft with the current size and exact numbers. -->
       <section class="card no-print" [attr.aria-label]="copy.shareTitle">
         <h2>{{ copy.shareTitle }}</h2>
         <p class="hint">{{ copy.shareHint }}</p>
-        <form [formGroup]="shareForm" (ngSubmit)="shareWithPartner()" class="form">
+        <form [formGroup]="shareForm" (ngSubmit)="shareViaEmail()" class="form">
           <label class="field">
             <span>{{ copy.shareEmailLabel }}</span>
             <input type="email" formControlName="email" autocomplete="email" inputmode="email" />
@@ -190,16 +180,10 @@
           @if (shareEmailInvalid) {
             <p class="field-error" role="alert">{{ copy.shareInvalid }}</p>
           }
-          <button class="cta" type="submit" [disabled]="shareStatus() === 'sending'">
+          <button class="cta" type="submit">
             {{ copy.shareCta }}
           </button>
         </form>
-        @if (shareStatus() === 'sent') {
-          <p class="form-success" role="status">{{ copy.shareSuccess }}</p>
-        }
-        @if (shareStatus() === 'error') {
-          <p class="field-error" role="alert">{{ copy.shareError }}</p>
-        }
       </section>
 
       <!-- CALLBACK -->
