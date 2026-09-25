@@ -6,8 +6,10 @@
  * append persists the action/actor/detail, append works without a detail,
  * and recent() returns entries newest-first with a limit.
  */
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createDrizzleAdminAuditStore } from '../src/services/admin-audit.store';
+import { adminAuditLog } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 
 describe('admin audit store', () => {
@@ -48,9 +50,20 @@ describe('admin audit store', () => {
 
   it('recent() returns entries newest-first and honors the limit', async () => {
     const store = createDrizzleAdminAuditStore({ db: testDb.db });
-    await store.append({ action: 'a', actorEmail: 'admin' });
-    await store.append({ action: 'b', actorEmail: 'admin' });
-    await store.append({ action: 'c', actorEmail: 'admin' });
+    // Insert with explicit, distinct timestamps: two rapid appends can land
+    // in the same DB timestamp tick, which makes ORDER BY created_at DESC
+    // non-deterministic (flaked in CI as ['b','c','a'] vs ['c','b','a']).
+    // Explicit timestamps keep this ordering test deterministic.
+    const t0 = Date.now() + 60_000; // newer than rows written by earlier tests
+    await testDb.db.insert(adminAuditLog).values(
+      ['a', 'b', 'c'].map((action, i) => ({
+        id: randomUUID(),
+        action,
+        actorEmail: 'admin',
+        detail: null,
+        createdAt: new Date(t0 + i * 1000),
+      })),
+    );
 
     const all = await store.recent(100);
     const actions = all.map((e) => e.action);
