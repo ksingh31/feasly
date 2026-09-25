@@ -30,6 +30,7 @@ function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     tenantKey: null,
     source: 'web',
     quarantined: false,
+    sandbox: false,
     leadScore: 75,
     status: 'new',
     unsubscribedAt: null,

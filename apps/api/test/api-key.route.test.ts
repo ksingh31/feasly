@@ -71,6 +71,15 @@ function makeDeps(
           );
         }
       },
+      async getAdminEmail(
+        headers: Record<string, string | string[] | undefined>,
+      ) {
+        const cookie = headers['cookie'];
+        const value = Array.isArray(cookie) ? cookie[0] : cookie;
+        return value === 'feasly_admin_session=valid-test-session'
+          ? 'karanbirsingh667@gmail.com'
+          : null;
+      },
     },
   };
 }

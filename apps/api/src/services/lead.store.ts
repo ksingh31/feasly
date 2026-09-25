@@ -27,6 +27,8 @@ export interface LeadRecord {
   readonly source: string;
   /** HRD-03: honeypot-tripped rows. Excluded from default listings. */
   readonly quarantined: boolean;
+  /** api-mcp/01: true when captured via a sandbox API key. */
+  readonly sandbox: boolean;
   /** consumer/02: heuristic score, recomputed on every dedupe update. */
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
@@ -56,6 +58,8 @@ export interface NewLead {
   readonly source: string;
   /** Set by the service when the honeypot field arrives filled. */
   readonly quarantined?: boolean;
+  /** Set when captured via a sandbox API key (api-mcp/01). */
+  readonly sandbox?: boolean;
 }
 
 export interface LeadStore {
@@ -218,6 +222,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     tenantKey: row.tenantKey,
     source: row.source,
     quarantined: row.quarantined,
+    sandbox: row.sandbox,
     leadScore: row.leadScore,
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
@@ -263,6 +268,7 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           tenantKey: lead.tenantKey ?? null,
           source: lead.source,
           quarantined: lead.quarantined ?? false,
+          sandbox: lead.sandbox ?? false,
         })
         .returning();
       const row = rows[0];

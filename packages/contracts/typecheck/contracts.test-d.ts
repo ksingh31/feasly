@@ -162,4 +162,4 @@ assertType<number>(community.avgAssessedValue);
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;
-assertType<15>(names.length);
+assertType<16>(names.length);

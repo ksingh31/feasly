@@ -19,6 +19,13 @@ export interface AdminGuard {
   requireAdmin(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<void>;
+  /**
+   * Returns the authenticated admin's email, or null when unauthenticated.
+   * Used for audit rows (admin/02 AC4, AC6). Does not throw.
+   */
+  getAdminEmail(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<string | null>;
 }
 
 export interface SessionAdminGuardDeps {
@@ -62,12 +69,21 @@ function unauthorized(): HttpError {
 export function createSessionAdminGuard(
   deps: SessionAdminGuardDeps,
 ): AdminGuard {
+  async function resolveEmail(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<string | null> {
+    const token = parseSessionCookie(headers);
+    if (!token) return null;
+    return deps.adminAuth.validateSession(token);
+  }
+
   return {
     async requireAdmin(headers): Promise<void> {
-      const token = parseSessionCookie(headers);
-      if (!token) throw unauthorized();
-      const email = await deps.adminAuth.validateSession(token);
+      const email = await resolveEmail(headers);
       if (!email) throw unauthorized();
+    },
+    async getAdminEmail(headers): Promise<string | null> {
+      return resolveEmail(headers);
     },
   };
 }
