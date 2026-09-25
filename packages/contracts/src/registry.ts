@@ -22,6 +22,7 @@ export const CONTRACT_NAMES = [
   'api-key',
   'admin-auth',
   'admin-leads',
+  'admin-estimates',
 ] as const;
 
 export type ContractName = (typeof CONTRACT_NAMES)[number];

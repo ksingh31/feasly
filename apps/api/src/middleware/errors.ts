@@ -42,6 +42,8 @@ export const ErrorCodes = {
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   COMMUNITY_NOT_FOUND: 'COMMUNITY_NOT_FOUND',
+  /** admin/03 — estimate lookup for an unknown id. */
+  ESTIMATE_NOT_FOUND: 'ESTIMATE_NOT_FOUND',
   UNKNOWN_TENANT: 'UNKNOWN_TENANT',
   CONFLICT: 'CONFLICT',
   /** Analytics ingest without a valid consent_ts (story consumer/01). */

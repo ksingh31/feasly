@@ -65,6 +65,10 @@ function fakeStore(): EstimateStore & { saved: EstimateRecord[] } {
       byId.set(id, { ...rec, narrative, narrativeGeneratedAt: generatedAt });
       return true;
     },
+    findByAddressKey: async (addressKey: string) =>
+      [...byId.values()]
+        .filter((r) => r.addressKey === addressKey)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
   };
 }
 
@@ -182,6 +186,7 @@ describe('estimate service', () => {
       },
       findById: async () => null,
       setNarrative: async () => false,
+      findByAddressKey: async () => [],
     };
     const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken, allowDraftCostData: true,
     communityStats: mockCommunityStatsService(),});
@@ -253,6 +258,7 @@ describe('estimate through the request pipeline (PGlite-backed stores)', () => {
         },
         findById: async () => null,
         setNarrative: async () => false,
+        findByAddressKey: async () => [],
       },
     });
     try {

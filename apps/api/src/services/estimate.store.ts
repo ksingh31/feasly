@@ -6,7 +6,7 @@
  * The interface is what `EstimateService` depends on; unit tests fake it.
  * The Drizzle implementation below is constructed once in composition.ts.
  */
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates } from '../db/schema';
 
@@ -32,6 +32,7 @@ export interface EstimateStore {
   save(record: EstimateRecord): Promise<void>;
   findById(id: string): Promise<EstimateRecord | null>;
   /**
+  /**
    * consumer/06: set the narrative once. Only updates when the current
    * narrative is null (compare-and-set) — returns true if the write
    * happened, false if a narrative was already present. This keeps the
@@ -42,6 +43,12 @@ export interface EstimateStore {
     readonly narrative: string;
     readonly generatedAt: Date;
   }): Promise<boolean>;
+  /**
+   * admin/03 — every estimate for an address, newest first. Estimates are
+   * immutable; a re-estimate inserts a new row, so the full snapshot
+   * timeline for an address is this list.
+   */
+  findByAddressKey(addressKey: string): Promise<EstimateRecord[]>;
 }
 
 export interface DrizzleEstimateStoreDeps {
@@ -114,6 +121,26 @@ export function createDrizzleEstimateStore(
         .where(eq(estimates.id, args.id))
         .limit(1);
       return row[0]?.narrative === args.narrative;
+    },
+    async findByAddressKey(addressKey: string): Promise<EstimateRecord[]> {
+      const rows = await db
+        .select()
+        .from(estimates)
+        .where(eq(estimates.addressKey, addressKey))
+        .orderBy(desc(estimates.createdAt));
+      return rows.map((row) => ({
+        id: row.id,
+        projectType: row.projectType,
+        addressKey: row.addressKey,
+        inputs: row.inputs,
+        figures: row.figures,
+        rows: row.rows,
+        costDataVersion: row.costDataVersion,
+        createdAt: row.createdAt,
+        narrative: row.narrative,
+        narrativeGeneratedAt: row.narrativeGeneratedAt,
+        assumptions: row.assumptions,
+      }));
     },
   };
 }

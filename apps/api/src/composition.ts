@@ -113,6 +113,14 @@ import {
   type AdminLeadsStore,
 } from './services/admin-leads.store';
 import {
+  createAdminEstimatesService,
+  type AdminEstimatesService,
+} from './services/admin-estimates.service';
+import {
+  createAdminEstimatesRoute,
+  type AdminEstimatesRoute,
+} from './routes/admin-estimates.route';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -301,6 +309,9 @@ export interface AppComposition {
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
   readonly adminLeadsStore: AdminLeadsStore;
+  /** admin/03: read-only estimate lookup by ID. */
+  readonly adminEstimatesService: AdminEstimatesService;
+  readonly adminEstimatesRoute: AdminEstimatesRoute;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -684,6 +695,17 @@ export function createComposition(
     adminLeads: adminLeadsService,
     adminGuard,
   });
+  // admin/03 — read-only estimate lookup. Reuses the session guard; no
+  // mutation endpoints exist.
+  const adminEstimatesService: AdminEstimatesService =
+    createAdminEstimatesService({
+      estimateStore,
+      leadStore,
+    });
+  const adminEstimatesRoute: AdminEstimatesRoute = createAdminEstimatesRoute({
+    adminEstimates: adminEstimatesService,
+    adminGuard,
+  });
   const apiKeyService: ApiKeyService = createApiKeyService({
     keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
     audit:
@@ -914,6 +936,8 @@ export function createComposition(
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,
+    adminEstimatesService,
+    adminEstimatesRoute,
     privacyStore,
     privacyService,
     privacyRoute,

@@ -112,6 +112,7 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     getStatusHistory: async () => [],
     listLeads: async () => [],
     findById: async (id: string) => world.leads.get(id) ?? null,
+    findByEstimateId: async () => null,
     setUnsubscribedAt: async () => null,
     findNudgeCandidates: async (args) =>
       [...world.leads.values()].filter(

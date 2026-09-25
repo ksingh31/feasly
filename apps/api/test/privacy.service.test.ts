@@ -168,6 +168,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       throw new Error('not used in these tests');
     },
     findById: async (id: string) => world.leads.find((l) => l.id === id) ?? null,
+    findByEstimateId: async (estimateId: string) => world.leads.find((l) => l.estimateId === estimateId) ?? null,
     setUnsubscribedAt: async () => null,
     findNudgeCandidates: async () => [],
     setNudgeSentAt: async () => null,
@@ -195,6 +196,8 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     findById: async (id: string) =>
       world.estimates.find((e) => e.id === id) ?? null,
     setNarrative: async () => false,
+    findByAddressKey: async (addressKey: string) =>
+      world.estimates.filter((e) => e.addressKey === addressKey),
   };
 
   const privacy: PrivacyStore = {

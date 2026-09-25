@@ -147,6 +147,12 @@ export interface LeadStore {
   /** One lead by id, or null. */
   findById(id: string): Promise<LeadRecord | null>;
   /**
+   * admin/03 — the lead currently pointing at an estimate, or null when the
+   * gate hasn't completed. The consumer/02 dedupe rewrites `estimate_id` to
+   * the newest estimate, so this is the household's current lead for it.
+   */
+  findByEstimateId(estimateId: string): Promise<LeadRecord | null>;
+  /**
    * email/03 — record a CASL opt-out. Sets `unsubscribed_at` to `at`
    * (idempotent: re-unsubscribing keeps the FIRST timestamp as the audit
    * trail). The consumer dedupe update never touches this column.
@@ -293,6 +299,17 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .select()
         .from(leads)
         .where(eq(leads.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async findByEstimateId(estimateId: string): Promise<LeadRecord | null> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.estimateId, estimateId))
+        .orderBy(desc(leads.createdAt))
         .limit(1);
       const row = rows[0];
       return row ? toRecord(row) : null;

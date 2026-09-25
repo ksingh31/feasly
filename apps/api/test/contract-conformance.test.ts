@@ -274,6 +274,11 @@ function createInMemoryEstimateStore(): EstimateStore {
       records.set(id, { ...rec, narrative, narrativeGeneratedAt: generatedAt });
       return true;
     },
+    async findByAddressKey(addressKey: string): Promise<EstimateRecord[]> {
+      return [...records.values()]
+        .filter((r) => r.addressKey === addressKey)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
   };
 }
 

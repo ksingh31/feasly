@@ -187,6 +187,10 @@ const targets = [
     entry: 'src/functions/admin-leads-export.ts',
     out: 'admin-leads-export/index.js',
   },
+  {
+    entry: 'src/functions/admin-estimates-get.ts',
+    out: 'admin-estimates-get/index.js',
+  },
 ];
 
 for (const { entry, out } of targets) {

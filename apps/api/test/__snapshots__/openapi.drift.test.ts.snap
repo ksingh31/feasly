@@ -5,6 +5,121 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
   "components": {
     "parameters": {},
     "schemas": {
+      "AdminEstimateDetail": {
+        "properties": {
+          "costDataVersion": {
+            "type": "string",
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "inputs": {
+            "additionalProperties": {},
+            "description": "Wizard inputs as submitted",
+            "type": "object",
+          },
+          "linkedLeadId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "narrative": {
+            "description": "Present only when a narrative was generated; never invented",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "outputs": {
+            "description": "Report-parity figures: same shape the consumer report shows",
+            "properties": {
+              "buildRange": {
+                "$ref": "#/components/schemas/CostRange",
+              },
+              "landValue": {
+                "properties": {
+                  "value": {
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "value",
+                ],
+                "type": "object",
+              },
+              "totalRange": {
+                "$ref": "#/components/schemas/CostRange",
+              },
+            },
+            "required": [
+              "buildRange",
+              "totalRange",
+              "landValue",
+            ],
+            "type": "object",
+          },
+          "projectType": {
+            "enum": [
+              "new_build",
+              "renovation",
+            ],
+            "type": "string",
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object",
+            },
+            "type": "array",
+          },
+          "snapshots": {
+            "description": "Same-address snapshot timeline, newest first",
+            "items": {
+              "$ref": "#/components/schemas/AdminEstimateSnapshotRef",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "id",
+          "projectType",
+          "inputs",
+          "outputs",
+          "rows",
+          "costDataVersion",
+          "narrative",
+          "createdAt",
+          "linkedLeadId",
+          "snapshots",
+        ],
+        "type": "object",
+      },
+      "AdminEstimateSnapshotRef": {
+        "properties": {
+          "createdAt": {
+            "description": "Snapshot creation time",
+            "format": "date-time",
+            "type": "string",
+          },
+          "id": {
+            "description": "The estimate lookup id",
+            "format": "uuid",
+            "type": "string",
+          },
+        },
+        "required": [
+          "id",
+          "createdAt",
+        ],
+        "type": "object",
+      },
       "AnalyticsEvent": {
         "properties": {
           "consent_ts": {
@@ -1178,6 +1293,108 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Rotate an API key",
+      },
+    },
+    "/v1/admin/estimates/{id}": {
+      "get": {
+        "description": "Returns the estimate exactly as the homeowner saw it — inputs, report-parity ranges, cost-data version, snapshot timeline. Read-only: no PUT/PATCH/DELETE exists for estimates. Session-authenticated admins only.",
+        "parameters": [
+          {
+            "description": "Estimate ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Estimate ID (UUID)",
+              "format": "uuid",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEstimateDetail",
+                },
+              },
+            },
+            "description": "Estimate detail with snapshot timeline",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError",
+                },
+              },
+            },
+            "description": "Unknown estimate id (ESTIMATE_NOT_FOUND)",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Look up an estimate (admin)",
       },
     },
     "/v1/admin/funnels": {

@@ -122,6 +122,7 @@ function fakeEstimateStore(): EstimateStore {
     save: async () => {},
     findById: async (id: string) => (id === ESTIMATE_ID ? record : null),
     setNarrative: async () => false,
+    findByAddressKey: async () => [],
   };
 }
 
@@ -186,6 +187,10 @@ function fakeLeadStore(): FakeLeadStore {
       const record = toFakeRecord(found);
       const stamped = unsubscribed.get(id);
       return stamped ? { ...record, unsubscribedAt: stamped } : record;
+    },
+    findByEstimateId: async (estimateId: string) => {
+      const found = inserted.find((l) => l.estimateId === estimateId);
+      return found ? toFakeRecord(found) : null;
     },
     setUnsubscribedAt: async (args: { id: string; at: Date }) => {
       const found = inserted.find((l) => l.id === args.id);
@@ -408,6 +413,7 @@ describe('lead service', () => {
             }
           : null,
       setNarrative: async () => false,
+      findByAddressKey: async () => [],
     };
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
