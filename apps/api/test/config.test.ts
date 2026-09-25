@@ -72,6 +72,10 @@ describe('loadConfig', () => {
         stripeFlatPriceId: undefined,
         isProduction: false,
       },
+      sandboxPurge: {
+        retentionDays: 30,
+        dryRun: true,
+      },
     });
   });
 
