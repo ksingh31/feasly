@@ -28,6 +28,8 @@ export interface SheetsSyncServiceDeps {
   /** Called on 3 consecutive failures (wires to admin/06 ops alerts). */
   readonly onSyncLagging?: (args: {
     readonly consecutiveFailures: number;
+    /** When the current failure streak started (for the alert's "since when"). */
+    readonly firstFailureAt: Date;
   }) => Promise<void>;
   /** Called when the lag clears after a successful sync. */
   readonly onSyncRecovered?: () => Promise<void>;
@@ -81,6 +83,8 @@ export function createSheetsSyncService(
 
   let consecutiveFailures = 0;
   let wasLagging = false;
+  /** Start of the current failure streak (null when healthy). */
+  let firstFailureAt: Date | null = null;
 
   return {
     async runSyncCycle(): Promise<SheetsSyncResult> {
@@ -129,6 +133,7 @@ export function createSheetsSyncService(
         // Success resets the failure counter.
         if (consecutiveFailures > 0 || wasLagging) {
           consecutiveFailures = 0;
+          firstFailureAt = null;
           if (wasLagging) {
             wasLagging = false;
             await onSyncRecovered?.();
@@ -142,10 +147,16 @@ export function createSheetsSyncService(
           consecutiveFailures: 0,
         };
       } catch (error) {
+        if (consecutiveFailures === 0) {
+          firstFailureAt = clock();
+        }
         consecutiveFailures++;
         if (consecutiveFailures >= 3 && !wasLagging) {
           wasLagging = true;
-          await onSyncLagging?.({ consecutiveFailures });
+          await onSyncLagging?.({
+            consecutiveFailures,
+            firstFailureAt: firstFailureAt ?? clock(),
+          });
         }
         throw error;
       }

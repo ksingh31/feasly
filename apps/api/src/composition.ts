@@ -58,6 +58,12 @@ import {
   createSheetsSyncService,
   type SheetsSyncService,
 } from './services/sheets-sync.service';
+import {
+  createOpsAlertsService,
+  type OpsAlertsService,
+} from './services/ops-alerts.service';
+import { createDrizzleOpsAlertStore } from './services/ops-alerts.store';
+import type { OpsAlertStore } from './services/ops-alerts.store';
 import type { SheetsClient } from './services/sheets/sheets-client';
 import { createGoogleSheetsClient } from './services/sheets/google-sheets-client';
 import {
@@ -225,6 +231,8 @@ export interface AppComposition {
   readonly sandboxPurgeService: SandboxPurgeService;
   /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
   readonly sheetsSyncService: SheetsSyncService;
+  /** admin/06: ops alerting (worker failures → deduped email). */
+  readonly opsAlertsService: OpsAlertsService;
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
@@ -299,6 +307,11 @@ export interface CompositionOptions {
    * Production wiring uses the real Google Sheets API client.
    */
   readonly sheetsClient?: SheetsClient;
+  /**
+   * Test seam: substitute the ops-alert dedupe store (fake in unit tests).
+   * Production wiring uses the real `ops_alert_state` table.
+   */
+  readonly opsAlertStore?: OpsAlertStore;
 }
 
 /**
@@ -515,6 +528,18 @@ export function createComposition(
   // the Sheet ID or service-account email is unconfigured (placeholders).
   // The client is only constructed when Sheets is enabled; otherwise the
   // service runs in disabled mode and never touches the client.
+  // admin/06 — ops alerting. The sheets-sync worker's lag/recovery hooks
+  // land here; future workers (community-stats refresh, Stripe webhooks,
+  // narrative worker) call opsAlertsService directly.
+  const opsAlertsService: OpsAlertsService = createOpsAlertsService({
+    email: emailService,
+    store:
+      options.opsAlertStore ?? createDrizzleOpsAlertStore({ db: db.db }),
+    opsAlertEmail: config.email.opsAlertEmail,
+    appBaseUrl: config.email.appBaseUrl,
+    dedupeWindowMs: config.email.opsAlertDedupeWindowMs,
+  });
+
   const sheetsSyncService: SheetsSyncService = createSheetsSyncService({
     leads: leadStore,
     estimates: estimateStore,
@@ -525,6 +550,12 @@ export function createComposition(
         : createDisabledSheetsClient()),
     enabled: config.sheets.enabled,
     maxLeadsPerRun: config.sheets.maxLeadsPerRun,
+    onSyncLagging: ({ consecutiveFailures, firstFailureAt }) =>
+      opsAlertsService.notifyFailure('sheets_sync_failed', {
+        consecutiveFailures,
+        firstFailureAt,
+      }),
+    onSyncRecovered: () => opsAlertsService.notifyRecovered('sheets_sync_failed'),
   });
   // api-mcp/01 — API key issuance + storage (admin-only). The admin guard
   // is the INTERIM pre-shared-key guard until admin/01's session auth lands.
@@ -703,6 +734,7 @@ export function createComposition(
     nudgeService,
     sandboxPurgeService,
     sheetsSyncService,
+    opsAlertsService,
     apiKeyService,
     apiKeyRoute,
     adminGuard,

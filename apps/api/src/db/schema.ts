@@ -653,3 +653,21 @@ export const billingEvents = pgTable(
     index('billing_events_entity_idx').on(t.entityType, t.entityId),
   ],
 );
+
+/**
+ * Ops alert dedupe state (admin/06).
+ *
+ * One row per alert class (e.g. 'sheets_sync_failed'). The alert service
+ * sends at most one failure email per class per 24h (dedupe anchor =
+ * last_fired_at) and one all-clear on recovery (last_recovered_at).
+ * Persisted so a cold start doesn't reset the dedupe window and re-spam
+ * Karan. Only the alert service writes here.
+ */
+export const opsAlertState = pgTable('ops_alert_state', {
+  /** Alert class, e.g. 'sheets_sync_failed'. */
+  type: text('type').primaryKey(),
+  /** When the last failure email for this class was sent (dedupe anchor). */
+  lastFiredAt: timestamp('last_fired_at', { withTimezone: true }),
+  /** When the last all-clear email for this class was sent. */
+  lastRecoveredAt: timestamp('last_recovered_at', { withTimezone: true }),
+});
