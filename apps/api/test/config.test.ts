@@ -55,12 +55,61 @@ describe('loadConfig', () => {
         searchRowLimit: 50,
         suggestionLimit: 8,
       },
+      billing: {
+        model: 'commission',
+        commissionRate: 0.01,
+        attributionWindowDays: 365,
+        reportingSlaDays: 14,
+        flatPlanName: 'Builder Standard',
+        flatMonthlyCents: 30_000,
+        flatCurrency: 'CAD',
+      },
     });
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
     const config = loadConfig({ ...VALID_ENV, COST_ENGINE_ALLOW_DRAFT: 'true' });
     expect(config.costEngine.allowDraftCostData).toBe(true);
+  });
+
+  it('reads the billing model, rate, window, and SLA from env', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      BILLING_MODEL: 'flat',
+      BILLING_COMMISSION_RATE: '0.02',
+      BILLING_ATTRIBUTION_WINDOW_DAYS: '180',
+      BILLING_REPORTING_SLA_DAYS: '7',
+      BILLING_FLAT_PLAN_NAME: 'Builder Pro',
+      BILLING_FLAT_MONTHLY_CENTS: '45000',
+      BILLING_FLAT_CURRENCY: 'usd',
+    });
+    expect(config.billing).toEqual({
+      model: 'flat',
+      commissionRate: 0.02,
+      attributionWindowDays: 180,
+      reportingSlaDays: 7,
+      flatPlanName: 'Builder Pro',
+      flatMonthlyCents: 45_000,
+      flatCurrency: 'USD',
+    });
+  });
+
+  it('rejects an unknown billing model naming the variable', () => {
+    expect(() => loadConfig({ ...VALID_ENV, BILLING_MODEL: 'per-lead' })).toThrow(
+      /BILLING_MODEL/,
+    );
+  });
+
+  it('rejects a commission rate above 100% naming the variable', () => {
+    expect(() => loadConfig({ ...VALID_ENV, BILLING_COMMISSION_RATE: '1.5' })).toThrow(
+      /BILLING_COMMISSION_RATE/,
+    );
+  });
+
+  it('rejects a zero attribution window naming the variable', () => {
+    expect(() => loadConfig({ ...VALID_ENV, BILLING_ATTRIBUTION_WINDOW_DAYS: '0' })).toThrow(
+      /BILLING_ATTRIBUTION_WINDOW_DAYS/,
+    );
   });
 
   it('composes DATABASE_URL from POSTGRES_* pieces when it is absent', () => {

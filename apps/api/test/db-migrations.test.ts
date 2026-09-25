@@ -9,6 +9,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
+import { attributionEvents } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 
 describe('migrations', () => {
@@ -262,5 +263,36 @@ describe('migration 0002 — leads.quarantined', () => {
     // The admin quarantine tab opts in explicitly.
     const all = await leads.listLeads({ includeQuarantined: true });
     expect(all.map((r) => r.email)).toEqual(['bot@example.com', 'clean@example.com']);
+  });
+
+  it('creates the attribution_events table with its FK and indexes', async () => {
+    const tables = await testDb.rows<{ table_name: string }>(
+      `select table_name from information_schema.tables where table_schema = 'public' and table_name = 'attribution_events'`,
+    );
+    expect(tables.map((r) => r.table_name)).toEqual(['attribution_events']);
+
+    const idx = await testDb.rows<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'public' and tablename = 'attribution_events'`,
+    );
+    const names = idx.map((r) => r.indexname);
+    expect(names).toContain('attribution_events_lead_tenant_idx');
+    expect(names).toContain('attribution_events_status_idx');
+
+    const fk = await testDb.rows<{ conname: string }>(
+      `select conname from pg_constraint where conname = 'attribution_events_lead_id_leads_id_fk'`,
+    );
+    expect(fk).toHaveLength(1);
+  });
+
+  it('rejects an attribution whose lead does not exist (FK integrity)', async () => {
+    await expect(
+      testDb.db.insert(attributionEvents).values({
+        id: '66666666-6666-4666-8666-666666666666',
+        leadId: '77777777-7777-4777-8777-777777777777',
+        tenantKey: 'elite-craft-builders',
+        introducedAt: new Date(),
+        status: 'introduced',
+      }),
+    ).rejects.toThrow();
   });
 });

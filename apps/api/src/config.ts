@@ -113,6 +113,27 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // --- Billing foundation (story billing/01) ---
+  // Karan's decision 2026-09-24: 1% of signed construction contract value
+  // (excl. land), config-switchable to flat. The billing ENGINE (charging,
+  // payouts, dashboard) waits on api-mcp/08 + embed/09 — this story only
+  // lands the config schema, attribution tracking, and SLA deadlines.
+  // Switching models is a config change, never a code change.
+  BILLING_MODEL: z.enum(['commission', 'flat']).default('commission'),
+  // Commission rate as a fraction: 0.01 = 1%.
+  BILLING_COMMISSION_RATE: z.coerce.number().positive().max(1).default(0.01),
+  // Attribution window: introduction → signed contract (12 months).
+  BILLING_ATTRIBUTION_WINDOW_DAYS: z.coerce.number().int().positive().default(365),
+  // Builder reporting SLA: days from contract signature to report it.
+  BILLING_REPORTING_SLA_DAYS: z.coerce.number().int().positive().default(14),
+  // Flat-plan fields — dormant until BILLING_MODEL=flat.
+  BILLING_FLAT_PLAN_NAME: z.string().min(1).default('Builder Standard'),
+  BILLING_FLAT_MONTHLY_CENTS: z.coerce.number().int().positive().default(30_000),
+  BILLING_FLAT_CURRENCY: z
+    .string()
+    .length(3)
+    .default('CAD')
+    .transform((code) => code.toUpperCase()),
 
   // --- Transactional email (story email/01) ---
   // Provider: Azure Communication Services (Karan-approved 2026-09-24).
@@ -260,6 +281,30 @@ export interface PropertyDataConfig {
   readonly suggestionLimit: number;
 }
 
+export interface BillingConfig {
+  /**
+   * Active billing model. 'commission' = % of signed construction contract
+   * value (excl. land); 'flat' = monthly subscription per builder tenant.
+   * Karan 2026-09-24: commission at 1%, switchable via config only.
+   */
+  readonly model: 'commission' | 'flat';
+  /** Commission rate as a fraction (0.01 = 1%). Used when model='commission'. */
+  readonly commissionRate: number;
+  /**
+   * Attribution window in days: a contract signed within this long after
+   * the lead→builder introduction attributes to Feasly (12 months).
+   */
+  readonly attributionWindowDays: number;
+  /** Builder reporting SLA in days from contract signature (14 days). */
+  readonly reportingSlaDays: number;
+  /** Flat-plan fields — dormant until model='flat'. */
+  readonly flatPlanName: string;
+  /** Flat monthly price in integer minor units (cents). */
+  readonly flatMonthlyCents: number;
+  /** ISO 4217 currency code for the flat plan. */
+  readonly flatCurrency: string;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -278,6 +323,7 @@ export interface ApiConfig {
   readonly health: HealthConfig;
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
+  readonly billing: BillingConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -434,6 +480,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+    },
+    billing: {
+      model: e.BILLING_MODEL,
+      commissionRate: e.BILLING_COMMISSION_RATE,
+      attributionWindowDays: e.BILLING_ATTRIBUTION_WINDOW_DAYS,
+      reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
+      flatPlanName: e.BILLING_FLAT_PLAN_NAME,
+      flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
+      flatCurrency: e.BILLING_FLAT_CURRENCY,
     },
   };
 }

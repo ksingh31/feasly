@@ -405,3 +405,64 @@ export const analyticsEvents = pgTable(
   },
   (t) => [index('analytics_events_event_created_idx').on(t.event, t.createdAt)],
 );
+
+/**
+ * Attribution events (billing/01 foundation).
+ *
+ * Tracks the lead→builder introduction lifecycle that the 1% commission
+ * model bills against — NOT the charge itself (charging, payouts, and the
+ * pipeline dashboard wait on api-mcp/08 + embed/09).
+ *
+ * - `introducedAt` starts the 12-month attribution window
+ *   (`BILLING_ATTRIBUTION_WINDOW_DAYS`).
+ * - `contractSignedAt` starts the 14-day reporting SLA
+ *   (`BILLING_REPORTING_SLA_DAYS`).
+ * - `contractValueCents` is the signed construction contract value in
+ *   integer cents, EXCLUDING land — set only when the builder reports.
+ *
+ * Status lifecycle: introduced → attributed | expired |
+ * excluded_prior_relationship. Transitions are enforced in the service;
+ * the DB stores the current state. Money is never float — integer cents.
+ */
+export const attributionEvents = pgTable(
+  'attribution_events',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    /** Which builder tenant was introduced to the homeowner. */
+    tenantKey: text('tenant_key').notNull(),
+    /** When the introduction happened — the attribution window starts here. */
+    introducedAt: timestamp('introduced_at', { withTimezone: true }).notNull(),
+    /**
+     * Signed construction contract value in integer cents, EXCLUDING land.
+     * Null until the builder reports a signed contract.
+     */
+    contractValueCents: integer('contract_value_cents'),
+    /**
+     * When the contract was signed — the 14-day reporting SLA starts here.
+     * Null until reported.
+     */
+    contractSignedAt: timestamp('contract_signed_at', { withTimezone: true }),
+    /**
+     * introduced: awaiting outcome.
+     * attributed: contract reported inside the attribution window.
+     * expired: window lapsed with no reported contract.
+     * excluded_prior_relationship: builder proved a pre-existing
+     *   relationship (proof burden on the builder — Karan 2026-09-24).
+     */
+    status: text('status').notNull().default('introduced'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('attribution_events_lead_tenant_idx').on(t.leadId, t.tenantKey),
+    index('attribution_events_status_idx').on(t.status),
+  ],
+);
