@@ -238,4 +238,37 @@ describe('property service', () => {
       expect(fetchMock.mock.calls.length).toBe(calls);
     });
   });
+
+  describe('HRD-005 — SoQL injection resistance', () => {
+    it('escapes single quotes in the address field (injection-style input)', async () => {
+      mockFetchOnce([]);
+      // Classic injection attempt: the quote must be doubled, not break out
+      // of the SoQL string literal.
+      await expect(
+        service.getProperty(`1600 90 AV SW' OR '1'='1`),
+      ).rejects.toMatchObject({ code: ErrorCodes.ADDRESS_NOT_FOUND });
+      const fetchMock = vi.mocked(fetch);
+      const url = String(fetchMock.mock.calls[0][0]);
+      // The escaped value appears with doubled quotes in the $where clause…
+      // '1600 90 AV SW'' OR ''1''=''1' — quotes doubled, cannot break out.
+      expect(url).toContain(`%27%271%27%27%3D%27%271`);
+      // …and no unescaped quote breaks the string literal.
+      expect(url).not.toMatch(/\$where=[^&]*'[^&]*'[^&]*'[^&]*'/);
+    });
+
+    it('never places user input in $select, $order, or $limit', async () => {
+      mockFetchOnce([ROW]);
+      await service.autocomplete(`1600 90 AV SW`);
+      const fetchMock = vi.mocked(fetch);
+      const url = new URL(String(fetchMock.mock.calls[0][0]));
+      const params = url.searchParams;
+      // $select / $order / $limit are hardcoded — they must not contain
+      // any fragment of the user query.
+      expect(params.get('$select')).not.toContain('1600');
+      expect(params.get('$order')).toBe('address');
+      expect(params.get('$limit')).toBe(String(CONFIG.searchRowLimit));
+      // Only $where carries the (escaped) user input.
+      expect(params.get('$where')).toContain('1600 90 AV SW');
+    });
+  });
 });
