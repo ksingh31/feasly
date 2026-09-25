@@ -1,8 +1,8 @@
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import { switchMap, tap } from 'rxjs';
+import { switchMap, tap, timeout } from 'rxjs';
 import type { AnyEstimateRequest, EstimateInputs, PropertyRecord, RenoEstimateRequest } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
@@ -35,7 +35,7 @@ interface PipelineStage {
 @Component({
   selector: 'app-analyzing-page',
   standalone: true,
-  imports: [SiteFooterComponent, SiteNavComponent],
+  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
   templateUrl: './analyzing-page.component.html',
   styleUrls: ['./wizard-shell.scss', './analyzing-page.component.scss'],
 })
@@ -59,7 +59,20 @@ export class AnalyzingPageComponent implements OnInit {
       description: this.config.get('copy').seo.analyzing,
       path: '/estimate/analyzing',
     });
+    // Belt and braces behind wizardScopeGuard: with no property there is no
+    // pipeline to run — bounce to the wizard instead of a stuck loader.
+    if (!this.store.selectSnapshot(WizardState.property)) {
+      void this.router.navigate(['/']);
+      return;
+    }
     this.runPipeline();
+  }
+
+  /** Back link target: reno returns to the reno scope step, new-build to scope. */
+  protected backLink(): string {
+    return this.store.selectSnapshot(WizardState.projectType) === 'renovation'
+      ? '/estimate/reno-scope'
+      : '/estimate/scope';
   }
 
   /** Screen-reader status word for a stage. */
@@ -118,10 +131,13 @@ export class AnalyzingPageComponent implements OnInit {
       return;
     }
     const renoInputs = this.store.selectSnapshot(WizardState.renoInputs);
-    
+
     this.api
       .getProperty(property.addressKey)
       .pipe(
+        // A stalled API call must fail honestly instead of hanging the
+        // pipeline on "In progress" forever.
+        timeout(this.config.get('timings').analyzingTimeoutMs),
         tap({
           next: () => {
             this.setStage('fetch', 'done');
@@ -140,6 +156,7 @@ export class AnalyzingPageComponent implements OnInit {
           this.setStage('estimate', 'active');
           const request = this.buildRenoRequest(fresh.addressKey, renoInputs);
           return this.api.getPreviewEstimate(request).pipe(
+            timeout(this.config.get('timings').analyzingTimeoutMs),
             tap({ error: () => this.failStage('estimate') }),
           );
         }),
@@ -185,6 +202,9 @@ export class AnalyzingPageComponent implements OnInit {
     this.api
       .getProperty(property.addressKey)
       .pipe(
+        // A stalled API call must fail honestly instead of hanging the
+        // pipeline on "In progress" forever.
+        timeout(this.config.get('timings').analyzingTimeoutMs),
         tap({
           next: () => {
             this.setStage('fetch', 'done');
@@ -195,7 +215,10 @@ export class AnalyzingPageComponent implements OnInit {
         switchMap((fresh) =>
           this.api
             .getPreviewEstimate({ addressKey: fresh.addressKey, ...inputs })
-            .pipe(tap({ error: () => this.failStage('estimate') })),
+            .pipe(
+              timeout(this.config.get('timings').analyzingTimeoutMs),
+              tap({ error: () => this.failStage('estimate') }),
+            ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )

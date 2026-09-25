@@ -18,7 +18,10 @@
           <h2>{{ copy.errorHeading }}</h2>
           <p>{{ copy.errorBody }}</p>
           <button class="cta" type="button" (click)="retry()">{{ copy.retryLabel }}</button>
+          <a class="back" [routerLink]="backLink()">{{ copy.backLabel }}</a>
         </div>
+      } @else {
+        <a class="back" [routerLink]="backLink()">{{ copy.backLabel }}</a>
       }
     </main>
     <app-site-footer />

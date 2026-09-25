@@ -83,6 +83,8 @@ export interface AppConfig {
     /** Mock API latency window (FE0-003). Real API ignores these. */
     mockLatencyMinMs: number;
     mockLatencyMaxMs: number;
+    /** Analyzing pipeline stage timeout (an API stage slower than this fails honestly). */
+    analyzingTimeoutMs: number;
   };
   /** Collection limits. */
   limits: {
@@ -376,6 +378,12 @@ export interface AppConfig {
       adjustUnit: string;
       adjustCta: string;
       adjustLockedNote: string;
+      /** RENO: the size stepper becomes an affected-area stepper on reno reports. */
+      adjustTitleReno: string;
+      adjustHintReno: string;
+      adjustLockedNoteReno: string;
+      /** RENO: label for the renovation-type + affected-area scope line. */
+      renoScopeLabel: string;
       /** Shown while a debounced sqft revision is in flight. */
       updatingLabel: string;
       /** "Updated {date}" — shown when an old magic link resolved to a newer snapshot (consumer/02). */
@@ -482,6 +490,8 @@ export interface AppConfig {
       errorHeading: string;
       errorBody: string;
       retryLabel: string;
+      /** Back link out of the analyzing screen (the pipeline must never trap the user). */
+      backLabel: string;
     };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {

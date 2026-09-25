@@ -42,15 +42,21 @@
           }
         </div>
 
-        <!-- Living-area stepper: always visible, no toggle, no re-run button. -->
+        <!-- Living-area stepper: always visible, no toggle, no re-run button.
+             On reno reports this steps the affected area with reno wording. -->
         <div class="stepper-card no-print">
           <div class="stepper-head">
-            <h2>{{ copy.adjustTitle }}</h2>
+            <h2>{{ stepperTitle() }}</h2>
             @if (loading()) {
               <p class="updating" role="status">{{ copy.updatingLabel }}</p>
             }
           </div>
-          <p class="hint">{{ copy.adjustHint }}</p>
+          <p class="hint">{{ stepperHint() }}</p>
+          @if (isReno() && renoTypeLabel(); as rtLabel) {
+            <p class="reno-scope-line" role="note">
+              {{ copy.renoScopeLabel }}: {{ rtLabel }} · {{ formatSqft(renoSqftDisplay()) }}
+            </p>
+          }
           <div class="stepper">
             <button
               type="button"
@@ -126,8 +132,13 @@
           </div>
         </div>
         <div class="stepper-card no-print">
-          <h2>{{ copy.adjustTitle }}</h2>
-          <p class="hint">{{ copy.adjustLockedNote }}</p>
+          <h2>{{ stepperTitle() }}</h2>
+          <p class="hint">{{ stepperLockedNote() }}</p>
+          @if (isReno() && renoTypeLabel(); as rtLabel) {
+            <p class="reno-scope-line" role="note">
+              {{ copy.renoScopeLabel }}: {{ rtLabel }} · {{ formatSqft(renoSqftDisplay()) }}
+            </p>
+          }
           <div class="stepper" aria-disabled="true">
             <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
             <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>

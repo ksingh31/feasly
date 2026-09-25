@@ -58,6 +58,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     resendCooldownSec: 60,
     mockLatencyMinMs: 400,
     mockLatencyMaxMs: 900,
+    /** Analyzing pipeline: an API stage that takes longer than this fails honestly instead of hanging. */
+    analyzingTimeoutMs: 20000,
   },
   limits: {
     communityPageLimit: 24,
@@ -317,6 +319,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adjustUnit: 'sq ft',
       adjustCta: 'Re-run estimate',
       adjustLockedNote: 'Unlock your report to adjust the size.',
+      /** RENO: the size stepper becomes an affected-area stepper on reno reports. */
+      adjustTitleReno: 'Adjust the affected area',
+      adjustHintReno:
+        'Tap to change the renovation area — every figure on this page updates automatically.',
+      adjustLockedNoteReno: 'Unlock your report to adjust the affected area.',
+      renoScopeLabel: 'Renovation scope',
       updatingLabel: 'Updating your estimate…',
       updatedLabel: 'Updated {date}',
       perSqftUnit: 'per sq ft',
@@ -432,6 +440,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       errorHeading: 'We couldn’t build your estimate',
       errorBody: 'Something went wrong on our end. Nothing was lost — please try again.',
       retryLabel: 'Try again',
+      backLabel: '← Back to your project details',
     },
     seo: {
       landingTitle: 'Feasly — What will it really cost to build your home in Calgary?',

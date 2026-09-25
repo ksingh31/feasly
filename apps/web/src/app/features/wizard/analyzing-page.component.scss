@@ -163,6 +163,25 @@
   }
 }
 
+/* Back link: the pipeline must never trap the user. */
+.back {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.error-card .back {
+  display: block;
+  margin-top: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .stage[data-state='active'] .stage-icon {
     animation: none;

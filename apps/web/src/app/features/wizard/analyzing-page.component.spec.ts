@@ -269,6 +269,76 @@ describe('AnalyzingPageComponent', () => {
       await pollUrl('/estimate/report');
       expect(store.selectSnapshot(WizardState.preview)?.estimateId).toMatch(/^est-mock-/);
     });
+
+    it('offers a back link next to retry so the user is never trapped', async () => {
+      await vi.waitFor(() => {
+        refresh();
+        expect(fixture.nativeElement.querySelector('.error-card')).not.toBeNull();
+      });
+      const back = fixture.nativeElement.querySelector(
+        '.error-card .back',
+      ) as HTMLAnchorElement;
+      expect(back).not.toBeNull();
+      expect(back.getAttribute('href')).toBe('/estimate/scope');
+    });
+  });
+
+  describe('never hangs (timeout)', () => {
+    let propertyCalls: Subject<PropertyRecord>;
+
+    beforeEach(async () => {
+      propertyCalls = new Subject<PropertyRecord>();
+      await setup({
+        provide: API_SERVICE,
+        useValue: {
+          getProperty: () => propertyCalls.asObservable(),
+          getPreviewEstimate: () => new Subject<PreviewEstimateResponse>().asObservable(),
+        },
+      });
+      store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('fails honestly when the property lookup stalls past the timeout', async () => {
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      // The lookup never resolves — the pipeline must not sit on
+      // "In progress" forever; it fails after analyzingTimeoutMs (20s).
+      expect(stageState('fetch')).toBe('active');
+      await vi.advanceTimersByTimeAsync(20_000);
+      refresh();
+      expect(fixture.nativeElement.querySelector('.error-card')).not.toBeNull();
+      expect(stageState('fetch')).toBe('error');
+    });
+  });
+
+  describe('direct visit without an active estimate', () => {
+    it('redirects to the wizard instead of showing a stuck loader', async () => {
+      await setup();
+      // No SelectProperty: simulates a deep link / stale-state visit.
+      const navigateSpy = vi.spyOn(router, 'navigate');
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      expect(navigateSpy).toHaveBeenCalledWith(['/']);
+      // The pipeline never started: no stages stuck "in progress".
+      expect(fixture.nativeElement.querySelectorAll('.stage').length).toBe(0);
+    });
+  });
+
+  describe('back link', () => {
+    it('points reno back to the reno scope step', async () => {
+      await setup();
+      const { ChooseProjectType } = await import('./wizard.actions');
+      store.dispatch([new SelectProperty(fakeProperty), new ChooseProjectType('renovation')]);
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      expect(back.getAttribute('href')).toBe('/estimate/reno-scope');
+    });
   });
 
   describe('reno pipeline (RENO-04)', () => {

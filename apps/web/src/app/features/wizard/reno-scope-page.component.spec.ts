@@ -183,6 +183,60 @@ describe('RenoScopePageComponent', () => {
     expect(sqftNumber().value).toBe('1200');
   });
 
+  it('switching reno type clamps stored sqft AND both controls to the new cap', () => {
+    // Karan's repro: extensive at 800 sqft, then switch to Addition (cap 400).
+    renoCard('extensive').click();
+    fixture.detectChanges();
+    const input = sqftNumber();
+    input.value = '800';
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(store.selectSnapshot(WizardState.renoInputs).renoSqft).toBe(800);
+
+    renoCard('addition').click();
+    fixture.detectChanges();
+
+    // Store, slider, AND native number input must all read 400 — no stale 800.
+    expect(store.selectSnapshot(WizardState.renoInputs).renoSqft).toBe(400);
+    expect(sqftSlider().value).toBe('400');
+    expect(sqftNumber().value).toBe('400');
+    expect(sqftNumber().max).toBe('400');
+  });
+
+  it('typing in the number input moves the slider live', () => {
+    renoCard('extensive').click();
+    fixture.detectChanges();
+
+    const input = sqftNumber();
+    input.value = '950';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(store.selectSnapshot(WizardState.renoInputs).renoSqft).toBe(950);
+    expect(sqftSlider().value).toBe('950');
+  });
+
+  it('CTA stays disabled while the typed sqft is out of range for the type', () => {
+    renoCard('addition').click();
+    fixture.detectChanges();
+
+    // Type 800 (above the 400 addition cap) without blurring: live input
+    // commits the value but the CTA must stay disabled until clamped.
+    const input = sqftNumber();
+    input.value = '800';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(store.selectSnapshot(WizardState.renoInputs).renoSqft).toBe(800);
+    expect(cta().disabled).toBe(true);
+
+    // Blur clamps to 400 → CTA re-enables (tier defaults to standard).
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(store.selectSnapshot(WizardState.renoInputs).renoSqft).toBe(400);
+    expect(cta().disabled).toBe(false);
+  });
+
   it('shows the permit/contingency helper line', () => {
     const note = fixture.nativeElement.querySelector('.permit-note');
     expect(note?.textContent).toContain('Most renovations need a City permit and a 10–15% contingency');
