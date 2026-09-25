@@ -32,7 +32,7 @@
   justify-content: center;
 }
 
-.cta {
+.state-page .cta {
   display: inline-block;
   padding: 14px 28px;
   background: var(--accent);
@@ -44,12 +44,12 @@
   min-height: 44px;
 }
 
-.cta:hover {
+.state-page .cta:hover {
   background: var(--accent-dark);
   text-decoration: underline;
 }
 
-.link {
+.state-page .link {
   color: var(--text);
   font-weight: 600;
   text-decoration: none;
@@ -58,6 +58,6 @@
   align-items: center;
 }
 
-.link:hover {
+.state-page .link:hover {
   text-decoration: underline;
 }
