@@ -31,7 +31,13 @@ describe('loadConfig', () => {
       webhook: {
         rateLimit: { windowMs: 60_000, maxRequests: 100 },
       },
-      auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
+      auth: {
+        jwtTtlSeconds: 3_600,
+        magicLinkTtlSeconds: 604_800,
+        // HRD-03: per-email magic-link resend cooldown (default 60s).
+        magicLinkReissueCooldownMs: 60_000,
+        adminApiKey: undefined,
+      },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },

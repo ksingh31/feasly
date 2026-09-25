@@ -19,6 +19,7 @@ Rate-limit log lines carry a SHA-256 **hash** of the client IP
 | Route | Limit | Window | Key | Env overrides |
 |---|---|---|---|---|
 | `POST /api/v1/leads` | 10 requests | 60 s | client IP | `LEAD_RATE_LIMIT_MAX_REQUESTS`, `LEAD_RATE_LIMIT_WINDOW_MS` |
+| `POST /api/v1/magic-link/reissue` | 1 email | 60 s | normalized email address | `MAGIC_LINK_REISSUE_COOLDOWN_MS` |
 | `POST /api/v1/estimate` | 20 requests | 1 hr | client IP, plus per-tenant aggregation for embed traffic (`tenant:<tenantKey>` bucket, also 20/hr) | `ESTIMATE_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_RATE_LIMIT_WINDOW_MS`, `ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS` |
 | `GET /api/health` | 100 requests | 60 s | client IP | `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS` |
 
@@ -42,9 +43,22 @@ reuse this mechanism, not build their own.
 
 | Route | Planned limit | Notes |
 |---|---|---|
-| Magic-link request / resend | 60 s cooldown per email | Frontend enforces `timings.resendCooldownSec` today; backend enforcement lands with the magic-link endpoints |
 | Partner share | 5 / min / IP | Endpoint does not exist yet (`POST /api/v1/shares` arrives with the partner-share story) |
 | Callback request | TBD | `POST /api/v1/callbacks` does not exist yet |
+
+## Endpoint-specific notes
+
+### `POST /api/v1/magic-link/reissue` — per-email resend cooldown (HRD-03)
+
+A repeat reissue while a live link exists already returns `{ sent: false }`
+without sending — no duplicate emails. The per-email cooldown covers the
+residual path (revoked/expired link, immediate re-request): at most **one
+magic-link email per address per 60 s** (`MAGIC_LINK_REISSUE_COOLDOWN_MS`,
+default `60_000`). Cooldown denials answer `{ sent: false }` — identical to
+the live-link, unknown-email, and quarantined-lead outcomes — so the endpoint
+can't be used as a send oracle. Tracked in-memory per Functions instance,
+keyed by normalized email; same deliberate scale-out tradeoff as the request
+rate limiters above.
 
 ## Scale-out note
 

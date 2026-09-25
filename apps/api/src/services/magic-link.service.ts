@@ -45,6 +45,12 @@ export interface MagicLinkServiceDeps {
   /** e.g. https://feasly.ca — from config, never hardcoded. */
   readonly appBaseUrl: string;
   readonly magicLinkTtlSeconds: number;
+  /**
+   * HRD-03: minimum ms between resend emails to the same address. In-memory
+   * per Functions instance, keyed by normalized email — same deliberate
+   * scale-out tradeoff as the pipeline rate limiters.
+   */
+  readonly magicLinkReissueCooldownMs: number;
   readonly clock?: () => Date;
 }
 
@@ -111,8 +117,21 @@ export function createMagicLinkService(
     email,
     appBaseUrl,
     magicLinkTtlSeconds,
+    magicLinkReissueCooldownMs,
     clock = () => new Date(),
   } = deps;
+
+  /**
+   * HRD-03: per-email resend cooldown. Maps normalized email → ms timestamp
+   * of the last email this service sent on the reissue path. The live-link
+   * check above already blocks the common rapid-resend case (a fresh send
+   * mints a live link); this covers the residual case where no live link
+   * exists but an email went out recently (revoked link, clock skew between
+   * the send and the store write). Denials answer `{ sent: false }` —
+   * identical to the live-link and unknown-email cases — so the endpoint
+   * can't be used as a send oracle.
+   */
+  const lastResendAtMs = new Map<string, number>();
 
   return {
     async verify(token: string): Promise<MagicLinkVerifyResponse> {
@@ -175,6 +194,13 @@ export function createMagicLinkService(
         // AC4: a repeat/reissue with a live link sends nothing.
         return { sent: false };
       }
+      // HRD-03: per-email resend cooldown. Same `{ sent: false }` shape as
+      // every other non-send outcome — no timing oracle for attackers.
+      const nowMs = now.getTime();
+      const lastSent = lastResendAtMs.get(lead.email);
+      if (lastSent !== undefined && nowMs - lastSent < magicLinkReissueCooldownMs) {
+        return { sent: false };
+      }
       await issueAndSendMagicLink({
         magicLinks,
         email,
@@ -185,6 +211,7 @@ export function createMagicLinkService(
         magicLinkTtlSeconds,
         clock,
       });
+      lastResendAtMs.set(lead.email, nowMs);
       return { sent: true };
     },
   };

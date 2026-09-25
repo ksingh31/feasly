@@ -71,6 +71,20 @@
           </select>
         </div>
 
+        <!-- HRD-03 honeypot: invisible to humans, irresistible to bots.
+             The "Website" label is hardcoded bot-bait, not product copy —
+             it must look like a real field to automated form-fillers. -->
+        <div class="sr-only" aria-hidden="true">
+          <label for="gate-website">Website</label>
+          <input
+            id="gate-website"
+            type="text"
+            formControlName="website"
+            autocomplete="off"
+            tabindex="-1"
+          />
+        </div>
+
         <label class="casl">
           <input type="checkbox" formControlName="casl" />
           <span>{{ copy.caslLabel }}</span>

@@ -87,6 +87,9 @@ export class GatePageComponent implements OnInit {
     timeline: ['' as TimelineOption | ''],
     // CASL opt-in: unchecked by default, always the user's explicit choice.
     casl: [false],
+    // HRD-03 honeypot: visually hidden; humans never fill it, bots do.
+    // A filled value quarantines the lead server-side (still 201).
+    website: [''],
   });
 
   protected status: GateStatus = 'idle';
@@ -142,6 +145,8 @@ export class GatePageComponent implements OnInit {
               phone: values.phone.trim() === '' ? undefined : values.phone.trim(),
               timeline: values.timeline === '' ? 'exploring' : values.timeline,
               marketingConsent: values.casl,
+              // HRD-03 honeypot — empty for humans, filled by bots.
+              website: values.website,
             })
             .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
         ),
