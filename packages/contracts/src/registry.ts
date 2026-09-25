@@ -19,6 +19,7 @@ export const CONTRACT_NAMES = [
   'community',
   'error',
   'unsubscribe',
+  'api-key',
 ] as const;
 
 export type ContractName = (typeof CONTRACT_NAMES)[number];

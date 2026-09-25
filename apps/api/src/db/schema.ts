@@ -317,3 +317,64 @@ export const tenants = pgTable('tenants', {
   /** 'flat' | 'commission' | null (undecided). Inert until billing. */
   plan: text('plan'),
 });
+
+/**
+ * API keys (api-mcp/01).
+ *
+ * Only the SHA-256 `key_hash` is stored — the plaintext is shown exactly
+ * once at issuance/rotation and never persisted. `key_prefix` holds the
+ * masked display form (`feasly_live_…abcd`) for the admin list.
+ */
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Human-readable label, e.g. "Elite Craft production". */
+    name: text('name').notNull(),
+    /** Optional tenant binding (embed track). Null = no tenant. */
+    tenantId: text('tenant_id'),
+    /** SHA-256 hex of the plaintext key — the ONLY stored credential form. */
+    keyHash: text('key_hash').notNull().unique(),
+    /** Masked display: `feasly_live_…abcd`. Never the full key. */
+    keyPrefix: text('key_prefix').notNull(),
+    /** Scope allowlist, e.g. ['property:read', 'estimate', 'lead']. */
+    scopes: text('scopes').array().notNull(),
+    /** Per-key rate limit (requests/minute). Default 100. */
+    rateLimitPerMin: integer('rate_limit_per_min').notNull().default(100),
+    /** True for `feasly_test_` keys: writes set sandbox=true (no emails). */
+    sandbox: boolean('sandbox').notNull().default(false),
+    /** Null = active. Set on revoke/rotate. */
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('api_keys_key_hash_idx').on(t.keyHash)],
+);
+
+/**
+ * API key audit log (api-mcp/01).
+ *
+ * Every key lifecycle event: created, rotated, revoked, scope_changed,
+ * auth_failed. `detail` is machine-readable and never contains key
+ * material or PII.
+ */
+export const apiKeyAuditLog = pgTable(
+  'api_key_audit_log',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** The key row; null when authentication failed (no identity). */
+    apiKeyId: uuid('api_key_id'),
+    /** 'created' | 'rotated' | 'revoked' | 'scope_changed' | 'auth_failed' */
+    action: text('action').notNull(),
+    /** Short machine-readable detail — never key material, never PII. */
+    detail: text('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('api_key_audit_log_key_id_idx').on(t.apiKeyId)],
+);
