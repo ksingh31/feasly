@@ -25,3 +25,22 @@ jobs:
       - run: npm run build --workspace=@feasly/web -- --configuration=production
       - run: node tools/check-prerender-seo.mjs
         working-directory: apps/web
+
+  # HRD-04: assert PITR-capable backup config on the Postgres (read-only).
+  # Failing here is the "scheduled backup missed" signal until admin/06 wires
+  # a dedicated alert class. OIDC trust covers main pushes + PRs (docs/oidc-setup.md).
+  backup-config:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Assert Postgres backup config (PITR-capable)
+        run: bash infra/health/check-postgres-backup.sh
