@@ -25,6 +25,9 @@ describe('loadConfig', () => {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
         tenantRateLimit: { windowMs: 3_600_000, maxRequests: 20 },
       },
+      analytics: {
+        rateLimit: { windowMs: 60_000, maxRequests: 300 },
+      },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },

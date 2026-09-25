@@ -346,6 +346,12 @@
           }
         ]
       }
+    },
+    "consent": {
+      "title": "A quick word on analytics.",
+      "body": "We measure which pages people visit so we can improve Feasly. First-party only — no cookies, no trackers, no selling data. Accept or decline; the site works the same either way.",
+      "accept": "Accept analytics",
+      "decline": "Decline"
     }
   },
   "features": {

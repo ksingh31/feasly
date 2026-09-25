@@ -20,7 +20,7 @@ import { providePropertyData } from './property-data.service';
 describe('provideApi', () => {
   let httpMock: HttpTestingController;
 
-  const event: AnalyticsEvent = { event: 'report_open', route: '/estimate/report', ts: '2026-09-24T00:00:00Z' };
+  const event: AnalyticsEvent = { event: 'report_open', route: '/estimate/report', ts: '2026-09-24T00:00:00Z', consent_ts: '2026-09-23T23:59:00Z' };
 
   async function wireWith(useMockApi: boolean, injectBeforeLoad = false) {
     TestBed.resetTestingModule();

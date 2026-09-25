@@ -12,11 +12,19 @@ export type AnalyticsEventName =
   | 'tier_toggle'
   | 'callback_request'
   | 'partner_share'
-  | 'pdf_download';
+  | 'pdf_download'
+  | 'embed_loaded';
 
 export interface AnalyticsEvent {
   readonly event: AnalyticsEventName;
   readonly route: string;
   /** ISO timestamp of the client-side occurrence. */
   readonly ts: string;
+  /**
+   * ISO timestamp of the consent-banner acknowledgement that authorized
+   * this event (story consumer/01). The ingest endpoint rejects payloads
+   * with a missing or future-dated consent_ts — consent is proven per
+   * event, not per session.
+   */
+  readonly consent_ts: string;
 }

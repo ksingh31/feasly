@@ -307,7 +307,7 @@ describe('MockApiService', () => {
     });
 
     it('trackEvent completes without emitting', async () => {
-      await firstValueFrom(service.trackEvent({ event: 'step_view', route: '/', ts: new Date().toISOString() }));
+      await firstValueFrom(service.trackEvent({ event: 'step_view', route: '/', ts: new Date().toISOString(), consent_ts: new Date().toISOString() }));
     });
   });
 
