@@ -39,7 +39,17 @@ describe('EmbedState', () => {
   });
 
   it('starts idle with no tenant or config', () => {
-    expect(snapshot()).toEqual({ tenantKey: null, config: null, status: 'idle', error: null });
+    expect(snapshot()).toEqual({
+      tenantKey: null,
+      config: null,
+      status: 'idle',
+      error: null,
+      relayStatus: 'none',
+      sessionToken: null,
+      sessionEstimateId: null,
+      sessionLeadScore: null,
+      relayError: null,
+    });
   });
 
   it('loads the config for the tenant key and becomes ready', async () => {
