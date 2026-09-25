@@ -233,16 +233,18 @@
   user-select: none;
 }
 
-/* CSS-only locked placeholder: no fake dollar figures in markup. */
+/* CSS-only locked placeholder: no fake dollar figures in markup.
+   Static blur bar — no animation (per design feedback). */
 .blur-bar {
   display: inline-block;
   height: 1em;
   border-radius: 8px;
-  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
-  background-size: 200% 100%;
-  animation: blur-shimmer 2.4s ease-in-out infinite;
+  background: var(--muted);
+  opacity: 0.45;
   font-size: 32px;
   vertical-align: middle;
+  filter: blur(2px);
+  user-select: none;
 }
 
 .blur-bar-lg {
@@ -251,22 +253,6 @@
 
 .blur-bar-sm {
   width: 5.5ch;
-}
-
-@keyframes blur-shimmer {
-  0%,
-  100% {
-    background-position: 0% 0;
-  }
-  50% {
-    background-position: 100% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .blur-bar {
-    animation: none;
-  }
 }
 
 .locked-note {
@@ -567,6 +553,25 @@
   background: transparent;
   color: var(--text);
   border: 1.5px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* Download PDF: prominent secondary action — solid subtle background so the
+   button is clearly visible against the page (was transparent/barely visible). */
+button.cta.ghost {
+  background: var(--card);
+  border-color: var(--text);
+  border-width: 2px;
+  font-weight: 700;
+}
+
+/* "Estimate another address" link: sits below Download PDF with clear separation. */
+a.cta.ghost.another-address {
+  margin-top: 12px;
 }
 
 /* PRINT: v1 PDF via Save-as-PDF. The redesigned content — hero, build-cost
