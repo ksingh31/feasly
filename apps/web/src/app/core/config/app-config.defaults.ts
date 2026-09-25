@@ -46,6 +46,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     sqftMin: 1200,
     sqftMax: 4000,
     sqftStep: 50,
+    renoSqftDefault: 800,
+    renoSqftMin: 200,
+    renoSqftMax: 3000,
+    renoSqftStep: 50,
+    renoAdditionCap: 400,
   },
   timings: {
     debounceMs: 250,
@@ -177,6 +182,45 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       renoScopePendingBody:
         'Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.',
       renoScopeBackLabel: '← Back to project type',
+      renoScopeHeading: 'Describe your renovation',
+      renoTypeLabel: 'What kind of renovation?',
+      renoTypes: [
+        {
+          id: 'extensive',
+          name: 'Extensive remodel',
+          blurb: 'Gutting and rebuilding interior spaces — kitchen, baths, whole floors.',
+        },
+        {
+          id: 'addition',
+          name: 'Addition',
+          blurb: 'Adding new living space to your home (up to 400 sq ft).',
+        },
+        {
+          id: 'basement',
+          name: 'Basement',
+          blurb: 'Finishing or remodeling your basement.',
+        },
+        {
+          id: 'combined',
+          name: 'Combined',
+          blurb: 'Kitchen + bath + basement together as one project.',
+        },
+      ],
+      renoSqftLabel: 'Affected area',
+      renoSqftHint: 'How many square feet are you renovating?',
+      renoSqftUnit: 'sq ft',
+      renoAdditionCapNote:
+        'Additions over 400 sq ft are quoted as custom projects — enter 400 for the closest estimate.',
+      renoSqftClampNote: 'Adjusted to the allowed range.',
+      renoTierLabel: 'Finish tier',
+      renoTierHint: 'The level of finishes for your renovation.',
+      renoUnderpinningLabel: 'Include underpinning (lowering the basement floor)',
+      renoUnderpinningBlurb: 'Structural work to increase basement ceiling height.',
+      renoPermitNote:
+        'Most renovations need a City permit and a 10–15% contingency — your report breaks both out.',
+      renoScopeCta: 'See My Preview →',
+      renoScopeEmpty: 'No address selected yet.',
+      renoScopeEmptyCta: 'Find your address to start →',
       detailsLivingArea: 'Living area',
       detailsFinishTier: 'Finish tier',
       detailsGarage: 'Garage',

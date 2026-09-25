@@ -6,7 +6,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateInputs } from './wizard.actions';
+import { ChooseProjectType, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
 import { WizardState, type WizardStateModel } from './wizard.state';
 
 /** FE1-001: wizard state transitions + config-seeded input defaults. */
@@ -39,7 +39,7 @@ describe('WizardState', () => {
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
     const pending = config.load();
-    httpMock.expectOne('/assets/config/app-config.json').flush({ wizard: { sqftDefault: 2200 } });
+    httpMock.expectOne('/assets/config/app-config.json').flush({ wizard: { sqftDefault: 2200, renoSqftDefault: 800 } });
     await pending;
     store = TestBed.inject(Store);
   });
@@ -78,14 +78,37 @@ describe('WizardState', () => {
     expect(inputs.garage).toBe('double');
   });
 
+  it('UpdateRenoInputs merges partial reno changes', () => {
+    store.dispatch(new UpdateRenoInputs({ renoType: 'basement', renoSqft: 900 }));
+    const reno = snapshot().renoInputs;
+    expect(reno.renoType).toBe('basement');
+    expect(reno.renoSqft).toBe(900);
+    expect(reno.tier).toBe('standard');
+    expect(reno.underpinning).toBe(false);
+  });
+
+  it('UpdateRenoInputs clears underpinning when reno type leaves basement/combined', () => {
+    store.dispatch(new UpdateRenoInputs({ renoType: 'basement', underpinning: true }));
+    expect(snapshot().renoInputs.underpinning).toBe(true);
+    store.dispatch(new UpdateRenoInputs({ renoType: 'extensive' }));
+    expect(snapshot().renoInputs.underpinning).toBe(false);
+    // Switching between basement and combined keeps the toggle.
+    store.dispatch(new UpdateRenoInputs({ renoType: 'basement', underpinning: true }));
+    store.dispatch(new UpdateRenoInputs({ renoType: 'combined' }));
+    expect(snapshot().renoInputs.underpinning).toBe(true);
+  });
+
   it('ResetWizard restores config defaults', () => {
     store.dispatch(new SelectProperty(fakeProperty));
     store.dispatch(new GoToStep(3));
+    store.dispatch(new UpdateRenoInputs({ renoType: 'addition', renoSqft: 400 }));
     store.dispatch(new ResetWizard());
     const state = snapshot();
     expect(state.property).toBeNull();
     expect(state.step).toBe(1);
     expect(state.inputs.sqft).toBe(2200);
+    expect(state.renoInputs.renoType).toBeNull();
+    expect(state.renoInputs.renoSqft).toBe(800);
   });
 
   it('preview starts null; StorePreviewEstimate stores it; ResetWizard clears it', () => {
@@ -144,7 +167,7 @@ describe('WizardState', () => {
     const pending = config.load();
     TestBed.inject(HttpTestingController)
       .expectOne('/assets/config/app-config.json')
-      .flush({ wizard: { sqftDefault: 2200 } });
+      .flush({ wizard: { sqftDefault: 2200, renoSqftDefault: 800 } });
     await pending;
     const rehydrated = TestBed.inject(Store).selectSnapshot<WizardStateModel>(
       (state) => state.wizard,

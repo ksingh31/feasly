@@ -1,10 +1,126 @@
     <app-site-nav />
     <main class="wrap" id="main-content" tabindex="-1">
       <app-wizard-steps [current]="2" />
-      <div class="empty">
-        <h1 class="pending-heading">{{ copy.renoScopePendingTitle }}</h1>
-        <p>{{ copy.renoScopePendingBody }}</p>
-        <a routerLink="/estimate/scope" (click)="goBack()">{{ copy.renoScopeBackLabel }}</a>
-      </div>
+      @if (property(); as p) {
+        <app-property-card [property]="p" />
+
+        <h1 class="scope-heading">{{ copy.renoScopeHeading }}</h1>
+
+        <section class="scope-section" aria-labelledby="reno-type-label">
+          <h2 id="reno-type-label">{{ copy.renoTypeLabel }}</h2>
+          <div
+            class="reno-types"
+            role="radiogroup"
+            [attr.aria-label]="copy.renoTypeLabel"
+            (keydown)="onRenoTypeKeydown($event)"
+          >
+            @for (rt of copy.renoTypes; track rt.id) {
+              <button
+                class="reno-card"
+                type="button"
+                role="radio"
+                [attr.data-reno-type]="rt.id"
+                [attr.aria-checked]="renoInputs().renoType === rt.id"
+                [class.selected]="renoInputs().renoType === rt.id"
+                (click)="chooseRenoType(rt.id)"
+              >
+                <span class="reno-name">{{ rt.name }}</span>
+                <span class="reno-blurb">{{ rt.blurb }}</span>
+              </button>
+            }
+          </div>
+        </section>
+
+        <section class="scope-section" aria-labelledby="reno-sqft-label">
+          <div class="section-head">
+            <h2 id="reno-sqft-label">{{ copy.renoSqftLabel }}</h2>
+            <div class="sqft-input-wrap">
+              <input
+                class="sqft-number"
+                type="number"
+                [min]="wizard.renoSqftMin"
+                [max]="sqftCap()"
+                [step]="wizard.renoSqftStep"
+                [value]="renoInputs().renoSqft"
+                (change)="onSqftNumber($event)"
+                [attr.aria-label]="copy.renoSqftLabel"
+              />
+              <span class="sqft-unit">{{ copy.renoSqftUnit }}</span>
+            </div>
+          </div>
+          <p class="hint">{{ copy.renoSqftHint }}</p>
+          <input
+            class="sqft-slider"
+            type="range"
+            [min]="wizard.renoSqftMin"
+            [max]="sqftCap()"
+            [step]="wizard.renoSqftStep"
+            [value]="renoInputs().renoSqft"
+            (input)="onSqftSlider($event)"
+            [attr.aria-label]="copy.renoSqftLabel"
+          />
+          <div class="slider-scale" aria-hidden="true">
+            <span>{{ wizard.renoSqftMin.toLocaleString('en-CA') }}</span>
+            <span>{{ sqftCap().toLocaleString('en-CA') }}</span>
+          </div>
+          @if (clampNote(); as note) {
+            <p class="hint clamp-note" role="status">{{ note }}</p>
+          }
+        </section>
+
+        <section class="scope-section" aria-labelledby="reno-tier-label">
+          <h2 id="reno-tier-label">{{ copy.renoTierLabel }}</h2>
+          <p class="hint">{{ copy.renoTierHint }}</p>
+          <div class="tiers" role="radiogroup" [attr.aria-label]="copy.renoTierLabel">
+            @for (tier of copy.scopeTiers; track tier.id) {
+              <button
+                class="tier-card"
+                type="button"
+                role="radio"
+                [attr.data-tier]="tier.id"
+                [attr.aria-checked]="renoInputs().tier === tier.id"
+                [class.selected]="renoInputs().tier === tier.id"
+                (click)="chooseTier(tier.id)"
+              >
+                <span class="tier-name">{{ tier.name }}</span>
+                <span class="tier-blurb">{{ tier.blurb }}</span>
+              </button>
+            }
+          </div>
+        </section>
+
+        @if (showsUnderpinning()) {
+          <section class="scope-section" aria-labelledby="underpinning-label">
+            <button
+              class="underpinning-toggle"
+              type="button"
+              role="switch"
+              [attr.aria-checked]="renoInputs().underpinning"
+              [attr.aria-labelledby]="'underpinning-label'"
+              (click)="toggleUnderpinning()"
+            >
+              <span class="toggle-track" aria-hidden="true">
+                <span class="toggle-thumb"></span>
+              </span>
+              <span class="toggle-text">
+                <span id="underpinning-label" class="toggle-label">{{ copy.renoUnderpinningLabel }}</span>
+                <span class="hint">{{ copy.renoUnderpinningBlurb }}</span>
+              </span>
+            </button>
+          </section>
+        }
+
+        <p class="hint permit-note">{{ copy.renoPermitNote }}</p>
+
+        <div class="actions">
+          <a class="back" routerLink="/estimate/scope" (click)="goBack()">{{ copy.renoScopeBackLabel }}</a>
+          <button class="cta" type="button" [disabled]="!canContinue()" (click)="seePreview()">{{ copy.renoScopeCta }}</button>
+        </div>
+      } @else {
+        <div class="empty">
+          <p>{{ copy.renoScopeEmpty }}</p>
+          <a routerLink="/">{{ copy.renoScopeEmptyCta }}</a>
+        </div>
+      }
     </main>
     <app-site-footer />

@@ -63,6 +63,14 @@ export interface AppConfig {
     sqftMax: number;
     /** Slider step in sq ft. */
     sqftStep: number;
+    /** Reno scope step tunables (RENO-03). */
+    renoSqftDefault: number;
+    renoSqftMin: number;
+    renoSqftMax: number;
+    /** Reno slider step in sq ft. */
+    renoSqftStep: number;
+    /** Additions bill at most this many sq ft (RENO-01). */
+    renoAdditionCap: number;
   };
   /** UX timings. */
   timings: {
@@ -189,6 +197,23 @@ export interface AppConfig {
       renoScopePendingTitle: string;
       renoScopePendingBody: string;
       renoScopeBackLabel: string;
+      /** RENO-03 reno scope-inputs step copy. */
+      renoScopeHeading: string;
+      renoTypeLabel: string;
+      renoTypes: { id: 'extensive' | 'addition' | 'basement' | 'combined'; name: string; blurb: string }[];
+      renoSqftLabel: string;
+      renoSqftHint: string;
+      renoSqftUnit: string;
+      renoAdditionCapNote: string;
+      renoSqftClampNote: string;
+      renoTierLabel: string;
+      renoTierHint: string;
+      renoUnderpinningLabel: string;
+      renoUnderpinningBlurb: string;
+      renoPermitNote: string;
+      renoScopeCta: string;
+      renoScopeEmpty: string;
+      renoScopeEmptyCta: string;
       detailsLivingArea: string;
       detailsFinishTier: string;
       detailsGarage: string;
