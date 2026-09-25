@@ -20,6 +20,7 @@ apps/api/src/composition.ts :: PLACEHOLDER :: wires PLACEHOLDER_COST_DATA, block
 staticwebapp.config.json :: PLACEHOLDER :: PLACEHOLDER-TENANT fail-closed, replaced by embed/02 real origins
 apps/api/src/generated/builder-configs.ts :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
 config/builders/elite-craft-builders.json :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
+config/builders/demo.json :: PLACEHOLDER :: Demo QA tenant — fictional branding by design (555-01xx, example.com), superseded by real tenant-key provisioning (later story)
 
 # Production domain — undecided (feasly.com unverified). Blocked on Karan.
 app-config.defaults.ts :: PLACEHOLDER :: production domain undecided, blocked on Karan's domain decision

@@ -6,6 +6,8 @@
  * validation failing loud on a broken injected config.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   createBuilderConfigService,
   type BuilderConfigService,
@@ -132,5 +134,29 @@ describe('builder-config service', () => {
         'broken.json': { ...FILE_CONFIG, accent_color: 'not-a-hex' },
       }),
     ).toThrow('field "accent_color"');
+  });
+
+  it('resolves the committed demo.json repo config (QA tenant)', async () => {
+    // Reads the real file — this pins the QA/demo tenant end to end:
+    // a broken or missing demo.json fails here, not silently in a preview.
+    const raw = readFileSync(
+      join(__dirname, '..', '..', '..', 'config', 'builders', 'demo.json'),
+      'utf8',
+    );
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const service = serviceWith({ demo: data });
+    const config = await service.getByKey('demo');
+    expect(config).toEqual({
+      business_name: 'Demo Builder',
+      display_name: 'Demo Builder',
+      logo_url: '',
+      accent_color: '#0F766E',
+      allowed_origins: ['https://demo.example.com'],
+      fallback_phone: '(555) 010-2030',
+      fallback_email: 'demo@example.com',
+      plan: null,
+    });
+    // tenant_key is internal — never on the wire.
+    expect(config).not.toHaveProperty('tenant_key');
   });
 });
