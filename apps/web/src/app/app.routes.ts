@@ -135,8 +135,8 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   // Admin funnel dashboard (admin/07): Karan's conversion visibility —
-  // per-step counts + conversion %, date-range + tenant filters. Interim
-  // adminGuard (X-Admin-Key) until admin/01 lands. noindex — private.
+  // per-step counts + conversion %, date-range + tenant filters. Session-auth
+  // adminGuard (admin/01). noindex — private.
   {
     path: 'admin/funnels',
     component: FunnelsPageComponent,

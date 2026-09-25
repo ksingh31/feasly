@@ -19,7 +19,7 @@ import type {
  * with date-range and tenant filters. Numbers only — no PII, no per-user
  * drill-down, by construction of the backend endpoint.
  *
- * Guarded by {@link adminGuard} (interim X-Admin-Key until admin/01).
+ * Guarded by {@link adminGuard} (admin/01 session auth).
  * Fetches through {@link API_SERVICE} so mock mode works for local dev —
  * the mock returns fixture funnel data. Filter state is component-local
  * signals (read-only dashboard, nothing to persist).
