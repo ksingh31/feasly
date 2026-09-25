@@ -118,7 +118,7 @@ export function createApiKeyRoute(deps: ApiKeyRouteDeps): ApiKeyRoute {
     },
 
     async update(headers, id, body): Promise<ApiKeyRecordResponse> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       const parsedId = keyIdParamSchema.safeParse(id);
       if (!parsedId.success) {
         throw new HttpError(400, ErrorCodes.VALIDATION_FAILED, 'Invalid key id.', false);
