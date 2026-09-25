@@ -28,10 +28,27 @@
   }
 
   @if (status() === 'error') {
-    <div class="ac-error" role="alert">
-      <p>{{ copy.error }}</p>
-      <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
-    </div>
+    @if (outOfCoverage()) {
+      <!-- Reno/05: the Calgary-only gate. No email capture here by design —
+           the story forbids any input or POST beyond the lookup itself. -->
+      <div class="ac-error ac-out-of-coverage" role="alert">
+        <p class="ac-ooc-heading">{{ copy.outOfCoverageHeading }}</p>
+        <p>{{ copy.outOfCoverageBody }}</p>
+        <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
+      </div>
+    } @else if (addressNotFound()) {
+      <!-- Reno/05: the record lookup failed with ADDRESS_NOT_FOUND — same
+           copy as the empty-suggestions state, with a retry path. -->
+      <div class="ac-error ac-not-found" role="alert">
+        <p>{{ copy.noResults }}</p>
+        <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
+      </div>
+    } @else {
+      <div class="ac-error" role="alert">
+        <p>{{ copy.error }}</p>
+        <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
+      </div>
+    }
   } @else if (
     searched() &&
     suggestions().length === 0 &&

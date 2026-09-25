@@ -140,6 +140,12 @@ export interface AppConfig {
       emptyHint: string;
       /** Shown when a 3+ char query returns zero suggestions. */
       noResults: string;
+      /**
+       * Calgary-only gate (reno/05): exact story-pinned copy. Shown when the
+       * property lookup reports OUT_OF_COVERAGE. Do not paraphrase.
+       */
+      outOfCoverageHeading: string;
+      outOfCoverageBody: string;
       /** Shown when the autocomplete request fails. */
       error: string;
       retryLabel: string;

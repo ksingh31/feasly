@@ -111,6 +111,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
+      outOfCoverageHeading: 'We only support Calgary right now.',
+      outOfCoverageBody:
+        "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
       error: 'Address search is temporarily unavailable. Please try again in a moment.',
       retryLabel: 'Retry',
       searchingLabel: 'Searching addresses…',

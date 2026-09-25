@@ -213,7 +213,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'Free-form address autocomplete backed by the City of Calgary ' +
       'assessment roll. Queries shorter than 3 characters resolve to an ' +
-      'empty suggestion list. No auth — public by design.',
+      'empty suggestion list. Queries with an explicit out-of-coverage ' +
+      'signal (non-Calgary city or postal code) return 404 OUT_OF_COVERAGE ' +
+      '(reno/05). No auth — public by design.',
     request: {
       query: z.object({
         q: z
@@ -228,6 +230,17 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Address suggestions',
         content: {
           'application/json': { schema: AutocompleteResponseSchema },
+        },
+      },
+      '404': {
+        description:
+          'OUT_OF_COVERAGE: the query is explicitly outside Calgary ' +
+          '(code OUT_OF_COVERAGE). Calgary-looking queries with no matches ' +
+          'resolve to an empty suggestion list, not an error.',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
         },
       },
       '503': {
@@ -267,7 +280,11 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         },
       },
       '404': {
-        description: 'No City record for this address',
+        description:
+          'No City record: OUT_OF_COVERAGE when the address is explicitly ' +
+          'outside Calgary ("We only support Calgary right now."), ' +
+          'ADDRESS_NOT_FOUND for Calgary-looking addresses with no record ' +
+          '(reno/05)',
         content: {
           'application/problem+json': {
             schema: { $ref: PROBLEM_DETAILS_REF },

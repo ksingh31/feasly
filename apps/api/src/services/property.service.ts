@@ -23,6 +23,7 @@ import type {
   PropertyRecord,
 } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../middleware/errors';
+import { detectCoverageSignal } from '../lib/coverage';
 import type { PropertyDataConfig } from '../config';
 
 /** Raw Socrata row from the "Current Year Property Assessments (Parcel)" dataset. */
@@ -145,11 +146,47 @@ function normalizeQuery(query: string): string {
   return tokens.join(' ');
 }
 
-function notFound(): HttpError {
-  return new HttpError(
+/**
+ * Miss reason for the `lookup.miss` metric (reno/05). Only the normalized
+ * address key is ever passed to the metric sink — never raw user input.
+ */
+export type LookupMissReason = 'out_of_coverage' | 'not_found';
+
+export interface PropertyServiceDeps {
+  /**
+   * Called once per property/autocomplete miss with the miss reason.
+   * Optional — the service works without a metric sink (tests, local dev).
+   */
+  readonly onLookupMiss?: (reason: LookupMissReason, addressKey: string) => void;
+}
+
+/**
+ * Maps a Socrata miss onto the reno/05 error contract:
+ * - explicit out-of-coverage signal → 404 OUT_OF_COVERAGE ("We only support
+ *   Calgary right now.")
+ * - otherwise → 404 ADDRESS_NOT_FOUND ("We couldn't find that address…").
+ * Emits the `lookup.miss` metric with the reason, then throws.
+ */
+function miss(
+  query: string,
+  addressKey: string,
+  onLookupMiss?: PropertyServiceDeps['onLookupMiss'],
+): never {
+  const signal = detectCoverageSignal(query);
+  if (signal === 'out-of-coverage') {
+    onLookupMiss?.('out_of_coverage', addressKey);
+    throw new HttpError(
+      404,
+      ErrorCodes.OUT_OF_COVERAGE,
+      'We only support Calgary right now.',
+      false,
+    );
+  }
+  onLookupMiss?.('not_found', addressKey);
+  throw new HttpError(
     404,
-    ErrorCodes.NOT_FOUND,
-    'No City record for that address yet.',
+    ErrorCodes.ADDRESS_NOT_FOUND,
+    "We couldn't find that address. Check the spelling or try a nearby address.",
     false,
   );
 }
@@ -182,7 +219,10 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
   };
 }
 
-export function createPropertyService(config: PropertyDataConfig): PropertyService {
+export function createPropertyService(
+  config: PropertyDataConfig,
+  deps: PropertyServiceDeps = {},
+): PropertyService {
   const resourceUrl = `${config.socrataBaseUrl}/resource/${config.datasetId}.json`;
   const searchCache = new Map<string, CacheEntry<AutocompleteResponse>>();
   const propertyCache = new Map<string, CacheEntry<PropertyRecord>>();
@@ -242,7 +282,8 @@ export function createPropertyService(config: PropertyDataConfig): PropertyServi
    * Picks one record for an exact address. Parcels can share an address
    * (condos, multi-parcel lots), so the choice is deterministic: the row
    * with the highest assessed value. Rows without a parseable address or
-   * assessed value are skipped; none usable means NOT_FOUND.
+   * assessed value are skipped; none usable means a reno/05 miss
+   * (OUT_OF_COVERAGE vs ADDRESS_NOT_FOUND by coverage signal).
    */
   function toProperty(key: string, body: unknown): PropertyRecord {
     const rows = Array.isArray(body) ? body : [];
@@ -256,7 +297,7 @@ export function createPropertyService(config: PropertyDataConfig): PropertyServi
         bestValue = value;
       }
     }
-    if (!best || bestValue < 0) throw notFound();
+    if (!best || bestValue < 0) miss(key, key, deps.onLookupMiss);
     return toPropertyRecord(best);
   }
 
@@ -264,6 +305,11 @@ export function createPropertyService(config: PropertyDataConfig): PropertyServi
     async autocomplete(query: string): Promise<AutocompleteResponse> {
       const q = normalizeQuery(query);
       if (q.length < MIN_QUERY_CHARS) return { suggestions: [] };
+      // Reno/05: an explicit out-of-coverage query never hits Socrata — the
+      // Calgary-only message is the answer, not an empty suggestion list.
+      if (detectCoverageSignal(query) === 'out-of-coverage') {
+        miss(query, q, deps.onLookupMiss);
+      }
       const hit = cached(searchCache, q);
       if (hit) return hit;
 
@@ -281,7 +327,11 @@ export function createPropertyService(config: PropertyDataConfig): PropertyServi
 
     async getProperty(addressKey: string): Promise<PropertyRecord> {
       const key = addressKey.trim();
-      if (!key) throw notFound();
+      if (!key) miss(addressKey, '', deps.onLookupMiss);
+      // Reno/05: an explicit out-of-coverage key never hits Socrata.
+      if (detectCoverageSignal(key) === 'out-of-coverage') {
+        miss(key, key, deps.onLookupMiss);
+      }
       const hit = cached(propertyCache, key);
       if (hit) return hit;
 
