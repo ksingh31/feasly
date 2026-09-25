@@ -94,4 +94,13 @@ describe('buildAggregatesSoql', () => {
     expect(soql).toContain("roll_year='2025'");
     expect(soql).toContain('avg(assessed_value)');
   });
+
+  it('filters to single-family (R110) parcels only', () => {
+    // R110 = single-detached dwelling, identified empirically 2026-09-25
+    // (see workspace single-family-data-research.md).
+    const soql = decodeURIComponent(buildAggregatesSoql('2025'));
+    expect(soql).toContain("assessment_class='RE'");
+    expect(soql).toContain("property_type='LI'");
+    expect(soql).toContain("sub_property_use='R110'");
+  });
 });

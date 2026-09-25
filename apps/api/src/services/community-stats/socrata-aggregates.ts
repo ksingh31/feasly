@@ -88,6 +88,13 @@ export function toCommunityStatRecord(
 /**
  * SoQL for the aggregate query. `rollYear` pins one assessment roll so the
  * averages are coherent; callers fetch the latest roll first.
+ *
+ * Aggregates are SINGLE-FAMILY (single-detached dwelling) averages:
+ * `assessment_class='RE' AND property_type='LI' AND sub_property_use='R110'`.
+ * `R110` identifies single-detached homes — established empirically 2026-09-25
+ * (zoning + lot-size + assessed-value triangulation; see workspace
+ * `single-family-data-research.md`), because the City publishes no public
+ * codebook for `sub_property_use`.
  */
 export function buildAggregatesSoql(rollYear: string): string {
   const params = new URLSearchParams({
@@ -95,7 +102,9 @@ export function buildAggregatesSoql(rollYear: string): string {
       'comm_name,count(assessed_value) as count_assessed_value,' +
       'avg(assessed_value) as avg_assessed_value,' +
       'avg(land_size_sf) as avg_land_size_sf',
-    $where: `roll_year='${rollYear}' AND comm_name IS NOT NULL AND assessed_value > 0`,
+    $where:
+      `roll_year='${rollYear}' AND comm_name IS NOT NULL AND assessed_value > 0` +
+      ` AND assessment_class='RE' AND property_type='LI' AND sub_property_use='R110'`,
     $group: 'comm_name',
     $limit: '50000',
   });
