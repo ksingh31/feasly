@@ -277,6 +277,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       heading: 'Your estimate preview',
       readyNote: 'Your numbers are ready.',
       backLabel: '← Back to details',
+      renoBackLabel: '← Back to scope',
       // RENO-04: reno-specific visible fact labels
       renoTypeLabel: 'Renovation type',
       renoSqftLabel: 'Affected area',

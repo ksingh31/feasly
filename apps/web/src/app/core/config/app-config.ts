@@ -321,6 +321,8 @@ export interface AppConfig {
       heading: string;
       readyNote: string;
       backLabel: string;
+      /** BUG-6: reno preview goes back to the reno scope step, not "details". */
+      renoBackLabel: string;
       /** RENO-04: reno-specific visible fact labels. */
       renoTypeLabel: string;
       renoSqftLabel: string;
