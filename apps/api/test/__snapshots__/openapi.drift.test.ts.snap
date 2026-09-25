@@ -849,7 +849,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -909,7 +935,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -979,7 +1031,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1044,7 +1122,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1063,6 +1167,145 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Rotate an API key",
+      },
+    },
+    "/v1/admin/usage": {
+      "get": {
+        "description": "Returns per-day request counts grouped by endpoint, plus the number of estimates created. Admins (X-Admin-Key) see all keys; a Bearer API key sees only its own usage (querying another key_id returns 403). Every accepted API-key call writes one usage row; rejected 429s write none.",
+        "parameters": [
+          {
+            "description": "Filter to one API key (UUID)",
+            "in": "query",
+            "name": "key_id",
+            "required": false,
+            "schema": {
+              "description": "Filter to one API key (UUID)",
+              "format": "uuid",
+              "type": "string",
+            },
+          },
+          {
+            "description": "ISO-8601 start (inclusive)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "description": "ISO-8601 start (inclusive)",
+              "type": "string",
+            },
+          },
+          {
+            "description": "ISO-8601 end (inclusive)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "description": "ISO-8601 end (inclusive)",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                      },
+                      "date": {
+                        "format": "date",
+                        "type": "string",
+                      },
+                      "endpoint": {
+                        "type": "string",
+                      },
+                      "estimates_created": {
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "date",
+                      "endpoint",
+                      "count",
+                      "estimates_created",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "array",
+                },
+              },
+            },
+            "description": "Usage aggregates",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+          {
+            "ApiKeyAuth": [],
+          },
+        ],
+        "summary": "Per-day API usage by endpoint",
       },
     },
     "/v1/communities/{slug}/stats": {
@@ -1109,7 +1352,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1169,7 +1438,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1226,7 +1521,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1299,7 +1620,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {
@@ -1356,7 +1703,33 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
           },
           "500": {
             "content": {

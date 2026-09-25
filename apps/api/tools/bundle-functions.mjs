@@ -108,6 +108,10 @@ const targets = [
     entry: 'src/functions/openapi.ts',
     out: 'openapi/index.js',
   },
+  {
+    entry: 'src/functions/usage.ts',
+    out: 'usage/index.js',
+  },
 ];
 
 for (const { entry, out } of targets) {

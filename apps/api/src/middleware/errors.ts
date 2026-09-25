@@ -22,6 +22,16 @@ export interface ProblemDetails extends ApiError {
   readonly correlationId: string;
   /** RFC 7807 extension member, present on 429s. */
   readonly retryAfterMs?: number;
+  /**
+   * Rate-limit header values (api-mcp/07), present on 429s from the
+   * per-key limiter. Surfaced as X-RateLimit-Limit / -Remaining / -Reset.
+   */
+  readonly rateLimit?: {
+    readonly limit: number;
+    readonly remaining: number;
+    /** Epoch seconds when the window frees capacity. */
+    readonly resetEpoch: number;
+  };
 }
 
 /** Machine-readable error codes shared by routes, services and middleware. */
@@ -116,6 +126,7 @@ export function toProblemDetails(error: unknown, correlationId: string): Problem
 export function rateLimitedProblem(
   correlationId: string,
   retryAfterMs: number,
+  rateLimit?: ProblemDetails['rateLimit'],
 ): ProblemDetails {
   return {
     ...toProblemDetails(
@@ -123,6 +134,7 @@ export function rateLimitedProblem(
       correlationId,
     ),
     retryAfterMs,
+    ...(rateLimit ? { rateLimit } : {}),
   };
 }
 
@@ -141,6 +153,10 @@ export function isProblemDetails(value: unknown): value is ProblemDetails {
  * HTTP response headers for a ProblemDetails body (HRD-03). 429s carry a
  * `Retry-After` header in whole seconds (ceil, minimum 1) so well-behaved
  * clients — and the acceptance tests — don't have to parse the body.
+ *
+ * Per-key 429s (api-mcp/07) also carry the IETF RateLimit header fields:
+ * `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+ * (epoch seconds).
  */
 export function problemResponseHeaders(
   problem: ProblemDetails,
@@ -152,6 +168,11 @@ export function problemResponseHeaders(
     headers['Retry-After'] = String(
       Math.max(1, Math.ceil(problem.retryAfterMs / 1000)),
     );
+  }
+  if (problem.status === 429 && problem.rateLimit) {
+    headers['X-RateLimit-Limit'] = String(problem.rateLimit.limit);
+    headers['X-RateLimit-Remaining'] = String(problem.rateLimit.remaining);
+    headers['X-RateLimit-Reset'] = String(problem.rateLimit.resetEpoch);
   }
   return headers;
 }

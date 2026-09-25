@@ -466,3 +466,37 @@ export const attributionEvents = pgTable(
     index('attribution_events_status_idx').on(t.status),
   ],
 );
+
+/**
+ * API usage log (api-mcp/07).
+ *
+ * One row per ACCEPTED public API call, keyed by API key. This table is the
+ * rate-limiting backend (sliding window: count rows for the key in the last
+ * 60s) and the billing metering source. Rejected 429s write nothing here.
+ *
+ * Append-only by design: no update or delete path exists in the data layer.
+ * `endpoint` is the route path (e.g. '/api/v1/estimate'); `estimate_id` is
+ * set when the call created an estimate (feeds estimates_created aggregates).
+ */
+export const apiUsage = pgTable(
+  'api_usage',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** The API key that made the call. */
+    apiKeyId: uuid('api_key_id')
+      .notNull()
+      .references(() => apiKeys.id),
+    /** Route path, e.g. '/api/v1/estimate'. Never PII. */
+    endpoint: text('endpoint').notNull(),
+    /** Set when the call created an estimate; null otherwise. */
+    estimateId: uuid('estimate_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('api_usage_key_id_idx').on(t.apiKeyId),
+    index('api_usage_key_created_idx').on(t.apiKeyId, t.createdAt),
+  ],
+);

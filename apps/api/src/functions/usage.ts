@@ -1,19 +1,12 @@
 /**
- * Azure Functions v3 trigger adapter — GET /api/v1/properties/autocomplete.
+ * Azure Functions v3 trigger adapter — GET /api/v1/admin/usage.
  *
- * Thin by design: build the pipeline request from the Functions `req`,
- * run it through the BE0-003 pipeline (correlation + rate limiting +
- * RFC 7807 errors), and translate the outcome to `context.res`.
+ * Per-day API usage aggregates by endpoint + estimates_created
+ * (billing-ready). Admins (X-Admin-Key) see all keys; API key owners
+ * (Bearer) see only their own key.
  *
- * - Imports only from the package public surface (`../index`), never deep
- *   paths — see src/index.ts.
- * - The composition (config, pool, engine) is built once per instance and
- *   cached module-level; the pg pool stays warm across invocations.
- * - The correlation ID is derived here and injected into the headers handed
- *   to the pipeline, so the `x-correlation-id` response header always
- *   matches the ID in logs and error bodies.
- * - Bundled by `npm run bundle:functions` into `properties-autocomplete/index.js`
- *   (self-contained — the Function App has no node_modules).
+ * Bundled by `npm run bundle:functions` into `usage/index.js`
+ * (self-contained — the Function App has no node_modules).
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -22,7 +15,20 @@ import {
   middleware,
   type AppComposition,
 } from '../index';
-import type { FunctionContext, FunctionRequest } from './estimate';
+
+/** Minimal structural types — no @azure/functions dependency needed. */
+export interface FunctionContext {
+  res?: unknown;
+  log: (...args: unknown[]) => void;
+}
+
+export interface FunctionRequest {
+  method?: string;
+  headers?: Record<string, string | string[] | undefined>;
+  body?: unknown;
+  /** Query-string params (Azure Functions v3). Never logged — may carry tokens. */
+  query?: Record<string, string | undefined>;
+}
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -40,14 +46,10 @@ function clientIpFrom(req: FunctionRequest): string | undefined {
   return ip ? ip : undefined;
 }
 
-export async function propertiesAutocompleteHandler(
+export async function usageHandler(
   context: FunctionContext,
   req: FunctionRequest,
 ): Promise<void> {
-  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
-  // config alone — the full composition (DB pool, rate limiters) is never
-  // loaded for an OPTIONS request. Non-allowlisted origins get no
-  // Access-Control-Allow-Origin (fail-closed).
   const origin = req.headers?.['origin'];
   const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
   if (middleware.isPreflight(req.method, origin)) {
@@ -66,19 +68,10 @@ export async function propertiesAutocompleteHandler(
     headers[CORRELATION_RESPONSE_HEADER] = randomUUID();
   }
   const correlationId = middleware.ensureCorrelationId(headers);
-  const q = req.query?.['q'];
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    // api-mcp/07 — per-key rate limiting + usage metering when a Bearer
-    // API key is present.
-    () =>
-      app.withApiKeyRateLimit(
-        headers,
-        correlationId,
-        { endpoint: '/api/v1/properties/autocomplete' },
-        () => app.propertyRoute.autocomplete(q),
-      ),
+    () => app.usageRoute.getUsage(headers, req.query ?? {}),
   );
 
   if (middleware.isProblemDetails(result)) {
@@ -105,4 +98,4 @@ export async function propertiesAutocompleteHandler(
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).
-module.exports = propertiesAutocompleteHandler;
+module.exports = usageHandler;

@@ -118,6 +118,20 @@ import {
   createOpenApiRoute,
   type OpenApiRoute,
 } from './routes/openapi.route';
+import {
+  createUsageService,
+  type UsageService,
+  type UsageStore,
+} from './services/usage.service';
+import { createDrizzleUsageStore } from './services/usage.store';
+import {
+  createUsageRoute,
+  type UsageRoute,
+} from './routes/usage.route';
+import {
+  createApiKeyRateLimitMiddleware,
+  type ApiKeyRateLimitDeps,
+} from './middleware/api-key-rate-limit';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -181,6 +195,14 @@ export interface AppComposition {
   readonly propertyRoute: PropertyRoute;
   /** api-mcp/03: OpenAPI spec (public, no auth). */
   readonly openApiRoute: OpenApiRoute;
+  /** api-mcp/07: per-key rate limiting + usage metering. */
+  readonly usageService: UsageService;
+  readonly usageRoute: UsageRoute;
+  /**
+   * api-mcp/07: per-key rate-limit middleware factory. Public adapters
+   * wrap their handlers with this when a Bearer API key is present.
+   */
+  readonly withApiKeyRateLimit: ReturnType<typeof createApiKeyRateLimitMiddleware>;
 }
 
 export interface CompositionOptions {
@@ -206,6 +228,7 @@ export interface CompositionOptions {
    */
   readonly dbPing?: () => Promise<void>;
   readonly analyticsStore?: AnalyticsStore;
+  readonly usageStore?: UsageStore;
 }
 
 /**
@@ -445,6 +468,24 @@ export function createComposition(
     siteUrl: config.siteUrl,
     version: config.version,
   });
+  // api-mcp/07 — per-key rate limiting + usage metering. The usage table
+  // backs the sliding-window limiter; every accepted public API call
+  // writes one row (429s write nothing).
+  const usageService: UsageService = createUsageService({
+    store: options.usageStore ?? createDrizzleUsageStore({ db: db.db }),
+  });
+  const usageRoute: UsageRoute = createUsageRoute({
+    usage: usageService,
+    apiKeys: apiKeyService,
+    adminGuard,
+  });
+  // api-mcp/07 — per-key rate limiting for public API routes. Wraps
+  // handlers: Bearer key → authenticate → sliding-window check → record
+  // usage on success. No key → passthrough (pipeline IP limiting applies).
+  const withApiKeyRateLimit = createApiKeyRateLimitMiddleware({
+    apiKeys: apiKeyService,
+    usage: usageService,
+  });
   return {
     config,
     db,
@@ -488,6 +529,9 @@ export function createComposition(
     propertyService,
     propertyRoute,
     openApiRoute,
+    usageService,
+    usageRoute,
+    withApiKeyRateLimit,
   };
 }
 

@@ -76,7 +76,15 @@ export async function leadsHandler(
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
     // The body is never logged — see module docstring.
-    () => app.leadRoute.handle(req.body),
+    // api-mcp/07 — per-key rate limiting + usage metering when a Bearer
+    // API key is present.
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        { endpoint: '/api/v1/leads' },
+        () => app.leadRoute.handle(req.body),
+      ),
   );
 
   if (middleware.isProblemDetails(result)) {

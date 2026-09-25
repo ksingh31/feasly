@@ -59,7 +59,26 @@ function errorResponses() {
       },
     },
     '429': {
-      description: 'Rate limit exceeded',
+      description:
+        'Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. ' +
+        'Body is RFC 7807 problem+json with code RATE_LIMITED. ' +
+        'The X-RateLimit-* headers report the key\'s quota state.',
+      headers: z.object({
+        'X-RateLimit-Limit': z
+          .number()
+          .int()
+          .describe('Requests allowed per 60-second window for this API key.'),
+        'X-RateLimit-Remaining': z
+          .number()
+          .int()
+          .describe('Requests remaining in the current window.'),
+        'X-RateLimit-Reset': z
+          .number()
+          .int()
+          .describe(
+            'Unix epoch seconds when the current window slides past the oldest request.',
+          ),
+      }),
       content: {
         'application/problem+json': {
           schema: { $ref: PROBLEM_DETAILS_REF },
@@ -441,6 +460,49 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
             schema: {
               type: 'object',
               properties: { revoked: { type: 'boolean' } },
+            },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/admin/usage (api-mcp/07)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/usage',
+    summary: 'Per-day API usage by endpoint',
+    description:
+      'Returns per-day request counts grouped by endpoint, plus the number ' +
+      'of estimates created. Admins (X-Admin-Key) see all keys; a Bearer API ' +
+      'key sees only its own usage (querying another key_id returns 403). ' +
+      'Every accepted API-key call writes one usage row; rejected 429s write none.',
+    security: [{ AdminKey: [] }, { ApiKeyAuth: [] }],
+    request: {
+      query: z.object({
+        key_id: z.string().uuid().optional().describe('Filter to one API key (UUID)'),
+        from: z.string().optional().describe('ISO-8601 start (inclusive)'),
+        to: z.string().optional().describe('ISO-8601 end (inclusive)'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Usage aggregates',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  date: { type: 'string', format: 'date' },
+                  endpoint: { type: 'string' },
+                  count: { type: 'integer' },
+                  estimates_created: { type: 'integer' },
+                },
+                required: ['date', 'endpoint', 'count', 'estimates_created'],
+              },
             },
           },
         },
