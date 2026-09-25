@@ -29,6 +29,8 @@
  *     (POST /api/v1/unsubscribe/{token})
  *   src/functions/nudge-timer.ts          → nudge-timer/index.js
  *     (Timer: hourly 24h nudge for unverified leads)
+ *   src/functions/sandbox-purge-timer.ts  → sandbox-purge-timer/index.js
+ *     (Timer: daily sandbox test-data purge, api-mcp/09)
  *   src/functions/api-keys.ts             → api-keys/index.js
  *     (GET|POST /api/v1/admin/api-keys)
  *   src/functions/api-keys-rotate.ts      → api-keys-rotate/index.js
@@ -79,6 +81,10 @@ const targets = [
   {
     entry: 'src/functions/nudge-timer.ts',
     out: 'nudge-timer/index.js',
+  },
+  {
+    entry: 'src/functions/sandbox-purge-timer.ts',
+    out: 'sandbox-purge-timer/index.js',
   },
   {
     entry: 'src/functions/api-keys.ts',

@@ -44,6 +44,11 @@ export const estimates = pgTable(
     /** Breakdown rows as returned by the engine. */
     rows: jsonb('rows').notNull(),
     costDataVersion: text('cost_data_version').notNull(),
+    /**
+     * api-mcp/09: true when created via a `feasly_test_` API key.
+     * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
+     */
+    sandbox: boolean('sandbox').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -104,6 +109,11 @@ export const leads = pgTable(
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
     /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
     nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
+    /**
+     * api-mcp/09: true when created via a `feasly_test_` API key.
+     * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
+     */
+    sandbox: boolean('sandbox').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -198,6 +208,11 @@ export const magicLinks = pgTable(
     usedAt: timestamp('used_at', { withTimezone: true }),
     /** Set on erasure (links stop working) — kept as anonymized audit. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /**
+     * api-mcp/09: true when created via a `feasly_test_` API key.
+     * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
+     */
+    sandbox: boolean('sandbox').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -399,6 +414,11 @@ export const analyticsEvents = pgTable(
     ts: timestamp('ts', { withTimezone: true }).notNull(),
     /** Consent-banner acknowledgement timestamp authorizing this event. */
     consentTs: timestamp('consent_ts', { withTimezone: true }).notNull(),
+    /**
+     * api-mcp/09: true when created via a `feasly_test_` API key.
+     * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
+     */
+    sandbox: boolean('sandbox').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

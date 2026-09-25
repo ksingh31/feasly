@@ -50,6 +50,11 @@ import {
   type NudgeService,
 } from './services/nudge.service';
 import {
+  createSandboxPurgeService,
+  type SandboxPurgeService,
+} from './services/sandbox-purge.service';
+import { createDrizzleSandboxPurgeStore } from './services/sandbox-purge.store';
+import {
   createApiKeyService,
   type ApiKeyService,
   type ApiKeyStore,
@@ -178,6 +183,8 @@ export interface AppComposition {
   readonly unsubscribeRoute: UnsubscribeRoute;
   /** email/02: hourly 24h-nudge timer for unverified leads. */
   readonly nudgeService: NudgeService;
+  /** api-mcp/09: daily sandbox test-data purge timer. */
+  readonly sandboxPurgeService: SandboxPurgeService;
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
@@ -403,6 +410,14 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
   });
+  // api-mcp/09 — daily sandbox purge for test data. Hard-deletes sandbox
+  // rows older than the retention window. Dry-run defaults true (first-run
+  // safety) — flip SANDBOX_PURGE_DRY_RUN=false after verifying the blast radius.
+  const sandboxPurgeService: SandboxPurgeService = createSandboxPurgeService({
+    store: createDrizzleSandboxPurgeStore({ db: db.db }),
+    retentionDays: config.sandboxPurge.retentionDays,
+    dryRun: config.sandboxPurge.dryRun,
+  });
   // api-mcp/01 — API key issuance + storage (admin-only). The admin guard
   // is the INTERIM pre-shared-key guard until admin/01's session auth lands.
   const adminGuard: AdminGuard = createConfigAdminGuard({
@@ -516,6 +531,7 @@ export function createComposition(
     unsubscribeService,
     unsubscribeRoute,
     nudgeService,
+    sandboxPurgeService,
     apiKeyService,
     apiKeyRoute,
     adminGuard,

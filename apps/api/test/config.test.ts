@@ -65,6 +65,10 @@ describe('loadConfig', () => {
         flatMonthlyCents: 30_000,
         flatCurrency: 'CAD',
       },
+      sandboxPurge: {
+        retentionDays: 30,
+        dryRun: true,
+      },
     });
   });
 

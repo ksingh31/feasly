@@ -79,6 +79,12 @@ const EnvSchema = z.object({
   // the existing lead instead of inserting a duplicate (BE3-003).
   LEAD_DEDUP_WINDOW_DAYS: z.coerce.number().int().positive().default(90),
 
+  // api-mcp/09: sandbox purge timer. Rows with sandbox=true older than
+  // this are hard-deleted daily. DRY_RUN defaults true so the first run
+  // only counts and logs — flip to false after verifying the blast radius.
+  SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
+
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
@@ -308,6 +314,11 @@ export interface BillingConfig {
   readonly flatCurrency: string;
 }
 
+export interface SandboxPurgeConfig {
+  readonly retentionDays: number;
+  readonly dryRun: boolean;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -329,6 +340,7 @@ export interface ApiConfig {
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
   readonly billing: BillingConfig;
+  readonly sandboxPurge: SandboxPurgeConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -430,6 +442,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         maxRequests: e.LEAD_RATE_LIMIT_MAX_REQUESTS,
       },
       dedupWindowDays: e.LEAD_DEDUP_WINDOW_DAYS,
+    },
+    sandboxPurge: {
+      retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
+      dryRun: e.SANDBOX_PURGE_DRY_RUN,
     },
     estimate: {
       rateLimit: {
