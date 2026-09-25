@@ -35,8 +35,7 @@ jobs:
         working-directory: apps/web
       # HRD-07: fail the build if any secret pattern appears in the built web
       # bundle. Local: `node tools/check-secrets.mjs --bundle apps/web/dist/web/browser`.
-      - run: node ../../tools/check-secrets.mjs --bundle dist/web/browser
-        working-directory: apps/web
+      - run: node tools/check-secrets.mjs --bundle apps/web/dist/web/browser
       # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
