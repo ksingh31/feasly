@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
@@ -85,6 +86,20 @@ export const routes: Routes = [
     path: 'estimate/preview',
     component: PreviewPageComponent,
     canActivate: [robotsGuard, wizardPropertyGuard],
+    data: { noindex: true },
+  },
+  // White-label embed shell (EMB-01): client-rendered, noindex, excluded
+  // from the prerender manifest. Key via ?key= (snippet) or :tenantKey.
+  {
+    path: 'embed',
+    component: EmbedShellComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'embed/:tenantKey',
+    component: EmbedShellComponent,
+    canActivate: [robotsGuard],
     data: { noindex: true },
   },
   // Branded error page (HRD-02): uncaught client failures land here via the

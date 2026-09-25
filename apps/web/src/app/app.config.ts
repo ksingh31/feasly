@@ -13,6 +13,7 @@ import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { ConfigService } from './core/config/config.service';
+import { EmbedState } from './features/embed';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { routes } from './app.routes';
@@ -37,8 +38,11 @@ export const appConfig: ApplicationConfig = {
     providePropertyData(),
     // Mock vs real backend from config (FE0-003). Flip `api.useMockApi` only.
     provideApi(),
-    // Wizard + report + lead state in NGXS, persisted to localStorage (FE1-001,
-    // M1, FE-004). The storage plugin is SSR-safe (no-ops on the server).
+    // Wizard + report + lead + embed state in NGXS (FE1-001, M1, FE-004,
+    // EMB-01). Wizard/report/lead persist to localStorage (notes below); the
+    // embed config is session-scoped (re-fetched from ?key= every load) so a
+    // stale builder config can never leak across tenants — EmbedState stays
+    // out of the storage-plugin keys. The storage plugin is SSR-safe.
     // The lead receipt (leadId, email, magicLinkSent, expiresInDays) persists
     // so a reload mid-flow doesn't loop the user back to an empty gate —
     // email is needed anyway for the pending "check your email" state. The
@@ -51,7 +55,7 @@ export const appConfig: ApplicationConfig = {
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
     provideStore(
-      [WizardState, ReportState, LeadState],
+      [WizardState, ReportState, LeadState, EmbedState],
       withNgxsStoragePlugin({
         keys: [WizardState, ReportState, LeadState],
         beforeSerialize: (obj, key) => (key === 'report' ? { ...obj, reportToken: null } : obj),

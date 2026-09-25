@@ -1,0 +1,39 @@
+<section class="embed" [attr.aria-label]="copy.widgetLabel" [attr.data-status]="status()">
+  @if (status() === 'loading') {
+    <p class="embed-loading" role="status">{{ copy.loadingLabel }}</p>
+  } @else if (status() === 'error') {
+    <div class="embed-fallback" role="alert">
+      <h1 class="embed-fallback-title">{{ copy.unavailableHeading }}</h1>
+      <p class="embed-fallback-body">{{ copy.unavailableBody }}</p>
+    </div>
+  } @else if (builderConfig(); as cfg) {
+    <header class="embed-header">
+      @if (cfg.logo_url) {
+        <img class="embed-logo" [src]="cfg.logo_url" [alt]="cfg.display_name" />
+      } @else {
+        <span class="embed-wordmark">{{ cfg.display_name }}</span>
+      }
+    </header>
+    <div class="embed-body">
+      <app-address-autocomplete #addressBox (selected)="property.set($event)" />
+      <button type="button" class="embed-cta" (click)="onCta(addressBox)">
+        {{ copy.ctaLabel }}
+      </button>
+      @if (hasContact()) {
+        <p class="embed-contact">
+          <span>{{ copy.contactPrefix }}</span>
+          @if (phone(); as p) {
+            <a [href]="'tel:' + p">{{ p }}</a>
+          }
+          @if (phone() && email()) {
+            <span aria-hidden="true"> · </span>
+          }
+          @if (email(); as e) {
+            <a [href]="'mailto:' + e">{{ e }}</a>
+          }
+        </p>
+      }
+    </div>
+  }
+  <span class="embed-badge">{{ copy.poweredBy }}</span>
+</section>
