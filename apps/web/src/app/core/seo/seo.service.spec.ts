@@ -168,7 +168,7 @@ describe('SeoService', () => {
   });
 
   it('indexable routes carry no robots tag', () => {
-    for (const path of ['', 'privacy', 'terms', 'how-it-works', 'faq']) {
+    for (const path of ['', 'privacy', 'terms', 'how-it-works', 'faq', 'developers']) {
       service.setForRoute('estimate/scope'); // ensure a tag exists first
       service.setForRoute(path);
       expect(TestBed.inject(Meta).getTag('name="robots"')).toBeNull();

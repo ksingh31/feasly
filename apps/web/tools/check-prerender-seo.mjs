@@ -71,7 +71,8 @@ function mustCanonical(html, route, expectedPath) {
 
 // --- Indexable routes: full tag set + trailing-slash canonical. ---
 // SEO-010 added /how-it-works and /faq: same bar as the other indexable pages.
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/404']) {
+// api-mcp/03 added /developers: same bar.
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/404']) {
   const html = htmlFor(route);
   const expectedPath = route === '/' ? '/' : `${route}/`;
   mustCanonical(html, route, expectedPath);
@@ -110,7 +111,7 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/404']
 }
 
 // --- Indexable routes must NOT be noindexed. ---
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq']) {
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers']) {
   const html = htmlFor(route);
   mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
 }

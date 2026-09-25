@@ -421,6 +421,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'How Feasly builds your Calgary infill estimate in 4 steps: address, scope, preview, unlock. Deterministic math, real City data.',
       faqTitle: 'Feasly — Frequently asked questions',
       faq: 'Is Feasly free? What data do you use? How accurate are estimates? Answers about Calgary infill estimates, privacy, and magic links.',
+      developersTitle: 'Feasly — API docs for developers',
+      developers:
+        'Build on the Feasly API: address-aware property data, deterministic build estimates, and lead capture. Quickstart, auth, scopes, rate limits, errors, sandbox, and the live OpenAPI spec.',
       notFoundTitle: 'Feasly — Page not found',
       notFound: "The page you're looking for moved or never existed.",
       errorTitle: 'Feasly — Something went wrong',

@@ -162,6 +162,7 @@ function buildLlmsTxt(
     `- Home: ${siteUrl}/`,
     `- How it works: ${siteUrl}/how-it-works`,
     `- FAQ: ${siteUrl}/faq`,
+    `- Developers / API docs: ${siteUrl}/developers`,
     `- Communities index: ${siteUrl}/communities/`,
     `- Sample report: ${siteUrl}/sample-report`,
     `- Privacy: ${siteUrl}/privacy`,

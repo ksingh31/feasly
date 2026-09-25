@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
@@ -57,6 +58,10 @@ export const routes: Routes = [
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
   { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // API docs (api-mcp/03): indexable like the other marketing pages — no
+  // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
+  // crawlable. Sitemap already reserves /developers (seo/02).
+  { path: 'developers', component: DevelopersPageComponent, canActivate: [robotsGuard] },
   // Labelled sample report (seo/09): fictional data, watermarked, never
   // gated/emailed/persisted. noindex like the wizard routes — it's a trust
   // page for visitors, not a search landing page.

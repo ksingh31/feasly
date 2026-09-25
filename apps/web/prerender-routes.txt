@@ -3,5 +3,6 @@
 /terms
 /how-it-works
 /faq
+/developers
 /404
 /sample-report

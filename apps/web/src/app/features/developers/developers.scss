@@ -1,0 +1,169 @@
+/* Developers page (api-mcp/03): prerendered API docs. Extends the shared
+   marketing-page layout with code blocks, tables, and a section TOC. */
+
+.developers {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 120px 24px 80px;
+  background: var(--cream);
+}
+
+.developers .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  font-size: var(--type-eyebrow);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.developers .eyebrow-line {
+  width: 28px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.developers h1 {
+  font-family: var(--font-ui);
+  font-size: clamp(30px, 4.5vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.developers .lede {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-bottom: 32px;
+  max-width: 640px;
+}
+
+/* Section table of contents. */
+.developers .toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 56px;
+  padding: 16px 20px;
+  border: 1px solid var(--border, #e8e0d2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.developers .toc a {
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.developers .toc a:hover {
+  text-decoration: underline;
+}
+
+.developers section {
+  margin-bottom: 48px;
+}
+
+.developers h2 {
+  font-family: var(--font-ui);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 16px;
+  color: var(--text);
+  scroll-margin-top: 100px;
+}
+
+.developers p,
+.developers li {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.developers ul,
+.developers ol.steps {
+  margin: 0 0 20px;
+  padding-left: 24px;
+}
+
+.developers li {
+  margin-bottom: 10px;
+}
+
+.developers code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.developers pre {
+  background: #1e1b16;
+  color: #f2ede3;
+  padding: 18px 20px;
+  border-radius: 12px;
+  overflow-x: auto;
+  margin: 16px 0 20px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.developers pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.developers table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 20px;
+  font-size: 15px;
+}
+
+.developers th,
+.developers td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #e8e0d2);
+  vertical-align: top;
+}
+
+.developers th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.developers .cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 56px;
+}
+
+.developers .cta {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.developers .cta.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}

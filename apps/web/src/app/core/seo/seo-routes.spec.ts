@@ -16,6 +16,9 @@ describe('seo-routes', () => {
     expect(findSeoRoute('how-it-works').noindex).toBeFalsy();
     expect(findSeoRoute('/faq/').titleKey).toBe('faqTitle');
     expect(findSeoRoute('faq').noindex).toBeFalsy();
+    // API docs (api-mcp/03): indexable, own title/description keys.
+    expect(findSeoRoute('developers').titleKey).toBe('developersTitle');
+    expect(findSeoRoute('/developers/').noindex).toBeFalsy();
   });
 
   it('matches :param segments', () => {

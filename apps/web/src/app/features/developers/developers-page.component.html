@@ -1,0 +1,190 @@
+<app-site-nav />
+<main class="developers" id="main-content" tabindex="-1">
+  <p class="eyebrow"><span class="eyebrow-line"></span>Developers</p>
+  <h1>Build on the Feasly API</h1>
+  <p class="lede">
+    Address-aware property data, deterministic build estimates, and lead capture — over a
+    versioned REST API with API-key auth, RFC&nbsp;7807 errors, and an always-current OpenAPI spec.
+  </p>
+
+  <nav class="toc" aria-label="On this page">
+    <a href="#quickstart">Quickstart</a>
+    <a href="#auth">Authentication</a>
+    <a href="#scopes">Scopes</a>
+    <a href="#rate-limits">Rate limits</a>
+    <a href="#errors">Errors</a>
+    <a href="#idempotency">Idempotency</a>
+    <a href="#sandbox">Sandbox</a>
+    <a href="#reference">API reference</a>
+    <a href="#changelog">Changelog</a>
+  </nav>
+
+  <section id="quickstart" aria-labelledby="quickstart-h">
+    <h2 id="quickstart-h">Quickstart — your first estimate in 5 minutes</h2>
+    <ol class="steps">
+      <li>
+        <strong>Get a test key.</strong> Test keys start with <code>feasly_test_</code> and only work
+        against the sandbox. Contact us to have one issued for your integration.
+      </li>
+      <li>
+        <strong>Look up an address.</strong> Autocomplete is free and needs no key:
+        <pre><code>curl "{{ sandboxBase }}/properties/autocomplete?q=1234+17+Ave+SW"</code></pre>
+      </li>
+      <li>
+        <strong>Run an estimate.</strong> Estimates are deterministic — the same inputs always
+        return the same figures:
+        <pre><code>curl -X POST "{{ sandboxBase }}/estimate" \
+  -H "Authorization: Bearer feasly_test_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{{'{'}}"address": "1234 17 Ave SW, Calgary, AB",
+      "livingAreaSqft": 2200,
+      "finishTier": "standard"{{'}'}}'</code></pre>
+      </li>
+      <li>
+        <strong>Handle the response.</strong> Success returns your estimate; failures return an
+        RFC&nbsp;7807 problem document (see <a href="#errors">Errors</a>).
+      </li>
+    </ol>
+  </section>
+
+  <section id="auth" aria-labelledby="auth-h">
+    <h2 id="auth-h">Authentication</h2>
+    <p>
+      Every request except the property autocomplete endpoint and
+      <code>GET&nbsp;/openapi.json</code> needs an API key. Send it as a Bearer token:
+    </p>
+    <pre><code>Authorization: Bearer feasly_live_YOUR_KEY</code></pre>
+    <ul>
+      <li><strong>Live keys</strong> start with <code>feasly_live_</code> and hit production.</li>
+      <li><strong>Test keys</strong> start with <code>feasly_test_</code> and only work in the sandbox.</li>
+      <li>Only the SHA-256 hash of your key is stored — the plaintext is shown once at issuance. If you lose it, rotate the key.</li>
+      <li>Keys carry scopes and an optional per-key rate limit (see below).</li>
+    </ul>
+  </section>
+
+  <section id="scopes" aria-labelledby="scopes-h">
+    <h2 id="scopes-h">Scopes</h2>
+    <p>Keys are least-privilege: each key only gets the scopes your integration needs.</p>
+    <table>
+      <thead>
+        <tr><th>Scope</th><th>Grants access to</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>property:read</code></td><td>Address autocomplete and property lookup</td></tr>
+        <tr><td><code>estimate</code></td><td>Running new estimates</td></tr>
+        <tr><td><code>estimate:read</code></td><td>Reading previously generated estimates</td></tr>
+        <tr><td><code>lead</code></td><td>Submitting leads</td></tr>
+        <tr><td><code>lead:read</code></td><td>Reading submitted leads</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Default scopes for a new key: <code>property:read</code>, <code>estimate</code>,
+      <code>lead</code>.
+    </p>
+  </section>
+
+  <section id="rate-limits" aria-labelledby="rate-limits-h">
+    <h2 id="rate-limits-h">Rate limits</h2>
+    <ul>
+      <li><strong>Default:</strong> 100 requests/minute per API key.</li>
+      <li>Exceeding the limit returns <code>429 Too Many Requests</code> with a
+        <code>retryAfterMs</code> hint in the RFC&nbsp;7807 body — wait that long, then retry with backoff.</li>
+      <li>The public property autocomplete endpoint has its own IP-based limiter and needs no key.</li>
+    </ul>
+  </section>
+
+  <section id="errors" aria-labelledby="errors-h">
+    <h2 id="errors-h">Errors</h2>
+    <p>
+      All errors are RFC&nbsp;7807 <code>application/problem+json</code> documents. The
+      <code>code</code> field is stable and safe to switch on; <code>message</code> is human-readable
+      and may change.
+    </p>
+    <pre><code>{{'{'}}
+  "type": "https://feasly.dev/problems/validation-error",
+  "title": "Validation failed",
+  "status": 422,
+  "code": "VALIDATION_ERROR",
+  "message": "livingAreaSqft must be at least 400",
+  "retryable": false
+{{'}'}}</code></pre>
+    <table>
+      <thead>
+        <tr><th>Status</th><th>Code</th><th>Meaning</th><th>Retry?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>400</td><td><code>VALIDATION_ERROR</code></td><td>Request body failed schema validation</td><td>No — fix the request</td></tr>
+        <tr><td>401</td><td><code>UNAUTHENTICATED</code></td><td>Missing or invalid API key</td><td>No — check the key</td></tr>
+        <tr><td>403</td><td><code>FORBIDDEN</code></td><td>Key lacks the required scope</td><td>No — request a wider scope</td></tr>
+        <tr><td>404</td><td><code>NOT_FOUND</code></td><td>Unknown route or resource</td><td>No</td></tr>
+        <tr><td>409</td><td><code>CONFLICT</code></td><td>Duplicate or conflicting state (e.g. key already revoked)</td><td>No</td></tr>
+        <tr><td>422</td><td><code>UNPROCESSABLE</code></td><td>Semantically invalid (e.g. address outside Calgary)</td><td>No — fix the input</td></tr>
+        <tr><td>429</td><td><code>RATE_LIMITED</code></td><td>Too many requests — see <code>retryAfterMs</code></td><td>Yes — after the delay</td></tr>
+        <tr><td>5xx</td><td><code>INTERNAL_ERROR</code></td><td>Something went wrong on our side</td><td>Yes — with backoff</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="idempotency" aria-labelledby="idempotency-h">
+    <h2 id="idempotency-h">Idempotency</h2>
+    <p>
+      Estimates are pure functions of their inputs — the deterministic cost engine returns
+      identical figures for identical requests, so retrying an estimate is always safe.
+      Lead submission is deduplicated on the backend: submitting the same lead twice within
+      the deduplication window returns the original record rather than creating a duplicate.
+    </p>
+  </section>
+
+  <section id="sandbox" aria-labelledby="sandbox-h">
+    <h2 id="sandbox-h">Sandbox mode</h2>
+    <ul>
+      <li>Base URL: <code>{{ sandboxBase }}</code></li>
+      <li>Use <code>feasly_test_</code> keys — live keys are rejected in the sandbox and test keys are rejected in production.</li>
+      <li>No real emails are sent; lead submissions are recorded but never delivered.</li>
+      <li>Same schemas, same error codes, same rate-limit behavior as production.</li>
+    </ul>
+  </section>
+
+  <section id="reference" aria-labelledby="reference-h">
+    <h2 id="reference-h">API reference</h2>
+    <p>
+      The OpenAPI 3.1 spec is generated from the same Zod schemas as the code, so it can never
+      drift. A CI drift test fails the build if the spec and the implementation disagree.
+    </p>
+    <ul>
+      <li>
+        <a [href]="openapiUrl" target="_blank" rel="noopener">OpenAPI 3.1 JSON spec</a>
+        — <code>{{ openapiUrl }}</code> (public, no auth, cached 1 hour)
+      </li>
+      <li>
+        Paste the spec URL into
+        <a href="https://editor.scalar.com/" target="_blank" rel="noopener">Scalar</a> or
+        <a href="https://redocly.github.io/redoc/" target="_blank" rel="noopener">Redoc</a>
+        for an interactive reference.
+      </li>
+    </ul>
+  </section>
+
+  <section id="changelog" aria-labelledby="changelog-h">
+    <h2 id="changelog-h">Changelog &amp; versioning</h2>
+    <ul>
+      <li><strong>v1</strong> is the current stable version. All routes live under <code>/api/v1</code>.</li>
+      <li><strong>Deprecation policy:</strong> breaking changes ship as a new URL version (v2), never by changing v1 behavior. When v2 ships, v1 gets at least 6 months notice before removal.</li>
+      <li><strong>Additive changes</strong> (new endpoints, new optional fields, new scopes) do not bump the version and are announced here.</li>
+    </ul>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Change</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>2026-09</td><td>v1: estimate, lead, and property endpoints; API-key issuance with scopes; OpenAPI 3.1 spec at <code>/api/v1/openapi.json</code>.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p class="cta-row">
+    <a class="cta" routerLink="/">Try the estimator</a>
+    <a class="cta secondary" [href]="openapiUrl" target="_blank" rel="noopener">OpenAPI spec</a>
+  </p>
+</main>
+<app-site-footer />
