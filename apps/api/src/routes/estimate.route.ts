@@ -18,7 +18,7 @@
  * - a route NEVER reads process.env (config arrives via the service)
  * - a route depends on the service *interface*, never the implementation
  */
-import type { EstimateResponse } from '@feasly/contracts';
+import type { ComparisonEstimateResponse, EstimateResponse } from '@feasly/contracts';
 import type { EstimateService } from '../services/estimate.service';
 
 export interface EstimateRouteDeps {
@@ -27,12 +27,12 @@ export interface EstimateRouteDeps {
 
 export interface EstimateRoute {
   /** Runs one estimate on an untrusted request body. */
-  handle(requestBody: unknown): Promise<EstimateResponse>;
+  handle(requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse>;
 }
 
 export function createEstimateRoute(deps: EstimateRouteDeps): EstimateRoute {
   return {
-    handle: (requestBody: unknown): Promise<EstimateResponse> =>
+    handle: (requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse> =>
       deps.estimate.estimate(requestBody),
   };
 }

@@ -439,6 +439,11 @@ export function createComposition(
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
     options.estimateStore ?? createDrizzleEstimateStore({ db: db.db });
+  // Community stats (neighbourhood/01): cache-first reads over the
+  // community_stats table; populated by the seed script + monthly refresh.
+  // Created here (before the estimate service) so NBH-02 comparison can use it.
+  const communityStatsService: CommunityStatsService =
+    createDrizzleCommunityStatsService({ db: db.db });
   // Cost engine: the versioned calibration table is injected here — the only
   // place the concrete table is chosen. A calibrated successor file swaps in
   // with a one-line change; every estimate pins which version it used.
@@ -446,6 +451,7 @@ export function createComposition(
     costData: PLACEHOLDER_COST_DATA,
     store: estimateStore,
     allowDraftCostData: config.costEngine.allowDraftCostData,
+    communityStats: communityStatsService,
   });
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =
@@ -589,10 +595,8 @@ export function createComposition(
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
   });
-  // Community stats (neighbourhood/01): cache-first reads over the
-  // community_stats table; populated by the seed script + monthly refresh.
-  const communityStatsService: CommunityStatsService =
-    createDrizzleCommunityStatsService({ db: db.db });
+  // Community stats route (neighbourhood/01): uses the service created above
+  // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
     communityStats: communityStatsService,
   });

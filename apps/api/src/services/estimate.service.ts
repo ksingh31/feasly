@@ -30,9 +30,11 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
+  createComparisonEstimate,
   createEstimate,
   createRenoEstimate,
   EngineInputError,
+  type ComparisonResult,
   type CostData,
   type EngineInput,
   type EstimateResult,
@@ -40,8 +42,14 @@ import {
   type RenoEstimateResult,
   type RenoInput,
 } from '@feasly/cost-engine';
-import type { CostRange, EstimateResponse, FixedFigure } from '@feasly/contracts';
+import type {
+  ComparisonEstimateResponse,
+  CostRange,
+  EstimateResponse,
+  FixedFigure,
+} from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateStore } from './estimate.store';
 
 /**
@@ -79,6 +87,14 @@ const RenoRequestSchema = z.object({
   underpinning: z.boolean().default(false),
 });
 
+/** Neighbourhood comparison request shape (NBH-02). */
+const ComparisonRequestSchema = z.object({
+  projectType: z.literal('comparison'),
+  neighbourhoods: z.array(z.string().trim().min(1).max(100)).min(2).max(3),
+  sqft: z.number().int().positive(),
+  tier: z.enum(['standard', 'premium', 'luxury']),
+});
+
 export const EstimateRequestSchema = z.preprocess(
   (value) => {
     if (typeof value === 'object' && value !== null && !('projectType' in value)) {
@@ -86,7 +102,11 @@ export const EstimateRequestSchema = z.preprocess(
     }
     return value;
   },
-  z.discriminatedUnion('projectType', [NewBuildRequestSchema, RenoRequestSchema]),
+  z.discriminatedUnion('projectType', [
+    NewBuildRequestSchema,
+    RenoRequestSchema,
+    ComparisonRequestSchema,
+  ]),
 );
 
 export type EstimateRequest = z.infer<typeof EstimateRequestSchema>;
@@ -96,10 +116,11 @@ export interface EstimateService {
    * Run an estimate on an untrusted request body. Rejects with HttpError(400)
    * for invalid input (RFC 7807 via the pipeline), 503 when renovation
    * estimates are disabled on uncalibrated data; resolves to the contract
-   * `EstimateResponse` (with pinned costDataVersion). Persisted before
-   * returning.
+   * `EstimateResponse` (with pinned costDataVersion), or
+   * `ComparisonEstimateResponse` for projectType='comparison'. Persisted
+   * before returning.
    */
-  estimate(requestBody: unknown): Promise<EstimateResponse>;
+  estimate(requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse>;
 }
 
 export interface EstimateServiceDeps {
@@ -112,6 +133,11 @@ export interface EstimateServiceDeps {
    * (COST_ENGINE_ALLOW_DRAFT). Wired from config in composition.ts.
    */
   readonly allowDraftCostData: boolean;
+  /**
+   * Community stats service (NBH-01) — for comparison land calculations.
+   * Wired once in composition.ts.
+   */
+  readonly communityStats: CommunityStatsService;
 }
 
 /** Engine bands are { low, base, high }; the contract carries all three. */
@@ -199,9 +225,41 @@ function toRenoResponse(
   };
 }
 
+/**
+ * Neighbourhood comparison response (NBH-02). One row-set per community
+ * with land/build/total ranges and the lowest-land flag.
+ */
+function toComparisonResponse(
+  estimateId: string,
+  parsed: Extract<EstimateRequest, { projectType: 'comparison' }>,
+  result: ComparisonResult,
+  createdAt: Date,
+): ComparisonEstimateResponse {
+  return {
+    estimateId,
+    projectType: 'comparison',
+    inputs: {
+      sqft: parsed.sqft,
+      tier: parsed.tier,
+    },
+    rowSets: result.rowSets.map((rs) => ({
+      slug: rs.slug,
+      lowestLand: rs.lowestLand,
+      land: toCostRange(rs.land),
+      build: toCostRange(rs.build),
+      total: toCostRange(rs.total),
+      visibility: rs.visibility,
+    })),
+    costDataVersion: result.costDataVersion,
+    createdAt: createdAt.toISOString(),
+  };
+}
+
 export function createEstimateService(deps: EstimateServiceDeps): EstimateService {
   return {
-    async estimate(requestBody: unknown): Promise<EstimateResponse> {
+    async estimate(
+      requestBody: unknown,
+    ): Promise<EstimateResponse | ComparisonEstimateResponse> {
       const parsed = EstimateRequestSchema.safeParse(requestBody);
       if (!parsed.success) {
         // With a matched discriminator the issues carry the inner schema's
@@ -209,6 +267,24 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         // they point at ['projectType'].
         const first = parsed.error.issues[0];
         const where = first && first.path.length > 0 ? first.path.join('.') : 'body';
+
+        // NBH-02: invalid neighbourhood count → 422 (not 400), naming the
+        // 'neighbourhoods' field per the story's acceptance criteria.
+        const isComparison =
+          typeof requestBody === 'object' &&
+          requestBody !== null &&
+          (requestBody as Record<string, unknown>).projectType === 'comparison';
+        const isNeighbourhoodsError =
+          isComparison && first && first.path[0] === 'neighbourhoods';
+        if (isNeighbourhoodsError) {
+          throw new HttpError(
+            422,
+            ErrorCodes.VALIDATION_FAILED,
+            `Invalid estimate request at 'neighbourhoods': must be 2–3 community slugs.`,
+            false,
+          );
+        }
+
         throw new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
@@ -255,6 +331,65 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           inputs: { ...response.inputs, renoInputs: response.renoInputs },
           figures: response.figures,
           rows: response.rows,
+          costDataVersion: response.costDataVersion,
+          createdAt,
+        });
+        return response;
+      }
+
+      if (parsed.data.projectType === 'comparison') {
+        // Neighbourhood comparison (NBH-02): look up each community's stats,
+        // then run the comparison engine.
+        const { neighbourhoods, sqft, tier } = parsed.data;
+
+        // Fetch community stats for each slug.
+        const avgLotSqftBySlug: Record<string, number | null> = {};
+        for (const slug of neighbourhoods) {
+          const stats = await deps.communityStats.getBySlug(slug);
+          if (!stats) {
+            throw new HttpError(
+              422,
+              ErrorCodes.COMMUNITY_NOT_FOUND,
+              `Unknown community: '${slug}'.`,
+              false,
+            );
+          }
+          avgLotSqftBySlug[slug] = stats.avgLotSqft;
+        }
+
+        let result: ComparisonResult;
+        try {
+          result = createComparisonEstimate(
+            {
+              neighbourhoods,
+              buildSqft: sqft,
+              tier,
+              avgLotSqftBySlug,
+            },
+            deps.costData,
+          );
+        } catch (error) {
+          if (error instanceof EngineInputError) {
+            // Map null-lot-size errors to COMMUNITY_NOT_FOUND (data incomplete),
+            // other engine errors to VALIDATION_FAILED.
+            const code = error.message.includes('no lot size data')
+              ? ErrorCodes.COMMUNITY_NOT_FOUND
+              : ErrorCodes.VALIDATION_FAILED;
+            throw new HttpError(422, code, error.message, false);
+          }
+          throw error;
+        }
+
+        const response = toComparisonResponse(estimateId, parsed.data, result, createdAt);
+        // Persist the immutable comparison record. addressKey is synthetic
+        // (no single property); the neighbourhoods are in inputs.
+        await deps.store.save({
+          id: estimateId,
+          projectType: 'comparison',
+          addressKey: `comparison:${neighbourhoods.join('+')}`,
+          inputs: response.inputs,
+          figures: { rowSets: response.rowSets },
+          rows: response.rowSets,
           costDataVersion: response.costDataVersion,
           createdAt,
         });

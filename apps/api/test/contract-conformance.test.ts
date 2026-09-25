@@ -49,6 +49,7 @@ import type {
 import type { EstimateResponse } from '@feasly/contracts';
 import { createEstimateRoute } from '../src/routes/estimate.route';
 import { createEstimateService } from '../src/services/estimate.service';
+import { expectEstimateResponse, mockCommunityStatsService } from './helpers/mock-community-stats';
 import type {
   EstimateRecord,
   EstimateStore,
@@ -285,7 +286,7 @@ if (REGEN) {
       costData: PLACEHOLDER_COST_DATA,
       store: createInMemoryEstimateStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const route = createEstimateRoute({ estimate: service });
 
     it('rejects hand-edited fixtures (SHA-256 checksum)', () => {
@@ -327,12 +328,12 @@ if (REGEN) {
     for (const fixtureCase of file.cases) {
       describe(`case ${fixtureCase.id}`, () => {
         it('leg (a) — web handler path matches the fixture', async () => {
-          const response = await route.handle(fixtureCase.request);
+          const response = expectEstimateResponse(await route.handle(fixtureCase.request));
           expectConformance('(a) web', stripVolatile(response), fixtureCase);
         });
 
         it('leg (b) — REST handler matches the fixture', async () => {
-          const response = await service.estimate(fixtureCase.request);
+          const response = expectEstimateResponse(await service.estimate(fixtureCase.request));
           expectConformance('(b) REST', stripVolatile(response), fixtureCase);
         });
 

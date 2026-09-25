@@ -16,6 +16,7 @@ import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
 import { createComposition, type AppComposition } from '../src/composition';
 import { createEstimateRoute } from '../src/routes/estimate.route';
 import { createEstimateService } from '../src/services/estimate.service';
+import { expectEstimateResponse, mockCommunityStatsService } from './helpers/mock-community-stats';
 import {
   createDrizzleEstimateStore,
   type EstimateRecord,
@@ -56,8 +57,9 @@ function fakeStore(): EstimateStore & { saved: EstimateRecord[] } {
 describe('estimate service', () => {
   it('returns the contracts EstimateResponse shape with the version pin', async () => {
     const store = fakeStore();
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true });
-    const result = await service.estimate(VALID_BODY);
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true,
+    communityStats: mockCommunityStatsService(),});
+    const result = expectEstimateResponse(await service.estimate(VALID_BODY));
 
     // Contract conformance: exact top-level keys of EstimateResponse.
     expect(Object.keys(result).sort()).toEqual(
@@ -67,7 +69,7 @@ describe('estimate service', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(result.addressKey).toBe('calgary-123-fake-st-nw');
-    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
     expect(result.inputs).toEqual({
       sqft: 2_200,
       tier: 'premium',
@@ -92,8 +94,9 @@ describe('estimate service', () => {
 
   it('persists the immutable record before returning', async () => {
     const store = fakeStore();
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true });
-    const result = await service.estimate(VALID_BODY);
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true,
+    communityStats: mockCommunityStatsService(),});
+    const result = expectEstimateResponse(await service.estimate(VALID_BODY));
     expect(store.saved).toHaveLength(1);
     const saved = store.saved[0];
     expect(saved.id).toBe(result.estimateId);
@@ -108,7 +111,7 @@ describe('estimate service', () => {
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const error = await service.estimate({ property: {} }).catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
     expect(error.status).toBe(400);
@@ -120,7 +123,7 @@ describe('estimate service', () => {
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const error = await service
       .estimate({
         property: { assessedLandValue: 1, lotSizeSqft: 1, zoning: 'R-C1' },
@@ -136,7 +139,7 @@ describe('estimate service', () => {
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const error = await service
       .estimate({ ...VALID_BODY, scope: { buildSqft: 'lots', tier: 'premium' } })
       .catch((e) => e);
@@ -149,7 +152,7 @@ describe('estimate service', () => {
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const error = await service
       .estimate({ ...VALID_BODY, scope: { buildSqft: 50_000, tier: 'standard' } })
       .catch((e) => e);
@@ -165,7 +168,8 @@ describe('estimate service', () => {
       },
       findById: async () => null,
     };
-    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken, allowDraftCostData: true });
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken, allowDraftCostData: true,
+    communityStats: mockCommunityStatsService(),});
     const error = await service.estimate(VALID_BODY).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(HttpError);
@@ -178,11 +182,11 @@ describe('estimate route', () => {
       costData: PLACEHOLDER_COST_DATA,
       store: fakeStore(),
       allowDraftCostData: true,
-    });
+    communityStats: mockCommunityStatsService(),});
     const route = createEstimateRoute({ estimate: service });
-    const viaRoute = await route.handle(VALID_BODY);
+    const viaRoute = expectEstimateResponse(await route.handle(VALID_BODY));
     expect(viaRoute.addressKey).toBe('calgary-123-fake-st-nw');
-    expect(viaRoute.costDataVersion).toBe('v0.2.0-unclibrated');
+    expect(viaRoute.costDataVersion).toBe('v0.3.0-unclibrated');
   });
 });
 
@@ -207,7 +211,7 @@ describe('estimate through the request pipeline (PGlite-backed stores)', () => {
       () => app.estimateRoute.handle(VALID_BODY),
     );
     if (isProblemDetails(outcome)) throw new Error(`unexpected problem: ${outcome.title}`);
-    expect(outcome.costDataVersion).toBe('v0.2.0-unclibrated');
+    expect(outcome.costDataVersion).toBe('v0.3.0-unclibrated');
     expect(outcome.estimateId).toBeDefined();
     const persisted = await app.estimateStore.findById(outcome.estimateId);
     expect(persisted?.addressKey).toBe('calgary-123-fake-st-nw');
@@ -280,17 +284,17 @@ function renoService(allowDraftCostData = true) {
     costData: PLACEHOLDER_COST_DATA,
     store,
     allowDraftCostData,
-  });
+    communityStats: mockCommunityStatsService(),});
   return { service, store };
 }
 
 describe('estimate service — renovation', () => {
   it('returns a reno estimate with ranges, rows, assumptions and visibility hints', async () => {
     const { service } = renoService();
-    const result = await service.estimate(RENO_BODY);
+    const result = expectEstimateResponse(await service.estimate(RENO_BODY));
     expect(result.projectType).toBe('renovation');
     expect(result.addressKey).toBe('calgary-456-reno-ave-nw');
-    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
     expect(result.figures.build).toEqual({ low: 184_000, base: 230_000, high: 288_000 });
     expect(result.figures.total).toEqual(result.figures.build);
     expect(result.figures.land).toEqual({ value: 0 });
@@ -314,26 +318,26 @@ describe('estimate service — renovation', () => {
     ['combined', ['reno.extensive', 'reno.addition', 'reno.basement']],
   ] as const)('prices renoType %s with component rows %o', async (renoType, keys) => {
     const { service } = renoService();
-    const result = await service.estimate({ ...RENO_BODY, renoType });
+    const result = expectEstimateResponse(await service.estimate({ ...RENO_BODY, renoType }));
     expect(result.rows.map((r) => r.key)).toEqual([...keys]);
     expect(result.figures.total.low).toBeLessThanOrEqual(result.figures.total.base);
   });
 
   it('caps addition billing at 400 sqft', async () => {
     const { service } = renoService();
-    const capped = await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 600 });
-    const exact = await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 400 });
+    const capped = expectEstimateResponse(await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 600 }));
+    const exact = expectEstimateResponse(await service.estimate({ ...RENO_BODY, renoType: 'addition', renoSqft: 400 }));
     expect(capped.figures.total).toEqual(exact.figures.total);
   });
 
   it('adds the underpinning row for basement when requested', async () => {
     const { service } = renoService();
-    const result = await service.estimate({
+    const result = expectEstimateResponse(await service.estimate({
       ...RENO_BODY,
       renoType: 'basement',
       renoSqft: 800,
       underpinning: true,
-    });
+    }));
     expect(result.rows.map((r) => r.key)).toEqual(['reno.basement', 'reno.underpinning']);
     expect(result.renoInputs!.underpinning).toBe(true);
   });
@@ -368,12 +372,12 @@ describe('estimate service — renovation', () => {
 
   it('leaks no per_sqft/margin/param terms in the serialized response (AC6)', async () => {
     const { service } = renoService();
-    const result = await service.estimate({
+    const result = expectEstimateResponse(await service.estimate({
       ...RENO_BODY,
       renoType: 'combined',
       renoSqft: 600,
       underpinning: true,
-    });
+    }));
     const serialized = JSON.stringify(result).toLowerCase();
     for (const fragment of ['per_sqft', 'persqft', 'unit_rate', 'margin', 'param']) {
       expect(serialized).not.toContain(fragment);
@@ -382,8 +386,8 @@ describe('estimate service — renovation', () => {
 
   it('persists exactly one immutable row per call pinned to the version (AC8)', async () => {
     const { service, store } = renoService();
-    const first = await service.estimate(RENO_BODY);
-    const second = await service.estimate({ ...RENO_BODY, renoType: 'basement' });
+    const first = expectEstimateResponse(await service.estimate(RENO_BODY));
+    const second = expectEstimateResponse(await service.estimate({ ...RENO_BODY, renoType: 'basement' }));
     expect(store.saved).toHaveLength(2);
     for (const [saved, result] of [
       [store.saved[0], first],
@@ -391,7 +395,7 @@ describe('estimate service — renovation', () => {
     ] as const) {
       expect(saved.id).toBe(result.estimateId);
       expect(saved.projectType).toBe('renovation');
-      expect(saved.costDataVersion).toBe('v0.2.0-unclibrated');
+      expect(saved.costDataVersion).toBe('v0.3.0-unclibrated');
       expect(saved.addressKey).toBe(result.addressKey);
     }
     expect(store.saved[0].id).not.toBe(store.saved[1].id);
@@ -406,7 +410,7 @@ describe('estimate service — renovation', () => {
 
   it('still serves new_build on draft data without the flag', async () => {
     const { service } = renoService(false);
-    const result = await service.estimate(VALID_BODY);
+    const result = expectEstimateResponse(await service.estimate(VALID_BODY));
     expect(result.addressKey).toBe('calgary-123-fake-st-nw');
     expect(result.projectType).toBeUndefined();
   });
@@ -452,7 +456,7 @@ describe('renovation through the request pipeline (PGlite-backed stores)', () =>
       const record = await app.estimateStore.findById(body.estimateId);
       expect(record).not.toBeNull();
       expect(record!.projectType).toBe('renovation');
-      expect(record!.costDataVersion).toBe('v0.2.0-unclibrated');
+      expect(record!.costDataVersion).toBe('v0.3.0-unclibrated');
     }
   });
 

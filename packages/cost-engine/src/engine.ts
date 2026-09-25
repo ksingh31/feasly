@@ -17,6 +17,7 @@ import {
   type CostRow,
   type EngineInput,
   type EstimateResult,
+  type FinishTier,
   type FixedAmount,
   type RangedAmount,
 } from './types';
@@ -93,6 +94,48 @@ function checkBounds(input: EngineInput, data: CostData): void {
  * Run the estimate. Deterministic: no clock, no randomness, no I/O —
  * the result depends only on `input` and `costData`.
  */
+/**
+ * Calculates the build-cost band (hard + soft + contingency) for a given
+ * build size, lot size, and finish tier. Exported for reuse by the
+ * neighbourhood comparison engine (NBH-02), which needs the build portion
+ * without the property-specific land assessment.
+ *
+ * Pure function of (buildSqft, lotSizeSqft, tier, costData).
+ */
+export function calculateBuildBand(
+  buildSqft: number,
+  lotSizeSqft: number,
+  tier: FinishTier,
+  costData: CostData,
+): RangedAmount {
+  const buildSqftWhole = wholeDollars(buildSqft);
+  const lotSizeSqftWhole = wholeDollars(lotSizeSqft);
+
+  // Hard costs — one row per category in data-file order (insertion order
+  // is deterministic), each scaled by its configured input dimension.
+  let hardTotal = zeroBand();
+  for (const [, category] of Object.entries(costData.hardCosts)) {
+    const scale = category.scalesWith === 'lotSizeSqft' ? lotSizeSqftWhole : buildSqftWhole;
+    const rowBand = band(scale * category.rates[tier], category.spread);
+    hardTotal = addBands(hardTotal, rowBand);
+  }
+
+  // Soft costs — fractions of the hard-cost base total.
+  let softTotal = zeroBand();
+  for (const [, category] of Object.entries(costData.softCosts)) {
+    const rowBand = band(hardTotal.base * category.fraction, category.spread);
+    softTotal = addBands(softTotal, rowBand);
+  }
+
+  // Contingency — fraction of (hard base + soft base).
+  const contingencyBand = band(
+    (hardTotal.base + softTotal.base) * costData.contingency.fraction,
+    costData.contingency.spread,
+  );
+
+  return addBands(addBands(hardTotal, softTotal), contingencyBand);
+}
+
 export function createEstimate(input: EngineInput, costData: CostData): EstimateResult {
   checkBounds(input, costData);
 
@@ -143,7 +186,7 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
     range: contingencyBand,
   });
 
-  const build = addBands(addBands(hardTotal, softTotal), contingencyBand);
+  const build = calculateBuildBand(buildSqft, lotSizeSqft, tier, costData);
   const total = addBands(build, { low: landValue, base: landValue, high: landValue });
 
   return {
