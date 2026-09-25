@@ -525,6 +525,8 @@ export interface AppConfig {
       faq: string;
       developersTitle: string;
       developers: string;
+      communitiesTitle: string;
+      communities: string;
       notFoundTitle: string;
       notFound: string;
       errorTitle: string;
@@ -552,6 +554,18 @@ export interface AppConfig {
         title: string;
         sub: string;
         items: { q: string; a: string }[];
+      };
+      /**
+       * Community index (SEO-05). Copy for `/communities/` and the landing
+       * "Browse community guides" entry card.
+       */
+      communities: {
+        /** Landing card title: "Browse community guides". */
+        landingTitle: string;
+        /** Landing card body. */
+        landingBody: string;
+        /** Index page intro paragraph. */
+        intro: string;
       };
     };
     /**

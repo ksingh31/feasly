@@ -480,6 +480,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       developersTitle: 'Feasly — API docs for developers',
       developers:
         'Build on the Feasly API: address-aware property data, deterministic build estimates, and lead capture. Quickstart, auth, scopes, rate limits, errors, sandbox, and the live OpenAPI spec.',
+      communitiesTitle: 'Feasly — Calgary community build-cost guides',
+      communities:
+        'Browse build-cost guides for 40 Calgary communities: average assessed values, lot sizes, and estimated new-build cost ranges by finish tier.',
       notFoundTitle: 'Feasly — Page not found',
       notFound: "The page you're looking for moved or never existed.",
       errorTitle: 'Feasly — Something went wrong',
@@ -548,6 +551,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             a: 'After you enter your email at the gate, we send a link that unlocks your full report — no password to remember. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one.',
           },
         ],
+      },
+      communities: {
+        landingTitle: 'Browse community guides',
+        landingBody:
+          'Build-cost guides for 40 Calgary communities — assessed values, lot sizes, and cost ranges by finish tier.',
+        intro:
+          'Every community, one page: average assessed values, lot sizes, and estimated new-build cost ranges by finish tier — built from City of Calgary assessment data and current construction costs. Pick a community to see the full cost guide.',
       },
     },
     consent: {

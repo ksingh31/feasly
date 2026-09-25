@@ -1,0 +1,27 @@
+<app-site-nav />
+<main class="communities-index">
+  <div class="communities-index__inner">
+    <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>Calgary</p>
+    <h1>Calgary Community Build-Cost Guides</h1>
+    <p class="lede">{{ indexCopy.intro }}</p>
+
+    <ul class="community-grid">
+      @for (community of communities; track community.slug) {
+        <li>
+          <a class="community-card" [routerLink]="communityLink(community)">
+            <h2>{{ community.name }}</h2>
+            <p class="assessed">
+              Avg. assessed value
+              <strong>{{ assessedValue(community) }}</strong>
+            </p>
+            @if (fromPrice(community); as from) {
+              <p class="from-price">New build from <strong>{{ from }}</strong></p>
+            }
+            <span class="card-cta" aria-hidden="true">View cost guide →</span>
+          </a>
+        </li>
+      }
+    </ul>
+  </div>
+</main>
+<app-site-footer />
