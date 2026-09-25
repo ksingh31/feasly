@@ -63,7 +63,7 @@ describe('estimate service', () => {
 
     // Contract conformance: exact top-level keys of EstimateResponse.
     expect(Object.keys(result).sort()).toEqual(
-      ['addressKey', 'costDataVersion', 'createdAt', 'estimateId', 'figures', 'inputs', 'rows'].sort(),
+      ['addressKey', 'costDataVersion', 'createdAt', 'disclaimer', 'estimateId', 'figures', 'inputs', 'rows'].sort(),
     );
     expect(result.estimateId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
