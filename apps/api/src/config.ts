@@ -104,6 +104,16 @@ const EnvSchema = z.object({
   // boot on draft data even then (see composition.ts). Set it in dev only.
   COST_ENGINE_ALLOW_DRAFT: z.coerce.boolean().default(false),
 
+  // --- Property data (City of Calgary Socrata) ---
+  // Public open-data API — no key required. Anonymous requests are
+  // rate-limited per IP, so the property service caches responses.
+  SOCRATA_BASE_URL: z.string().url().default('https://data.calgary.ca'),
+  SOCRATA_DATASET_ID: z.string().min(1).default('4bsw-nn7w'),
+  PROPERTY_CACHE_TTL_MS: z.coerce.number().int().positive().default(300_000),
+  PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
+  PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+
   // --- Transactional email (story email/01) ---
   // Provider: Azure Communication Services (Karan-approved 2026-09-24).
   // The ACS resource + sender domain are NOT provisioned by this story —
@@ -235,6 +245,21 @@ export interface CostEngineConfig {
   readonly allowDraftCostData: boolean;
 }
 
+export interface PropertyDataConfig {
+  /** Socrata API base (e.g. https://data.calgary.ca) — no key required. */
+  readonly socrataBaseUrl: string;
+  /** Property Assessment dataset ID. */
+  readonly datasetId: string;
+  /** In-memory cache TTL for Socrata responses. */
+  readonly cacheTtlMs: number;
+  /** HTTP timeout for Socrata requests. */
+  readonly httpTimeoutMs: number;
+  /** Max rows fetched per Socrata query. */
+  readonly searchRowLimit: number;
+  /** Max autocomplete suggestions returned. */
+  readonly suggestionLimit: number;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -252,6 +277,7 @@ export interface ApiConfig {
   readonly email: EmailConfig;
   readonly health: HealthConfig;
   readonly costEngine: CostEngineConfig;
+  readonly propertyData: PropertyDataConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -400,6 +426,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     costEngine: {
       allowDraftCostData: e.COST_ENGINE_ALLOW_DRAFT,
+    },
+    propertyData: {
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      datasetId: e.SOCRATA_DATASET_ID,
+      cacheTtlMs: e.PROPERTY_CACHE_TTL_MS,
+      httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
+      searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
+      suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
     },
   };
 }

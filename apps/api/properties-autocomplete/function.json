@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["get"],"name":"req","route":"v1/properties/autocomplete","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

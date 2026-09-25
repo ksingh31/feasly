@@ -106,6 +106,14 @@ import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
 } from './routes/embed-config.route';
+import {
+  createPropertyService,
+  type PropertyService,
+} from './services/property.service';
+import {
+  createPropertyRoute,
+  type PropertyRoute,
+} from './routes/property.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -164,6 +172,9 @@ export interface AppComposition {
   readonly communityStatsRoute: CommunityStatsRoute;
   readonly builderConfigService: BuilderConfigService;
   readonly embedConfigRoute: EmbedConfigRoute;
+  /** Property lookup (api-mcp/02): City of Calgary Socrata, cache-first. */
+  readonly propertyService: PropertyService;
+  readonly propertyRoute: PropertyRoute;
 }
 
 export interface CompositionOptions {
@@ -415,6 +426,15 @@ export function createComposition(
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
     builderConfig: builderConfigService,
   });
+  // Property lookup (api-mcp/02): Socrata-backed address autocomplete +
+  // property records. Public by design (City open data); the MCP server and
+  // embeds call these instead of hitting Socrata directly.
+  const propertyService: PropertyService = createPropertyService(
+    config.propertyData,
+  );
+  const propertyRoute: PropertyRoute = createPropertyRoute({
+    property: propertyService,
+  });
   return {
     config,
     db,
@@ -455,6 +475,8 @@ export function createComposition(
     communityStatsRoute,
     builderConfigService,
     embedConfigRoute,
+    propertyService,
+    propertyRoute,
   };
 }
 

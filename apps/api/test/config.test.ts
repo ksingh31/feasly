@@ -47,6 +47,14 @@ describe('loadConfig', () => {
       },
       health: { dbTimeoutMs: 2_000 },
       costEngine: { allowDraftCostData: false },
+      propertyData: {
+        socrataBaseUrl: 'https://data.calgary.ca',
+        datasetId: '4bsw-nn7w',
+        cacheTtlMs: 300_000,
+        httpTimeoutMs: 15_000,
+        searchRowLimit: 50,
+        suggestionLimit: 8,
+      },
     });
   });
 

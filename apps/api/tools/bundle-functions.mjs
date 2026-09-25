@@ -37,6 +37,10 @@
  *     (POST /api/v1/admin/api-keys/{id}/revoke)
  *   src/functions/embed-config.ts         → embed-config/index.js
  *     (GET /api/v1/embed/config)
+ *   src/functions/properties-autocomplete.ts → properties-autocomplete/index.js
+ *     (GET /api/v1/properties/autocomplete)
+ *   src/functions/properties-lookup.ts       → properties-lookup/index.js
+ *     (GET /api/v1/properties/lookup)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -91,6 +95,14 @@ const targets = [
   {
     entry: 'src/functions/embed-config.ts',
     out: 'embed-config/index.js',
+  },
+  {
+    entry: 'src/functions/properties-autocomplete.ts',
+    out: 'properties-autocomplete/index.js',
+  },
+  {
+    entry: 'src/functions/properties-lookup.ts',
+    out: 'properties-lookup/index.js',
   },
 ];
 
