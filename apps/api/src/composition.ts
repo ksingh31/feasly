@@ -135,7 +135,12 @@ export function createComposition(
     rateLimiter: leadRateLimiter,
     logger: options.logger,
   });
-  const healthService: HealthService = createHealthService({ config });
+  // HRD-06: the health endpoint reports real dependency state. A sick
+  // database yields `degraded` (never a 500) via the service's timeout.
+  const healthService: HealthService = createHealthService({
+    config,
+    dbPing: () => db.ping(),
+  });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
     options.estimateStore ?? createDrizzleEstimateStore({ db: db.db });
