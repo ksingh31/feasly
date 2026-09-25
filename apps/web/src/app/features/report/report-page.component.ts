@@ -103,6 +103,17 @@ export class ReportPageComponent implements OnInit {
   protected readonly unlocked = computed(() => this.snapshot() !== null);
   protected readonly loading = computed(() => this.status() === 'loading');
 
+  /** True when this is a renovation report (vs new-build). */
+  protected readonly isReno = computed(
+    () => this.snapshot()?.projectType === 'renovation',
+  );
+
+  /** Reno inputs from the snapshot (if reno). */
+  protected readonly renoInputs = computed(() => this.snapshot()?.renoInputs ?? null);
+
+  /** Engine-authored assumptions (reno only). */
+  protected readonly assumptions = computed(() => this.snapshot()?.assumptions ?? []);
+
   /**
    * A lead was submitted this session but the report is still locked: the
    * magic-link email is on its way (real backend) — sending the user back to

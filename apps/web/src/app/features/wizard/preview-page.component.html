@@ -1,19 +1,39 @@
 <app-site-nav />
 <main class="wrap" id="main-content" tabindex="-1">
-  <a class="back" routerLink="/estimate/details" (click)="goBack()">{{ copy.backLabel }}</a>
+  @if (isReno()) {
+    <a class="back" routerLink="/estimate/reno-scope" (click)="goBack()">{{ copy.backLabel }}</a>
+  } @else {
+    <a class="back" routerLink="/estimate/details" (click)="goBack()">{{ copy.backLabel }}</a>
+  }
   <h1 class="preview-heading">{{ copy.heading }}</h1>
 
   @if (property(); as p) {
     <app-property-card [property]="p" />
     <dl class="inputs-summary">
-      <div>
-        <dt>{{ wizardCopy.detailsLivingArea }}</dt>
-        <dd>{{ inputs().sqft.toLocaleString('en-CA') }} sq ft</dd>
-      </div>
-      <div>
-        <dt>{{ wizardCopy.detailsFinishTier }}</dt>
-        <dd class="cap">{{ inputs().tier }}</dd>
-      </div>
+      @if (isReno()) {
+        <!-- RENO-04: reno-specific visible facts (address/community in property card above) -->
+        <div>
+          <dt>{{ copy.renoTypeLabel }}</dt>
+          <dd>{{ renoTypeLabel() }}</dd>
+        </div>
+        <div>
+          <dt>{{ copy.renoSqftLabel }}</dt>
+          <dd>{{ renoInputs().renoSqft.toLocaleString('en-CA') }} sq ft</dd>
+        </div>
+        <div>
+          <dt>{{ wizardCopy.detailsFinishTier }}</dt>
+          <dd class="cap">{{ renoInputs().tier }}</dd>
+        </div>
+      } @else {
+        <div>
+          <dt>{{ wizardCopy.detailsLivingArea }}</dt>
+          <dd>{{ inputs().sqft.toLocaleString('en-CA') }} sq ft</dd>
+        </div>
+        <div>
+          <dt>{{ wizardCopy.detailsFinishTier }}</dt>
+          <dd class="cap">{{ inputs().tier }}</dd>
+        </div>
+      }
     </dl>
   }
 

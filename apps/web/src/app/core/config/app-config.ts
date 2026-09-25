@@ -233,6 +233,9 @@ export interface AppConfig {
       heading: string;
       readyNote: string;
       backLabel: string;
+      /** RENO-04: reno-specific visible fact labels. */
+      renoTypeLabel: string;
+      renoSqftLabel: string;
     };
     /** Property card (shared) copy. */
     propertyCard: {
@@ -324,6 +327,10 @@ export interface AppConfig {
       loadError: string;
       retryLabel: string;
       versionLabel: string;
+      /** RENO-04: reno-specific report copy (exact copy required by AC). */
+      renoPermitNote: string;
+      renoDeterministicNote: string;
+      estimateAnotherLabel: string;
     },
     /**
      * Lead-gate step (FE-004) copy. The single gate in the flow: name/email
@@ -370,6 +377,11 @@ export interface AppConfig {
       stageValidate: string;
       stageFetch: string;
       stageEstimate: string;
+      /** RENO-04: reno-specific step labels (each maps 1:1 to a real awaited call). */
+      stageFetchReno: string;
+      stageScopeReno: string;
+      stageEstimateReno: string;
+      stagePreviewReno: string;
       /** Screen-reader status words for each stage. */
       statusPending: string;
       statusActive: string;

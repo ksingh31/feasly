@@ -3,6 +3,7 @@ import type { Provider } from '@angular/core';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
+  AnyEstimateRequest,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -43,10 +44,10 @@ export interface ApiService {
   getProperty(addressKey: string): Observable<PropertyRecord>;
   /** Pre-gate preview: every figure blurred, rows empty — by type. */
   getPreviewEstimate(
-    request: EstimateRequest,
+    request: AnyEstimateRequest,
   ): Observable<PreviewEstimateResponse>;
   /** Post-gate estimate: real ranges. Only reachable after verification. */
-  getEstimate(request: EstimateRequest): Observable<EstimateResponse>;
+  getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -123,11 +124,11 @@ class LazyApiService implements ApiService {
     return this.resolve().getProperty(addressKey);
   }
 
-  getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {
+  getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
     return this.resolve().getPreviewEstimate(request);
   }
 
-  getEstimate(request: EstimateRequest): Observable<EstimateResponse> {
+  getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
     return this.resolve().getEstimate(request);
   }
 

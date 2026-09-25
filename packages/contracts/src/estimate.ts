@@ -54,6 +54,24 @@ export interface EstimateRequest extends EstimateInputs {
   readonly addressKey: string;
 }
 
+/** Renovation estimate request (RENO-01). Discriminated by projectType. */
+export interface RenoEstimateRequest {
+  readonly projectType: 'renovation';
+  readonly addressKey: string;
+  readonly renoType: RenoType;
+  readonly renoSqft: number;
+  readonly tier: FinishTier;
+  readonly underpinning: boolean;
+}
+
+/** New-build estimate request (explicit discriminator for the union). */
+export interface NewBuildEstimateRequest extends EstimateRequest {
+  readonly projectType?: 'new_build';
+}
+
+/** Any estimate request — new build or renovation (RENO-01). */
+export type AnyEstimateRequest = NewBuildEstimateRequest | RenoEstimateRequest;
+
 /** One breakdown line. Rendered only if the engine returned it — never invented. */
 export interface CostRow {
   readonly key: string;

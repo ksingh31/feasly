@@ -5,6 +5,7 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
+  AnyEstimateRequest,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -63,13 +64,13 @@ export class HttpApiService implements ApiService {
     return this.propertyData.getProperty(addressKey);
   }
 
-  getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {
+  getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
     return this.call(
       this.http.post<PreviewEstimateResponse>(`${this.base}/estimates/preview`, request),
     );
   }
 
-  getEstimate(request: EstimateRequest): Observable<EstimateResponse> {
+  getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
     return this.call(this.http.post<EstimateResponse>(`${this.base}/estimates`, request));
   }
 

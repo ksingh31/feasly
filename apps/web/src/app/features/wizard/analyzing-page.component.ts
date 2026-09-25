@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { switchMap, tap } from 'rxjs';
-import type { EstimateInputs, PropertyRecord } from '@feasly/contracts';
+import type { AnyEstimateRequest, EstimateInputs, PropertyRecord, RenoEstimateRequest } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
@@ -11,7 +11,7 @@ import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { SetReportToken } from '../report/report.actions';
 import { LeadState, StorePreviewEstimate, WizardState } from '../wizard';
 
-type StageKey = 'validate' | 'fetch' | 'estimate';
+type StageKey = 'validate' | 'fetch' | 'scope' | 'estimate' | 'preview';
 type StageState = 'pending' | 'active' | 'done' | 'error';
 
 interface PipelineStage {
@@ -82,12 +82,94 @@ export class AnalyzingPageComponent implements OnInit {
 
   private runPipeline(): void {
     this.failed = false;
-    this.stages = [
-      { key: 'validate', label: this.copy.stageValidate, state: 'pending' },
-      { key: 'fetch', label: this.copy.stageFetch, state: 'pending' },
-      { key: 'estimate', label: this.copy.stageEstimate, state: 'pending' },
-    ];
+    const isReno = this.store.selectSnapshot(WizardState.projectType) === 'renovation';
+    // RENO-04: reno uses 4 stages with reno-specific labels; new-build keeps 3.
+    // Each label maps 1:1 to a real awaited operation — no fake timers.
+    if (isReno) {
+      this.stages = [
+        { key: 'fetch', label: this.copy.stageFetchReno, state: 'pending' },
+        { key: 'scope', label: this.copy.stageScopeReno, state: 'pending' },
+        { key: 'estimate', label: this.copy.stageEstimateReno, state: 'pending' },
+        { key: 'preview', label: this.copy.stagePreviewReno, state: 'pending' },
+      ];
+    } else {
+      this.stages = [
+        { key: 'validate', label: this.copy.stageValidate, state: 'pending' },
+        { key: 'fetch', label: this.copy.stageFetch, state: 'pending' },
+        { key: 'estimate', label: this.copy.stageEstimate, state: 'pending' },
+      ];
+    }
+
     const property = this.store.selectSnapshot(WizardState.property);
+
+    if (isReno) {
+      this.runRenoPipeline(property);
+    } else {
+      this.runNewBuildPipeline(property);
+    }
+  }
+
+  /** Reno pipeline: 4 stages, each tied to a real awaited operation. */
+  private runRenoPipeline(property: PropertyRecord | null): void {
+    // Stage 1 — "Looking up property record…": real getProperty API call.
+    this.setStage('fetch', 'active');
+    if (!property) {
+      this.failStage('fetch');
+      return;
+    }
+    const renoInputs = this.store.selectSnapshot(WizardState.renoInputs);
+    
+    this.api
+      .getProperty(property.addressKey)
+      .pipe(
+        tap({
+          next: () => {
+            this.setStage('fetch', 'done');
+            // Stage 2 — "Measuring the project scope…": real reno input validation.
+            this.setStage('scope', 'active');
+          },
+          error: () => this.failStage('fetch'),
+        }),
+        switchMap((fresh) => {
+          // Validate reno inputs against config bounds (real work, not a timer).
+          if (!this.renoInputsValid(fresh, renoInputs)) {
+            throw new Error('Invalid reno inputs');
+          }
+          this.setStage('scope', 'done');
+          // Stage 3 — "Calculating renovation cost…": real estimate API call.
+          this.setStage('estimate', 'active');
+          const request = this.buildRenoRequest(fresh.addressKey, renoInputs);
+          return this.api.getPreviewEstimate(request).pipe(
+            tap({ error: () => this.failStage('estimate') }),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (preview) => {
+          this.setStage('estimate', 'done');
+          // Stage 4 — "Generating your preview…": real NGXS dispatch + navigation.
+          this.setStage('preview', 'active');
+          const leadId = this.store.selectSnapshot(LeadState.leadId);
+          const devToken = leadId ? this.api.devTokenForLead?.(leadId) : undefined;
+          const actions: Array<StorePreviewEstimate | SetReportToken> = [
+            new StorePreviewEstimate(preview),
+          ];
+          if (devToken) {
+            actions.push(new SetReportToken(devToken));
+          }
+          this.store.dispatch(actions);
+          this.setStage('preview', 'done');
+          void this.router.navigate(['/estimate/report']);
+        },
+        error: () => {
+          this.failed = true;
+        },
+      });
+  }
+
+  /** New-build pipeline: 3 stages (unchanged from FE-004). */
+  private runNewBuildPipeline(property: PropertyRecord | null): void {
     const inputs = this.store.selectSnapshot(WizardState.inputs);
 
     // Stage 1 — validate the inputs for real (config bounds, known tier).
@@ -142,6 +224,43 @@ export class AnalyzingPageComponent implements OnInit {
           this.failed = true;
         },
       });
+  }
+
+  /** Builds the reno estimate request from validated inputs. */
+  private buildRenoRequest(
+    addressKey: string,
+    reno: { renoType: string | null; renoSqft: number; tier: string | null; underpinning: boolean },
+  ): RenoEstimateRequest {
+    return {
+      projectType: 'renovation',
+      addressKey,
+      renoType: reno.renoType as RenoEstimateRequest['renoType'],
+      renoSqft: reno.renoSqft,
+      tier: reno.tier as RenoEstimateRequest['tier'],
+      underpinning: reno.underpinning,
+    };
+  }
+
+  /** Genuine reno input checks — the same bounds the reno scope step enforces. */
+  private renoInputsValid(
+    property: PropertyRecord,
+    reno: { renoType: string | null; renoSqft: number; tier: string | null },
+  ): boolean {
+    if (property.addressKey.trim() === '') {
+      return false;
+    }
+    if (reno.renoType == null || reno.tier == null) {
+      return false;
+    }
+    const wizard = this.config.get('wizard');
+    const cap = reno.renoType === 'addition' ? wizard.renoAdditionCap : wizard.renoSqftMax;
+    if (!Number.isFinite(reno.renoSqft) || reno.renoSqft < wizard.renoSqftMin || reno.renoSqft > cap) {
+      return false;
+    }
+    const knownTier = this.config
+      .get('copy')
+      .wizard.scopeTiers.some((tier) => tier.id === reno.tier);
+    return knownTier;
   }
 
   /** Genuine input checks — the same bounds the scope step enforces. */

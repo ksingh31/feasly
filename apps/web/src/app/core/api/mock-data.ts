@@ -22,6 +22,9 @@ import type {
   PartnerShareResponse,
   PreviewEstimateResponse,
   PropertyRecord,
+  RenoEstimateInputs,
+  RenoEstimateRequest,
+  RenoType,
 } from '@feasly/contracts';
 
 /** Cost-data version stamped on mock estimates. The real engine versions its model. */
@@ -298,6 +301,112 @@ export function mockNarrative(
   );
 }
 
+/** Reno type display labels for mock narratives (mirrors wizard copy). */
+const RENO_TYPE_LABELS: Record<RenoType, string> = {
+  extensive: 'extensive renovation',
+  addition: 'home addition',
+  basement: 'basement development',
+  combined: 'combined renovation',
+};
+
+/** Canned reno breakdown rows (RENO-01). Never served pre-gate. */
+function mockRenoRows(): CostRow[] {
+  return [
+    { key: 'demolition', label: 'Demolition & preparation', range: { low: 8000, base: 10000, high: 12000 } },
+    { key: 'structural', label: 'Structural work', range: { low: 15000, base: 18000, high: 21000 } },
+    { key: 'envelope', label: 'Exterior & envelope', range: { low: 12000, base: 14500, high: 17000 } },
+    { key: 'interior', label: 'Interior finishes', range: { low: 28000, base: 32500, high: 37000 } },
+    { key: 'mechanical', label: 'Mechanical & electrical', range: { low: 14000, base: 16500, high: 19000 } },
+    { key: 'soft', label: 'Soft costs (permits, design, fees)', range: { low: 9000, base: 11000, high: 13000 } },
+    { key: 'contingency', label: 'Contingency', range: { low: 10000, base: 12500, high: 15000 } },
+  ];
+}
+
+/**
+ * Post-gate reno estimate: canned ranges scaled to reno type/size/tier.
+ * No land figure — renovations don't touch land. Includes renoInputs,
+ * assumptions, and visibility hints per RENO-01.
+ */
+export function mockRenoEstimate(
+  addressKey: string,
+  request: RenoEstimateRequest,
+): EstimateResponse {
+  const base = mockRenoRows();
+  // Scale by area (reference: 800 sq ft) and tier
+  const factor = (MOCK_TIER_FACTORS[request.tier] * request.renoSqft) / 800;
+  const rows = base.map((row) => ({ ...row, range: scaleRange(row.range, factor) }));
+  const build = rows.reduce(
+    (acc, row) => ({
+      low: acc.low + row.range.low,
+      base: acc.base + row.range.base,
+      high: acc.high + row.range.high,
+    }),
+    { low: 0, base: 0, high: 0 },
+  );
+  // For reno, build and total are the same (no land)
+  const total = { ...build };
+  
+  const inputs: EstimateInputs = {
+    sqft: request.renoSqft,
+    tier: request.tier,
+    garage: 'none',
+    basement: 'unfinished',
+  };
+  
+  return {
+    estimateId: stableMockEstimateId(addressKey, inputs),
+    addressKey,
+    inputs,
+    figures: {
+      build,
+      total,
+      // Land is not applicable for renovations — use a zero fixed figure
+      // (the visibility hint marks it not_applicable; the UI hides the row)
+      land: { value: 0 },
+    },
+    rows,
+    costDataVersion: MOCK_COST_DATA_VERSION,
+    createdAt: new Date().toISOString(),
+    projectType: 'renovation',
+    renoInputs: {
+      projectType: 'renovation',
+      renoType: request.renoType,
+      renoSqft: request.renoSqft,
+      tier: request.tier,
+      underpinning: request.underpinning,
+    },
+    assumptions: [
+      `Scope covers ${request.renoSqft.toLocaleString('en-CA')} sq ft of ${RENO_TYPE_LABELS[request.renoType]}.`,
+      request.underpinning
+        ? 'Includes underpinning for the basement foundation.'
+        : 'No structural underpinning included.',
+      'Permit and contingency allowances are estimates — confirm with the City of Calgary and your builder.',
+    ],
+    visibility: {
+      land: 'not_applicable',
+      build: 'visible',
+      total: 'visible',
+    },
+  };
+}
+
+/**
+ * Deterministic narrative for a reno report — engine figures only.
+ */
+export function mockRenoNarrative(
+  renoInputs: RenoEstimateInputs,
+  figures: Pick<EstimateResponse, 'figures'>['figures'],
+  tierLabel: string,
+): string {
+  const fmt = (n: number): string => `$${n.toLocaleString('en-CA')}`;
+  return (
+    `This ${RENO_TYPE_LABELS[renoInputs.renoType]} covering ` +
+    `${renoInputs.renoSqft.toLocaleString('en-CA')} sq ft with ${tierLabel.toLowerCase()} finishes ` +
+    `points to an estimated investment of ${fmt(figures.total.base)}. ` +
+    `The planning range reflects early uncertainty in scope, site conditions and selections.`
+  );
+}
+
 /** Post-gate report snapshot. The disclaimer footer comes from config, not here. */
 export function mockReport(
   estimateId: string,
@@ -319,6 +428,49 @@ export function mockReport(
     narrative: `${mockNarrative(inputs, scaled.figures, TIER_LABELS[inputs.tier])} ${narrativeDisclaimer}`,
     preparedAt: new Date().toISOString(),
     version: 1,
+  };
+}
+
+/**
+ * Mock reno report: no land value, includes renoInputs and assumptions.
+ * Used when the estimate was created via mockRenoEstimate (RENO-04).
+ */
+export function mockRenoReport(
+  estimateId: string,
+  leadId: string,
+  renoInputs: RenoEstimateInputs,
+  narrativeDisclaimer: string,
+): GetReportResponse {
+  const request: RenoEstimateRequest = {
+    projectType: 'renovation',
+    addressKey: estimateId, // not used for figures
+    renoType: renoInputs.renoType,
+    renoSqft: renoInputs.renoSqft,
+    tier: renoInputs.tier,
+    underpinning: renoInputs.underpinning,
+  };
+  const estimate = mockRenoEstimate(estimateId, request);
+  const inputs: EstimateInputs = {
+    sqft: renoInputs.renoSqft,
+    tier: renoInputs.tier,
+    garage: 'none',
+    basement: 'unfinished',
+  };
+  return {
+    snapshotId: `snap-mock-${estimateId}-1`,
+    estimateId,
+    leadId,
+    inputs,
+    buildRange: estimate.figures.build,
+    totalRange: estimate.figures.total,
+    landValue: { value: 0 }, // not applicable for reno
+    rows: estimate.rows,
+    narrative: `${mockRenoNarrative(renoInputs, estimate.figures, TIER_LABELS[renoInputs.tier])} ${narrativeDisclaimer}`,
+    preparedAt: new Date().toISOString(),
+    version: 1,
+    projectType: 'renovation',
+    renoInputs,
+    assumptions: estimate.assumptions,
   };
 }
 

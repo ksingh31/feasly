@@ -48,8 +48,20 @@ export class PreviewPageComponent implements OnInit {
 
   protected readonly property = this.store.selectSignal(WizardState.property);
   protected readonly inputs = this.store.selectSignal(WizardState.inputs);
+  protected readonly projectType = this.store.selectSignal(WizardState.projectType);
+  protected readonly renoInputs = this.store.selectSignal(WizardState.renoInputs);
   protected readonly preview = this.store.selectSignal(ReportState.preview);
   protected readonly status = this.store.selectSignal(ReportState.status);
+
+  /** True when this is a renovation preview (vs new-build). */
+  protected readonly isReno = computed(() => this.projectType() === 'renovation');
+
+  /** Reno type display label (from wizard copy renoTypes). */
+  protected readonly renoTypeLabel = computed(() => {
+    const renoType = this.renoInputs().renoType;
+    if (!renoType) return '';
+    return this.wizardCopy.renoTypes.find((t) => t.id === renoType)?.name ?? renoType;
+  });
 
   protected readonly loading = computed(() => this.status() === 'loading' && this.preview() === null);
   protected readonly ready = computed(() => this.status() === 'ready' && this.preview() !== null);
