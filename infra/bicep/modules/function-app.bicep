@@ -94,6 +94,13 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
             name: 'EMAIL_PROVIDER'
             value: emailProvider
           }
+          {
+            // Cap the Node.js worker heap at 1536MB: the default
+            // --max-old-space-size=6144 (6GB) OOM-crashes on the 2048MB Flex
+            // Consumption instance. 1536MB leaves room for Functions host overhead.
+            name: 'languageWorkers__node__arguments'
+            value: '--max-old-space-size=1536'
+          }
           // NOTE: no FUNCTIONS_WORKER_RUNTIME / WEBSITE_NODE_DEFAULT_VERSION here —
           // Flex Consumption rejects them; the runtime is declared in
           // functionAppConfig.runtime below.
