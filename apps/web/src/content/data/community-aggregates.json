@@ -1,0 +1,286 @@
+{
+  "generatedAt": "2026-09-25T01:07:33.482Z",
+  "costDataVersion": "v0.1.0-unclibrated",
+  "communities": [
+    {
+      "slug": "beltline",
+      "name": "BELTLINE",
+      "count": 21589,
+      "avgAssessedValue": 607351,
+      "avgLotSqft": 21551
+    },
+    {
+      "slug": "panorama-hills",
+      "name": "PANORAMA HILLS",
+      "count": 9271,
+      "avgAssessedValue": 596377,
+      "avgLotSqft": 17976
+    },
+    {
+      "slug": "cranston",
+      "name": "CRANSTON",
+      "count": 8974,
+      "avgAssessedValue": 678977,
+      "avgLotSqft": 21733
+    },
+    {
+      "slug": "saddle-ridge",
+      "name": "SADDLE RIDGE",
+      "count": 8829,
+      "avgAssessedValue": 586219,
+      "avgLotSqft": 18185
+    },
+    {
+      "slug": "mckenzie-towne",
+      "name": "MCKENZIE TOWNE",
+      "count": 8713,
+      "avgAssessedValue": 489578,
+      "avgLotSqft": 27078
+    },
+    {
+      "slug": "evergreen",
+      "name": "EVERGREEN",
+      "count": 8702,
+      "avgAssessedValue": 588856,
+      "avgLotSqft": 29306
+    },
+    {
+      "slug": "mahogany",
+      "name": "MAHOGANY",
+      "count": 8689,
+      "avgAssessedValue": 719666,
+      "avgLotSqft": 43382
+    },
+    {
+      "slug": "tuscany",
+      "name": "TUSCANY",
+      "count": 7438,
+      "avgAssessedValue": 691906,
+      "avgLotSqft": 20829
+    },
+    {
+      "slug": "sage-hill",
+      "name": "SAGE HILL",
+      "count": 7256,
+      "avgAssessedValue": 514437,
+      "avgLotSqft": 36144
+    },
+    {
+      "slug": "auburn-bay",
+      "name": "AUBURN BAY",
+      "count": 7041,
+      "avgAssessedValue": 652123,
+      "avgLotSqft": 15233
+    },
+    {
+      "slug": "skyview-ranch",
+      "name": "SKYVIEW RANCH",
+      "count": 6707,
+      "avgAssessedValue": 433039,
+      "avgLotSqft": 44044
+    },
+    {
+      "slug": "evanston",
+      "name": "EVANSTON",
+      "count": 6263,
+      "avgAssessedValue": 744080,
+      "avgLotSqft": 9640
+    },
+    {
+      "slug": "signal-hill",
+      "name": "SIGNAL HILL",
+      "count": 6221,
+      "avgAssessedValue": 779673,
+      "avgLotSqft": 33665
+    },
+    {
+      "slug": "copperfield",
+      "name": "COPPERFIELD",
+      "count": 6218,
+      "avgAssessedValue": 488900,
+      "avgLotSqft": 23734
+    },
+    {
+      "slug": "legacy",
+      "name": "LEGACY",
+      "count": 6139,
+      "avgAssessedValue": 553347,
+      "avgLotSqft": 77466
+    },
+    {
+      "slug": "seton",
+      "name": "SETON",
+      "count": 6026,
+      "avgAssessedValue": 849051,
+      "avgLotSqft": 46676
+    },
+    {
+      "slug": "varsity",
+      "name": "VARSITY",
+      "count": 5953,
+      "avgAssessedValue": 833978,
+      "avgLotSqft": 90231
+    },
+    {
+      "slug": "cornerstone",
+      "name": "CORNERSTONE",
+      "count": 5912,
+      "avgAssessedValue": 585232,
+      "avgLotSqft": 22632
+    },
+    {
+      "slug": "springbank-hill",
+      "name": "SPRINGBANK HILL",
+      "count": 5741,
+      "avgAssessedValue": 897734,
+      "avgLotSqft": 45114
+    },
+    {
+      "slug": "west-springs",
+      "name": "WEST SPRINGS",
+      "count": 5740,
+      "avgAssessedValue": 824587,
+      "avgLotSqft": 19818
+    },
+    {
+      "slug": "douglasdale-glen",
+      "name": "DOUGLASDALE/GLEN",
+      "count": 5728,
+      "avgAssessedValue": 765169,
+      "avgLotSqft": 59626
+    },
+    {
+      "slug": "coventry-hills",
+      "name": "COVENTRY HILLS",
+      "count": 5564,
+      "avgAssessedValue": 609093,
+      "avgLotSqft": 5429
+    },
+    {
+      "slug": "edgemont",
+      "name": "EDGEMONT",
+      "count": 5494,
+      "avgAssessedValue": 850325,
+      "avgLotSqft": 36396
+    },
+    {
+      "slug": "royal-oak",
+      "name": "ROYAL OAK",
+      "count": 5310,
+      "avgAssessedValue": 561900,
+      "avgLotSqft": 32561
+    },
+    {
+      "slug": "lake-bonavista",
+      "name": "LAKE BONAVISTA",
+      "count": 5233,
+      "avgAssessedValue": 813130,
+      "avgLotSqft": 68355
+    },
+    {
+      "slug": "huntington-hills",
+      "name": "HUNTINGTON HILLS",
+      "count": 4847,
+      "avgAssessedValue": 599475,
+      "avgLotSqft": 56015
+    },
+    {
+      "slug": "bridlewood",
+      "name": "BRIDLEWOOD",
+      "count": 4798,
+      "avgAssessedValue": 495565,
+      "avgLotSqft": 28162
+    },
+    {
+      "slug": "mckenzie-lake",
+      "name": "MCKENZIE LAKE",
+      "count": 4681,
+      "avgAssessedValue": 778673,
+      "avgLotSqft": 10098
+    },
+    {
+      "slug": "livingston",
+      "name": "LIVINGSTON",
+      "count": 4630,
+      "avgAssessedValue": 647438,
+      "avgLotSqft": 12276
+    },
+    {
+      "slug": "taradale",
+      "name": "TARADALE",
+      "count": 4595,
+      "avgAssessedValue": 567863,
+      "avgLotSqft": 16037
+    },
+    {
+      "slug": "downtown-commercial-core",
+      "name": "DOWNTOWN COMMERCIAL CORE",
+      "count": 4536,
+      "avgAssessedValue": 5087494,
+      "avgLotSqft": 25529
+    },
+    {
+      "slug": "chaparral",
+      "name": "CHAPARRAL",
+      "count": 4520,
+      "avgAssessedValue": 688250,
+      "avgLotSqft": 23836
+    },
+    {
+      "slug": "arbour-lake",
+      "name": "ARBOUR LAKE",
+      "count": 4494,
+      "avgAssessedValue": 796743,
+      "avgLotSqft": 31221
+    },
+    {
+      "slug": "new-brighton",
+      "name": "NEW BRIGHTON",
+      "count": 4410,
+      "avgAssessedValue": 644241,
+      "avgLotSqft": 12982
+    },
+    {
+      "slug": "beddington-heights",
+      "name": "BEDDINGTON HEIGHTS",
+      "count": 4387,
+      "avgAssessedValue": 550990,
+      "avgLotSqft": 99657
+    },
+    {
+      "slug": "bowness",
+      "name": "BOWNESS",
+      "count": 4352,
+      "avgAssessedValue": 777234,
+      "avgLotSqft": 19600
+    },
+    {
+      "slug": "dover",
+      "name": "DOVER",
+      "count": 4331,
+      "avgAssessedValue": 442846,
+      "avgLotSqft": 42264
+    },
+    {
+      "slug": "rocky-ridge",
+      "name": "ROCKY RIDGE",
+      "count": 4271,
+      "avgAssessedValue": 575872,
+      "avgLotSqft": 33956
+    },
+    {
+      "slug": "bridgeland-riverside",
+      "name": "BRIDGELAND/RIVERSIDE",
+      "count": 4240,
+      "avgAssessedValue": 695730,
+      "avgLotSqft": 31916
+    },
+    {
+      "slug": "walden",
+      "name": "WALDEN",
+      "count": 4004,
+      "avgAssessedValue": 592504,
+      "avgLotSqft": 11413
+    }
+  ]
+}

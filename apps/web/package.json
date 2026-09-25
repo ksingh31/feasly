@@ -9,7 +9,8 @@
     "@ngxs/storage-plugin": "^22.0.0",
     "@ngxs/store": "^22.0.0",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "zod": "^4.6.5"
   },
   "description": "Feasly consumer site: Angular 22, static prerender, NGXS state, contract-driven mocks.",
   "devDependencies": {
@@ -18,8 +19,11 @@
     "@angular/compiler-cli": "^22.2.0",
     "@angular/platform-server": "^22.2.0",
     "@angular/ssr": "^22.2.0",
+    "@types/pg": "^8.23.1",
     "jsdom": "^30.0.0",
+    "pg": "^8.23.0",
     "prettier": "^3.8.1",
+    "tsx": "^4.20.5",
     "typescript": "~6.0.2",
     "vitest": "^5.0.0"
   },
@@ -29,9 +33,10 @@
     "build": "ng build",
     "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs",
     "ng": "ng",
-    "prebuild": "npm run build --workspace @feasly/contracts && node tools/apply-site-url.mjs",
+    "prebuild": "npm run build --workspace @feasly/contracts && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts",
     "start": "ng serve",
     "test": "ng test",
+    "test:scripts": "vitest run scripts/",
     "verify:seo": "ng build --configuration=production && node tools/check-prerender-seo.mjs",
     "watch": "ng build --watch --configuration development"
   },
