@@ -17,6 +17,8 @@ export interface ApiKeyAuthContext {
   readonly scopes: readonly string[];
   readonly sandbox: boolean;
   readonly tenantId: string | null;
+  /** Per-key rate limit, requests/minute (api-mcp/07). */
+  readonly rateLimitPerMin: number;
 }
 
 function bearerToken(
@@ -52,6 +54,7 @@ export async function authenticateApiKey(
     scopes: record.scopes,
     sandbox: record.sandbox,
     tenantId: record.tenantId,
+    rateLimitPerMin: record.rateLimitPerMin,
   };
 }
 

@@ -98,7 +98,21 @@ export async function estimateHandler(
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
-    () => app.estimateRoute.handle(req.body),
+    // api-mcp/07 — per-key rate limiting + usage metering when a Bearer
+    // API key is present. No key → passthrough (first-party traffic).
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        {
+          endpoint: '/api/v1/estimate',
+          extractEstimateId: (r) =>
+            typeof r === 'object' && r !== null && 'estimateId' in r
+              ? String((r as { estimateId: unknown }).estimateId)
+              : undefined,
+        },
+        () => app.estimateRoute.handle(req.body),
+      ),
   );
 
   if (middleware.isProblemDetails(result)) {

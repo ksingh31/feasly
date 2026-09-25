@@ -70,7 +70,15 @@ export async function propertiesLookupHandler(
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.propertyRoute.lookup(addressKey),
+    // api-mcp/07 — per-key rate limiting + usage metering when a Bearer
+    // API key is present.
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        { endpoint: '/api/v1/properties/lookup' },
+        () => app.propertyRoute.lookup(addressKey),
+      ),
   );
 
   if (middleware.isProblemDetails(result)) {

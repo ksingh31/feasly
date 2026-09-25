@@ -14,6 +14,13 @@ const routeHandle = vi.fn();
 const fakeApp = {
   estimatePipeline: { run: pipelineRun },
   estimateRoute: { handle: routeHandle },
+  // api-mcp/07: passthrough for adapter tests (no Bearer key in these tests).
+  withApiKeyRateLimit: async (
+    _headers: unknown,
+    _correlationId: string,
+    _options: unknown,
+    handler: () => Promise<unknown>,
+  ) => handler(),
 };
 
 vi.mock('../src/index', () => ({

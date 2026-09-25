@@ -57,6 +57,7 @@ describe('api-key auth middleware (api-mcp/01)', () => {
       scopes: ['property:read', 'estimate'],
       sandbox: false,
       tenantId: 'tenant_1',
+      rateLimitPerMin: 100,
     });
   });
 
@@ -103,6 +104,7 @@ describe('api-key auth middleware (api-mcp/01)', () => {
       scopes: ['estimate'],
       sandbox: false,
       tenantId: null,
+      rateLimitPerMin: 100,
     };
     expect(() => requireScope(auth, 'estimate')).not.toThrow();
   });
@@ -113,6 +115,7 @@ describe('api-key auth middleware (api-mcp/01)', () => {
       scopes: ['property:read'],
       sandbox: false,
       tenantId: null,
+      rateLimitPerMin: 100,
     };
     const error = (() => {
       try {

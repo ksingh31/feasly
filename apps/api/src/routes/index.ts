@@ -7,3 +7,4 @@ export * from './embed-config.route';
 export * from './analytics.route';
 export * from './property.route';
 export * from './openapi.route';
+export * from './usage.route';
