@@ -110,6 +110,21 @@ jobs:
           psql -h "$PGHOST" -U feaslyadmin -d feasly -t -c \
             "SELECT CASE WHEN to_regclass('public.community_stats') IS NOT NULL THEN 'community_stats EXISTS' ELSE 'community_stats MISSING' END;"
 
+      - name: Baseline __drizzle_migrations (idempotent)
+        env:
+          PGPASSWORD: ${{ env.PGPASS }}
+        run: |
+          set -euo pipefail
+          export PGSSLMODE=require
+          # Record all journaled migrations as applied with drizzle-kit's exact
+          # hashes, so future `db:migrate` runs correctly no-op.
+          psql -h "$PGHOST" -U feaslyadmin -d feasly \
+            -v ON_ERROR_STOP=1 \
+            -f infra/db/baseline-drizzle-migrations.sql
+          echo "=== migration baseline ==="
+          psql -h "$PGHOST" -U feaslyadmin -d feasly -t -c \
+            "SELECT count(*) FROM \"__drizzle_migrations\";"
+
       - name: Setup Node
         if: ${{ inputs.seed }}
         uses: actions/setup-node@v4
