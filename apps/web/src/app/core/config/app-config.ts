@@ -360,6 +360,8 @@ export interface AppConfig {
       faq: string;
       notFoundTitle: string;
       notFound: string;
+      errorTitle: string;
+      error: string;
     };
     /**
      * Marketing pages (SEO-010). All user-facing copy for `/how-it-works`

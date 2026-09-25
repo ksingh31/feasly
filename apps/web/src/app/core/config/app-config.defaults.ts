@@ -353,6 +353,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       faq: 'Is Feasly free? What data do you use? How accurate are estimates? Answers about Calgary infill estimates, privacy, and magic links.',
       notFoundTitle: 'Feasly — Page not found',
       notFound: "The page you're looking for moved or never existed.",
+      errorTitle: 'Feasly — Something went wrong',
+      error: 'Your estimate is safe — try again in a moment.',
     },
     marketing: {
       howItWorks: {
