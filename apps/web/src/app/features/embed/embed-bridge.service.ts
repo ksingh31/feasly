@@ -60,8 +60,9 @@ export class EmbedBridgeService {
 
     // Route transitions change content height: request a resize after each
     // navigation settles. The debounce keeps rapid transitions to one post.
+    // Guarded: test doubles of Router may not provide the events observable.
     this.router.events
-      .pipe(
+      ?.pipe(
         filter((ev) => ev instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef),
       )
