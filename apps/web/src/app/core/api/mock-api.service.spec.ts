@@ -141,11 +141,13 @@ describe('MockApiService', () => {
 
     it('post-gate estimate carries real ranges with valid rows', async () => {
       const estimate = await firstValueFrom(service.getEstimate(estimateRequest));
-      for (const figure of [estimate.figures.build, estimate.figures.total, estimate.figures.land]) {
+      for (const figure of [estimate.figures.build, estimate.figures.total]) {
         expect(Number.isInteger(figure.low)).toBe(true);
         expect(Number.isInteger(figure.high)).toBe(true);
         expect(figure.low).toBeLessThan(figure.high);
       }
+      // Land is a fixed figure, never a range.
+      expect(estimate.figures.land).toEqual({ value: 420000 });
       expect(estimate.rows.length).toBeGreaterThan(0);
       for (const row of estimate.rows) {
         expect(row.key).toBeTruthy();
@@ -257,11 +259,11 @@ describe('MockApiService', () => {
       // 0.92 tier factor on the canned build base (608000 -> 559000).
       expect(estimate.figures.build.low).toBe(559000);
       expect(estimate.inputs.tier).toBe('standard');
-      // Land is the City assessed value: never scaled by tier or size.
-      expect(estimate.figures.land).toEqual({ low: 395000, base: 420000, high: 445000 });
+      // Land is the fixed City assessed value: never scaled by tier or size.
+      expect(estimate.figures.land).toEqual({ value: 420000 });
       // Total is always build + land.
       expect(estimate.figures.total.low).toBe(
-        estimate.figures.build.low + estimate.figures.land.low,
+        estimate.figures.build.low + estimate.figures.land.value,
       );
     });
 
@@ -279,7 +281,7 @@ describe('MockApiService', () => {
       const token = await verifiedToken();
       const before = await firstValueFrom(service.getReport(token));
       const revised = await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
-      expect(revised.landRange).toEqual(before.landRange);
+      expect(revised.landValue).toEqual(before.landValue);
     });
   });
 

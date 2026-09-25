@@ -82,7 +82,7 @@ describe('SampleReportPageComponent', () => {
     expect(text).toContain('High');
     expect(text).toContain('$585,000');
     // Breakdown rows.
-    expect(text).toContain('Cost breakdown');
+    expect(text).toContain('Where the build budget goes');
     expect(text).toContain('Foundation & concrete');
     // Tier what-if, adjust, narrative placeholder, next steps.
     expect(text).toContain('What if you change the finish tier?');

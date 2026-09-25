@@ -7,7 +7,7 @@
  * so a route typed to return it cannot leak figures even by accident.
  * (Backend: BE2-002 pre-gate blur guarantee, BE3-002 preview endpoint.)
  */
-import type { BlurredFigure, CostRange } from './common';
+import type { BlurredFigure, CostRange, FixedFigure } from './common';
 
 export type FinishTier = 'standard' | 'premium' | 'luxury';
 export type GarageOption = 'none' | 'double' | 'triple';
@@ -81,8 +81,10 @@ export interface PreviewEstimateResponse {
 }
 
 /**
- * Post-gate estimate. Every figure is a real range — a blurred placeholder here
- * is a compile error. Snapshots and report figures only exist after verification.
+ * Post-gate estimate. Build and total are real ranges — a blurred placeholder
+ * there is a compile error. Land is a FIXED figure (the City assessed value),
+ * never a range — assigning a CostRange to it is a compile error. Snapshots
+ * and report figures only exist after verification.
  */
 export interface EstimateResponse {
   readonly estimateId: string;
@@ -91,7 +93,7 @@ export interface EstimateResponse {
   readonly figures: {
     readonly build: CostRange;
     readonly total: CostRange;
-    readonly land: CostRange;
+    readonly land: FixedFigure;
   };
   readonly rows: readonly CostRow[];
   readonly costDataVersion: string;
