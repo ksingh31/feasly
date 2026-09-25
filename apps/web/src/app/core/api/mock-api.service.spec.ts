@@ -149,8 +149,10 @@ describe('MockApiService', () => {
         expect(Number.isInteger(figure.high)).toBe(true);
         expect(figure.low).toBeLessThan(figure.high);
       }
-      // Land is a fixed figure, never a range.
-      expect(estimate.figures.land).toEqual({ value: 420000 });
+      // Land is a fixed figure, never a range. The mock mirrors the real
+      // backend: land is the property's City assessed value (685000 for the
+      // fixture address), not a canned constant.
+      expect(estimate.figures.land).toEqual({ value: 685000 });
       expect(estimate.rows.length).toBeGreaterThan(0);
       for (const row of estimate.rows) {
         expect(row.key).toBeTruthy();
@@ -231,6 +233,52 @@ describe('MockApiService', () => {
       expect(report.version).toBe(1);
     });
 
+    it('uses the property assessed value as fixed land (not the canned fixture)', async () => {
+      // 'calgary-918-16-ave-nw' is in the mock fixtures with assessedValue 823000.
+      const request = { ...estimateRequest, addressKey: 'calgary-918-16-ave-nw' };
+      const preview = await firstValueFrom(service.getPreviewEstimate(request));
+      const lead = await firstValueFrom(
+        service.submitLead({
+          email: 'buyer@example.com',
+          name: 'Test Buyer',
+          timeline: '6-12mo',
+          marketingConsent: false,
+          estimateId: preview.estimateId,
+        }),
+      );
+      const verified = await firstValueFrom(service.verifyMagicLink(service.devTokenForLead(lead.leadId)!));
+      if (!verified.valid) throw new Error('mock verify failed');
+      const report = await firstValueFrom(service.getReport(verified.reportToken));
+      // Land is the fixture property's assessed value, not the $420k default.
+      expect(report.landValue.value).toBe(823000);
+      // Total = build + land.
+      expect(report.totalRange.low).toBe(report.buildRange.low + 823000);
+      expect(report.totalRange.base).toBe(report.buildRange.base + 823000);
+      expect(report.totalRange.high).toBe(report.buildRange.high + 823000);
+    });
+
+    it('tier revision preserves the same fixed land value', async () => {
+      const request = { ...estimateRequest, addressKey: 'calgary-918-16-ave-nw' };
+      const preview = await firstValueFrom(service.getPreviewEstimate(request));
+      const lead = await firstValueFrom(
+        service.submitLead({
+          email: 'buyer@example.com',
+          name: 'Test Buyer',
+          timeline: '6-12mo',
+          marketingConsent: false,
+          estimateId: preview.estimateId,
+        }),
+      );
+      const verified = await firstValueFrom(service.verifyMagicLink(service.devTokenForLead(lead.leadId)!));
+      if (!verified.valid) throw new Error('mock verify failed');
+      const token = verified.reportToken;
+      const before = await firstValueFrom(service.getReport(token));
+      const revised = await firstValueFrom(service.reviseTier(token, { tier: 'luxury' }));
+      // Land stays fixed across tier revisions.
+      expect(revised.landValue.value).toBe(before.landValue.value);
+      expect(revised.landValue.value).toBe(823000);
+    });
+
     it('errors for an unknown report token', async () => {
       await expect(firstValueFrom(service.getReport('nope'))).rejects.toMatchObject({
         code: 'not_found',
@@ -259,11 +307,14 @@ describe('MockApiService', () => {
       const estimate = await firstValueFrom(
         service.getEstimate({ ...estimateRequest, tier: 'standard', sqft: 2200 }),
       );
-      // 0.92 tier factor on the canned build base (608000 -> 559000).
-      expect(estimate.figures.build.low).toBe(559000);
+      // Build is the sum of the scaled (rounded) rows — 0.92 tier factor on
+      // the canned row lows sums to 561000. (Scaling the pre-summed total
+      // would give 559000; the row-sum matches the real engine and the
+      // report's 3-bucket breakdown.)
+      expect(estimate.figures.build.low).toBe(561000);
       expect(estimate.inputs.tier).toBe('standard');
-      // Land is the fixed City assessed value: never scaled by tier or size.
-      expect(estimate.figures.land).toEqual({ value: 420000 });
+      // Land is the property's City assessed value: never scaled by tier or size.
+      expect(estimate.figures.land).toEqual({ value: 685000 });
       // Total is always build + land.
       expect(estimate.figures.total.low).toBe(
         estimate.figures.build.low + estimate.figures.land.value,

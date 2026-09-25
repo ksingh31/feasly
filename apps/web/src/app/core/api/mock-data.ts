@@ -190,8 +190,9 @@ export function mockEstimate(
   addressKey: string,
   inputs: EstimateInputs,
   referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
+  assessedLandValue?: number,
 ): EstimateResponse {
-  const scaled = scaledMockFigures(inputs, referenceSqft);
+  const scaled = scaledMockFigures(inputs, referenceSqft, assessedLandValue);
   return {
     estimateId: stableMockEstimateId(addressKey, inputs),
     addressKey,
@@ -248,14 +249,27 @@ export function scaleRange(range: CostRange, factor: number): CostRange {
 export function scaledMockFigures(
   inputs: EstimateInputs,
   referenceSqft: number,
+  assessedLandValue?: number,
 ): Pick<EstimateResponse, 'figures' | 'rows'> {
   const base = mockEstimateFigures();
   const factor = (MOCK_TIER_FACTORS[inputs.tier] * inputs.sqft) / referenceSqft;
-  const build = scaleRange(base.figures.build, factor);
-  // Land is the fixed City assessed value: independent of tier and size,
-  // never scaled. Total is recomputed as build + land so the parts always
-  // add up.
-  const land = base.figures.land;
+  const rows = base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) }));
+  // Build is the SUM of the scaled (rounded) rows — never scaled as a unit.
+  // Rounding each row to the nearest thousand and then summing can differ
+  // from rounding the pre-summed total by $1-2k (each row rounds
+  // independently). Summing the rows mirrors the real cost engine, where
+  // build = hardTotal + softTotal + contingency, so the 3-bucket breakdown
+  // on the report always adds up to the displayed build figure.
+  const build: CostRange = {
+    low: rows.reduce((sum, row) => sum + row.range.low, 0),
+    base: rows.reduce((sum, row) => sum + row.range.base, 0),
+    high: rows.reduce((sum, row) => sum + row.range.high, 0),
+  };
+  // Land is the City assessed value for the property: independent of tier
+  // and size, never scaled. Falls back to the canned fixture when the
+  // caller doesn't supply the property's assessment (e.g. unit tests).
+  // Total is recomputed as build + land so the parts always add up.
+  const land = { value: assessedLandValue ?? base.figures.land.value };
   return {
     figures: {
       build,
@@ -266,7 +280,7 @@ export function scaledMockFigures(
         high: build.high + land.value,
       },
     },
-    rows: base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) })),
+    rows,
   };
 }
 
@@ -560,8 +574,9 @@ export function mockReport(
   inputs: EstimateInputs,
   narrativeDisclaimer: string,
   referenceSqft = 2200, // mirrors config wizard.sqftDefault; the service passes the live value
+  assessedLandValue?: number,
 ): GetReportResponse {
-  const scaled = scaledMockFigures(inputs, referenceSqft);
+  const scaled = scaledMockFigures(inputs, referenceSqft, assessedLandValue);
   return {
     snapshotId: `snap-mock-${estimateId}-1`,
     estimateId,

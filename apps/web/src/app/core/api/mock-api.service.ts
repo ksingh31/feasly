@@ -39,6 +39,7 @@ import {
   mockEstimate,
   mockLeadResponse,
   mockPreviewEstimate,
+  mockPropertyFor,
   mockRenoEstimate,
   mockRenoReport,
   mockReport,
@@ -75,6 +76,19 @@ export class MockApiService implements ApiService {
   private readonly renoEstimateInputs = new Map<string, RenoEstimateInputs>();
   /** Report versions per estimate, so tier revisions increment monotonically. */
   private readonly reportVersions = new Map<string, number>();
+  /**
+   * Assessed land value per estimate (from the property record). The mock
+   * mirrors the real backend, where land = the property's City assessed
+   * value — not a canned fixture. Stored at estimate time so the report
+   * and tier revisions reuse the same figure.
+   */
+  private readonly estimateLandValues = new Map<string, number>();
+  /**
+   * Assessed values by addressKey, captured from getProperty calls. The
+   * wizard looks up the property when the user selects it, so the value
+   * is available synchronously when the estimate is created.
+   */
+  private readonly propertyAssessedValues = new Map<string, number>();
 
   /** Inputs when no estimate was run first (e.g. a bare report link). */
   private defaultInputs(): EstimateInputs {
@@ -132,7 +146,14 @@ export class MockApiService implements ApiService {
   }
 
   getProperty(addressKey: string): Observable<PropertyRecord> {
-    return this.propertyData.getProperty(addressKey);
+    // Cache the assessed value so estimates/reports can use the property's
+    // real assessment as the fixed land figure (mirrors the real backend).
+    return this.propertyData.getProperty(addressKey).pipe(
+      map((property) => {
+        this.propertyAssessedValues.set(addressKey, property.assessedValue);
+        return property;
+      }),
+    );
   }
 
   getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
@@ -157,6 +178,17 @@ export class MockApiService implements ApiService {
       };
       this.renoEstimateInputs.set(response.estimateId, renoInputs);
     }
+    // Mirror the real backend: land is the property's City assessed value.
+    // The mock property fixtures are synchronous; use the fixture's assessed
+    // value when available. Falls back to the canned default for addresses
+    // not in the fixtures (e.g. live City API data) — the preview never
+    // blocks on this.
+    const assessedLandValue =
+      mockPropertyFor(request.addressKey)?.assessedValue ??
+      this.propertyAssessedValues.get(request.addressKey);
+    if (assessedLandValue !== undefined) {
+      this.estimateLandValues.set(response.estimateId, assessedLandValue);
+    }
     return this.roundTrip(response);
   }
 
@@ -175,8 +207,21 @@ export class MockApiService implements ApiService {
       return this.roundTrip(response);
     }
     const inputs = this.toInputs(request);
-    const response = mockEstimate(request.addressKey, inputs, this.referenceSqft());
+    // Mirror the real backend: land is the property's City assessed value.
+    // (Synchronous fixture lookup; see getPreviewEstimate.)
+    const assessedLandValue =
+      mockPropertyFor(request.addressKey)?.assessedValue ??
+      this.propertyAssessedValues.get(request.addressKey);
+    const response = mockEstimate(
+      request.addressKey,
+      inputs,
+      this.referenceSqft(),
+      assessedLandValue,
+    );
     this.estimateInputs.set(response.estimateId, inputs);
+    if (assessedLandValue !== undefined) {
+      this.estimateLandValues.set(response.estimateId, assessedLandValue);
+    }
     return this.roundTrip(response);
   }
 
@@ -264,8 +309,16 @@ export class MockApiService implements ApiService {
       });
     }
     const inputs = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
+    const assessedLandValue = this.estimateLandValues.get(ids.estimateId);
     return this.roundTrip({
-      ...mockReport(ids.estimateId, ids.leadId, inputs, disclaimer, this.referenceSqft()),
+      ...mockReport(
+        ids.estimateId,
+        ids.leadId,
+        inputs,
+        disclaimer,
+        this.referenceSqft(),
+        assessedLandValue,
+      ),
       version,
     });
   }
@@ -310,12 +363,15 @@ export class MockApiService implements ApiService {
     };
     // Absolute scaling from the base figures (see scaledMockFigures): re-running
     // the same inputs always reproduces the same figures, so tier toggles round-trip.
+    // The land value stays fixed to the property's assessment across revisions.
+    const assessedLandValue = this.estimateLandValues.get(ids.estimateId);
     const revised = mockReport(
       ids.estimateId,
       ids.leadId,
       next,
       this.config.get('copy').narrativeDisclaimer,
       this.referenceSqft(),
+      assessedLandValue,
     );
     this.estimateInputs.set(ids.estimateId, next);
     return this.roundTrip({ ...revised, version });
