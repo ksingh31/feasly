@@ -19,3 +19,5 @@ export * from './cors';
 export * from './errors';
 export * from './rate-limit';
 export * from './pipeline';
+export * from './api-key-auth';
+export * from './admin-guard';

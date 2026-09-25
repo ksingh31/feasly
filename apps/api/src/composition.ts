@@ -42,6 +42,24 @@ import {
   type NudgeService,
 } from './services/nudge.service';
 import {
+  createApiKeyService,
+  type ApiKeyService,
+  type ApiKeyStore,
+  type ApiKeyAuditStore,
+} from './services/api-key.service';
+import {
+  createDrizzleApiKeyAuditStore,
+  createDrizzleApiKeyStore,
+} from './services/api-key.store';
+import {
+  createApiKeyRoute,
+  type ApiKeyRoute,
+} from './routes/api-key.route';
+import {
+  createConfigAdminGuard,
+  type AdminGuard,
+} from './middleware/admin-guard';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -119,6 +137,10 @@ export interface AppComposition {
   readonly unsubscribeRoute: UnsubscribeRoute;
   /** email/02: hourly 24h-nudge timer for unverified leads. */
   readonly nudgeService: NudgeService;
+  /** api-mcp/01: API key issuance + storage (admin-only). */
+  readonly apiKeyService: ApiKeyService;
+  readonly apiKeyRoute: ApiKeyRoute;
+  readonly adminGuard: AdminGuard;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -144,6 +166,8 @@ export interface CompositionOptions {
   readonly leadStore?: LeadStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
+  readonly apiKeyStore?: ApiKeyStore;
+  readonly apiKeyAuditStore?: ApiKeyAuditStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -303,6 +327,20 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
   });
+  // api-mcp/01 — API key issuance + storage (admin-only). The admin guard
+  // is the INTERIM pre-shared-key guard until admin/01's session auth lands.
+  const adminGuard: AdminGuard = createConfigAdminGuard({
+    adminApiKey: config.auth.adminApiKey,
+  });
+  const apiKeyService: ApiKeyService = createApiKeyService({
+    keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
+    audit:
+      options.apiKeyAuditStore ?? createDrizzleApiKeyAuditStore({ db: db.db }),
+  });
+  const apiKeyRoute: ApiKeyRoute = createApiKeyRoute({
+    apiKeys: apiKeyService,
+    adminGuard,
+  });
   const unsubscribeRoute: UnsubscribeRoute = createUnsubscribeRoute({
     unsubscribe: unsubscribeService,
   });
@@ -366,6 +404,9 @@ export function createComposition(
     unsubscribeService,
     unsubscribeRoute,
     nudgeService,
+    apiKeyService,
+    apiKeyRoute,
+    adminGuard,
     privacyStore,
     privacyService,
     privacyRoute,

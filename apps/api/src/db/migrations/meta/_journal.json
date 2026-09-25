@@ -63,6 +63,13 @@
       "when": 1790301963911,
       "tag": "0008_burly_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790302500316,
+      "tag": "0009_flowery_bullseye",
+      "breakpoints": true
     }
   ],
   "version": "7"
