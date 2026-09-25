@@ -95,6 +95,9 @@ const EnvSchema = z.object({
     .string()
     .default('')
     .transform(csvToList),
+  // Public site URL — used as the production `servers` entry in the
+  // OpenAPI spec (api-mcp/03). Defaults to the dev-site placeholder.
+  SITE_URL: z.string().url().default('https://feasly.dev'),
   QUEUE_EMAIL_NAME: z.string().min(1).default('email-queue'),
   QUEUE_PDF_NAME: z.string().min(1).default('pdf-queue'),
   QUEUE_SHEETS_NAME: z.string().min(1).default('sheets-queue'),
@@ -318,6 +321,8 @@ export interface ApiConfig {
   readonly analytics: AnalyticsConfig;
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
+  /** Public site URL — production `servers` entry in the OpenAPI spec. */
+  readonly siteUrl: string;
   readonly queues: QueueConfig;
   readonly email: EmailConfig;
   readonly health: HealthConfig;
@@ -448,6 +453,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       adminApiKey: e.ADMIN_API_KEY,
     },
     corsOrigins: resolveCorsOrigins(e),
+    siteUrl: e.SITE_URL,
     queues: {
       email: e.QUEUE_EMAIL_NAME,
       pdf: e.QUEUE_PDF_NAME,
