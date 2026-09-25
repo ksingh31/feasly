@@ -10,8 +10,12 @@ const HEALTHY = {
   status: 'ok',
   service: 'feasly-api',
   version: '0.1.0',
-  checks: { database: 'not-configured' },
+  checks: { database: 'ok' },
 };
+
+// The test env has no live Postgres, so tests inject a healthy probe;
+// production wiring always pings the real pool (see the default-wiring test).
+const HEALTHY_PING = { dbPing: async () => {} };
 
 describe('composition root', () => {
   it('resolves every wired service (none undefined)', () => {
@@ -35,12 +39,24 @@ describe('composition root', () => {
   });
 
   it('injects config into the health service', async () => {
-    const app = createComposition(TEST_ENV);
+    const app = createComposition(TEST_ENV, HEALTHY_PING);
     await expect(app.healthService.check()).resolves.toEqual(HEALTHY);
   });
 
   it('health route delegates to the health service interface', async () => {
-    const app = createComposition(TEST_ENV);
+    const app = createComposition(TEST_ENV, HEALTHY_PING);
     await expect(app.healthRoute.handle()).resolves.toEqual(HEALTHY);
+  });
+
+  it('defaults to probing the real pool (no not-configured in production wiring)', async () => {
+    const app = createComposition(TEST_ENV);
+    // No Postgres listens in the test env, so the real probe fails —
+    // the point is the composition wires a REAL probe, never not-configured.
+    await expect(app.healthService.check()).resolves.toEqual({
+      status: 'degraded',
+      service: 'feasly-api',
+      version: '0.1.0',
+      checks: { database: 'unreachable' },
+    });
   });
 });

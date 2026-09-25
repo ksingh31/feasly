@@ -9,6 +9,7 @@
  *
  *   src/functions/estimate.ts → estimate/index.js   (POST /api/v1/estimate)
  *   src/functions/leads.ts    → leads/index.js      (POST /api/v1/leads)
+ *   src/functions/health.ts   → health/index.js     (GET /api/health, HRD-06)
  *   src/functions/magic-link-verify.ts  → magic-link-verify/index.js
  *     (GET /api/v1/magic-link/verify)
  *   src/functions/magic-link-reissue.ts → magic-link-reissue/index.js
@@ -34,6 +35,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const targets = [
   { entry: 'src/functions/estimate.ts', out: 'estimate/index.js' },
   { entry: 'src/functions/leads.ts', out: 'leads/index.js' },
+  { entry: 'src/functions/health.ts', out: 'health/index.js' },
   { entry: 'src/functions/magic-link-verify.ts', out: 'magic-link-verify/index.js' },
   { entry: 'src/functions/magic-link-reissue.ts', out: 'magic-link-reissue/index.js' },
   { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },

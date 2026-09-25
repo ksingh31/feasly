@@ -11,6 +11,7 @@
  * cast is confined to test setup with a comment at each site.
  */
 import { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
 
@@ -25,6 +26,12 @@ export interface DbClientDeps {
 
 export interface DbClient {
   readonly db: AppDb;
+  /**
+   * Liveness probe: resolves when the database answers a trivial query,
+   * rejects when it doesn't. Used by the health service — never in a
+   * request path.
+   */
+  ping(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -36,6 +43,7 @@ export function createDbClient(deps: DbClientDeps): DbClient {
   const db = drizzle(pool, { schema });
   return {
     db,
+    ping: () => db.execute(sql`SELECT 1`).then(() => undefined),
     close: () => pool.end(),
   };
 }

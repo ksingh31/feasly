@@ -25,6 +25,9 @@ jobs:
       - run: npm run build --workspace=@feasly/web -- --configuration=production
       - run: node tools/check-prerender-seo.mjs
         working-directory: apps/web
+      # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
+      # no Azure). Fails the build if a check or the alert dedupe regresses.
+      - run: bash infra/health/test/test-checks.sh
 
   # HRD-04: assert PITR-capable backup config on the Postgres (read-only).
   # Failing here is the "scheduled backup missed" signal until admin/06 wires
