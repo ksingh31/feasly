@@ -6,6 +6,10 @@ import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
   AnyEstimateRequest,
+  ApiKeyIssueRequest,
+  ApiKeyIssuedResponse,
+  ApiKeyListResponse,
+  ApiKeyRecordResponse,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -28,7 +32,7 @@ import type {
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
-import type { ApiService, CommunityStats } from './api.service';
+import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
 import { toApiError } from './api-error';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -52,6 +56,10 @@ export class HttpApiService implements ApiService {
 
   private get base(): string {
     return `${this.config.get('api').baseUrl}/api/v1`;
+  }
+
+  private get adminBase(): string {
+    return `${this.base}/admin/api-keys`;
   }
 
   private call<T>(request: Observable<T>): Observable<T> {
@@ -161,5 +169,72 @@ export class HttpApiService implements ApiService {
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
     return this.call(this.http.post<void>(`${this.base}/events`, event));
+  }
+
+  /**
+   * Sends the interim `X-Admin-Key` header until admin/01 lands (session
+   * auth). The key comes from `admin.adminKey` deploy config — never from
+   * user input, never logged.
+   */
+  private adminHeaders(): Record<string, string> {
+    return { 'X-Admin-Key': this.config.get('admin').adminKey };
+  }
+
+  listApiKeys(): Observable<ApiKeyListResponse> {
+    return this.call(
+      this.http.get<ApiKeyListResponse>(this.adminBase, {
+        headers: this.adminHeaders(),
+      }),
+    );
+  }
+
+  issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse> {
+    return this.call(
+      this.http.post<ApiKeyIssuedResponse>(this.adminBase, request, {
+        headers: this.adminHeaders(),
+      }),
+    );
+  }
+
+  rotateApiKey(id: string): Observable<ApiKeyIssuedResponse> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(
+      this.http.post<ApiKeyIssuedResponse>(
+        `${path}/rotate`,
+        {},
+        { headers: this.adminHeaders() },
+      ),
+    );
+  }
+
+  revokeApiKey(id: string): Observable<{ readonly revoked: boolean }> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(
+      this.http.post<{ readonly revoked: boolean }>(
+        `${path}/revoke`,
+        {},
+        { headers: this.adminHeaders() },
+      ),
+    );
+  }
+
+  updateApiKey(id: string, patch: ApiKeyUpdatePatch): Observable<ApiKeyRecordResponse> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(
+      this.http.patch<ApiKeyRecordResponse>(
+        path,
+        patch,
+        { headers: this.adminHeaders() },
+      ),
+    );
+  }
+
+  getApiKeyUsage(keyId: string): Observable<readonly ApiKeyUsageAggregate[]> {
+    return this.call(
+      this.http.get<readonly ApiKeyUsageAggregate[]>(`${this.base}/admin/usage`, {
+        headers: this.adminHeaders(),
+        params: { key_id: keyId },
+      }),
+    );
   }
 }

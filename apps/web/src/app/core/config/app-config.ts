@@ -56,6 +56,20 @@ export interface AppConfig {
     /** Show the renovation waitlist capture instead of the estimator. */
     renovationWaitlist: boolean;
   };
+  /**
+   * Admin dashboard wiring (api-mcp/02).
+   *
+   * INTERIM: until admin/01 (magic-link admin session auth) lands, admin
+   * routes authenticate with the `X-Admin-Key` header. Empty string = admin
+   * routes are locked (the admin guard redirects to /). Deploy config only —
+   * never commit a real key.
+   */
+  admin: {
+    /** Pre-shared key sent as `X-Admin-Key`. Empty = locked. */
+    adminKey: string;
+    /** Default per-minute rate limit prefilled in the issue form. */
+    defaultRateLimit: number;
+  };
   /** Wizard tunables (FE-2). */
   wizard: {
     sqftDefault: number;
@@ -586,6 +600,50 @@ export interface AppConfig {
       body: string;
       accept: string;
       decline: string;
+    };
+    /** API key management (story api-mcp/02). */
+    admin: {
+      apiKeys: {
+        title: string;
+        subtitle: string;
+        issueButton: string;
+        issueTitle: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        tenantLabel: string;
+        tenantPlaceholder: string;
+        scopesLabel: string;
+        rateLimitLabel: string;
+        sandboxLabel: string;
+        sandboxHint: string;
+        createButton: string;
+        cancelButton: string;
+        copyButton: string;
+        copiedButton: string;
+        plaintextWarning: string;
+        rotateButton: string;
+        revokeButton: string;
+        rotateConfirm: string;
+        revokeConfirm: string;
+        confirmYes: string;
+        confirmNo: string;
+        editButton: string;
+        saveButton: string;
+        usageTitle: string;
+        usageLoading: string;
+        usageEmpty: string;
+        usageDateHeader: string;
+        usageEndpointHeader: string;
+        usageRequestsHeader: string;
+        usageEstimatesHeader: string;
+        loading: string;
+        empty: string;
+        loadError: string;
+        revokedLabel: string;
+        activeLabel: string;
+        lastUsedLabel: string;
+        createdLabel: string;
+      };
     };
     /**
      * Community pages (SEO-04). Static copy for `/communities/:slug/` —

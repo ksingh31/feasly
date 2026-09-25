@@ -5,6 +5,10 @@ import type {
   AnalyticsEvent,
   AnyEstimateRequest,
   ApiError,
+  ApiKeyIssueRequest,
+  ApiKeyIssuedResponse,
+  ApiKeyListResponse,
+  ApiKeyRecordResponse,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -30,7 +34,7 @@ import type {
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
-import type { ApiService, CommunityStats } from './api.service';
+import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
 import { simulateLatency } from './latency';
 import {
   MOCK_VERIFY_FAILURE,
@@ -423,5 +427,61 @@ export class MockApiService implements ApiService {
   trackEvent(event: AnalyticsEvent): Observable<void> {
     void event;
     return of(undefined);
+  }
+
+  // Admin API keys (api-mcp/02): mock returns fixtures so the admin UI is
+  // usable in offline dev. No real keys are minted here.
+  listApiKeys(): Observable<ApiKeyListResponse> {
+    return of({ keys: [] });
+  }
+
+  issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse> {
+    const defaultRateLimit = this.config.get('admin').defaultRateLimit;
+    const record: ApiKeyRecordResponse = {
+      id: 'mock-key-1',
+      name: request.name,
+      tenant_id: request.tenant_id ?? null,
+      key_prefix: 'feasly_test_…mock',
+      scopes: request.scopes ?? ['estimate'],
+      rate_limit_per_min: request.rate_limit ?? defaultRateLimit,
+      sandbox: true,
+      revoked_at: null,
+      last_used_at: null,
+      created_at: new Date().toISOString(),
+    };
+    return of({ key: record, plaintext: 'feasly_test_mock_plaintext_once' });
+  }
+
+  rotateApiKey(id: string): Observable<ApiKeyIssuedResponse> {
+    void id;
+    return this.issueApiKey({ name: 'rotated-mock' });
+  }
+
+  revokeApiKey(id: string): Observable<{ readonly revoked: boolean }> {
+    void id;
+    return of({ revoked: true });
+  }
+
+  updateApiKey(
+    id: string,
+    patch: ApiKeyUpdatePatch,
+  ): Observable<ApiKeyRecordResponse> {
+    void patch;
+    return of({
+      id,
+      name: 'mock-key',
+      tenant_id: null,
+      key_prefix: 'feasly_test_…mock',
+      scopes: ['estimate'],
+      rate_limit_per_min: this.config.get('admin').defaultRateLimit,
+      sandbox: true,
+      revoked_at: null,
+      last_used_at: null,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  getApiKeyUsage(): Observable<readonly ApiKeyUsageAggregate[]> {
+    return of([]);
   }
 }

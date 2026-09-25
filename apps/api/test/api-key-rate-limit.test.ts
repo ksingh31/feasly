@@ -49,6 +49,9 @@ function createFakeApiKeys(records: Record<string, ApiKeyRecord>): ApiKeyService
     async list() {
       return [];
     },
+    async update() {
+      throw new Error('not implemented');
+    },
     async authenticate(token: string) {
       const record = records[token];
       if (!record) {

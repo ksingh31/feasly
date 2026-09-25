@@ -23,6 +23,7 @@ import {
   ApiKeyListResponseSchema,
   AdminEstimateDetailSchema,
   AdminEstimateSnapshotRefSchema,
+  ApiKeyRecordResponseSchema,
   ApiKeyScopeSchema,
   AutocompleteResponseSchema,
   CallbackRequestSchema,
@@ -684,6 +685,52 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
+
+  // PATCH /v1/admin/api-keys/{id} (api-mcp/02)
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/api-keys/{id}',
+    summary: 'Update an API key\u2019s scopes / rate limit',
+    description:
+      'Updates a key\u2019s scopes and/or per-minute rate limit. Changes take ' +
+      'effect on the next request. At least one field is required.',
+    security: adminSecurity,
+    request: {
+      params: z.object({
+        id: z.string().describe('Key ID (UUID)'),
+      }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              scopes: z
+                .array(z.string())
+                .optional()
+                .describe('API scopes (property:read, estimate, ...)'),
+              rate_limit_per_min: z
+                .number()
+                .int()
+                .min(1)
+                .max(10_000)
+                .optional()
+                .describe('Per-minute rate limit'),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Updated key record (masked)',
+        content: {
+          'application/json': {
+            schema: ApiKeyRecordResponseSchema,
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
 
   // GET /v1/admin/usage (api-mcp/07)
   registry.registerPath({
