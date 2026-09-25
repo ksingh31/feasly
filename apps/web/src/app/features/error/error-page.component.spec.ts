@@ -78,13 +78,13 @@ describe('ErrorPageComponent', () => {
     recovery.capture({
       description: 'Re-run the estimate',
       retry: () =>
-        http.post('/api/v1/estimates', { sqft: 2200 }).subscribe(() => {
+        http.post('/api/v1/estimate', { sqft: 2200 }).subscribe(() => {
           succeeded = true;
         }),
     });
 
     (fixture.nativeElement as HTMLElement).querySelector('button.cta')?.dispatchEvent(new Event('click'));
-    httpMock.expectOne('/api/v1/estimates').flush({ ok: true });
+    httpMock.expectOne('/api/v1/estimate').flush({ ok: true });
     await fixture.whenStable();
 
     expect(succeeded).toBe(true);
