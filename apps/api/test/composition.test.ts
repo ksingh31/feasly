@@ -45,6 +45,10 @@ describe('composition root', () => {
     expect(app.nudgeService).toBeDefined();
     expect(app.communityStatsService).toBeDefined();
     expect(app.communityStatsRoute).toBeDefined();
+    // neighbourhood/05: monthly refresh timer (service + manual admin route).
+    expect(app.communityStatsRefreshService).toBeDefined();
+    expect(app.communityStatsRefreshRoute).toBeDefined();
+    expect(app.adminAuditStore).toBeDefined();
     expect(app.builderConfigService).toBeDefined();
     expect(app.embedConfigRoute).toBeDefined();
     // api-mcp/02: Socrata-backed property lookup (service + route wired).

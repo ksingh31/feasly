@@ -21,7 +21,7 @@ import type {
   AdminLeadStatus,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
-import type { AdminAuditStore } from './admin-auth.service';
+import type { AdminAuditStore } from './admin-audit.store';
 import type {
   AdminLeadsStore,
   AdminLeadFilters,

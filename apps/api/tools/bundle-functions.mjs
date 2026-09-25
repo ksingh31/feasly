@@ -61,6 +61,10 @@
  *     (PATCH /api/v1/admin/leads/{id}/status)
  *   src/functions/admin-leads-export.ts      → admin-leads-export/index.js
  *     (GET /api/v1/admin/leads/export.csv)
+ *   src/functions/community-stats-refresh-timer.ts → community-stats-refresh-timer/index.js
+ *     (Timer: monthly community-stats refresh, neighbourhood/05)
+ *   src/functions/admin-community-stats-refresh.ts → admin-community-stats-refresh/index.js
+ *     (POST /api/v1/admin/community-stats/refresh — manual ops trigger)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -190,6 +194,14 @@ const targets = [
   {
     entry: 'src/functions/admin-estimates-get.ts',
     out: 'admin-estimates-get/index.js',
+  },
+  {
+    entry: 'src/functions/community-stats-refresh-timer.ts',
+    out: 'community-stats-refresh-timer/index.js',
+  },
+  {
+    entry: 'src/functions/admin-community-stats-refresh.ts',
+    out: 'admin-community-stats-refresh/index.js',
   },
 ];
 

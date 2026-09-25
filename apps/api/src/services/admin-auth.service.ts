@@ -28,6 +28,7 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email/email.service';
+import type { AdminAuditStore } from './admin-audit.store';
 import { hashMagicToken, type MagicLinkStore } from './magic-link.store';
 
 export interface AdminSessionRecord {
@@ -66,14 +67,6 @@ export interface AdminAllowlistStore {
   isAllowlisted(email: string): Promise<boolean>;
   add(email: string, addedBy: string): Promise<void>;
   remove(email: string): Promise<boolean>;
-}
-
-export interface AdminAuditStore {
-  log(entry: {
-    readonly actorEmail: string | null;
-    readonly action: string;
-    readonly detail?: string;
-  }): Promise<void>;
 }
 
 export interface AdminAuthService {

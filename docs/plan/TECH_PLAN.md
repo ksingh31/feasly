@@ -529,9 +529,13 @@ main merge ──► build job:
   5. SWA deploy
 ```
 
-`community_stats` is refreshed by a weekly timer (`community-stats-refresh`)
-so programmatic pages track the City dataset without a redeploy of logic —
-content updates ride the normal build (or a scheduled rebuild; §6.2).
+`community_stats` is refreshed by a monthly timer (`community-stats-refresh`)
+— recompute-on-write each run with a 10-assessment minimum per community,
+plus a manual admin trigger (`POST /api/v1/admin/community-stats/refresh`)
+and a CI freshness guard that fails when any `refreshed_at` is older than
+45 days (neighbourhood/05) — so programmatic pages track the City dataset
+without a redeploy of logic — content updates ride the normal build (or a
+scheduled rebuild; §6.2).
 
 ### 2.6 Auxiliary flows
 
@@ -1284,6 +1288,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
+| POST | `/api/v1/admin/community-stats/refresh` | admin | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
 | GET | `/api/v1/admin/calibration` | admin | 300/min per session | planned | Calibration console reads (admin/09). |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | planned | Sheets sync worker status (admin/05). |
@@ -1293,7 +1298,6 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
 | POST | `/api/mcp/v1` | api-key | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
-
 ---
 
 *End of TECH_PLAN.md — implements ADR-001; drives stories in `plan/epics/`.*

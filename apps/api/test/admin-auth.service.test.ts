@@ -9,10 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createAdminAuthService,
   type AdminAllowlistStore,
-  type AdminAuditStore,
   type AdminSessionRecord,
   type AdminSessionStore,
 } from '../src/services/admin-auth.service';
+import type { AdminAuditStore } from '../src/services/admin-audit.store';
 import type { MagicLinkRecord, MagicLinkStore } from '../src/services/magic-link.store';
 import type { EmailService } from '../src/services/email/email.service';
 import { ErrorCodes } from '../src/middleware/errors';
@@ -121,9 +121,21 @@ function makeAudit(): AdminAuditStore & { entries: unknown[] } {
   const entries: unknown[] = [];
   return {
     entries,
-    log: async (entry) => {
+    log: async (entry: { readonly actorEmail: string | null; readonly action: string; readonly detail?: string }) => {
       entries.push(entry);
     },
+    append: async (args: { readonly action: string; readonly actorEmail: string | null; readonly detail?: string }) => {
+      const record = {
+        id: 'audit-1',
+        action: args.action,
+        actorEmail: args.actorEmail,
+        detail: args.detail ?? null,
+        createdAt: new Date(),
+      };
+      entries.push(record);
+      return record;
+    },
+    recent: async () => [],
   };
 }
 
@@ -444,7 +456,7 @@ describe('admin auth service (admin/01)', () => {
       await service.requestMagicLink({ email: ADMIN_EMAIL });
       await service.requestMagicLink({ email: OTHER_EMAIL });
       const requested = audit.entries.filter(
-        (e) => (e as { action: string }).action === 'magic_link_requested',
+        (e: unknown) => (e as { action: string }).action === 'magic_link_requested',
       );
       expect(requested).toHaveLength(1);
     });

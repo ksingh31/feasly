@@ -373,6 +373,16 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'Funnel dashboards (admin/07): step drop-off, gate conversion.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/community-stats/refresh',
+    auth: 'admin',
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Manually trigger the community-stats refresh (neighbourhood/05). ' +
+      'Audit-logged.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/usage',
     auth: 'admin',
