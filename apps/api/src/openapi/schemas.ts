@@ -129,6 +129,11 @@ export const EstimateResponseSchema = z
     costDataVersion: z.string(),
     createdAt: z.string().datetime(),
     projectType: z.enum(['new_build', 'renovation']).optional(),
+    disclaimer: z
+      .string()
+      .describe(
+        'Approved deterministic-math disclaimer, verbatim on every estimate response (HRD-05)',
+      ),
   })
   .openapi('EstimateResponse');
 

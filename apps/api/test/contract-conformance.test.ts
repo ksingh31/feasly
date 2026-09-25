@@ -47,6 +47,7 @@ import type {
   RenoInput,
 } from '@feasly/cost-engine';
 import type { EstimateResponse } from '@feasly/contracts';
+import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 import { createEstimateRoute } from '../src/routes/estimate.route';
 import { createEstimateService } from '../src/services/estimate.service';
 import { expectEstimateResponse, mockCommunityStatsService } from './helpers/mock-community-stats';
@@ -196,6 +197,7 @@ function engineComparable(request: unknown): ComparableEstimate {
       assumptions: result.assumptions,
       visibility: { land: 'not_applicable', build: 'blurred', total: 'blurred' },
       costDataVersion: result.costDataVersion,
+      disclaimer: ESTIMATE_DISCLAIMER,
     };
   }
 
@@ -238,6 +240,7 @@ function engineComparable(request: unknown): ComparableEstimate {
       range: toRange(row.range),
     })),
     costDataVersion: result.costDataVersion,
+    disclaimer: ESTIMATE_DISCLAIMER,
   };
 }
 

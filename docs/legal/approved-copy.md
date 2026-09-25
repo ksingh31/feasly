@@ -41,3 +41,12 @@ anonymized aggregates retained.)_
 
 _(lawyer: the exact opt-in wording; must byte-match the consent line on
 `/privacy` and in the lead-gate UI once approved.)_
+
+> **Status: draft-pending-lawyer.** The wording in the block below is the
+> current draft. When counsel approves (or rewrites) it, update this block —
+> the HRD-05 CASL diff test (`apps/web/tools/check-casl-copy.mjs`) keeps the
+> app's `caslLabel` byte-identical to it.
+
+```text
+It’s okay to email me occasional updates about Feasly and Calgary infill costs. I can unsubscribe anytime.
+```

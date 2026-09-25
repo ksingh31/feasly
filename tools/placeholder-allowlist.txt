@@ -1,0 +1,32 @@
+# Placeholder allowlist (HRD-05).
+#
+# Format: <path-substring> :: <pattern-name or *> :: <reason + unblock condition>
+#
+# Every entry here is a KNOWN placeholder — intentional, documented, and
+# tracked in docs/launch-checklist.md. The sweep fails on anything NOT listed
+# here, so a forgotten placeholder can never slip into production silently.
+# When Karan resolves the blocking decision, remove the entry AND the placeholder.
+
+# Cost-data calibration placeholders — the engine runs on uncalibrated stand-ins
+# until Karan's cost Sheet (3–4 houses) arrives (story cost-engine/01).
+packages/cost-engine/cost-data :: PLACEHOLDER :: uncalibrated stand-in data, blocked on Karan's cost Sheet
+packages/cost-engine/src/cost-data.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA definition, blocked on Karan's cost Sheet
+@feasly/cost-engine :: PLACEHOLDER :: PLACEHOLDER_COST_DATA constant, blocked on Karan's cost Sheet
+apps/api/src/composition.ts :: PLACEHOLDER :: wires PLACEHOLDER_COST_DATA, blocked on Karan's cost Sheet
+
+# Embed frame-ancestors tenant placeholder — fail-closed by design (HRD-01):
+# matches no real tenant until embed/02 lands real origins. Must be replaced,
+# never widened casually.
+staticwebapp.config.json :: PLACEHOLDER :: PLACEHOLDER-TENANT fail-closed, replaced by embed/02 real origins
+apps/api/src/generated/builder-configs.ts :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
+config/builders/elite-craft-builders.json :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
+
+# Production domain — undecided (feasly.com unverified). Blocked on Karan.
+app-config.defaults.ts :: PLACEHOLDER :: production domain undecided, blocked on Karan's domain decision
+
+# Ops inbox — standing test email until Karan names the ops inbox (admin/06).
+apps/api/src/config.ts :: test email :: OPS_INBOX_EMAIL default, blocked on Karan naming the ops inbox
+
+# Secrets hygiene (hardening/07): PLACEHOLDER_* constants are the detection
+# patterns for placeholder secrets, not unfinished placeholders themselves.
+tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder secrets (hardening/07)

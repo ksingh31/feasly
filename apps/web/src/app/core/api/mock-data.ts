@@ -26,6 +26,7 @@ import type {
   RenoEstimateRequest,
   RenoType,
 } from '@feasly/contracts';
+import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 
 /** Cost-data version stamped on mock estimates. The real engine versions its model. */
 export const MOCK_COST_DATA_VERSION = 'mock-2026-09';
@@ -194,6 +195,7 @@ export function mockEstimate(
     rows: scaled.rows,
     costDataVersion: MOCK_COST_DATA_VERSION,
     createdAt: new Date().toISOString(),
+    disclaimer: ESTIMATE_DISCLAIMER,
   };
 }
 
@@ -387,6 +389,7 @@ export function mockRenoEstimate(
       build: 'visible',
       total: 'visible',
     },
+    disclaimer: ESTIMATE_DISCLAIMER,
   };
 }
 

@@ -39,6 +39,13 @@ jobs:
       # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
+      # HRD-05: prelaunch gates that must stay green while development
+      # continues. (The legal gate is intentionally NOT here — it blocks
+      # production deploys in cd.yml, not PR merges, so work doesn't freeze
+      # while the lawyer reviews.)
+      - run: node apps/web/tools/check-casl-copy.mjs
+      - run: node apps/web/tools/check-banned-phrases.mjs
+      - run: node tools/check-placeholders.mjs
 
   # HRD-04: assert PITR-capable backup config on the Postgres (read-only).
   # Failing here is the "scheduled backup missed" signal until admin/06 wires

@@ -48,6 +48,7 @@ import type {
   EstimateResponse,
   FixedFigure,
 } from '@feasly/contracts';
+import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateStore } from './estimate.store';
@@ -172,6 +173,7 @@ function toResponse(
     })),
     costDataVersion: result.costDataVersion,
     createdAt: createdAt.toISOString(),
+    disclaimer: ESTIMATE_DISCLAIMER,
   };
 }
 
@@ -222,6 +224,7 @@ function toRenoResponse(
     visibility: { land: 'not_applicable', build: 'blurred', total: 'blurred' },
     costDataVersion: result.costDataVersion,
     createdAt: createdAt.toISOString(),
+    disclaimer: ESTIMATE_DISCLAIMER,
   };
 }
 
