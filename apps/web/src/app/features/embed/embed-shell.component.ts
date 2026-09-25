@@ -133,7 +133,7 @@ export class EmbedShellComponent {
     if (data === null || data.type !== THEME_MESSAGE) return false;
     if (!this.bridge.isAllowedInbound(ev.origin)) {
       // eslint-disable-next-line no-console
-      console.warn('[feasly] embed: dropped message from unauthorized origin', ev.origin);
+      console.warn('[feasly] embed: dropped msg from bad origin', ev.origin);
       return false;
     }
     return true;
