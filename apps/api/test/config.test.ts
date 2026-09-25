@@ -47,6 +47,8 @@ describe('loadConfig', () => {
         unsubscribeTokenSecret: undefined,
         unsubscribeTokenTtlSeconds: 2_592_000,
         opsInbox: 'karanbirsingh667@gmail.com',
+        opsAlertEmail: 'karanbirsingh667@gmail.com',
+        opsAlertDedupeWindowMs: 86_400_000,
         logLinks: true,
       },
       health: { dbTimeoutMs: 2_000 },

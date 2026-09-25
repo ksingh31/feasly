@@ -247,7 +247,10 @@ describe('SheetsSyncService', () => {
     // Third consecutive failure: alert fires.
     await expect(service.runSyncCycle()).rejects.toThrow('Sheets API down');
     expect(onSyncLagging).toHaveBeenCalledTimes(1);
-    expect(onSyncLagging).toHaveBeenCalledWith({ consecutiveFailures: 3 });
+    expect(onSyncLagging).toHaveBeenCalledWith({
+      consecutiveFailures: 3,
+      firstFailureAt: expect.any(Date),
+    });
   });
 
   it('resets the failure counter on success and fires onSyncRecovered', async () => {

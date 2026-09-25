@@ -213,6 +213,12 @@ const EnvSchema = z.object({
   // Team inbox for callback confirmations. Standing test email until Karan
   // names the ops inbox.
   OPS_INBOX_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
+  // Ops alert recipient (admin/06). Standing test email until Karan names
+  // an ops inbox.
+  OPS_ALERT_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
+  // Ops alert dedupe window per alert class: at most one failure email
+  // per class inside this window (admin/06).
+  OPS_ALERT_DEDUPE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
   // Dev/test behavior: the log provider logs full links so magic-link flows
   // can be exercised without a provider. Never render links in UI.
   EMAIL_LOG_LINKS: z
@@ -296,6 +302,10 @@ export interface EmailConfig {
   readonly unsubscribeTokenTtlSeconds: number;
   /** Team inbox for callback confirmations (standing test email for now). */
   readonly opsInbox: string;
+  /** Ops alert recipient (admin/06; standing test email for now). */
+  readonly opsAlertEmail: string;
+  /** Ops alert dedupe window per alert class, in milliseconds. */
+  readonly opsAlertDedupeWindowMs: number;
   /** Log provider logs full links when true (dev/test behavior). */
   readonly logLinks: boolean;
 }
@@ -591,6 +601,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       unsubscribeTokenSecret: e.UNSUBSCRIBE_TOKEN_SECRET,
       unsubscribeTokenTtlSeconds: e.UNSUBSCRIBE_TOKEN_TTL_SECONDS,
       opsInbox: e.OPS_INBOX_EMAIL,
+      opsAlertEmail: e.OPS_ALERT_EMAIL,
+      opsAlertDedupeWindowMs: e.OPS_ALERT_DEDUPE_WINDOW_MS,
       logLinks: e.EMAIL_LOG_LINKS,
     },
     health: {
