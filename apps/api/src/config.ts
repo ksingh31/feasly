@@ -121,6 +121,14 @@ const EnvSchema = z.object({
   // Placeholder hook for the unsubscribe center (review-drafts/05, not built
   // yet): templates render `${UNSUBSCRIBE_URL_BASE}?token=…`.
   UNSUBSCRIBE_URL_BASE: z.string().url().default('https://feasly.example/unsubscribe'),
+  // --- Unsubscribe center (story email/03) ---
+  // HMAC secret for one-click unsubscribe tokens. Key Vault reference in
+  // staging/production, never committed. Absent secret fails closed at
+  // token issue/verify time with this variable named (same pattern as the
+  // ACS provider credentials).
+  UNSUBSCRIBE_TOKEN_SECRET: z.string().min(1).optional(),
+  // One-click unsubscribe token validity: 30 days (story requirement).
+  UNSUBSCRIBE_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
   // Team inbox for callback confirmations. Standing test email until Karan
   // names the ops inbox.
   OPS_INBOX_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
@@ -180,8 +188,15 @@ export interface EmailConfig {
   readonly acsConnectionString?: string;
   /** Web-app base URL that magic-link / resume links are built from. */
   readonly appBaseUrl: string;
-  /** Placeholder hook for the future unsubscribe center. */
+  /** One-click unsubscribe links are built from this (email/03). */
   readonly unsubscribeUrlBase: string;
+  /**
+   * HMAC secret for unsubscribe tokens. Key Vault reference in
+   * staging/production; absent = fail-closed token issue/verify.
+   */
+  readonly unsubscribeTokenSecret?: string;
+  /** One-click unsubscribe token validity in seconds (30 days). */
+  readonly unsubscribeTokenTtlSeconds: number;
   /** Team inbox for callback confirmations (standing test email for now). */
   readonly opsInbox: string;
   /** Log provider logs full links when true (dev/test behavior). */
@@ -348,6 +363,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
       appBaseUrl: e.APP_BASE_URL,
       unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,
+      unsubscribeTokenSecret: e.UNSUBSCRIBE_TOKEN_SECRET,
+      unsubscribeTokenTtlSeconds: e.UNSUBSCRIBE_TOKEN_TTL_SECONDS,
       opsInbox: e.OPS_INBOX_EMAIL,
       logLinks: e.EMAIL_LOG_LINKS,
     },

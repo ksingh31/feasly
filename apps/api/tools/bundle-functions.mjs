@@ -22,6 +22,10 @@
  *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
  *   src/functions/communities-stats.ts    → communities-stats/index.js
  *     (GET /api/v1/communities/{slug}/stats)
+ *   src/functions/unsubscribe-get.ts      → unsubscribe-get/index.js
+ *     (GET /api/v1/unsubscribe/{token})
+ *   src/functions/unsubscribe-post.ts     → unsubscribe-post/index.js
+ *     (POST /api/v1/unsubscribe/{token})
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -47,6 +51,14 @@ const targets = [
   {
     entry: 'src/functions/communities-stats.ts',
     out: 'communities-stats/index.js',
+  },
+  {
+    entry: 'src/functions/unsubscribe-get.ts',
+    out: 'unsubscribe-get/index.js',
+  },
+  {
+    entry: 'src/functions/unsubscribe-post.ts',
+    out: 'unsubscribe-post/index.js',
   },
 ];
 

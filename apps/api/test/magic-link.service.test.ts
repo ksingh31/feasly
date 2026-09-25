@@ -64,6 +64,7 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     quarantined: false,
     leadScore: 0,
     status: 'new',
+    unsubscribedAt: null,
     createdAt: NOW,
     ...overrides,
   };
@@ -124,6 +125,7 @@ function fakeLeads(opts?: {
         : null,
     listLeads: async () => [],
     findById: async (id: string) => (lead && lead.id === id ? lead : null),
+    setUnsubscribedAt: async () => lead,
     findAllByEmail: async () => household,
     deleteByEmail: async () => 0,
     appendNote: noop,
@@ -331,6 +333,24 @@ describe('magic-link reissue', () => {
       sent: false,
     });
     expect(email.sends).toHaveLength(0);
+  });
+
+  it('email/03 AC4: an opted-out lead still gets their transactional magic link', async () => {
+    const magicLinks = fakeMagicLinks();
+    const email = fakeEmail();
+    const { service } = makeService({
+      magicLinks,
+      email,
+      leads: fakeLeads({
+        lead: leadFixture({ unsubscribedAt: new Date('2026-09-20T00:00:00Z') }),
+      }),
+    });
+    // The opt-out suppresses nudges/marketing (email/02's timer checks
+    // isUnsubscribed) — never the requested magic link itself.
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(1);
   });
 
   it('rejects a malformed email with 400', async () => {

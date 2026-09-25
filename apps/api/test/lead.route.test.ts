@@ -50,9 +50,11 @@ describe('lead route', () => {
         quarantined: false,
         leadScore: 0,
         status: 'new',
+        unsubscribedAt: null,
         createdAt: new Date(),
       }),
       findById: async () => null,
+      setUnsubscribedAt: async () => null,
       findAllByEmail: async () => [],
       deleteByEmail: async () => 0,
       updateOnRepeat: async () => {

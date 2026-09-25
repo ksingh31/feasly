@@ -143,6 +143,7 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     quarantined: lead.quarantined ?? false,
     leadScore: 0,
     status: 'new',
+    unsubscribedAt: null,
     createdAt: NOW,
   };
 }
@@ -152,6 +153,8 @@ function fakeLeadStore(): FakeLeadStore {
   const updated: FakeLeadStore['updated'] = [];
   const notes: FakeLeadStore['notes'] = [];
   const statusHistory: FakeLeadStore['statusHistory'] = [];
+  /** email/03: opt-out timestamps by lead id (mirrors leads.unsubscribed_at). */
+  const unsubscribed = new Map<string, Date>();
   let recent: LeadRecord | null = null;
   return {
     inserted,
@@ -168,7 +171,18 @@ function fakeLeadStore(): FakeLeadStore {
     listLeads: async () => [],
     findById: async (id: string) => {
       const found = inserted.find((l) => l.id === id);
-      return found ? toFakeRecord(found) : null;
+      if (!found) return null;
+      const record = toFakeRecord(found);
+      const stamped = unsubscribed.get(id);
+      return stamped ? { ...record, unsubscribedAt: stamped } : record;
+    },
+    setUnsubscribedAt: async (args: { id: string; at: Date }) => {
+      const found = inserted.find((l) => l.id === args.id);
+      if (!found) return null;
+      // Mirror the real store: only stamp when NULL (first opt-out wins).
+      const stamped = unsubscribed.get(args.id) ?? args.at;
+      unsubscribed.set(args.id, stamped);
+      return { ...toFakeRecord(found), unsubscribedAt: stamped };
     },
     findAllByEmail: async (email: string) =>
       inserted.filter((l) => l.email === email).map(toFakeRecord),
@@ -242,6 +256,7 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     quarantined: false,
     leadScore: 0,
     status: 'new',
+    unsubscribedAt: null,
     createdAt: NOW,
     ...overrides,
   };

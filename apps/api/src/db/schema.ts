@@ -95,6 +95,13 @@ export const leads = pgTable(
      * won | lost.
      */
     status: text('status').notNull().default('new'),
+    /**
+     * CASL opt-out (email/03). Set when the homeowner completes the
+     * one-click unsubscribe flow; NULL means still subscribed. Nudge and
+     * marketing emails are suppressed while set; transactional magic-link
+     * emails still send (they are requested content, not marketing).
+     */
+    unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

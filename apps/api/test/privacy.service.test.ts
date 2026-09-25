@@ -68,6 +68,7 @@ function lead(id: string, email: string, estimateId: string): LeadRecord {
     quarantined: false,
     leadScore: 0,
     status: 'new',
+    unsubscribedAt: null,
     createdAt: NOW,
   };
 }
@@ -158,6 +159,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       throw new Error('not used in these tests');
     },
     findById: async (id: string) => world.leads.find((l) => l.id === id) ?? null,
+    setUnsubscribedAt: async () => null,
     findAllByEmail: async (email: string) =>
       world.leads.filter((l) => l.email === email),
     deleteByEmail: async (email: string) => {
