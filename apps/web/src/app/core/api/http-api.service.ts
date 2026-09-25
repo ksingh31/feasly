@@ -30,6 +30,8 @@ import type {
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribeResultResponse,
+  UnsubscribeStateResponse,
 } from '@feasly/contracts';
 import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { ConfigService } from '../config/config.service';
@@ -166,6 +168,26 @@ export class HttpApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.call(this.http.post<PartnerShareResponse>(`${this.base}/shares`, request));
+  }
+
+  /** Token travels in the path (never logged); encoded like the backend's buildUnsubscribeUrl. */
+  private unsubscribePath(token: string): string {
+    return `/unsubscribe/${encodeURIComponent(token)}`;
+  }
+
+  getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {
+    return this.call(
+      this.http.get<UnsubscribeStateResponse>(`${this.base}${this.unsubscribePath(token)}`),
+    );
+  }
+
+  confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse> {
+    return this.call(
+      this.http.post<UnsubscribeResultResponse>(
+        `${this.base}${this.unsubscribePath(token)}`,
+        {},
+      ),
+    );
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {

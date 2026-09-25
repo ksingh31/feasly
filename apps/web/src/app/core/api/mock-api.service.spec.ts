@@ -216,6 +216,38 @@ describe('MockApiService', () => {
     });
   });
 
+  describe('unsubscribe center (email/03)', () => {
+    it('resolves any non-empty token as valid (dev harness)', async () => {
+      const res = await firstValueFrom(service.getUnsubscribeState('any-token'));
+      expect(res.valid).toBe(true);
+      if (res.valid) {
+        expect(res.alreadyUnsubscribed).toBe(false);
+      }
+    });
+
+    it('rejects an empty token as invalid', async () => {
+      const res = await firstValueFrom(service.getUnsubscribeState('  '));
+      expect(res.valid).toBe(false);
+      if (res.valid === false) {
+        expect(res.reason).toBe('invalid');
+      }
+    });
+
+    it('confirm is idempotent: second call reports alreadyUnsubscribed', async () => {
+      const first = await firstValueFrom(service.confirmUnsubscribe('tok-x'));
+      expect(first.unsubscribed).toBe(true);
+      expect(first.alreadyUnsubscribed).toBe(false);
+      const second = await firstValueFrom(service.confirmUnsubscribe('tok-x'));
+      expect(second.unsubscribed).toBe(true);
+      expect(second.alreadyUnsubscribed).toBe(true);
+      const state = await firstValueFrom(service.getUnsubscribeState('tok-x'));
+      expect(state.valid).toBe(true);
+      if (state.valid) {
+        expect(state.alreadyUnsubscribed).toBe(true);
+      }
+    });
+  });
+
   describe('report', () => {
     async function verifiedToken(): Promise<string> {
       const preview = await firstValueFrom(service.getPreviewEstimate(estimateRequest));

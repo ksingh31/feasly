@@ -1,0 +1,51 @@
+<app-site-nav />
+<main class="unsubscribe" id="main-content" tabindex="-1">
+  <div class="card" aria-live="polite">
+    @if (view() === 'loading') {
+      <p class="status">{{ copy.loadingLabel }}</p>
+    } @else if (view() === 'confirm') {
+      <h1>{{ copy.confirmHeading }}</h1>
+      <p class="body">{{ copy.confirmBody }}</p>
+      <div class="actions">
+        <button
+          type="button"
+          class="cta danger"
+          (click)="confirm()"
+          [disabled]="submitting()"
+        >
+          {{ submitting() ? copy.submittingLabel : copy.confirmCta }}
+        </button>
+        <button type="button" class="text-button" (click)="keepSubscribed()">
+          {{ copy.keepCta }}
+        </button>
+      </div>
+    } @else if (view() === 'done') {
+      <h1>{{ copy.doneHeading }}</h1>
+      <p class="body">{{ copy.doneBody }}</p>
+      <p class="resub">
+        <strong>{{ copy.resubscribePrompt }}</strong> {{ copy.resubscribeBody }}
+      </p>
+      <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+    } @else if (view() === 'already') {
+      <h1>{{ copy.alreadyHeading }}</h1>
+      <p class="body">{{ copy.alreadyBody }}</p>
+      <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+    } @else if (view() === 'expired') {
+      <h1>{{ copy.expiredHeading }}</h1>
+      <p class="body">{{ copy.expiredBody }}</p>
+      <p class="body">{{ copy.expiredCta }}</p>
+      <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+    } @else if (view() === 'invalid') {
+      <h1>{{ copy.invalidHeading }}</h1>
+      <p class="body">{{ copy.invalidBody }}</p>
+      <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+    } @else {
+      <h1>{{ copy.errorHeading }}</h1>
+      <p class="body">{{ copy.errorBody }}</p>
+      <button type="button" class="cta" (click)="retry()">
+        {{ copy.retryLabel }}
+      </button>
+    }
+  </div>
+</main>
+<app-site-footer />
