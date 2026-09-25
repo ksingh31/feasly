@@ -26,6 +26,8 @@
  *     (GET /api/v1/unsubscribe/{token})
  *   src/functions/unsubscribe-post.ts     → unsubscribe-post/index.js
  *     (POST /api/v1/unsubscribe/{token})
+ *   src/functions/embed-config.ts         → embed-config/index.js
+ *     (GET /api/v1/embed/config)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -59,6 +61,10 @@ const targets = [
   {
     entry: 'src/functions/unsubscribe-post.ts',
     out: 'unsubscribe-post/index.js',
+  },
+  {
+    entry: 'src/functions/embed-config.ts',
+    out: 'embed-config/index.js',
   },
 ];
 

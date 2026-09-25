@@ -40,3 +40,22 @@ export interface EmbedRelayCode {
   readonly code: string;
   readonly expiresInSeconds: number;
 }
+
+/**
+ * Public builder config served by GET /api/v1/embed/config (EMB-02).
+ *
+ * Snake_case: this is the wire shape. `logo_url` may be '' — the embed
+ * shell falls back to the Feasly wordmark. `plan` is inert until billing
+ * lands (embed/04); null = undecided (the default for every tenant).
+ */
+export interface EmbedPublicConfig {
+  readonly business_name: string;
+  readonly display_name: string;
+  readonly logo_url: string;
+  /** Hex color (#rrggbb), applied as a CSS custom property by the embed shell. */
+  readonly accent_color: string;
+  readonly allowed_origins: readonly string[];
+  readonly fallback_phone: string;
+  readonly fallback_email: string;
+  readonly plan: 'flat' | 'commission' | null;
+}

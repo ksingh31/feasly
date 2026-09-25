@@ -46,8 +46,15 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1790300589676,
-      "tag": "0006_nice_azazel",
+      "when": 1790299347642,
+      "tag": "0006_free_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790301416458,
+      "tag": "0007_cooing_deathbird",
       "breakpoints": true
     }
   ],

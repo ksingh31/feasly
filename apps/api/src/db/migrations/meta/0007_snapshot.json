@@ -1,6 +1,6 @@
 {
-  "id": "853b5d89-396b-4c09-a6ec-81abef6ce2ec",
-  "prevId": "6bc5aaf8-db80-4ce3-8bb2-c4d6224f339b",
+  "id": "a086928f-aa02-4bd3-b7dd-eebc15d3ad70",
+  "prevId": "853b5d89-396b-4c09-a6ec-81abef6ce2ec",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -458,6 +458,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'new'"
+        },
+        "unsubscribed_at": {
+          "name": "unsubscribed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

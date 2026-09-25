@@ -185,9 +185,11 @@ jobs:
         # The workspace packages (contracts, cost-engine) publish from
         # dist/ (package.json main -> dist/index.js), so they must be built
         # before esbuild can resolve them into the self-contained bundles.
+        # NODE_ENV=production so the builder-config generator rejects
+        # localhost origins in the prod bundle (EMB-02: https only in prod).
         run: |
           npx tsc -b
-          npm run bundle:functions --workspace @feasly/api
+          NODE_ENV=production npm run bundle:functions --workspace @feasly/api
 
       - name: Build web app (production, prerendered)
         run: npm run build --workspace @feasly/web
