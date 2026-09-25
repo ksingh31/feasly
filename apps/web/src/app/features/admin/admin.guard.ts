@@ -20,10 +20,9 @@ export const adminGuard: CanActivateFn = () => {
   const router = inject(Router);
 
   return api.me().pipe(
-    map((me) => {
-      if (me !== null) return true;
-      return router.createUrlTree(['/admin/login']);
-    }),
+    // A 2xx means the session is valid. Any 401 (UNAUTHENTICATED or
+    // SESSION_EXPIRED) lands in catchError below.
+    map(() => true),
     catchError((error: unknown) => {
       // 401 with SESSION_EXPIRED → show the expiry copy.
       const code =

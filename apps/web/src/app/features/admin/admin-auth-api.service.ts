@@ -69,12 +69,14 @@ export class AdminAuthApiService {
     );
   }
 
-  /** Probe the current session. Returns null when unauthenticated. */
-  me(): Observable<{ email: string } | null> {
+  /**
+   * Probe the current session. Emits the identity on success; the 401
+   * propagates (UNAUTHENTICATED or SESSION_EXPIRED) so the admin route guard
+   * can show the right login copy.
+   */
+  me(): Observable<{ email: string }> {
     return this.call(
-      this.http
-        .get<{ email: string }>(`${this.authBase}/me`, { withCredentials: true })
-        .pipe(catchError(() => [null])),
+      this.http.get<{ email: string }>(`${this.authBase}/me`, { withCredentials: true }),
     );
   }
 }
