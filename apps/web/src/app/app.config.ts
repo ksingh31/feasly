@@ -14,6 +14,7 @@ import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { ConfigService } from './core/config/config.service';
 import { EmbedState } from './features/embed';
+import { ComparisonState } from './features/compare';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
@@ -61,10 +62,17 @@ export const appConfig: ApplicationConfig = {
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
       withNgxsStoragePlugin({
-        keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState],
-        beforeSerialize: (obj, key) => (key === 'report' ? { ...obj, reportToken: null } : obj),
+        keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
+        beforeSerialize: (obj, key) =>
+          // The report token and the comparison unlock are session-scoped:
+          // strip them so a refresh re-gates instead of silently unlocking.
+          key === 'report'
+            ? { ...obj, reportToken: null }
+            : key === 'comparison'
+              ? { ...obj, leadId: null }
+              : obj,
       }),
     ),
   ],

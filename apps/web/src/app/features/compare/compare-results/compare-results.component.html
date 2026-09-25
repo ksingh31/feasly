@@ -1,0 +1,117 @@
+@if (result(); as comparison) {
+  <section class="compare-results" aria-labelledby="compare-results-heading">
+    <header class="compare-results__header">
+      <h1 id="compare-results-heading">{{ copy.resultsHeading }}</h1>
+      <p class="compare-results__sub">{{ subheading() }}</p>
+    </header>
+
+    @if (unlocked()) {
+      <section class="compare-results__whatif" aria-label="Finish tier what-if">
+        <app-tier-selector
+          [selected]="comparison.inputs.tier"
+          [options]="tierOptions"
+          [label]="copy.whatIfLabel"
+          [hint]="copy.whatIfHint"
+          (selectedChange)="onTierChange($event)"
+        />
+      </section>
+    }
+
+    <div class="compare-results__cards">
+      @for (rowSet of comparison.rowSets; track rowSet.slug) {
+        <article
+          class="community-card"
+          [attr.data-slug]="rowSet.slug"
+          [attr.data-lowest-land]="rowSet.lowestLand"
+        >
+          @if (rowSet.lowestLand) {
+            <span class="community-card__badge">{{ copy.lowestLandBadge }}</span>
+          }
+          <h2 class="community-card__name">{{ displayName(rowSet.slug) }}</h2>
+
+          <div class="community-card__assessed">
+            <span class="community-card__label">{{ copy.assessedLabel }}</span>
+            <span class="community-card__assessed-value" data-testid="assessed-value">
+              {{ formatMoney(statsFor(rowSet.slug)?.avg_assessed_value ?? 0) }}
+            </span>
+          </div>
+
+          <dl class="community-card__figures">
+            <div class="community-card__figure">
+              <dt>{{ copy.landLabel }}</dt>
+              <dd data-testid="land-range">{{ formatRange(rowSet.land) }}</dd>
+            </div>
+            <div class="community-card__figure">
+              <dt>{{ copy.buildLabel }}</dt>
+              <dd>
+                @if (unlocked()) {
+                  <span data-testid="build-range">{{ formatRange(rowSet.build) }}</span>
+                } @else {
+                  <span class="locked-slot">
+                    <span class="locked-slot__skeleton" aria-hidden="true"></span>
+                    <span class="locked-slot__note">{{ copy.lockedNote }}</span>
+                  </span>
+                }
+              </dd>
+            </div>
+            <div class="community-card__figure community-card__figure--total">
+              <dt>{{ copy.totalLabel }}</dt>
+              <dd>
+                @if (unlocked()) {
+                  <span data-testid="total-range">{{ formatRange(rowSet.total) }}</span>
+                } @else {
+                  <span class="locked-slot">
+                    <span class="locked-slot__skeleton" aria-hidden="true"></span>
+                    <span class="locked-slot__note">{{ copy.lockedNote }}</span>
+                  </span>
+                }
+              </dd>
+            </div>
+          </dl>
+        </article>
+      }
+    </div>
+
+    <section class="compare-chart" aria-label="{{ copy.chartTitle }}">
+      <h2 class="compare-chart__title">{{ copy.chartTitle }}</h2>
+      <p class="compare-chart__note">{{ copy.chartAxisNote }}</p>
+      <div class="compare-chart__bars" [class.compare-chart__bars--locked]="!unlocked()">
+        @for (rowSet of comparison.rowSets; track rowSet.slug) {
+          <div class="compare-chart__row">
+            <span class="compare-chart__label">{{ displayName(rowSet.slug) }}</span>
+            <div class="compare-chart__track">
+              @if (unlocked()) {
+                <div
+                  class="compare-chart__bar"
+                  [ngStyle]="barStyle(rowSet)"
+                  [attr.data-slug]="rowSet.slug"
+                ></div>
+              } @else {
+                <div class="compare-chart__bar compare-chart__bar--skeleton" aria-hidden="true"></div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      @if (!unlocked()) {
+        <p class="compare-chart__locked-note">{{ copy.lockedNote }}</p>
+      }
+    </section>
+
+    <div class="compare-results__actions">
+      @if (!unlocked()) {
+        <button
+          type="button"
+          class="compare-results__unlock"
+          (click)="unlock()"
+          data-testid="unlock-cta"
+        >
+          {{ copy.unlockCta }}
+        </button>
+      }
+      <button type="button" class="compare-results__edit" (click)="edit()">
+        {{ copy.editLabel }}
+      </button>
+    </div>
+  </section>
+}

@@ -1,6 +1,6 @@
 <app-site-nav />
 <main class="compare-page">
-  @if (!submitted()) {
+  @if (phase() === 'picker') {
     <p class="eyebrow">{{ copy.pickerHeading }}</p>
     <h1 class="compare-heading">{{ copy.pickerHeading }}</h1>
     <p class="compare-sub">{{ copy.pickerSubheading }}</p>
@@ -99,24 +99,45 @@
         <p class="cta-hint">{{ copy.ctaHint }}</p>
       }
     </div>
-  } @else {
-    <!-- Interim confirmation (NBH-04): honest placeholder until NBH-03
-         lands the real comparison result pipeline. -->
-    <section class="interim-panel" aria-labelledby="interim-title">
-      <h1 id="interim-title" class="compare-heading">{{ copy.interimTitle }}</h1>
-      <p class="compare-sub">{{ copy.interimBody }}</p>
-      <ul class="interim-picks">
-        @for (slug of comparison().slugs; track slug) {
-          <li>{{ nameFor(slug) }}</li>
-        }
-      </ul>
-      <p class="interim-meta">
-        {{ comparison().sqft.toLocaleString('en-CA') }} {{ copy.sqftUnit }} · {{ comparison().tier }}
-      </p>
-      <button type="button" class="link-button" (click)="backToPicker()">
-        {{ copy.interimBackLabel }}
-      </button>
+  } @else if (phase() === 'analyzing') {
+    <!-- Analyzing beat (NBH-03): each stage maps 1:1 onto the ComparisonState
+         pipeline — validate → fetch stats → calculate. No timers, no theater. -->
+    <section class="analyzing-panel" aria-labelledby="analyzing-title" aria-live="polite">
+      @if (compareStatus() === 'error') {
+        <h1 id="analyzing-title" class="compare-heading">{{ reportCopy.loadError }}</h1>
+        <div class="analyzing-error-actions">
+          <button type="button" class="cta" (click)="retryComparison()">
+            {{ reportCopy.retryLabel }}
+          </button>
+          <button type="button" class="link-button" (click)="backToPicker()">
+            {{ copy.editLabel }}
+          </button>
+        </div>
+      } @else {
+        <h1 id="analyzing-title" class="compare-heading">{{ copy.analyzingCalculate }}</h1>
+        <ol class="analyzing-stages">
+          @for (stage of analyzingStages(); track stage.key) {
+            <li class="analyzing-stage" [attr.data-state]="stage.state">
+              <span class="analyzing-stage__marker" aria-hidden="true">
+                @if (stage.state === 'done') {
+                  ✓
+                } @else if (stage.state === 'active') {
+                  <span class="analyzing-spinner"></span>
+                } @else {
+                  ○
+                }
+              </span>
+              <span class="analyzing-stage__label">{{ stage.label }}</span>
+              <span class="sr-only">
+                {{ stage.state === 'done' ? 'done' : stage.state === 'active' ? 'in progress' : 'pending' }}
+              </span>
+            </li>
+          }
+        </ol>
+      }
     </section>
+  } @else {
+    <app-compare-results />
   }
 </main>
 <app-site-footer />

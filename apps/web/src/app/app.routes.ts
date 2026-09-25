@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { ComparePickerPageComponent } from './features/compare/compare-picker-page.component';
+import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -44,12 +44,13 @@ export const routes: Routes = [
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
-  // Lead gate (FE-004): the single gate — needs property + scope, else address step.
+  // Lead gate (FE-004 / NBH-03): the single gate — the wizard flow needs
+  // property + scope, the comparison flow needs an active comparison result.
   // Private lead data: noindex like the other wizard routes.
   {
     path: 'estimate/gate',
     component: GatePageComponent,
-    canActivate: [robotsGuard, wizardScopeGuard],
+    canActivate: [robotsGuard, leadGateGuard],
     data: { noindex: true },
   },
   // Analyzing (FE-004): runs the real estimate pipeline, then the report.

@@ -1,4 +1,6 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type { FinishTier } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
@@ -10,6 +12,9 @@ import {
   WizardState,
   type ComparisonInputs,
 } from '../wizard';
+import { ComparisonState } from './comparison.state';
+import type { ComparisonStage } from './comparison.state';
+import { ClearComparisonResult, RunComparison } from './comparison.actions';
 import {
   SiteFooterComponent,
   SiteNavComponent,
@@ -17,17 +22,22 @@ import {
   TierSelectorComponent,
   type TierOption,
 } from '../../shared/components';
+import { CompareResultsComponent } from './compare-results/compare-results.component';
 
 /**
- * Neighbourhood comparison picker (NBH-04): searchable Calgary community
- * list, pick 2–3, then sqft + finish-tier, then "Compare →".
+ * Neighbourhood comparison picker + results (NBH-04 / NBH-03).
  *
- * All picker state lives in NGXS (`WizardState.comparison`) and persists via
- * the storage plugin, so a refresh mid-picker restores the selections. The
- * CTA currently swaps to an explicit interim confirmation panel — NBH-03
- * owns the real comparison result pipeline (analyzing beat → comparison UI)
- * and replaces the interim.
+ * Three phases on the one route:
+ * - `picker`: choose 2–3 communities, sqft, tier (persisted in WizardState).
+ * - `analyzing`: honest beat — each stage maps 1:1 onto the ComparisonState
+ *   pipeline (validate → fetch stats → calculate). No timers, no theater.
+ * - `results`: the side-by-side cards + chart (CompareResultsComponent).
+ *
+ * "← Edit communities" returns here with `?edit=1`; the persisted inputs
+ * stay intact. A stored result (e.g. after a refresh) lands on `results`.
  */
+type ComparePhase = 'picker' | 'analyzing' | 'results';
+
 @Component({
   selector: 'app-compare-picker-page',
   standalone: true,
@@ -36,12 +46,15 @@ import {
     SiteNavComponent,
     SqftSliderComponent,
     TierSelectorComponent,
+    CompareResultsComponent,
   ],
   templateUrl: './compare-picker-page.component.html',
   styleUrl: './compare-picker-page.component.scss',
 })
 export class ComparePickerPageComponent {
   private readonly store = inject(Store);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly communities = inject(CommunityService);
@@ -54,22 +67,20 @@ export class ComparePickerPageComponent {
   protected readonly copy = this.config.get('copy').comparison;
   protected readonly wizard = this.config.get('wizard');
   protected readonly scopeCopy = this.config.get('copy').wizard;
+  protected readonly reportCopy = this.config.get('copy').report;
+
+  protected readonly phase = signal<ComparePhase>('picker');
 
   /** Live comparison state from NGXS (persisted). */
   protected readonly comparison = this.store.selectSignal(WizardState.comparison);
+  protected readonly compareStatus = this.store.selectSignal(ComparisonState.status);
+  protected readonly compareStage = this.store.selectSignal(ComparisonState.stage);
 
   /** Search box text (local only — not persisted). */
   protected readonly search = signal('');
 
   /** Inline warning shown when a 4th community is rejected. */
   protected readonly maxWarning = signal(false);
-
-  /**
-   * Interim confirmation flag (NBH-04 only): after the CTA, the picker swaps
-   * to an honest "on its way" panel. NBH-03 replaces this with the real
-   * comparison result pipeline (analyzing beat → comparison UI).
-   */
-  protected readonly submitted = signal(false);
 
   /** All communities, filtered by the search text (case-insensitive). */
   protected readonly filtered = computed<readonly CommunityDescriptor[]>(() => {
@@ -93,8 +104,47 @@ export class ComparePickerPageComponent {
     () => this.selectedCount() >= ComparePickerPageComponent.MIN_COMMUNITIES,
   );
 
+  /** Analyzing beat stages — each tied to the real pipeline stage. */
+  protected readonly analyzingStages = computed(() => {
+    const order: readonly ComparisonStage[] = ['validating', 'fetching', 'calculating'];
+    const labels: Record<ComparisonStage, string> = {
+      validating: this.copy.analyzingValidate,
+      fetching: this.copy.analyzingFetch,
+      calculating: this.copy.analyzingCalculate,
+    };
+    const current = this.compareStage();
+    const currentIdx = current ? order.indexOf(current) : -1;
+    return order.map((key, i) => ({
+      key,
+      label: labels[key],
+      state: (i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending') as
+        | 'done'
+        | 'active'
+        | 'pending',
+    }));
+  });
+
   constructor() {
     this.seo.setForRoute('estimate/compare');
+
+    const editRequested = this.route.snapshot.queryParamMap.get('edit') === '1';
+    const hasResult = this.store.selectSnapshot(ComparisonState.result) !== null;
+    this.phase.set(editRequested || !hasResult ? 'picker' : 'results');
+
+    // "← Edit communities" navigates here with ?edit=1 on the same route —
+    // Angular reuses the component, so watch the params.
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((params) => {
+      if (params['edit'] === '1' && this.phase() === 'results') {
+        this.phase.set('picker');
+      }
+    });
+
+    // The pipeline owns the transition: analyzing → results on ready.
+    effect(() => {
+      if (this.compareStatus() === 'ready' && this.phase() === 'analyzing') {
+        this.phase.set('results');
+      }
+    });
   }
 
   /** Display name for a stored slug (falls back to the slug). */
@@ -143,20 +193,30 @@ export class ComparePickerPageComponent {
   }
 
   /**
-   * CTA: explicit interim transition (NBH-04). Until NBH-03 lands the real
-   * comparison result pipeline, the picker swaps to an honest confirmation
-   * panel — it never pretends a result already exists.
+   * CTA (NBH-03): runs the real comparison pipeline. The analyzing phase
+   * renders while ComparisonState works; the effect above swaps to the
+   * results when the pipeline reports ready.
    */
   startComparison(): void {
     if (!this.canCompare()) {
       return;
     }
-    this.submitted.set(true);
+    // Drop ?edit=1 so a refresh lands back on the results, not the picker.
+    void this.router.navigate(['/estimate/compare'], { replaceUrl: true });
+    this.phase.set('analyzing');
+    this.store.dispatch(new RunComparison());
   }
 
-  /** Back from the interim panel to adjust picks. */
+  /** Error-state retry: re-runs the pipeline with the same inputs. */
+  retryComparison(): void {
+    this.phase.set('analyzing');
+    this.store.dispatch(new RunComparison());
+  }
+
+  /** Back from an error to adjust picks (clears the failed result). */
   backToPicker(): void {
-    this.submitted.set(false);
+    this.store.dispatch(new ClearComparisonResult());
+    this.phase.set('picker');
   }
 
   private update(inputs: Partial<ComparisonInputs>): void {
