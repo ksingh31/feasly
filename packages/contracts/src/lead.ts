@@ -34,4 +34,10 @@ export interface LeadResponse {
   readonly magicLinkSent: boolean;
   /** Rendered in the UI from this value — never hardcoded. */
   readonly expiresInDays: number;
+  /**
+   * 0–100 lead score computed server-side (embed/08). Optional: backends
+   * that predate the embed bridge omit it; the bridge posts the
+   * lead-created event regardless.
+   */
+  readonly leadScore?: number;
 }

@@ -216,12 +216,25 @@
     var detail = {};
     if (typeof data.addressKey === 'string') detail.addressKey = data.addressKey;
     if (typeof data.address === 'string') detail.address = data.address;
+    dispatchBridgeEvent(ctx, 'feasly:estimate-start', detail);
+  }
+
+  function onLeadCreated(ctx, data) {
+    if (ctx.dead) return;
+    // Zero PII by contract: only the opaque estimateId and numeric leadScore.
+    var detail = {};
+    if (typeof data.estimateId === 'string') detail.estimateId = data.estimateId;
+    if (typeof data.leadScore === 'number') detail.leadScore = data.leadScore;
+    dispatchBridgeEvent(ctx, 'feasly:lead-created', detail);
+  }
+
+  function dispatchBridgeEvent(ctx, name, detail) {
     var event;
     try {
-      event = new CustomEvent('feasly:estimate-start', { detail: detail, bubbles: true });
+      event = new CustomEvent(name, { detail: detail, bubbles: true });
     } catch (e) {
       event = document.createEvent('CustomEvent');
-      event.initCustomEvent('feasly:estimate-start', true, false, detail);
+      event.initCustomEvent(name, true, false, detail);
     }
     ctx.container.dispatchEvent(event);
   }
@@ -241,6 +254,9 @@
         break;
       case 'feasly:estimate-start':
         onEstimateStart(ctx, data);
+        break;
+      case 'feasly:lead-created':
+        onLeadCreated(ctx, data);
         break;
       case 'FEASLY_AUTH_OK':
         clearRelayCode();
