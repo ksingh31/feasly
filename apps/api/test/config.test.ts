@@ -30,6 +30,7 @@ describe('loadConfig', () => {
       },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
+      siteUrl: 'https://feasly.dev',
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
       email: {
         provider: 'log',

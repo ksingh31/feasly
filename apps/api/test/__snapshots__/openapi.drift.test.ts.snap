@@ -1,0 +1,1393 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
+{
+  "components": {
+    "parameters": {},
+    "schemas": {
+      "AnalyticsEvent": {
+        "properties": {
+          "consent_ts": {
+            "description": "Consent-banner acknowledgement timestamp",
+            "format": "date-time",
+            "type": "string",
+          },
+          "event": {
+            "$ref": "#/components/schemas/AnalyticsEventName",
+          },
+          "route": {
+            "description": "Client route where the event occurred",
+            "type": "string",
+          },
+          "ts": {
+            "description": "Client-side occurrence timestamp",
+            "format": "date-time",
+            "type": "string",
+          },
+        },
+        "required": [
+          "event",
+          "route",
+          "ts",
+          "consent_ts",
+        ],
+        "type": "object",
+      },
+      "AnalyticsEventName": {
+        "enum": [
+          "step_view",
+          "gate_view",
+          "gate_convert",
+          "report_open",
+          "tier_toggle",
+          "callback_request",
+          "partner_share",
+          "pdf_download",
+          "embed_loaded",
+        ],
+        "type": "string",
+      },
+      "AnalyticsIngestResponse": {
+        "properties": {
+          "accepted": {
+            "description": "Number of events accepted",
+            "type": "integer",
+          },
+        },
+        "required": [
+          "accepted",
+        ],
+        "type": "object",
+      },
+      "ApiError": {
+        "properties": {
+          "code": {
+            "description": "Machine-readable error code",
+            "type": "string",
+          },
+          "message": {
+            "description": "Human-readable message",
+            "type": "string",
+          },
+          "retryable": {
+            "description": "Whether the UI should offer a Retry button",
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+        ],
+        "type": "object",
+      },
+      "ApiKeyIssueRequest": {
+        "properties": {
+          "name": {
+            "description": "Human-readable label",
+            "minLength": 1,
+            "type": "string",
+          },
+          "rate_limit": {
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "sandbox": {
+            "description": "True for feasly_test_ keys (no emails sent)",
+            "type": "boolean",
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyScope",
+            },
+            "type": "array",
+          },
+          "tenant_id": {
+            "description": "Optional tenant binding",
+            "type": "string",
+          },
+        },
+        "required": [
+          "name",
+        ],
+        "type": "object",
+      },
+      "ApiKeyIssuedResponse": {
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ApiKeyRecordResponse",
+          },
+          "plaintext": {
+            "description": "Plaintext key — returned EXACTLY once, never again",
+            "type": "string",
+          },
+        },
+        "required": [
+          "key",
+          "plaintext",
+        ],
+        "type": "object",
+      },
+      "ApiKeyListResponse": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyRecordResponse",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "keys",
+        ],
+        "type": "object",
+      },
+      "ApiKeyRecordResponse": {
+        "properties": {
+          "created_at": {
+            "type": "string",
+          },
+          "id": {
+            "type": "string",
+          },
+          "key_prefix": {
+            "description": "Masked display form — never the full key",
+            "type": "string",
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "name": {
+            "type": "string",
+          },
+          "rate_limit_per_min": {
+            "type": "integer",
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "sandbox": {
+            "type": "boolean",
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyScope",
+            },
+            "type": "array",
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "id",
+          "name",
+          "tenant_id",
+          "key_prefix",
+          "scopes",
+          "rate_limit_per_min",
+          "sandbox",
+          "revoked_at",
+          "last_used_at",
+          "created_at",
+        ],
+        "type": "object",
+      },
+      "ApiKeyScope": {
+        "enum": [
+          "property:read",
+          "estimate",
+          "estimate:read",
+          "lead",
+          "lead:read",
+        ],
+        "type": "string",
+      },
+      "AutocompleteResponse": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/AutocompleteSuggestion",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "suggestions",
+        ],
+        "type": "object",
+      },
+      "AutocompleteSuggestion": {
+        "properties": {
+          "address": {
+            "type": "string",
+          },
+          "addressKey": {
+            "type": "string",
+          },
+          "community": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "addressKey",
+          "address",
+          "community",
+        ],
+        "type": "object",
+      },
+      "BasementOption": {
+        "enum": [
+          "unfinished",
+          "finished",
+        ],
+        "type": "string",
+      },
+      "BlurredFigure": {
+        "properties": {
+          "blurred": {
+            "description": "Pre-gate placeholder — no real figures",
+            "enum": [
+              true,
+            ],
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "blurred",
+        ],
+        "type": "object",
+      },
+      "CommunityStatsResponse": {
+        "properties": {
+          "avgAssessedValue": {
+            "description": "Average City-assessed value",
+            "type": "integer",
+          },
+          "avgLotSqft": {
+            "description": "Average lot size in square feet",
+            "type": "number",
+          },
+          "count": {
+            "description": "Assessment record count",
+            "type": "integer",
+          },
+          "name": {
+            "type": "string",
+          },
+          "slug": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "slug",
+          "name",
+          "count",
+          "avgAssessedValue",
+          "avgLotSqft",
+        ],
+        "type": "object",
+      },
+      "CostRange": {
+        "properties": {
+          "base": {
+            "description": "Deterministic best estimate (low <= base <= high)",
+            "type": "integer",
+          },
+          "high": {
+            "description": "Upper bound, integer CAD (no cents)",
+            "type": "integer",
+          },
+          "low": {
+            "description": "Lower bound, integer CAD (no cents)",
+            "type": "integer",
+          },
+        },
+        "required": [
+          "low",
+          "base",
+          "high",
+        ],
+        "type": "object",
+      },
+      "CostRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+          },
+          "label": {
+            "type": "string",
+          },
+          "range": {
+            "$ref": "#/components/schemas/CostRange",
+          },
+        },
+        "required": [
+          "key",
+          "label",
+          "range",
+        ],
+        "type": "object",
+      },
+      "EmbedPublicConfig": {
+        "properties": {
+          "accent_color": {
+            "description": "Hex color (#rrggbb)",
+            "type": "string",
+          },
+          "allowed_origins": {
+            "items": {
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "business_name": {
+            "type": "string",
+          },
+          "display_name": {
+            "type": "string",
+          },
+          "fallback_email": {
+            "type": "string",
+          },
+          "fallback_phone": {
+            "type": "string",
+          },
+          "logo_url": {
+            "description": "May be '' — falls back to Feasly wordmark",
+            "type": "string",
+          },
+          "plan": {
+            "enum": [
+              "flat",
+              "commission",
+              null,
+            ],
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "business_name",
+          "display_name",
+          "logo_url",
+          "accent_color",
+          "allowed_origins",
+          "fallback_phone",
+          "fallback_email",
+          "plan",
+        ],
+        "type": "object",
+      },
+      "EstimateInputs": {
+        "properties": {
+          "basement": {
+            "$ref": "#/components/schemas/BasementOption",
+          },
+          "garage": {
+            "$ref": "#/components/schemas/GarageOption",
+          },
+          "sqft": {
+            "description": "Living area in square feet",
+            "exclusiveMinimum": 0,
+            "type": "number",
+          },
+          "tier": {
+            "$ref": "#/components/schemas/FinishTier",
+          },
+        },
+        "required": [
+          "sqft",
+          "tier",
+          "garage",
+          "basement",
+        ],
+        "type": "object",
+      },
+      "EstimateRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EstimateInputs",
+          },
+          {
+            "default": undefined,
+            "properties": {
+              "addressKey": {
+                "description": "Opaque property identifier from lookup",
+                "type": "string",
+              },
+            },
+            "required": [
+              "addressKey",
+            ],
+            "type": "object",
+          },
+        ],
+      },
+      "EstimateResponse": {
+        "properties": {
+          "addressKey": {
+            "type": "string",
+          },
+          "costDataVersion": {
+            "type": "string",
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "estimateId": {
+            "type": "string",
+          },
+          "figures": {
+            "properties": {
+              "build": {
+                "$ref": "#/components/schemas/CostRange",
+              },
+              "land": {
+                "$ref": "#/components/schemas/FixedFigure",
+              },
+              "total": {
+                "$ref": "#/components/schemas/CostRange",
+              },
+            },
+            "required": [
+              "build",
+              "total",
+              "land",
+            ],
+            "type": "object",
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/EstimateInputs",
+          },
+          "projectType": {
+            "enum": [
+              "new_build",
+              "renovation",
+            ],
+            "type": "string",
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "estimateId",
+          "addressKey",
+          "inputs",
+          "figures",
+          "rows",
+          "costDataVersion",
+          "createdAt",
+        ],
+        "type": "object",
+      },
+      "FinishTier": {
+        "enum": [
+          "standard",
+          "premium",
+          "luxury",
+        ],
+        "type": "string",
+      },
+      "FixedFigure": {
+        "description": "City-assessed land value — a fixed fact, never a range",
+        "properties": {
+          "value": {
+            "description": "Fixed CAD figure, integer (no cents)",
+            "type": "integer",
+          },
+        },
+        "required": [
+          "value",
+        ],
+        "type": "object",
+      },
+      "GarageOption": {
+        "enum": [
+          "none",
+          "double",
+          "triple",
+        ],
+        "type": "string",
+      },
+      "LeadRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string",
+          },
+          "estimateId": {
+            "type": "string",
+          },
+          "marketingConsent": {
+            "description": "CASL marketing consent (unchecked by default in UI)",
+            "type": "boolean",
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "phone": {
+            "type": "string",
+          },
+          "tenantKey": {
+            "description": "Present only on builder embeds",
+            "type": "string",
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/TimelineOption",
+          },
+          "website": {
+            "description": "Honeypot anti-spam field — leave empty",
+            "type": "string",
+          },
+        },
+        "required": [
+          "email",
+          "name",
+          "timeline",
+          "marketingConsent",
+          "estimateId",
+        ],
+        "type": "object",
+      },
+      "LeadResponse": {
+        "properties": {
+          "expiresInDays": {
+            "type": "integer",
+          },
+          "leadId": {
+            "type": "string",
+          },
+          "magicLinkSent": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "leadId",
+          "magicLinkSent",
+          "expiresInDays",
+        ],
+        "type": "object",
+      },
+      "MagicLinkVerifyResponse": {
+        "properties": {
+          "estimateId": {
+            "type": "string",
+          },
+          "verified": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "verified",
+        ],
+        "type": "object",
+      },
+      "PreviewEstimateResponse": {
+        "properties": {
+          "addressKey": {
+            "type": "string",
+          },
+          "costDataVersion": {
+            "type": "string",
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "estimateId": {
+            "type": "string",
+          },
+          "figures": {
+            "properties": {
+              "build": {
+                "$ref": "#/components/schemas/BlurredFigure",
+              },
+              "land": {
+                "$ref": "#/components/schemas/BlurredFigure",
+              },
+              "total": {
+                "$ref": "#/components/schemas/BlurredFigure",
+              },
+            },
+            "required": [
+              "build",
+              "total",
+              "land",
+            ],
+            "type": "object",
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/EstimateInputs",
+          },
+          "rows": {
+            "description": "Always empty pre-gate",
+            "items": {},
+            "maxItems": 0,
+            "type": "array",
+          },
+        },
+        "required": [
+          "estimateId",
+          "addressKey",
+          "inputs",
+          "figures",
+          "rows",
+          "costDataVersion",
+          "createdAt",
+        ],
+        "type": "object",
+      },
+      "PrivacyEraseConfirmResponse": {
+        "properties": {
+          "erased": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "erased",
+        ],
+        "type": "object",
+      },
+      "PrivacyEraseRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string",
+          },
+        },
+        "required": [
+          "email",
+        ],
+        "type": "object",
+      },
+      "ProblemDetails": {
+        "properties": {
+          "code": {
+            "description": "Feasly error code (see error-code catalog)",
+            "type": "string",
+          },
+          "correlationId": {
+            "description": "Request correlation ID for support",
+            "type": "string",
+          },
+          "detail": {
+            "description": "Detailed explanation",
+            "type": "string",
+          },
+          "status": {
+            "description": "HTTP status code",
+            "type": "integer",
+          },
+          "title": {
+            "description": "Short human-readable summary",
+            "type": "string",
+          },
+          "type": {
+            "description": "URI identifying the problem type",
+            "type": "string",
+          },
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "correlationId",
+        ],
+        "type": "object",
+      },
+      "PropertyRecord": {
+        "properties": {
+          "address": {
+            "type": "string",
+          },
+          "addressKey": {
+            "type": "string",
+          },
+          "assessedValue": {
+            "description": "City-assessed value, integer CAD",
+            "type": "integer",
+          },
+          "assessmentYear": {
+            "type": "integer",
+          },
+          "community": {
+            "type": "string",
+          },
+          "dataAsOf": {
+            "description": "When the City data was fetched (ISO date)",
+            "type": "string",
+          },
+          "lotSqft": {
+            "description": "Lot size in square feet",
+            "type": "number",
+          },
+          "stale": {
+            "description": "True when assessment year is older than freshness threshold",
+            "type": "boolean",
+          },
+          "yearBuilt": {
+            "type": [
+              "integer",
+              "null",
+            ],
+          },
+          "zoning": {
+            "description": "City land-use designation, verbatim",
+            "type": "string",
+          },
+        },
+        "required": [
+          "addressKey",
+          "address",
+          "community",
+          "lotSqft",
+          "zoning",
+          "assessedValue",
+          "assessmentYear",
+          "yearBuilt",
+          "dataAsOf",
+          "stale",
+        ],
+        "type": "object",
+      },
+      "TimelineOption": {
+        "enum": [
+          "0-3mo",
+          "3-6mo",
+          "6-12mo",
+          "12+mo",
+          "exploring",
+        ],
+        "type": "string",
+      },
+    },
+    "securitySchemes": {
+      "AdminKey": {
+        "description": "Interim admin guard (pre-shared key). Being replaced by session auth (admin/01).",
+        "in": "header",
+        "name": "X-Admin-Key",
+        "type": "apiKey",
+      },
+      "ApiKeyAuth": {
+        "bearerFormat": "feasly_live_… / feasly_test_…",
+        "description": "API key issued via the admin endpoints. Send as \`Authorization: Bearer <key>\`. Sandbox keys (\`feasly_test_…\`) never trigger real emails.",
+        "scheme": "bearer",
+        "type": "http",
+      },
+    },
+  },
+  "info": {
+    "description": "Address-aware infill feasibility estimates for Calgary. Deterministic cost engine — dollar figures are computed, never LLM-generated. 
+
+## Authentication
+Public endpoints use API-key Bearer auth. Admin key endpoints use the interim \`X-Admin-Key\` header.
+
+## Rate limits
+Per-key limits (default 100 req/min) plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json.
+
+## Errors
+All errors are RFC 7807 \`application/problem+json\` with a Feasly \`code\` and \`correlationId\`.
+
+## Versioning
+URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notice on v1.",
+    "license": {
+      "name": "Proprietary",
+    },
+    "title": "Feasly Public API",
+    "version": "0.0.0-test",
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/admin/api-keys": {
+      "get": {
+        "description": "Lists API keys. Only masked prefixes are shown — never plaintext.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyListResponse",
+                },
+              },
+            },
+            "description": "Key list",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "List API keys",
+      },
+      "post": {
+        "description": "Issues a new API key. The plaintext is returned EXACTLY once — it is never stored and cannot be retrieved again.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyIssueRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyIssuedResponse",
+                },
+              },
+            },
+            "description": "Key issued (plaintext shown once)",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Issue an API key",
+      },
+    },
+    "/v1/admin/api-keys/{id}/revoke": {
+      "post": {
+        "description": "Revokes a key immediately. Cannot be undone.",
+        "parameters": [
+          {
+            "description": "Key ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Key ID (UUID)",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean",
+                    },
+                  },
+                  "type": "object",
+                },
+              },
+            },
+            "description": "Key revoked",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Revoke an API key",
+      },
+    },
+    "/v1/admin/api-keys/{id}/rotate": {
+      "post": {
+        "description": "Rotates a key — the old plaintext is invalidated immediately, a new plaintext is returned once.",
+        "parameters": [
+          {
+            "description": "Key ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Key ID (UUID)",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyIssuedResponse",
+                },
+              },
+            },
+            "description": "Key rotated (new plaintext shown once)",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Rotate an API key",
+      },
+    },
+    "/v1/communities/{slug}/stats": {
+      "get": {
+        "description": "Aggregated City-assessment stats for a community page.",
+        "parameters": [
+          {
+            "description": "Community slug (kebab-case)",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "description": "Community slug (kebab-case)",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityStatsResponse",
+                },
+              },
+            },
+            "description": "Community stats",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Get community statistics",
+      },
+    },
+    "/v1/embed/config": {
+      "get": {
+        "description": "Returns the public builder config for an embed tenant (branding, contact fallbacks). No auth — public by design.",
+        "parameters": [
+          {
+            "description": "Tenant key from the embed snippet",
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Tenant key from the embed snippet",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedPublicConfig",
+                },
+              },
+            },
+            "description": "Public embed config",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Get public embed config",
+      },
+    },
+    "/v1/estimate": {
+      "post": {
+        "description": "Runs the deterministic cost engine on the given inputs. Returns real ranges (post-gate) — the pre-gate preview uses the blurred placeholder shape.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimateResponse",
+                },
+              },
+            },
+            "description": "Estimate with real cost ranges",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "ApiKeyAuth": [],
+          },
+        ],
+        "summary": "Run a cost estimate",
+      },
+    },
+    "/v1/events": {
+      "post": {
+        "description": "First-party analytics ingest. Events require a valid consent_ts — the endpoint rejects payloads with missing or future-dated consent.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "events": {
+                    "items": {
+                      "$ref": "#/components/schemas/AnalyticsEvent",
+                    },
+                    "type": "array",
+                  },
+                },
+                "required": [
+                  "events",
+                ],
+                "type": "object",
+              },
+            },
+          },
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsIngestResponse",
+                },
+              },
+            },
+            "description": "Events accepted",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Ingest analytics events",
+      },
+    },
+    "/v1/leads": {
+      "post": {
+        "description": "Captures a lead and sends the magic-link email. The lead is persisted even if the link is never clicked.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadResponse",
+                },
+              },
+            },
+            "description": "Lead captured",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded",
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "ApiKeyAuth": [],
+          },
+        ],
+        "summary": "Submit a lead",
+      },
+    },
+  },
+  "servers": [
+    {
+      "description": "Production",
+      "url": "https://feasly.dev",
+    },
+    {
+      "description": "Sandbox (test keys only, no real emails)",
+      "url": "https://api.sandbox.feasly.dev",
+    },
+  ],
+  "webhooks": {},
+}
+`;

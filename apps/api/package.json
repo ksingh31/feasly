@@ -1,5 +1,5 @@
 {
-  "description": "Azure Functions (TypeScript) \u2014 versioned /api/v1. Endpoints land here (epics 07, 10).",
+  "description": "Azure Functions (TypeScript) — versioned /api/v1. Endpoints land here (epics 07, 10).",
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/pg": "^8.23.1",
@@ -27,6 +27,7 @@
   },
   "version": "0.1.0",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@azure/communication-email": "^1.1.0",
     "@feasly/contracts": "^0.3.0",
     "@feasly/cost-engine": "^0.1.0",

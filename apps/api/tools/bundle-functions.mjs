@@ -104,6 +104,10 @@ const targets = [
     entry: 'src/functions/properties-lookup.ts',
     out: 'properties-lookup/index.js',
   },
+  {
+    entry: 'src/functions/openapi.ts',
+    out: 'openapi/index.js',
+  },
 ];
 
 for (const { entry, out } of targets) {

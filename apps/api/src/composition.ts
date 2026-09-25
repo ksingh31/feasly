@@ -114,6 +114,10 @@ import {
   createPropertyRoute,
   type PropertyRoute,
 } from './routes/property.route';
+import {
+  createOpenApiRoute,
+  type OpenApiRoute,
+} from './routes/openapi.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -175,6 +179,8 @@ export interface AppComposition {
   /** Property lookup (api-mcp/02): City of Calgary Socrata, cache-first. */
   readonly propertyService: PropertyService;
   readonly propertyRoute: PropertyRoute;
+  /** api-mcp/03: OpenAPI spec (public, no auth). */
+  readonly openApiRoute: OpenApiRoute;
 }
 
 export interface CompositionOptions {
@@ -435,6 +441,10 @@ export function createComposition(
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });
+  const openApiRoute: OpenApiRoute = createOpenApiRoute({
+    siteUrl: config.siteUrl,
+    version: config.version,
+  });
   return {
     config,
     db,
@@ -477,6 +487,7 @@ export function createComposition(
     embedConfigRoute,
     propertyService,
     propertyRoute,
+    openApiRoute,
   };
 }
 
