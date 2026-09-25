@@ -490,6 +490,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       notFound: "The page you're looking for moved or never existed.",
       errorTitle: 'Feasly — Something went wrong',
       error: 'Your estimate is safe — try again in a moment.',
+      unsubscribeTitle: 'Feasly — Email preferences',
+      unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
     },
     marketing: {
       howItWorks: {
@@ -663,6 +665,32 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadCreatedLabel: 'Created',
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
+    },
+    unsubscribe: {
+      loadingLabel: 'Checking your link…',
+      confirmHeading: 'Unsubscribe from Feasly updates?',
+      confirmBody:
+        'You’ll stop receiving estimate follow-ups and product updates from Feasly. Your saved estimates stay available through your magic link.',
+      confirmCta: 'Yes, unsubscribe me',
+      keepCta: 'Keep me subscribed',
+      submittingLabel: 'Unsubscribing…',
+      doneHeading: 'You’ve been unsubscribed from Feasly updates.',
+      doneBody:
+        'You won’t receive follow-ups or product updates anymore. Emails you request — like your estimate magic link — still send.',
+      resubscribePrompt: 'Changed your mind?',
+      resubscribeBody:
+        'Just reply to any Feasly email and we’ll re-subscribe you — no forms, no fuss.',
+      alreadyHeading: 'You’re already unsubscribed.',
+      alreadyBody: 'This address is already unsubscribed from Feasly updates — nothing more to do.',
+      expiredHeading: 'This link has expired.',
+      expiredBody: 'Unsubscribe links expire after 30 days to protect your inbox.',
+      expiredCta: 'Reply to any Feasly email to request a fresh link, or start a new estimate below.',
+      invalidHeading: 'This link isn’t valid.',
+      invalidBody: 'This unsubscribe link doesn’t look right — it may have been copied incompletely.',
+      errorHeading: 'Something went wrong.',
+      errorBody: 'We couldn’t check your link. Please check your connection and try again.',
+      retryLabel: 'Try again',
+      homeCta: 'Back to home',
     },
   },
 };

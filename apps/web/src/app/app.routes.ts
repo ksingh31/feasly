@@ -78,6 +78,19 @@ export const routes: Routes = [
   },
   { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },
   { path: 'terms', component: TermsPageComponent, canActivate: [robotsGuard] },
+  // Unsubscribe center (email/03): token-authenticated, no login — the token
+  // IS the credential. noindex like the other private token routes; never
+  // prerendered (the token is only known at click time). Lazy-loaded so the
+  // token page stays out of the initial bundle (budget).
+  {
+    path: 'unsubscribe/:token',
+    loadComponent: () =>
+      import('./features/unsubscribe/unsubscribe-page.component').then(
+        (m) => m.UnsubscribePageComponent,
+      ),
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
