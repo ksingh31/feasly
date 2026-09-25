@@ -26,6 +26,10 @@ const BILLING = {
   flatPlanName: 'Builder Standard',
   flatMonthlyCents: 30_000,
   flatCurrency: 'CAD',
+  stripeSecretKey: undefined,
+  stripeWebhookSecret: undefined,
+  stripeFlatPriceId: undefined,
+  isProduction: false,
 };
 
 const FIXED_NOW = new Date('2026-09-24T12:00:00.000Z');

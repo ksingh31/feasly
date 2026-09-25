@@ -331,6 +331,8 @@ export const tenants = pgTable('tenants', {
   fallbackEmail: text('fallback_email').notNull().default(''),
   /** 'flat' | 'commission' | null (undecided). Inert until billing. */
   plan: text('plan'),
+  /** Stripe customer id (`cus_…`) — set when card-on-file is captured. */
+  stripeCustomerId: text('stripe_customer_id'),
 });
 
 /**
@@ -518,5 +520,122 @@ export const apiUsage = pgTable(
   (t) => [
     index('api_usage_key_id_idx').on(t.apiKeyId),
     index('api_usage_key_created_idx').on(t.apiKeyId, t.createdAt),
+  ],
+);
+
+/**
+ * Commission invoices (billing/02 commission engine).
+ *
+ * Internal billing records for the 1% commission model (Karan 2026-09-24):
+ * each won deal (builder-reported signed contract) creates exactly one row.
+ * Charges run through Stripe OFF-SESSION PaymentIntents — never Stripe
+ * Invoices, so the 7-day review/dispute window and dispute-pause semantics
+ * stay under Feasly's control (TECH_PLAN §2.4).
+ *
+ * Status lifecycle:
+ *   draft → in_review (7-day review window; reviewDueAt = created + 7d)
+ *   in_review → finalized (review passed, PaymentIntent created off-session)
+ *   finalized → paid (payment_intent.succeeded webhook)
+ *   finalized → failed (payment_intent.payment_failed webhook → dunning)
+ *   in_review → disputed (builder disputes — charge clock FROZEN)
+ *   disputed → in_review (human accepts resolution) | void (human voids)
+ * Terminal: paid, failed, void. Disputed rows are skipped by the
+ * invoice-reviewer timer until a human resolves them.
+ *
+ * Money is integer cents — never float.
+ */
+export const commissionInvoices = pgTable(
+  'commission_invoices',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Which builder tenant owes the commission. */
+    tenantKey: text('tenant_key')
+      .notNull()
+      .references(() => tenants.tenantKey),
+    /** The attribution whose reported contract this invoice bills. */
+    attributionId: uuid('attribution_id')
+      .notNull()
+      .references(() => attributionEvents.id),
+    /** Denormalized from the attribution for invoice queries. */
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    /** Signed construction contract value in integer cents, EXCL. land. */
+    contractValueCents: integer('contract_value_cents').notNull(),
+    /** round(contractValueCents * BILLING_COMMISSION_RATE), integer cents. */
+    commissionCents: integer('commission_cents').notNull(),
+    currency: text('currency').notNull().default('CAD'),
+    /** Off-session PaymentIntent created at finalize. UNIQUE — one PI max. */
+    stripePaymentIntentId: text('stripe_payment_intent_id').unique(),
+    status: text('status').notNull().default('draft'),
+    /** draft created + 7 days — the builder's review/dispute window. */
+    reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    /** True when the contract was reported after the 14-day reporting SLA. */
+    slaBreached: boolean('sla_breached').notNull().default(false),
+    /** Builder-supplied reason while status='disputed'. */
+    disputeReason: text('dispute_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('commission_invoices_tenant_status_idx').on(t.tenantKey, t.status),
+    index('commission_invoices_review_due_idx').on(t.reviewDueAt),
+  ],
+);
+
+/**
+ * Stripe webhook idempotency (billing/02).
+ *
+ * Every received Stripe event id is inserted BEFORE dispatch. A unique
+ * violation means the event was already handled → the route returns 200
+ * without re-dispatching, so Stripe retries never double-apply.
+ */
+export const stripeEvents = pgTable('stripe_events', {
+  /** Stripe event id (`evt_…`) — the idempotency key. */
+  eventId: text('event_id').primaryKey(),
+  /** Stripe event type, e.g. `payment_intent.succeeded`. */
+  type: text('type').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Billing audit log (billing/02).
+ *
+ * APPEND-ONLY: every billing state change writes exactly one row
+ * (invoice created / status transition / dispute / charge attempt /
+ * subscription change / SLA breach / webhook dispatch). Rows are never
+ * updated or deleted — reconciliation reads this table.
+ */
+export const billingEvents = pgTable(
+  'billing_events',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    /** Builder tenant the event belongs to. Null for platform-level events. */
+    tenantKey: text('tenant_key'),
+    /** e.g. `invoice.created`, `invoice.disputed`, `subscription.created`. */
+    eventType: text('event_type').notNull(),
+    /** e.g. `commission_invoice`, `stripe_subscription`, `attribution`. */
+    entityType: text('entity_type').notNull(),
+    /** The entity's id (invoice id, subscription id, …). */
+    entityId: text('entity_id').notNull(),
+    /** Event-specific payload (amounts, reasons, Stripe ids). */
+    payload: jsonb('payload'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('billing_events_tenant_created_idx').on(t.tenantKey, t.createdAt),
+    index('billing_events_entity_idx').on(t.entityType, t.entityId),
   ],
 );

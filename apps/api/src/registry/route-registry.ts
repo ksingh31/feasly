@@ -413,7 +413,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/stripe/webhooks',
     auth: 'stripe-signature',
     rateLimit: '100/min per IP',
-    status: 'planned',
+    status: 'live',
     summary:
       'Stripe webhook receiver (billing track). Signature-verified; ' +
       'idempotent event handling.',

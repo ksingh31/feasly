@@ -137,6 +137,38 @@ import {
   createApiKeyRateLimitMiddleware,
   type ApiKeyRateLimitDeps,
 } from './middleware/api-key-rate-limit';
+import {
+  createAttributionService,
+  type AttributionService,
+} from './services/billing/attribution.service';
+import {
+  createBillingAuditService,
+  type BillingAuditService,
+} from './services/billing/billing-audit.service';
+import {
+  createStripeService,
+  type StripeService,
+} from './services/billing/stripe.service';
+import {
+  createCommissionService,
+  type CommissionService,
+} from './services/billing/commission.service';
+import {
+  createFlatPlanService,
+  type FlatPlanService,
+} from './services/billing/flat-plan.service';
+import {
+  createBillingWebhookService,
+  type BillingWebhookService,
+} from './services/billing/billing-webhook.service';
+import {
+  createInvoiceReviewerService,
+  type InvoiceReviewerService,
+} from './services/billing/invoice-reviewer.service';
+import {
+  createStripeWebhooksRoute,
+  type StripeWebhooksRoute,
+} from './routes/stripe-webhooks.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -210,6 +242,24 @@ export interface AppComposition {
    * wrap their handlers with this when a Bearer API key is present.
    */
   readonly withApiKeyRateLimit: ReturnType<typeof createApiKeyRateLimitMiddleware>;
+  /** billing/01 foundation: lead→builder introduction lifecycle. */
+  readonly attributionService: AttributionService;
+  /** billing/02: append-only billing audit log. */
+  readonly billingAuditService: BillingAuditService;
+  /** billing/02: the only Stripe SDK touchpoint. */
+  readonly stripeService: StripeService;
+  /** billing/02: 1% commission engine (active when BILLING_MODEL=commission). */
+  readonly commissionService: CommissionService;
+  /** billing/02: flat subscription path (dormant until BILLING_MODEL=flat). */
+  readonly flatPlanService: FlatPlanService;
+  /** billing/02: Stripe webhook dispatch. */
+  readonly billingWebhookService: BillingWebhookService;
+  /** billing/02: daily review-window finalizer. */
+  readonly invoiceReviewerService: InvoiceReviewerService;
+  readonly stripeWebhooksRoute: StripeWebhooksRoute;
+  /** Tight limiter + pipeline for the Stripe webhook receiver. */
+  readonly webhookRateLimiter: RateLimiter;
+  readonly webhookPipeline: RequestPipeline;
 }
 
 export interface CompositionOptions {
@@ -501,6 +551,68 @@ export function createComposition(
     apiKeys: apiKeyService,
     usage: usageService,
   });
+  // billing/01 foundation — the lead→builder introduction lifecycle the
+  // commission engine bills against. Wired here now so the commission
+  // service can read reported contracts (billing/02).
+  const attributionService: AttributionService = createAttributionService({
+    db: db.db,
+    billing: config.billing,
+  });
+  // billing/02 commission engine. Every state change appends one
+  // billing_events row; disputes freeze the charge clock and alert ops.
+  const billingAuditService: BillingAuditService = createBillingAuditService({
+    db: db.db,
+  });
+  const stripeService: StripeService = createStripeService({
+    db: db.db,
+    billing: config.billing,
+  });
+  const commissionService: CommissionService = createCommissionService({
+    db: db.db,
+    billing: config.billing,
+    attribution: attributionService,
+    audit: billingAuditService,
+    stripe: stripeService,
+    email: emailService,
+    opsInbox: config.email.opsInbox,
+  });
+  // billing/02 flat path — dormant until BILLING_MODEL=flat. Both charge
+  // paths are built; config selects the active one.
+  const flatPlanService: FlatPlanService = createFlatPlanService({
+    billing: config.billing,
+    audit: billingAuditService,
+    stripe: stripeService,
+    email: emailService,
+    opsInbox: config.email.opsInbox,
+  });
+  const billingWebhookService: BillingWebhookService =
+    createBillingWebhookService({
+      db: db.db,
+      stripe: stripeService,
+      audit: billingAuditService,
+      commission: commissionService,
+      flatPlan: flatPlanService,
+    });
+  const invoiceReviewerService: InvoiceReviewerService =
+    createInvoiceReviewerService({
+      billing: config.billing,
+      commission: commissionService,
+      audit: billingAuditService,
+    });
+  const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
+    billingWebhooks: billingWebhookService,
+  });
+  // Stripe webhook receiver: 100/min per IP (frozen registry). The signature
+  // is the auth — no bearer token exists for Stripe callbacks by design.
+  const webhookRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.webhook.rateLimit.windowMs,
+    maxRequests: config.webhook.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const webhookPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: webhookRateLimiter,
+    logger: options.logger,
+  });
   return {
     config,
     db,
@@ -548,6 +660,16 @@ export function createComposition(
     usageService,
     usageRoute,
     withApiKeyRateLimit,
+    attributionService,
+    billingAuditService,
+    stripeService,
+    commissionService,
+    flatPlanService,
+    billingWebhookService,
+    invoiceReviewerService,
+    stripeWebhooksRoute,
+    webhookRateLimiter,
+    webhookPipeline,
   };
 }
 

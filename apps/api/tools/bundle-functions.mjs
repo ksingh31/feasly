@@ -43,6 +43,10 @@
  *     (GET /api/v1/properties/autocomplete)
  *   src/functions/properties-lookup.ts       → properties-lookup/index.js
  *     (GET /api/v1/properties/lookup)
+ *   src/functions/stripe-webhooks.ts         → stripe-webhooks/index.js
+ *     (POST /api/v1/stripe/webhooks)
+ *   src/functions/invoice-reviewer-timer.ts  → invoice-reviewer-timer/index.js
+ *     (Timer: daily commission-invoice reviewer)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -117,6 +121,14 @@ const targets = [
   {
     entry: 'src/functions/usage.ts',
     out: 'usage/index.js',
+  },
+  {
+    entry: 'src/functions/stripe-webhooks.ts',
+    out: 'stripe-webhooks/index.js',
+  },
+  {
+    entry: 'src/functions/invoice-reviewer-timer.ts',
+    out: 'invoice-reviewer-timer/index.js',
   },
 ];
 
