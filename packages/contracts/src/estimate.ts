@@ -52,6 +52,8 @@ export interface EstimateVisibility {
 
 export interface EstimateRequest extends EstimateInputs {
   readonly addressKey: string;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** Renovation estimate request (RENO-01). Discriminated by projectType. */

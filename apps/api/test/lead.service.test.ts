@@ -293,6 +293,24 @@ const DEPS = {
   appBaseUrl: APP_BASE_URL,
   dedupWindowDays: 90,
   magicLinkTtlSeconds: 900,
+  // EMB-03: the fake knows 'elite-craft' (used by the tenantKey test).
+  builderConfigs: {
+    getByKey: async (key: string) => {
+      if (key !== 'elite-craft') {
+        throw new HttpError(404, 'UNKNOWN_TENANT', 'Unknown tenant.', false);
+      }
+      return {
+        business_name: 'Elite Craft',
+        display_name: 'Elite Craft',
+        logo_url: '',
+        accent_color: '#b08d57',
+        allowed_origins: [],
+        fallback_phone: '',
+        fallback_email: '',
+        plan: null,
+      };
+    },
+  },
   clock: () => NOW,
 };
 
@@ -353,6 +371,8 @@ describe('lead service', () => {
     expect(saved.phone).toBe('+1 403-555-0100');
     expect(saved.timeline).toBe('3-6mo');
     expect(saved.tenantKey).toBe('elite-craft');
+    // EMB-03: a validated tenant key marks the lead as embed-sourced.
+    expect(saved.source).toBe('embed');
   });
 
   it('normalizes the email before dedup and insert', async () => {
