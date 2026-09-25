@@ -59,6 +59,20 @@ export interface RequestPipelineDeps {
    */
   readonly keyFor?: (request: PipelineRequest) => string;
   /**
+   * Additional limiters checked AFTER the primary one (consumer/03). Each
+   * enforces an independent budget on its own key dimension — e.g. the
+   * estimates endpoint checks per-IP first, then per-tenant for embed
+   * traffic, so one tenant can't starve the endpoint. `keyFor` returning
+   * `undefined` skips that limiter for the request (non-embed traffic has
+   * no tenant key). The first denial wins and produces the 429.
+   */
+  readonly extraLimiters?: ReadonlyArray<{
+    readonly limiter: RateLimiter;
+    readonly keyFor: (request: PipelineRequest) => string | undefined;
+    /** Log label for the denied dimension (e.g. 'tenant'). */
+    readonly label: string;
+  }>;
+  /**
    * Defaults to console. BE-3 injects the Functions context logger so
    * entries land in Application Insights with the correlation ID.
    */
@@ -80,6 +94,7 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
   const {
     rateLimiter,
     keyFor = (request) => request.clientIp ?? UNKNOWN_CLIENT,
+    extraLimiters = [],
     logger = (entry) => console[entry.level](entry.message),
   } = deps;
 
@@ -101,6 +116,23 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
           correlationId,
         });
         return rateLimitedProblem(correlationId, verdict.retryAfterMs);
+      }
+      // Secondary dimensions (consumer/03): each extra limiter enforces its
+      // own budget. Skipped when its keyFor has nothing to key on.
+      for (const extra of extraLimiters) {
+        const key = extra.keyFor(request);
+        if (key === undefined) continue;
+        const extraVerdict = extra.limiter.check(key);
+        if (!extraVerdict.allowed) {
+          logger({
+            level: 'warn',
+            // Hash the dimension key: tenant keys are builder credentials and
+            // never reach logs in the clear, same rule as client IPs.
+            message: `rate-limited dimension=${extra.label} keyHash=${hashClientIp(key)}`,
+            correlationId,
+          });
+          return rateLimitedProblem(correlationId, extraVerdict.retryAfterMs);
+        }
       }
 
       try {

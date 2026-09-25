@@ -65,6 +65,13 @@ export interface AppComposition {
   /** Tight limiter + pipeline for the public lead-gate endpoint. */
   readonly leadRateLimiter: RateLimiter;
   readonly leadPipeline: RequestPipeline;
+  /**
+   * consumer/03 — dedicated pipeline for the estimates endpoint: 20/hr/IP
+   * plus per-tenant aggregation for embed traffic.
+   */
+  readonly estimateRateLimiter: RateLimiter;
+  readonly estimateTenantRateLimiter: RateLimiter;
+  readonly estimatePipeline: RequestPipeline;
   readonly healthService: HealthService;
   readonly healthRoute: HealthRoute;
   readonly estimateStore: EstimateStore;
@@ -146,6 +153,35 @@ export function createComposition(
     rateLimiter: leadRateLimiter,
     logger: options.logger,
   });
+  // consumer/03 — estimates are the most expensive endpoint to leave
+  // unthrottled: 20/hr per IP (frozen registry, TECH_PLAN.md §13.3), plus a
+  // per-tenant bucket so one builder's embed traffic can't starve the
+  // endpoint. Non-embed traffic has no tenantKey, so the tenant limiter
+  // only engages for embeds.
+  const estimateRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.estimate.rateLimit.windowMs,
+    maxRequests: config.estimate.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const estimateTenantRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.estimate.tenantRateLimit.windowMs,
+    maxRequests: config.estimate.tenantRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const estimatePipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: estimateRateLimiter,
+    extraLimiters: [
+      {
+        limiter: estimateTenantRateLimiter,
+        keyFor: (request) =>
+          request.tenantKey === undefined
+            ? undefined
+            : `tenant:${request.tenantKey}`,
+        label: 'tenant',
+      },
+    ],
+    logger: options.logger,
+  });
   const healthService: HealthService = createHealthService({ config });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
@@ -220,6 +256,9 @@ export function createComposition(
     requestPipeline,
     leadRateLimiter,
     leadPipeline,
+    estimateRateLimiter,
+    estimateTenantRateLimiter,
+    estimatePipeline,
     healthService,
     healthRoute,
     estimateStore,

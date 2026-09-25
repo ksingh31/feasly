@@ -59,6 +59,17 @@ const EnvSchema = z.object({
   LEAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LEAD_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
 
+  // Estimates are the most expensive endpoint to leave unthrottled. These
+  // defaults are the FROZEN limits from the canonical API registry
+  // (TECH_PLAN.md §13.3 "Rate limiting tiers": public-anon tier,
+  // estimates 20/hr/IP) — env-overridable, never hardcoded per endpoint.
+  // Embed traffic is additionally aggregated per tenant so one builder's
+  // viral page can't starve the endpoint for everyone else.
+  ESTIMATE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
+  ESTIMATE_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
+  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+
   // Duplicate POSTs (same email + same estimate) inside this window return
   // the existing lead instead of inserting a duplicate (BE3-003).
   LEAD_DEDUP_WINDOW_DAYS: z.coerce.number().int().positive().default(90),
@@ -134,6 +145,13 @@ export interface LeadConfig {
   readonly dedupWindowDays: number;
 }
 
+export interface EstimateConfig {
+  /** Per-IP limiter for the public estimates endpoint (frozen: 20/hr/IP). */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Per-tenant limiter aggregating embed traffic (frozen: 20/hr/tenant). */
+  readonly tenantRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+}
+
 export interface DbConfig {
   readonly poolMaxSize: number;
 }
@@ -192,6 +210,7 @@ export interface ApiConfig {
   readonly db: DbConfig;
   readonly rateLimit: RateLimitConfig;
   readonly lead: LeadConfig;
+  readonly estimate: EstimateConfig;
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
   readonly queues: QueueConfig;
@@ -299,6 +318,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         maxRequests: e.LEAD_RATE_LIMIT_MAX_REQUESTS,
       },
       dedupWindowDays: e.LEAD_DEDUP_WINDOW_DAYS,
+    },
+    estimate: {
+      rateLimit: {
+        windowMs: e.ESTIMATE_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.ESTIMATE_RATE_LIMIT_MAX_REQUESTS,
+      },
+      tenantRateLimit: {
+        windowMs: e.ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS,
+      },
     },
     auth: {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
