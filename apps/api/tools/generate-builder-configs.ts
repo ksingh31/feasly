@@ -12,8 +12,9 @@
  * `src/generated/builder-configs.ts` (gitignored).
  *
  * Runs automatically before build/test/bundle via the `prebuild`,
- * `pretest`, and `prebundle:functions` npm hooks. `NODE_ENV=development`
- * is what permits http localhost origins; anything else requires https.
+ * `pretest`, and `prebundle:functions` npm hooks. Localhost origins are
+ * permitted everywhere except a production build (`NODE_ENV=production`)
+ * — they must never ship to prod.
  */
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +50,9 @@ function main(): void {
     return { file, data };
   });
 
-  const isDev = process.env.NODE_ENV === 'development';
+  // Localhost origins are a dev-loop convenience — they must never be
+  // inlined into a production bundle.
+  const isDev = process.env.NODE_ENV !== 'production';
   const configs = validateBuilderConfigs(sources, { isDev });
 
   mkdirSync(outDir, { recursive: true });

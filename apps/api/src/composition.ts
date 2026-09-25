@@ -291,11 +291,13 @@ export function createComposition(
   });
   // Builder embed config (embed/02): repo JSON inlined at build time wins,
   // DB tenants row is the fallback. Unknown key → 404 UNKNOWN_TENANT.
+  // isDev mirrors the generator's rule (tools/generate-builder-configs.ts):
+  // localhost origins are allowed everywhere except production.
   const builderConfigService: BuilderConfigService = createBuilderConfigService(
     {
       db: db.db,
       configs: BUILDER_CONFIGS,
-      isDev: config.env === 'development',
+      isDev: config.env !== 'production',
     },
   );
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({

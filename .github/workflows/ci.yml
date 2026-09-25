@@ -16,6 +16,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # EMB-02: the embed-config composition imports the generated
+      # builder-config module. Regenerate it here (and fail if the committed
+      # copy is stale) so `npx tsc -b` below never sees a missing module.
+      - run: npm run build:configs --workspace @feasly/api
+      - run: git diff --quiet -- apps/api/src/generated/ || (echo "::error::apps/api/src/generated/builder-configs.ts is stale — run 'npm run build:configs --workspace @feasly/api' and commit the result" && exit 1)
       - run: npx tsc -b
       - run: npm run test --workspaces --if-present
       - run: npm run lint --workspaces --if-present
