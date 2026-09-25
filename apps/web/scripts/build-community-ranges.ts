@@ -37,9 +37,9 @@ import { fileURLToPath } from 'node:url';
 import {
   createEstimate,
   PLACEHOLDER_COST_DATA,
-  type CommunityRangesFile,
   type FinishTier,
 } from '@feasly/cost-engine';
+import type { CommunityRangesFile } from './community-ranges.schema.js';
 import {
   communityAggregatesFileSchema,
 } from './community-aggregates.schema.js';

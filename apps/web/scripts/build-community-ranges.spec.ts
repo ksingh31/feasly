@@ -83,7 +83,9 @@ describe('rangesForCommunity', () => {
 
   it('prices all three tiers with increasing bands', () => {
     const warnings: string[] = [];
-    const warn = (m: string): void => warnings.push(m);
+    const warn = (m: string): void => {
+      warnings.push(m);
+    };
     const s = rangesForCommunity(600000, 5000, 'standard', 2400, warn).ranges;
     const p = rangesForCommunity(600000, 5000, 'premium', 2400, warn).ranges;
     const l = rangesForCommunity(600000, 5000, 'luxury', 2400, warn).ranges;
