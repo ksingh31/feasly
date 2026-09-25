@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
@@ -12,6 +12,7 @@ import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
+import { AnalyticsService } from '../consent';
 import { SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import {
@@ -150,6 +151,9 @@ describe('ReportPageComponent', () => {
         provideStore([WizardState, ReportState, LeadState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
+        // The report fires consent-gated analytics events on share/callback/
+        // print; the report spec owns report behavior, not analytics internals.
+        { provide: AnalyticsService, useValue: { track: vi.fn() } },
       ],
     });
     const httpMock = TestBed.inject(HttpTestingController);
@@ -403,6 +407,9 @@ describe('ReportPageComponent', () => {
       expect(body).toContain('Living area: 2,200 sq ft (Premium finishes)');
       expect(body).toContain('Total investment: $1,092,000');
       expect(body).toContain('Likely planning range: $1,028,000–$1,155,000');
+      // The share is reported to analytics (consent-gated inside the real
+      // service; mocked here).
+      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('partner_share');
     });
 
     it('callback request validates and sends', async () => {
@@ -420,6 +427,9 @@ describe('ReportPageComponent', () => {
       phone.dispatchEvent(new Event('input'));
       request.click();
       await pollFor(() => text().includes('Callback requested'), 'callback sent');
+      // The callback request is reported to analytics (consent-gated inside
+      // the real service; mocked here).
+      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');
     });
   });
 });

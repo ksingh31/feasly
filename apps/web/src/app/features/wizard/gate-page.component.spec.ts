@@ -13,6 +13,7 @@ import { providePropertyData } from '../../core/api/property-data.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, LeadState, SelectProperty, WizardState } from '../wizard';
+import { AnalyticsService } from '../consent';
 import { GatePageComponent } from './gate-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -92,6 +93,9 @@ describe('GatePageComponent', () => {
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
         provideStore([WizardState, LeadState]),
+        // The gate fires a consent-gated analytics event on success; the
+        // gate spec owns gate behavior, not analytics internals.
+        { provide: AnalyticsService, useValue: { track: vi.fn() } },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -187,6 +191,9 @@ describe('GatePageComponent', () => {
       expect(request.estimateId).toMatch(/^est-mock-/);
       expect(store.selectSnapshot(LeadState.leadId)).toMatch(/^lead-mock-/);
       expect(store.selectSnapshot(LeadState.email)).toBe('jane@example.com');
+      // The gate conversion is reported to analytics (consent-gated inside
+      // the real service; mocked here).
+      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('gate_convert');
     });
 
     it('defaults an unchosen timeline to exploring', async () => {
