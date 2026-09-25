@@ -24,12 +24,18 @@ jobs:
       - run: npx tsc -b
       - run: npm run test --workspaces --if-present
       - run: npm run lint --workspaces --if-present
+      # HRD-07: secrets-gate self-test (proves the scanner fails on fixture
+      # violations). Local: `node --test tools/check-secrets.test.mjs`.
+      - run: node --test tools/check-secrets.test.mjs
       # SEO-01: production build + prerendered-SEO regression (per-page tags,
       # canonicals, noindex, 404 copy, 1200x630 OG image). Local: `npm run
       # verify:seo` inside apps/web.
       - run: npm run build --workspace=@feasly/web -- --configuration=production
       - run: node tools/check-prerender-seo.mjs
         working-directory: apps/web
+      # HRD-07: fail the build if any secret pattern appears in the built web
+      # bundle. Local: `node tools/check-secrets.mjs --bundle apps/web/dist/web/browser`.
+      - run: node tools/check-secrets.mjs --bundle apps/web/dist/web/browser
       # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
@@ -52,3 +58,27 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Assert Postgres backup config (PITR-capable)
         run: bash infra/health/check-postgres-backup.sh
+
+  # HRD-07: fail the PR/push when the diff adds secret-shaped material
+  # (Stripe keys, webhook secrets, private keys, Slack tokens, ACS/Postmark
+  # credentials, AZURE_CLIENT_SECRET values, DB passwords). Allowlisted test
+  # fixtures only — see tools/.secrets-allowlist. Local:
+  #   node tools/check-secrets.mjs --diff origin/main...HEAD
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan diff for leaked secrets
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node tools/check-secrets.mjs --diff "origin/${{ github.base_ref }}...HEAD"
+          else
+            BEFORE="${{ github.event.before }}"
+            ZERO="0000000000000000000000000000000000000000"
+            EMPTY_TREE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+            if [ "$BEFORE" = "$ZERO" ]; then RANGE="$EMPTY_TREE...${{ github.sha }}";
+            else RANGE="$BEFORE...${{ github.sha }}"; fi
+            node tools/check-secrets.mjs --diff "$RANGE"
+          fi
