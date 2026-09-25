@@ -28,6 +28,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     useMockApi: true,
     timeoutMs: 15000,
   },
+  // INTERIM (admin/07): empty adminKey locks /admin/* until a deploy config
+  // sets the key or admin/01 lands with session auth.
+  admin: {
+    adminKey: '',
+  },
   propertyData: {
     source: 'live',
     baseUrl: 'https://data.calgary.ca',
@@ -596,6 +601,29 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ctaBody:
         'Get figures for your actual lot — assessed land value, lot size, and zoning pulled from your City property record.',
       ctaLabel: 'Get your address-specific estimate →',
+    },
+    admin: {
+      funnels: {
+        title: 'Funnel dashboard',
+        subtitle: 'Landing → scope → details → preview → gate → report. Numbers only — no personal data on this page.',
+        fromLabel: 'From',
+        toLabel: 'To',
+        tenantLabel: 'Traffic',
+        tenantAll: 'All traffic',
+        tenantDirect: 'Feasly direct',
+        tenantKey: 'One builder…',
+        tenantKeyLabel: 'Builder tenant key',
+        tenantKeyPlaceholder: 'e.g. elite-craft',
+        apply: 'Apply',
+        reset: 'Reset',
+        loading: 'Loading funnel…',
+        empty: 'No visits in this range yet. Widen the dates or check the traffic filter.',
+        loadError: 'Couldn’t load the funnel. Check the admin key configuration and try again.',
+        invalidRange: 'The start date must be on or before the end date.',
+        entryStep: 'Entry step',
+        conversionPrefix: 'Converted from previous step:',
+        noConversion: '—',
+      },
     },
   },
 };

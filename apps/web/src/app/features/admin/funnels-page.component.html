@@ -1,0 +1,89 @@
+<app-site-nav />
+<main class="funnels">
+  <header class="funnels__header">
+    <h1>{{ copy.title }}</h1>
+    <p class="funnels__subtitle">{{ copy.subtitle }}</p>
+  </header>
+
+  <form class="funnels__filters" (ngSubmit)="applyFilters()">
+    <label class="funnels__field">
+      <span>{{ copy.fromLabel }}</span>
+      <input type="date" [(ngModel)]="from" name="from" [disabled]="loading()" />
+    </label>
+    <label class="funnels__field">
+      <span>{{ copy.toLabel }}</span>
+      <input type="date" [(ngModel)]="to" name="to" [disabled]="loading()" />
+    </label>
+    <label class="funnels__field">
+      <span>{{ copy.tenantLabel }}</span>
+      <select [(ngModel)]="tenantMode" name="tenantMode" [disabled]="loading()">
+        <option value="all">{{ copy.tenantAll }}</option>
+        <option value="direct">{{ copy.tenantDirect }}</option>
+        <option value="key">{{ copy.tenantKey }}</option>
+      </select>
+    </label>
+    @if (tenantMode() === 'key') {
+      <label class="funnels__field">
+        <span>{{ copy.tenantKeyLabel }}</span>
+        <input
+          type="text"
+          [(ngModel)]="tenantKey"
+          name="tenantKey"
+          [placeholder]="copy.tenantKeyPlaceholder"
+          [disabled]="loading()"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+    }
+    <div class="funnels__actions">
+      <button type="submit" class="funnels__apply" [disabled]="loading() || rangeError() !== null">
+        {{ loading() ? copy.loading : copy.apply }}
+      </button>
+      <button type="button" class="funnels__reset" (click)="resetFilters()" [disabled]="loading()">
+        {{ copy.reset }}
+      </button>
+    </div>
+  </form>
+
+  @if (rangeError() !== null) {
+    <p class="funnels__notice funnels__notice--error" role="alert">{{ rangeError() }}</p>
+  }
+  @if (loadFailed()) {
+    <p class="funnels__notice funnels__notice--error" role="alert">{{ copy.loadError }}</p>
+  }
+
+  @if (loading() && report() === null) {
+    <p class="funnels__notice">{{ copy.loading }}</p>
+  } @else if (report() !== null) {
+    @if (isEmpty()) {
+      <p class="funnels__notice">{{ copy.empty }}</p>
+    } @else {
+      <ol class="funnels__steps">
+        @for (step of steps(); track step.step; let i = $index) {
+          <li class="funnels__step">
+            <div class="funnels__step-head">
+              <span class="funnels__step-label">{{ step.label }}</span>
+              <span class="funnels__step-count">{{ step.count }}</span>
+            </div>
+            <div
+              class="funnels__bar"
+              role="img"
+              [attr.aria-label]="step.label + ': ' + step.count"
+            >
+              <div class="funnels__bar-fill" [style.width.%]="barWidth(step.count)"></div>
+            </div>
+            <p class="funnels__conversion">
+              @if (i === 0) {
+                {{ copy.entryStep }}
+              } @else {
+                {{ copy.conversionPrefix }} {{ conversionLabel(step.conversionFromPrevious) }}
+              }
+            </p>
+          </li>
+        }
+      </ol>
+    }
+  }
+</main>
+<app-site-footer />

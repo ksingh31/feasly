@@ -29,6 +29,18 @@ export interface AppConfig {
     /** HTTP timeout for API calls. */
     timeoutMs: number;
   };
+  /**
+   * Admin dashboard wiring (admin/07).
+   *
+   * INTERIM: until admin/01 (magic-link admin session auth) lands, admin
+   * routes authenticate with the `X-Admin-Key` header. Empty string = admin
+   * routes are locked (the admin guard redirects to /). Deploy config only —
+   * never commit a real key.
+   */
+  admin: {
+    /** Interim admin key for the X-Admin-Key header. Empty = locked. */
+    adminKey: string;
+  };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
     /**
@@ -588,6 +600,52 @@ export interface AppConfig {
       ctaTitle: string;
       ctaBody: string;
       ctaLabel: string;
+    };
+    /**
+     * Admin funnel dashboard (story admin/07). All user-facing dashboard
+     * copy lives here so the no-hardcode tripwire stays green.
+     */
+    admin: {
+      funnels: {
+        /** Page heading. */
+        title: string;
+        /** Page subheading. */
+        subtitle: string;
+        /** Date-range "from" label. */
+        fromLabel: string;
+        /** Date-range "to" label. */
+        toLabel: string;
+        /** Tenant filter label. */
+        tenantLabel: string;
+        /** Tenant filter: all traffic. */
+        tenantAll: string;
+        /** Tenant filter: Feasly-direct only. */
+        tenantDirect: string;
+        /** Tenant filter: one embed tenant. */
+        tenantKey: string;
+        /** Tenant-key text input label. */
+        tenantKeyLabel: string;
+        /** Tenant-key text input placeholder. */
+        tenantKeyPlaceholder: string;
+        /** Apply-filters button. */
+        apply: string;
+        /** Reset-filters button. */
+        reset: string;
+        /** Loading indicator text. */
+        loading: string;
+        /** Empty funnel state. */
+        empty: string;
+        /** Fetch failure banner (static — no error detail in the DOM). */
+        loadError: string;
+        /** Invalid date range (from after to). */
+        invalidRange: string;
+        /** First-step conversion label. */
+        entryStep: string;
+        /** Conversion prefix before the percentage. */
+        conversionPrefix: string;
+        /** Shown when conversion is meaningless (first step / zero prior). */
+        noConversion: string;
+      };
     };
   };
 }

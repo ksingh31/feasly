@@ -627,3 +627,19 @@ export function mockCallbackOk(window: 'morning' | 'afternoon' | 'evening'): Cal
 export function mockShareOk(partnerEmail: string): PartnerShareResponse {
   return { sent: true, sharedTo: partnerEmail };
 }
+
+/**
+ * Funnel fixture (admin/07): canned step counts for the dashboard in mock
+ * mode. Like all fixtures here, the values are inherently literal and are
+ * pinned by mock-api.service.spec.ts.
+ */
+export const MOCK_FUNNEL_COUNTS: ReadonlyArray<{ step: string; label: string; count: number }> = [
+  { step: 'scope', label: 'Scope', count: 1240 },
+  { step: 'details', label: 'Details', count: 986 },
+  { step: 'preview', label: 'Preview', count: 812 },
+  { step: 'gate', label: 'Gate', count: 644 },
+  { step: 'report', label: 'Report', count: 301 },
+];
+
+/** Direct-traffic slice of the funnel fixture (70% of all-traffic counts). */
+export const MOCK_FUNNEL_DIRECT_SCALE = 0.7;

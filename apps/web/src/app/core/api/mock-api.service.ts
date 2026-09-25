@@ -30,6 +30,7 @@ import type {
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { ApiService, CommunityStats } from './api.service';
+import type { FunnelQuery, FunnelReport, FunnelStep } from './funnel.types';
 import { simulateLatency } from './latency';
 import {
   MOCK_VERIFY_FAILURE,
@@ -44,6 +45,8 @@ import {
   mockReport,
   mockShareOk,
   mockVerifySuccess,
+  MOCK_FUNNEL_COUNTS,
+  MOCK_FUNNEL_DIRECT_SCALE,
 } from './mock-data';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -332,5 +335,32 @@ export class MockApiService implements ApiService {
   trackEvent(event: AnalyticsEvent): Observable<void> {
     void event;
     return of(undefined);
+  }
+
+  /**
+   * Mock funnel report (admin/07): fixture counts so the dashboard renders
+   * in mock mode. Respects the tenant filter shape — a 'direct' filter
+   * returns the direct-only slice, any other key returns zeros (honest
+   * empty state), and 'all' returns the full fixture.
+   */
+  getFunnel(query: FunnelQuery): Observable<FunnelReport> {
+    // Fixture slices: 'all' = full fixture, 'direct' = 70% slice with
+    // recomputed conversions, any other tenant key = honest zeros.
+    const scale =
+      query.tenant === 'all' ? 1 : query.tenant === 'direct' ? MOCK_FUNNEL_DIRECT_SCALE : 0;
+    const counts = MOCK_FUNNEL_COUNTS.map((s) => Math.round(s.count * scale));
+    const steps: FunnelStep[] = MOCK_FUNNEL_COUNTS.map((s, i) => ({
+      step: s.step,
+      label: s.label,
+      count: counts[i],
+      conversionFromPrevious:
+        i === 0 || counts[i - 1] === 0 ? null : +(counts[i] / counts[i - 1]).toFixed(4),
+    }));
+    return this.roundTrip<FunnelReport>({
+      from: query.from ?? null,
+      to: query.to ?? null,
+      tenant: query.tenant,
+      steps,
+    });
   }
 }

@@ -3,6 +3,7 @@ import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
+import { FunnelsPageComponent, adminGuard } from './features/admin';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
@@ -121,6 +122,15 @@ export const routes: Routes = [
     path: 'embed/:tenantKey',
     component: EmbedShellComponent,
     canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  // Admin funnel dashboard (admin/07): Karan's conversion visibility —
+  // per-step counts + conversion %, date-range + tenant filters. Interim
+  // adminGuard (X-Admin-Key) until admin/01 lands. noindex — private.
+  {
+    path: 'admin/funnels',
+    component: FunnelsPageComponent,
+    canActivate: [robotsGuard, adminGuard],
     data: { noindex: true },
   },
   // Branded error page (HRD-02): uncaught client failures land here via the

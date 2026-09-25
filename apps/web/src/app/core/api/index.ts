@@ -4,6 +4,7 @@ export type { ApiService } from './api.service';
 export { HttpApiService } from './http-api.service';
 export { MockApiService } from './mock-api.service';
 export { toApiError } from './api-error';
+export type { FunnelQuery, FunnelReport, FunnelStep, FunnelTenantFilter } from './funnel.types';
 export { PROPERTY_DATA_SERVICE, providePropertyData } from './property-data.service';
 export type { PropertyDataService } from './property-data.service';
 export { CalgaryAssessmentService } from './calgary-assessment.service';

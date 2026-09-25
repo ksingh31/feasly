@@ -314,6 +314,52 @@ describe('MockApiService', () => {
     });
   });
 
+  describe('getFunnel (admin/07)', () => {
+    it('returns all five steps with counts and a null first-step conversion', async () => {
+      const report = await firstValueFrom(service.getFunnel({ tenant: 'all' }));
+      expect(report.steps.map((s) => s.step)).toEqual([
+        'scope',
+        'details',
+        'preview',
+        'gate',
+        'report',
+      ]);
+      expect(report.steps[0].conversionFromPrevious).toBeNull();
+      for (const step of report.steps) {
+        expect(step.count).toBeGreaterThan(0);
+      }
+      // Conversion rates reconcile with the counts.
+      for (let i = 1; i < report.steps.length; i++) {
+        const expected = +(report.steps[i].count / report.steps[i - 1].count).toFixed(4);
+        expect(report.steps[i].conversionFromPrevious).toBe(expected);
+      }
+    });
+
+    it('echoes the query range and tenant in the report', async () => {
+      const report = await firstValueFrom(
+        service.getFunnel({ from: '2026-09-01', to: '2026-09-30', tenant: 'direct' }),
+      );
+      expect(report.from).toBe('2026-09-01');
+      expect(report.to).toBe('2026-09-30');
+      expect(report.tenant).toBe('direct');
+    });
+
+    it('returns zero counts for an unknown tenant key (honest empty state)', async () => {
+      const report = await firstValueFrom(service.getFunnel({ tenant: 'no-such-builder' }));
+      expect(report.steps.every((s) => s.count === 0)).toBe(true);
+      expect(report.steps.every((s) => s.conversionFromPrevious === null)).toBe(true);
+    });
+
+    it('carries no PII keys', async () => {
+      const report = await firstValueFrom(service.getFunnel({ tenant: 'all' }));
+      const keys = new Set<string>();
+      JSON.stringify(report, (k) => (keys.add(k), undefined));
+      for (const banned of ['email', 'name', 'phone', 'user_id', 'lead_id']) {
+        expect(keys.has(banned), `key ${banned}`).toBe(false);
+      }
+    });
+  });
+
   describe('stable estimate identity', () => {
     it('returns the same estimate ID when the gate, analyzing, and report repeat the same request', async () => {
       const first = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
