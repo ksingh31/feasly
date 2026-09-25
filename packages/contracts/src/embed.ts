@@ -67,7 +67,8 @@ export interface EmbedLeadCreatedMessage {
  */
 export interface EmbedAuthOkMessage {
   readonly type: 'FEASLY_AUTH_OK';
-  readonly estimateId?: string;
+  readonly estimateId: string;
+  readonly leadScore: number;
 }
 
 /** Parent → iframe: single-use relay code for the embed/06 auth handoff. */
@@ -97,13 +98,6 @@ export interface EmbedRelayCode {
 export interface EmbedRelayMessage {
   readonly type: 'feasly:relay';
   readonly code: string;
-}
-
-/** Iframe → parent page: relay exchange succeeded (embed/06). No PII — ever. */
-export interface EmbedAuthOkMessage {
-  readonly type: 'FEASLY_AUTH_OK';
-  readonly estimateId: string;
-  readonly leadScore: number;
 }
 
 /**
