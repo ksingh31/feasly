@@ -70,7 +70,7 @@ export function createFunnelRoute(deps: FunnelRouteDeps): FunnelRoute {
 
   return {
     async getFunnel(headers, query): Promise<FunnelReport> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
 
       const parsed = querySchema.safeParse(query);
       if (!parsed.success) {

@@ -105,7 +105,7 @@ export function createUsageRoute(deps: UsageRouteDeps): UsageRoute {
 
       // Admin path: X-Admin-Key valid → sees all keys (or the filtered one).
       try {
-        adminGuard.requireAdmin(headers);
+        await adminGuard.requireAdmin(headers);
         const aggregates = await usage.getUsage(
           { apiKeyId: parsed.data.key_id, from, to },
           { kind: 'admin' },

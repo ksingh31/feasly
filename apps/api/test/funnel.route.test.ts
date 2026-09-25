@@ -5,11 +5,14 @@
  * from/to, 400 when from > to, tenant_key parsing (omitted → all,
  * 'direct' → direct, other → tenant), and query passthrough to the service.
  * The FunnelService is faked; the AdminGuard uses the real
- * createConfigAdminGuard with a known key.
+ * createSessionAdminGuard with a fake AdminAuthService.
  */
 import { describe, expect, it } from 'vitest';
 import { createFunnelRoute } from '../src/routes/funnel.route';
-import { createConfigAdminGuard } from '../src/middleware/admin-guard';
+import {
+  ADMIN_SESSION_COOKIE,
+  createSessionAdminGuard,
+} from '../src/middleware/admin-guard';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type {
   FunnelQuery,
@@ -17,8 +20,21 @@ import type {
   FunnelService,
 } from '../src/services/funnel.service';
 
-const ADMIN_KEY = 'test-admin-key';
-const adminHeaders = { 'x-admin-key': ADMIN_KEY };
+const SESSION_TOKEN = 'test-session-token';
+const adminHeaders = {
+  cookie: `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(SESSION_TOKEN)}`,
+};
+
+function fakeAdminAuth(validToken: string | null) {
+  return {
+    validateSession: async (token: string | null) =>
+      token !== null && token === validToken ? 'admin@example.com' : null,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sessionGuard = (validToken: string | null = SESSION_TOKEN) =>
+  createSessionAdminGuard({ adminAuth: fakeAdminAuth(validToken) as any });
 
 function createFakeFunnel(report: FunnelReport): FunnelService & {
   lastQuery: FunnelQuery | null;
@@ -41,10 +57,10 @@ const EMPTY_REPORT: FunnelReport = {
 };
 
 describe('funnel route', () => {
-  it('401s without the admin key', async () => {
+  it('401s without a session cookie', async () => {
     const route = createFunnelRoute({
       funnel: createFakeFunnel(EMPTY_REPORT),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(route.getFunnel({}, {})).rejects.toMatchObject({
       status: 401,
@@ -52,10 +68,10 @@ describe('funnel route', () => {
     });
   });
 
-  it('401s when no admin key is configured (fail closed)', async () => {
+  it('401s with an invalid session (fail closed)', async () => {
     const route = createFunnelRoute({
       funnel: createFakeFunnel(EMPTY_REPORT),
-      adminGuard: createConfigAdminGuard({ adminApiKey: undefined }),
+      adminGuard: sessionGuard(null),
     });
     await expect(route.getFunnel(adminHeaders, {})).rejects.toMatchObject({
       status: 401,
@@ -66,7 +82,7 @@ describe('funnel route', () => {
     const funnel = createFakeFunnel(EMPTY_REPORT);
     const route = createFunnelRoute({
       funnel,
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     const result = await route.getFunnel(adminHeaders, {});
     expect(result).toBe(EMPTY_REPORT);
@@ -81,7 +97,7 @@ describe('funnel route', () => {
     const funnel = createFakeFunnel(EMPTY_REPORT);
     const route = createFunnelRoute({
       funnel,
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await route.getFunnel(adminHeaders, { tenant_key: 'direct' });
     expect(funnel.lastQuery?.tenant).toEqual({ kind: 'direct' });
@@ -91,7 +107,7 @@ describe('funnel route', () => {
     const funnel = createFakeFunnel(EMPTY_REPORT);
     const route = createFunnelRoute({
       funnel,
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await route.getFunnel(adminHeaders, { tenant_key: 'acme-builders' });
     expect(funnel.lastQuery?.tenant).toEqual({
@@ -103,7 +119,7 @@ describe('funnel route', () => {
   it('400s on an invalid from date', async () => {
     const route = createFunnelRoute({
       funnel: createFakeFunnel(EMPTY_REPORT),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(
       route.getFunnel(adminHeaders, { from: 'not-a-date' }),
@@ -116,7 +132,7 @@ describe('funnel route', () => {
   it('400s when from is after to', async () => {
     const route = createFunnelRoute({
       funnel: createFakeFunnel(EMPTY_REPORT),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(
       route.getFunnel(adminHeaders, {
@@ -130,7 +146,7 @@ describe('funnel route', () => {
     const funnel = createFakeFunnel(EMPTY_REPORT);
     const route = createFunnelRoute({
       funnel,
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await route.getFunnel(adminHeaders, {
       from: '2026-09-01T00:00:00Z',
@@ -143,9 +159,9 @@ describe('funnel route', () => {
   it('does not leak which check failed — 401 either way', async () => {
     const route = createFunnelRoute({
       funnel: createFakeFunnel(EMPTY_REPORT),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
-    const wrongKey = route.getFunnel({ 'x-admin-key': 'wrong' }, {});
+    const wrongKey = route.getFunnel({ cookie: `${ADMIN_SESSION_COOKIE}=wrong` }, {});
     const noKey = route.getFunnel({}, {});
     await expect(wrongKey).rejects.toBeInstanceOf(HttpError);
     await expect(noKey).rejects.toBeInstanceOf(HttpError);
