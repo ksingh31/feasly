@@ -48,11 +48,21 @@ describe('lead route', () => {
         phone: null,
         tenantKey: null,
         quarantined: false,
+        leadScore: 0,
+        status: 'new',
         createdAt: new Date(),
       }),
       findById: async () => null,
       findAllByEmail: async () => [],
       deleteByEmail: async () => 0,
+      updateOnRepeat: async () => {
+        throw new Error('not implemented');
+      },
+      findNewestEstimateIdByEmailAndAddress: async () => null,
+      appendNote: async () => {},
+      getNotes: async () => [],
+      appendStatusHistory: async () => {},
+      getStatusHistory: async () => [],
     };
     const service = createLeadService({
       store: leadStore,
@@ -67,6 +77,14 @@ describe('lead route', () => {
         findByLeadIds: async () => [],
         revokeByLeadIds: async () => 0,
       },
+      email: {
+        sendMagicLink: async () => ({ provider: 'log' as const }),
+        sendPartnerShare: async () => ({ provider: 'log' as const }),
+        sendCallbackConfirmation: async () => ({ provider: 'log' as const }),
+        sendNudge: async () => ({ provider: 'log' as const }),
+        sendOpsAlert: async () => ({ provider: 'log' as const }),
+      },
+      appBaseUrl: 'https://feasly.example',
       dedupWindowDays: 90,
       magicLinkTtlSeconds: 900,
     });
@@ -131,7 +149,8 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     );
     if (isProblemDetails(outcome)) throw new Error(`unexpected problem: ${outcome.title}`);
     expect(outcome.leadId).toBeDefined();
-    expect(outcome.magicLinkSent).toBe(false);
+    // consumer/02: capture emails the magic link (log provider in tests).
+    expect(outcome.magicLinkSent).toBe(true);
     expect(outcome.expiresInDays).toBe(7); // 7-day magic-link TTL (Karan decision 2026-09-24)
   });
 
