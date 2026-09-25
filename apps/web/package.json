@@ -34,6 +34,7 @@
     "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs",
     "ng": "ng",
     "prebuild": "npm run build --workspace @feasly/contracts && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts",
+    "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts",
     "start": "ng serve",
     "test": "ng test",
     "test:scripts": "vitest run scripts/",

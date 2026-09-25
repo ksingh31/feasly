@@ -37,3 +37,6 @@ apps/api/unsubscribe-get/index.js
 apps/api/unsubscribe-post/index.js
 apps/api/embed-config/index.js
 apps/api/nudge-timer/index.js
+apps/api/api-keys/index.js
+apps/api/api-keys-rotate/index.js
+apps/api/api-keys-revoke/index.js

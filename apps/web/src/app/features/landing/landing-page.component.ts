@@ -56,6 +56,31 @@ export class LandingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('');
+    // SEO-06: Landing page gets WebSite + FAQPage JSON-LD (single @graph script).
+    // No phone/address — omitted until Karan provides public contact details.
+    // Site URL comes from SeoService (canonical resolution); copy from ConfigService.
+    const faqItems = this.config.get('copy').marketing.faq.items;
+    const siteUrl = this.seo.getSiteUrl();
+    this.seo.setJsonLd({
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebSite',
+          name: 'Feasly',
+          url: `${siteUrl}/`,
+          description: this.copy.seoDescription,
+          inLanguage: 'en-CA',
+        },
+        {
+          '@type': 'FAQPage',
+          mainEntity: faqItems.map((item) => ({
+            '@type': 'Question',
+            name: item.q,
+            acceptedAnswer: { '@type': 'Answer', text: item.a },
+          })),
+        },
+      ],
+    });
   }
 
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */

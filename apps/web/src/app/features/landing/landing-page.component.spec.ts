@@ -154,4 +154,34 @@ describe('LandingPageComponent', () => {
     const title = TestBed.inject(Title).getTitle();
     expect(title).toContain('What will it really cost to build your home in Calgary?');
   });
+
+  it('injects WebSite + FAQPage JSON-LD via @graph (SEO-06)', () => {
+    const script = document.head.querySelector('script[type="application/ld+json"]');
+    expect(script).not.toBeNull();
+
+    const data = JSON.parse(script!.textContent ?? '{}') as {
+      '@context': string;
+      '@graph': Array<{ '@type': string; [key: string]: unknown }>;
+    };
+    expect(data['@context']).toBe('https://schema.org');
+    expect(Array.isArray(data['@graph'])).toBe(true);
+
+    const types = data['@graph'].map((n) => n['@type']);
+    expect(types).toContain('WebSite');
+    expect(types).toContain('FAQPage');
+
+    // WebSite has name and url, no invented phone/address.
+    const website = data['@graph'].find((n) => n['@type'] === 'WebSite')!;
+    expect(website['name']).toBe('Feasly');
+    expect(website['url']).toBeDefined();
+    expect(website['telephone']).toBeUndefined();
+    expect(website['address']).toBeUndefined();
+
+    // FAQPage has questions from the config (no drift).
+    const faqPage = data['@graph'].find((n) => n['@type'] === 'FAQPage')!;
+    const questions = (faqPage['mainEntity'] as Array<{ '@type': string; name: string }>) ?? [];
+    expect(questions.length).toBeGreaterThanOrEqual(3);
+    expect(questions[0]['@type']).toBe('Question');
+    expect(questions[0]['name']).toBe('Is Feasly free?');
+  });
 });

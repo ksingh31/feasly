@@ -28,6 +28,12 @@
  *     (POST /api/v1/unsubscribe/{token})
  *   src/functions/nudge-timer.ts          → nudge-timer/index.js
  *     (Timer: hourly 24h nudge for unverified leads)
+ *   src/functions/api-keys.ts             → api-keys/index.js
+ *     (GET|POST /api/v1/admin/api-keys)
+ *   src/functions/api-keys-rotate.ts      → api-keys-rotate/index.js
+ *     (POST /api/v1/admin/api-keys/{id}/rotate)
+ *   src/functions/api-keys-revoke.ts      → api-keys-revoke/index.js
+ *     (POST /api/v1/admin/api-keys/{id}/revoke)
  *   src/functions/embed-config.ts         → embed-config/index.js
  *     (GET /api/v1/embed/config)
  *
@@ -67,6 +73,18 @@ const targets = [
   {
     entry: 'src/functions/nudge-timer.ts',
     out: 'nudge-timer/index.js',
+  },
+  {
+    entry: 'src/functions/api-keys.ts',
+    out: 'api-keys/index.js',
+  },
+  {
+    entry: 'src/functions/api-keys-rotate.ts',
+    out: 'api-keys-rotate/index.js',
+  },
+  {
+    entry: 'src/functions/api-keys-revoke.ts',
+    out: 'api-keys-revoke/index.js',
   },
   {
     entry: 'src/functions/embed-config.ts',

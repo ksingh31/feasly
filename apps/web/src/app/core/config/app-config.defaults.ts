@@ -71,6 +71,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       heroTitle: 'What will it really cost to build your home in Calgary?',
       heroSub:
         'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
+      seoDescription:
+        'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
       trustItems: ['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown'],
       trustItemsMock: [
         'Range-based estimates',

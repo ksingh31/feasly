@@ -44,3 +44,7 @@ apps/web/src/app/features/sample-report/sample-report-page.component.html
 # vocabulary URI for structured data — a web standard, not a tunable
 # (same category as the /404 precedent above).
 apps/web/src/app/features/marketing/faq-page.component.ts
+
+# Landing WebSite+FAQPage JSON-LD context (SEO-06): same `https://schema.org`
+# fixed vocabulary URI as the FAQ page above — a web standard, not a tunable.
+apps/web/src/app/features/landing/landing-page.component.ts

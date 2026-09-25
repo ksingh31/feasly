@@ -108,6 +108,8 @@ export interface AppConfig {
       eyebrow: string;
       heroTitle: string;
       heroSub: string;
+      /** Short description for SEO JSON-LD (WebSite schema). */
+      seoDescription: string;
       trustItems: string[];
       /**
        * Shown instead of `trustItems` while the mock property harness
