@@ -7,8 +7,14 @@
  * ships as a new file (e.g. v0.2.0-calgary.json) so every historic estimate
  * stays reproducible via its pinned cost_data_version.
  */
-import rawPlaceholder from '../cost-data/v0.2.0-unclibrated.json';
-import type { CostData, HardCostCategory, RenoSpec, SoftCostCategory } from './types';
+import rawPlaceholder from '../cost-data/v0.3.0-unclibrated.json';
+import type {
+  ComparisonSpec,
+  CostData,
+  HardCostCategory,
+  RenoSpec,
+  SoftCostCategory,
+} from './types';
 
 const KNOWN_TIERS: readonly string[] = ['standard', 'premium', 'luxury'];
 
@@ -133,6 +139,17 @@ function checkRenoSpec(value: unknown, path: string): asserts value is RenoSpec 
   }
 }
 
+/** Shape-check the neighbourhood comparison section (NBH-02). */
+function checkComparisonSpec(value: unknown, path: string): asserts value is ComparisonSpec {
+  if (!isRecord(value)) throw new Error(`${path}: expected an object`);
+  if (!isNonNegativeNumber(value['landRatePerSqft']) || value['landRatePerSqft'] === 0) {
+    throw new Error(`${path}.landRatePerSqft: expected a positive number`);
+  }
+  if (!isUnitFraction(value['landSpread'])) {
+    throw new Error(`${path}.landSpread: expected a fraction in [0, 1)`);
+  }
+}
+
 /** Shape-check a parsed cost-data file; throws on the first problem. */
 export function assertValidCostData(value: unknown): asserts value is CostData {
   if (!isRecord(value)) throw new Error('cost data: expected an object');
@@ -200,13 +217,14 @@ export function assertValidCostData(value: unknown): asserts value is CostData {
     );
   }
   checkRenoSpec(value['reno'], 'cost data.reno');
+  checkComparisonSpec(value['comparison'], 'cost data.comparison');
 }
 
 const placeholder: unknown = rawPlaceholder;
 assertValidCostData(placeholder);
 
 /**
- * The bundled placeholder calibration table (v0.2.0-unclibrated,
+ * The bundled placeholder calibration table (v0.3.0-unclibrated,
  * calibrated: false). Stand-in numbers until Karan's real cost Sheet
  * arrives — see the file's _comment. Composition wires this in; the
  * engine itself only ever sees it as a CostData parameter.

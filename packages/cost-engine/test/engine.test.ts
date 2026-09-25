@@ -2,7 +2,7 @@
  * Formula-correctness tests for the deterministic cost engine.
  *
  * Expected values below are hand-derived from the placeholder data file
- * (v0.2.0-unclibrated) — if the data file changes, these expectations must
+ * (v0.3.0-unclibrated) — if the data file changes, these expectations must
  * be re-derived, which is exactly the point: the tests pin the math.
  */
 import { describe, expect, it } from 'vitest';
@@ -150,7 +150,7 @@ describe('createEstimate — version pin', () => {
   it('pins the cost-data version and calibration flag on every estimate', () => {
     const result = createEstimate(standardInput(), DATA);
     expect(result.costDataVersion).toBe(DATA.version);
-    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
     expect(result.calibrated).toBe(false);
   });
 });

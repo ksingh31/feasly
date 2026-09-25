@@ -14,7 +14,7 @@ export type GarageOption = 'none' | 'double' | 'triple';
 export type BasementOption = 'unfinished' | 'finished';
 
 /** Which estimate path produced the response. Absent on legacy new-build rows. */
-export type ProjectType = 'new_build' | 'renovation';
+export type ProjectType = 'new_build' | 'renovation' | 'comparison';
 
 /** Renovation scope kinds the engine prices (RENO-01). */
 export type RenoType = 'extensive' | 'addition' | 'basement' | 'combined';
@@ -69,8 +69,45 @@ export interface NewBuildEstimateRequest extends EstimateRequest {
   readonly projectType?: 'new_build';
 }
 
-/** Any estimate request — new build or renovation (RENO-01). */
-export type AnyEstimateRequest = NewBuildEstimateRequest | RenoEstimateRequest;
+/** Any estimate request — new build, renovation, or comparison (NBH-02). */
+export type AnyEstimateRequest = NewBuildEstimateRequest | RenoEstimateRequest | ComparisonEstimateRequest;
+
+/** Neighbourhood comparison estimate request (NBH-02). Discriminated by projectType. */
+export interface ComparisonEstimateRequest {
+  readonly projectType: 'comparison';
+  /** 2–3 community slugs to compare. */
+  readonly neighbourhoods: readonly string[];
+  /** Above-grade living area in square feet (same for all communities). */
+  readonly sqft: number;
+  readonly tier: FinishTier;
+}
+
+/** One neighbourhood's figures in a comparison response (NBH-02). */
+export interface ComparisonRowSet {
+  readonly slug: string;
+  /** True for exactly one row-set: the cheapest land by `low`. */
+  readonly lowestLand: boolean;
+  readonly land: CostRange;
+  readonly build: CostRange;
+  readonly total: CostRange;
+  readonly visibility: EstimateVisibility;
+}
+
+/**
+ * Post-gate neighbourhood comparison response (NBH-02).
+ * Contains one row-set per community (2–3), not the single-figure shape.
+ */
+export interface ComparisonEstimateResponse {
+  readonly estimateId: string;
+  readonly projectType: 'comparison';
+  readonly inputs: {
+    readonly sqft: number;
+    readonly tier: FinishTier;
+  };
+  readonly rowSets: readonly ComparisonRowSet[];
+  readonly costDataVersion: string;
+  readonly createdAt: string;
+}
 
 /** One breakdown line. Rendered only if the engine returned it — never invented. */
 export interface CostRow {

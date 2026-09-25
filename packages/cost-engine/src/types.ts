@@ -198,6 +198,18 @@ export interface RenoSpec {
 }
 
 /**
+ * Comparison calibration section (NBH-02). Land is estimated from community
+ * averages: land = avgLotSqft × landRatePerSqft ± landSpread.
+ * Rates are placeholders until calibration — see the cost-data file comment.
+ */
+export interface ComparisonSpec {
+  /** Land value per square foot of lot (whole CAD dollars). */
+  readonly landRatePerSqft: number;
+  /** Symmetric ± spread for land, e.g. 0.10 = ±10%. */
+  readonly landSpread: number;
+}
+
+/**
  * Shape of a versioned cost-data file. EVERY tunable the engine uses lives
  * here — the engine source contains no calibration numbers, limits or
  * percentages (only arithmetic structure).
@@ -215,6 +227,52 @@ export interface CostData {
   readonly contingency: ContingencySpec;
   /** Renovation calibration section (RENO-01). */
   readonly reno: RenoSpec;
+  /** Neighbourhood comparison section (NBH-02). */
+  readonly comparison: ComparisonSpec;
+}
+
+/** Input to the neighbourhood comparison branch (NBH-02). */
+export interface ComparisonInput {
+  /** 2–3 community slugs to compare. */
+  readonly neighbourhoods: readonly string[];
+  /** Above-grade living area in square feet (same for all). */
+  readonly buildSqft: number;
+  readonly tier: FinishTier;
+  /**
+   * Per-community lot sizes from community_stats (NBH-01).
+   * Keyed by slug; null when the dataset lacks lot size data.
+   */
+  readonly avgLotSqftBySlug: Readonly<Record<string, number | null>>;
+}
+
+/** One neighbourhood's row-set in a comparison result (NBH-02). */
+export interface ComparisonRowSet {
+  /** Community slug. */
+  readonly slug: string;
+  /** True for exactly one row-set: the cheapest land by `low`. */
+  readonly lowestLand: boolean;
+  /** Land range: avgLotSqft × landRatePerSqft ± landSpread. */
+  readonly land: RangedAmount;
+  /** Build range: standard engine build (hard + soft + contingency). */
+  readonly build: RangedAmount;
+  /** Total range: land + build (componentwise). */
+  readonly total: RangedAmount;
+  /** Per-figure display hints: land visible, build/total blurred. */
+  readonly visibility: {
+    readonly land: 'visible';
+    readonly build: 'blurred';
+    readonly total: 'blurred';
+  };
+}
+
+/** Result of the neighbourhood comparison branch (NBH-02). */
+export interface ComparisonResult {
+  /** Pinned calibration-table version this estimate was computed with. */
+  readonly costDataVersion: string;
+  /** False until Karan's real cost Sheet calibrates a successor table. */
+  readonly calibrated: boolean;
+  /** One row-set per neighbourhood (2–3). */
+  readonly rowSets: readonly ComparisonRowSet[];
 }
 
 /** Thrown when an input violates the cost-data input bounds. */

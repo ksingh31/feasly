@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "costDataVersion": "v0.2.0-unclibrated",
+  "costDataVersion": "v0.3.0-unclibrated",
   "cases": [
     {
       "expected": {
@@ -118,7 +118,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-standard-min-sqft",
       "request": {
@@ -253,7 +253,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-premium-max-sqft",
       "request": {
@@ -388,7 +388,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-luxury-min-sqft",
       "request": {
@@ -523,7 +523,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-standard-max-sqft",
       "request": {
@@ -658,7 +658,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-premium-mid-sqft",
       "request": {
@@ -793,7 +793,7 @@
             }
           }
         ],
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "new-build-luxury-mid-sqft",
       "request": {
@@ -864,7 +864,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-extensive-standard",
       "request": {
@@ -928,7 +928,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-extensive-premium",
       "request": {
@@ -992,7 +992,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-extensive-luxury",
       "request": {
@@ -1066,7 +1066,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-basement-standard-min-sqft",
       "request": {
@@ -1140,7 +1140,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-basement-luxury-max-sqft",
       "request": {
@@ -1204,7 +1204,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-addition-premium",
       "request": {
@@ -1297,7 +1297,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-combined-luxury-underpinning",
       "request": {
@@ -1361,7 +1361,7 @@
           "build": "blurred",
           "total": "blurred"
         },
-        "costDataVersion": "v0.2.0-unclibrated"
+        "costDataVersion": "v0.3.0-unclibrated"
       },
       "id": "reno-extensive-standard-max-sqft",
       "request": {

@@ -1,0 +1,160 @@
+{
+  "_comment": "================================================================================\n   PLACEHOLDER CALIBRATION \u2014 v0.1.0-unclibrated \u2014 NOT FOR CUSTOMER-FACING ESTIMATES.\n   Every rate, fraction and spread below is a STAND-IN so the deterministic engine\n   runs end-to-end. None of these numbers came from a real build.\n   Karan's real cost Sheet (3-4 completed houses) has NOT arrived yet. When it does,\n   a calibrated successor file (e.g. v0.2.0-calgary.json, calibrated: true) replaces\n   this one \u2014 this file is never edited in place, so old estimates stay reproducible\n   via their pinned cost_data_version.\n   ================================================================================\n   RENO-01: added a draft `reno` section (uncalibrated stand-in rates, draft: true).\n   Reno estimates are refused unless COST_ENGINE_ALLOW_DRAFT=true (never in production)\n   until a calibrated successor table replaces this file. v0.2.0: landSpread removed \\n   NBH-02: added a  section (landRatePerSqft + landSpread for neighbourhood comparison land estimates). \u2014 the assessed land value is now a fixed figure (no spread), per the report redesign.",
+  "calibrated": false,
+  "contingency": {
+    "formula": "(hardCostBase + softCostBase) \u00d7 contingency.fraction",
+    "fraction": 0.1,
+    "label": "Contingency",
+    "spread": 0.0
+  },
+  "hardCosts": {
+    "envelope": {
+      "formula": "buildSqft \u00d7 hardCosts.envelope.rates[tier]",
+      "label": "Envelope (roof, siding, windows)",
+      "rates": {
+        "luxury": 55,
+        "premium": 42,
+        "standard": 32
+      },
+      "scalesWith": "buildSqft",
+      "spread": 0.15
+    },
+    "finishes": {
+      "formula": "buildSqft \u00d7 hardCosts.finishes.rates[tier]",
+      "label": "Interior finishes",
+      "rates": {
+        "luxury": 130,
+        "premium": 85,
+        "standard": 55
+      },
+      "scalesWith": "buildSqft",
+      "spread": 0.18
+    },
+    "foundation": {
+      "formula": "buildSqft \u00d7 hardCosts.foundation.rates[tier]",
+      "label": "Foundation",
+      "rates": {
+        "luxury": 42,
+        "premium": 34,
+        "standard": 28
+      },
+      "scalesWith": "buildSqft",
+      "spread": 0.12
+    },
+    "framing": {
+      "formula": "buildSqft \u00d7 hardCosts.framing.rates[tier]",
+      "label": "Framing & structure",
+      "rates": {
+        "luxury": 58,
+        "premium": 46,
+        "standard": 38
+      },
+      "scalesWith": "buildSqft",
+      "spread": 0.12
+    },
+    "mep": {
+      "formula": "buildSqft \u00d7 hardCosts.mep.rates[tier]",
+      "label": "Mechanical, electrical & plumbing",
+      "rates": {
+        "luxury": 55,
+        "premium": 40,
+        "standard": 30
+      },
+      "scalesWith": "buildSqft",
+      "spread": 0.15
+    },
+    "sitePrep": {
+      "formula": "lotSizeSqft \u00d7 hardCosts.sitePrep.rates[tier]",
+      "label": "Site preparation & excavation",
+      "rates": {
+        "luxury": 7,
+        "premium": 5,
+        "standard": 4
+      },
+      "scalesWith": "lotSizeSqft",
+      "spread": 0.2
+    }
+  },
+  "inputBounds": {
+    "maxAssessedLandValue": 10000000,
+    "maxBuildSqft": 12000,
+    "maxLotSizeSqft": 20000,
+    "maxZoningLength": 32,
+    "minAssessedLandValue": 25000,
+    "minBuildSqft": 400,
+    "minLotSizeSqft": 1200
+  },
+  "notes": "Stand-in Calgary infill figures. Replace with Karan's Sheet before any real estimate.",
+  "softCosts": {
+    "design": {
+      "formula": "hardCostBase \u00d7 softCosts.design.fraction",
+      "fraction": 0.06,
+      "label": "Design & engineering",
+      "spread": 0.2
+    },
+    "permits": {
+      "formula": "hardCostBase \u00d7 softCosts.permits.fraction",
+      "fraction": 0.015,
+      "label": "Permits & fees",
+      "spread": 0.25
+    }
+  },
+  "source": "placeholder",
+  "tiers": [
+    "standard",
+    "premium",
+    "luxury"
+  ],
+  "version": "v0.3.0-unclibrated",
+  "reno": {
+    "draft": true,
+    "draftNote": "PLACEHOLDER \u2014 replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs.",
+    "components": {
+      "extensive": {
+        "label": "Extensive renovation",
+        "formula": "renoSqft \u00d7 reno.components.extensive.rates[tier]",
+        "rates": {
+          "standard": 165,
+          "premium": 230,
+          "luxury": 310
+        }
+      },
+      "addition": {
+        "label": "Addition",
+        "formula": "min(renoSqft, additionCapSqft) \u00d7 reno.components.addition.rates[tier]",
+        "rates": {
+          "standard": 300,
+          "premium": 360,
+          "luxury": 420
+        }
+      },
+      "basement": {
+        "label": "Basement development",
+        "formula": "renoSqft \u00d7 reno.components.basement.rates[tier]",
+        "rates": {
+          "standard": 85,
+          "premium": 130,
+          "luxury": 175
+        }
+      }
+    },
+    "additionCapSqft": 400,
+    "underpinning": {
+      "label": "Foundation underpinning",
+      "formula": "reno.underpinning flat allowance",
+      "low": 35000,
+      "high": 80000
+    },
+    "lowFactor": 0.8,
+    "highFactor": 1.25,
+    "roundTo": 1000,
+    "inputBounds": {
+      "minRenoSqft": 100,
+      "maxRenoSqft": 12000
+    }
+  },
+  "comparison": {
+    "landRatePerSqft": 85,
+    "landSpread": 0.1
+  }
+}
