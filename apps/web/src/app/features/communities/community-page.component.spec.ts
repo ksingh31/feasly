@@ -16,6 +16,8 @@ describe('CommunityPageComponent', () => {
 
   const communitiesCopy = {
     illustrativeBanner: 'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
+    titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
+    descriptionTemplate: 'Planning cost ranges for building a home in {name}, Calgary.',
     statLabel: 'Average City-assessed value (not market value)',
     statNote: 'Stat note.',
     basisNote: 'Basis note.',
