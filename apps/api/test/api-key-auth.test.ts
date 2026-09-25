@@ -57,6 +57,7 @@ describe('api-key auth middleware (api-mcp/01)', () => {
       scopes: ['property:read', 'estimate'],
       sandbox: false,
       tenantId: 'tenant_1',
+      rateLimitPerMin: 100,
     });
   });
 
