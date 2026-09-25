@@ -194,3 +194,30 @@
     justify-content: flex-start;
   }
 }
+
+/* EMB-03: builder attribution consent line — sits above the form, always visible. */
+.embed-consent {
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-subtle, #f8f6f1);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* EMB-03 fail-closed: config failed to load — the gate collects nothing. */
+.embed-unavailable {
+  margin: 3rem 0;
+  padding: 2rem;
+  text-align: center;
+  background: var(--surface-subtle, #f8f6f1);
+  border-radius: 8px;
+}
+
+.embed-unavailable p {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-muted, #666);
+}
