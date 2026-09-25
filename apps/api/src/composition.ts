@@ -134,6 +134,15 @@ import {
   type CommunityStatsService,
 } from './services/community-stats.service';
 import {
+  createCommunityStatsRefreshService,
+  createSocrataCommunityStatsSource,
+  type CommunityStatsRefreshService,
+} from './services/community-stats-refresh.service';
+import {
+  createDrizzleAdminAuditStore,
+  type AdminAuditStore,
+} from './services/admin-audit.store';
+import {
   createBuilderConfigService,
   type BuilderConfigService,
 } from './services/builder-config.service';
@@ -166,6 +175,10 @@ import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
+import {
+  createCommunityStatsRefreshRoute,
+  type CommunityStatsRefreshRoute,
+} from './routes/community-stats-refresh.route';
 import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
@@ -320,6 +333,11 @@ export interface AppComposition {
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
   readonly communityStatsRoute: CommunityStatsRoute;
+  /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
+  readonly communityStatsRefreshService: CommunityStatsRefreshService;
+  readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
+  /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
+  readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
   readonly embedConfigRoute: EmbedConfigRoute;
   /** Property lookup (api-mcp/02): City of Calgary Socrata, cache-first. */
@@ -764,6 +782,39 @@ export function createComposition(
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
     communityStats: communityStatsService,
   });
+  // Community-stats monthly refresh (neighbourhood/05): recomputes
+  // community_stats from fresh Socrata aggregates on a timer; ops can also
+  // trigger it manually via POST /api/v1/admin/community-stats/refresh.
+  // Two consecutive timer failures fire the community_stats_failed ops
+  // alert (admin/06); recovery sends the all-clear and re-arms.
+  const adminAuditStore: AdminAuditStore = createDrizzleAdminAuditStore({
+    db: db.db,
+  });
+  const communityStatsRefreshService: CommunityStatsRefreshService =
+    createCommunityStatsRefreshService({
+      stats: communityStatsService,
+      source: createSocrataCommunityStatsSource({
+        socrataBaseUrl: config.propertyData.socrataBaseUrl,
+        datasetId: config.propertyData.datasetId,
+        httpTimeoutMs: config.propertyData.httpTimeoutMs,
+      }),
+      minAssessmentCount: config.communityStatsRefresh.minAssessmentCount,
+      alertAfterConsecutiveFailures:
+        config.communityStatsRefresh.alertAfterConsecutiveFailures,
+      onRefreshFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('community_stats_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRefreshRecovered: () =>
+        opsAlertsService.notifyRecovered('community_stats_failed'),
+    });
+  const communityStatsRefreshRoute: CommunityStatsRefreshRoute =
+    createCommunityStatsRefreshRoute({
+      refresh: communityStatsRefreshService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // Builder embed config (embed/02): repo JSON inlined at build time wins,
   // DB tenants row is the fallback. Unknown key → 404 UNKNOWN_TENANT.
   // isDev mirrors the generator's rule (tools/generate-builder-configs.ts):
@@ -945,6 +996,9 @@ export function createComposition(
     narrativeRoute,
     communityStatsService,
     communityStatsRoute,
+    communityStatsRefreshService,
+    communityStatsRefreshRoute,
+    adminAuditStore,
     builderConfigService,
     embedConfigRoute,
     propertyService,

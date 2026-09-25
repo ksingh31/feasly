@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["post","options"],"name":"req","route":"v1/admin/community-stats/refresh","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

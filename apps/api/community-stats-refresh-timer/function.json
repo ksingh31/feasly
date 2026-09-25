@@ -1,0 +1,1 @@
+{"bindings":[{"direction":"in","name":"timer","schedule":"0 0 0 1 * *","type":"timerTrigger"}]}

@@ -66,6 +66,27 @@ jobs:
       - name: Assert Postgres backup config (PITR-capable)
         run: bash infra/health/check-postgres-backup.sh
 
+  # NBH-05: fail loudly when the monthly community-stats refresh stops
+  # running — any community_stats.refreshed_at older than 45 days (or an
+  # empty table) means the timer is broken or the seed never ran.
+  # Read-only: the script issues two SELECTs and nothing else. OIDC trust
+  # covers main pushes + PRs (docs/oidc-setup.md).
+  community-stats-freshness:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Assert community_stats freshness
+        run: bash infra/health/check-community-stats-freshness.sh
+
   # HRD-07: fail the PR/push when the diff adds secret-shaped material
   # (Stripe keys, webhook secrets, private keys, Slack tokens, ACS/Postmark
   # credentials, AZURE_CLIENT_SECRET values, DB passwords). Allowlisted test

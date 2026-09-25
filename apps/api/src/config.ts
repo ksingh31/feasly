@@ -89,6 +89,13 @@ const EnvSchema = z.object({
   SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
 
+  // neighbourhood/05: monthly community-stats refresh timer. Communities
+  // with fewer fresh assessment records than this are skipped (logged, never
+  // zero-filled). ALERT_AFTER_FAILURES consecutive timer failures fire the
+  // community_stats_failed ops alert (admin/06).
+  COMMUNITY_STATS_MIN_ASSESSMENTS: z.coerce.number().int().positive().default(10),
+  COMMUNITY_STATS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(2),
+
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
@@ -408,6 +415,22 @@ export interface SandboxPurgeConfig {
 }
 
 /**
+ * Community-stats monthly refresh (neighbourhood/05). Recomputes
+ * `community_stats` from fresh City of Calgary Socrata aggregates; the API
+ * stays cache-first and never calls Socrata per-request.
+ */
+export interface CommunityStatsRefreshConfig {
+  /**
+   * Minimum fresh assessment records for a community to be (re)written.
+   * Below this the community is skipped with a warning log — never written
+   * as zero (a thin-data community must not masquerade as a cheap one).
+   */
+  readonly minAssessmentCount: number;
+  /** Consecutive timer failures before the ops alert fires. */
+  readonly alertAfterConsecutiveFailures: number;
+}
+
+/**
  * Google Sheets sync (admin/04). Empty sheetId/serviceAccountEmail = sync
  * disabled; the worker fails closed (no sync, alert fires).
  */
@@ -462,6 +485,7 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
+  readonly communityStatsRefresh: CommunityStatsRefreshConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -595,6 +619,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
+    },
+    communityStatsRefresh: {
+      minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
+      alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
     },
     estimate: {
       rateLimit: {

@@ -85,6 +85,10 @@ describe('loadConfig', () => {
         retentionDays: 30,
         dryRun: true,
       },
+      communityStatsRefresh: {
+        minAssessmentCount: 10,
+        alertAfterConsecutiveFailures: 2,
+      },
       sheets: {
         sheetId: '',
         serviceAccountEmail: '',
