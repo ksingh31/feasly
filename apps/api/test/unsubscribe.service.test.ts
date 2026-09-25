@@ -40,6 +40,7 @@ function leadRecord(id: string): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+      nudgeSentAt: null,
     createdAt: NOW,
   };
 }
@@ -71,6 +72,8 @@ function fakeStore(world: World): LeadStore {
       world.records.set(args.id, updated);
       return updated;
     },
+    findNudgeCandidates: async () => [],
+    setNudgeSentAt: async () => null,
     findAllByEmail: async () => [],
     deleteByEmail: async () => 0,
     appendNote: async () => {},

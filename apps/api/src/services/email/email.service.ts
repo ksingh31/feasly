@@ -64,8 +64,12 @@ export interface NudgeEmailInput {
   readonly to: string;
   readonly name?: string;
   readonly resumeUrl: string;
-  /** Opaque per-lead token; the service builds the unsubscribe URL. */
-  readonly unsubscribeToken: string;
+  /**
+   * Full one-click unsubscribe URL (token embedded). Minted by
+   * UnsubscribeService.buildUnsubscribeUrl — the email service never mints
+   * or parses tokens itself.
+   */
+  readonly unsubscribeUrl: string;
 }
 
 export interface OpsAlertEmailInput {
@@ -135,17 +139,16 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     },
 
     async sendNudge(input: NudgeEmailInput): Promise<EmailSendResult> {
-      const unsubscribeUrl = `${deps.unsubscribeBaseUrl}?token=${encodeURIComponent(input.unsubscribeToken)}`;
       const rendered = renderNudgeEmail(ctx, {
         name: input.name,
         resumeUrl: input.resumeUrl,
-        unsubscribeUrl,
+        unsubscribeUrl: input.unsubscribeUrl,
       });
       return deliver({
         ...rendered,
         to: input.to,
         headers: {
-          'List-Unsubscribe': `<${unsubscribeUrl}>`,
+          'List-Unsubscribe': `<${input.unsubscribeUrl}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         },
       });

@@ -26,6 +26,8 @@
  *     (GET /api/v1/unsubscribe/{token})
  *   src/functions/unsubscribe-post.ts     → unsubscribe-post/index.js
  *     (POST /api/v1/unsubscribe/{token})
+ *   src/functions/nudge-timer.ts          → nudge-timer/index.js
+ *     (Timer: hourly 24h nudge for unverified leads)
  *   src/functions/embed-config.ts         → embed-config/index.js
  *     (GET /api/v1/embed/config)
  *
@@ -61,6 +63,10 @@ const targets = [
   {
     entry: 'src/functions/unsubscribe-post.ts',
     out: 'unsubscribe-post/index.js',
+  },
+  {
+    entry: 'src/functions/nudge-timer.ts',
+    out: 'nudge-timer/index.js',
   },
   {
     entry: 'src/functions/embed-config.ts',

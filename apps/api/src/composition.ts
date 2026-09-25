@@ -38,6 +38,10 @@ import {
   type UnsubscribeService,
 } from './services/unsubscribe.service';
 import {
+  createNudgeService,
+  type NudgeService,
+} from './services/nudge.service';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -113,6 +117,8 @@ export interface AppComposition {
   readonly magicLinkRoute: MagicLinkRoute;
   readonly unsubscribeService: UnsubscribeService;
   readonly unsubscribeRoute: UnsubscribeRoute;
+  /** email/02: hourly 24h-nudge timer for unverified leads. */
+  readonly nudgeService: NudgeService;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -287,6 +293,16 @@ export function createComposition(
     tokenSecret: config.email.unsubscribeTokenSecret,
     tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
   });
+  // email/02 — hourly 24h nudge for unverified leads. Reuses the magic-link
+  // store's issue/revoke path and the unsubscribe service's opt-out check.
+  const nudgeService: NudgeService = createNudgeService({
+    leads: leadStore,
+    magicLinks: magicLinkStore,
+    email: emailService,
+    unsubscribe: unsubscribeService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+  });
   const unsubscribeRoute: UnsubscribeRoute = createUnsubscribeRoute({
     unsubscribe: unsubscribeService,
   });
@@ -349,6 +365,7 @@ export function createComposition(
     magicLinkRoute,
     unsubscribeService,
     unsubscribeRoute,
+    nudgeService,
     privacyStore,
     privacyService,
     privacyRoute,

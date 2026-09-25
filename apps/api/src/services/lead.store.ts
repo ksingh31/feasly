@@ -8,7 +8,7 @@
  * created within the window. The window bound is a parameter
  * (config-driven), not a constant.
  */
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leadNotes, leadStatusHistory, leads } from '../db/schema';
 
@@ -33,6 +33,8 @@ export interface LeadRecord {
   readonly status: string;
   /** email/03: CASL opt-out timestamp; null = still subscribed. */
   readonly unsubscribedAt: Date | null;
+  /** email/02: 24h-nudge exactly-once guard; null = not yet sent. */
+  readonly nudgeSentAt: Date | null;
   readonly createdAt: Date;
 }
 
@@ -146,6 +148,25 @@ export interface LeadStore {
     readonly at: Date;
   }): Promise<LeadRecord | null>;
   /**
+   * email/02 — nudge candidates. Leads created in `[createdAfter,
+   * createdBefore)` that have never been nudged (`nudge_sent_at IS NULL`).
+   * The timer passes a ~1h window anchored at 24h ago; the NULL guard is
+   * the exactly-once guarantee, the window just bounds the scan.
+   */
+  findNudgeCandidates(args: {
+    readonly createdAfter: Date;
+    readonly createdBefore: Date;
+    readonly limit: number;
+  }): Promise<LeadRecord[]>;
+  /**
+   * email/02 — record the 24h nudge. Sets `nudge_sent_at` to `at`
+   * (unconditional: the service checks the NULL guard before calling).
+   */
+  setNudgeSentAt(args: {
+    readonly id: string;
+    readonly at: Date;
+  }): Promise<LeadRecord | null>;
+  /**
    * Every lead for this normalized email (the PIPEDA "household" view).
    * Used by the privacy export and erasure flows.
    */
@@ -179,6 +200,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     leadScore: row.leadScore,
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
+    nudgeSentAt: row.nudgeSentAt,
     createdAt: row.createdAt,
   };
 }
@@ -253,6 +275,32 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
       const rows = await db
         .update(leads)
         .set({ unsubscribedAt: sql`COALESCE(${leads.unsubscribedAt}, ${args.at})` })
+        .where(eq(leads.id, args.id))
+        .returning();
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async findNudgeCandidates(args): Promise<LeadRecord[]> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(
+          and(
+            gte(leads.createdAt, args.createdAfter),
+            lt(leads.createdAt, args.createdBefore),
+            isNull(leads.nudgeSentAt),
+          ),
+        )
+        .orderBy(leads.createdAt)
+        .limit(args.limit);
+      return rows.map(toRecord);
+    },
+
+    async setNudgeSentAt(args): Promise<LeadRecord | null> {
+      const rows = await db
+        .update(leads)
+        .set({ nudgeSentAt: args.at })
         .where(eq(leads.id, args.id))
         .returning();
       const row = rows[0];

@@ -156,11 +156,11 @@ describe('nudge template (non-transactional)', () => {
       to: 'lead@example.com',
       name: 'Aman',
       resumeUrl: `${CTX.appBaseUrl}/resume/abc`,
-      unsubscribeToken: 'tok-123',
+      unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
     });
     const sent = provider.sent[0];
-    expect(sent.html).toContain(`${CTX.unsubscribeBaseUrl}?token=tok-123`);
-    expect(sent.text).toContain(`${CTX.unsubscribeBaseUrl}?token=tok-123`);
+    expect(sent.html).toContain(`${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`);
+    expect(sent.text).toContain(`${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`);
   });
 
   it('sets List-Unsubscribe headers for one-click unsubscribe', async () => {
@@ -168,11 +168,11 @@ describe('nudge template (non-transactional)', () => {
     await service.sendNudge({
       to: 'lead@example.com',
       resumeUrl: `${CTX.appBaseUrl}/resume/abc`,
-      unsubscribeToken: 'tok-123',
+      unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
     });
     const sent = provider.sent[0];
     expect(sent.headers?.['List-Unsubscribe']).toContain(
-      `${CTX.unsubscribeBaseUrl}?token=tok-123`,
+      `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
     );
     expect(sent.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
   });

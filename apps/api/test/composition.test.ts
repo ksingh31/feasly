@@ -41,6 +41,8 @@ describe('composition root', () => {
     // email/03: one-click unsubscribe center (service + route wired).
     expect(app.unsubscribeService).toBeDefined();
     expect(app.unsubscribeRoute).toBeDefined();
+    // email/02: hourly 24h-nudge timer service.
+    expect(app.nudgeService).toBeDefined();
     expect(app.communityStatsService).toBeDefined();
     expect(app.communityStatsRoute).toBeDefined();
     expect(app.builderConfigService).toBeDefined();
