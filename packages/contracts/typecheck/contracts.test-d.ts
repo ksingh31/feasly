@@ -142,11 +142,14 @@ const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
 assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);
 assertType<4>(eventKeys.length);
 
-// Embed directionality: theme goes parent→iframe, resize goes iframe→parent.
+// Embed directionality: parent→iframe carries theme + relay; iframe→parent
+// carries ready/resize/estimate-start/lead-created/auth-ok (embed/08).
 declare const parentMsg: EmbedParentMessage;
-assertType<'feasly:theme'>(parentMsg.type);
+assertType<'feasly:theme' | 'feasly:relay'>(parentMsg.type);
 declare const iframeMsg: EmbedIframeMessage;
-assertType<'feasly:resize'>(iframeMsg.type);
+assertType<
+  'feasly:ready' | 'feasly:resize' | 'feasly:estimate-start' | 'feasly:lead-created' | 'FEASLY_AUTH_OK'
+>(iframeMsg.type);
 // @ts-expect-error — resize flows iframe→parent, never parent→iframe
 const wrongDirection: EmbedParentMessage = { type: 'feasly:resize', height: 1 };
 void wrongDirection;
