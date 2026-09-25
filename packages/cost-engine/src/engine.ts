@@ -17,6 +17,7 @@ import {
   type CostRow,
   type EngineInput,
   type EstimateResult,
+  type FixedAmount,
   type RangedAmount,
 } from './types';
 
@@ -100,13 +101,16 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   const tier = input.scope.tier;
   const rows: CostRow[] = [];
 
-  // Land — assessed value with the configured assessment-vs-market spread.
-  const landBand = band(input.property.assessedLandValue, costData.landSpread);
+  // Land — the City assessed value, fixed. No spread is applied: the
+  // assessment is an input fact, not an estimated range. The breakdown row
+  // carries a degenerate (zero-spread) range so row shapes stay uniform.
+  const landValue = wholeDollars(input.property.assessedLandValue);
+  const land: FixedAmount = { value: landValue };
   rows.push({
     key: 'land',
     label: 'Land (assessed value)',
-    formula: 'assessedLandValue ± landSpread',
-    range: landBand,
+    formula: 'assessedLandValue (fixed — City assessment, no spread)',
+    range: { low: landValue, base: landValue, high: landValue },
   });
 
   // Hard costs — one row per category in data-file order (insertion order
@@ -140,12 +144,12 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   });
 
   const build = addBands(addBands(hardTotal, softTotal), contingencyBand);
-  const total = addBands(build, landBand);
+  const total = addBands(build, { low: landValue, base: landValue, high: landValue });
 
   return {
     costDataVersion: costData.version,
     calibrated: costData.calibrated,
     rows,
-    totals: { build, land: landBand, total },
+    totals: { build, land, total },
   };
 }

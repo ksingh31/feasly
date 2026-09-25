@@ -72,6 +72,14 @@ export interface RangedAmount {
   readonly high: number;
 }
 
+/**
+ * A single fixed CAD amount — not a range. Used for the assessed land value,
+ * which is a City fact, not an estimated range.
+ */
+export interface FixedAmount {
+  readonly value: number;
+}
+
 export interface CostRow {
   readonly key: string;
   readonly label: string;
@@ -87,7 +95,11 @@ export interface CostRow {
 
 export interface EstimateTotals {
   readonly build: RangedAmount;
-  readonly land: RangedAmount;
+  /**
+   * Fixed City assessed land value — no spread is ever applied. The
+   * assessment is an input fact, not an estimated range.
+   */
+  readonly land: FixedAmount;
   readonly total: RangedAmount;
 }
 
@@ -201,8 +213,6 @@ export interface CostData {
   readonly hardCosts: Record<string, HardCostCategory>;
   readonly softCosts: Record<string, SoftCostCategory>;
   readonly contingency: ContingencySpec;
-  /** Symmetric ± spread applied to the assessed land value. */
-  readonly landSpread: number;
   /** Renovation calibration section (RENO-01). */
   readonly reno: RenoSpec;
 }

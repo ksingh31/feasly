@@ -60,6 +60,9 @@ const ROUTES: SeoRouteConfig[] = [
     noindex: true,
   },
   { pattern: '404', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
+  // Branded error page (HRD-02): uncaught failures land here. noindexed —
+  // it must never appear in search results.
+  { pattern: 'error', titleKey: 'errorTitle', descriptionKey: 'error', noindex: true },
 ];
 
 /**

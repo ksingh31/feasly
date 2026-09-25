@@ -42,6 +42,10 @@ import {
   createDrizzlePrivacyStore,
   type PrivacyStore,
 } from './services/privacy.store';
+import {
+  createDrizzleCommunityStatsService,
+  type CommunityStatsService,
+} from './services/community-stats.service';
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
@@ -50,6 +54,10 @@ import {
   type MagicLinkRoute,
 } from './routes/magic-link.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
+import {
+  createCommunityStatsRoute,
+  type CommunityStatsRoute,
+} from './routes/community-stats.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -82,6 +90,9 @@ export interface AppComposition {
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
+  /** Cache-first community stats (neighbourhood/01). */
+  readonly communityStatsService: CommunityStatsService;
+  readonly communityStatsRoute: CommunityStatsRoute;
 }
 
 export interface CompositionOptions {
@@ -224,6 +235,13 @@ export function createComposition(
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
   });
+  // Community stats (neighbourhood/01): cache-first reads over the
+  // community_stats table; populated by the seed script + monthly refresh.
+  const communityStatsService: CommunityStatsService =
+    createDrizzleCommunityStatsService({ db: db.db });
+  const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
+    communityStats: communityStatsService,
+  });
   return {
     config,
     db,
@@ -246,6 +264,8 @@ export function createComposition(
     privacyStore,
     privacyService,
     privacyRoute,
+    communityStatsService,
+    communityStatsRoute,
   };
 }
 

@@ -32,3 +32,4 @@ apps/api/magic-link-reissue/index.js
 apps/api/privacy-export/index.js
 apps/api/privacy-erase/index.js
 apps/api/privacy-erase-confirm/index.js
+apps/api/communities-stats/index.js

@@ -21,6 +21,13 @@ export class UnlockReport {
 
 export class ReviseReport {
   static readonly type = '[Report] Revise report';
+  /**
+   * Live revision input. The redesigned report drives this with sqft only —
+   * the sqft stepper dispatches through a 400 ms trailing debounce, so rapid
+   * taps coalesce into one backend revision. The tier slot stays for API
+   * compatibility (the contract still accepts a tier revision) but the report
+   * UI no longer offers a tier switcher: the finish tier is display-only.
+   */
   constructor(
     public readonly tier?: 'standard' | 'premium' | 'luxury',
     public readonly sqft?: number,

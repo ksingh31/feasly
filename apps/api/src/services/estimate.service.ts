@@ -40,7 +40,7 @@ import {
   type RenoEstimateResult,
   type RenoInput,
 } from '@feasly/cost-engine';
-import type { CostRange, EstimateResponse } from '@feasly/contracts';
+import type { CostRange, EstimateResponse, FixedFigure } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EstimateStore } from './estimate.store';
 
@@ -137,7 +137,7 @@ function toResponse(
     figures: {
       build: toCostRange(result.totals.build),
       total: toCostRange(result.totals.total),
-      land: toCostRange(result.totals.land),
+      land: { value: result.totals.land.value },
     },
     rows: result.rows.map((row) => ({
       key: row.key,
@@ -149,7 +149,8 @@ function toResponse(
   };
 }
 
-const ZERO_RANGE: CostRange = { low: 0, base: 0, high: 0 };
+/** Renovation estimates carry no land figure — fixed zero, never a range. */
+const NO_LAND: FixedFigure = { value: 0 };
 
 /**
  * Renovation response (RENO-01). Renovation carries no land figure — build
@@ -184,7 +185,7 @@ function toRenoResponse(
     figures: {
       build: range,
       total: range,
-      land: ZERO_RANGE,
+      land: NO_LAND,
     },
     rows: result.rows.map((row) => ({
       key: row.key,

@@ -16,6 +16,7 @@ import type {
   EmbedTenantConfig,
   EstimateRequest,
   EstimateResponse,
+  FixedFigure,
   GetReportResponse,
   LeadRequest,
   MagicLinkVerifyResponse,
@@ -52,8 +53,16 @@ assertType<readonly []>(previewRes.rows);
 declare const estimateRes: EstimateResponse;
 assertType<CostRange>(estimateRes.figures.build);
 assertType<CostRange>(estimateRes.figures.total);
-assertType<CostRange>(estimateRes.figures.land);
+assertType<FixedFigure>(estimateRes.figures.land);
 assertType<readonly CostRow[]>(estimateRes.rows);
+
+// Land is fixed: assigning a range where the fixed land figure belongs must
+// fail the build. (If this @ts-expect-error stops erroring, the contract
+// drifted and the assertion must be restored.)
+declare const someRange: CostRange;
+// @ts-expect-error — CostRange must never satisfy FixedFigure
+const landNotARange: FixedFigure = someRange;
+void landNotARange;
 
 const mixedFigures = {
   build: { blurred: true },
@@ -69,7 +78,7 @@ const blurredPost: EstimateResponse['figures'] = {
   build: { low: 1, base: 2, high: 3 },
   // @ts-expect-error — a blur placeholder cannot appear in a post-gate estimate
   total: blurredFigure,
-  land: { low: 1, base: 2, high: 3 },
+  land: { value: 1 },
 };
 void blurredPost;
 

@@ -52,6 +52,7 @@ describe('seo-routes', () => {
       'estimate/details': 'estimate/details',
       'estimate/report': 'estimate/report',
       '404': '404',
+      error: 'error',
       preview: 'preview',
       'check-email': 'check-email',
       analyzing: 'analyzing',

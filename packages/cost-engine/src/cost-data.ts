@@ -7,7 +7,7 @@
  * ships as a new file (e.g. v0.2.0-calgary.json) so every historic estimate
  * stays reproducible via its pinned cost_data_version.
  */
-import rawPlaceholder from '../cost-data/v0.1.0-unclibrated.json';
+import rawPlaceholder from '../cost-data/v0.2.0-unclibrated.json';
 import type { CostData, HardCostCategory, RenoSpec, SoftCostCategory } from './types';
 
 const KNOWN_TIERS: readonly string[] = ['standard', 'premium', 'luxury'];
@@ -194,8 +194,10 @@ export function assertValidCostData(value: unknown): asserts value is CostData {
   if (!isUnitFraction(contingency['spread'])) {
     throw new Error('cost data: contingency.spread must be a fraction in [0, 1)');
   }
-  if (!isUnitFraction(value['landSpread'])) {
-    throw new Error('cost data: landSpread must be a fraction in [0, 1)');
+  if ('landSpread' in value) {
+    throw new Error(
+      'cost data: landSpread was removed — the assessed land value is now a fixed figure (see v0.2.0+)',
+    );
   }
   checkRenoSpec(value['reno'], 'cost data.reno');
 }
@@ -204,7 +206,7 @@ const placeholder: unknown = rawPlaceholder;
 assertValidCostData(placeholder);
 
 /**
- * The bundled placeholder calibration table (v0.1.0-unclibrated,
+ * The bundled placeholder calibration table (v0.2.0-unclibrated,
  * calibrated: false). Stand-in numbers until Karan's real cost Sheet
  * arrives — see the file's _comment. Composition wires this in; the
  * engine itself only ever sees it as a CostData parameter.

@@ -27,6 +27,13 @@ apps/web/src/app/features/not-found/not-found-page.component.ts
 apps/web/src/app/app.routes.ts
 apps/web/src/app/core/seo/seo-routes.ts
 
+# Branded error + offline pages (HRD-02): the exact strings are pinned by the
+# story's acceptance criteria — they change by product decision, not by
+# deploy tuning. Copy-pinned by error-page.component.spec.ts and
+# offline-page.component.spec.ts.
+apps/web/src/app/features/error/error-page.component.ts
+apps/web/src/app/features/error/offline-page.component.ts
+
 # Labelled sample report (seo/09): canned fictional data — the address,
 # figures, and banner copy are inherently literal, exactly like mock-data.ts
 # above. Every value is pinned by sample-report-page.component.spec.ts.
