@@ -49,6 +49,7 @@ describe('lead route', () => {
         phone: null,
         tenantKey: null,
         quarantined: false,
+        sandbox: false,
         leadScore: 0,
         status: 'new',
         unsubscribedAt: null,

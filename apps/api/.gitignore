@@ -3,3 +3,8 @@ admin-auth-request/index.js
 admin-auth-verify/index.js
 admin-auth-logout/index.js
 admin-auth-me/index.js
+admin-leads/index.js
+admin-leads-detail/index.js
+admin-leads-notes/index.js
+admin-leads-status/index.js
+admin-leads-export/index.js

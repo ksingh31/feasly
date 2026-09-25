@@ -51,6 +51,16 @@
  *     (Timer: daily commission-invoice reviewer)
  *   src/functions/mcp.ts                    → mcp/index.js
  *     (POST /mcp/v1)
+ *   src/functions/admin-leads.ts             → admin-leads/index.js
+ *     (GET /api/v1/admin/leads)
+ *   src/functions/admin-leads-detail.ts      → admin-leads-detail/index.js
+ *     (GET /api/v1/admin/leads/{id})
+ *   src/functions/admin-leads-notes.ts       → admin-leads-notes/index.js
+ *     (POST /api/v1/admin/leads/{id}/notes)
+ *   src/functions/admin-leads-status.ts      → admin-leads-status/index.js
+ *     (PATCH /api/v1/admin/leads/{id}/status)
+ *   src/functions/admin-leads-export.ts      → admin-leads-export/index.js
+ *     (GET /api/v1/admin/leads/export.csv)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -156,6 +166,26 @@ const targets = [
   {
     entry: 'src/functions/mcp.ts',
     out: 'mcp/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads.ts',
+    out: 'admin-leads/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-detail.ts',
+    out: 'admin-leads-detail/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-notes.ts',
+    out: 'admin-leads-notes/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-status.ts',
+    out: 'admin-leads-status/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-export.ts',
+    out: 'admin-leads-export/index.js',
   },
 ];
 

@@ -63,6 +63,7 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     tenantKey: null,
     source: 'api',
     quarantined: false,
+    sandbox: false,
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,

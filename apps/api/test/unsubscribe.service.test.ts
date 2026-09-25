@@ -37,6 +37,7 @@ function leadRecord(id: string): LeadRecord {
     tenantKey: null,
     source: 'web',
     quarantined: false,
+    sandbox: false,
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,

@@ -101,6 +101,18 @@ import {
   type AdminGuard,
 } from './middleware/admin-guard';
 import {
+  createAdminLeadsRoute,
+  type AdminLeadsRoute,
+} from './routes/admin-leads.route';
+import {
+  createAdminLeadsService,
+  type AdminLeadsService,
+} from './services/admin-leads.service';
+import {
+  createDrizzleAdminLeadsStore,
+  type AdminLeadsStore,
+} from './services/admin-leads.store';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -285,6 +297,10 @@ export interface AppComposition {
   readonly adminAuthService: AdminAuthService;
   readonly adminAuthRoute: AdminAuthRoute;
   readonly adminGuard: AdminGuard;
+  /** admin/02: leads explorer (list, detail, notes, status, CSV export). */
+  readonly adminLeadsService: AdminLeadsService;
+  readonly adminLeadsRoute: AdminLeadsRoute;
+  readonly adminLeadsStore: AdminLeadsStore;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -355,6 +371,7 @@ export interface CompositionOptions {
   readonly adminSessionStore?: AdminSessionStore;
   readonly adminAllowlistStore?: AdminAllowlistStore;
   readonly adminAuditStore?: AdminAuditStore;
+  readonly adminLeadsStore?: AdminLeadsStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -653,6 +670,20 @@ export function createComposition(
   const adminGuard: AdminGuard = createSessionAdminGuard({
     adminAuth: adminAuthService,
   });
+  // admin/02 — leads explorer. The store is injectable for tests.
+  const adminLeadsStore: AdminLeadsStore =
+    options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
+  const adminLeadsService: AdminLeadsService = createAdminLeadsService({
+    store: adminLeadsStore,
+    leadStore,
+    estimateStore,
+    audit: adminAuditStore,
+    maxExportRows: 10000,
+  });
+  const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
+    adminLeads: adminLeadsService,
+    adminGuard,
+  });
   const apiKeyService: ApiKeyService = createApiKeyService({
     keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
     audit:
@@ -880,6 +911,9 @@ export function createComposition(
     adminAuthService,
     adminAuthRoute,
     adminGuard,
+    adminLeadsService,
+    adminLeadsRoute,
+    adminLeadsStore,
     privacyStore,
     privacyService,
     privacyRoute,
