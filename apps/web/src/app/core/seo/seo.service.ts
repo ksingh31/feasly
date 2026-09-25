@@ -88,16 +88,39 @@ export class SeoService {
    * `<head>` — used for per-page structured data such as FAQPage (SEO-010).
    * SSR-safe: renders into the prerendered HTML via DOCUMENT. Passing
    * `null` removes the tag (for routes that must not carry structured data).
+   *
+   * This manages the default (unkeyed) script. For pages needing multiple
+   * scripts (SEO-06: community pages need FAQPage + LocalBusiness), use
+   * `setJsonLdScript(id, data)` instead.
    */
   setJsonLd(data: Record<string, unknown> | null): void {
+    this.setJsonLdScript('', data);
+  }
+
+  /**
+   * Injects (or replaces) a keyed JSON-LD script in `<head>`. The `id`
+   * becomes a `data-jsonld-id` attribute, so multiple schemas can coexist
+   * (e.g. a community page's FAQPage + LocalBusiness). Passing `null`
+   * removes the script with that id. An empty id targets the default
+   * unkeyed script (same as `setJsonLd`).
+   *
+   * SSR-safe: renders into the prerendered HTML via DOCUMENT.
+   */
+  setJsonLdScript(id: string, data: Record<string, unknown> | null): void {
     const head = this.document.head;
-    const existing = head.querySelector('script[type="application/ld+json"]');
+    const selector = id
+      ? `script[type="application/ld+json"][data-jsonld-id="${id}"]`
+      : 'script[type="application/ld+json"]:not([data-jsonld-id])';
+    const existing = head.querySelector(selector);
     if (data === null) {
       existing?.remove();
       return;
     }
     const script = this.document.createElement('script');
     script.type = 'application/ld+json';
+    if (id) {
+      script.setAttribute('data-jsonld-id', id);
+    }
     script.textContent = JSON.stringify(data);
     if (existing) {
       existing.replaceWith(script);
