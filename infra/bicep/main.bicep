@@ -152,7 +152,6 @@ module alerts 'modules/alerts.bicep' = {
   name: 'alerts'
   params: {
     namePrefix: 'feasly-${envShort}'
-    storageAccountId: storage.outputs.id
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     workspaceLocation: location
     opsAlertEmail: opsAlertEmail
