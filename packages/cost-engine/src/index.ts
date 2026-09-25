@@ -19,3 +19,4 @@ export * from './types';
 export * from './engine';
 export * from './reno';
 export * from './cost-data';
+export * from './narrative';
