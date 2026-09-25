@@ -6,7 +6,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
+import { ChooseProjectType, ClearComparison, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateComparison, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
 import { WizardState, type WizardStateModel } from './wizard.state';
 
 /** FE1-001: wizard state transitions + config-seeded input defaults. */
@@ -98,10 +98,32 @@ describe('WizardState', () => {
     expect(snapshot().renoInputs.underpinning).toBe(true);
   });
 
+  it('UpdateComparison merges partial comparison changes (NBH-04)', () => {
+    expect(snapshot().comparison.slugs).toEqual([]);
+    expect(snapshot().comparison.sqft).toBe(2200);
+    store.dispatch(new UpdateComparison({ slugs: ['beltline', 'cranston'] }));
+    expect(snapshot().comparison.slugs).toEqual(['beltline', 'cranston']);
+    expect(snapshot().comparison.sqft).toBe(2200);
+    store.dispatch(new UpdateComparison({ sqft: 2500, tier: 'premium' }));
+    expect(snapshot().comparison.slugs).toEqual(['beltline', 'cranston']);
+    expect(snapshot().comparison.sqft).toBe(2500);
+    expect(snapshot().comparison.tier).toBe('premium');
+  });
+
+  it('ClearComparison resets the picker state (NBH-04)', () => {
+    store.dispatch(new UpdateComparison({ slugs: ['beltline'], sqft: 3000, tier: 'luxury' }));
+    store.dispatch(new ClearComparison());
+    const comparison = snapshot().comparison;
+    expect(comparison.slugs).toEqual([]);
+    expect(comparison.sqft).toBe(2200);
+    expect(comparison.tier).toBe('standard');
+  });
+
   it('ResetWizard restores config defaults', () => {
     store.dispatch(new SelectProperty(fakeProperty));
     store.dispatch(new GoToStep(3));
     store.dispatch(new UpdateRenoInputs({ renoType: 'addition', renoSqft: 400 }));
+    store.dispatch(new UpdateComparison({ slugs: ['beltline'], sqft: 3000 }));
     store.dispatch(new ResetWizard());
     const state = snapshot();
     expect(state.property).toBeNull();
@@ -109,6 +131,8 @@ describe('WizardState', () => {
     expect(state.inputs.sqft).toBe(2200);
     expect(state.renoInputs.renoType).toBeNull();
     expect(state.renoInputs.renoSqft).toBe(800);
+    expect(state.comparison.slugs).toEqual([]);
+    expect(state.comparison.sqft).toBe(2200);
   });
 
   it('preview starts null; StorePreviewEstimate stores it; ResetWizard clears it', () => {

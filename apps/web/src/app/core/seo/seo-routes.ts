@@ -61,6 +61,13 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'report',
     noindex: true,
   },
+  // Neighbourhood comparison picker (NBH-04): private funnel route — noindex.
+  {
+    pattern: 'estimate/compare',
+    titleKey: 'compareTitle',
+    descriptionKey: 'compare',
+    noindex: true,
+  },
   { pattern: '404', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   // Branded error page (HRD-02): uncaught failures land here. noindexed —
   // it must never appear in search results.

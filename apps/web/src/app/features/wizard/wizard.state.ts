@@ -14,6 +14,8 @@ import {
   ResetWizard,
   SelectProperty,
   StorePreviewEstimate,
+  UpdateComparison,
+  ClearComparison,
   UpdateInputs,
   UpdateRenoInputs,
   type ProjectType,
@@ -36,6 +38,19 @@ export interface RenoInputs {
   underpinning: boolean;
 }
 
+/**
+ * Neighbourhood comparison picker inputs (NBH-04). Persisted via the storage
+ * plugin so a refresh mid-picker restores the selections.
+ */
+export interface ComparisonInputs {
+  /** Selected community slugs (2–3 to continue; max 3 enforced in the UI). */
+  slugs: string[];
+  /** Build size in sq ft for the comparison. */
+  sqft: number;
+  /** Finish tier for the comparison. */
+  tier: FinishTier;
+}
+
 export interface WizardStateModel {
   /** Selected City property record. Null until the user picks an address. */
   property: PropertyRecord | null;
@@ -45,6 +60,8 @@ export interface WizardStateModel {
   inputs: EstimateInputs;
   /** Renovation scope inputs (RENO-03); used when projectType is 'renovation'. */
   renoInputs: RenoInputs;
+  /** Neighbourhood comparison picker inputs (NBH-04). */
+  comparison: ComparisonInputs;
   /** Current wizard step (1 address → 2 scope → 3 details). */
   step: WizardStep;
   /**
@@ -77,6 +94,11 @@ export interface WizardStateModel {
       tier: 'standard',
       underpinning: false,
     },
+    comparison: {
+      slugs: [],
+      sqft: 0,
+      tier: 'standard',
+    },
     step: 1,
     preview: null,
   },
@@ -100,6 +122,7 @@ export class WizardState implements NgxsOnInit {
       ctx.patchState({
         inputs: { ...ctx.getState().inputs, sqft: wizard.sqftDefault },
         renoInputs: { ...ctx.getState().renoInputs, renoSqft: wizard.renoSqftDefault },
+        comparison: { ...ctx.getState().comparison, sqft: wizard.sqftDefault },
       });
     }
   }
@@ -117,6 +140,11 @@ export class WizardState implements NgxsOnInit {
   @Selector()
   static renoInputs(state: WizardStateModel): RenoInputs {
     return state.renoInputs;
+  }
+
+  @Selector()
+  static comparison(state: WizardStateModel): ComparisonInputs {
+    return state.comparison;
   }
 
   @Selector()
@@ -170,6 +198,21 @@ export class WizardState implements NgxsOnInit {
     ctx.patchState({ step: action.step });
   }
 
+  @Action(UpdateComparison)
+  updateComparison(ctx: StateContext<WizardStateModel>, action: UpdateComparison): void {
+    ctx.patchState({
+      comparison: { ...ctx.getState().comparison, ...action.inputs },
+    });
+  }
+
+  @Action(ClearComparison)
+  clearComparison(ctx: StateContext<WizardStateModel>): void {
+    const wizard = this.config.get('wizard');
+    ctx.patchState({
+      comparison: { slugs: [], sqft: wizard.sqftDefault, tier: 'standard' },
+    });
+  }
+
   @Action(StorePreviewEstimate)
   storePreviewEstimate(ctx: StateContext<WizardStateModel>, action: StorePreviewEstimate): void {
     ctx.patchState({ preview: action.preview });
@@ -192,6 +235,11 @@ export class WizardState implements NgxsOnInit {
         renoSqft: wizard.renoSqftDefault,
         tier: 'standard',
         underpinning: false,
+      },
+      comparison: {
+        slugs: [],
+        sqft: wizard.sqftDefault,
+        tier: 'standard',
       },
       step: 1,
       preview: null,

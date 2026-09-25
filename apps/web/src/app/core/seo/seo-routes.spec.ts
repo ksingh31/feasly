@@ -54,6 +54,7 @@ describe('seo-routes', () => {
       'estimate/reno-scope': 'estimate/reno-scope',
       'estimate/details': 'estimate/details',
       'estimate/report': 'estimate/report',
+      'estimate/compare': 'estimate/compare',
       '404': '404',
       error: 'error',
       preview: 'preview',

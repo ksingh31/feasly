@@ -1,0 +1,27 @@
+<section class="tier-section" [attr.aria-labelledby]="controlId + '-label'">
+  <h2 [id]="controlId + '-label'">{{ label() }}</h2>
+  @if (hint()) {
+    <p class="hint">{{ hint() }}</p>
+  }
+  <div
+    class="tiers"
+    role="radiogroup"
+    [attr.aria-label]="label()"
+    (keydown)="onKeydown($event)"
+  >
+    @for (tier of options(); track tier.id) {
+      <button
+        class="tier-card"
+        type="button"
+        role="radio"
+        [attr.data-tier]="tier.id"
+        [attr.aria-checked]="selected() === tier.id"
+        [class.selected]="selected() === tier.id"
+        (click)="choose(tier.id)"
+      >
+        <span class="tier-name">{{ tier.name }}</span>
+        <span class="tier-blurb">{{ tier.blurb }}</span>
+      </button>
+    }
+  </div>
+</section>

@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
@@ -24,6 +24,7 @@ import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } f
   imports: [
     AddressAutocompleteComponent,
     FormsModule,
+    RouterLink,
     SiteFooterComponent,
     SiteNavComponent,
   ],
@@ -39,6 +40,8 @@ export class LandingPageComponent implements OnInit {
   /** Landing + search copy (config-owned). */
   readonly copy = this.config.get('copy').landing;
   readonly searchCopy = this.config.get('copy').search;
+  /** Neighbourhood comparison entry copy (NBH-04). */
+  readonly compareCopy = this.config.get('copy').comparison;
 
   /**
    * Trust items with mock-aware substitution: while the mock property

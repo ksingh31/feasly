@@ -1,0 +1,77 @@
+/* Shared sqft slider (NBH-04): extracted from the scope step — same visual language. */
+
+.sqft-section {
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.sqft-section h2 {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.sqft-value {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Touch-friendly range slider: 44px hit area, enlarged thumb. */
+.sqft-slider {
+  width: 100%;
+  min-height: 44px;
+  margin: 8px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.sqft-slider::-webkit-slider-thumb {
+  width: 28px;
+  height: 28px;
+}
+
+.sqft-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--accent);
+}
+
+.sqft-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.slider-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}

@@ -80,6 +80,14 @@ describe('LandingPageComponent', () => {
     expect(h1?.textContent).toBe('What will it really cost to build your home in Calgary?');
   });
 
+  it('comparison entry card links to /estimate/compare with the exact story copy (NBH-04)', () => {
+    const card = fixture.nativeElement.querySelector('.compare-card') as HTMLAnchorElement;
+    expect(card).toBeTruthy();
+    expect(card.getAttribute('href')).toBe('/estimate/compare');
+    expect(card.textContent).toContain('Compare neighbourhoods');
+    expect(card.textContent).toContain('Side-by-side build costs for 2–3 Calgary communities.');
+  });
+
   it('trust strip carries no ±, %, or accuracy claim (copy-lint)', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
