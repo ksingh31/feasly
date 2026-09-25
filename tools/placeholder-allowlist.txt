@@ -30,3 +30,7 @@ apps/api/src/config.ts :: test email :: OPS_INBOX_EMAIL default, blocked on Kara
 # Secrets hygiene (hardening/07): PLACEHOLDER_* constants are the detection
 # patterns for placeholder secrets, not unfinished placeholders themselves.
 tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder secrets (hardening/07)
+
+# SEO-04 community ranges pipeline — uses PLACEHOLDER_COST_DATA until calibrated.
+# Same unblock condition as the engine: Karan's cost Sheet (story cost-engine/01).
+apps/web/scripts/build-community-ranges.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA for community range bands, blocked on Karan's cost Sheet
