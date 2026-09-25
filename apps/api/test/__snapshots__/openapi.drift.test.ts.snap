@@ -447,6 +447,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "format": "date-time",
             "type": "string",
           },
+          "disclaimer": {
+            "description": "Approved deterministic-math disclaimer, verbatim on every estimate response (HRD-05)",
+            "type": "string",
+          },
           "estimateId": {
             "type": "string",
           },
@@ -494,6 +498,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "rows",
           "costDataVersion",
           "createdAt",
+          "disclaimer",
         ],
         "type": "object",
       },

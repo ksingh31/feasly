@@ -5,7 +5,9 @@ import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.comp
 
 /**
  * Terms of Use (FE1-001 minimal page — M1 plain-language version).
- * Karan: have this reviewed by counsel before launch.
+ * Copy status: draft-pending-lawyer — Karan: have this reviewed by counsel
+ * before launch. The HRD-05 legal gate blocks production deploys until the
+ * lawyer approves this copy and the marker is removed.
  * Legal prose lives here (not in config): it changes by legal review,
  * not by deploy tuning. Allowlisted from the no-hardcode tripwire.
  */

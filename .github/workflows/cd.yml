@@ -371,3 +371,8 @@ jobs:
       # deploys and the smoke test — wired up only after Karan provisions prod
       # infra and approves the first release. Nothing here runs until the
       # environment's required-reviewer gate approves it.
+      # HRD-05: legal gate — production deploys are blocked while any served
+      # legal copy still carries the draft-pending-lawyer marker. The lawyer
+      # must review and approve before real traffic sees the site.
+      - name: HRD-05 legal gate (blocks prod on draft legal copy)
+        run: node apps/web/tools/check-legal-gate.mjs
