@@ -1,0 +1,24 @@
+# BE8-002: automated dependency updates.
+# Weekly PRs for npm (root + workspaces) and GitHub Actions. Karan reviews
+# and merges; the dependency-audit CI job gates on high/critical.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Edmonton
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Edmonton
+    labels:
+      - dependencies

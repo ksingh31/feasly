@@ -64,7 +64,7 @@ export async function dispatchAdminLeads(
   if (middleware.isPreflight(req.method, origin)) {
     context.res = {
       status: 204,
-      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
     };
     return;
   }
@@ -87,6 +87,7 @@ export async function dispatchAdminLeads(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         'Content-Type': 'application/problem+json',
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
@@ -104,6 +105,7 @@ export async function dispatchAdminLeads(
     context.res = {
       status: 200,
       headers: {
+        ...middleware.securityHeaders(),
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${filename ?? opts.filename ?? 'leads.csv'}"`,
         [CORRELATION_RESPONSE_HEADER]: correlationId,
@@ -117,6 +119,7 @@ export async function dispatchAdminLeads(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,

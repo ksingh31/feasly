@@ -110,3 +110,22 @@ jobs:
             else RANGE="$BEFORE...${{ github.sha }}"; fi
             node tools/check-secrets.mjs --diff "$RANGE"
           fi
+
+  # BE8-002: dependency audit. Fails on high/critical vulnerabilities in
+  # any workspace. `npm audit` needs the full install tree, so this runs
+  # after checkout + npm ci (not inside the build job, to keep build fast).
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit root workspace
+        run: npm audit --audit-level=high
+      - name: Audit API workspace
+        run: npm audit --audit-level=high --workspace=@feasly/api
+      - name: Audit web workspace
+        run: npm audit --audit-level=high --workspace=@feasly/web

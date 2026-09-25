@@ -67,6 +67,7 @@ export async function stripeWebhooksHandler(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
       },
@@ -77,6 +78,7 @@ export async function stripeWebhooksHandler(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
     },

@@ -36,6 +36,7 @@ vi.mock('../src/index', () => ({
       value !== null &&
       (value as Record<string, unknown>)['status'] === 429,
     problemResponseHeaders: () => ({ 'Content-Type': 'application/problem+json' }),
+    securityHeaders: () => ({}),
   },
 }));
 

@@ -59,6 +59,7 @@ export async function openApiHandler(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       // Cache for 1 hour — the spec changes only on deploy.
       'Cache-Control': 'public, max-age=3600',

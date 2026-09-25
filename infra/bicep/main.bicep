@@ -41,6 +41,9 @@ param acsConnectionString string = ''
 @description('Custom domain (empty until FND-014 resolves the domain purchase)')
 param domainName string = ''
 
+@description('Ops alert email for metric alert action group (BE8-001). Standing test email until Karan names the ops inbox.')
+param opsAlertEmail string = 'karanbirsingh667@gmail.com'
+
 @description('Postgres Flexible Server SKU (Burstable tier)')
 @allowed([
   'Standard_B1ms'
@@ -141,6 +144,17 @@ module functionApp 'modules/function-app.bicep' = {
     postgresPasswordSecretUri: postgresPasswordSecretUri
     emailProvider: emailProvider
     acsConnectionStringSecretUri: empty(acsConnectionString) ? '' : acsConnectionStringSecretUri
+  }
+}
+
+// --- Metric alerts (BE8-001): 5xx rate + poison queue depth ---
+module alerts 'modules/alerts.bicep' = {
+  name: 'alerts'
+  params: {
+    namePrefix: 'feasly-${envShort}'
+    functionAppId: functionApp.outputs.id
+    storageAccountId: storage.outputs.id
+    opsAlertEmail: opsAlertEmail
   }
 }
 
