@@ -316,6 +316,21 @@ function createSheetsClientFromConfig(config: ApiConfig): SheetsClient {
 }
 
 /**
+ * No-op Sheets client for when Sheets is disabled. The service checks
+ * `enabled` before using the client, so these methods are never called
+ * in practice; they throw if they somehow are.
+ */
+function createDisabledSheetsClient(): SheetsClient {
+  const disabled = async (): Promise<never> => {
+    throw new Error('Sheets sync is disabled (SHEETS_SHEET_ID not configured)');
+  };
+  return {
+    upsertRows: disabled,
+    checkAccess: disabled,
+  };
+}
+
+/**
  * Build the full object graph. `env` is injectable so tests never touch
  * the real process environment (only config.ts may read it directly).
  */
@@ -498,6 +513,8 @@ export function createComposition(
   // admin/04 — hourly Google Sheets sync. Postgres is the source of truth;
   // the worker only writes the sheets_synced_at watermark. Fail-closed when
   // the Sheet ID or service-account email is unconfigured (placeholders).
+  // The client is only constructed when Sheets is enabled; otherwise the
+  // service runs in disabled mode and never touches the client.
   const sheetsSyncService: SheetsSyncService = createSheetsSyncService({
     leads: leadStore,
     estimates: estimateStore,
