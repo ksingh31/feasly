@@ -136,4 +136,20 @@ describe('analytics service', () => {
       .catch((e) => e);
     expect(error.message).not.toContain('sam@example.com');
   });
+
+  it('stores tenant_key when provided (admin/07 embed attribution)', async () => {
+    const store = fakeStore();
+    const service = createAnalyticsService({ store, clock: () => NOW });
+    await service.ingestEvent({ ...validBody(), tenant_key: 'acme-builders' });
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0]!.tenantKey).toBe('acme-builders');
+  });
+
+  it('stores null tenant_key when omitted (Feasly-direct)', async () => {
+    const store = fakeStore();
+    const service = createAnalyticsService({ store, clock: () => NOW });
+    await service.ingestEvent(validBody());
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0]!.tenantKey).toBeNull();
+  });
 });

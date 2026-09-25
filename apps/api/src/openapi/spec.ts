@@ -511,8 +511,72 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
-  // ── Stripe webhook receiver (billing/02) ──────────────────────────
+  // GET /v1/admin/funnels (admin/07)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/funnels',
+    summary: 'Consumer funnel: per-step counts + conversion rates',
+    description:
+      'Aggregates the append-only analytics events table into the consumer ' +
+      'funnel (scope → details → preview → gate → report) with per-step ' +
+      'counts and step-to-step conversion rates. Optional ISO-8601 from/to ' +
+      'bounds (inclusive). tenant_key filters to one embed tenant, "direct" ' +
+      'selects Feasly-direct traffic only, omitted = all traffic. ' +
+      'Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.',
+    security: [{ AdminKey: [] }],
+    request: {
+      query: z.object({
+        from: z.string().optional().describe('ISO-8601 start (inclusive)'),
+        to: z.string().optional().describe('ISO-8601 end (inclusive)'),
+        tenant_key: z
+          .string()
+          .optional()
+          .describe('Embed tenant key, "direct" for Feasly-direct only'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Funnel report',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                from: { type: 'string', format: 'date-time', nullable: true },
+                to: { type: 'string', format: 'date-time', nullable: true },
+                tenant: { type: 'string' },
+                steps: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string' },
+                      label: { type: 'string' },
+                      count: { type: 'integer' },
+                      conversionFromPrevious: {
+                        type: 'number',
+                        nullable: true,
+                      },
+                    },
+                    required: [
+                      'step',
+                      'label',
+                      'count',
+                      'conversionFromPrevious',
+                    ],
+                  },
+                },
+              },
+              required: ['from', 'to', 'tenant', 'steps'],
+            },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
 
+  // ── Stripe webhook receiver (billing/02) ──────────────────────────
   registry.registerComponent('securitySchemes', 'StripeSignature', {
     type: 'apiKey',
     in: 'header',

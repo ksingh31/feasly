@@ -343,7 +343,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/funnels',
     auth: 'admin',
     rateLimit: '300/min per session',
-    status: 'planned',
+    status: 'live',
     summary: 'Funnel dashboards (admin/07): step drop-off, gate conversion.',
   },
   {

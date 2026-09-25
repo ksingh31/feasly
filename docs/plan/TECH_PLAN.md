@@ -1280,7 +1280,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | PATCH | `/api/v1/admin/leads/{id}/status` | admin | 60/min per session | planned | Lead status (new/contacted/quoting/won/lost). Writes lead_status_history; audit-logged. |
 | GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
-| GET | `/api/v1/admin/funnels` | admin | 300/min per session | planned | Funnel dashboards (admin/07): step drop-off, gate conversion. |
+| GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
 | GET | `/api/v1/admin/calibration` | admin | 300/min per session | planned | Calibration console reads (admin/09). |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | planned | Sheets sync worker status (admin/05). |

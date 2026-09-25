@@ -435,11 +435,19 @@ export const analyticsEvents = pgTable(
      * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
      */
     sandbox: boolean('sandbox').notNull().default(false),
+    /**
+     * admin/07: tenant key for embed-attributed events. NULL = Feasly-direct
+     * traffic. Set by embed clients; the funnel dashboard filters on it.
+     */
+    tenantKey: text('tenant_key'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index('analytics_events_event_created_idx').on(t.event, t.createdAt)],
+  (t) => [
+    index('analytics_events_event_created_idx').on(t.event, t.createdAt),
+    index('analytics_events_tenant_created_idx').on(t.tenantKey, t.createdAt),
+  ],
 );
 
 /**

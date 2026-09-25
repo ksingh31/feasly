@@ -28,6 +28,7 @@ describe('analytics store (PGlite)', () => {
       route: '/estimate/gate',
       ts: new Date('2026-09-25T12:00:00.000Z'),
       consentTs: new Date('2026-09-25T11:59:00.000Z'),
+      tenantKey: null,
     });
     expect(record.event).toBe('gate_convert');
     expect(record.route).toBe('/estimate/gate');
@@ -41,7 +42,7 @@ describe('analytics store (PGlite)', () => {
     );
     expect(rows).toHaveLength(1);
     const keys = Object.keys(rows[0]).sort();
-    expect(keys).toEqual(['consent_ts', 'created_at', 'event', 'id', 'route', 'sandbox', 'ts']);
+    expect(keys).toEqual(['consent_ts', 'created_at', 'event', 'id', 'route', 'sandbox', 'tenant_key', 'ts']);
   });
 
   it('creates the analytics_events lookup index', async () => {

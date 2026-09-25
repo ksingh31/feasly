@@ -1180,6 +1180,165 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         "summary": "Rotate an API key",
       },
     },
+    "/v1/admin/funnels": {
+      "get": {
+        "description": "Aggregates the append-only analytics events table into the consumer funnel (scope → details → preview → gate → report) with per-step counts and step-to-step conversion rates. Optional ISO-8601 from/to bounds (inclusive). tenant_key filters to one embed tenant, "direct" selects Feasly-direct traffic only, omitted = all traffic. Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
+        "parameters": [
+          {
+            "description": "ISO-8601 start (inclusive)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "description": "ISO-8601 start (inclusive)",
+              "type": "string",
+            },
+          },
+          {
+            "description": "ISO-8601 end (inclusive)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "description": "ISO-8601 end (inclusive)",
+              "type": "string",
+            },
+          },
+          {
+            "description": "Embed tenant key, "direct" for Feasly-direct only",
+            "in": "query",
+            "name": "tenant_key",
+            "required": false,
+            "schema": {
+              "description": "Embed tenant key, "direct" for Feasly-direct only",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "from": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string",
+                    },
+                    "steps": {
+                      "items": {
+                        "properties": {
+                          "conversionFromPrevious": {
+                            "nullable": true,
+                            "type": "number",
+                          },
+                          "count": {
+                            "type": "integer",
+                          },
+                          "label": {
+                            "type": "string",
+                          },
+                          "step": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "step",
+                          "label",
+                          "count",
+                          "conversionFromPrevious",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "tenant": {
+                      "type": "string",
+                    },
+                    "to": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "tenant",
+                    "steps",
+                  ],
+                  "type": "object",
+                },
+              },
+            },
+            "description": "Funnel report",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Consumer funnel: per-step counts + conversion rates",
+      },
+    },
     "/v1/admin/usage": {
       "get": {
         "description": "Returns per-day request counts grouped by endpoint, plus the number of estimates created. Admins (X-Admin-Key) see all keys; a Bearer API key sees only its own usage (querying another key_id returns 403). Every accepted API-key call writes one usage row; rejected 429s write none.",
