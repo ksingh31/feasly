@@ -34,3 +34,9 @@ tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder sec
 # SEO-04 community ranges pipeline — uses PLACEHOLDER_COST_DATA until calibrated.
 # Same unblock condition as the engine: Karan's cost Sheet (story cost-engine/01).
 apps/web/scripts/build-community-ranges.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA for community range bands, blocked on Karan's cost Sheet
+
+# Admin interim auth (admin/07 frontend): the adminGuard uses the
+# X-Admin-Key interim check until admin/01 (magic-link admin session auth)
+# lands. Unblocks: admin/01 merge (PR #79) — then replace the key check
+# with the session check and remove this entry.
+apps/web/src/app/features/admin/admin.guard.ts :: PLACEHOLDER :: interim X-Admin-Key admin guard, blocked on admin/01 session auth
