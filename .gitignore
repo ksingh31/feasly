@@ -56,3 +56,4 @@ apps/api/invoice-reviewer-timer/index.js
 # prebuild; served same-origin as the embed app).
 apps/web/public/embed/
 apps/api/mcp/index.js
+worktrees/
