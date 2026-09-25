@@ -44,12 +44,16 @@ jobs:
       - name: Discover Postgres + password
         run: |
           set -euo pipefail
+          echo "=== all Postgres servers in rg-feasly-dev ==="
+          az postgres flexible-server list --resource-group rg-feasly-dev \
+            --query "[].{name:name, fqdn:fullyQualifiedDomainName, state:state}" -o table
           PGHOST=$(az postgres flexible-server list --resource-group rg-feasly-dev \
             --query "[?starts_with(name,'feasly-dev-pg')].fullyQualifiedDomainName | [0]" -o tsv)
           if [ -z "$PGHOST" ] || [ "$PGHOST" = "None" ]; then
             echo "could not discover Postgres server in rg-feasly-dev" >&2
             exit 1
           fi
+          echo "Using PGHOST=$PGHOST"
           echo "PGHOST=$PGHOST" >> "$GITHUB_ENV"
           KV_NAME=$(az keyvault list --resource-group rg-feasly-dev \
             --query "[?starts_with(name,'feasly-dev-kv')].name | [0]" -o tsv)
@@ -74,11 +78,22 @@ jobs:
         run: |
           set -euo pipefail
           export PGSSLMODE=require
-          echo "=== __drizzle_migrations ==="
+          echo "=== per-server table inventory ==="
+          for SRV in $(az postgres flexible-server list --resource-group rg-feasly-dev \
+              --query "[].fullyQualifiedDomainName" -o tsv); do
+            echo "--- server: $SRV ---"
+            psql -h "$SRV" -U feaslyadmin -d feasly -t -c \
+              "SELECT 'tables=' || count(*) FROM pg_tables WHERE schemaname='public';" 2>&1 || echo "(connection failed)"
+            psql -h "$SRV" -U feaslyadmin -d feasly -t -c \
+              "SELECT 'community_stats=' || CASE WHEN to_regclass('public.community_stats') IS NOT NULL THEN 'yes' ELSE 'no' END;" 2>&1 || true
+            psql -h "$SRV" -U feaslyadmin -d feasly -t -c \
+              "SELECT 'migrations=' || count(*) FROM __drizzle_migrations;" 2>&1 || echo "(no __drizzle_migrations)"
+          done
+          echo "=== target server __drizzle_migrations ==="
           psql -h "$PGHOST" -U feaslyadmin -d feasly -c \
             "SELECT id, hash FROM __drizzle_migrations ORDER BY id;" \
             || echo "(no __drizzle_migrations table)"
-          echo "=== table existence check ==="
+          echo "=== target server tables ==="
           psql -h "$PGHOST" -U feaslyadmin -d feasly -c \
             "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
 
@@ -93,7 +108,7 @@ jobs:
             -f infra/db/repair-missing-tables.sql
           echo "=== post-repair table check ==="
           psql -h "$PGHOST" -U feaslyadmin -d feasly -t -c \
-            "SELECT count(*) FROM to_regclass('public.community_stats') WHERE oid IS NOT NULL;"
+            "SELECT CASE WHEN to_regclass('public.community_stats') IS NOT NULL THEN 'community_stats EXISTS' ELSE 'community_stats MISSING' END;"
 
       - name: Setup Node
         if: ${{ inputs.seed }}
