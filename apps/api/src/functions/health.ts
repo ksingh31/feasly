@@ -61,6 +61,7 @@ export async function healthHandler(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
     },

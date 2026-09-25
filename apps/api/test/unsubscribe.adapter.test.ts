@@ -25,6 +25,7 @@ vi.mock('../src/index', () => ({
     preflightHeaders: () => ({}),
     ensureCorrelationId: () => 'corr-1',
     isProblemDetails: () => false,
+    securityHeaders: () => ({}),
   },
 }));
 

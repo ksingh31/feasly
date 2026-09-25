@@ -62,7 +62,7 @@ export async function dispatchApiKeys(
   if (middleware.isPreflight(req.method, origin)) {
     context.res = {
       status: 204,
-      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
     };
     return;
   }
@@ -85,6 +85,7 @@ export async function dispatchApiKeys(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         'Content-Type': 'application/problem+json',
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
@@ -96,6 +97,7 @@ export async function dispatchApiKeys(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,

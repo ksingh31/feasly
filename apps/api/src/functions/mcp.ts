@@ -51,7 +51,7 @@ export async function mcpHandler(
   if (middleware.isPreflight(req.method, origin)) {
     context.res = {
       status: 204,
-      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
     };
     return;
   }
@@ -61,6 +61,7 @@ export async function mcpHandler(
     context.res = {
       status: 405,
       headers: {
+        ...middleware.securityHeaders(),
         'Content-Type': 'application/json',
         ...corsHeaders,
       },
@@ -99,6 +100,7 @@ export async function mcpHandler(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
@@ -111,6 +113,7 @@ export async function mcpHandler(
   context.res = {
     status: result.status,
     headers: {
+      ...middleware.securityHeaders(),
       ...result.headers,
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,

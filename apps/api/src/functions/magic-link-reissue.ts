@@ -43,7 +43,7 @@ export async function magicLinkReissueHandler(
   if (middleware.isPreflight(req.method, origin)) {
     context.res = {
       status: 204,
-      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
     };
     return;
   }
@@ -67,6 +67,7 @@ export async function magicLinkReissueHandler(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
@@ -78,6 +79,7 @@ export async function magicLinkReissueHandler(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,
