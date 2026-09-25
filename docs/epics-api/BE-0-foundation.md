@@ -44,3 +44,36 @@ when the DB is unreachable rather than 500ing).
 - 11th request in the window → 429 with `RATE_LIMITED`.
 **Tests:** error mapping table; rate-limit window behavior (fake timers).
 **Dependencies:** BE0-001, BE0-002.
+
+### BE0-004 — TypeScript 7 migration (5.9.3 → 7.x)
+**Size:** M — Cross-cutting toolchain story. PR #141 (Dependabot, 5.9.3 → 7.0.2) was
+closed as not a drop-in update; the migration needs dedicated effort touching
+production code and tests.
+**Description:** Bump `typescript` (devDependency) from 5.9.3 to 7.x across the
+monorepo (`apps/api`, `apps/web`, `packages/cost-engine`, `packages/contracts`,
+`packages/mcp`) and fix every breaking change. Known breakage categories (from the
+PR #141 CI failure, run 36195203419):
+1. **Stricter implicit-any (TS7006):** parameters in callbacks that relied on
+   contextual typing now fail — e.g. `apps/api/src/services/estimate.service.ts`,
+   assorted test files.
+2. **Unknown catch variables (TS18046):** `catch (error)` variables are `unknown`
+   instead of `any` — narrow or type-guard before use (e.g. `estimate.service.ts`).
+3. **Changed lib defaults:** `console` / `process` no longer found in some files
+   (e.g. `packages/mcp/src/stdio.ts`) — explicit `lib`/`types` entries in the
+   affected tsconfigs rather than relying on TS defaults.
+4. **Project-reference resolution changes:** `@feasly/cost-engine`,
+   `@feasly/contracts`, `@feasly/mcp` modules fail to resolve under the standalone
+   `tsc -b` reference build — align with how CI builds references (root
+   `npx tsc -b`, not bare per-project `tsc`).
+5. **Stricter excess-property checks:** `ProblemDetails` object literals with
+   `code`/`retryable` now fail — type against the `ApiError` contract explicitly.
+**Acceptance criteria:**
+- Root `npx tsc -b` (the canonical CI typecheck) is fully clean — zero errors.
+- Full test suite green on the same commit (no test-skipping to get there).
+- No behavior changes: the migration is type-level only; no API contract,
+  pricing-math, or UI behavior changes.
+- Dependabot TS 7.x PRs are green after this lands (no more manual close-out).
+**Tests:** existing suite must stay green; add no new tests unless a type fix
+exposes a real behavior gap (then add a regression test per the bug rule).
+**Dependencies:** none (orthogonal to all stories; land it in a quiet window —
+rebasing main fast invalidates the typecheck quickly).
