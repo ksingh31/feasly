@@ -93,6 +93,11 @@ export class MockApiService implements ApiService {
         basement: 'unfinished',
       };
     }
+    // Comparison requests (NBH-02) are backend-only; the mock preview does
+    // not implement them. Narrow the type for the new_build branch below.
+    if (request.projectType === 'comparison') {
+      throw new Error('Comparison estimates are not supported in mock mode');
+    }
     return {
       sqft: request.sqft,
       tier: request.tier,
@@ -127,6 +132,10 @@ export class MockApiService implements ApiService {
   }
 
   getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
+    // Comparison (NBH-02) is backend-only; not supported in mock preview.
+    if (request.projectType === 'comparison') {
+      throw new Error('Comparison estimates are not supported in mock mode');
+    }
     // Reno previews use the same blurred shape — the type guarantees no leaks.
     const inputs = this.toInputs(request);
     const response = mockPreviewEstimate(request.addressKey, inputs);
@@ -135,6 +144,10 @@ export class MockApiService implements ApiService {
   }
 
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
+    // Comparison (NBH-02) is backend-only; not supported in mock.
+    if (request.projectType === 'comparison') {
+      throw new Error('Comparison estimates are not supported in mock mode');
+    }
     if (request.projectType === 'renovation') {
       const response = mockRenoEstimate(request.addressKey, request);
       this.estimateInputs.set(response.estimateId, response.inputs);
