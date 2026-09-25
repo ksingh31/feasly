@@ -12,14 +12,14 @@
 }
 
 .state-page h1 {
-  font-family: var(--font-display);
+  font-family: var(--font-headline);
   font-size: clamp(1.75rem, 4vw, 2.5rem);
   margin: 0 0 16px;
 }
 
 .state-page p {
   max-width: 34rem;
-  color: var(--text-muted);
+  color: var(--muted);
   margin: 0 0 12px;
   line-height: 1.6;
 }
@@ -35,7 +35,7 @@
 .cta {
   display: inline-block;
   padding: 14px 28px;
-  background: var(--brass);
+  background: var(--accent);
   color: #fff;
   border-radius: 8px;
   border: none;
@@ -45,7 +45,7 @@
 }
 
 .cta:hover {
-  background: var(--brass-dark);
+  background: var(--accent-dark);
   text-decoration: underline;
 }
 
