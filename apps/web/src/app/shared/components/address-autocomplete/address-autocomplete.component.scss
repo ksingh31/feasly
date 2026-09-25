@@ -102,6 +102,33 @@
   cursor: pointer;
 }
 
+/* Reno/05: the Calgary-only gate. Informational, not an error — cream/brass
+   treatment with the heading set larger. */
+.ac-out-of-coverage {
+  display: block;
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.ac-ooc-heading {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.ac-out-of-coverage p {
+  margin: 0;
+}
+
+.ac-out-of-coverage .ac-retry {
+  margin-top: 10px;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .ac-list {
   position: absolute;
   z-index: 50;

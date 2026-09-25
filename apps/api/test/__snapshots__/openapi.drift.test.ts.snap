@@ -2139,7 +2139,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/properties/autocomplete": {
       "get": {
-        "description": "Free-form address autocomplete backed by the City of Calgary assessment roll. Queries shorter than 3 characters resolve to an empty suggestion list. No auth — public by design.",
+        "description": "Free-form address autocomplete backed by the City of Calgary assessment roll. Queries shorter than 3 characters resolve to an empty suggestion list. Queries with an explicit out-of-coverage signal (non-Calgary city or postal code) return 404 OUT_OF_COVERAGE (reno/05). No auth — public by design.",
         "parameters": [
           {
             "description": "Partial address query (e.g. "100 8 Ave NW")",
@@ -2174,6 +2174,16 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               },
             },
             "description": "Bad request — validation failed",
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "OUT_OF_COVERAGE: the query is explicitly outside Calgary (code OUT_OF_COVERAGE). Calgary-looking queries with no matches resolve to an empty suggestion list, not an error.",
           },
           "429": {
             "content": {
@@ -2281,7 +2291,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "No City record for this address",
+            "description": "No City record: OUT_OF_COVERAGE when the address is explicitly outside Calgary ("We only support Calgary right now."), ADDRESS_NOT_FOUND for Calgary-looking addresses with no record (reno/05)",
           },
           "429": {
             "content": {

@@ -66,3 +66,9 @@ apps/web/src/app/features/developers/developers-page.component.html
 # under that by design. They change by protocol revision (code review), not
 # by deploy tuning. Timing-pinned by embed-bridge.service.spec.ts.
 apps/web/src/app/features/embed/embed-bridge.service.ts
+
+# Mock coverage heuristic (reno/05): mirrors the backend's pure coverage
+# detector (apps/api/src/lib/coverage.ts) so mock mode returns the same
+# OUT_OF_COVERAGE codes. The city-token list and postal regex are matching
+# logic, not tunable copy — user-facing strings come from ConfigService.
+apps/web/src/app/core/api/mock-property-data.service.ts
