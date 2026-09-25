@@ -1,0 +1,125 @@
+# Feasly DB repair — manual remediation for the dev Postgres database.
+#
+# Context (2026-09-25): the `community-stats-freshness` CI check fails with
+# `ERROR: relation "community_stats" does not exist`. CD's `db:migrate`
+# (drizzle-kit) reports success because `__drizzle_migrations` records
+# 0005_mute_exiles as applied even though the table is absent — drizzle
+# will never re-apply it. This workflow recreates any missing tables
+# idempotently and re-seeds community_stats.
+#
+# Trigger: manual only (`gh workflow run db-repair.yml`). Never runs on
+# push/PR. All DDL uses IF NOT EXISTS — safe to run multiple times.
+#
+# Auth model: same OIDC federation as CD (azure/login@v2); Postgres admin
+# password read from Key Vault at run time and masked — never echoed.
+
+name: DB repair (dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Re-seed community_stats from Socrata after repair"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  repair-dev-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Discover Postgres + password
+        run: |
+          set -euo pipefail
+          PGHOST=$(az postgres flexible-server list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-pg')].fullyQualifiedDomainName | [0]" -o tsv)
+          if [ -z "$PGHOST" ] || [ "$PGHOST" = "None" ]; then
+            echo "could not discover Postgres server in rg-feasly-dev" >&2
+            exit 1
+          fi
+          echo "PGHOST=$PGHOST" >> "$GITHUB_ENV"
+          KV_NAME=$(az keyvault list --resource-group rg-feasly-dev \
+            --query "[?starts_with(name,'feasly-dev-kv')].name | [0]" -o tsv)
+          if [ -z "$KV_NAME" ] || [ "$KV_NAME" = "None" ]; then
+            KV_NAME="feasly-dev-kv"
+          fi
+          PGPASS=$(az keyvault secret show \
+            --vault-name "$KV_NAME" \
+            --name feasly-dev-postgres-admin \
+            --query value -o tsv)
+          echo "::add-mask::$PGPASS"
+          echo "PGPASS=$PGPASS" >> "$GITHUB_ENV"
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client
+
+      - name: Diagnose migration state
+        env:
+          PGPASSWORD: ${{ env.PGPASS }}
+        run: |
+          set -euo pipefail
+          export PGSSLMODE=require
+          echo "=== __drizzle_migrations ==="
+          psql -h "$PGHOST" -U feaslyadmin -d feasly -c \
+            "SELECT id, hash FROM __drizzle_migrations ORDER BY id;" \
+            || echo "(no __drizzle_migrations table)"
+          echo "=== table existence check ==="
+          psql -h "$PGHOST" -U feaslyadmin -d feasly -c \
+            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+
+      - name: Repair missing tables (idempotent)
+        env:
+          PGPASSWORD: ${{ env.PGPASS }}
+        run: |
+          set -euo pipefail
+          export PGSSLMODE=require
+          psql -h "$PGHOST" -U feaslyadmin -d feasly \
+            -v ON_ERROR_STOP=1 \
+            -f infra/db/repair-missing-tables.sql
+          echo "=== post-repair table check ==="
+          psql -h "$PGHOST" -U feaslyadmin -d feasly -t -c \
+            "SELECT count(*) FROM to_regclass('public.community_stats') WHERE oid IS NOT NULL;"
+
+      - name: Setup Node
+        if: ${{ inputs.seed }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ inputs.seed }}
+        run: npm ci
+
+      - name: Seed community_stats from Socrata
+        if: ${{ inputs.seed }}
+        env:
+          POSTGRES_DB: feasly
+          POSTGRES_USER: feaslyadmin
+          POSTGRES_PASSWORD: ${{ env.PGPASS }}
+          POSTGRES_HOST: ${{ env.PGHOST }}
+        run: npm run db:seed:community-stats --workspace @feasly/api
+
+      - name: Verify freshness query
+        env:
+          PGPASSWORD: ${{ env.PGPASS }}
+        run: |
+          set -euo pipefail
+          export PGSSLMODE=require
+          psql -h "$PGHOST" -U feaslyadmin -d feasly -c \
+            "SELECT count(*), min(refreshed_at), max(refreshed_at) FROM community_stats;"
