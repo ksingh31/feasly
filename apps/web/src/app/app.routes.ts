@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
-import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -26,14 +25,6 @@ import { AdminLoginComponent } from './features/admin/admin-login.component';
 import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
-import { AdminCalibrationComponent } from './features/admin/admin-calibration.component';
-import { AdminSheetsStatusComponent } from './features/admin/admin-sheets-status.component';
-import { adminGuard } from './features/admin/admin.guard';
-import { BuilderLoginComponent } from './features/builder/builder-login.component';
-import { BuilderVerifyComponent } from './features/builder/builder-verify.component';
-import { BuilderShellComponent } from './features/builder/builder-shell.component';
-import { BuilderDashboardComponent } from './features/builder/builder-dashboard.component';
-import { builderGuard } from './features/builder/builder.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -86,14 +77,6 @@ export const routes: Routes = [
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
   // crawlable. Sitemap already reserves /developers (seo/02).
   { path: 'developers', component: DevelopersPageComponent, canActivate: [robotsGuard] },
-  // Community index (SEO-05): prerendered hub listing all 40 community
-  // cost guides. Indexable — no `noindex` data. The `communities/:slug`
-  // pages (SEO-04) link back here; this page links out to each of them.
-  {
-    path: 'communities',
-    component: CommunitiesIndexPageComponent,
-    canActivate: [robotsGuard],
-  },
   // Labelled sample report (seo/09): fictional data, watermarked, never
   // gated/emailed/persisted. noindex like the wizard routes — it's a trust
   // page for visitors, not a search landing page.
@@ -199,34 +182,6 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'leads', pathMatch: 'full' },
       { path: 'leads', component: AdminLeadsComponent },
-      { path: 'calibration', component: AdminCalibrationComponent },
-      // admin/05: Sheets sync ops panel.
-      { path: 'ops/sheets', component: AdminSheetsStatusComponent },
-    ],
-  },
-  // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
-  // pipeline. All builder routes are noindexed and excluded from
-  // prerendering (not in prerender-routes.txt). No public-page links point
-  // here.
-  {
-    path: 'builder/login',
-    component: BuilderLoginComponent,
-    canActivate: [robotsGuard],
-    data: { noindex: true },
-  },
-  {
-    path: 'builder/verify',
-    component: BuilderVerifyComponent,
-    canActivate: [robotsGuard],
-    data: { noindex: true },
-  },
-  {
-    path: 'builder',
-    component: BuilderShellComponent,
-    canActivate: [robotsGuard, builderGuard],
-    data: { noindex: true },
-    children: [
-      { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
     ],
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
