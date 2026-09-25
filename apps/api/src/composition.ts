@@ -168,6 +168,10 @@ import {
   type BillingAuditService,
 } from './services/billing/billing-audit.service';
 import {
+  createEmbedBillingHookService,
+  type EmbedBillingHookService,
+} from './services/billing/embed-billing-hook.service';
+import {
   createStripeService,
   type StripeService,
 } from './services/billing/stripe.service';
@@ -275,6 +279,8 @@ export interface AppComposition {
   readonly attributionService: AttributionService;
   /** billing/02: append-only billing audit log. */
   readonly billingAuditService: BillingAuditService;
+  /** embed/04: no-op billable-event hook for embed tenants (billing not enabled). */
+  readonly embedBillingHookService: EmbedBillingHookService;
   /** billing/02: the only Stripe SDK touchpoint. */
   readonly stripeService: StripeService;
   /** billing/02: 1% commission engine (active when BILLING_MODEL=commission). */
@@ -680,6 +686,12 @@ export function createComposition(
   const billingAuditService: BillingAuditService = createBillingAuditService({
     db: db.db,
   });
+  // embed/04: no-op hook — records the event for future reconciliation,
+  // returns billed:false. The real charge path replaces this, not beside it.
+  const embedBillingHookService: EmbedBillingHookService =
+    createEmbedBillingHookService({
+      audit: billingAuditService,
+    });
   const stripeService: StripeService = createStripeService({
     db: db.db,
     billing: config.billing,
@@ -783,6 +795,7 @@ export function createComposition(
     withApiKeyRateLimit,
     attributionService,
     billingAuditService,
+    embedBillingHookService,
     stripeService,
     commissionService,
     flatPlanService,
