@@ -1,18 +1,19 @@
 /**
- * Azure Functions v3 trigger adapter — GET /api/v1/communities/{slug}/stats.
+ * Azure Functions v3 trigger adapter — GET /api/v1/embed/config?key=.
  *
  * Thin by design: build the pipeline request from the Functions `req`,
  * run it through the BE0-003 pipeline (correlation + rate limiting +
  * RFC 7807 errors), and translate the outcome to `context.res`.
  *
+ * - Public endpoint: the builder's page fetches this unauthenticated at
+ *   embed load. Abuse resistance comes from the standard public rate
+ *   limiter on the request pipeline (EMB-02: "rate-limited like other
+ *   public routes").
  * - Imports only from the package public surface (`../index`), never deep
  *   paths — see src/index.ts.
  * - The composition (config, pool, engine) is built once per instance and
  *   cached module-level; the pg pool stays warm across invocations.
- * - The correlation ID is derived here and injected into the headers handed
- *   to the pipeline, so the `x-correlation-id` response header always
- *   matches the ID in logs and error bodies.
- * - Bundled by `npm run bundle:functions` into `communities-stats/index.js`
+ * - Bundled by `npm run bundle:functions` into `embed-config/index.js`
  *   (self-contained — the Function App has no node_modules).
  */
 import { randomUUID } from 'node:crypto';
@@ -22,22 +23,10 @@ import {
   middleware,
   type AppComposition,
 } from '../index';
-
-/** Minimal structural types — no @azure/functions dependency needed. */
-export interface FunctionContext {
-  res?: unknown;
-  log: (...args: unknown[]) => void;
-  /** Route parameters from the httpTrigger binding (v3 programming model). */
-  bindingData?: Record<string, unknown>;
-}
-
-export interface FunctionRequest {
-  method?: string;
-  headers?: Record<string, string | string[] | undefined>;
-  body?: unknown;
-  /** Query string parameters (v3 programming model). */
-  query?: Record<string, string | undefined>;
-}
+import type {
+  FunctionContext,
+  FunctionRequest,
+} from './communities-stats';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -55,7 +44,7 @@ function clientIpFrom(req: FunctionRequest): string | undefined {
   return ip ? ip : undefined;
 }
 
-export async function communitiesStatsHandler(
+export async function embedConfigHandler(
   context: FunctionContext,
   req: FunctionRequest,
 ): Promise<void> {
@@ -81,11 +70,10 @@ export async function communitiesStatsHandler(
     headers[CORRELATION_RESPONSE_HEADER] = randomUUID();
   }
   const correlationId = middleware.ensureCorrelationId(headers);
-  const slug = context.bindingData?.['slug'];
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.communityStatsRoute.handle(slug),
+    () => app.embedConfigRoute.handle(req.query ?? {}),
   );
 
   if (middleware.isProblemDetails(result)) {
@@ -112,4 +100,4 @@ export async function communitiesStatsHandler(
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).
-module.exports = communitiesStatsHandler;
+module.exports = embedConfigHandler;

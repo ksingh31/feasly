@@ -280,3 +280,31 @@ export const communityStats = pgTable('community_stats', {
   /** When the row was last computed — drives the API's `stale` flag. */
   refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull(),
 });
+
+/**
+ * Builder tenants (EMB-02). The DB row is the FALLBACK for the repo JSON
+ * (`config/builders/{tenantKey}.json`), which is read first — the JSON is
+ * the onboarding mechanism until the admin UI exists (the JSON is the
+ * migration source for these rows, not throwaway).
+ *
+ * Fields mirror the JSON schema one-to-one (see
+ * `src/services/builder-config/builder-config.schema.ts`):
+ * - `plan` is inert until billing lands (embed/04); null = undecided.
+ * - Only business contact info lives here — no builder PII beyond that.
+ */
+export const tenants = pgTable('tenants', {
+  /** Matches the repo JSON file name: `config/builders/{tenantKey}.json`. */
+  tenantKey: text('tenant_key').primaryKey(),
+  businessName: text('business_name').notNull(),
+  displayName: text('display_name').notNull(),
+  /** May be '' — the embed shell falls back to the Feasly wordmark. */
+  logoUrl: text('logo_url').notNull().default(''),
+  /** #rrggbb hex accent color. */
+  accentColor: text('accent_color').notNull(),
+  /** PostMessage origin allowlist — https origins (http localhost dev only). */
+  allowedOrigins: text('allowed_origins').array().notNull(),
+  fallbackPhone: text('fallback_phone').notNull().default(''),
+  fallbackEmail: text('fallback_email').notNull().default(''),
+  /** 'flat' | 'commission' | null (undecided). Inert until billing. */
+  plan: text('plan'),
+});
