@@ -140,7 +140,6 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },
   // Admin (admin/01): magic-link session auth. All admin routes are
   // noindexed and excluded from prerendering (not in prerender-routes.txt).
   // No public-page links point here.
@@ -166,4 +165,7 @@ export const routes: Routes = [
       { path: 'leads', component: AdminLeadsComponent },
     ],
   },
+  // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
+  // before the admin routes above would swallow /admin/login etc. (P0 fix).
+  { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },
 ];
