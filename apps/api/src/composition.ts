@@ -18,6 +18,14 @@ import {
 import { createLeadService, type LeadService } from './services/lead.service';
 import { createDrizzleLeadStore, type LeadStore } from './services/lead.store';
 import {
+  createAnalyticsService,
+  type AnalyticsService,
+} from './services/analytics.service';
+import {
+  createDrizzleAnalyticsStore,
+  type AnalyticsStore,
+} from './services/analytics.store';
+import {
   createAcsEmailProvider,
   createEmailService,
   createLogEmailProvider,
@@ -66,6 +74,7 @@ import {
   createUnsubscribeRoute,
   type UnsubscribeRoute,
 } from './routes/unsubscribe.route';
+import { createAnalyticsRoute, type AnalyticsRoute } from './routes/analytics.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
   createCommunityStatsRoute,
@@ -97,6 +106,9 @@ export interface AppComposition {
   readonly estimateRateLimiter: RateLimiter;
   readonly estimateTenantRateLimiter: RateLimiter;
   readonly estimatePipeline: RequestPipeline;
+  /** Generous limiter + pipeline for public analytics ingest. */
+  readonly analyticsRateLimiter: RateLimiter;
+  readonly analyticsPipeline: RequestPipeline;
   readonly healthService: HealthService;
   readonly healthRoute: HealthRoute;
   readonly estimateStore: EstimateStore;
@@ -105,6 +117,9 @@ export interface AppComposition {
   readonly leadStore: LeadStore;
   readonly leadService: LeadService;
   readonly leadRoute: LeadRoute;
+  readonly analyticsStore: AnalyticsStore;
+  readonly analyticsService: AnalyticsService;
+  readonly analyticsRoute: AnalyticsRoute;
   /** The one email service — all send paths funnel through here. */
   readonly emailService: EmailService;
   readonly magicLinkStore: MagicLinkStore;
@@ -143,6 +158,7 @@ export interface CompositionOptions {
    * the real pool). Production wiring always uses the real ping.
    */
   readonly dbPing?: () => Promise<void>;
+  readonly analyticsStore?: AnalyticsStore;
 }
 
 /**
@@ -226,6 +242,18 @@ export function createComposition(
     config,
     dbPing: options.dbPing ?? (() => db.ping()),
   });
+  // Analytics ingest is public by design (first-party), so it gets its own
+  // generous limiter on a separate pipeline — funnel traffic never contends
+  // with the general API limiter, and a flood of events never starves it.
+  const analyticsRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.analytics.rateLimit.windowMs,
+    maxRequests: config.analytics.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const analyticsPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: analyticsRateLimiter,
+    logger: options.logger,
+  });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
     options.estimateStore ?? createDrizzleEstimateStore({ db: db.db });
@@ -242,6 +270,14 @@ export function createComposition(
     options.leadStore ?? createDrizzleLeadStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
+  const analyticsStore: AnalyticsStore =
+    options.analyticsStore ?? createDrizzleAnalyticsStore({ db: db.db });
+  const analyticsService: AnalyticsService = createAnalyticsService({
+    store: analyticsStore,
+  });
+  const analyticsRoute: AnalyticsRoute = createAnalyticsRoute({
+    analytics: analyticsService,
+  });
   // Transactional email (story email/01): provider chosen by config.
   // 'log' is dev/test-only and refuses production; 'postmark' fails closed
   // without EMAIL_POSTMARK_SERVER_TOKEN; 'acs' (Karan-approved 2026-09-24)
@@ -335,6 +371,8 @@ export function createComposition(
     estimateRateLimiter,
     estimateTenantRateLimiter,
     estimatePipeline,
+    analyticsRateLimiter,
+    analyticsPipeline,
     healthService,
     healthRoute,
     estimateStore,
@@ -343,6 +381,9 @@ export function createComposition(
     leadStore,
     leadService,
     leadRoute,
+    analyticsStore,
+    analyticsService,
+    analyticsRoute,
     emailService,
     magicLinkStore,
     magicLinkService,

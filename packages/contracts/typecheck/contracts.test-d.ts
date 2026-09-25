@@ -124,7 +124,8 @@ assertType<'morning' | 'afternoon' | 'evening'>(callback.window);
 declare const share: PartnerShareRequest;
 assertType<string>(share.partnerEmail);
 
-// Analytics payload is closed: only event/route/ts exist.
+// Analytics payload is closed: only event/route/ts/consent_ts exist
+// (story consumer/01 added consent_ts; embed/01 needs embed_loaded).
 declare const event: AnalyticsEvent;
 assertType<
   | 'step_view'
@@ -135,10 +136,11 @@ assertType<
   | 'callback_request'
   | 'partner_share'
   | 'pdf_download'
+  | 'embed_loaded'
 >(event.event);
-const eventKeys = ['event', 'route', 'ts'] as const;
-assertType<readonly ['event', 'route', 'ts']>(eventKeys);
-assertType<3>(eventKeys.length);
+const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
+assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);
+assertType<4>(eventKeys.length);
 
 // Embed directionality: theme goes parent→iframe, resize goes iframe→parent.
 declare const parentMsg: EmbedParentMessage;

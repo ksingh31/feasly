@@ -138,7 +138,7 @@ describe('HttpApiService', () => {
     },
     {
       name: 'trackEvent',
-      call: (api) => api.trackEvent({ event: 'step_view', route: '/', ts: '2026-09-24T00:00:00Z' }),
+      call: (api) => api.trackEvent({ event: 'step_view', route: '/', ts: '2026-09-24T00:00:00Z', consent_ts: '2026-09-23T23:59:00Z' }),
       method: 'POST',
       url: `${BASE}/events`,
     },

@@ -1,0 +1,32 @@
+@if (visible()) {
+  <div
+    class="consent-banner"
+    role="dialog"
+    aria-modal="false"
+    [attr.aria-label]="copy.title"
+    data-testid="consent-banner"
+  >
+    <p class="consent-text">
+      <strong>{{ copy.title }}</strong>
+      {{ copy.body }}
+    </p>
+    <div class="consent-actions">
+      <button
+        type="button"
+        class="consent-decline"
+        (click)="decline()"
+        data-testid="consent-decline"
+      >
+        {{ copy.decline }}
+      </button>
+      <button
+        type="button"
+        class="consent-accept"
+        (click)="accept()"
+        data-testid="consent-accept"
+      >
+        {{ copy.accept }}
+      </button>
+    </div>
+  </div>
+}

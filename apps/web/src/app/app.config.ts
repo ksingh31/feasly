@@ -15,6 +15,7 @@ import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { ConfigService } from './core/config/config.service';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
+import { ConsentState } from './features/consent';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -51,9 +52,9 @@ export const appConfig: ApplicationConfig = {
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
     provideStore(
-      [WizardState, ReportState, LeadState],
+      [WizardState, ReportState, LeadState, ConsentState],
       withNgxsStoragePlugin({
-        keys: [WizardState, ReportState, LeadState],
+        keys: [WizardState, ReportState, LeadState, ConsentState],
         beforeSerialize: (obj, key) => (key === 'report' ? { ...obj, reportToken: null } : obj),
       }),
     ),

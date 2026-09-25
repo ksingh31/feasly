@@ -387,5 +387,17 @@ export interface AppConfig {
         items: { q: string; a: string }[];
       };
     };
+    /**
+     * Consent banner (story consumer/01). All user-facing banner copy lives
+     * here so the no-hardcode tripwire stays green and copy is
+     * deploy-tunable. No dark patterns: accept and decline are worded as
+     * equal choices.
+     */
+    consent: {
+      title: string;
+      body: string;
+      accept: string;
+      decline: string;
+    };
   };
 }

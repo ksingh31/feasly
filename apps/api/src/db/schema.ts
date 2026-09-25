@@ -315,3 +315,30 @@ export const tenants = pgTable('tenants', {
   /** 'flat' | 'commission' | null (undecided). Inert until billing. */
   plan: text('plan'),
 });
+
+/**
+ * Analytics events (story consumer/01). Append-only by design: no update or
+ * delete path exists in the data layer. The payload shape is closed —
+ * `event`, `route`, `ts`, `consent_ts` — so email, address, and figures
+ * cannot be stored without a schema + contract change, which is the point.
+ * First-party only: no cookies, no fingerprinting, no third-party trackers.
+ */
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** One of the allowlisted AnalyticsEventName contract values. */
+    event: text('event').notNull(),
+    /** Client route where the event occurred (e.g. '/estimate/gate'). */
+    route: text('route').notNull(),
+    /** Client-side occurrence timestamp. */
+    ts: timestamp('ts', { withTimezone: true }).notNull(),
+    /** Consent-banner acknowledgement timestamp authorizing this event. */
+    consentTs: timestamp('consent_ts', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('analytics_events_event_created_idx').on(t.event, t.createdAt)],
+);

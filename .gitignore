@@ -25,6 +25,7 @@ apps/web/src/**/*.js
 # `npm run bundle:functions -w @feasly/api` before the Functions deploy;
 # function.json files ARE committed, the bundles are not).
 apps/api/estimate/index.js
+apps/api/events/index.js
 apps/api/leads/index.js
 apps/api/health/index.js
 apps/api/magic-link-verify/index.js
