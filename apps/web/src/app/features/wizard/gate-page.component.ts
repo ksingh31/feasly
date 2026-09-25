@@ -62,6 +62,19 @@ export class GatePageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').gate;
   private readonly phonePattern = new RegExp(this.copy.phonePattern);
 
+  /** Reactive project type (RENO-06) — drives the timeline question variant. */
+  private readonly projectType = this.store.selectSignal(WizardState.projectType);
+
+  /**
+   * RENO-06: the timeline question reads for the user's project type.
+   * Copy stays in config — the component only selects the variant.
+   */
+  protected get timelineLabel(): string {
+    return this.projectType() === 'renovation'
+      ? this.copy.timelineLabelReno
+      : this.copy.timelineLabel;
+  }
+
   protected readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],

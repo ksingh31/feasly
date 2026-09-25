@@ -354,6 +354,8 @@ export interface AppConfig {
       /** JS RegExp source for the optional phone field (no hardcode). */
       phonePattern: string;
       timelineLabel: string;
+      /** RENO-06: reno variant of the timeline question, selected by projectType. */
+      timelineLabelReno: string;
       timelinePlaceholder: string;
       /** `id`s must match the TimelineOption contract union. */
       timelineOptions: { id: TimelineOption; label: string }[];
