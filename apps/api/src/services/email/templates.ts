@@ -17,9 +17,10 @@ export interface TemplateContext {
   /** Where magic links / resume links point (config APP_BASE_URL). */
   readonly appBaseUrl: string;
   /**
-   * Placeholder hook for the unsubscribe center (review-drafts/05, not built
-   * yet). Templates render `${unsubscribeBaseUrl}?token=…`; the real center
-   * fills it later.
+   * One-click unsubscribe base (email/03, config UNSUBSCRIBE_URL_BASE).
+   * The nudge template renders the full tokenized URL passed in
+   * `NudgeTemplateInput.unsubscribeUrl` — the base is kept here for
+   * templates that only need the prefix.
    */
   readonly unsubscribeBaseUrl: string;
   readonly brandName: string;

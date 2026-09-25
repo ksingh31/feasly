@@ -37,6 +37,8 @@ describe('loadConfig', () => {
         acsConnectionString: undefined,
         appBaseUrl: 'https://feasly.example',
         unsubscribeUrlBase: 'https://feasly.example/unsubscribe',
+        unsubscribeTokenSecret: undefined,
+        unsubscribeTokenTtlSeconds: 2_592_000,
         opsInbox: 'karanbirsingh667@gmail.com',
         logLinks: true,
       },
@@ -161,6 +163,20 @@ describe('loadConfig', () => {
     });
     expect(config.estimate.rateLimit.maxRequests).toBe(5);
     expect(config.estimate.tenantRateLimit.maxRequests).toBe(7);
+  });
+
+  it('unsubscribe token config: 30-day default TTL, secret optional (fail-closed at use)', () => {
+    const defaults = loadConfig(VALID_ENV);
+    expect(defaults.email.unsubscribeTokenTtlSeconds).toBe(2_592_000);
+    expect(defaults.email.unsubscribeTokenSecret).toBeUndefined();
+
+    const configured = loadConfig({
+      ...VALID_ENV,
+      UNSUBSCRIBE_TOKEN_SECRET: 'kv-ref',
+      UNSUBSCRIBE_TOKEN_TTL_SECONDS: '86400',
+    });
+    expect(configured.email.unsubscribeTokenSecret).toBe('kv-ref');
+    expect(configured.email.unsubscribeTokenTtlSeconds).toBe(86400);
   });
 
   it('version is the single source of truth: mirrors package.json', () => {

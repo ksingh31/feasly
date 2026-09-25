@@ -8,7 +8,7 @@
  * created within the window. The window bound is a parameter
  * (config-driven), not a constant.
  */
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leadNotes, leadStatusHistory, leads } from '../db/schema';
 
@@ -31,6 +31,8 @@ export interface LeadRecord {
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
   readonly status: string;
+  /** email/03: CASL opt-out timestamp; null = still subscribed. */
+  readonly unsubscribedAt: Date | null;
   readonly createdAt: Date;
 }
 
@@ -135,6 +137,15 @@ export interface LeadStore {
   /** One lead by id, or null. */
   findById(id: string): Promise<LeadRecord | null>;
   /**
+   * email/03 — record a CASL opt-out. Sets `unsubscribed_at` to `at`
+   * (idempotent: re-unsubscribing keeps the FIRST timestamp as the audit
+   * trail). The consumer dedupe update never touches this column.
+   */
+  setUnsubscribedAt(args: {
+    readonly id: string;
+    readonly at: Date;
+  }): Promise<LeadRecord | null>;
+  /**
    * Every lead for this normalized email (the PIPEDA "household" view).
    * Used by the privacy export and erasure flows.
    */
@@ -167,6 +178,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     quarantined: row.quarantined,
     leadScore: row.leadScore,
     status: row.status,
+    unsubscribedAt: row.unsubscribedAt,
     createdAt: row.createdAt,
   };
 }
@@ -231,6 +243,18 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .from(leads)
         .where(eq(leads.id, id))
         .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async setUnsubscribedAt(args): Promise<LeadRecord | null> {
+      // Idempotent: only stamp when NULL, so the FIRST opt-out stays the
+      // audit timestamp even if the link is clicked again later.
+      const rows = await db
+        .update(leads)
+        .set({ unsubscribedAt: sql`COALESCE(${leads.unsubscribedAt}, ${args.at})` })
+        .where(eq(leads.id, args.id))
+        .returning();
       const row = rows[0];
       return row ? toRecord(row) : null;
     },

@@ -18,6 +18,7 @@ export const CONTRACT_NAMES = [
   'embed',
   'community',
   'error',
+  'unsubscribe',
 ] as const;
 
 export type ContractName = (typeof CONTRACT_NAMES)[number];

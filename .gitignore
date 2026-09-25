@@ -33,4 +33,6 @@ apps/api/privacy-export/index.js
 apps/api/privacy-erase/index.js
 apps/api/privacy-erase-confirm/index.js
 apps/api/communities-stats/index.js
+apps/api/unsubscribe-get/index.js
+apps/api/unsubscribe-post/index.js
 apps/api/embed-config/index.js

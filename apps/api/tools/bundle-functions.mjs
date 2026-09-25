@@ -22,6 +22,10 @@
  *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
  *   src/functions/communities-stats.ts    → communities-stats/index.js
  *     (GET /api/v1/communities/{slug}/stats)
+ *   src/functions/unsubscribe-get.ts      → unsubscribe-get/index.js
+ *     (GET /api/v1/unsubscribe/{token})
+ *   src/functions/unsubscribe-post.ts     → unsubscribe-post/index.js
+ *     (POST /api/v1/unsubscribe/{token})
  *   src/functions/embed-config.ts         → embed-config/index.js
  *     (GET /api/v1/embed/config)
  *
@@ -49,6 +53,14 @@ const targets = [
   {
     entry: 'src/functions/communities-stats.ts',
     out: 'communities-stats/index.js',
+  },
+  {
+    entry: 'src/functions/unsubscribe-get.ts',
+    out: 'unsubscribe-get/index.js',
+  },
+  {
+    entry: 'src/functions/unsubscribe-post.ts',
+    out: 'unsubscribe-post/index.js',
   },
   {
     entry: 'src/functions/embed-config.ts',

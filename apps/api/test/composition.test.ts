@@ -38,6 +38,9 @@ describe('composition root', () => {
     expect(app.leadStore).toBeDefined();
     expect(app.leadService).toBeDefined();
     expect(app.leadRoute).toBeDefined();
+    // email/03: one-click unsubscribe center (service + route wired).
+    expect(app.unsubscribeService).toBeDefined();
+    expect(app.unsubscribeRoute).toBeDefined();
     expect(app.communityStatsService).toBeDefined();
     expect(app.communityStatsRoute).toBeDefined();
     expect(app.builderConfigService).toBeDefined();

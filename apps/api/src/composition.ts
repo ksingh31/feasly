@@ -34,6 +34,10 @@ import {
   type MagicLinkService,
 } from './services/magic-link.service';
 import {
+  createUnsubscribeService,
+  type UnsubscribeService,
+} from './services/unsubscribe.service';
+import {
   createNoopBlockerChecker,
   createPrivacyService,
   type PrivacyService,
@@ -58,6 +62,10 @@ import {
   createMagicLinkRoute,
   type MagicLinkRoute,
 } from './routes/magic-link.route';
+import {
+  createUnsubscribeRoute,
+  type UnsubscribeRoute,
+} from './routes/unsubscribe.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
   createCommunityStatsRoute,
@@ -103,6 +111,8 @@ export interface AppComposition {
   /** consumer/02: verify + reissue lifecycle for magic-link tokens. */
   readonly magicLinkService: MagicLinkService;
   readonly magicLinkRoute: MagicLinkRoute;
+  readonly unsubscribeService: UnsubscribeService;
+  readonly unsubscribeRoute: UnsubscribeRoute;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
@@ -268,6 +278,18 @@ export function createComposition(
   const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
     magicLinks: magicLinkService,
   });
+  // email/03 — one-click unsubscribe center. The HMAC secret arrives via
+  // config (Key Vault in staging/production); the service fails closed
+  // naming UNSUBSCRIBE_TOKEN_SECRET when it is absent.
+  const unsubscribeService: UnsubscribeService = createUnsubscribeService({
+    leads: leadStore,
+    unsubscribeUrlBase: config.email.unsubscribeUrlBase,
+    tokenSecret: config.email.unsubscribeTokenSecret,
+    tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
+  });
+  const unsubscribeRoute: UnsubscribeRoute = createUnsubscribeRoute({
+    unsubscribe: unsubscribeService,
+  });
   const privacyStore: PrivacyStore =
     options.privacyStore ?? createDrizzlePrivacyStore({ db: db.db });
   // Erasure blockers (open disputes, in-review invoices) don't exist yet —
@@ -325,6 +347,8 @@ export function createComposition(
     magicLinkStore,
     magicLinkService,
     magicLinkRoute,
+    unsubscribeService,
+    unsubscribeRoute,
     privacyStore,
     privacyService,
     privacyRoute,
