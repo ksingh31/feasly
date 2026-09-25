@@ -31,7 +31,7 @@
   "private": true,
   "scripts": {
     "build": "ng build",
-    "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs",
+    "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs && node tools/check-reduced-motion.mjs",
     "ng": "ng",
     "prebuild": "npm run build --workspace @feasly/contracts && npm run build --workspace @feasly/cost-engine && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts && tsx scripts/build-community-ranges.ts && node snippet/build.mjs",
     "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts",
