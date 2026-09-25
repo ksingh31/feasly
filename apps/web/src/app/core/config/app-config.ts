@@ -136,6 +136,26 @@ export interface AppConfig {
       searchingLabel: string;
     };
     /**
+     * White-label embed shell strings (EMB-01). The unavailableBody copy is
+     * story-pinned — the exact fallback text, never a blank iframe.
+     */
+    embed: {
+      /** Screen-reader label for the widget region. */
+      widgetLabel: string;
+      /** Shown while the builder config loads. */
+      loadingLabel: string;
+      /** Fallback card heading when the tenant config can't be resolved. */
+      unavailableHeading: string;
+      /** Exact fallback body (story-pinned). */
+      unavailableBody: string;
+      /** CTA label on the widget. */
+      ctaLabel: string;
+      /** Contact-line prefix; the builder's phone/email follow. */
+      contactPrefix: string;
+      /** "Powered by" badge text — non-removable in v1. */
+      poweredBy: string;
+    };
+    /**
      * Wizard scope-step copy (S2 — FE-2). Step labels are structural;
      * everything user-facing stays tunable here. Tier `id`s must match the
      * FinishTier contract union; blurbs carry no prices, ever.

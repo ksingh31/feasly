@@ -108,6 +108,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       retryLabel: 'Retry',
       searchingLabel: 'Searching addresses…',
     },
+    embed: {
+      widgetLabel: 'Home building cost estimator',
+      loadingLabel: 'Loading estimator…',
+      unavailableHeading: 'Estimator unavailable',
+      unavailableBody:
+        'This estimator is temporarily unavailable — please contact the builder directly.',
+      ctaLabel: 'Get my estimate →',
+      contactPrefix: 'Questions?',
+      poweredBy: 'Powered by Feasly',
+    },
     wizard: {
       stepAddress: 'Address',
       stepScope: 'Scope',
