@@ -78,3 +78,9 @@ apps/web/src/app/core/api/mock-property-data.service.ts
 # percentage — a mathematical constant, not a tunable. It changes by geometry
 # (code review), never by deploy tuning.
 apps/web/src/app/features/compare/compare-results/compare-results.component.ts
+# Sheets sync admin page (admin/05): HTTP_UNAUTHORIZED=401 is an HTTP status
+# code (protocol constant, not a tunable); the mock lifetime counter is
+# canned fixture data for mock-mode review. Both change by code review,
+# not by deploy tuning.
+apps/web/src/app/features/admin/sheets/sheets-status-page.component.ts
+apps/web/src/app/features/admin/sheets/sheets-sync-admin.service.ts

@@ -300,68 +300,15 @@ describe('ReportPageComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('.hero-total .range-value').length).toBe(0);
     });
 
-    it('highlights the build cost near the hero with per-sq-ft context and the current finish tier', () => {
+    it('highlights the build cost near the hero with per-sq-ft context and the display-only finish tier', () => {
       const panel = fixture.nativeElement.querySelector('.build-highlight');
       expect(panel).not.toBeNull();
       expect(panel.textContent).toContain('$672,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
       expect(panel.textContent).toContain('$305 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
-    });
-
-    it('renders the tier what-if toggle (FE5-002) with the current tier selected', () => {
-      const selector = fixture.nativeElement.querySelector('.tier-card app-tier-selector');
-      expect(selector).not.toBeNull();
-      expect(selector.textContent).toContain('What if you change the finish tier?');
-      const buttons = [...selector.querySelectorAll('[role="radio"]')] as HTMLElement[];
-      expect(buttons.map((b) => b.getAttribute('data-tier'))).toEqual(['standard', 'premium', 'luxury']);
-      expect(buttons.map((b) => b.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-    });
-
-    it('tier pick updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {
-      const before = store.selectSnapshot(ReportState.snapshot)!;
-      expect(before.inputs.tier).toBe('premium');
-      const luxuryBtn = fixture.nativeElement.querySelector(
-        '.tier-card [data-tier="luxury"]',
-      ) as HTMLButtonElement;
-      expect(luxuryBtn).not.toBeNull();
-      luxuryBtn.click();
-      fixture.detectChanges();
-      // Draft updates immediately — no waiting for the backend.
-      expect(luxuryBtn.getAttribute('aria-checked')).toBe('true');
-      // …but the revision is debounced: the snapshot still holds the old tier.
-      expect(store.selectSnapshot(ReportState.snapshot)?.inputs.tier).toBe('premium');
-      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury', 'tier revision');
-      const after = store.selectSnapshot(ReportState.snapshot)!;
-      expect(after.version).toBe(before.version + 1);
-      // Every figure refreshed inline (no reload, URL unchanged): hero total,
-      // build cost, tier display, narrative — land untouched.
-      fixture.detectChanges();
-      expect(after.buildRange.base).toBeGreaterThan(before.buildRange.base);
-      expect(after.landValue.value).toBe(before.landValue.value);
-      expect(fixture.nativeElement.querySelector('.build-highlight')?.textContent).toContain(
-        'Selected finish level — Luxury',
-      );
-      expect(fixture.nativeElement.querySelector('.narrative')?.textContent).toContain('luxury finishes');
-    });
-
-    it('coalesces rapid tier picks into a single revision', async () => {
-      const before = store.selectSnapshot(ReportState.snapshot)!;
-      const pick = (tier: string): void => {
-        const btn = fixture.nativeElement.querySelector(`.tier-card [data-tier="${tier}"]`) as HTMLButtonElement;
-        expect(btn).not.toBeNull();
-        btn.click();
-      };
-      pick('luxury');
-      pick('standard');
-      pick('luxury');
-      fixture.detectChanges();
-      await pollFor(
-        () => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury',
-        'coalesced tier revision',
-      );
-      // One revision, not three — last write wins.
-      expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(before.version + 1);
+      // No tier switcher anywhere on the report.
+      expect(fixture.nativeElement.querySelectorAll('.tier-btn').length).toBe(0);
     });
 
     it('shows land as ONE fixed number — never a range', () => {

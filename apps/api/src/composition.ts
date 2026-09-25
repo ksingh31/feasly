@@ -58,6 +58,16 @@ import {
   createSheetsSyncService,
   type SheetsSyncService,
 } from './services/sheets-sync.service';
+import { createDrizzleSheetsSyncRunStore } from './services/sheets-sync-run.store';
+import type { SheetsSyncRunStore } from './services/sheets-sync-run.store';
+import {
+  createSheetsSyncStatusService,
+  type SheetsSyncStatusService,
+} from './services/sheets-sync-status.service';
+import {
+  createSheetsStatusRoute,
+  type SheetsStatusRoute,
+} from './routes/sheets-status.route';
 import {
   createOpsAlertsService,
   type OpsAlertsService,
@@ -307,6 +317,12 @@ export interface AppComposition {
   readonly sandboxPurgeService: SandboxPurgeService;
   /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
   readonly sheetsSyncService: SheetsSyncService;
+  /** admin/05: Sheets sync run history store (append-only). */
+  readonly sheetsSyncRunStore: SheetsSyncRunStore;
+  /** admin/05: Sheets sync status (health, last run, pending). */
+  readonly sheetsSyncStatusService: SheetsSyncStatusService;
+  /** admin/05: GET/POST /api/v1/admin/ops/sheets-status + /sheets-sync-now. */
+  readonly sheetsStatusRoute: SheetsStatusRoute;
   /** admin/06: ops alerting (worker failures → deduped email). */
   readonly opsAlertsService: OpsAlertsService;
   /** api-mcp/01: API key issuance + storage (admin-only). */
@@ -399,6 +415,11 @@ export interface CompositionOptions {
   readonly adminAllowlistStore?: AdminAllowlistStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
+  /**
+   * Test seam: substitute the Sheets sync run store (fake in unit tests).
+   * Production wiring uses the real `sheets_sync_runs` table.
+   */
+  readonly sheetsSyncRunStore?: SheetsSyncRunStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -652,6 +673,11 @@ export function createComposition(
     dedupeWindowMs: config.email.opsAlertDedupeWindowMs,
   });
 
+  // admin/05: run-history store (append-only sheets_sync_runs table).
+  // Created once, shared by the sync worker (writer) and status service (reader).
+  const sheetsSyncRunStore: SheetsSyncRunStore =
+    options.sheetsSyncRunStore ??
+    createDrizzleSheetsSyncRunStore({ db: db.db });
   const sheetsSyncService: SheetsSyncService = createSheetsSyncService({
     leads: leadStore,
     estimates: estimateStore,
@@ -662,6 +688,7 @@ export function createComposition(
         : createDisabledSheetsClient()),
     enabled: config.sheets.enabled,
     maxLeadsPerRun: config.sheets.maxLeadsPerRun,
+    runs: sheetsSyncRunStore,
     onSyncLagging: ({ consecutiveFailures, firstFailureAt }) =>
       opsAlertsService.notifyFailure('sheets_sync_failed', {
         consecutiveFailures,
@@ -720,6 +747,18 @@ export function createComposition(
     });
   const adminEstimatesRoute: AdminEstimatesRoute = createAdminEstimatesRoute({
     adminEstimates: adminEstimatesService,
+    adminGuard,
+  });
+  // admin/05 — Sheets sync status + manual trigger. Admin-only.
+  // (Placed after adminGuard: the route needs the guard.)
+  const sheetsSyncStatusService: SheetsSyncStatusService =
+    createSheetsSyncStatusService({
+      runs: sheetsSyncRunStore,
+      enabled: config.sheets.enabled,
+    });
+  const sheetsStatusRoute: SheetsStatusRoute = createSheetsStatusRoute({
+    status: sheetsSyncStatusService,
+    sync: sheetsSyncService,
     adminGuard,
   });
   const apiKeyService: ApiKeyService = createApiKeyService({
@@ -974,6 +1013,9 @@ export function createComposition(
     nudgeService,
     sandboxPurgeService,
     sheetsSyncService,
+    sheetsSyncRunStore,
+    sheetsSyncStatusService,
+    sheetsStatusRoute,
     opsAlertsService,
     apiKeyService,
     apiKeyRoute,

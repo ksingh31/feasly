@@ -16,6 +16,13 @@
 import type { LeadStore } from './lead.store';
 import type { EstimateStore } from './estimate.store';
 import type { SheetLeadRow, SheetsClient } from './sheets/sheets-client';
+import type {
+  SheetsSyncRunStore,
+  SheetsSyncTrigger,
+} from './sheets-sync-run.store';
+
+/** Re-exported for consumers that only depend on this module (e.g. tests). */
+export type { SheetsSyncTrigger } from './sheets-sync-run.store';
 
 export interface SheetsSyncServiceDeps {
   readonly leads: LeadStore;
@@ -25,6 +32,11 @@ export interface SheetsSyncServiceDeps {
   readonly enabled: boolean;
   /** Max leads per run (backpressure). */
   readonly maxLeadsPerRun: number;
+  /**
+   * admin/05: run-history writer. Optional so existing tests keep working;
+   * production wiring always provides it.
+   */
+  readonly runs?: SheetsSyncRunStore;
   /** Called on 3 consecutive failures (wires to admin/06 ops alerts). */
   readonly onSyncLagging?: (args: {
     readonly consecutiveFailures: number;
@@ -60,8 +72,12 @@ export interface SheetsSyncService {
    * Run one sync cycle. Returns counts. Never throws for per-lead
    * failures (one bad lead doesn't kill the batch); throws only when
    * the Sheets API itself is unreachable (counts as a cycle failure).
+   *
+   * admin/05: `trigger` records how the run was started ('timer' default,
+   * 'manual' from the admin "Sync now" button). Each run is recorded in
+   * the `sheets_sync_runs` table when a run store is wired.
    */
-  runSyncCycle(): Promise<SheetsSyncResult>;
+  runSyncCycle(trigger?: SheetsSyncTrigger): Promise<SheetsSyncResult>;
 }
 
 export function createSheetsSyncService(
@@ -73,6 +89,7 @@ export function createSheetsSyncService(
     sheets,
     enabled,
     maxLeadsPerRun,
+    runs,
     onSyncLagging,
     onSyncRecovered,
     clock = () => new Date(),
@@ -87,15 +104,32 @@ export function createSheetsSyncService(
   let firstFailureAt: Date | null = null;
 
   return {
-    async runSyncCycle(): Promise<SheetsSyncResult> {
+    async runSyncCycle(
+      trigger: SheetsSyncTrigger = 'timer',
+    ): Promise<SheetsSyncResult> {
       if (!enabled) {
-        return {
+        const result = {
           synced: 0,
           skipped: 0,
           disabled: true,
           consecutiveFailures: 0,
         };
+        // admin/05: record the disabled run so the status page shows
+        // "disabled" instead of a confusing empty history.
+        if (runs) {
+          const runId = await runs.recordRunStart(trigger);
+          await runs.recordRunFinish(runId, {
+            status: 'disabled',
+            rowsSynced: 0,
+            rowsSkipped: 0,
+          });
+        }
+        return result;
       }
+
+      // admin/05: open the run row before doing any work so a crash
+      // mid-cycle still leaves an in-flight marker.
+      const runId = runs ? await runs.recordRunStart(trigger) : null;
 
       try {
         const candidates = await leads.findSheetsSyncCandidates({
@@ -140,6 +174,15 @@ export function createSheetsSyncService(
           }
         }
 
+        // admin/05: close the run row.
+        if (runs && runId) {
+          await runs.recordRunFinish(runId, {
+            status: 'success',
+            rowsSynced: synced,
+            rowsSkipped: skipped,
+          });
+        }
+
         return {
           synced,
           skipped,
@@ -151,6 +194,16 @@ export function createSheetsSyncService(
           firstFailureAt = clock();
         }
         consecutiveFailures++;
+        // admin/05: record the failed run with a sanitized error summary
+        // (no PII, no credentials — just the error class + message).
+        if (runs && runId) {
+          await runs.recordRunFinish(runId, {
+            status: 'failed',
+            rowsSynced: 0,
+            rowsSkipped: 0,
+            error: sanitizeError(error),
+          });
+        }
         if (consecutiveFailures >= 3 && !wasLagging) {
           wasLagging = true;
           await onSyncLagging?.({
@@ -231,4 +284,20 @@ export function createSheetsSyncService(
       createdAt: lead.createdAt.toISOString(),
     };
   }
+}
+
+/**
+ * admin/05: sanitize an error for the run-history table. The run history
+ * is admin-visible, so we keep only the error class + message — never
+ * stack traces (may contain paths), and never the raw error object (may
+ * carry request/response bodies with PII or credentials).
+ */
+function sanitizeError(error: unknown): string {
+  if (error instanceof Error) {
+    const name = error.name || 'Error';
+    // Truncate — some API errors embed long payloads in the message.
+    const message = error.message.slice(0, 500);
+    return `${name}: ${message}`;
+  }
+  return `Error: ${String(error).slice(0, 500)}`;
 }

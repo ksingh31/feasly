@@ -769,3 +769,36 @@ export const adminAuditLog = pgTable(
   },
   (t) => [index('admin_audit_log_action_idx').on(t.action)],
 );
+
+/**
+ * admin/05: one row per Sheets sync run (timer or manual). Append-only —
+ * the status endpoint reads the latest rows to compute health. The sync
+ * worker is the ONLY writer (plus the manual-trigger route, which delegates
+ * to the same service method).
+ */
+export const sheetsSyncRuns = pgTable(
+  'sheets_sync_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** When the run started. */
+    startedAt: timestamp('started_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** When the run finished (null = still in flight). */
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    /** 'success' | 'failed' | 'disabled' (Sheets not configured). */
+    status: text('status').notNull(),
+    /** Leads upserted to the Sheet this run. */
+    rowsSynced: integer('rows_synced').notNull().default(0),
+    /** Leads skipped (already in sync) this run. */
+    rowsSkipped: integer('rows_skipped').notNull().default(0),
+    /**
+     * Sanitized failure summary (no PII, no credentials). Null on success.
+     * The sync service sanitizes before writing.
+     */
+    error: text('error'),
+    /** 'timer' for the hourly run, 'manual' for admin-triggered. */
+    trigger: text('trigger').notNull().default('timer'),
+  },
+  (t) => [index('sheets_sync_runs_started_idx').on(t.startedAt)],
+);

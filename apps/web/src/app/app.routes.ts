@@ -26,6 +26,7 @@ import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
 import { adminGuard } from './features/admin/admin.guard';
+import { SheetsStatusPageComponent } from './features/admin/sheets/sheets-status-page.component';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -138,6 +139,14 @@ export const routes: Routes = [
     path: 'communities/:slug',
     component: CommunityPageComponent,
     canActivate: [robotsGuard],
+  },
+  // Sheets sync status (admin/05): worker health, last run, manual trigger.
+  // Admin-only page; interim X-Admin-Key prompt until admin/01. Noindexed.
+  {
+    path: 'admin/ops/sheets',
+    component: SheetsStatusPageComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
   // setForRoute('404')); the CTA returns visitors home. SWA's

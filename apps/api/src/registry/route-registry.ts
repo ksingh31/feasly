@@ -384,6 +384,22 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/admin/ops/sheets-status',
+    auth: 'admin',
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'Sheets sync worker status (admin/05): health, last run, pending.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/ops/sheets-sync-now',
+    auth: 'admin',
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'Trigger one Sheets sync run now (admin/05); 409 if in flight.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/admin/usage',
     auth: 'admin',
     rateLimit: '300/min per session',
@@ -397,22 +413,6 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Calibration console reads (admin/09).',
-  },
-  {
-    method: 'GET',
-    path: '/api/v1/admin/ops/sheets-status',
-    auth: 'admin',
-    rateLimit: '300/min per session',
-    status: 'planned',
-    summary: 'Sheets sync worker status (admin/05).',
-  },
-  {
-    method: 'POST',
-    path: '/api/v1/admin/ops/sheets-sync-now',
-    auth: 'admin',
-    rateLimit: '10/min per session',
-    status: 'planned',
-    summary: 'Trigger an immediate Sheets sync (admin/04).',
   },
 
   // ── Builder portal v1 (builder dashboard sessions) ───────────────

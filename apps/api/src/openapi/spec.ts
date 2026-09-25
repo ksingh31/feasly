@@ -213,9 +213,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'Free-form address autocomplete backed by the City of Calgary ' +
       'assessment roll. Queries shorter than 3 characters resolve to an ' +
-      'empty suggestion list. Queries with an explicit out-of-coverage ' +
-      'signal (non-Calgary city or postal code) return 404 OUT_OF_COVERAGE ' +
-      '(reno/05). No auth — public by design.',
+      'empty suggestion list. No auth — public by design.',
     request: {
       query: z.object({
         q: z
@@ -230,17 +228,6 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Address suggestions',
         content: {
           'application/json': { schema: AutocompleteResponseSchema },
-        },
-      },
-      '404': {
-        description:
-          'OUT_OF_COVERAGE: the query is explicitly outside Calgary ' +
-          '(code OUT_OF_COVERAGE). Calgary-looking queries with no matches ' +
-          'resolve to an empty suggestion list, not an error.',
-        content: {
-          'application/problem+json': {
-            schema: { $ref: PROBLEM_DETAILS_REF },
-          },
         },
       },
       '503': {
@@ -280,11 +267,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         },
       },
       '404': {
-        description:
-          'No City record: OUT_OF_COVERAGE when the address is explicitly ' +
-          'outside Calgary ("We only support Calgary right now."), ' +
-          'ADDRESS_NOT_FOUND for Calgary-looking addresses with no record ' +
-          '(reno/05)',
+        description: 'No City record for this address',
         content: {
           'application/problem+json': {
             schema: { $ref: PROBLEM_DETAILS_REF },
@@ -630,7 +613,129 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
-  // ── Stripe webhook receiver (billing/02) ──────────────────────────
+  // GET /v1/admin/ops/sheets-status (admin/05)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/ops/sheets-status',
+    summary: 'Sheets sync worker status',
+    description:
+      'Health of the hourly Sheets auto-sync worker (admin/05): badge ' +
+      '(healthy / lagging / failing / disabled), last run, pending lead ' +
+      'count, lifetime rows synced, and recent run history. ' +
+      'Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.',
+    security: [{ AdminKey: [] }],
+    responses: {
+      '200': {
+        description: 'Sync status',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                health: {
+                  type: 'string',
+                  enum: ['healthy', 'lagging', 'failing', 'disabled'],
+                },
+                lastSyncAt: {
+                  type: 'string',
+                  format: 'date-time',
+                  nullable: true,
+                },
+                lastRunStatus: {
+                  type: 'string',
+                  enum: ['success', 'failed', 'disabled'],
+                  nullable: true,
+                },
+                lastRunRowsSynced: { type: 'integer' },
+                lastError: { type: 'string', nullable: true },
+                pendingLeads: { type: 'integer' },
+                totalRowsSynced: { type: 'integer' },
+                runInFlight: { type: 'boolean' },
+                recentRuns: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      startedAt: { type: 'string', format: 'date-time' },
+                      finishedAt: {
+                        type: 'string',
+                        format: 'date-time',
+                        nullable: true,
+                      },
+                      status: {
+                        type: 'string',
+                        enum: ['success', 'failed', 'disabled'],
+                      },
+                      rowsSynced: { type: 'integer' },
+                      rowsSkipped: { type: 'integer' },
+                      error: { type: 'string', nullable: true },
+                      trigger: { type: 'string', enum: ['timer', 'manual'] },
+                    },
+                    required: [
+                      'id',
+                      'startedAt',
+                      'finishedAt',
+                      'status',
+                      'rowsSynced',
+                      'rowsSkipped',
+                      'error',
+                      'trigger',
+                    ],
+                  },
+                },
+              },
+              required: [
+                'health',
+                'lastSyncAt',
+                'lastRunStatus',
+                'lastRunRowsSynced',
+                'lastError',
+                'pendingLeads',
+                'totalRowsSynced',
+                'runInFlight',
+                'recentRuns',
+              ],
+            },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/admin/ops/sheets-sync-now (admin/05)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/admin/ops/sheets-sync-now',
+    summary: 'Trigger a Sheets sync run now',
+    description:
+      'Runs one Sheets sync cycle immediately with trigger=manual ' +
+      '(admin/05). Returns 409 when a run is already in flight. ' +
+      'Admin-only (X-Admin-Key interim until admin/01). The manual run is ' +
+      'recorded in the run history for audit.',
+    security: [{ AdminKey: [] }],
+    responses: {
+      '200': {
+        description: 'Sync result',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                synced: { type: 'integer' },
+                skipped: { type: 'integer' },
+                disabled: { type: 'boolean' },
+                consecutiveFailures: { type: 'integer' },
+              },
+              required: ['synced', 'skipped', 'disabled', 'consecutiveFailures'],
+            },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
   registry.registerComponent('securitySchemes', 'StripeSignature', {
     type: 'apiKey',
     in: 'header',

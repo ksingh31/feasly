@@ -1,0 +1,127 @@
+<div class="sheets-page">
+  <h1>Sheets sync</h1>
+  <p class="lede">Hourly lead mirror to the Google Sheet.</p>
+
+  @if (needsKey()) {
+    <section class="key-prompt" aria-label="Admin key">
+      <h2>Admin key required</h2>
+      <p>Enter the interim admin key to view sync status.</p>
+      <div class="key-row">
+        <input
+          type="password"
+          placeholder="X-Admin-Key"
+          [value]="keyInput()"
+          (input)="onKeyInput($event)"
+          (keyup.enter)="submitKey()"
+          aria-label="Admin key"
+        />
+        <button type="button" (click)="submitKey()" [disabled]="!keyInput().trim()">
+          Continue
+        </button>
+      </div>
+    </section>
+  } @else if (loading()) {
+    <p class="muted">Loading sync status&hellip;</p>
+  } @else if (error()) {
+    <section class="error" role="alert">
+      <h2>Couldn&rsquo;t load status</h2>
+      <p>{{ error() }}</p>
+      <button type="button" (click)="refresh()">Retry</button>
+    </section>
+  } @else if (status(); as s) {
+    <section class="badge-row">
+      <span class="badge" [attr.data-health]="s.health">
+        {{ badgeLabel(s.health) }}
+      </span>
+      @if (s.runInFlight) {
+        <span class="in-flight">Sync running&hellip;</span>
+      }
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <span class="label">Last sync</span>
+        <span class="value">
+          {{ s.lastSyncAt ? (s.lastSyncAt | date: 'medium') : 'Never' }}
+        </span>
+      </div>
+      <div class="card">
+        <span class="label">Last run</span>
+        <span class="value">
+          {{ s.lastRunStatus ?? '—' }}
+          @if (s.lastRunStatus === 'success') {
+            ({{ s.lastRunRowsSynced }} rows)
+          }
+        </span>
+      </div>
+      <div class="card">
+        <span class="label">Pending leads</span>
+        <span class="value">{{ s.pendingLeads }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Total rows synced</span>
+        <span class="value">{{ s.totalRowsSynced }}</span>
+      </div>
+    </section>
+
+    @if (s.lastError) {
+      <section class="error-detail" role="alert">
+        <h2>Last error</h2>
+        <code>{{ s.lastError }}</code>
+      </section>
+    }
+
+    <section class="actions">
+      <button
+        type="button"
+        class="sync-now"
+        (click)="syncNow()"
+        [disabled]="s.runInFlight || syncing()"
+      >
+        @if (syncing()) {
+          Triggering&hellip;
+        } @else if (s.runInFlight) {
+          Sync in progress&hellip;
+        } @else {
+          Sync now
+        }
+      </button>
+      <button type="button" class="secondary" (click)="refresh()">Refresh</button>
+    </section>
+
+    <section class="history">
+      <h2>Recent runs</h2>
+      @if (s.recentRuns.length === 0) {
+        <p class="muted">No runs recorded yet.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>Started</th>
+              <th>Status</th>
+              <th>Rows</th>
+              <th>Trigger</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (run of s.recentRuns; track run.id) {
+              <tr>
+                <td>{{ run.startedAt | date: 'short' }}</td>
+                <td>
+                  <span class="run-status" [attr.data-status]="run.status">
+                    {{ run.status }}
+                  </span>
+                  @if (!run.finishedAt) {
+                    <span class="muted"> (in flight)</span>
+                  }
+                </td>
+                <td>{{ run.rowsSynced }} synced / {{ run.rowsSkipped }} skipped</td>
+                <td>{{ run.trigger }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+  }
+</div>

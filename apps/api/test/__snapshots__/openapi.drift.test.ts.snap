@@ -1556,6 +1556,291 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         "summary": "Consumer funnel: per-step counts + conversion rates",
       },
     },
+    "/v1/admin/ops/sheets-status": {
+      "get": {
+        "description": "Health of the hourly Sheets auto-sync worker (admin/05): badge (healthy / lagging / failing / disabled), last run, pending lead count, lifetime rows synced, and recent run history. Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "health": {
+                      "enum": [
+                        "healthy",
+                        "lagging",
+                        "failing",
+                        "disabled",
+                      ],
+                      "type": "string",
+                    },
+                    "lastError": {
+                      "nullable": true,
+                      "type": "string",
+                    },
+                    "lastRunRowsSynced": {
+                      "type": "integer",
+                    },
+                    "lastRunStatus": {
+                      "enum": [
+                        "success",
+                        "failed",
+                        "disabled",
+                      ],
+                      "nullable": true,
+                      "type": "string",
+                    },
+                    "lastSyncAt": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string",
+                    },
+                    "pendingLeads": {
+                      "type": "integer",
+                    },
+                    "recentRuns": {
+                      "items": {
+                        "properties": {
+                          "error": {
+                            "nullable": true,
+                            "type": "string",
+                          },
+                          "finishedAt": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string",
+                          },
+                          "id": {
+                            "type": "string",
+                          },
+                          "rowsSkipped": {
+                            "type": "integer",
+                          },
+                          "rowsSynced": {
+                            "type": "integer",
+                          },
+                          "startedAt": {
+                            "format": "date-time",
+                            "type": "string",
+                          },
+                          "status": {
+                            "enum": [
+                              "success",
+                              "failed",
+                              "disabled",
+                            ],
+                            "type": "string",
+                          },
+                          "trigger": {
+                            "enum": [
+                              "timer",
+                              "manual",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "id",
+                          "startedAt",
+                          "finishedAt",
+                          "status",
+                          "rowsSynced",
+                          "rowsSkipped",
+                          "error",
+                          "trigger",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "runInFlight": {
+                      "type": "boolean",
+                    },
+                    "totalRowsSynced": {
+                      "type": "integer",
+                    },
+                  },
+                  "required": [
+                    "health",
+                    "lastSyncAt",
+                    "lastRunStatus",
+                    "lastRunRowsSynced",
+                    "lastError",
+                    "pendingLeads",
+                    "totalRowsSynced",
+                    "runInFlight",
+                    "recentRuns",
+                  ],
+                  "type": "object",
+                },
+              },
+            },
+            "description": "Sync status",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Sheets sync worker status",
+      },
+    },
+    "/v1/admin/ops/sheets-sync-now": {
+      "post": {
+        "description": "Runs one Sheets sync cycle immediately with trigger=manual (admin/05). Returns 409 when a run is already in flight. Admin-only (X-Admin-Key interim until admin/01). The manual run is recorded in the run history for audit.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "consecutiveFailures": {
+                      "type": "integer",
+                    },
+                    "disabled": {
+                      "type": "boolean",
+                    },
+                    "skipped": {
+                      "type": "integer",
+                    },
+                    "synced": {
+                      "type": "integer",
+                    },
+                  },
+                  "required": [
+                    "synced",
+                    "skipped",
+                    "disabled",
+                    "consecutiveFailures",
+                  ],
+                  "type": "object",
+                },
+              },
+            },
+            "description": "Sync result",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "AdminKey": [],
+          },
+        ],
+        "summary": "Trigger a Sheets sync run now",
+      },
+    },
     "/v1/admin/usage": {
       "get": {
         "description": "Returns per-day request counts grouped by endpoint, plus the number of estimates created. Admins (X-Admin-Key) see all keys; a Bearer API key sees only its own usage (querying another key_id returns 403). Every accepted API-key call writes one usage row; rejected 429s write none.",
@@ -2139,7 +2424,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/properties/autocomplete": {
       "get": {
-        "description": "Free-form address autocomplete backed by the City of Calgary assessment roll. Queries shorter than 3 characters resolve to an empty suggestion list. Queries with an explicit out-of-coverage signal (non-Calgary city or postal code) return 404 OUT_OF_COVERAGE (reno/05). No auth — public by design.",
+        "description": "Free-form address autocomplete backed by the City of Calgary assessment roll. Queries shorter than 3 characters resolve to an empty suggestion list. No auth — public by design.",
         "parameters": [
           {
             "description": "Partial address query (e.g. "100 8 Ave NW")",
@@ -2174,16 +2459,6 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               },
             },
             "description": "Bad request — validation failed",
-          },
-          "404": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails",
-                },
-              },
-            },
-            "description": "OUT_OF_COVERAGE: the query is explicitly outside Calgary (code OUT_OF_COVERAGE). Calgary-looking queries with no matches resolve to an empty suggestion list, not an error.",
           },
           "429": {
             "content": {
@@ -2291,7 +2566,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "No City record: OUT_OF_COVERAGE when the address is explicitly outside Calgary ("We only support Calgary right now."), ADDRESS_NOT_FOUND for Calgary-looking addresses with no record (reno/05)",
+            "description": "No City record for this address",
           },
           "429": {
             "content": {

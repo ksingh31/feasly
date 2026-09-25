@@ -190,6 +190,14 @@ const targets = [
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
   },
+  {
+    entry: 'src/functions/sheets-status.ts',
+    out: 'sheets-status/index.js',
+  },
+  {
+    entry: 'src/functions/sheets-sync-now.ts',
+    out: 'sheets-sync-now/index.js',
+  },
 ];
 
 // 1. Shared closure, bundled once.
