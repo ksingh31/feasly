@@ -1,24 +1,38 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
-import { ConfigService } from '../../core/config/config.service';
+import { Router } from '@angular/router';
+import type { CanActivateFn } from '@angular/router';
+import { map, of } from 'rxjs';
+import { catchError } from 'rxjs';
+import { AdminAuthApiService } from './admin-auth-api.service';
 
 /**
- * Interim admin route guard (admin/07 frontend).
+ * Admin route guard (admin/01).
  *
- * Until admin/01 (magic-link admin session auth) lands, admin routes are
- * guarded by the configured interim admin key: the guard passes when
- * `admin.adminKey` is a non-empty string, and redirects to `/` otherwise.
+ * Checks the session via `GET /api/v1/admin/auth/me` (cookie-based).
+ * - No/invalid session → redirect to `/admin/login`.
+ * - Expired session (401 with a specific marker) → `/admin/login?expired=1`.
  *
- * PLACEHOLDER: replace this key check with the admin/01 session check
- * (HttpOnly session cookie) the moment that story merges. The guard's
- * contract — "block non-admins, redirect to /" — stays the same.
+ * The backend distinguishes expired from invalid; the frontend maps that
+ * to the exact expiry copy on the login page.
  */
 export const adminGuard: CanActivateFn = () => {
-  const config = inject(ConfigService);
+  const api = inject(AdminAuthApiService);
   const router = inject(Router);
-  const adminKey = config.get('admin').adminKey?.trim() ?? '';
-  if (adminKey.length > 0) {
-    return true;
-  }
-  return router.createUrlTree(['/']);
+
+  return api.me().pipe(
+    // A 2xx means the session is valid. Any 401 (UNAUTHENTICATED or
+    // SESSION_EXPIRED) lands in catchError below.
+    map(() => true),
+    catchError((error: unknown) => {
+      // 401 with SESSION_EXPIRED → show the expiry copy.
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? (error as { code: unknown }).code
+          : null;
+      if (code === 'SESSION_EXPIRED') {
+        return of(router.createUrlTree(['/admin/login'], { queryParams: { expired: '1' } }));
+      }
+      return of(router.createUrlTree(['/admin/login']));
+    }),
+  );
 };

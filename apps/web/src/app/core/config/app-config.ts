@@ -32,13 +32,12 @@ export interface AppConfig {
   /**
    * Admin dashboard wiring (admin/07).
    *
-   * INTERIM: until admin/01 (magic-link admin session auth) lands, admin
-   * routes authenticate with the `X-Admin-Key` header. Empty string = admin
-   * routes are locked (the admin guard redirects to /). Deploy config only —
-   * never commit a real key.
+   * Admin routes authenticate via the admin/01 session cookie. `adminKey`
+   * is vestigial from the interim X-Admin-Key setup (the backend no longer
+   * honors that header). Deploy config only — never commit a real key.
    */
   admin: {
-    /** Interim admin key for the X-Admin-Key header. Empty = locked. */
+    /** Vestigial interim admin key (X-Admin-Key header no longer honored). */
     adminKey: string;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */

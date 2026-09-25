@@ -116,7 +116,7 @@ export interface ApiService {
   /**
    * Admin funnel report (admin/07): per-step counts + conversion rates for
    * a date range and tenant filter. Numbers only — no PII. Admin-guarded
-   * server-side (interim X-Admin-Key until admin/01 lands).
+   * server-side (admin/01 session auth).
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport>;
 }

@@ -144,9 +144,12 @@ export class HttpApiService implements ApiService {
   /**
    * Admin funnel report (admin/07).
    *
-   * Sends the interim `X-Admin-Key` header until admin/01 lands (session
-   * auth). The key comes from `admin.adminKey` deploy config — never from
-   * the page URL or localStorage, so it can't leak into shared links.
+   * Admin session auth (admin/01) is the real gate: the browser sends the
+   * HttpOnly session cookie automatically (same-origin). The `X-Admin-Key`
+   * header below is vestigial — kept for parity with the interim setup, the
+   * backend no longer honors it. The key comes from `admin.adminKey` deploy
+   * config — never from the page URL or localStorage, so it can't leak into
+   * shared links.
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     let params = new HttpParams();

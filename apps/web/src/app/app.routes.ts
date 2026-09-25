@@ -26,7 +26,6 @@ import { AdminLoginComponent } from './features/admin/admin-login.component';
 import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
-import { adminGuard } from './features/admin/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -125,8 +124,8 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   // Admin funnel dashboard (admin/07): Karan's conversion visibility —
-  // per-step counts + conversion %, date-range + tenant filters. Interim
-  // adminGuard (X-Admin-Key) until admin/01 lands. noindex — private.
+  // per-step counts + conversion %, date-range + tenant filters. Session-auth
+  // adminGuard (admin/01). noindex — private.
   {
     path: 'admin/funnels',
     component: FunnelsPageComponent,
