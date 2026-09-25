@@ -1,26 +1,22 @@
 // Feasly — Alert rules (BE8-001).
 //
 // - 5xx rate on the Function App: a log-based scheduled query rule against
-//   the App Insights `requests` table. (Flex Consumption function apps do not
-//   emit the `Http5xx` platform metric under Microsoft.Web/sites, so a metric
-//   alert cannot be used here.)
-// - Queue poison depth: a metric alert on `QueueMessageCount` (storage
-//   account level) — fires when any message lands in a poison queue
-//   (Azure Functions moves a queue message to `{queue}-poison` after 5
-//   failed dequeue attempts).
+//   the App Insights `AppRequests` table (Log Analytics). Flex Consumption
+//   function apps do not emit the `Http5xx` platform metric, so a metric
+//   alert cannot be used here.
 //
-// Both route to the ops action group (email). Severity 2 = warning.
-// Free-tier safe: no per-alert charge at this volume (alert rules are
-// ~$0.10/mo each; 2 rules total).
+// (Poison queue metric alert removed: QueueMessageCount is not available
+// as a platform metric at the storage account level. To be re-added with
+// a correct metric/namespace when needed.)
+//
+// Routes to the ops action group (email). Severity 2 = warning.
+// Free-tier safe: alert rules are ~$0.10/mo each.
 
 @description('Name prefix for alert resources')
 param namePrefix string
 
 @description('Azure region (alerts are global, but the location field is required)')
 param location string = 'global'
-
-@description('Resource ID of the storage account holding the queues')
-param storageAccountId string
 
 @description('Resource ID of the Log Analytics workspace backing Application Insights')
 param logAnalyticsWorkspaceId string
@@ -30,13 +26,6 @@ param workspaceLocation string
 
 @description('Ops notification email for the action group')
 param opsAlertEmail string
-
-@description('Poison queue names to watch (queue names + "-poison" suffix)')
-param poisonQueueNames array = [
-  'email-queue-poison'
-  'pdf-queue-poison'
-  'sheets-queue-poison'
-]
 
 resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: '${namePrefix}-ops-ag'
@@ -90,46 +79,6 @@ resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
         actionGroup.id
       ]
     }
-  }
-}
-
-resource poisonQueueAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: '${namePrefix}-poison-queue'
-  location: location
-  properties: {
-    description: 'Feasly poison queue depth above zero (DISABLED: QueueMessageCount metric not available at storage account level; needs queueServices namespace fix)'
-    severity: 2
-    enabled: false
-    scopes: [
-      storageAccountId
-    ]
-    evaluationFrequency: 'PT5M'
-    windowSize: 'PT5M'
-    criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-      allOf: [
-        {
-          name: 'PoisonQueueDepth'
-          metricName: 'QueueMessageCount'
-          metricNamespace: 'Microsoft.Storage/storageAccounts'
-          dimensions: [
-            {
-              name: 'QueueName'
-              operator: 'Include'
-              values: poisonQueueNames
-            }
-          ]
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Maximum'
-        }
-      ]
-    }
-    actions: [
-      {
-        actionGroupId: actionGroup.id
-      }
-    ]
   }
 }
 
