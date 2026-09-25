@@ -23,6 +23,7 @@ import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
 import { BuilderState } from './features/builder';
+import { ApiKeysState } from './features/admin/api-keys.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -73,7 +74,8 @@ export const appConfig: ApplicationConfig = {
     // localStorage — it refetches on mount. (All kept out of the storage
     // plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState, BuilderState],
+// ApiKeysState is memory-only: the once-only key plaintext must never survive a refresh (api-mcp/02).
+[WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState, BuilderState, ApiKeysState],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in

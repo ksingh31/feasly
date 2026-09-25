@@ -53,6 +53,7 @@ function makeDeps(
       rotate: vi.fn().mockResolvedValue(rotated),
       revoke: vi.fn().mockResolvedValue(undefined),
       list: vi.fn().mockResolvedValue([record]),
+      update: vi.fn().mockResolvedValue(record),
       authenticate: vi.fn(),
     },
     adminGuard: {
@@ -138,6 +139,47 @@ describe('api-key admin route (api-mcp/01)', () => {
   it('revoke: invalid id → 400', async () => {
     const route = createApiKeyRoute(makeDeps());
     const error = await route.revoke(ADMIN_HEADERS, '').catch((e) => e);
+    expect(error.status).toBe(400);
+  });
+
+  it('update: passes id + patch to the service, returns the masked record', async () => {
+    const deps = makeDeps();
+    const route = createApiKeyRoute(deps);
+
+    const result = await route.update(ADMIN_HEADERS, 'key_1', {
+      scopes: ['estimate', 'property:read'],
+      rate_limit_per_min: 120,
+    });
+
+    expect(deps.apiKeys.update).toHaveBeenCalledWith('key_1', {
+      scopes: ['estimate', 'property:read'],
+      rateLimitPerMin: 120,
+    });
+    expect(result.id).toBe('key_1');
+    expect('plaintext' in result).toBe(false);
+  });
+
+  it('update: non-admin → 401 before the service runs', async () => {
+    const deps = makeDeps();
+    const route = createApiKeyRoute(deps);
+    const error = await route
+      .update({}, 'key_1', { rate_limit_per_min: 10 })
+      .catch((e) => e);
+    expect(error.status).toBe(401);
+    expect(deps.apiKeys.update).not.toHaveBeenCalled();
+  });
+
+  it('update: empty patch → 400', async () => {
+    const route = createApiKeyRoute(makeDeps());
+    const error = await route.update(ADMIN_HEADERS, 'key_1', {}).catch((e) => e);
+    expect(error.status).toBe(400);
+  });
+
+  it('update: invalid id → 400', async () => {
+    const route = createApiKeyRoute(makeDeps());
+    const error = await route
+      .update(ADMIN_HEADERS, '', { rate_limit_per_min: 10 })
+      .catch((e) => e);
     expect(error.status).toBe(400);
   });
 

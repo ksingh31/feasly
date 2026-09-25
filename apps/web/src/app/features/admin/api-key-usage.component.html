@@ -1,0 +1,26 @@
+@if (loading()) {
+  <p class="usage__loading">{{ copy.loading }}</p>
+} @else if (usage().length === 0) {
+  <p class="usage__empty">{{ copy.empty }}</p>
+} @else {
+  <table class="usage__table">
+    <thead>
+      <tr>
+        <th scope="col">{{ copy.dateHeader }}</th>
+        <th scope="col">{{ copy.endpointHeader }}</th>
+        <th scope="col">{{ copy.requestsHeader }}</th>
+        <th scope="col">{{ copy.estimatesHeader }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of usage(); track row.date + row.endpoint) {
+        <tr>
+          <td>{{ row.date }}</td>
+          <td>{{ row.endpoint }}</td>
+          <td>{{ row.count }}</td>
+          <td>{{ row.estimates_created }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

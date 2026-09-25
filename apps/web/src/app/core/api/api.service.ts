@@ -4,6 +4,11 @@ import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
   AnyEstimateRequest,
+  ApiKeyIssueRequest,
+  ApiKeyIssuedResponse,
+  ApiKeyListResponse,
+  ApiKeyRecordResponse,
+  ApiKeyScope,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -128,6 +133,32 @@ export interface ApiService {
    * server-side (admin/01 session auth).
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport>;
+  /** Admin: list API keys (masked prefixes only). */
+  listApiKeys(): Observable<ApiKeyListResponse>;
+  /** Admin: issue a new API key (plaintext returned once). */
+  issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse>;
+  /** Admin: rotate a key (new plaintext once, old revoked). */
+  rotateApiKey(id: string): Observable<ApiKeyIssuedResponse>;
+  /** Admin: revoke a key immediately. */
+  revokeApiKey(id: string): Observable<{ readonly revoked: boolean }>;
+  /** Admin: update a key's scopes / rate limit (takes effect next request). */
+  updateApiKey(id: string, patch: ApiKeyUpdatePatch): Observable<ApiKeyRecordResponse>;
+  /** Admin: per-day usage aggregates for a key. */
+  getApiKeyUsage(keyId: string): Observable<readonly ApiKeyUsageAggregate[]>;
+}
+
+/** Per-day usage aggregate for an API key (api-mcp/07). */
+export interface ApiKeyUsageAggregate {
+  readonly date: string;
+  readonly endpoint: string;
+  readonly count: number;
+  readonly estimates_created: number;
+}
+
+/** Patch for updating an API key's scopes / rate limit (api-mcp/02). */
+export interface ApiKeyUpdatePatch {
+  readonly scopes?: readonly ApiKeyScope[];
+  readonly rate_limit_per_min?: number;
 }
 
 /** DI token for the ApiService. Inject this, never a concrete class. */
@@ -232,5 +263,29 @@ class LazyApiService implements ApiService {
 
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     return this.resolve().getFunnel(query);
+  }
+
+  listApiKeys(): Observable<ApiKeyListResponse> {
+    return this.resolve().listApiKeys();
+  }
+
+  issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse> {
+    return this.resolve().issueApiKey(request);
+  }
+
+  rotateApiKey(id: string): Observable<ApiKeyIssuedResponse> {
+    return this.resolve().rotateApiKey(id);
+  }
+
+  revokeApiKey(id: string): Observable<{ readonly revoked: boolean }> {
+    return this.resolve().revokeApiKey(id);
+  }
+
+  updateApiKey(id: string, patch: ApiKeyUpdatePatch): Observable<ApiKeyRecordResponse> {
+    return this.resolve().updateApiKey(id, patch);
+  }
+
+  getApiKeyUsage(keyId: string): Observable<readonly ApiKeyUsageAggregate[]> {
+    return this.resolve().getApiKeyUsage(keyId);
   }
 }
