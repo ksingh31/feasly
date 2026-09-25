@@ -14,6 +14,7 @@
     "build": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
+    "contract:regen": "CONTRACT_REGEN=1 vitest run test/contract-conformance.test.ts",
     "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
