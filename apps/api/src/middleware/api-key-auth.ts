@@ -1,8 +1,8 @@
 /**
  * API key authentication middleware (api-mcp/01).
  *
- * For the public v1 API (`/api/v1/property/*`, `/api/v1/estimate`,
- * `/api/v1/lead/*`): parses `Authorization: Bearer <key>`, validates via
+ * For the public v1 API (`/api/v1/properties/*`, `/api/v1/estimate`,
+ * `/api/v1/leads`): parses `Authorization: Bearer <key>`, validates via
  * the ApiKeyService (hash lookup + active check), and attaches the auth
  * context. Per-route scope checks use `requireScope`.
  *

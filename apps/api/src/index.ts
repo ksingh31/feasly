@@ -9,3 +9,4 @@ export * from './routes';
 export * as db from './db';
 export * as middleware from './middleware';
 export * as lib from './lib';
+export * as registry from './registry';

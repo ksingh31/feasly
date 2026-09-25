@@ -1235,6 +1235,61 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 10. **Q10 — Stripe account:** create (or grant access) when billing stories start;
     nothing billable happens before your explicit go-ahead per item.
 
+## 16. Canonical API route registry (frozen — api-mcp/08)
+
+> **This table is generated from `apps/api/src/registry/route-registry.ts`.**
+> Do not edit it by hand — add the route to the registry first, then
+> regenerate. CI (`test/route-registry.conformance.test.ts`) fails if this
+> table drifts from the registry, if any deployed Function binding names a
+> route not in the registry, or if any `/api/v1/…` literal in the codebase
+> does not resolve to a registry entry.
+>
+> `status: live` = Function binding exists on main. `status: planned` = a
+> story references it; implementation must use exactly this method + path.
+
+| Method | Path | Auth | Rate limit | Status | Summary |
+|---|---|---|---|---|---|
+| GET | `/api/health` | none | 100/min per IP | live | Liveness + dependency checks (2s DB timeout). |
+| POST | `/api/v1/estimate` | none | 20/hr per IP · 20/hr per tenant (embed) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
+| POST | `/api/v1/leads` | none | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
+| GET | `/api/v1/magic-link/verify` | magic-token | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |
+| POST | `/api/v1/magic-link/reissue` | none | 60s cooldown · 5/hr per email+IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
+| GET | `/api/v1/reports/{reportToken}` | magic-token | 100/min per IP | planned | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
+| GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
+| GET | `/api/v1/properties/lookup` | none | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
+| POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
+| GET | `/api/v1/privacy/export` | magic-token | 100/min per IP | live | PIPEDA data export for the token holder. |
+| POST | `/api/v1/privacy/erase-requests` | magic-token | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
+| POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | 10/min per IP | live | Confirm an erasure request (second factor via email link). |
+| GET | `/api/v1/unsubscribe/{token}` | magic-token | 100/min per IP | live | Unsubscribe landing state (token IS the credential). |
+| POST | `/api/v1/unsubscribe/{token}` | magic-token | 10/min per IP | live | Record the opt-out (CASL). |
+| GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
+| GET | `/api/v1/embed/config` | none | 120/min per tenant key | live | Public embed config (?key=tenant). Logo, accent colour, contact fallback. Unknown keys → 404 UNKNOWN_TENANT. |
+| POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned | Exchange a single-use embed relay code for a 12h session token (embed/06). Replays/expired → 410. |
+| POST | `/api/v1/chat/ask` | none | 20/hr per IP | planned | Grounded chat assistant (consumer/05). Session-scoped, rate-limited, allowlisted. Deterministic engine owns all dollar figures. |
+| GET | `/api/v1/openapi.json` | none | 100/min per IP (1h cache) | live | Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design. |
+| POST | `/api/v1/admin/auth/request` | none | 5/hr per email+IP | planned | Request an admin magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
+| GET | `/api/v1/admin/auth/verify/{token}` | magic-token | 10/min per IP | planned | Consume the admin magic link → httpOnly Secure SameSite=Lax session cookie, 7-day expiry. Single-use (replay-safe). |
+| GET | `/api/v1/admin/api-keys` | admin | 100/min per session | live | List API keys (masked, paginated). |
+| POST | `/api/v1/admin/api-keys` | admin | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
+| POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
+| POST | `/api/v1/admin/api-keys/{id}/revoke` | admin | 10/min per session | live | Revoke a key immediately. Audit-logged. |
+| GET | `/api/v1/admin/leads` | admin | 300/min per session | planned | Leads explorer (admin/02): filters, free-text search, cursor pagination. |
+| GET | `/api/v1/admin/leads/{id}` | admin | 300/min per session | planned | Lead detail: estimate summary, timeline, consent, attribution. |
+| POST | `/api/v1/admin/leads/{id}/notes` | admin | 60/min per session | planned | Append-only lead notes. |
+| PATCH | `/api/v1/admin/leads/{id}/status` | admin | 60/min per session | planned | Lead status (new/contacted/quoting/won/lost). Writes lead_status_history; audit-logged. |
+| GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
+| GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
+| GET | `/api/v1/admin/funnels` | admin | 300/min per session | planned | Funnel dashboards (admin/07): step drop-off, gate conversion. |
+| GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
+| GET | `/api/v1/admin/calibration` | admin | 300/min per session | planned | Calibration console reads (admin/09). |
+| GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | planned | Sheets sync worker status (admin/05). |
+| POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | planned | Trigger an immediate Sheets sync (admin/04). |
+| POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
+| GET | `/api/v1/builder/leads` | builder-session | 300/min per session | planned | Builder pipeline dashboard: attributed leads (embed/09). |
+| GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
+| POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | planned | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
+
 ---
 
 *End of TECH_PLAN.md — implements ADR-001; drives stories in `plan/epics/`.*

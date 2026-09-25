@@ -31,14 +31,14 @@ describe('connectivityInterceptor', () => {
   });
 
   it('calls markUnreachable() when a request fails with status 0', () => {
-    http.get('/api/v1/estimates').subscribe({ error: () => undefined });
-    httpMock.expectOne('/api/v1/estimates').error(new ProgressEvent('error'), { status: 0 });
+    http.get('/api/v1/estimate').subscribe({ error: () => undefined });
+    httpMock.expectOne('/api/v1/estimate').error(new ProgressEvent('error'), { status: 0 });
     expect(markUnreachable).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT call markUnreachable() for HTTP error statuses', () => {
-    http.get('/api/v1/estimates').subscribe({ error: () => undefined });
-    httpMock.expectOne('/api/v1/estimates').flush('nope', { status: 500, statusText: 'x' });
+    http.get('/api/v1/estimate').subscribe({ error: () => undefined });
+    httpMock.expectOne('/api/v1/estimate').flush('nope', { status: 500, statusText: 'x' });
     expect(markUnreachable).not.toHaveBeenCalled();
   });
 
