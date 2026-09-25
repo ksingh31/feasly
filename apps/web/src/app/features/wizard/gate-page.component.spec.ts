@@ -165,6 +165,21 @@ describe('GatePageComponent', () => {
       submit();
       expect(fixture.nativeElement.querySelector('#gate-phone-error')).not.toBeNull();
     });
+
+    it('HRD-03: honeypot is invisible and keyboard-unfocusable', () => {
+      const input = fixture.nativeElement.querySelector(
+        '#gate-website',
+      ) as HTMLInputElement;
+      expect(input).toBeTruthy();
+      // Visually hidden via the shared sr-only treatment …
+      expect(input.closest('.sr-only')).toBeTruthy();
+      // … removed from the accessibility tree …
+      expect(input.closest('[aria-hidden="true"]')).toBeTruthy();
+      // … skipped by keyboard navigation …
+      expect(input.getAttribute('tabindex')).toBe('-1');
+      // … and ignored by password managers / autofill.
+      expect(input.getAttribute('autocomplete')).toBe('off');
+    });
   });
 
   describe('submit (mock API)', () => {
@@ -205,6 +220,28 @@ describe('GatePageComponent', () => {
       expect(submitSpy).toHaveBeenCalledOnce();
       expect(submitSpy.mock.calls[0][0].timeline).toBe('exploring');
       expect(store.selectSnapshot(LeadState.leadId)).toMatch(/^lead-mock-/);
+    });
+
+    it('HRD-03: sends an empty honeypot value for human submissions', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy).toHaveBeenCalledOnce();
+      expect(submitSpy.mock.calls[0][0].website).toBe('');
+    });
+
+    it('HRD-03: forwards a filled honeypot value for the backend to quarantine', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      fillValidForm();
+      // Simulate a bot filling the hidden field.
+      setInput('#gate-website', 'https://spam.example');
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy).toHaveBeenCalledOnce();
+      expect(submitSpy.mock.calls[0][0].website).toBe('https://spam.example');
     });
   });
 

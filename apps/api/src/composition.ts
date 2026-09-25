@@ -492,6 +492,7 @@ export function createComposition(
     email: emailService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
   });
   const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
     magicLinks: magicLinkService,

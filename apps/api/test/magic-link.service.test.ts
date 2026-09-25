@@ -163,6 +163,8 @@ function makeService(opts?: {
   leads?: LeadStore;
   email?: EmailService & { sends: MagicLinkEmailInput[] };
   ttlSeconds?: number;
+  reissueCooldownMs?: number;
+  clock?: () => Date;
 }) {
   const magicLinks = opts?.magicLinks ?? fakeMagicLinks();
   const leads = opts?.leads ?? fakeLeads();
@@ -173,7 +175,8 @@ function makeService(opts?: {
     email,
     appBaseUrl: APP_BASE_URL,
     magicLinkTtlSeconds: opts?.ttlSeconds ?? 7 * 86_400,
-    clock: () => NOW,
+    magicLinkReissueCooldownMs: opts?.reissueCooldownMs ?? 60_000,
+    clock: opts?.clock ?? (() => NOW),
   });
   return { service, magicLinks, leads, email };
 }
@@ -365,6 +368,77 @@ describe('magic-link reissue', () => {
     const error = await service.reissue({ email: 'not-an-email' }).catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
     expect(error.status).toBe(400);
+  });
+
+  it('HRD-03: blocks a resend within the per-email cooldown', async () => {
+    const email = fakeEmail();
+    let nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      reissueCooldownMs: 60_000,
+      clock: () => new Date(nowMs),
+    });
+    // No links in the store → first reissue sends.
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(1);
+    // 30s later the store still has no live link (the fake never persists
+    // issued links), but the cooldown blocks the resend — same shape, no
+    // send oracle.
+    nowMs += 30_000;
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: false,
+    });
+    expect(email.sends).toHaveLength(1);
+  });
+
+  it('HRD-03: allows a resend after the per-email cooldown elapses', async () => {
+    const email = fakeEmail();
+    let nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      reissueCooldownMs: 60_000,
+      clock: () => new Date(nowMs),
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    nowMs += 61_000;
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(2);
+  });
+
+  it('HRD-03: cooldown is per-email — a different address is unaffected', async () => {
+    const email = fakeEmail();
+    const samLead = leadFixture();
+    const otherLead = leadFixture({
+      id: 'other-lead-id',
+      email: 'other@example.com',
+    });
+    const baseLeads = fakeLeads();
+    const leads: LeadStore = {
+      ...baseLeads,
+      findAllByEmail: async (addr: string) =>
+        [samLead, otherLead].filter((l) => l.email === addr),
+    };
+    const nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      leads,
+      reissueCooldownMs: 60_000,
+      clock: () => new Date(nowMs),
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    // Same instant, different address → no cooldown entry → sends.
+    expect(await service.reissue({ email: 'other@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(2);
   });
 });
 

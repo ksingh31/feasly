@@ -94,6 +94,11 @@ const EnvSchema = z.object({
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
   // Magic-link lifetime decided by Karan 2026-09-24: 7 days (604_800 s).
   MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // HRD-03: per-email cooldown between magic-link resend emails. The reissue
+  // endpoint already refuses to send while a live link exists; this covers
+  // the residual case (revoked/expired link + immediate re-request) so one
+  // address can't be mail-bombed faster than this.
+  MAGIC_LINK_REISSUE_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -266,6 +271,11 @@ export interface AuthConfig {
   readonly jwtTtlSeconds: number;
   /** Lifetime of a single-use magic-link token. */
   readonly magicLinkTtlSeconds: number;
+  /**
+   * HRD-03: minimum ms between magic-link emails to the same address on the
+   * reissue path (from MAGIC_LINK_REISSUE_COOLDOWN_MS).
+   */
+  readonly magicLinkReissueCooldownMs: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -580,6 +590,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     auth: {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
+      magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       adminApiKey: e.ADMIN_API_KEY,
     },
     corsOrigins: resolveCorsOrigins(e),
