@@ -84,6 +84,9 @@ function fakeEstimateStore(): EstimateStore {
   return {
     save: async () => {},
     findById: async (id: string) => (id === ESTIMATE_ID ? estimate : null),
+    findByAddressKey: async (addressKey: string) =>
+      addressKey === estimate.addressKey ? [estimate] : [],
+    setNarrative: async () => true,
   };
 }
 
@@ -110,6 +113,7 @@ function fakeLeadStore(): LeadStore & { inserted: NewLead[] } {
         tenantKey: lead.tenantKey ?? null,
         source: lead.source,
         quarantined: lead.quarantined ?? false,
+        sandbox: lead.sandbox ?? false,
         leadScore: 0,
         status: 'new',
         unsubscribedAt: null,
