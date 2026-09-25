@@ -132,3 +132,8 @@ apps/web/src/app/features/admin/admin-sheets-status.component.html
 # inbound gate only accepts exactly that shape. It changes by protocol
 # revision (code review), not by deploy tuning.
 apps/web/src/app/features/embed/embed-shell.component.ts
+
+# Admin funnel dashboard (admin/07): the two `100` literals are percentage
+# unit conversions (0–1 ratio → % for bar widths and labels), not tunables.
+# They change by math, not by deploy tuning.
+apps/web/src/app/features/admin/funnels-page.component.ts
