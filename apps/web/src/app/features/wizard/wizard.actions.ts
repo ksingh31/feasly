@@ -60,3 +60,20 @@ export class StorePreviewEstimate {
   static readonly type = '[Wizard] Store preview estimate';
   constructor(public readonly preview: PreviewEstimateResponse) {}
 }
+
+/** NGXS action: comparison picker inputs changed (NBH-04). */
+export class UpdateComparison {
+  static readonly type = '[Wizard] Update comparison';
+  constructor(
+    public readonly inputs: Partial<{
+      slugs: string[];
+      sqft: number;
+      tier: import('@feasly/contracts').FinishTier;
+    }>,
+  ) {}
+}
+
+/** NGXS action: clear the comparison picker state (NBH-04). */
+export class ClearComparison {
+  static readonly type = '[Wizard] Clear comparison';
+}

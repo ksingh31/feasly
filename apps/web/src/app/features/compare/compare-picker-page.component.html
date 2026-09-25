@@ -1,0 +1,122 @@
+<app-site-nav />
+<main class="compare-page">
+  @if (!submitted()) {
+    <p class="eyebrow">{{ copy.pickerHeading }}</p>
+    <h1 class="compare-heading">{{ copy.pickerHeading }}</h1>
+    <p class="compare-sub">{{ copy.pickerSubheading }}</p>
+
+    <section class="picker-section" aria-labelledby="community-search-label">
+      <h2 id="community-search-label">{{ copy.searchLabel }}</h2>
+      <input
+        class="search-input"
+        type="search"
+        [placeholder]="copy.searchPlaceholder"
+        [attr.aria-label]="copy.searchLabel"
+        [value]="search()"
+        (input)="onSearchInput($event)"
+      />
+
+      <h3 class="selected-label">
+        {{ copy.selectedLabel }} ({{ selectedCount() }}/{{ 3 }})
+      </h3>
+      @if (selectedCount() > 0) {
+        <ul class="selected-chips">
+          @for (slug of comparison().slugs; track slug) {
+            <li class="chip">
+              <span>{{ nameFor(slug) }}</span>
+              <button
+                type="button"
+                class="chip-remove"
+                [attr.aria-label]="'Remove ' + nameFor(slug)"
+                (click)="toggleCommunity(slug)"
+              >
+                ×
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (maxWarning()) {
+        <p class="max-warning" role="alert">{{ copy.maxCommunitiesNote }}</p>
+      }
+
+      <ul class="community-list">
+        @for (community of filtered(); track community.slug) {
+          <li>
+            <button
+              type="button"
+              class="community-item"
+              [class.selected]="isSelected(community.slug)"
+              [attr.aria-pressed]="isSelected(community.slug)"
+              (click)="toggleCommunity(community.slug)"
+            >
+              <span class="community-name">{{ community.name }}</span>
+              <span class="community-check" aria-hidden="true">
+                {{ isSelected(community.slug) ? '✓' : '+' }}
+              </span>
+            </button>
+          </li>
+        } @empty {
+          <li class="no-results">{{ copy.searchNoResults }}</li>
+        }
+      </ul>
+
+      @if (selectedCount() > 0) {
+        <button type="button" class="link-button" (click)="clearAll()">{{ copy.clearAllLabel }}</button>
+      }
+    </section>
+
+    <app-sqft-slider
+      [value]="comparison().sqft"
+      [min]="wizard.sqftMin"
+      [max]="wizard.sqftMax"
+      [step]="wizard.sqftStep"
+      [label]="copy.sqftLabel"
+      [hint]="copy.sqftHint"
+      [unit]="copy.sqftUnit"
+      (valueChange)="onSqftInput($event)"
+    />
+
+    <app-tier-selector
+      [selected]="comparison().tier"
+      [options]="tierOptions"
+      [label]="copy.tierLabel"
+      [hint]="copy.tierHint"
+      (selectedChange)="onTierChange($event)"
+    />
+
+    <div class="actions">
+      <button
+        type="button"
+        class="cta"
+        [disabled]="!canCompare()"
+        (click)="startComparison()"
+      >
+        {{ copy.cta }}
+      </button>
+      @if (!canCompare()) {
+        <p class="cta-hint">{{ copy.ctaHint }}</p>
+      }
+    </div>
+  } @else {
+    <!-- Interim confirmation (NBH-04): honest placeholder until NBH-03
+         lands the real comparison result pipeline. -->
+    <section class="interim-panel" aria-labelledby="interim-title">
+      <h1 id="interim-title" class="compare-heading">{{ copy.interimTitle }}</h1>
+      <p class="compare-sub">{{ copy.interimBody }}</p>
+      <ul class="interim-picks">
+        @for (slug of comparison().slugs; track slug) {
+          <li>{{ nameFor(slug) }}</li>
+        }
+      </ul>
+      <p class="interim-meta">
+        {{ comparison().sqft.toLocaleString('en-CA') }} {{ copy.sqftUnit }} · {{ comparison().tier }}
+      </p>
+      <button type="button" class="link-button" (click)="backToPicker()">
+        {{ copy.interimBackLabel }}
+      </button>
+    </section>
+  }
+</main>
+<app-site-footer />

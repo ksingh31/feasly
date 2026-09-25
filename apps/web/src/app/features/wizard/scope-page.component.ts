@@ -5,7 +5,15 @@ import type { FinishTier } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, UpdateInputs, WizardState, type ProjectType } from '../wizard';
-import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
+import {
+  PropertyCardComponent,
+  SiteFooterComponent,
+  SiteNavComponent,
+  SqftSliderComponent,
+  TierSelectorComponent,
+  WizardStepsComponent,
+  type TierOption,
+} from '../../shared/components';
 
 /**
  * S2 scope step (FE-2, RENO-02): project type + scope inputs.
@@ -27,6 +35,8 @@ import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardSte
     RouterLink,
     SiteFooterComponent,
     SiteNavComponent,
+    SqftSliderComponent,
+    TierSelectorComponent,
     WizardStepsComponent,
   ],
   templateUrl: './scope-page.component.html',
@@ -73,20 +83,18 @@ export class ScopePageComponent implements OnInit {
     this.chooseProjectType(ids[next]);
   }
 
-  /** Slider input: clamps to the configured range and stores the value. */
-  onSqftInput(event: Event): void {
-    const value = (event.target as HTMLInputElement).valueAsNumber;
-    if (!Number.isFinite(value)) {
-      return;
-    }
-    const { sqftMin, sqftMax } = this.wizard;
-    this.store.dispatch(
-      new UpdateInputs({ sqft: Math.min(sqftMax, Math.max(sqftMin, Math.round(value))) }),
-    );
+  /** Slider input from the shared sqft component: stores the clamped value. */
+  onSqftInput(value: number): void {
+    this.store.dispatch(new UpdateInputs({ sqft: value }));
   }
 
   chooseTier(tier: FinishTier): void {
     this.store.dispatch(new UpdateInputs({ tier }));
+  }
+
+  /** Tier options for the shared selector (config-owned copy). */
+  protected get tierOptions(): TierOption[] {
+    return this.copy.scopeTiers.map((t) => ({ id: t.id as FinishTier, name: t.name, blurb: t.blurb }));
   }
 
   goBack(): void {

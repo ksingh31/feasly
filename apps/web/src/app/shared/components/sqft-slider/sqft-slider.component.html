@@ -1,0 +1,24 @@
+<section class="sqft-section" [attr.aria-labelledby]="controlId + '-label'">
+  <div class="section-head">
+    <h2 [id]="controlId + '-label'">{{ label() }}</h2>
+    <output class="sqft-value" [attr.aria-live]="'polite'">{{ format(value()) }} {{ unit() }}</output>
+  </div>
+  @if (hint()) {
+    <p class="hint">{{ hint() }}</p>
+  }
+  <input
+    class="sqft-slider"
+    type="range"
+    [id]="controlId"
+    [min]="min()"
+    [max]="max()"
+    [step]="step()"
+    [value]="value()"
+    (input)="onInput($event)"
+    [attr.aria-label]="label()"
+  />
+  <div class="slider-scale" aria-hidden="true">
+    <span>{{ format(min()) }}</span>
+    <span>{{ format(max()) }}</span>
+  </div>
+</section>

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { ComparePickerPageComponent } from './features/compare/compare-picker-page.component';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -50,6 +51,14 @@ export const routes: Routes = [
     path: 'estimate/analyzing',
     component: AnalyzingPageComponent,
     canActivate: [robotsGuard, wizardScopeGuard],
+    data: { noindex: true },
+  },
+  // Neighbourhood comparison picker (NBH-04): no wizard property needed —
+  // it compares communities, not an address. Private funnel route: noindex.
+  {
+    path: 'estimate/compare',
+    component: ComparePickerPageComponent,
+    canActivate: [robotsGuard],
     data: { noindex: true },
   },
   { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },

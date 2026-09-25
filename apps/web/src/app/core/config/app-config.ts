@@ -224,6 +224,52 @@ export interface AppConfig {
       detailsBackLabel: string;
     };
     /**
+     * Neighbourhood comparison flow copy (NBH-04): the landing entry card
+     * and the /estimate/compare picker. Exact user-facing strings required
+     * by the story live here — never hardcoded in templates.
+     */
+    comparison: {
+      /** Landing entry card title: exact copy "Compare neighbourhoods". */
+      landingTitle: string;
+      /** Landing entry card body: exact copy "Side-by-side build costs for 2–3 Calgary communities." */
+      landingBody: string;
+      /** Picker page heading. */
+      pickerHeading: string;
+      /** Picker page subheading. */
+      pickerSubheading: string;
+      /** Community search input label. */
+      searchLabel: string;
+      /** Community search input placeholder. */
+      searchPlaceholder: string;
+      /** Shown when the search matches no communities. */
+      searchNoResults: string;
+      /** Selected-communities section label. */
+      selectedLabel: string;
+      /** Clears all selected communities. */
+      clearAllLabel: string;
+      /** Sqft section copy for the shared slider. */
+      sqftLabel: string;
+      sqftHint: string;
+      sqftUnit: string;
+      /** Tier section copy for the shared selector. */
+      tierLabel: string;
+      tierHint: string;
+      /** Exact warning when a fourth community is picked: "You can compare up to 3 communities." */
+      maxCommunitiesNote: string;
+      /** CTA — exact copy "Compare →". */
+      cta: string;
+      /** Shown under the disabled CTA until 2 communities are selected. */
+      ctaHint: string;
+      /**
+       * Interim confirmation (NBH-04 only): shown after the CTA until NBH-03
+       * lands the real comparison result pipeline. Honest placeholder copy —
+       * never pretends a result exists.
+       */
+      interimTitle: string;
+      interimBody: string;
+      interimBackLabel: string;
+    };
+    /**
      * Estimate preview step (S5) copy — the single lead-gate point.
      * Figure labels, the locked note, and the one "Unlock" CTA live with the
      * report copy (single source); the loading/error/retry strings are reused
@@ -413,6 +459,8 @@ export interface AppConfig {
       gate: string;
       analyzingTitle: string;
       analyzing: string;
+      compareTitle: string;
+      compare: string;
       privacyTitle: string;
       privacy: string;
       termsTitle: string;

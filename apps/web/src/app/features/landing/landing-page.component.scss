@@ -160,6 +160,54 @@
   border-left: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+/* ── Compare neighbourhoods entry (NBH-04) ── */
+
+.compare-entry {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 0;
+}
+
+.compare-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.compare-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.compare-card h2 {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.compare-card p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+.compare-arrow {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 /* ── How it works ─────────────────────────── */
 
 .how {
