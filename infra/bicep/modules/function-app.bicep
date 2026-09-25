@@ -29,6 +29,17 @@ param postgresUser string
 @description('Key Vault secret URI (versionless) for the Postgres admin password, e.g. https://<kv>.vault.azure.net/secrets/<name>')
 param postgresPasswordSecretUri string
 
+@description('Email provider: log (dev default), postmark, or acs')
+@allowed([
+  'log'
+  'postmark'
+  'acs'
+])
+param emailProvider string = 'log'
+
+@description('Key Vault secret URI (versionless) for the ACS email connection string. Empty = not configured; the app fails closed on send.')
+param acsConnectionStringSecretUri string = ''
+
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: planName
   location: location
@@ -53,32 +64,50 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: plan.id
     httpsOnly: true
     siteConfig: {
-      appSettings: [
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsightsConnectionString
-        }
-        {
-          name: 'POSTGRES_HOST'
-          value: postgresHost
-        }
-        {
-          name: 'POSTGRES_DB'
-          value: postgresDatabase
-        }
-        {
-          name: 'POSTGRES_USER'
-          value: postgresUser
-        }
-        {
-          // Key Vault reference — the password value never lands in app settings.
-          name: 'POSTGRES_PASSWORD'
-          value: '@Microsoft.KeyVault(SecretUri=${postgresPasswordSecretUri})'
-        }
-        // NOTE: no FUNCTIONS_WORKER_RUNTIME / WEBSITE_NODE_DEFAULT_VERSION here —
-        // Flex Consumption rejects them; the runtime is declared in
-        // functionAppConfig.runtime below.
-      ]
+      // EMAIL_ACS_CONNECTION_STRING is appended only when a Key Vault secret
+      // URI is provided; without it the app fails closed on send (clear error,
+      // no silent drops). The secret value never lands in app settings.
+      appSettings: concat(
+        [
+          {
+            name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+            value: appInsightsConnectionString
+          }
+          {
+            name: 'POSTGRES_HOST'
+            value: postgresHost
+          }
+          {
+            name: 'POSTGRES_DB'
+            value: postgresDatabase
+          }
+          {
+            name: 'POSTGRES_USER'
+            value: postgresUser
+          }
+          {
+            // Key Vault reference — the password value never lands in app settings.
+            name: 'POSTGRES_PASSWORD'
+            value: '@Microsoft.KeyVault(SecretUri=${postgresPasswordSecretUri})'
+          }
+          {
+            name: 'EMAIL_PROVIDER'
+            value: emailProvider
+          }
+          // NOTE: no FUNCTIONS_WORKER_RUNTIME / WEBSITE_NODE_DEFAULT_VERSION here —
+          // Flex Consumption rejects them; the runtime is declared in
+          // functionAppConfig.runtime below.
+        ],
+        empty(acsConnectionStringSecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the connection string value never lands in app settings.
+                name: 'EMAIL_ACS_CONNECTION_STRING'
+                value: '@Microsoft.KeyVault(SecretUri=${acsConnectionStringSecretUri})'
+              }
+            ]
+      )
     }
     // functionAppConfig MUST be a direct child of properties (sibling of
     // siteConfig) — Flex Consumption requires it on site create. The Bicep

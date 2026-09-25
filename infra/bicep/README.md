@@ -26,6 +26,12 @@
   (`@Microsoft.KeyVault(SecretUri=...)`) — the password value never appears
   in app settings, outputs, logs, or any committed file. No secret values in
   Bicep or `.bicepparam` files, ever.
+- **Email:** `emailProvider` (`log`/`postmark`/`acs`, default `log`) sets the
+  `EMAIL_PROVIDER` app setting. `acsConnectionString` is a `@secure()`
+  parameter written to Key Vault as `feasly-<env>-acs-connection-string` and
+  referenced by the Function App as `EMAIL_ACS_CONNECTION_STRING` — same
+  pattern as the Postgres password. Dev sets `emailProvider='acs'`; staging
+  and prod stay on `log` until their sender domains are verified.
 
 ## Layout
 
