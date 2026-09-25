@@ -238,6 +238,16 @@ export class EmbedShellComponent {
     this.store.dispatch(new ExchangeRelayCode(msg.code));
   }
 
+  /**
+   * Post a message to the parent window (builder's page).
+   * Only called with allowlisted message types; the parent validates origin.
+   */
+  private postToParent(msg: ShellOutbound): void {
+    if (this.isBrowser && window.parent !== window) {
+      window.parent.postMessage(msg, '*');
+    }
+  }
+
   /** Applies a validated hex accent as `--embed-accent`; invalid values are ignored. */
   private applyAccent(color: string): void {
     if (this.isBrowser && HEX_COLOR.test(color)) {
