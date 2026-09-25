@@ -1,0 +1,69 @@
+@if (community) {
+  <app-site-nav />
+  <main class="community">
+    @if (!calibrated) {
+      <p class="banner" role="note">{{ copy.illustrativeBanner }}</p>
+    }
+
+    <p class="eyebrow">Calgary community cost guide</p>
+    <h1>How much does it cost to build a home in {{ community.displayName }}, Calgary?</h1>
+
+    <section class="stat-block" aria-label="Community statistics">
+      <div class="stat">
+        <span class="stat-value">{{ formatCad(community.avgAssessedValue) }}</span>
+        <span class="stat-label">{{ copy.statLabel }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ community.count.toLocaleString('en-CA') }}</span>
+        <span class="stat-label">Assessed properties</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ community.avgLotSqft.toLocaleString('en-CA') }} sqft</span>
+        <span class="stat-label">Average lot size</span>
+      </div>
+      <p class="stat-note">{{ copy.statNote }}</p>
+    </section>
+
+    <section class="tiers" aria-label="Build cost ranges">
+      <h2>{{ fill(copy.tierSectionTitle) }}</h2>
+      <p class="sub">{{ copy.tierSectionSub }}</p>
+      @for (tier of community.tiers; track tier.key) {
+        <article class="tier-card">
+          <h3>{{ tier.label }}</h3>
+          <dl>
+            <div>
+              <dt>Build cost</dt>
+              <dd>{{ formatCad(tier.buildLow) }} – {{ formatCad(tier.buildHigh) }}</dd>
+            </div>
+            <div>
+              <dt>Land (assessed)</dt>
+              <dd>{{ formatCad(tier.landValue) }}</dd>
+            </div>
+            <div class="total">
+              <dt>Total investment</dt>
+              <dd>{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</dd>
+            </div>
+          </dl>
+        </article>
+      }
+      <p class="basis-note">{{ copy.basisNote }}</p>
+    </section>
+
+    <section class="faq" aria-label="Frequently asked questions">
+      <h2>{{ copy.faqTitle }}</h2>
+      @for (item of faqs; track item.q; let i = $index) {
+        <details [open]="openFaq === i" (toggle)="toggleFaq(i)">
+          <summary>{{ item.q }}</summary>
+          <p>{{ item.a }}</p>
+        </details>
+      }
+    </section>
+
+    <section class="cta-card" aria-label="Get your estimate">
+      <h2>{{ fill(copy.ctaTitle) }}</h2>
+      <p>{{ copy.ctaBody }}</p>
+      <a class="cta" routerLink="/estimate/address">{{ copy.ctaLabel }}</a>
+    </section>
+  </main>
+  <app-site-footer />
+}

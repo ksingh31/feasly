@@ -153,6 +153,66 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
   }
 }
 
+// --- Community pages (SEO-04): all 40 prerendered, full tag set, honest copy. ---
+{
+  const aggPath = join(ROOT, 'src', 'content', 'data', 'community-aggregates.json');
+  let slugs = [];
+  try {
+    const agg = JSON.parse(readFileSync(aggPath, 'utf8'));
+    slugs = agg.communities.map((c) => c.slug);
+  } catch {
+    failures.push('community SEO check: cannot read src/content/data/community-aggregates.json');
+  }
+  if (slugs.length === 0) {
+    failures.push('community SEO check: no community slugs found');
+  }
+  const titles = new Set();
+  const denyList = ['per_sqft', 'persqft', 'per-sqft', 'margin', 'param'];
+  const bannedCopy = [/%\s*accurate/i, /guaranteed?\s+(estimate|price|cost)/i, /sold\s+for/i, /sold\s+price/i];
+  for (const slug of slugs) {
+    const route = `/communities/${slug}`;
+    const html = htmlFor(route);
+    if (html === null) continue;
+    // Indexable tag set.
+    mustContain(html, route, '<title>', 'document title');
+    mustMeta(html, route, [['name', 'description']], 'meta description');
+    mustMeta(html, route, [['property', 'og:title']], 'OG title');
+    mustMeta(html, route, [['name', 'feasly:cost-data-version']], 'feasly:cost-data-version');
+    mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
+    mustCanonical(html, route, `${route}/`);
+    // H1 pattern + unique titles.
+    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1]?.replace(/<[^>]*>/g, '').trim() ?? '';
+    if (!/^How much does it cost to build a home in .+, Calgary\?$/.test(h1)) {
+      failures.push(`"${route}" H1 does not match the required pattern: "${h1}"`);
+    }
+    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? '';
+    if (!/^Cost to Build a Home in .+, Calgary \| Feasly$/.test(title)) {
+      failures.push(`"${route}" title does not match the required pattern: "${title}"`);
+    }
+    if (titles.has(title)) failures.push(`duplicate community page title: "${title}"`);
+    titles.add(title);
+    // Fixed-value label for the assessed stat.
+    mustContain(html, route, 'Average City-assessed value (not market value)', 'assessed-value label');
+    // Deny-list: no proprietary cost-model terms in public HTML.
+    // Strip <style> and <script> first — CSS "margin" properties and JS
+    // are not cost-model terms.
+    const contentOnly = html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ');
+    const lowered = contentOnly.toLowerCase();
+    for (const term of denyList) {
+      if (lowered.includes(term)) failures.push(`"${route}" trips the deny-list: "${term}"`);
+    }
+    // Copy lint: no accuracy guarantees, no sold-price claims.
+    const text = html.replace(/<[^>]*>/g, ' ');
+    for (const pattern of bannedCopy) {
+      const hit = text.match(pattern);
+      if (hit) failures.push(`"${route}" copy trips the banned-phrase lint: "${hit[0]}"`);
+    }
+  }
+  notes.push(`community pages checked: ${slugs.length}`);
+}
+
 // --- Marketing copy lint (SEO-010): no accuracy guarantees, no "free
 // forever" claims on the new pages (hardening/05 owns the full sweep later).
 {

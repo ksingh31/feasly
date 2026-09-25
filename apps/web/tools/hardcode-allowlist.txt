@@ -31,6 +31,7 @@ apps/web/src/app/features/admin/admin-login.component.html
 # cannot distinguish it from a tunable threshold.
 apps/web/src/app/app.routes.ts
 apps/web/src/app/core/seo/seo-routes.ts
+apps/web/src/app/features/communities/community-page.component.ts
 
 # Branded error + offline pages (HRD-02): the exact strings are pinned by the
 # story's acceptance criteria — they change by product decision, not by
