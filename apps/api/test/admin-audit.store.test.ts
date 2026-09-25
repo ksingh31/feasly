@@ -26,13 +26,13 @@ describe('admin audit store', () => {
     const store = createDrizzleAdminAuditStore({ db: testDb.db });
     const entry = await store.append({
       action: 'community_stats_refresh_manual',
-      actor: 'admin',
+      actorEmail: 'admin',
       detail: 'refreshed=212 skipped=3 roll_year=2025',
     });
 
     expect(entry.id).toBeTruthy();
     expect(entry.action).toBe('community_stats_refresh_manual');
-    expect(entry.actor).toBe('admin');
+    expect(entry.actorEmail).toBe('admin');
     expect(entry.detail).toBe('refreshed=212 skipped=3 roll_year=2025');
     expect(entry.createdAt).toBeInstanceOf(Date);
   });
@@ -41,16 +41,16 @@ describe('admin audit store', () => {
     const store = createDrizzleAdminAuditStore({ db: testDb.db });
     const entry = await store.append({
       action: 'community_stats_refresh_manual',
-      actor: 'admin',
+      actorEmail: 'admin',
     });
     expect(entry.detail).toBeNull();
   });
 
   it('recent() returns entries newest-first and honors the limit', async () => {
     const store = createDrizzleAdminAuditStore({ db: testDb.db });
-    await store.append({ action: 'a', actor: 'admin' });
-    await store.append({ action: 'b', actor: 'admin' });
-    await store.append({ action: 'c', actor: 'admin' });
+    await store.append({ action: 'a', actorEmail: 'admin' });
+    await store.append({ action: 'b', actorEmail: 'admin' });
+    await store.append({ action: 'c', actorEmail: 'admin' });
 
     const all = await store.recent(100);
     const actions = all.map((e) => e.action);

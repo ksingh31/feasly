@@ -13,7 +13,7 @@ import { adminAuditLog } from '../db/schema';
 export interface AdminAuditRecord {
   readonly id: string;
   readonly action: string;
-  readonly actor: string;
+  readonly actorEmail: string | null;
   readonly detail: string | null;
   readonly createdAt: Date;
 }
@@ -25,9 +25,17 @@ export interface AdminAuditStore {
    */
   append(args: {
     readonly action: string;
-    readonly actor: string;
+    readonly actorEmail: string | null;
     readonly detail?: string;
   }): Promise<AdminAuditRecord>;
+  /**
+   * Fire-and-forget log (for auth flows that don't need the record back).
+   */
+  log(entry: {
+    readonly actorEmail: string | null;
+    readonly action: string;
+    readonly detail?: string;
+  }): Promise<void>;
   /** Most recent entries first (for ops review). */
   recent(limit: number): Promise<readonly AdminAuditRecord[]>;
 }
@@ -41,7 +49,7 @@ function toRecord(row: typeof adminAuditLog.$inferSelect): AdminAuditRecord {
   return {
     id: row.id,
     action: row.action,
-    actor: row.actor,
+    actorEmail: row.actorEmail,
     detail: row.detail,
     createdAt: row.createdAt,
   };
@@ -58,7 +66,7 @@ export function createDrizzleAdminAuditStore(
         .values({
           id: randomUUID(),
           action: args.action,
-          actor: args.actor,
+          actorEmail: args.actorEmail,
           detail: args.detail ?? null,
         })
         .returning();
@@ -74,6 +82,15 @@ export function createDrizzleAdminAuditStore(
         .orderBy(desc(adminAuditLog.createdAt))
         .limit(limit);
       return rows.map(toRecord);
+    },
+
+    async log(entry): Promise<void> {
+      await db.insert(adminAuditLog).values({
+        id: randomUUID(),
+        actorEmail: entry.actorEmail,
+        action: entry.action,
+        detail: entry.detail ?? null,
+      });
     },
   };
 }

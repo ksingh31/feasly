@@ -51,7 +51,7 @@ export function createCommunityStatsRefreshRoute(
     try {
       await audit.append({
         action: MANUAL_REFRESH_AUDIT_ACTION,
-        actor: 'admin',
+        actorEmail: 'admin',
         detail,
       });
     } catch (auditError) {

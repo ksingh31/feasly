@@ -6,10 +6,9 @@
  */
 import { and, eq, isNull } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { adminAllowlist, adminAuditLog, adminSessions } from '../db/schema';
+import { adminAllowlist, adminSessions } from '../db/schema';
 import type {
   AdminAllowlistStore,
-  AdminAuditStore,
   AdminSessionRecord,
   AdminSessionStore,
 } from './admin-auth.service';
@@ -135,22 +134,6 @@ export function createDrizzleAdminAllowlistStore(
         .where(eq(adminAllowlist.email, email))
         .returning({ email: adminAllowlist.email });
       return rows.length > 0;
-    },
-  };
-}
-
-export function createDrizzleAdminAuditStore(
-  deps: DrizzleAdminStoreDeps,
-): AdminAuditStore {
-  const { db } = deps;
-  return {
-    async log(entry): Promise<void> {
-      await db.insert(adminAuditLog).values({
-        id: randomUUID(),
-        actorEmail: entry.actorEmail,
-        action: entry.action,
-        detail: entry.detail ?? null,
-      });
     },
   };
 }

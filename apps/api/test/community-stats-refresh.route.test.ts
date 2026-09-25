@@ -31,9 +31,9 @@ function makeDeps(
     refreshImpl: () => Promise<typeof REFRESH_RESULT>;
   }> = {},
 ): CommunityStatsRefreshRouteDeps & {
-  appended: { action: string; actor: string; detail?: string }[];
+  appended: { action: string; actorEmail: string; detail?: string }[];
 } {
-  const appended: { action: string; actor: string; detail?: string }[] = [];
+  const appended: { action: string; actorEmail: string; detail?: string }[] = [];
   const refresh: CommunityStatsRefreshService = {
     runRefreshCycle: vi.fn(overrides.refreshImpl ?? (async () => REFRESH_RESULT)),
   };
@@ -43,7 +43,7 @@ function makeDeps(
       return {
         id: 'audit-1',
         action: args.action,
-        actor: args.actor,
+        actorEmail: args.actorEmail,
         detail: args.detail ?? null,
         createdAt: new Date(),
       };
@@ -101,7 +101,7 @@ describe('community-stats manual refresh route', () => {
     expect(deps.appended).toHaveLength(1);
     expect(deps.appended[0]).toMatchObject({
       action: MANUAL_REFRESH_AUDIT_ACTION,
-      actor: 'admin',
+      actorEmail: 'admin',
     });
     expect(deps.appended[0]!.detail).toContain('refreshed=212');
     expect(deps.appended[0]!.detail).toContain('skipped=3');
@@ -123,7 +123,7 @@ describe('community-stats manual refresh route', () => {
     expect(deps.appended).toHaveLength(1);
     expect(deps.appended[0]).toMatchObject({
       action: MANUAL_REFRESH_AUDIT_ACTION,
-      actor: 'admin',
+      actorEmail: 'admin',
     });
     expect(deps.appended[0]!.detail).toContain('error');
   });

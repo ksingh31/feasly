@@ -88,12 +88,10 @@ import {
   createAdminAuthService,
   type AdminAuthService,
   type AdminAllowlistStore,
-  type AdminAuditStore,
   type AdminSessionStore,
 } from './services/admin-auth.service';
 import {
   createDrizzleAdminAllowlistStore,
-  createDrizzleAdminAuditStore,
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import {
@@ -787,9 +785,7 @@ export function createComposition(
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
   // Two consecutive timer failures fire the community_stats_failed ops
   // alert (admin/06); recovery sends the all-clear and re-arms.
-  const adminAuditStore: AdminAuditStore = createDrizzleAdminAuditStore({
-    db: db.db,
-  });
+  // (adminAuditStore is defined above with the admin/01 session auth setup.)
   const communityStatsRefreshService: CommunityStatsRefreshService =
     createCommunityStatsRefreshService({
       stats: communityStatsService,
