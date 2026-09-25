@@ -32,6 +32,9 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: '', titleKey: 'landingTitle', descriptionKey: 'landing' },
   { pattern: 'privacy', titleKey: 'privacyTitle', descriptionKey: 'privacy' },
   { pattern: 'terms', titleKey: 'termsTitle', descriptionKey: 'terms' },
+  // Marketing pages (SEO-010): indexable — no `noindex`, so crawlers rank them.
+  { pattern: 'how-it-works', titleKey: 'howItWorksTitle', descriptionKey: 'howItWorks' },
+  { pattern: 'faq', titleKey: 'faqTitle', descriptionKey: 'faq' },
   {
     pattern: 'estimate/scope',
     titleKey: 'scopeTitle',

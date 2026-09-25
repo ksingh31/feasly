@@ -168,11 +168,25 @@ describe('SeoService', () => {
   });
 
   it('indexable routes carry no robots tag', () => {
-    for (const path of ['', 'privacy', 'terms']) {
+    for (const path of ['', 'privacy', 'terms', 'how-it-works', 'faq']) {
       service.setForRoute('estimate/scope'); // ensure a tag exists first
       service.setForRoute(path);
       expect(TestBed.inject(Meta).getTag('name="robots"')).toBeNull();
     }
+  });
+
+  it('setJsonLd injects, replaces, and removes the structured-data script', () => {
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+    let script = document.querySelector('script[type="application/ld+json"]');
+    expect(script?.textContent).toContain('FAQPage');
+
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'WebSite' });
+    script = document.querySelector('script[type="application/ld+json"]');
+    expect(script?.textContent).toContain('WebSite');
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
+
+    service.setJsonLd(null);
+    expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
   });
 
   it('falls back to the request origin when site.url is empty (staging)', () => {
