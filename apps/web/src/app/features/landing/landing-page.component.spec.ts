@@ -88,6 +88,16 @@ describe('LandingPageComponent', () => {
     expect(card.textContent).toContain('Side-by-side build costs for 2–3 Calgary communities.');
   });
 
+  it('comparison entry renders above the trust strip (Karan layout)', () => {
+    const main = fixture.nativeElement.querySelector('main.page');
+    const sections = [...main.querySelectorAll(':scope > section')].map((el: Element) =>
+      el.className.split(' ')[0],
+    );
+    expect(sections).toContain('compare-entry');
+    expect(sections).toContain('trust');
+    expect(sections.indexOf('compare-entry')).toBeLessThan(sections.indexOf('trust'));
+  });
+
   it('trust strip carries no ±, %, or accuracy claim (copy-lint)', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
