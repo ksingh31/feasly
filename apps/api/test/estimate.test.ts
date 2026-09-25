@@ -67,7 +67,7 @@ describe('estimate service', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(result.addressKey).toBe('calgary-123-fake-st-nw');
-    expect(result.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
     expect(result.inputs).toEqual({
       sqft: 2_200,
       tier: 'premium',
@@ -75,11 +75,13 @@ describe('estimate service', () => {
       basement: 'unfinished',
     });
     // Contract CostRange is { low, base, high } — the engine's deterministic base is exposed.
-    for (const key of ['build', 'total', 'land'] as const) {
+    for (const key of ['build', 'total'] as const) {
       expect(Object.keys(result.figures[key]).sort()).toEqual(['base', 'high', 'low']);
       expect(result.figures[key].low).toBeLessThanOrEqual(result.figures[key].base);
       expect(result.figures[key].base).toBeLessThanOrEqual(result.figures[key].high);
     }
+    // Land is a FIXED figure equal to the assessed value — never a range.
+    expect(result.figures.land).toEqual({ value: 450_000 });
     expect(result.figures.total.low).toBeGreaterThan(0);
     expect(result.rows.length).toBeGreaterThan(0);
     for (const row of result.rows) {
@@ -180,7 +182,7 @@ describe('estimate route', () => {
     const route = createEstimateRoute({ estimate: service });
     const viaRoute = await route.handle(VALID_BODY);
     expect(viaRoute.addressKey).toBe('calgary-123-fake-st-nw');
-    expect(viaRoute.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(viaRoute.costDataVersion).toBe('v0.2.0-unclibrated');
   });
 });
 
@@ -205,7 +207,7 @@ describe('estimate through the request pipeline (PGlite-backed stores)', () => {
       () => app.estimateRoute.handle(VALID_BODY),
     );
     if (isProblemDetails(outcome)) throw new Error(`unexpected problem: ${outcome.title}`);
-    expect(outcome.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(outcome.costDataVersion).toBe('v0.2.0-unclibrated');
     expect(outcome.estimateId).toBeDefined();
     const persisted = await app.estimateStore.findById(outcome.estimateId);
     expect(persisted?.addressKey).toBe('calgary-123-fake-st-nw');
@@ -288,10 +290,10 @@ describe('estimate service — renovation', () => {
     const result = await service.estimate(RENO_BODY);
     expect(result.projectType).toBe('renovation');
     expect(result.addressKey).toBe('calgary-456-reno-ave-nw');
-    expect(result.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
     expect(result.figures.build).toEqual({ low: 184_000, base: 230_000, high: 288_000 });
     expect(result.figures.total).toEqual(result.figures.build);
-    expect(result.figures.land).toEqual({ low: 0, base: 0, high: 0 });
+    expect(result.figures.land).toEqual({ value: 0 });
     expect(result.rows.map((r) => r.key)).toEqual(['reno.extensive']);
     expect(result.renoInputs).toEqual({
       projectType: 'renovation',
@@ -389,7 +391,7 @@ describe('estimate service — renovation', () => {
     ] as const) {
       expect(saved.id).toBe(result.estimateId);
       expect(saved.projectType).toBe('renovation');
-      expect(saved.costDataVersion).toBe('v0.1.0-unclibrated');
+      expect(saved.costDataVersion).toBe('v0.2.0-unclibrated');
       expect(saved.addressKey).toBe(result.addressKey);
     }
     expect(store.saved[0].id).not.toBe(store.saved[1].id);
@@ -450,7 +452,7 @@ describe('renovation through the request pipeline (PGlite-backed stores)', () =>
       const record = await app.estimateStore.findById(body.estimateId);
       expect(record).not.toBeNull();
       expect(record!.projectType).toBe('renovation');
-      expect(record!.costDataVersion).toBe('v0.1.0-unclibrated');
+      expect(record!.costDataVersion).toBe('v0.2.0-unclibrated');
     }
   });
 

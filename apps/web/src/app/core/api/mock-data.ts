@@ -168,8 +168,9 @@ export function mockEstimateFigures(): Pick<EstimateResponse, 'figures' | 'rows'
   return {
     figures: {
       build: { low: 608000, base: 671500, high: 735000 },
-      total: { low: 1003000, base: 1091500, high: 1180000 },
-      land: { low: 395000, base: 420000, high: 445000 },
+      total: { low: 1028000, base: 1091500, high: 1155000 },
+      // Fixed City assessed land value — never scaled, never a range.
+      land: { value: 420000 },
     },
     rows: mockRows(),
   };
@@ -213,6 +214,13 @@ export const MOCK_TIER_FACTORS: Record<FinishTier, number> = {
   luxury: 1.12,
 };
 
+/** Display names for tiers in mock narrative copy (mirrors wizard copy). */
+const TIER_LABELS: Record<FinishTier, string> = {
+  standard: 'Standard',
+  premium: 'Premium',
+  luxury: 'Luxury',
+};
+
 /** Scales a range, rounding to the nearest thousand (integers, no cents). */
 export function scaleRange(range: CostRange, factor: number): CostRange {
   const round = (n: number) => Math.round((n * factor) / 1000) * 1000;
@@ -234,15 +242,18 @@ export function scaledMockFigures(
   const base = mockEstimateFigures();
   const factor = (MOCK_TIER_FACTORS[inputs.tier] * inputs.sqft) / referenceSqft;
   const build = scaleRange(base.figures.build, factor);
+  // Land is the fixed City assessed value: independent of tier and size,
+  // never scaled. Total is recomputed as build + land so the parts always
+  // add up.
   const land = base.figures.land;
   return {
     figures: {
       build,
       land,
       total: {
-        low: build.low + land.low,
-        base: build.base + land.base,
-        high: build.high + land.high,
+        low: build.low + land.value,
+        base: build.base + land.value,
+        high: build.high + land.value,
       },
     },
     rows: base.rows.map((row) => ({ ...row, range: scaleRange(row.range, factor) })),
@@ -267,11 +278,25 @@ export const MOCK_VERIFY_FAILURE: MagicLinkVerifyFailure = {
   reissueAllowed: true,
 };
 
-const MOCK_NARRATIVE =
-  'This report estimates the cost to build a new infill home on this lot, based on recent ' +
-  'Calgary construction cost data and the City property assessment record. The ranges above ' +
-  'reflect the finish tier and size you selected; final costs depend on design choices, ' +
-  'site conditions, and the builder you choose.';
+/**
+ * Deterministic narrative for the mock report — engine figures only, no
+ * LLM-invented numbers. Templated from the actual inputs and figures so the
+ * AI-assisted review re-renders whenever the size (or tier) changes.
+ */
+export function mockNarrative(
+  inputs: EstimateInputs,
+  figures: Pick<EstimateResponse, 'figures'>['figures'],
+  tierLabel: string,
+): string {
+  const fmt = (n: number): string => `$${n.toLocaleString('en-CA')}`;
+  return (
+    `At ${inputs.sqft.toLocaleString('en-CA')} sq ft with ${tierLabel.toLowerCase()} finishes, ` +
+    `this plan points to an estimated total investment of ${fmt(figures.total.base)}. ` +
+    `The ${fmt(figures.land.value)} land value is fixed from the City assessment; ` +
+    `the construction portion changes with home size. The planning range reflects ` +
+    `early uncertainty in design, site conditions and selections — not a change in the assessed land value.`
+  );
+}
 
 /** Post-gate report snapshot. The disclaimer footer comes from config, not here. */
 export function mockReport(
@@ -289,9 +314,9 @@ export function mockReport(
     inputs,
     buildRange: scaled.figures.build,
     totalRange: scaled.figures.total,
-    landRange: scaled.figures.land,
+    landValue: scaled.figures.land,
     rows: scaled.rows,
-    narrative: `${MOCK_NARRATIVE} ${narrativeDisclaimer}`,
+    narrative: `${mockNarrative(inputs, scaled.figures, TIER_LABELS[inputs.tier])} ${narrativeDisclaimer}`,
     preparedAt: new Date().toISOString(),
     version: 1,
   };

@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
@@ -14,32 +14,68 @@ import { ConfigService } from '../../core/config/config.service';
 import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
 import { SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
-import { ReportPageComponent, withLandRowFirst } from './report-page.component';
+import {
+  ReportPageComponent,
+  buildEstimateShareMailto,
+} from './report-page.component';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
 /** Blank route target for navigation assertions. */
 @Component({ standalone: true, template: '' })
 class BlankComponent {}
 
-describe('withLandRowFirst', () => {
-  const landRange = { low: 395000, base: 420000, high: 445000 };
-  const rows = [{ key: 'site', label: 'Site', range: { low: 1, base: 2, high: 3 } }];
+describe('buildEstimateShareMailto', () => {
+  const args = {
+    to: 'partner@example.com',
+    subject: 'My Feasly build estimate — 918 16 Ave NW, Calgary, AB',
+    body: [
+      'Feasly build estimate for 918 16 Ave NW, Calgary, AB:',
+      '',
+      'Living area: 2,250 sq ft (Premium finishes)',
+      'Total investment: $1,092,000',
+      'Likely planning range: $1,028,000–$1,155,000',
+      'Build cost: $672,000',
+      'Land (assessed value): $420,000 (City of Calgary assessment · not a cost range)',
+      '',
+      'Planning figures only — not a quote.',
+    ].join('\n'),
+  };
 
-  it('synthesizes the land row first when the API sent none', () => {
-    const out = withLandRowFirst(rows, landRange, 'Land (assessed value)');
-    expect(out[0]).toEqual({ key: 'land', label: 'Land (assessed value)', range: landRange });
-    expect(out.length).toBe(2);
+  it('builds a mailto: draft with the supplied subject and body', () => {
+    const href = buildEstimateShareMailto(args);
+    expect(href.startsWith('mailto:partner%40example.com?')).toBe(true);
+    expect(href).toContain(`subject=${encodeURIComponent(args.subject)}`);
+    expect(href).toContain(`body=${encodeURIComponent(args.body)}`);
+    const body = decodeURIComponent(href.split('body=')[1]);
+    expect(body).toContain('Living area: 2,250 sq ft (Premium finishes)');
+    expect(body).toContain('Total investment: $1,092,000');
+    expect(body).toContain('Likely planning range: $1,028,000–$1,155,000');
+    expect(body).toContain('Build cost: $672,000');
+    expect(body).toContain('Land (assessed value): $420,000 (City of Calgary assessment · not a cost range)');
+    expect(body).toContain('Planning figures only — not a quote.');
   });
 
-  it('keeps the API land row as-is (no duplicates)', () => {
-    const withLand = [{ key: 'land', label: 'Land (assessed value)', range: landRange }, ...rows];
-    expect(withLandRowFirst(withLand, landRange, 'Land (assessed value)')).toEqual(withLand);
+  it('URL-encodes the recipient, subject, and body', () => {
+    const href = buildEstimateShareMailto({ ...args, to: 'a+b@example.com' });
+    expect(href).toContain('mailto:a%2Bb%40example.com?');
+    expect(href).not.toContain('\n');
+  });
+});
+
+describe('revise debounce (D-02)', () => {
+  it('defaults to a 400 ms trailing debounce (within the ≤ 500 ms story cap)', () => {
+    // A config timing, not a component literal (FE0-002) — the default is the
+    // product decision; the JSON overlay can tune it per deploy.
+    expect(DEFAULT_APP_CONFIG.timings.reviseDebounceMs).toBe(400);
+    expect(DEFAULT_APP_CONFIG.timings.reviseDebounceMs).toBeLessThanOrEqual(500);
   });
 });
 
 /**
- * M1: the report page renders blurred placeholders pre-gate (with the single
- * "Unlock" CTA toward the gate) and real ranges post-gate; tier what-if and
- * sqft re-run go through the API; no $/sqft and no margin figures anywhere.
+ * Redesigned report: one prominent total + likely planning range, fixed City
+ * land value, 3-bucket breakdown, display-only finish tier, always-on sqft
+ * stepper with debounced live revise, real AI narrative, mockup next steps,
+ * and a mailto: email share.
  */
 describe('ReportPageComponent', () => {
   let fixture: ComponentFixture<ReportPageComponent>;
@@ -61,11 +97,29 @@ describe('ReportPageComponent', () => {
 
   const baseConfig = {
     api: { useMockApi: true },
-    timings: { debounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
+    timings: { debounceMs: 1, reviseDebounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
     wizard: { sqftDefault: 2200, sqftMin: 1200, sqftMax: 4000, sqftStep: 50 },
   };
 
   const text = (): string => fixture.nativeElement.textContent ?? '';
+
+  /** Captures window.location.href assignments (mailto: share). */
+  let navigations: string[];
+  const originalLocation = window.location;
+  beforeEach(() => {
+    navigations = [];
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        set href(v: string) {
+          navigations.push(v);
+        },
+      },
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: originalLocation });
+  });
 
   async function pollFor(predicate: () => boolean, what: string): Promise<void> {
     const deadline = Date.now() + 8000;
@@ -135,13 +189,15 @@ describe('ReportPageComponent', () => {
     expect(token).toBeTruthy();
     store.dispatch([new SetReportToken(token!), new UnlockReport()]);
     await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'unlock');
+    fixture.detectChanges();
   }
 
-  function tierButton(name: string): HTMLButtonElement {
-    const buttons = [...fixture.nativeElement.querySelectorAll('.tier-btn')];
-    const found = buttons.find((b: Element) => b.textContent?.trim() === name);
+  function stepButton(sign: '+' | '-'): HTMLButtonElement {
+    const found = [...fixture.nativeElement.querySelectorAll('.stepper .step-btn')].find((b: Element) =>
+      b.textContent?.includes(sign),
+    ) as HTMLButtonElement;
     expect(found).toBeTruthy();
-    return found as HTMLButtonElement;
+    return found;
   }
 
   beforeEach(async () => {
@@ -151,7 +207,7 @@ describe('ReportPageComponent', () => {
   describe('pre-gate', () => {
     it('renders blurred placeholders and the Unlock CTA toward the gate', () => {
       expect(fixture.nativeElement.querySelectorAll('.blur-value').length).toBeGreaterThan(0);
-      expect(fixture.nativeElement.querySelectorAll('.range-value').length).toBe(0);
+      expect(fixture.nativeElement.querySelectorAll('.hero-value').length).toBe(0);
       const unlock = fixture.nativeElement.querySelector('a.unlock') as HTMLAnchorElement;
       expect(unlock?.textContent).toContain('Unlock');
       expect(unlock?.getAttribute('href')).toBe('/estimate/gate');
@@ -163,15 +219,13 @@ describe('ReportPageComponent', () => {
       expect(text()).not.toMatch(/\d{6}/);
     });
 
-    it('locks the tier what-if and sqft adjuster behind the gate', () => {
-      for (const btn of fixture.nativeElement.querySelectorAll('.tier-btn')) {
+    it('keeps the stepper visible but disabled behind the gate (no revise without a token)', () => {
+      const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
+      expect(stepper).not.toBeNull();
+      for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
       }
-      const rerun = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
-        b.textContent?.includes('Re-run'),
-      ) as HTMLButtonElement;
-      expect(rerun?.disabled).toBe(true);
-      expect(text()).toContain('Unlock your report to explore finish tiers.');
+      expect(text()).toContain('Unlock your report to adjust the size.');
     });
 
     it('reserves "Unlock" for the preview-to-gate CTA', () => {
@@ -214,95 +268,141 @@ describe('ReportPageComponent', () => {
       await unlock();
     });
 
-    it('renders low/base/high hero ranges from the deterministic base (not a client midpoint)', () => {
-      const values = [...fixture.nativeElement.querySelectorAll('.hero-total .range-value')].map(
-        (el: Element) => el.textContent?.trim(),
-      );
-      expect(values.length).toBe(3);
-      for (const v of values) {
-        expect(v).toMatch(/^\$\d{1,3}(,\d{3})*$/);
+    it('stepper is always visible with no enable toggle and no separate re-run button', () => {
+      const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
+      expect(stepper).not.toBeNull();
+      // No enable toggle: the buttons are enabled post-gate.
+      for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
+        expect((btn as HTMLButtonElement).disabled).toBe(false);
       }
-      // Mock total base is the contract's deterministic base, not (low+high)/2.
-      // The mock rounds ranges to the nearest thousand, so 1091500 -> 1092000.
-      expect(values[1]).toBe('$1,092,000');
-      const labels = [...fixture.nativeElement.querySelectorAll('.hero-total .range-label')].map((el: Element) =>
-        el.textContent?.trim(),
+      // No re-run button anywhere on the report: revisions are live.
+      const rerun = [...fixture.nativeElement.querySelectorAll('button')].filter((b: Element) =>
+        /re-?run/i.test(b.textContent ?? ''),
       );
-      expect(labels).toEqual(['Low', 'Base', 'High']);
+      expect(rerun.length).toBe(0);
     });
 
-    it('renders the itemized breakdown: land, hard costs, soft costs, contingency', () => {
-      const labels = [...fixture.nativeElement.querySelectorAll('.row-label')].map((el: Element) =>
-        el.textContent?.trim(),
-      );
-      expect(labels[0]).toBe('Land (assessed value)');
-      expect(labels).toContain('Soft costs (permits, design, fees)');
-      expect(labels).toContain('Contingency');
-      expect(labels.length).toBeGreaterThanOrEqual(9);
+    it('renders ONE prominent total with the likely planning range (no Low/Base/High labels)', () => {
+      const heroValue = fixture.nativeElement.querySelector('.hero-total .hero-value');
+      expect(heroValue?.textContent?.trim()).toBe('$1,092,000');
+      expect(text()).toContain('Likely planning range');
+      expect(text()).toContain('$1,028,000–$1,155,000');
+      // No competing totals, no low/base/high labels anywhere on the report.
+      expect(fixture.nativeElement.querySelectorAll('.range-label').length).toBe(0);
+      expect(fixture.nativeElement.querySelectorAll('.hero-total .range-value').length).toBe(0);
     });
 
-    it('never shows $/sqft or margin percentages', () => {
-      expect(text()).not.toMatch(/\/\s*sq\.?\s*ft/i);
-      expect(text()).not.toMatch(/per\s+sq/i);
+    it('highlights the build cost near the hero with per-sq-ft context and the display-only finish tier', () => {
+      const panel = fixture.nativeElement.querySelector('.build-highlight');
+      expect(panel).not.toBeNull();
+      expect(panel.textContent).toContain('$672,000');
+      expect(panel.textContent).toContain('Construction only — excludes land.');
+      expect(panel.textContent).toContain('$305 per sq ft');
+      expect(panel.textContent).toContain('Selected finish level — Premium');
+      // No tier switcher anywhere on the report.
+      expect(fixture.nativeElement.querySelectorAll('.tier-btn').length).toBe(0);
+    });
+
+    it('shows land as ONE fixed number — never a range', () => {
+      const landCard = fixture.nativeElement.querySelector('.land-card');
+      expect(landCard).not.toBeNull();
+      expect(landCard.textContent).toContain('$420,000');
+      expect(landCard.textContent).toContain('City of Calgary assessment · not a cost range');
+      expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
+    });
+
+    it('renders exactly the three D-01 buckets in the breakdown (land excluded)', () => {
+      const items = [...fixture.nativeElement.querySelectorAll('.bucket-legend li')];
+      expect(items.length).toBe(3);
+      const labels = items.map((li: Element) => li.querySelector('.bucket-label')?.textContent?.trim());
+      expect(labels).toEqual([
+        'Structure & exterior',
+        'Interior & home systems',
+        'Design, permits & contingency',
+      ]);
+      for (const li of items) {
+        expect(li.querySelector('.bucket-amount')?.textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
+      }
+      expect(fixture.nativeElement.querySelectorAll('.buckets-bar .bucket-seg').length).toBe(3);
+      expect(text()).not.toContain('Site preparation & excavation');
+    });
+
+    it('shows no margin percentages', () => {
       expect(text()).not.toMatch(/%/);
     });
 
-    it('tier what-if re-runs the estimate through the API', async () => {
-      const before = store.selectSnapshot(ReportState.snapshot)!;
-      tierButton('Luxury').click();
-      await pollFor(
-        () => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury',
-        'luxury revision',
-      );
-      const after = store.selectSnapshot(ReportState.snapshot)!;
-      expect(after.totalRange.low).toBeGreaterThan(before.totalRange.low);
-      expect(after.version).toBe(before.version + 1);
-      expect(tierButton('Luxury').classList.contains('selected')).toBe(true);
+    it('renders the deterministic AI narrative (never "coming soon")', () => {
+      const narrative = fixture.nativeElement.querySelector('.narrative');
+      expect(narrative).not.toBeNull();
+      expect(narrative.textContent).toContain('At 2,200 sq ft with premium finishes');
+      expect(narrative.textContent).toContain('$1,092,000');
+      // The deterministic disclaimer rides along with the narrative.
+      expect(narrative.textContent).toContain('not generated by AI');
+      expect(text()).not.toContain('coming soon');
     });
 
-    it('sqft stepper re-runs the estimate with the new size', async () => {
-      const plus = [...fixture.nativeElement.querySelectorAll('.step-btn')].find((b: Element) =>
-        b.textContent?.includes('+'),
-      ) as HTMLButtonElement;
+    it('renders the three mockup next steps (generic builder intro, no builder-sharing language)', () => {
+      const steps = [...fixture.nativeElement.querySelectorAll('.steps li strong')].map((el: Element) =>
+        el.textContent?.trim(),
+      );
+      expect(steps).toEqual(['Confirm site feasibility', 'Refine your project brief', 'Meet the right builder']);
+      expect(text()).not.toContain('Share this report with');
+    });
+
+    it('stepper tap updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {
+      const before = store.selectSnapshot(ReportState.snapshot)!;
+      stepButton('+').click();
+      fixture.detectChanges();
+      // Draft updates immediately — no waiting for the backend.
+      expect(text()).toContain('2,250 sq ft');
+      // …but the revision is debounced: the snapshot still holds the old size.
+      expect(store.selectSnapshot(ReportState.snapshot)?.inputs.sqft).toBe(2200);
+      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2250, 'sqft revision');
+      const after = store.selectSnapshot(ReportState.snapshot)!;
+      expect(after.version).toBe(before.version + 1);
+      // Every figure refreshed: hero total, planning range, build cost, narrative.
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.hero-total .hero-value')?.textContent?.trim()).toBe('$1,107,000');
+      expect(fixture.nativeElement.querySelector('.narrative')?.textContent).toContain('At 2,250 sq ft');
+      expect(fixture.nativeElement.querySelector('.build-highlight')?.textContent).toContain('$687,000');
+    });
+
+    it('coalesces rapid stepper taps into a single revision', async () => {
+      const before = store.selectSnapshot(ReportState.snapshot)!;
+      const plus = stepButton('+');
+      plus.click();
+      plus.click();
       plus.click();
       fixture.detectChanges();
-      expect(text()).toContain('2,250 sq ft');
-      const rerun = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
-        b.textContent?.includes('Re-run'),
+      expect(text()).toContain('2,350 sq ft');
+      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2350, 'coalesced revision');
+      // One revision, not three.
+      expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(before.version + 1);
+    });
+
+    it('share opens a mailto: draft with the current size and exact numbers', () => {
+      const email = fixture.nativeElement.querySelector('.card input[type="email"]') as HTMLInputElement;
+      const share = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
+        b.textContent?.trim() === 'Open email draft',
       ) as HTMLButtonElement;
-      rerun.click();
-      await pollFor(
-        () => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2250,
-        'sqft revision',
-      );
-      expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(2);
-    });
-
-    it('shows the AI narrative placeholder with the deterministic disclaimer, never mock narrative', () => {
-      expect(text()).toContain('coming soon');
-      expect(text()).toContain(
-        'Dollar figures are calculated deterministically from our cost model — not generated by AI.',
-      );
-      expect(text()).not.toContain('infill home on this lot');
-    });
-
-    it('renders the next-3-steps checklist', () => {
-      const steps = fixture.nativeElement.querySelectorAll('.steps li');
-      expect(steps.length).toBe(3);
-    });
-
-    it('partner share validates email and sends', async () => {
-      const email = fixture.nativeElement.querySelector('input[type="email"]') as HTMLInputElement;
-      const send = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
-        b.textContent?.trim() === 'Send report',
-      ) as HTMLButtonElement;
-      send.click();
+      expect(share).toBeTruthy();
+      // Invalid email → inline validation, no draft opened.
+      share.click();
       fixture.detectChanges();
-      await pollFor(() => text().includes('Enter a valid email address'), 'share validation');
+      expect(text()).toContain('Enter a valid email address.');
+      expect(navigations.length).toBe(0);
+      // Valid email → the mailto: draft opens with the current figures.
       email.value = 'partner@example.com';
       email.dispatchEvent(new Event('input'));
-      send.click();
-      await pollFor(() => text().includes('their own secure link'), 'share sent');
+      fixture.detectChanges();
+      share.click();
+      expect(navigations.length).toBe(1);
+      const href = navigations[0];
+      expect(href.startsWith('mailto:partner%40example.com?')).toBe(true);
+      const body = decodeURIComponent(href.split('body=')[1]);
+      expect(body).toContain('Living area: 2,200 sq ft (Premium finishes)');
+      expect(body).toContain('Total investment: $1,092,000');
+      expect(body).toContain('Likely planning range: $1,028,000–$1,155,000');
     });
 
     it('callback request validates and sends', async () => {

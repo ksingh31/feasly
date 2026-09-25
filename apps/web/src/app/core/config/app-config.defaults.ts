@@ -49,6 +49,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   timings: {
     debounceMs: 250,
+    reviseDebounceMs: 400,
     resendCooldownSec: 60,
     mockLatencyMinMs: 400,
     mockLatencyMaxMs: 900,
@@ -184,10 +185,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     report: {
       heading: 'Your build estimate',
       subPreGate: 'Your preview is ready — unlock it to see the full numbers.',
-      subPostGate: 'Full range-based estimate for your Calgary infill build.',
+      subPostGate: 'Your personalized build estimate for this Calgary property.',
       totalLabel: 'Total investment',
+      planningRangeLabel: 'Likely planning range',
       buildLabel: 'Build cost',
+      buildCostNote: 'Construction only — excludes land.',
       landLabel: 'Land (assessed value)',
+      landFixedNote: 'City of Calgary assessment · not a cost range',
       lowLabel: 'Low',
       baseLabel: 'Base',
       highLabel: 'High',
@@ -198,46 +202,54 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       pendingSub: 'Your magic link is on its way.',
       pendingNote:
         'We emailed your magic link — click the link in the email to unlock your full numbers.',
-      breakdownTitle: 'Cost breakdown',
-      breakdownLocked: 'The itemized breakdown unlocks with your full report.',
-      landRowLabel: 'Land (assessed value)',
+      breakdownTitle: 'Where the build budget goes',
+      breakdownLocked: 'The breakdown unlocks with your full report.',
+      finishLevelLabel: 'Selected finish level',
       tierTitle: 'What if you change the finish tier?',
-      tierHint:
-        'Switch tiers to re-run the estimate. The range moves because the finishes change — that is where the variance lives.',
       tierLockedNote: 'Unlock your report to explore finish tiers.',
       adjustTitle: 'Adjust the size',
       decreaseLabel: 'Decrease square footage',
       increaseLabel: 'Increase square footage',
-      adjustHint: 'Change the living area and re-run the estimate with the new size.',
+      adjustHint: 'Tap to change the living area — every figure on this page updates automatically.',
       adjustUnit: 'sq ft',
       adjustCta: 'Re-run estimate',
       adjustLockedNote: 'Unlock your report to adjust the size.',
-      rerunningLabel: 'Re-running estimate…',
+      updatingLabel: 'Updating your estimate…',
+      perSqftUnit: 'per sq ft',
       narrativeTitle: 'AI summary',
       narrativeComingSoon:
         'An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.',
+      aiSummaryLocked: 'Unlock your report to read the AI summary of your estimate.',
       stepsTitle: 'Your next 3 steps',
       steps: [
         {
-          title: 'Talk to a builder',
-          body: 'Share this report with 2–3 Calgary infill builders and ask for detailed quotes against the same scope.',
+          title: 'Confirm site feasibility',
+          body: 'Walk the lot with a builder or designer and confirm setbacks, servicing, and access before you spend on drawings. Surprises live in the site, not the spreadsheet.',
         },
         {
-          title: 'Confirm financing',
-          body: 'Take the total range to your mortgage broker to confirm what you can carry before you commit to land or a builder.',
+          title: 'Refine your project brief',
+          body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
         },
         {
-          title: 'Verify zoning and permits',
-          body: 'Confirm the lot zoning and permit requirements with the City of Calgary before you buy or demolish.',
+          title: 'Meet the right builder',
+          body: 'When you are ready, we will introduce you to Calgary infill builders matched to your project. No cold calls, no pressure — an intro only when it helps.',
         },
       ],
-      shareTitle: 'Share with a partner',
-      shareHint: 'Email this report to a partner — they receive their own secure link.',
-      shareEmailLabel: 'Partner email',
-      shareCta: 'Send report',
-      shareSuccess: 'Report sent — your partner now has their own secure link.',
-      shareError: 'We could not send the report. Please try again in a moment.',
+      shareTitle: 'Share your estimate',
+      shareHint: 'Open an email draft with the current size and exact numbers — your mail app sends it.',
+      shareEmailLabel: 'Recipient email',
+      shareCta: 'Open email draft',
       shareInvalid: 'Enter a valid email address.',
+      shareSubject: 'My Feasly build estimate',
+      shareBodyTemplate:
+        'Feasly build estimate for {address}:\n\n' +
+        'Living area: {sqft} sq ft ({tierLabel} finishes)\n' +
+        'Total investment: {total}\n' +
+        '{planningRangeLabel}: {rangeLow}–{rangeHigh}\n' +
+        '{buildLabel}: {build}\n' +
+        '{landLabel}: {land} ({landFixedNote})\n\n' +
+        '{bodyClose}',
+      shareBodyClose: 'Planning figures only — not a quote.',
       callbackTitle: 'Prefer to talk it through?',
       callbackHint: 'Request a callback and we will walk through the numbers with you.',
       callbackNameLabel: 'Your name',

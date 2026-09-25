@@ -143,11 +143,13 @@ describe('drizzle stores', () => {
     });
     expect(hit?.id).toBe(inserted.id);
 
-    // Outside the window → not found.
+    // Outside the window → not found. `since` is pinned just after "now"
+    // (the insert happened milliseconds ago) so this stays correct no
+    // matter what calendar day the suite runs on.
     const miss = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date('2026-09-25T00:00:00Z'),
+      since: new Date(Date.now() + 60_000),
     });
     expect(miss).toBeNull();
 

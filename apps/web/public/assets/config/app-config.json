@@ -296,7 +296,8 @@
     "debounceMs": 250,
     "mockLatencyMaxMs": 900,
     "mockLatencyMinMs": 400,
-    "resendCooldownSec": 60
+    "resendCooldownSec": 60,
+    "reviseDebounceMs": 400
   },
   "wizard": {
     "sqftDefault": 2200,

@@ -2,7 +2,7 @@
  * Formula-correctness tests for the deterministic cost engine.
  *
  * Expected values below are hand-derived from the placeholder data file
- * (v0.1.0-unclibrated) — if the data file changes, these expectations must
+ * (v0.2.0-unclibrated) — if the data file changes, these expectations must
  * be re-derived, which is exactly the point: the tests pin the math.
  */
 import { describe, expect, it } from 'vitest';
@@ -35,9 +35,11 @@ describe('createEstimate — formula correctness (placeholder data)', () => {
     expect(result.rows[result.rows.length - 1]?.key).toBe('contingency');
   });
 
-  it('prices land from the assessed value with the configured spread', () => {
-    // 300000 ± 5%
-    expect(rowByKey(result, 'land').range).toEqual({ low: 285_000, base: 300_000, high: 315_000 });
+  it('prices land as the fixed assessed value — no spread', () => {
+    // 300000 fixed: the breakdown row carries a degenerate range, and the
+    // top-level land figure is a single fixed amount.
+    expect(rowByKey(result, 'land').range).toEqual({ low: 300_000, base: 300_000, high: 300_000 });
+    expect(result.totals.land).toEqual({ value: 300_000 });
   });
 
   it('scales lot-based categories by lot size', () => {
@@ -88,7 +90,7 @@ describe('createEstimate — formula correctness (placeholder data)', () => {
   it('rolls rows up into build / land / total', () => {
     // build base = 191000 + 14325 + 20533 = 225858
     expect(result.totals.build.base).toBe(225_858);
-    expect(result.totals.land.base).toBe(300_000);
+    expect(result.totals.land.value).toBe(300_000);
     expect(result.totals.total.base).toBe(525_858);
     // totals are the sums of the row bands
     const sumBase = result.rows.reduce((acc, row) => acc + row.range.base, 0);
@@ -120,10 +122,12 @@ describe('createEstimate — range ordering', () => {
         expect(row.range.low).toBeLessThanOrEqual(row.range.base);
         expect(row.range.base).toBeLessThanOrEqual(row.range.high);
       }
-      for (const total of Object.values(result.totals)) {
+      for (const total of [result.totals.build, result.totals.total]) {
         expect(total.low).toBeLessThanOrEqual(total.base);
         expect(total.base).toBeLessThanOrEqual(total.high);
       }
+      // Land is a fixed figure, not a range — it equals the assessed value.
+      expect(result.totals.land.value).toBe(300_000);
     });
   }
 });
@@ -146,7 +150,7 @@ describe('createEstimate — version pin', () => {
   it('pins the cost-data version and calibration flag on every estimate', () => {
     const result = createEstimate(standardInput(), DATA);
     expect(result.costDataVersion).toBe(DATA.version);
-    expect(result.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.2.0-unclibrated');
     expect(result.calibrated).toBe(false);
   });
 });
