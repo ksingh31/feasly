@@ -131,6 +131,11 @@ const EnvSchema = z.object({
   // LLM model for narratives. Default is the Meta Llama 3.3 70B instruct
   // model; overridable without a code change.
   NARRATIVE_MODEL: z.string().default('llama-3.3-70b-versatile'),
+  // Meta API endpoint (OpenAI-compatible chat completions). Overridable
+  // for tests; default is the Meta Llama API endpoint.
+  NARRATIVE_META_ENDPOINT: z
+    .string()
+    .default('https://api.llama.com/v1/chat/completions'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -424,6 +429,8 @@ export interface NarrativeConfig {
   readonly metaApiKey: string;
   /** LLM model name for narratives. */
   readonly model: string;
+  /** Meta API endpoint (OpenAI-compatible chat completions). */
+  readonly metaEndpoint: string;
 }
 
 export interface ApiConfig {
@@ -680,6 +687,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       provider: e.NARRATIVE_PROVIDER,
       metaApiKey: e.NARRATIVE_META_API_KEY,
       model: e.NARRATIVE_MODEL,
+      metaEndpoint: e.NARRATIVE_META_ENDPOINT,
     },
   };
 }

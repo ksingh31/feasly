@@ -637,6 +637,7 @@ export function createComposition(
       ? createMetaNarrativeProvider({
           apiKey: config.narrative.metaApiKey || undefined,
           model: config.narrative.model,
+          endpoint: config.narrative.metaEndpoint,
         })
       : createLogNarrativeProvider();
   if (config.env === 'production' && config.narrative.provider === 'log') {

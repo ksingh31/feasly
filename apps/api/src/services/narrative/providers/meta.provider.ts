@@ -23,8 +23,6 @@ import {
   type NarrativeProviderResult,
 } from '../narrative.types';
 
-/** Meta Llama API chat-completions endpoint (OpenAI-compatible). */
-const META_API_ENDPOINT = 'https://api.llama.com/v1/chat/completions';
 
 export interface MetaNarrativeProviderDeps {
   /**
@@ -34,6 +32,8 @@ export interface MetaNarrativeProviderDeps {
   readonly apiKey?: string;
   /** Model name, e.g. 'llama-3.3-70b-versatile'. */
   readonly model: string;
+  /** API endpoint (from NARRATIVE_META_ENDPOINT config). */
+  readonly endpoint?: string;
   /** Fetch implementation (injected for tests). */
   readonly fetchImpl?: typeof fetch;
 }
@@ -42,6 +42,14 @@ export function createMetaNarrativeProvider(
   deps: MetaNarrativeProviderDeps,
 ): NarrativeProvider {
   const fetchImpl = deps.fetchImpl ?? fetch;
+  // Endpoint comes from NARRATIVE_META_ENDPOINT config (no hardcoded default
+  // in services/ — the boundaries test forbids URL literals here).
+  const endpoint = deps.endpoint;
+  if (!endpoint) {
+    throw new NarrativeProviderError(
+      'NARRATIVE_META_ENDPOINT is not configured.',
+    );
+  }
   return {
     async generate(
       prompt: NarrativePrompt,
@@ -53,7 +61,7 @@ export function createMetaNarrativeProvider(
       }
       let res: Response;
       try {
-        res = await fetchImpl(META_API_ENDPOINT, {
+        res = await fetchImpl(endpoint, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',

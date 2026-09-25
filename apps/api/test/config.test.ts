@@ -92,6 +92,12 @@ describe('loadConfig', () => {
         apiScope: 'https://www.googleapis.com/auth/spreadsheets',
         enabled: false,
       },
+      narrative: {
+        provider: 'log',
+        metaApiKey: '',
+        model: 'llama-3.3-70b-versatile',
+        metaEndpoint: 'https://api.llama.com/v1/chat/completions',
+      },
     });
   });
 

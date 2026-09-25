@@ -1261,6 +1261,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/privacy/export` | magic-token | 100/min per IP | live | PIPEDA data export for the token holder. |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | 10/min per IP | live | Confirm an erasure request (second factor via email link). |
+| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | 100/min per IP + 5/day per estimate (cost guard) | live | Generate (or return cached) the AI narrative for an estimate. LLM writes narrative only; figures are deterministic. |
 | GET | `/api/v1/unsubscribe/{token}` | magic-token | 100/min per IP | live | Unsubscribe landing state (token IS the credential). |
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | 10/min per IP | live | Record the opt-out (CASL). |
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |

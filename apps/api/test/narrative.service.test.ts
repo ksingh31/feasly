@@ -342,7 +342,10 @@ describe('log narrative provider', () => {
 
 describe('meta narrative provider', () => {
   it('fails closed without API key', async () => {
-    const provider = createMetaNarrativeProvider({ model: 'test-model' });
+    const provider = createMetaNarrativeProvider({
+      model: 'test-model',
+      endpoint: 'https://example.com/v1/chat/completions',
+    });
     const prompt: NarrativePrompt = {
       system: 'System',
       user: 'User',
@@ -354,6 +357,7 @@ describe('meta narrative provider', () => {
     const provider = createMetaNarrativeProvider({
       apiKey: 'secret-key-12345',
       model: 'test-model',
+      endpoint: 'https://example.com/v1/chat/completions',
       fetchImpl: async () => {
         throw new Error('Network failed with secret-key-12345 in message');
       },
