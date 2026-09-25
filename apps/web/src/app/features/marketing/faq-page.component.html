@@ -1,0 +1,34 @@
+<app-site-nav />
+<main class="marketing" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede">{{ copy.sub }}</p>
+
+  <div class="faq-list">
+    @for (item of copy.items; track item.q; let i = $index) {
+      <div class="faq-item" [class.open]="openIndex() === i">
+        <button
+          type="button"
+          class="faq-q"
+          [attr.aria-expanded]="openIndex() === i"
+          [attr.aria-controls]="'faq-a-' + i"
+          (click)="toggle(i)"
+        >
+          {{ item.q }}
+          <span class="faq-chevron" aria-hidden="true">›</span>
+        </button>
+        <div class="faq-a" [id]="'faq-a-' + i" [hidden]="openIndex() !== i">
+          <p>{{ item.a }}</p>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="cta-row">
+    <a class="cta" routerLink="/">Get my free estimate →</a>
+  </div>
+</main>
+<app-site-footer />

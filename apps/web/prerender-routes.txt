@@ -1,5 +1,7 @@
 /
 /privacy
 /terms
+/how-it-works
+/faq
 /404
 /sample-report

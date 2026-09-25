@@ -84,6 +84,29 @@ export class SeoService {
   }
 
   /**
+   * Injects (or replaces) a `script[type="application/ld+json"]` tag in
+   * `<head>` — used for per-page structured data such as FAQPage (SEO-010).
+   * SSR-safe: renders into the prerendered HTML via DOCUMENT. Passing
+   * `null` removes the tag (for routes that must not carry structured data).
+   */
+  setJsonLd(data: Record<string, unknown> | null): void {
+    const head = this.document.head;
+    const existing = head.querySelector('script[type="application/ld+json"]');
+    if (data === null) {
+      existing?.remove();
+      return;
+    }
+    const script = this.document.createElement('script');
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify(data);
+    if (existing) {
+      existing.replaceWith(script);
+    } else {
+      head.appendChild(script);
+    }
+  }
+
+  /**
    * Canonical origin for absolute tags, in priority order:
    * 1. `SITE_URL` build-time env var (present during prerender/SSR in Node),
    * 2. `site.url` from the served config (written by tools/apply-site-url.mjs),

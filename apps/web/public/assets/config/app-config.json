@@ -193,6 +193,10 @@
       "privacy": "How Feasly collects, uses, and protects your information when you generate a build estimate.",
       "termsTitle": "Feasly — Terms of Use",
       "terms": "The terms that apply when you use Feasly to generate a build estimate.",
+      "howItWorksTitle": "Feasly — How it works",
+      "howItWorks": "How Feasly builds your Calgary infill estimate in 4 steps: address, scope, preview, unlock. Deterministic math, real City data.",
+      "faqTitle": "Feasly — Frequently asked questions",
+      "faq": "Is Feasly free? What data do you use? How accurate are estimates? Answers about Calgary infill estimates, privacy, and magic links.",
       "reportTitle": "Feasly — Your build estimate report",
       "report": "Your range-based Calgary infill build estimate: cost breakdown, tier scenarios, and next steps.",
       "notFoundTitle": "Feasly — Page not found",
@@ -277,6 +281,70 @@
       "loadError": "We could not load your report. Please try again in a moment.",
       "retryLabel": "Try again",
       "versionLabel": "Report version"
+    },
+    "marketing": {
+      "howItWorks": {
+        "eyebrow": "How it works",
+        "title": "From address to estimate in about 2 minutes",
+        "sub": "No account, no phone calls, no salesperson. Just your address and a few project details.",
+        "steps": [
+          {
+            "n": "01",
+            "title": "Enter your Calgary address",
+            "body": "We pull your City of Calgary property record — lot size, zoning, and assessed land value. Only Calgary addresses are supported right now."
+          },
+          {
+            "n": "02",
+            "title": "Configure your scope",
+            "body": "Tell us about the project: new build or renovation, living area, finish tier, garage, and basement. Rough figures are fine — you can adjust them later."
+          },
+          {
+            "n": "03",
+            "title": "Preview your estimate",
+            "body": "See a blurred preview of your build-cost range before you share anything. No email required to look."
+          },
+          {
+            "n": "04",
+            "title": "Unlock your full report",
+            "body": "Enter your email and we send a magic link that unlocks the complete report: total investment, cost breakdown, and next steps. The link is valid for 7 days."
+          }
+        ],
+        "mathNoteTitle": "Real math, not guesses",
+        "mathNoteBody": "Every dollar figure in your estimate is produced by deterministic math from current cost data and your City property record. Our AI writes the narrative summary only — it never invents prices. Figures are planning ranges, not quotes or appraisals: your final cost depends on your builder, finishes, and market conditions.",
+        "ctaNewBuild": "Start a new-build estimate →",
+        "ctaReno": "Start a renovation estimate →"
+      },
+      "faq": {
+        "eyebrow": "FAQ",
+        "title": "Frequently asked questions",
+        "sub": "The short answers about Feasly, your data, and your estimate.",
+        "items": [
+          {
+            "q": "Is Feasly free?",
+            "a": "There is no charge to generate an estimate or unlock your full report."
+          },
+          {
+            "q": "What data do you use for my estimate?",
+            "a": "Your City of Calgary property assessment record (lot size, zoning, assessed land value) plus the project details you enter. Cost figures come from current construction cost data applied with deterministic math — no AI-generated prices."
+          },
+          {
+            "q": "How accurate are the estimates?",
+            "a": "Estimates are planning ranges, not quotes or appraisals. They give you a realistic budget window before you talk to builders. Your final cost depends on your builder, finish choices, and market conditions at build time."
+          },
+          {
+            "q": "Who sees my information?",
+            "a": "Only you, until you ask us to share it. Your email unlocks your report via a magic link; we never sell your information. See our Privacy Policy for the full details."
+          },
+          {
+            "q": "Do you support addresses outside Calgary?",
+            "a": "Not yet — Feasly only supports Calgary addresses right now, because our cost data and property records are Calgary-specific. Enter a non-Calgary address and we’ll tell you plainly instead of guessing."
+          },
+          {
+            "q": "How does the magic link work?",
+            "a": "After you enter your email at the gate, we send a link that unlocks your full report — no password to remember. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one."
+          }
+        ]
+      }
     }
   },
   "features": {

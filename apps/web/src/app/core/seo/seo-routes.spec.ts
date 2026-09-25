@@ -11,6 +11,11 @@ describe('seo-routes', () => {
     expect(findSeoRoute('privacy').titleKey).toBe('privacyTitle');
     expect(findSeoRoute('/terms/').titleKey).toBe('termsTitle');
     expect(findSeoRoute('').noindex).toBeFalsy();
+    // Marketing pages (SEO-010): indexable, own title/description keys.
+    expect(findSeoRoute('how-it-works').titleKey).toBe('howItWorksTitle');
+    expect(findSeoRoute('how-it-works').noindex).toBeFalsy();
+    expect(findSeoRoute('/faq/').titleKey).toBe('faqTitle');
+    expect(findSeoRoute('faq').noindex).toBeFalsy();
   });
 
   it('matches :param segments', () => {

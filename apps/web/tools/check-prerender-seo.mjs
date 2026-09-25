@@ -70,7 +70,8 @@ function mustCanonical(html, route, expectedPath) {
 }
 
 // --- Indexable routes: full tag set + trailing-slash canonical. ---
-for (const route of ['/', '/privacy', '/terms', '/404']) {
+// SEO-010 added /how-it-works and /faq: same bar as the other indexable pages.
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/404']) {
   const html = htmlFor(route);
   const expectedPath = route === '/' ? '/' : `${route}/`;
   mustCanonical(html, route, expectedPath);
@@ -109,9 +110,63 @@ for (const route of ['/', '/privacy', '/terms', '/404']) {
 }
 
 // --- Indexable routes must NOT be noindexed. ---
-for (const route of ['/', '/privacy', '/terms']) {
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq']) {
   const html = htmlFor(route);
   mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
+}
+
+// --- FAQ JSON-LD (SEO-010): valid FAQPage schema mirroring the visible Q&A. ---
+{
+  const html = htmlFor('/faq');
+  if (html !== null) {
+    const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+    if (scripts.length === 0) {
+      failures.push('"/faq" missing application/ld+json script');
+    } else {
+      let data = null;
+      try {
+        data = JSON.parse(scripts[0][1]);
+      } catch {
+        failures.push('"/faq" ld+json is not valid JSON');
+      }
+      if (data !== null) {
+        if (data['@type'] !== 'FAQPage') {
+          failures.push(`"/faq" ld+json @type is "${data['@type']}", must be FAQPage`);
+        }
+        const entities = data.mainEntity ?? [];
+        if (!Array.isArray(entities) || entities.length === 0) {
+          failures.push('"/faq" ld+json mainEntity is empty');
+        }
+        for (const entity of entities) {
+          const q = entity?.name ?? '';
+          const a = entity?.acceptedAnswer?.text ?? '';
+          if (!q || !html.includes(q)) {
+            failures.push(`"/faq" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
+          }
+          if (!a) {
+            failures.push(`"/faq" ld+json answer missing for question: "${String(q).slice(0, 50)}"`);
+          }
+        }
+      }
+    }
+  }
+}
+
+// --- Marketing copy lint (SEO-010): no accuracy guarantees, no "free
+// forever" claims on the new pages (hardening/05 owns the full sweep later).
+{
+  const banned = [/%\s*accurate/i, /guaranteed?\s+(estimate|price|cost)/i, /free\s+forever/i, /always\s+free/i];
+  for (const route of ['/how-it-works', '/faq']) {
+    const html = htmlFor(route);
+    if (html === null) continue;
+    const text = html.replace(/<[^>]*>/g, ' ');
+    for (const pattern of banned) {
+      const hit = text.match(pattern);
+      if (hit) {
+        failures.push(`"${route}" copy trips the banned-phrase lint: "${hit[0]}"`);
+      }
+    }
+  }
 }
 
 // --- OG image: checked-in 1200x630 asset (verified with `file`; PNG header
