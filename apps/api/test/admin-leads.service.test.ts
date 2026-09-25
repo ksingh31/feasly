@@ -19,7 +19,7 @@ import {
 import type { AdminLeadsStore, AdminLeadRow } from '../src/services/admin-leads.store';
 import type { LeadStore } from '../src/services/lead.store';
 import type { EstimateStore } from '../src/services/estimate.store';
-import type { AdminAuditStore } from '../src/services/admin-auth.service';
+import type { AdminAuditStore } from '../src/services/admin-audit.store';
 
 const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
 
@@ -66,6 +66,14 @@ function makeDeps(overrides?: Partial<AdminLeadsServiceDeps>): AdminLeadsService
   } as unknown as EstimateStore;
   const audit: AdminAuditStore = {
     log: vi.fn().mockResolvedValue(undefined),
+    append: vi.fn(async (args) => ({
+      id: 'audit-1',
+      action: args.action,
+      actorEmail: args.actorEmail,
+      detail: args.detail ?? null,
+      createdAt: new Date(),
+    })),
+    recent: vi.fn(async () => []),
   };
 
   return {

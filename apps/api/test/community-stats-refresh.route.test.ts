@@ -49,6 +49,7 @@ function makeDeps(
       };
     }),
     recent: vi.fn(async () => []),
+    log: vi.fn(async () => {}),
   };
   return {
     appended,
