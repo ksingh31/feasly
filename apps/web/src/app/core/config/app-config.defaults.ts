@@ -529,5 +529,46 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       accept: 'Accept analytics',
       decline: 'Decline',
     },
+    communities: {
+      illustrativeBanner:
+        'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
+      titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
+      descriptionTemplate:
+        'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value, Standard/Premium/Luxury build ranges, and FAQs.',
+      statLabel: 'Average City-assessed value (not market value)',
+      statNote:
+        'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and can differ from actual sale prices.',
+      basisNote:
+        'City-assessed basis: land is the community average City-assessed value (a fixed fact, not a range). Build ranges assume 2,400 sqft of above-grade living area.',
+      tierSectionTitle: 'What it costs to build in {name}',
+      tierSectionSub: 'Planning ranges for a typical new build, by finish tier.',
+      faqTitle: 'Common questions',
+      faqItems: [
+        {
+          q: 'What does the cost range cover?',
+          a: 'The range covers construction of a typical new home (2,400 sqft above grade) plus the community average City-assessed land value. It is a planning budget, not a builder quote — get your address-specific estimate for figures tuned to your lot.',
+        },
+        {
+          q: 'What is the difference between assessed value and sale price?',
+          a: 'The City-assessed value is set by the City of Calgary for property tax purposes. Sale price is what a buyer actually pays. The two often differ — assessments can lag behind real sales. We use assessed values because they are public, consistent, and available for every property.',
+        },
+        {
+          q: 'Why do you show ranges instead of a fixed price?',
+          a: 'Build costs depend on choices you have not made yet: your builder, finish tier, and market conditions at build time. A range is the honest answer at this stage. Your address-specific estimate narrows it using your actual lot and project details.',
+        },
+        {
+          q: 'What is not included in these figures?',
+          a: 'The ranges exclude demolition of an existing structure, unusual soil or servicing work, permit and development fees beyond typical allowances, financing costs, and GST. Your full report itemizes what is and is not covered.',
+        },
+        {
+          q: 'What is the next step?',
+          a: 'Run your address-specific estimate — it takes about 2 minutes and uses your actual City property record. You will get a full report with a three-bucket cost breakdown and your next three steps.',
+        },
+      ],
+      ctaTitle: 'Building in {name}?',
+      ctaBody:
+        'Get figures for your actual lot — assessed land value, lot size, and zoning pulled from your City property record.',
+      ctaLabel: 'Get your address-specific estimate →',
+    },
   },
 };
