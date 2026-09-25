@@ -222,6 +222,10 @@ import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
 } from './routes/stripe-webhooks.route';
+import {
+  createMcpRoute,
+  type McpRoute,
+} from './routes/mcp.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -327,6 +331,8 @@ export interface AppComposition {
   /** Tight limiter + pipeline for the Stripe webhook receiver. */
   readonly webhookRateLimiter: RateLimiter;
   readonly webhookPipeline: RequestPipeline;
+  /** MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1. */
+  readonly mcpRoute: McpRoute;
 }
 
 export interface CompositionOptions {
@@ -827,6 +833,15 @@ export function createComposition(
     rateLimiter: webhookRateLimiter,
     logger: options.logger,
   });
+  // MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1.
+  // Thin wrapper over the shared services — the MCP package owns the
+  // protocol, this route owns the wiring (auth + services).
+  const mcpRoute: McpRoute = createMcpRoute({
+    apiKeys: apiKeyService,
+    property: propertyService,
+    estimate: estimateService,
+    leads: leadService,
+  });
   return {
     config,
     db,
@@ -893,6 +908,7 @@ export function createComposition(
     stripeWebhooksRoute,
     webhookRateLimiter,
     webhookPipeline,
+    mcpRoute,
   };
 }
 

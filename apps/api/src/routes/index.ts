@@ -9,3 +9,4 @@ export * from './analytics.route';
 export * from './property.route';
 export * from './openapi.route';
 export * from './usage.route';
+export * from './mcp.route';

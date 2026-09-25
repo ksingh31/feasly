@@ -2,5 +2,24 @@
   "name": "@feasly/mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "MCP server — thin wrapper over @feasly/cost-engine + @feasly/contracts (epic 07)."
+  "description": "MCP server \u2014 thin wrapper over @feasly/cost-engine + @feasly/contracts (epic 07).",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "feasly-mcp": "./dist/stdio.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@feasly/contracts": "^0.3.0",
+    "@feasly/cost-engine": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^5.0.1"
+  }
 }

@@ -1,0 +1,205 @@
+/**
+ * MCP tool definitions (api-mcp/06).
+ *
+ * Three tools, each a thin wrapper over the shared backend services:
+ * - get_property → PropertyService (autocomplete + lookup)
+ * - estimate_project → EstimateService (deterministic cost engine)
+ * - submit_lead → LeadService (lead capture with 90-day dedupe)
+ *
+ * Tool input schemas mirror the REST API's accepted shapes. The services
+ * perform their own zod validation (same as REST) — the MCP schemas are
+ * the protocol-level contract, the services are the enforcement.
+ *
+ * Zero cost-math here: no rate tables, no band constants. The engine lives
+ * in @feasly/cost-engine and is called via EstimateService.
+ */
+
+import { z } from 'zod';
+import type {
+  McpAuthContext,
+  McpServerDeps,
+  McpToolName,
+} from './types.js';
+import { TOOL_SCOPES } from './types.js';
+
+/**
+ * Deterministic-math disclaimer — every tool description carries this.
+ * No accuracy promises, per the story's copy-lint requirement.
+ */
+const DETERMINISTIC_DISCLAIMER =
+  ' Figures are produced by a deterministic cost model, not an AI estimate.' +
+  ' No accuracy percentage is claimed — figures are illustrative ranges' +
+  ' until calibrated against builder data.';
+
+/** get_property: addressKey for exact lookup, query for autocomplete. */
+const GetPropertyShape = {
+  addressKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Exact address key for a full property record lookup.'),
+  query: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Partial address query for autocomplete suggestions.'),
+};
+
+export const GetPropertyInputSchema = z.object(GetPropertyShape);
+
+export type GetPropertyInput = z.infer<typeof GetPropertyInputSchema>;
+
+/**
+ * estimate_project: same shape as POST /api/v1/estimate.
+ * The EstimateService validates the full shape (new_build | renovation).
+ */
+const EstimateProjectShape = {
+  projectType: z
+    .enum(['new_build', 'renovation'])
+    .describe('Type of project to estimate.'),
+  property: z
+    .object({
+      addressKey: z.string().trim().min(1).max(200),
+      assessedLandValue: z.number().int().positive(),
+      lotSizeSqft: z.number().int().positive(),
+      zoning: z.string().trim().min(1),
+    })
+    .describe('Property details from get_property.'),
+  scope: z
+    .object({
+      buildSqft: z.number().int().positive(),
+      tier: z.enum(['standard', 'premium', 'luxury']),
+      garage: z.enum(['none', 'double', 'triple']).optional(),
+      basement: z.enum(['unfinished', 'finished']).optional(),
+    })
+    .describe('Build scope.'),
+};
+
+export const EstimateProjectInputSchema = z.object(EstimateProjectShape);
+
+export type EstimateProjectInput = z.infer<typeof EstimateProjectInputSchema>;
+
+/**
+ * submit_lead: same shape as POST /api/v1/leads, plus optional
+ * idempotency key. Dedupe matches REST: 90-day window on email + address.
+ */
+const SubmitLeadShape = {
+  estimateId: z.string().uuid().describe('Estimate ID from estimate_project.'),
+  email: z.string().email().describe('Lead email address.'),
+  name: z.string().trim().min(1).max(200).optional().describe('Lead name.'),
+  phone: z.string().trim().max(50).optional().describe('Lead phone (optional).'),
+  idempotencyKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Client-generated idempotency key. Same payload + key twice yields one lead row (90-day dedupe).',
+    ),
+};
+
+export const SubmitLeadInputSchema = z.object(SubmitLeadShape);
+
+export type SubmitLeadInput = z.infer<typeof SubmitLeadInputSchema>;
+
+/** Tool metadata for registration. */
+export interface ToolDefinition {
+  readonly name: McpToolName;
+  readonly description: string;
+  readonly inputShape: Record<string, z.ZodTypeAny>;
+}
+
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+  {
+    name: 'get_property',
+    description:
+      'Look up a Calgary property by exact address key, or get autocomplete' +
+      ' suggestions for a partial query. Returns City-assessed values and' +
+      ' property details from public open data.' +
+      DETERMINISTIC_DISCLAIMER,
+    inputShape: GetPropertyShape,
+  },
+  {
+    name: 'estimate_project',
+    description:
+      'Generate a deterministic build-cost estimate for a new build or' +
+      ' renovation project. Uses the same engine as the web UI.' +
+      DETERMINISTIC_DISCLAIMER,
+    inputShape: EstimateProjectShape,
+  },
+  {
+    name: 'submit_lead',
+    description:
+      'Capture a lead for a generated estimate. Triggers the magic-link' +
+      ' verification flow. Idempotent within a 90-day window on email + address.' +
+      DETERMINISTIC_DISCLAIMER,
+    inputShape: SubmitLeadShape,
+  },
+];
+
+/**
+ * Scope gate for tool calls. Throws when the auth context lacks the
+ * required scope. When no auth context is present (stdio local tooling),
+ * the check is skipped.
+ */
+export function requireToolScope(
+  auth: McpAuthContext | undefined,
+  toolName: McpToolName,
+): void {
+  if (!auth) return; // stdio: trusted local access
+  const required = TOOL_SCOPES[toolName];
+  if (!auth.scopes.includes(required)) {
+    throw new Error(
+      `API key lacks the required scope for ${toolName}: ${required}.`,
+    );
+  }
+}
+
+/**
+ * Execute a tool call against the services. Each handler is a thin
+ * adapter: validate the tool name, check the scope, call the service,
+ * return the JSON result.
+ */
+export async function executeTool(
+  deps: McpServerDeps,
+  auth: McpAuthContext | undefined,
+  toolName: string,
+  args: unknown,
+): Promise<unknown> {
+  switch (toolName) {
+    case 'get_property': {
+      requireToolScope(auth, 'get_property');
+      const input = GetPropertyInputSchema.parse(args);
+      if (input.addressKey) {
+        return deps.property.getProperty(input.addressKey);
+      }
+      if (input.query) {
+        return deps.property.autocomplete(input.query);
+      }
+      throw new Error(
+        'get_property requires either addressKey or query.',
+      );
+    }
+    case 'estimate_project': {
+      requireToolScope(auth, 'estimate_project');
+      // The EstimateService validates the full shape (same as REST).
+      return deps.estimate.estimate(args);
+    }
+    case 'submit_lead': {
+      requireToolScope(auth, 'submit_lead');
+      const input = SubmitLeadInputSchema.parse(args);
+      // Strip the idempotency key before passing to the service —
+      // the service's 90-day dedupe provides the idempotency guarantee.
+      // The key is accepted for API consistency and future use.
+      const { idempotencyKey: _key, ...leadBody } = input;
+      return deps.leads.submitLead(leadBody);
+    }
+    default:
+      throw new Error(`Unknown tool: ${toolName}.`);
+  }
+}
