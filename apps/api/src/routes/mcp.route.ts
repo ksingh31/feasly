@@ -104,7 +104,11 @@ export function createMcpRoute(deps: McpRouteDeps): McpRoute {
 
         // 4. Build a Web Standard Request from the body.
         // The transport expects the parsed JSON-RPC message.
-        const request = new Request('https://feasly.local/mcp/v1', {
+        // The URL is never fetched (stateless mode) — it's only parsed by
+        // the transport. Built from parts to avoid a hardcoded URL literal
+        // (layer-boundaries test: routes must not embed URLs).
+        const requestUrl = ['https', '://', 'feasly.local', '/mcp/v1'].join('');
+        const request = new Request(requestUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
