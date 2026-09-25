@@ -93,45 +93,48 @@ resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
   }
 }
 
-resource poisonQueueAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: '${namePrefix}-poison-queue'
-  location: location
-  properties: {
-    description: 'Feasly poison queue depth above zero'
-    severity: 2
-    enabled: true
-    scopes: [
-      storageAccountId
-    ]
-    evaluationFrequency: 'PT5M'
-    windowSize: 'PT5M'
-    criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-      allOf: [
-        {
-          name: 'PoisonQueueDepth'
-          metricName: 'QueueMessageCount'
-          metricNamespace: 'Microsoft.Storage/storageAccounts'
-          dimensions: [
-            {
-              name: 'QueueName'
-              operator: 'Include'
-              values: poisonQueueNames
-            }
-          ]
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Maximum'
-        }
-      ]
-    }
-    actions: [
-      {
-        actionGroupId: actionGroup.id
-      }
-    ]
-  }
-}
+// DISABLED (2026-09-25): QueueMessageCount metric does not exist at the storage
+// account level with the Microsoft.Storage/storageAccounts namespace.
+// Re-enable with the correct metric namespace once identified.
+// resource poisonQueueAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+//   name: '${namePrefix}-poison-queue'
+//   location: location
+//   properties: {
+//     description: 'Feasly poison queue depth above zero'
+//     severity: 2
+//     enabled: true
+//     scopes: [
+//       storageAccountId
+//     ]
+//     evaluationFrequency: 'PT5M'
+//     windowSize: 'PT5M'
+//     criteria: {
+//       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+//       allOf: [
+//         {
+//           name: 'PoisonQueueDepth'
+//           metricName: 'QueueMessageCount'
+//           metricNamespace: 'Microsoft.Storage/storageAccounts'
+//           dimensions: [
+//             {
+//               name: 'QueueName'
+//               operator: 'Include'
+//               values: poisonQueueNames
+//             }
+//           ]
+//           operator: 'GreaterThan'
+//           threshold: 0
+//           timeAggregation: 'Maximum'
+//         }
+//       ]
+//     }
+//     actions: [
+//       {
+//         actionGroupId: actionGroup.id
+//       }
+//     ]
+//   }
+// }
 
 @description('Resource ID of the ops action group')
 output actionGroupId string = actionGroup.id
