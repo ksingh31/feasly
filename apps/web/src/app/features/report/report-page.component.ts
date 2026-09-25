@@ -12,6 +12,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { UpdateInputs, WizardState, LeadState } from '../wizard';
+import { AnalyticsService } from '../consent';
 import { LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 
@@ -79,6 +80,7 @@ export class ReportPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly analytics = inject(AnalyticsService);
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
@@ -324,6 +326,9 @@ export class ReportPageComponent implements OnInit {
       bodyClose: this.copy.shareBodyClose,
     });
     window.location.href = buildEstimateShareMailto({ to, subject, body });
+    // Consent-gated inside AnalyticsService: declined/pending banner means
+    // this is a silent no-op.
+    this.analytics.track('partner_share');
   }
 
   requestCallback(): void {
@@ -345,13 +350,20 @@ export class ReportPageComponent implements OnInit {
       .requestCallback({ reportToken: token, name, phone, window })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.callbackStatus.set('sent'),
+        next: () => {
+          this.callbackStatus.set('sent');
+          // Consent-gated inside AnalyticsService.
+          this.analytics.track('callback_request');
+        },
         error: () => this.callbackStatus.set('error'),
       });
   }
 
   /** v1 PDF: the print stylesheet lays the report out for Save-as-PDF. */
   print(): void {
+    // Consent-gated inside AnalyticsService: declined/pending banner means
+    // this is a silent no-op.
+    this.analytics.track('pdf_download');
     window.print();
   }
 }

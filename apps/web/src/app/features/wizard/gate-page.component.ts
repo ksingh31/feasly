@@ -11,6 +11,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
+import { AnalyticsService } from '../consent';
 
 type GateStatus = 'idle' | 'sending' | 'error';
 
@@ -55,6 +56,7 @@ export class GatePageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly analytics = inject(AnalyticsService);
 
   /** Gate copy (config-owned). */
   protected readonly copy = this.config.get('copy').gate;
@@ -132,6 +134,9 @@ export class GatePageComponent implements OnInit {
       )
       .subscribe({
         next: ({ lead, email }) => {
+          // The gate converted: consent-gated inside AnalyticsService, so a
+          // declined/pending banner means this is a silent no-op.
+          this.analytics.track('gate_convert');
           this.store.dispatch(
             new StoreLeadResult({
               leadId: lead.leadId,

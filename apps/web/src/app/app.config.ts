@@ -17,6 +17,7 @@ import { EmbedState } from './features/embed';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
+import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -33,6 +34,10 @@ export const appConfig: ApplicationConfig = {
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
     provideAppInitializer(() => inject(ConfigService).load()),
+    // First-party analytics route tracking (consumer/01 call-site handoff):
+    // maps completed funnel navigations to analytics events. Consent-gated
+    // inside AnalyticsService — pre-consent navigations emit nothing.
+    provideAppInitializer(() => inject(AnalyticsTrackerService).start()),
     // Property data source from config (FE1-002): live City of Calgary API
     // by default, mock fixtures or our backend on request. Must come before
     // provideApi() — both ApiService implementations delegate to it.
