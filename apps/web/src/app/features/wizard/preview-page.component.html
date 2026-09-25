@@ -1,7 +1,7 @@
 <app-site-nav />
 <main class="wrap" id="main-content" tabindex="-1">
   @if (isReno()) {
-    <a class="back" routerLink="/estimate/reno-scope" (click)="goBack()">{{ copy.backLabel }}</a>
+    <a class="back" routerLink="/estimate/reno-scope" (click)="goBack()">{{ copy.renoBackLabel }}</a>
   } @else {
     <a class="back" routerLink="/estimate/details" (click)="goBack()">{{ copy.backLabel }}</a>
   }

@@ -10,6 +10,9 @@
 import type {
   AutocompleteSuggestion,
   CallbackResponse,
+  ComparisonEstimateRequest,
+  ComparisonEstimateResponse,
+  ComparisonRowSet,
   CostRange,
   CostRow,
   EstimateInputs,
@@ -27,6 +30,8 @@ import type {
   RenoType,
 } from '@feasly/contracts';
 import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
+import aggregates from '../../../content/data/community-aggregates.json';
+import type { CommunityStats } from './api.service';
 
 /** Cost-data version stamped on mock estimates. The real engine versions its model. */
 export const MOCK_COST_DATA_VERSION = 'mock-2026-09';
@@ -391,6 +396,144 @@ export function mockRenoEstimate(
     },
     disclaimer: ESTIMATE_DISCLAIMER,
   };
+}
+
+/**
+ * Community stats for the mock API (NBH-01 / NBH-03).
+ *
+ * The figures come from the checked-in City-of-Calgary aggregates
+ * (`content/data/community-aggregates.json`) — the same real data the
+ * backend's community-stats endpoint serves — so the mock shows honest
+ * assessed values, not invented ones. Throws a not_found ApiError for
+ * unknown slugs, mirroring the backend route.
+ */
+export function mockCommunityStats(slug: string): CommunityStats {
+  const record = COMMUNITY_AGGREGATES.find((c) => c.slug === slug);
+  if (!record) {
+    throw mockFailure('not_found', `Unknown community: ${slug}`);
+  }
+  return {
+    slug,
+    name: record.name,
+    avg_assessed_value: record.avgAssessedValue,
+    assessment_count: record.count,
+    avg_lot_sqft: record.avgLotSqft,
+    refreshed_at: COMMUNITY_AGGREGATES_GENERATED_AT,
+    stale: false,
+  };
+}
+
+/**
+ * Neighbourhood comparison estimate for the mock API (NBH-02 / NBH-03).
+ *
+ * Mirrors the backend comparison engine's shape honestly:
+ * - Land = avgLotSqft × $85/sqft ± 10% (the backend's placeholder
+ *   landRatePerSqft/landSpread from NBH-02 — visibly uncalibrated, not
+ *   presented as precise). Null avgLotSqft throws, like the engine.
+ * - Build = the standard mock build band (671500 base at 2200 sqft, scaled
+ *   by sqft and tier) — identical across communities, same house design.
+ * - Total = land + build (componentwise).
+ * - lowestLand: exactly one row-set — cheapest by land.low; ties go to the
+ *   first slug in input order (documented, deterministic, like the engine).
+ */
+export function mockComparisonEstimate(
+  request: ComparisonEstimateRequest,
+): ComparisonEstimateResponse {
+  const { neighbourhoods, sqft, tier } = request;
+  if (neighbourhoods.length < 2 || neighbourhoods.length > 3) {
+    throw mockFailure('bad_request', 'comparison requires 2–3 neighbourhoods');
+  }
+
+  // Build band: the same mock build base as mockEstimateFigures
+  // (671500 at 2200 sqft, premium) scaled by sqft and tier — identical
+  // across communities (same house design), symmetric ±9.5% band.
+  const buildBase = (671500 / 2200) * sqft * MOCK_TIER_FACTORS[tier];
+  const build: CostRange = band(buildBase, 0.095);
+
+  // Land per community first — the cheapest by land.low gets the single
+  // lowestLand flag (ties keep input order, like the backend engine).
+  const lands = neighbourhoods.map((slug) => {
+    const stats = mockCommunityStats(slug);
+    if (stats.avg_lot_sqft === null || stats.avg_lot_sqft <= 0) {
+      throw mockFailure('bad_request', `community '${slug}' has no lot size data`);
+    }
+    return band(stats.avg_lot_sqft * MOCK_LAND_RATE_PER_SQFT, 0.1);
+  });
+  let cheapestIdx = 0;
+  for (let i = 1; i < lands.length; i++) {
+    if (lands[i].low < lands[cheapestIdx].low) cheapestIdx = i;
+  }
+
+  const rowSets: ComparisonRowSet[] = neighbourhoods.map((slug, i) => {
+    const land = lands[i];
+    const total: CostRange = {
+      low: land.low + build.low,
+      base: land.base + build.base,
+      high: land.high + build.high,
+    };
+    return {
+      slug,
+      lowestLand: i === cheapestIdx,
+      land,
+      build: { ...build },
+      total,
+      visibility: { land: 'visible', build: 'blurred', total: 'blurred' },
+    };
+  });
+
+  return {
+    estimateId: stableMockComparisonId(neighbourhoods, sqft, tier),
+    projectType: 'comparison',
+    inputs: { sqft, tier },
+    rowSets,
+    costDataVersion: MOCK_COST_DATA_VERSION,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Throws a contract-shaped ApiError for mock-data failures. Callers in
+ * mock-api.service.ts catch this and return it via roundTripError so the
+ * failure surfaces as an observable error after simulated latency.
+ */
+function mockFailure(code: string, message: string): never {
+  throw { code, message, retryable: false } as const;
+}
+
+/** Placeholder land rate from NBH-02 (v0.3.0-unclibrated) — see the engine. */
+const MOCK_LAND_RATE_PER_SQFT = 85;
+
+interface CommunityAggregateEntry {
+  slug: string;
+  name: string;
+  count: number;
+  avgAssessedValue: number;
+  avgLotSqft: number | null;
+}
+
+const AGGREGATES_JSON = aggregates as {
+  generatedAt: string;
+  communities: CommunityAggregateEntry[];
+};
+const COMMUNITY_AGGREGATES = AGGREGATES_JSON.communities;
+const COMMUNITY_AGGREGATES_GENERATED_AT = AGGREGATES_JSON.generatedAt;
+
+/** Symmetric whole-dollar band around a base, like the engine's band(). */
+function band(base: number, spread: number): CostRange {
+  const b = Math.round(base);
+  return {
+    low: Math.round(b * (1 - spread)),
+    base: b,
+    high: Math.round(b * (1 + spread)),
+  };
+}
+
+function stableMockComparisonId(
+  neighbourhoods: readonly string[],
+  sqft: number,
+  tier: FinishTier,
+): string {
+  return `cmp_${[...neighbourhoods].sort().join('-')}_${sqft}_${tier}`;
 }
 
 /**

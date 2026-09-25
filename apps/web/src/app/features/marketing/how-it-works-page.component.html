@@ -25,8 +25,8 @@
   </aside>
 
   <div class="cta-row">
-    <a class="cta" routerLink="/">{{ copy.ctaNewBuild }}</a>
-    <a class="cta cta-secondary" routerLink="/">{{ copy.ctaReno }}</a>
+    <button type="button" class="cta" (click)="startEstimate('new-build')">{{ copy.ctaNewBuild }}</button>
+    <button type="button" class="cta cta-secondary" (click)="startEstimate('renovation')">{{ copy.ctaReno }}</button>
   </div>
 </main>
 <app-site-footer />

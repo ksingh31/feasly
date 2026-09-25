@@ -1,0 +1,281 @@
+/**
+ * Comparison results (NBH-03): side-by-side cards + total-range bar chart.
+ * Reuses the app's token palette (cream/brass) and the report's shimmer
+ * skeleton language for locked slots — no new visual system.
+ */
+
+.compare-results {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  font-family: var(--font-ui);
+  color: var(--text);
+}
+
+.compare-results__header {
+  text-align: center;
+  margin-bottom: 2rem;
+
+  h1 {
+    font-family: var(--font-headline);
+    font-size: 1.75rem;
+    margin: 0 0 0.5rem;
+  }
+}
+
+.compare-results__sub {
+  color: var(--muted);
+  margin: 0;
+}
+
+.compare-results__whatif {
+  max-width: 36rem;
+  margin: 0 auto 2rem;
+}
+
+.compare-results__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.community-card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.5rem 1.25rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(26, 22, 18, 0.06);
+}
+
+.community-card__badge {
+  position: absolute;
+  top: -0.75rem;
+  left: 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.community-card__name {
+  font-family: var(--font-headline);
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.community-card__assessed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.community-card__label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.community-card__assessed-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.community-card__figures {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.community-card__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  dt {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+}
+
+.community-card__figure--total dd {
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+/**
+ * Locked slot: CSS-only skeleton bar (aria-hidden in markup) + the
+ * accessible locked note. No real figures in the DOM pre-gate.
+ */
+.locked-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.locked-slot__skeleton {
+  display: inline-block;
+  height: 1.1em;
+  width: 9ch;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
+  background-size: 200% 100%;
+  animation: compare-shimmer 2.4s ease-in-out infinite;
+  user-select: none;
+}
+
+.locked-slot__note {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.compare-chart {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.compare-chart__title {
+  font-family: var(--font-headline);
+  font-size: 1.125rem;
+  margin: 0 0 0.25rem;
+}
+
+.compare-chart__note {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0 0 1.25rem;
+}
+
+.compare-chart__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.compare-chart__row {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.compare-chart__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-chart__track {
+  position: relative;
+  height: 1.75rem;
+  background: var(--cream-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.compare-chart__bar {
+  position: absolute;
+  top: 0.375rem;
+  bottom: 0.375rem;
+  background: var(--accent);
+  border-radius: 999px;
+  min-width: 2%;
+}
+
+.compare-chart__bar--skeleton {
+  left: 8%;
+  width: 64%;
+  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
+  background-size: 200% 100%;
+  animation: compare-shimmer 2.4s ease-in-out infinite;
+}
+
+.compare-chart__bars--locked .compare-chart__track {
+  filter: blur(1px);
+}
+
+.compare-chart__locked-note {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 1rem 0 0;
+  text-align: center;
+}
+
+.compare-results__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.compare-results__unlock {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--accent-dark);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.compare-results__edit {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+@keyframes compare-shimmer {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .compare-chart__row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}
