@@ -10,6 +10,7 @@ import { RenoScopePageComponent } from './features/wizard/reno-scope-page.compon
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { SampleReportPageComponent } from './features/sample-report';
+import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
@@ -50,6 +51,10 @@ export const routes: Routes = [
   },
   { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },
   { path: 'terms', component: TermsPageComponent, canActivate: [robotsGuard] },
+  // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
+  // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
+  { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
+  { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
   // Labelled sample report (seo/09): fictional data, watermarked, never
   // gated/emailed/persisted. noindex like the wizard routes — it's a trust
   // page for visitors, not a search landing page.

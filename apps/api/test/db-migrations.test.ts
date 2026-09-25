@@ -151,10 +151,12 @@ describe('drizzle stores', () => {
 
     // Same email + same address on a DIFFERENT estimate → still found
     // (the household resubmitted; no duplicate lead).
+    // Window bounds are relative to now so the test is date-independent
+    // (issue #52: hardcoded 2026-09-25 became a time bomb).
     const hitOther = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date('2026-09-01T00:00:00Z'),
+      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     });
     expect(hitOther?.id).toBe(inserted.id);
 
@@ -162,7 +164,7 @@ describe('drizzle stores', () => {
     const hit = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date('2026-09-01T00:00:00Z'),
+      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     });
     expect(hit?.id).toBe(inserted.id);
 
@@ -172,7 +174,7 @@ describe('drizzle stores', () => {
     const miss = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,
-      since: new Date(Date.now() + 86_400_000),
+      since: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     expect(miss).toBeNull();
 
@@ -180,7 +182,7 @@ describe('drizzle stores', () => {
     const other = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey: 'calgary-000-other-st-nw',
-      since: new Date('2026-09-01T00:00:00Z'),
+      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     });
     expect(other).toBeNull();
   });
