@@ -1,0 +1,14 @@
+{
+  "_comment": "Elite Craft Builders --- first real tenant (embed/05 dogfood). PLACEHOLDERS: logo_url (empty -> Feasly wordmark fallback), fallback_phone, fallback_email --- fill in when Elite provides brand assets. plan is inert until billing lands (embed/04); null = undecided.",
+  "accent_color": "#B08D57",
+  "allowed_origins": [
+    "https://elitecraftbuilders.com"
+  ],
+  "business_name": "Elite Craft Builders",
+  "display_name": "Elite Craft Builders",
+  "fallback_email": "",
+  "fallback_phone": "",
+  "logo_url": "",
+  "plan": null,
+  "tenant_key": "elite-craft-builders"
+}

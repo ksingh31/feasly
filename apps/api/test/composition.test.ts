@@ -40,6 +40,8 @@ describe('composition root', () => {
     expect(app.leadRoute).toBeDefined();
     expect(app.communityStatsService).toBeDefined();
     expect(app.communityStatsRoute).toBeDefined();
+    expect(app.builderConfigService).toBeDefined();
+    expect(app.embedConfigRoute).toBeDefined();
   });
 
   it('injects config into the health service', async () => {

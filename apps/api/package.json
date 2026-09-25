@@ -1,5 +1,5 @@
 {
-  "description": "Azure Functions (TypeScript) — versioned /api/v1. Endpoints land here (epics 07, 10).",
+  "description": "Azure Functions (TypeScript) \u2014 versioned /api/v1. Endpoints land here (epics 07, 10).",
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/pg": "^8.23.1",
@@ -18,7 +18,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
     "bundle:functions": "node tools/bundle-functions.mjs",
-    "db:seed:community-stats": "tsx tools/seed-community-stats.ts"
+    "db:seed:community-stats": "tsx tools/seed-community-stats.ts",
+    "build:configs": "tsx tools/generate-builder-configs.ts",
+    "prebuild": "tsx tools/generate-builder-configs.ts",
+    "pretest": "tsx tools/generate-builder-configs.ts",
+    "prebundle:functions": "tsx tools/generate-builder-configs.ts"
   },
   "version": "0.1.0",
   "dependencies": {

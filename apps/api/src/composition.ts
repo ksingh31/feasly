@@ -46,6 +46,11 @@ import {
   createDrizzleCommunityStatsService,
   type CommunityStatsService,
 } from './services/community-stats.service';
+import {
+  createBuilderConfigService,
+  type BuilderConfigService,
+} from './services/builder-config.service';
+import { BUILDER_CONFIGS } from './generated/builder-configs';
 import { createHealthRoute, type HealthRoute } from './routes/health.route';
 import { createEstimateRoute, type EstimateRoute } from './routes/estimate.route';
 import { createLeadRoute, type LeadRoute } from './routes/lead.route';
@@ -58,6 +63,10 @@ import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
+import {
+  createEmbedConfigRoute,
+  type EmbedConfigRoute,
+} from './routes/embed-config.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
   createRequestPipeline,
@@ -100,6 +109,8 @@ export interface AppComposition {
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
   readonly communityStatsRoute: CommunityStatsRoute;
+  readonly builderConfigService: BuilderConfigService;
+  readonly embedConfigRoute: EmbedConfigRoute;
 }
 
 export interface CompositionOptions {
@@ -278,6 +289,20 @@ export function createComposition(
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
     communityStats: communityStatsService,
   });
+  // Builder embed config (embed/02): repo JSON inlined at build time wins,
+  // DB tenants row is the fallback. Unknown key → 404 UNKNOWN_TENANT.
+  // isDev mirrors the generator's rule (tools/generate-builder-configs.ts):
+  // localhost origins are allowed everywhere except production.
+  const builderConfigService: BuilderConfigService = createBuilderConfigService(
+    {
+      db: db.db,
+      configs: BUILDER_CONFIGS,
+      isDev: config.env !== 'production',
+    },
+  );
+  const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
+    builderConfig: builderConfigService,
+  });
   return {
     config,
     db,
@@ -305,6 +330,8 @@ export function createComposition(
     privacyRoute,
     communityStatsService,
     communityStatsRoute,
+    builderConfigService,
+    embedConfigRoute,
   };
 }
 

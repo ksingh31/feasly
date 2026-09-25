@@ -42,6 +42,13 @@
       "when": 1790298186970,
       "tag": "0005_mute_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790299347642,
+      "tag": "0006_free_proudstar",
+      "breakpoints": true
     }
   ],
   "version": "7"
