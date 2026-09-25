@@ -21,3 +21,4 @@ export * from './registry';
 export * from './privacy';
 export * from './unsubscribe';
 export * from './api-key';
+export * from './billing';

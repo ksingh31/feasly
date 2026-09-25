@@ -75,6 +75,10 @@ const EnvSchema = z.object({
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
 
+  // Stripe webhook receiver (billing/02): 100/min per IP (frozen registry).
+  WEBHOOK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  WEBHOOK_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+
   // Duplicate POSTs (same email + same estimate) inside this window return
   // the existing lead instead of inserting a duplicate (BE3-003).
   LEAD_DEDUP_WINDOW_DAYS: z.coerce.number().int().positive().default(90),
@@ -137,6 +141,17 @@ const EnvSchema = z.object({
     .length(3)
     .default('CAD')
     .transform((code) => code.toUpperCase()),
+  // --- Stripe (story billing/02 commission engine) ---
+  // Secret key is OPTIONAL: billing stays dormant until a key is configured.
+  // Test-mode enforcement (Karan's "no real charges in dev/staging"): when
+  // set, a non-production env REQUIRES an sk_test_ key and production
+  // REQUIRES an sk_live_ key — enforced at startup, not at charge time.
+  STRIPE_SECRET_KEY: z.string().min(1).optional(),
+  // Webhook signing secret — required to run the webhook route, fail-fast
+  // at call time when absent.
+  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Flat-plan Stripe Price id (`price_…`) — only used when BILLING_MODEL=flat.
+  STRIPE_FLAT_PRICE_ID: z.string().min(1).optional(),
 
   // --- Transactional email (story email/01) ---
   // Provider: Azure Communication Services (Karan-approved 2026-09-24).
@@ -204,6 +219,11 @@ export interface EstimateConfig {
 
 export interface AnalyticsConfig {
   /** Generous rate limiter for the public analytics-ingest endpoint. */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+}
+
+export interface WebhookConfig {
+  /** Tight rate limiter for the Stripe webhook receiver (100/min per IP). */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
@@ -306,6 +326,17 @@ export interface BillingConfig {
   readonly flatMonthlyCents: number;
   /** ISO 4217 currency code for the flat plan. */
   readonly flatCurrency: string;
+  /**
+   * Stripe secret key (`sk_test_…` outside production, `sk_live_…` in
+   * production — enforced at startup). Absent = billing dormant.
+   */
+  readonly stripeSecretKey: string | undefined;
+  /** Stripe webhook signing secret (`whsec_…`). Absent = webhooks disabled. */
+  readonly stripeWebhookSecret: string | undefined;
+  /** Stripe Price id for the flat plan — only read when model='flat'. */
+  readonly stripeFlatPriceId: string | undefined;
+  /** True when NODE_ENV=production (live-money guard). */
+  readonly isProduction: boolean;
 }
 
 export interface ApiConfig {
@@ -319,6 +350,7 @@ export interface ApiConfig {
   readonly lead: LeadConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
+  readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
   /** Public site URL — production `servers` entry in the OpenAPI spec. */
@@ -338,6 +370,34 @@ function formatConfigError(error: z.ZodError): string {
     return `  - ${name}: ${issue.message}`;
   });
   return `Invalid configuration:\n${lines.join('\n')}`;
+}
+
+/**
+ * Test-mode enforcement (billing/02, Karan's "no real charges in dev/staging"
+ * rule). When a Stripe secret key is configured:
+ * - non-production envs REQUIRE an `sk_test_…` key;
+ * - production REQUIRES an `sk_live_…` key.
+ * Fails fast at startup with the variable named. Absent key = billing
+ * dormant (no throw).
+ */
+function enforceStripeTestMode(
+  secretKey: string | undefined,
+  nodeEnv: NodeEnv,
+): string | undefined {
+  if (secretKey === undefined) return undefined;
+  const isLiveKey = secretKey.startsWith('sk_live_');
+  const isTestKey = secretKey.startsWith('sk_test_');
+  if (nodeEnv === 'production' && !isLiveKey) {
+    throw new Error(
+      'Invalid configuration:\n  - STRIPE_SECRET_KEY: production requires an sk_live_ key',
+    );
+  }
+  if (nodeEnv !== 'production' && !isTestKey) {
+    throw new Error(
+      'Invalid configuration:\n  - STRIPE_SECRET_KEY: non-production requires an sk_test_ key (no real charges in dev/staging)',
+    );
+  }
+  return secretKey;
 }
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
@@ -447,6 +507,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
     },
+    webhook: {
+      rateLimit: {
+        windowMs: e.WEBHOOK_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.WEBHOOK_RATE_LIMIT_MAX_REQUESTS,
+      },
+    },
     auth: {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
@@ -495,6 +561,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
+      stripeSecretKey: enforceStripeTestMode(
+        e.STRIPE_SECRET_KEY,
+        e.NODE_ENV,
+      ),
+      stripeWebhookSecret: e.STRIPE_WEBHOOK_SECRET,
+      stripeFlatPriceId: e.STRIPE_FLAT_PRICE_ID,
+      isProduction: e.NODE_ENV === 'production',
     },
   };
 }

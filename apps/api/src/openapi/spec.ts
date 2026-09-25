@@ -511,6 +511,76 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
+  // ── Stripe webhook receiver (billing/02) ──────────────────────────
+
+  registry.registerComponent('securitySchemes', 'StripeSignature', {
+    type: 'apiKey',
+    in: 'header',
+    name: 'Stripe-Signature',
+    description:
+      'HMAC signature of the raw request body, computed with the ' +
+      'endpoint webhook secret (STRIPE_WEBHOOK_SECRET). ' +
+      'Invalid signatures are rejected with 401.',
+  });
+
+  // POST /v1/stripe/webhooks
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/stripe/webhooks',
+    summary: 'Stripe webhook receiver',
+    description:
+      'Receives Stripe events (payment_intent.succeeded, ' +
+      'payment_intent.payment_failed). Auth is the Stripe-Signature ' +
+      'header — there is no bearer token for provider callbacks by ' +
+      'design. Event handling is idempotent: re-delivered events are ' +
+      'acknowledged without re-processing. Always returns 200 once the ' +
+      'signature verifies, so Stripe never retry-storms us.',
+    security: [{ StripeSignature: [] }],
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              description:
+                'Raw Stripe event payload (signed bytes). Parsed and ' +
+                'verified against STRIPE_WEBHOOK_SECRET.',
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Event accepted and processed (or acknowledged)',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: { received: { type: 'boolean' } },
+            },
+          },
+        },
+      },
+      '401': {
+        description: 'Invalid or missing Stripe signature',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      '429': {
+        description: 'Rate limit exceeded (100/min per IP)',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+    },
+  });
+
   // ── Generate ──────────────────────────────────────────────────────
 
   const generator = new OpenApiGeneratorV31(registry.definitions);

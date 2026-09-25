@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["post"],"name":"req","route":"v1/stripe/webhooks","type":"httpTrigger","dataType":"binary"},{"direction":"out","name":"res","type":"http"}]}
