@@ -26,6 +26,10 @@ describe('composition root', () => {
     expect(app.requestPipeline).toBeDefined();
     expect(app.leadRateLimiter).toBeDefined();
     expect(app.leadPipeline).toBeDefined();
+    // consumer/03: dedicated estimates pipeline (20/hr/IP + per-tenant).
+    expect(app.estimateRateLimiter).toBeDefined();
+    expect(app.estimateTenantRateLimiter).toBeDefined();
+    expect(app.estimatePipeline).toBeDefined();
     expect(app.healthService).toBeDefined();
     expect(app.healthRoute).toBeDefined();
     expect(app.estimateStore).toBeDefined();

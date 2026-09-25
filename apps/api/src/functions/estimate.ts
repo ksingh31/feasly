@@ -84,8 +84,20 @@ export async function estimateHandler(
   }
   const correlationId = middleware.ensureCorrelationId(headers);
 
-  const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+  // consumer/03 — the estimates endpoint runs on its own pipeline (20/hr/IP
+  // + per-tenant aggregation for embeds). The tenantKey is copied from the
+  // body for the rate-limit key only; the body itself is never logged.
+  const rawBody =
+    typeof req.body === 'object' && req.body !== null
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const result = await app.estimatePipeline.run(
+    {
+      headers,
+      clientIp: clientIpFrom(req),
+      tenantKey:
+        typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
+    },
     () => app.estimateRoute.handle(req.body),
   );
 

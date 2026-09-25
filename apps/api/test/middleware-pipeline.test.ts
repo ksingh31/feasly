@@ -209,6 +209,126 @@ describe('createRequestPipeline — rate limiting', () => {
   });
 });
 
+describe('createRequestPipeline — extra limiters (consumer/03)', () => {
+  /**
+   * Mirrors the estimate composition: 20/hr per IP (primary) + 20/hr per
+   * tenant for embed traffic (extra). The limits are env-configurable; the
+   * pipeline only ever sees the injected numbers.
+   */
+  function estimatePipeline(maxRequests = 20, tenantMax = 20) {
+    const logs: LogEntry[] = [];
+    const pipeline = createRequestPipeline({
+      rateLimiter: createRateLimiter({
+        windowMs: 3_600_000,
+        maxRequests,
+        maxTrackedKeys: 1000,
+      }),
+      extraLimiters: [
+        {
+          limiter: createRateLimiter({
+            windowMs: 3_600_000,
+            maxRequests: tenantMax,
+            maxTrackedKeys: 1000,
+          }),
+          keyFor: (request) =>
+            request.tenantKey === undefined
+              ? undefined
+              : `tenant:${request.tenantKey}`,
+          label: 'tenant',
+        },
+      ],
+      logger: (entry) => {
+        logs.push(entry);
+      },
+    });
+    return { pipeline, logs };
+  }
+
+  const EMBED: PipelineRequest = {
+    headers: {},
+    clientIp: '1.2.3.4',
+    tenantKey: 'elite-craft',
+  };
+
+  it('21st estimate in an hour from one IP → 429 with Retry-After + RATE_LIMITED', async () => {
+    const { pipeline } = estimatePipeline();
+    const handler = vi.fn(async () => 'ok');
+    for (let i = 0; i < 20; i += 1) {
+      expect(isProblemDetails(await pipeline.run(REQUEST, handler))).toBe(
+        false,
+      );
+    }
+    const limited = await pipeline.run(REQUEST, handler);
+    expect(handler).toHaveBeenCalledTimes(20);
+    expect(isProblemDetails(limited)).toBe(true);
+    if (isProblemDetails(limited)) {
+      expect(limited.status).toBe(429);
+      expect(limited.code).toBe(ErrorCodes.RATE_LIMITED);
+      expect(limited.retryAfterMs).toBeGreaterThan(0);
+      const headers = problemResponseHeaders(limited);
+      expect(headers['Retry-After']).toMatch(/^[1-9]\d*$/);
+    }
+  });
+
+  it('a real-user flow (≤ 5 estimates/hr) never hits the limit', async () => {
+    const { pipeline } = estimatePipeline();
+    const handler = vi.fn(async () => 'ok');
+    for (let i = 0; i < 5; i += 1) {
+      expect(isProblemDetails(await pipeline.run(REQUEST, handler))).toBe(
+        false,
+      );
+    }
+    expect(handler).toHaveBeenCalledTimes(5);
+  });
+
+  it('embed estimates count against both IP and tenant: two IPs, one tenant → tenant cap applies', async () => {
+    // Tenant budget is 2 here so the test stays small; the IP budget (20)
+    // is never reached by either IP alone.
+    const { pipeline } = estimatePipeline(20, 2);
+    const handler = vi.fn(async () => 'ok');
+    const ipA = { ...EMBED, clientIp: '1.2.3.4' };
+    const ipB = { ...EMBED, clientIp: '5.6.7.8' };
+    expect(isProblemDetails(await pipeline.run(ipA, handler))).toBe(false);
+    expect(isProblemDetails(await pipeline.run(ipB, handler))).toBe(false);
+    // Third request — from a FRESH IP — is denied by the tenant bucket.
+    const denied = await pipeline.run(
+      { ...EMBED, clientIp: '9.10.11.12' },
+      handler,
+    );
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(isProblemDetails(denied)).toBe(true);
+    if (isProblemDetails(denied)) {
+      expect(denied.status).toBe(429);
+      expect(denied.code).toBe(ErrorCodes.RATE_LIMITED);
+    }
+  });
+
+  it('non-embed traffic (no tenantKey) skips the tenant limiter', async () => {
+    const { pipeline } = estimatePipeline(20, 1);
+    const handler = vi.fn(async () => 'ok');
+    // Tenant budget is 1, but plain-IP traffic has no tenant key — all 20
+    // IP-budget requests go through.
+    for (let i = 0; i < 20; i += 1) {
+      expect(isProblemDetails(await pipeline.run(REQUEST, handler))).toBe(
+        false,
+      );
+    }
+    expect(handler).toHaveBeenCalledTimes(20);
+  });
+
+  it('tenant-denial logs carry a key hash, never the raw tenant key', async () => {
+    const { pipeline, logs } = estimatePipeline(20, 1);
+    const handler = vi.fn(async () => 'ok');
+    await pipeline.run(EMBED, handler);
+    await pipeline.run(EMBED, handler);
+    const warn = logs.filter((l) => l.level === 'warn');
+    expect(warn).toHaveLength(1);
+    const dump = JSON.stringify(warn);
+    expect(dump).not.toContain('elite-craft');
+    expect(warn[0]?.message).toMatch(/dimension=tenant keyHash=[0-9a-f]{64}/);
+  });
+});
+
 describe('ensureCorrelationId', () => {
   it('uses the first value of a repeated header', () => {
     expect(

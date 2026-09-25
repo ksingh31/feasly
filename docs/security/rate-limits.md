@@ -19,7 +19,8 @@ Rate-limit log lines carry a SHA-256 **hash** of the client IP
 | Route | Limit | Window | Key | Env overrides |
 |---|---|---|---|---|
 | `POST /api/v1/leads` | 10 requests | 60 s | client IP | `LEAD_RATE_LIMIT_MAX_REQUESTS`, `LEAD_RATE_LIMIT_WINDOW_MS` |
-| `POST /api/v1/estimate`, `GET /api/health` | 100 requests | 60 s | client IP | `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS` |
+| `POST /api/v1/estimate` | 20 requests | 1 hr | client IP, plus per-tenant aggregation for embed traffic (`tenant:<tenantKey>` bucket, also 20/hr) | `ESTIMATE_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_RATE_LIMIT_WINDOW_MS`, `ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS` |
+| `GET /api/health` | 100 requests | 60 s | client IP | `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS` |
 
 The limiter also bounds its in-memory key map (`RATE_LIMIT_MAX_TRACKED_KEYS`,
 default 10 000) so a flood of distinct keys cannot exhaust memory; expired
@@ -30,17 +31,17 @@ windows are swept when the bound is exceeded.
 The throttler is `createRateLimiter` (`apps/api/src/middleware/rate-limit.ts`)
 wired through `createRequestPipeline` (`apps/api/src/middleware/pipeline.ts`).
 The pipeline accepts a `keyFor(request)` function — default is the client IP —
-so a policy can aggregate per tenant as well as per IP (e.g.
-`` `${ip}::${tenantKey}` `` for embed traffic). The lead adapter already
-forwards `tenantKey` from the request body onto the pipeline request for
-this purpose. New rate-limited routes should reuse this mechanism, not build
-their own.
+so a policy can aggregate per tenant as well as per IP, and an
+`extraLimiters` list for independent secondary budgets (the estimates
+endpoint enforces per-IP first, then a per-tenant bucket for embed traffic).
+The lead and estimate adapters forward `tenantKey` from the request body
+onto the pipeline request for this purpose. New rate-limited routes should
+reuse this mechanism, not build their own.
 
 ## Planned (not yet enforced — endpoints or stories pending)
 
 | Route | Planned limit | Notes |
 |---|---|---|
-| `POST /api/v1/estimates` (consumer) | 20 / hour / IP, plus per-`tenant_id` aggregation for embed traffic | Estimates rate-limit story; reuses the pipeline `keyFor` seam |
 | Magic-link request / resend | 60 s cooldown per email | Frontend enforces `timings.resendCooldownSec` today; backend enforcement lands with the magic-link endpoints |
 | Partner share | 5 / min / IP | Endpoint does not exist yet (`POST /api/v1/shares` arrives with the partner-share story) |
 | Callback request | TBD | `POST /api/v1/callbacks` does not exist yet |

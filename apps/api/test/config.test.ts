@@ -21,6 +21,10 @@ describe('loadConfig', () => {
         rateLimit: { windowMs: 60_000, maxRequests: 10 },
         dedupWindowDays: 90,
       },
+      estimate: {
+        rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
+        tenantRateLimit: { windowMs: 3_600_000, maxRequests: 20 },
+      },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
@@ -135,6 +139,28 @@ describe('loadConfig', () => {
     });
     expect(config.rateLimit.maxRequests).toBe(10);
     expect(config.auth.magicLinkTtlSeconds).toBe(600);
+  });
+
+  it('estimates rate limits default to the frozen registry values (TECH_PLAN.md §13.3: 20/hr/IP)', () => {
+    const config = loadConfig(VALID_ENV);
+    expect(config.estimate.rateLimit).toEqual({
+      windowMs: 3_600_000,
+      maxRequests: 20,
+    });
+    expect(config.estimate.tenantRateLimit).toEqual({
+      windowMs: 3_600_000,
+      maxRequests: 20,
+    });
+  });
+
+  it('estimates rate limits are env-overridable', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      ESTIMATE_RATE_LIMIT_MAX_REQUESTS: '5',
+      ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: '7',
+    });
+    expect(config.estimate.rateLimit.maxRequests).toBe(5);
+    expect(config.estimate.tenantRateLimit.maxRequests).toBe(7);
   });
 
   it('version is the single source of truth: mirrors package.json', () => {
