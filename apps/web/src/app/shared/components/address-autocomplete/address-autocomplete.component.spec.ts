@@ -75,8 +75,9 @@ describe('AddressAutocompleteComponent', () => {
     text: string,
   ): Promise<void> {
     fixture.componentInstance.query.setValue(text);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    fixture.detectChanges();
+    // Poll for the debounced search to settle instead of a fixed sleep:
+    // under parallel-worker load a fixed sleep can lose the race and flake.
+    await awaitSearchSettled(fixture);
   }
 
   function inputEl(fixture: ComponentFixture<AddressAutocompleteComponent>): HTMLInputElement {

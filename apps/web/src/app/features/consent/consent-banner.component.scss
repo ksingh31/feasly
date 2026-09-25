@@ -1,0 +1,68 @@
+/* Consent banner: fixed bottom bar, readable at 375px (story consumer/01 browser QA). */
+.consent-banner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface, #fffdf8);
+  border-top: 1px solid var(--border, #e5ddcb);
+  box-shadow: 0 -4px 24px rgb(0 0 0 / 0.08);
+}
+
+.consent-text {
+  margin: 0;
+  flex: 1 1 20rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.consent-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+/* No dark patterns: accept and decline carry equal visual weight — both
+   filled, same size and weight; only the hue differs (brass vs charcoal). */
+.consent-accept,
+.consent-decline {
+  padding: 0.625rem 1.25rem;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.consent-accept {
+  border: 1px solid transparent;
+  background: var(--accent, #a8761a);
+  color: #fff;
+}
+
+.consent-decline {
+  border: 1px solid transparent;
+  background: var(--text, #1a1612);
+  color: var(--on-dark, #ede9e2);
+}
+
+@media (max-width: 480px) {
+  .consent-banner {
+    padding: 0.875rem 1rem;
+  }
+
+  .consent-actions {
+    width: 100%;
+  }
+
+  .consent-accept,
+  .consent-decline {
+    flex: 1;
+    min-height: 44px;
+  }
+}

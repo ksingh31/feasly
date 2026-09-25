@@ -69,6 +69,11 @@ const EnvSchema = z.object({
   ESTIMATE_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
   ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
   ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  // Analytics ingest is public by design (story consumer/01), so it gets
+  // its own limiter — generous (300/min per IP) but separate from the
+  // general API traffic.
+  ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
 
   // Duplicate POSTs (same email + same estimate) inside this window return
   // the existing lead instead of inserting a duplicate (BE3-003).
@@ -163,6 +168,11 @@ export interface EstimateConfig {
   readonly tenantRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
+export interface AnalyticsConfig {
+  /** Generous rate limiter for the public analytics-ingest endpoint. */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+}
+
 export interface DbConfig {
   readonly poolMaxSize: number;
 }
@@ -235,6 +245,7 @@ export interface ApiConfig {
   readonly rateLimit: RateLimitConfig;
   readonly lead: LeadConfig;
   readonly estimate: EstimateConfig;
+  readonly analytics: AnalyticsConfig;
   readonly auth: AuthConfig;
   readonly corsOrigins: readonly string[];
   readonly queues: QueueConfig;
@@ -351,6 +362,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       tenantRateLimit: {
         windowMs: e.ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS,
+      },
+    },
+    analytics: {
+      rateLimit: {
+        windowMs: e.ANALYTICS_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
     },
     auth: {

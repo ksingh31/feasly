@@ -70,6 +70,13 @@
       "when": 1790302500316,
       "tag": "0009_flowery_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790302735742,
+      "tag": "0010_flat_power_man",
+      "breakpoints": true
     }
   ],
   "version": "7"

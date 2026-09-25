@@ -14,6 +14,7 @@
  *     (GET /api/v1/magic-link/verify)
  *   src/functions/magic-link-reissue.ts → magic-link-reissue/index.js
  *     (POST /api/v1/magic-link/reissue)
+ *   src/functions/events.ts   → events/index.js     (POST /api/v1/events)
  *   src/functions/privacy-export.ts        → privacy-export/index.js
  *     (GET /api/v1/privacy/export)
  *   src/functions/privacy-erase.ts         → privacy-erase/index.js
@@ -52,6 +53,7 @@ const targets = [
   { entry: 'src/functions/health.ts', out: 'health/index.js' },
   { entry: 'src/functions/magic-link-verify.ts', out: 'magic-link-verify/index.js' },
   { entry: 'src/functions/magic-link-reissue.ts', out: 'magic-link-reissue/index.js' },
+  { entry: 'src/functions/events.ts', out: 'events/index.js' },
   { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },
   { entry: 'src/functions/privacy-erase.ts', out: 'privacy-erase/index.js' },
   {

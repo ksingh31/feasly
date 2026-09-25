@@ -21,7 +21,8 @@ no build step, no `npm install` on the server. Consequences:
 
 ## Database
 
-- `src/db/schema.ts` — `estimates` (insert-only snapshots) and `leads`.
+- `src/db/schema.ts` — `estimates` (insert-only snapshots), `leads`, and
+  `analytics_events` (append-only, closed shape — no PII columns).
 - `src/db/migrations/` — Drizzle-generated SQL. `cd.yml` runs
   `npm run db:migrate` (Key Vault password + discovered Postgres host) before
   every Functions deploy; generate new migrations with `npm run db:generate`.
@@ -39,6 +40,13 @@ no build step, no `npm install` on the server. Consequences:
   for the future `GET /api/v1/reports/{reportToken}`).
   `POST /api/v1/magic-link/reissue` idempotently resends the link
   (`{ sent: false }` when a live link exists or the email is unknown).
+- `POST /api/v1/events` ingests first-party analytics events (story
+  consumer/01): `{ event, route, ts, consent_ts }`, 202 Accepted. The
+  `consent_ts` consent gate is enforced per event (missing or future-dated →
+  400 `CONSENT_REQUIRED`); the event name must be in the contract allowlist;
+  the payload shape is closed (strict — unknown keys rejected, so no PII can
+  be stored); per-IP rate limit 300/min; storage is append-only
+  (`analytics_events`).
 
 ## Layered pattern (non-negotiable — see `docs/epics-api/README.md`)
 
