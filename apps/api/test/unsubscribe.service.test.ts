@@ -40,7 +40,9 @@ function leadRecord(id: string): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
-      nudgeSentAt: null,
+    nudgeSentAt: null,
+    sheetsSyncedAt: null,
+    updatedAt: NOW,
     createdAt: NOW,
   };
 }
@@ -76,6 +78,8 @@ function fakeStore(world: World): LeadStore {
     setNudgeSentAt: async () => null,
     findAllByEmail: async () => [],
     deleteByEmail: async () => 0,
+    findSheetsSyncCandidates: async () => [],
+    setSheetsSyncedAt: async () => null,
     appendNote: async () => {},
     getNotes: async () => [],
     appendStatusHistory: async () => {},

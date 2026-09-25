@@ -114,6 +114,20 @@ export const leads = pgTable(
      * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
      */
     sandbox: boolean('sandbox').notNull().default(false),
+    /**
+     * admin/04: Sheets sync watermark. NULL = never synced; otherwise the
+     * timestamp of the last successful upsert to the Google Sheet.
+     * The sync worker is the ONLY writer of this column (test asserts via DB diff).
+     */
+    sheetsSyncedAt: timestamp('sheets_synced_at', { withTimezone: true }),
+    /**
+     * admin/04: Last modification timestamp. Maintained by a DB trigger
+     * (see migration 0013) — the sync worker uses it to detect leads
+     * modified since their last sync (`updated_at > sheets_synced_at`).
+     */
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

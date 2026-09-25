@@ -112,6 +112,24 @@ const EnvSchema = z.object({
   QUEUE_PDF_NAME: z.string().min(1).default('pdf-queue'),
   QUEUE_SHEETS_NAME: z.string().min(1).default('sheets-queue'),
 
+  // --- Google Sheets sync (admin/04) ---
+  // Destination Sheet ID — placeholder until Karan shares his Sheet with the
+  // service account. Empty = sync disabled (worker fails closed, alert fires).
+  SHEETS_SHEET_ID: z.string().default(''),
+  // Service-account email — placeholder until provisioned in Key Vault.
+  // Empty = sync disabled (worker fails closed, alert fires).
+  SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
+  // Service-account private key — from Key Vault, never in repo/env files.
+  // Empty = sync disabled (worker fails closed, alert fires).
+  SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().default(''),
+  // Max leads per hourly sync run (backpressure). Default 500.
+  SHEETS_MAX_LEADS_PER_RUN: z.coerce.number().int().positive().default(500),
+  // Google Sheets API OAuth scope. Not a secret, but config keeps it out of code.
+  SHEETS_API_SCOPE: z
+    .string()
+    .url()
+    .default('https://www.googleapis.com/auth/spreadsheets'),
+
   // Reno rates are uncalibrated draft placeholders (RENO-01). Renovation
   // estimates are refused unless this is true — and production refuses to
   // boot on draft data even then (see composition.ts). Set it in dev only.
@@ -350,6 +368,25 @@ export interface SandboxPurgeConfig {
   readonly dryRun: boolean;
 }
 
+/**
+ * Google Sheets sync (admin/04). Empty sheetId/serviceAccountEmail = sync
+ * disabled; the worker fails closed (no sync, alert fires).
+ */
+export interface SheetsConfig {
+  /** Destination Sheet ID (placeholder until Karan shares his Sheet). */
+  readonly sheetId: string;
+  /** Service-account email (placeholder until provisioned). */
+  readonly serviceAccountEmail: string;
+  /** Service-account private key (from Key Vault, never in repo). */
+  readonly serviceAccountPrivateKey: string;
+  /** Max leads per hourly sync run (backpressure). */
+  readonly maxLeadsPerRun: number;
+  /** Google Sheets API OAuth scope. */
+  readonly apiScope: string;
+  /** True when both sheetId and serviceAccountEmail are configured. */
+  readonly enabled: boolean;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -373,6 +410,7 @@ export interface ApiConfig {
   readonly propertyData: PropertyDataConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
+  readonly sheets: SheetsConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -584,6 +622,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       stripeWebhookSecret: e.STRIPE_WEBHOOK_SECRET,
       stripeFlatPriceId: e.STRIPE_FLAT_PRICE_ID,
       isProduction: e.NODE_ENV === 'production',
+    },
+    sheets: {
+      sheetId: e.SHEETS_SHEET_ID,
+      serviceAccountEmail: e.SHEETS_SERVICE_ACCOUNT_EMAIL,
+      serviceAccountPrivateKey: e.SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY,
+      maxLeadsPerRun: e.SHEETS_MAX_LEADS_PER_RUN,
+      apiScope: e.SHEETS_API_SCOPE,
+      enabled:
+        e.SHEETS_SHEET_ID.length > 0 &&
+        e.SHEETS_SERVICE_ACCOUNT_EMAIL.length > 0,
     },
   };
 }

@@ -48,6 +48,8 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     status: 'new',
     unsubscribedAt: null,
     nudgeSentAt: null,
+    sheetsSyncedAt: null,
+    updatedAt: NOW,
     // 24h30m old — inside the default [23h, 24h) window behind NOW.
     createdAt: new Date(NOW.getTime() - 24.5 * HOUR),
     ...overrides,
@@ -126,6 +128,8 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     },
     findAllByEmail: async () => [],
     deleteByEmail: async () => 0,
+    findSheetsSyncCandidates: async () => [],
+    setSheetsSyncedAt: async () => null,
   };
 
   const magicLinks: MagicLinkStore = {

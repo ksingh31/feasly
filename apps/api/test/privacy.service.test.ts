@@ -69,7 +69,9 @@ function lead(id: string, email: string, estimateId: string): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
-      nudgeSentAt: null,
+    nudgeSentAt: null,
+    sheetsSyncedAt: null,
+    updatedAt: NOW,
     createdAt: NOW,
   };
 }
@@ -170,6 +172,8 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       world.leads = world.leads.filter((l) => l.email !== email);
       return before - world.leads.length;
     },
+    findSheetsSyncCandidates: async () => [],
+    setSheetsSyncedAt: async () => null,
     updateOnRepeat: async () => {
       throw new Error('not used in these tests');
     },
