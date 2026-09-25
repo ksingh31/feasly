@@ -1,13 +1,17 @@
-// Feasly — Metric alert rules (BE8-001).
+// Feasly — Alert rules (BE8-001).
 //
-// - 5xx rate on the Function App: fires when server errors spike.
-// - Queue poison depth: fires when any message lands in a poison queue
+// - 5xx rate on the Function App: a log-based scheduled query rule against
+//   the App Insights `requests` table. (Flex Consumption function apps do not
+//   emit the `Http5xx` platform metric under Microsoft.Web/sites, so a metric
+//   alert cannot be used here.)
+// - Queue poison depth: a metric alert on `QueueMessageCount` (storage
+//   account level) — fires when any message lands in a poison queue
 //   (Azure Functions moves a queue message to `{queue}-poison` after 5
 //   failed dequeue attempts).
 //
 // Both route to the ops action group (email). Severity 2 = warning.
-// Free-tier safe: metric alerts on platform metrics incur no per-alert
-// charge at this volume.
+// Free-tier safe: no per-alert charge at this volume (alert rules are
+// ~$0.10/mo each; 2 rules total).
 
 @description('Name prefix for alert resources')
 param namePrefix string
@@ -15,11 +19,14 @@ param namePrefix string
 @description('Azure region (alerts are global, but the location field is required)')
 param location string = 'global'
 
-@description('Resource ID of the Function App to monitor')
-param functionAppId string
-
 @description('Resource ID of the storage account holding the queues')
 param storageAccountId string
+
+@description('Resource ID of the Log Analytics workspace backing Application Insights')
+param logAnalyticsWorkspaceId string
+
+@description('Azure region of the Log Analytics workspace (scheduled query rules require a regional location, not global)')
+param workspaceLocation string
 
 @description('Ops notification email for the action group')
 param opsAlertEmail string
@@ -47,36 +54,42 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   }
 }
 
-resource http5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+// 5xx alert: Flex Consumption function apps do NOT emit the `Http5xx`
+// platform metric, so this is a log-based scheduled query rule against the
+// App Insights `requests` table instead. Fires when more than 5 requests
+// return 5xx within a 5-minute window.
+resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
   name: '${namePrefix}-http5xx'
-  location: location
+  location: workspaceLocation
   properties: {
-    description: 'Feasly API 5xx rate above threshold'
+    description: 'Feasly API 5xx count above threshold (5 per 5 min)'
     severity: 2
     enabled: true
     scopes: [
-      functionAppId
+      logAnalyticsWorkspaceId
     ]
     evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
-          name: 'Http5xxCount'
-          metricName: 'Http5xx'
-          metricNamespace: 'Microsoft.Web/sites'
+          criterionType: 'StaticThresholdCriterion'
+          query: 'requests | where timestamp > ago(5m) | where resultCode startswith "5" | summarize count()'
+          timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 5
-          timeAggregation: 'Total'
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
         }
       ]
     }
-    actions: [
-      {
-        actionGroupId: actionGroup.id
-      }
-    ]
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+    }
   }
 }
 
@@ -98,7 +111,7 @@ resource poisonQueueAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
         {
           name: 'PoisonQueueDepth'
           metricName: 'QueueMessageCount'
-          metricNamespace: 'Microsoft.Storage/storageAccounts/queueServices'
+          metricNamespace: 'Microsoft.Storage/storageAccounts'
           dimensions: [
             {
               name: 'QueueName'
