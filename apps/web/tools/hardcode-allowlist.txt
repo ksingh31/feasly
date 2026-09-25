@@ -32,3 +32,8 @@ apps/web/src/app/core/seo/seo-routes.ts
 # above. Every value is pinned by sample-report-page.component.spec.ts.
 apps/web/src/app/features/sample-report/sample-report-page.component.ts
 apps/web/src/app/features/sample-report/sample-report-page.component.html
+
+# FAQ JSON-LD context (SEO-010): `https://schema.org` is the fixed
+# vocabulary URI for structured data — a web standard, not a tunable
+# (same category as the /404 precedent above).
+apps/web/src/app/features/marketing/faq-page.component.ts

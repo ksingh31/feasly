@@ -1,0 +1,32 @@
+<app-site-nav />
+<main class="marketing" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede">{{ copy.sub }}</p>
+
+  <ol class="steps">
+    @for (step of copy.steps; track step.n) {
+      <li class="step">
+        <span class="step-n" aria-hidden="true">{{ step.n }}</span>
+        <div>
+          <h2 class="step-title">{{ step.title }}</h2>
+          <p class="step-body">{{ step.body }}</p>
+        </div>
+      </li>
+    }
+  </ol>
+
+  <aside class="math-note" aria-label="How estimates are calculated">
+    <h2>{{ copy.mathNoteTitle }}</h2>
+    <p>{{ copy.mathNoteBody }}</p>
+  </aside>
+
+  <div class="cta-row">
+    <a class="cta" routerLink="/">{{ copy.ctaNewBuild }}</a>
+    <a class="cta cta-secondary" routerLink="/">{{ copy.ctaReno }}</a>
+  </div>
+</main>
+<app-site-footer />

@@ -334,8 +334,36 @@ export interface AppConfig {
       privacy: string;
       termsTitle: string;
       terms: string;
+      howItWorksTitle: string;
+      howItWorks: string;
+      faqTitle: string;
+      faq: string;
       notFoundTitle: string;
       notFound: string;
+    };
+    /**
+     * Marketing pages (SEO-010). All user-facing copy for `/how-it-works`
+     * and `/faq` lives here so the no-hardcode tripwire stays green and
+     * copy is deploy-tunable. No accuracy guarantees, no "free forever"
+     * claims — copy-linted by `tools/check-prerender-seo.mjs`.
+     */
+    marketing: {
+      howItWorks: {
+        eyebrow: string;
+        title: string;
+        sub: string;
+        steps: { n: string; title: string; body: string }[];
+        mathNoteTitle: string;
+        mathNoteBody: string;
+        ctaNewBuild: string;
+        ctaReno: string;
+      };
+      faq: {
+        eyebrow: string;
+        title: string;
+        sub: string;
+        items: { q: string; a: string }[];
+      };
     };
   };
 }
