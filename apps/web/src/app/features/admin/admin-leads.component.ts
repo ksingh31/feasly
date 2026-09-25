@@ -12,9 +12,6 @@ import { Component } from '@angular/core';
 @Component({
   selector: 'app-admin-leads',
   standalone: true,
-  template: `
-    <h1>Leads</h1>
-    <p>The leads dashboard is coming in a follow-up story.</p>
-  `,
+  templateUrl: './admin-leads.component.html',
 })
 export class AdminLeadsComponent {}

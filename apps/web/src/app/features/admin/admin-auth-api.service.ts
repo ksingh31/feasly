@@ -27,7 +27,11 @@ export class AdminAuthApiService {
   private readonly config = inject(ConfigService);
 
   private get base(): string {
-    return `${this.config.get('api').baseUrl}/api/v1/admin/auth`;
+    return `${this.config.get('api').baseUrl}/api/v1`;
+  }
+
+  private get authBase(): string {
+    return `${this.base}/admin/auth`;
   }
 
   private call<T>(request: Observable<T>): Observable<T> {
@@ -38,7 +42,7 @@ export class AdminAuthApiService {
   /** Request a magic link. Always returns `{ sent: true }` (no oracle). */
   requestMagicLink(body: AdminAuthRequestBody): Observable<AdminAuthRequestResponse> {
     return this.call(
-      this.http.post<AdminAuthRequestResponse>(`${this.base}/request`, body, {
+      this.http.post<AdminAuthRequestResponse>(`${this.authBase}/request`, body, {
         withCredentials: true,
       }),
     );
@@ -47,10 +51,10 @@ export class AdminAuthApiService {
   /** Verify a magic-link token from the email. Sets the session cookie. */
   verifyMagicLink(token: string): Observable<AdminAuthVerifyResponse> {
     return this.call(
-      this.http.get<AdminAuthVerifyResponse>(
-        `${this.base}/verify?token=${encodeURIComponent(token)}`,
-        { withCredentials: true },
-      ),
+      this.http.get<AdminAuthVerifyResponse>(`${this.authBase}/verify`, {
+        params: { token },
+        withCredentials: true,
+      }),
     );
   }
 
@@ -58,7 +62,7 @@ export class AdminAuthApiService {
   logout(): Observable<AdminAuthLogoutResponse> {
     return this.call(
       this.http.post<AdminAuthLogoutResponse>(
-        `${this.base}/logout`,
+        `${this.authBase}/logout`,
         {},
         { withCredentials: true },
       ),
@@ -69,7 +73,7 @@ export class AdminAuthApiService {
   me(): Observable<{ email: string } | null> {
     return this.call(
       this.http
-        .get<{ email: string }>(`${this.base}/me`, { withCredentials: true })
+        .get<{ email: string }>(`${this.authBase}/me`, { withCredentials: true })
         .pipe(catchError(() => [null])),
     );
   }
