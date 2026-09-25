@@ -271,6 +271,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adjustCta: 'Re-run estimate',
       adjustLockedNote: 'Unlock your report to adjust the size.',
       updatingLabel: 'Updating your estimate…',
+      updatedLabel: 'Updated {date}',
       perSqftUnit: 'per sq ft',
       narrativeTitle: 'AI summary',
       narrativeComingSoon:

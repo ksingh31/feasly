@@ -19,6 +19,12 @@ export interface ReportSnapshot {
   readonly preparedAt: string;
   /** Monotonic per estimateId. */
   readonly version: number;
+  /**
+   * Set when an old magic link resolved to a newer snapshot (consumer/02).
+   * The report header shows "Updated {date}" using this value.
+   * Absent for first-view reports (no update to display).
+   */
+  readonly updatedAt?: string;
 }
 
 /** What the verified report fetch returns. */

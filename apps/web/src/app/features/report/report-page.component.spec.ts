@@ -432,4 +432,35 @@ describe('ReportPageComponent', () => {
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');
     });
   });
+
+  describe('updated header (consumer/02)', () => {
+    beforeEach(async () => {
+      await unlock();
+    });
+
+    it('shows "Updated {date}" when the snapshot has updatedAt (old magic link resolved to newer estimate)', async () => {
+      const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+      // Simulate backend resolving an old link to a newer snapshot by
+      // patching the state with updatedAt set.
+      const updatedSnapshot = { ...snapshot, updatedAt: '2026-09-20T10:00:00.000Z' };
+      store.reset({
+        ...store.snapshot(),
+        report: { ...store.snapshot().report, snapshot: updatedSnapshot },
+      });
+      fixture.detectChanges();
+      await pollFor(() => text().includes('Updated'), 'updated header');
+      const updatedEl = fixture.nativeElement.querySelector('.report-updated');
+      expect(updatedEl).not.toBeNull();
+      expect(updatedEl.textContent).toContain('Updated');
+      // The date is formatted as "September 20, 2026" (en-CA long format).
+      expect(updatedEl.textContent).toMatch(/September 20, 2026/);
+    });
+
+    it('hides the updated header for first-view reports (no updatedAt)', () => {
+      // The unlock() in beforeEach gives a snapshot without updatedAt.
+      fixture.detectChanges();
+      const updatedEl = fixture.nativeElement.querySelector('.report-updated');
+      expect(updatedEl).toBeNull();
+    });
+  });
 });

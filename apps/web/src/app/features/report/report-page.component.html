@@ -4,6 +4,9 @@
   @if (property(); as p) {
     <p class="report-address">{{ p.address }}</p>
   }
+  @if (updatedLabel(); as updated) {
+    <p class="report-updated">{{ updated }}</p>
+  }
 
   @if (status() === 'loading' && !snapshot()) {
     <p class="loading" role="status">{{ copy.loadingLabel }}</p>
