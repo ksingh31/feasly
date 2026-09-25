@@ -72,6 +72,19 @@
           </div>
         </div>
 
+        <!-- FINISH-TIER WHAT-IF (FE5-002): debounced live revise, URL stays /r/{token}. -->
+        <div class="tier-card no-print">
+          <app-tier-selector
+            [selected]="tierDraft()"
+            [options]="tierOptions"
+            [label]="copy.tierTitle"
+            (selectedChange)="selectTier($event)"
+          />
+          @if (loading()) {
+            <p class="updating" role="status">{{ copy.updatingLabel }}</p>
+          }
+        </div>
+
         <div class="hero-sub">
           <div class="figure-card build-highlight">
             <h2>{{ copy.buildLabel }}</h2>
