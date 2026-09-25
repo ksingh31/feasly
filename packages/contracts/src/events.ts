@@ -27,4 +27,10 @@ export interface AnalyticsEvent {
    * event, not per session.
    */
   readonly consent_ts: string;
+  /**
+   * admin/07: tenant key for embed-attributed events. Omitted = Feasly-direct
+   * traffic. Embed clients set this so the funnel dashboard can filter
+   * per-tenant funnels. Optional and additive — old clients keep working.
+   */
+  readonly tenant_key?: string;
 }

@@ -59,6 +59,9 @@ export const AnalyticsEventSchema = z
     route: z.string().trim().min(1).max(200),
     ts: isoDateTime,
     consent_ts: isoDateTime,
+    // admin/07: optional tenant attribution for embed clients. Additive —
+    // old clients omit it and are stored as Feasly-direct (NULL).
+    tenant_key: z.string().trim().min(1).max(100).optional(),
   })
   .strict();
 
@@ -107,7 +110,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
           `Invalid analytics event at '${where}'.`,
         );
       }
-      const { event, route, ts, consent_ts } = parsed.data;
+      const { event, route, ts, consent_ts, tenant_key } = parsed.data;
       const consentDate = new Date(consent_ts);
       if (consentDate.getTime() > clock().getTime() + CONSENT_SKEW_ALLOWANCE_MS) {
         throw new HttpError(
@@ -122,6 +125,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
         route,
         ts: new Date(ts),
         consentTs: consentDate,
+        tenantKey: tenant_key ?? null,
       });
       return {
         event: record.event as AnalyticsEventName,

@@ -15,6 +15,7 @@ export interface AnalyticsEventRecord {
   readonly route: string;
   readonly ts: Date;
   readonly consentTs: Date;
+  readonly tenantKey: string | null;
   readonly createdAt: Date;
 }
 
@@ -24,6 +25,8 @@ export interface NewAnalyticsEvent {
   readonly route: string;
   readonly ts: Date;
   readonly consentTs: Date;
+  /** Tenant key for embed-attributed events; null = Feasly-direct. */
+  readonly tenantKey: string | null;
 }
 
 export interface AnalyticsStore {
@@ -48,6 +51,7 @@ export function createDrizzleAnalyticsStore(deps: {
           route: event.route,
           ts: event.ts,
           consentTs: event.consentTs,
+          tenantKey: event.tenantKey,
         })
         .returning();
       return {
@@ -56,6 +60,7 @@ export function createDrizzleAnalyticsStore(deps: {
         route: row.route,
         ts: row.ts,
         consentTs: row.consentTs,
+        tenantKey: row.tenantKey,
         createdAt: row.createdAt,
       };
     },

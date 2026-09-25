@@ -146,6 +146,16 @@ import {
   type UsageRoute,
 } from './routes/usage.route';
 import {
+  createFunnelService,
+  type FunnelService,
+} from './services/funnel.service';
+import { createDrizzleFunnelStore } from './services/funnel.store';
+import type { FunnelStore } from './services/funnel.store';
+import {
+  createFunnelRoute,
+  type FunnelRoute,
+} from './routes/funnel.route';
+import {
   createApiKeyRateLimitMiddleware,
   type ApiKeyRateLimitDeps,
 } from './middleware/api-key-rate-limit';
@@ -253,6 +263,9 @@ export interface AppComposition {
   /** api-mcp/07: per-key rate limiting + usage metering. */
   readonly usageService: UsageService;
   readonly usageRoute: UsageRoute;
+  /** admin/07: funnel dashboards — counts + conversion rates. */
+  readonly funnelService: FunnelService;
+  readonly funnelRoute: FunnelRoute;
   /**
    * api-mcp/07: per-key rate-limit middleware factory. Public adapters
    * wrap their handlers with this when a Bearer API key is present.
@@ -302,6 +315,7 @@ export interface CompositionOptions {
   readonly dbPing?: () => Promise<void>;
   readonly analyticsStore?: AnalyticsStore;
   readonly usageStore?: UsageStore;
+  readonly funnelStore?: FunnelStore;
   /**
    * Test seam: substitute the Google Sheets client (fake in unit tests).
    * Production wiring uses the real Google Sheets API client.
@@ -638,6 +652,15 @@ export function createComposition(
     apiKeys: apiKeyService,
     adminGuard,
   });
+  // admin/07 — funnel dashboards. Aggregates the append-only analytics
+  // events table into per-step counts + conversion rates. Admin-only.
+  const funnelService: FunnelService = createFunnelService({
+    store: options.funnelStore ?? createDrizzleFunnelStore({ db: db.db }),
+  });
+  const funnelRoute: FunnelRoute = createFunnelRoute({
+    funnel: funnelService,
+    adminGuard,
+  });
   // api-mcp/07 — per-key rate limiting for public API routes. Wraps
   // handlers: Bearer key → authenticate → sliding-window check → record
   // usage on success. No key → passthrough (pipeline IP limiting applies).
@@ -755,6 +778,8 @@ export function createComposition(
     openApiRoute,
     usageService,
     usageRoute,
+    funnelService,
+    funnelRoute,
     withApiKeyRateLimit,
     attributionService,
     billingAuditService,

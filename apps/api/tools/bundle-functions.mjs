@@ -123,6 +123,10 @@ const targets = [
     out: 'usage/index.js',
   },
   {
+    entry: 'src/functions/funnels.ts',
+    out: 'funnels/index.js',
+  },
+  {
     entry: 'src/functions/stripe-webhooks.ts',
     out: 'stripe-webhooks/index.js',
   },
