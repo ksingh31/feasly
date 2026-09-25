@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,6 +9,13 @@ import { ConfigService } from '../../../core/config';
 let nextInstanceId = 0;
 
 type SearchStatus = 'idle' | 'searching' | 'error';
+
+/**
+ * Backend error codes the address step distinguishes (reno/05). Anything
+ * else falls back to the generic search-error copy.
+ */
+const OUT_OF_COVERAGE = 'OUT_OF_COVERAGE';
+const ADDRESS_NOT_FOUND = 'ADDRESS_NOT_FOUND';
 
 /**
  * Address autocomplete (FE1-001): debounced City-backed suggestions shared by
@@ -47,6 +54,16 @@ export class AddressAutocompleteComponent {
   readonly open = signal(false);
   readonly activeIndex = signal(-1);
   readonly status = signal<SearchStatus>('idle');
+  /**
+   * Backend error code from the last failed lookup (reno/05). Set when a
+   * request fails with a machine-readable code; drives the Calgary-only vs
+   * generic error rendering. Cleared on every new search.
+   */
+  readonly errorCode = signal<string | null>(null);
+  /** True when the last failure was OUT_OF_COVERAGE (reno/05). */
+  readonly outOfCoverage = computed(() => this.errorCode() === OUT_OF_COVERAGE);
+  /** True when the last failure was ADDRESS_NOT_FOUND (reno/05). */
+  readonly addressNotFound = computed(() => this.errorCode() === ADDRESS_NOT_FOUND);
   /** A 3+ char search completed (controls the no-results message). */
   readonly searched = signal(false);
   /** Empty-submit hint, set by the parent via `nudgeIfEmpty()`. */
@@ -67,6 +84,7 @@ export class AddressAutocompleteComponent {
         distinctUntilChanged(),
         tap((q) => {
           this.hint.set(null);
+          this.errorCode.set(null);
           if (q.length < 3) {
             this.suggestions.set([]);
             this.searched.set(false);
@@ -85,8 +103,9 @@ export class AddressAutocompleteComponent {
         switchMap((q) =>
           this.api.autocomplete(q).pipe(
             map((res) => res.suggestions.slice(0, this.suggestionLimit)),
-            catchError(() => {
+            catchError((error: unknown) => {
               this.status.set('error');
+              this.errorCode.set(apiErrorCode(error));
               return of([]);
             }),
           ),
@@ -112,6 +131,7 @@ export class AddressAutocompleteComponent {
   /** Fires one autocomplete request immediately, skipping the debounce. */
   private searchNow(query: string): void {
     this.status.set('searching');
+    this.errorCode.set(null);
     this.pendingKey = null;
     this.api
       .autocomplete(query)
@@ -121,7 +141,10 @@ export class AddressAutocompleteComponent {
       )
       .subscribe({
         next: (suggestions) => this.applyResults(suggestions),
-        error: () => this.status.set('error'),
+        error: (error: unknown) => {
+          this.status.set('error');
+          this.errorCode.set(apiErrorCode(error));
+        },
       });
   }
 
@@ -150,6 +173,7 @@ export class AddressAutocompleteComponent {
     const key = this.pendingKey;
     const q = this.query.value.trim();
     this.status.set('idle');
+    this.errorCode.set(null);
     if (key) {
       this.resolve(key);
     } else if (q.length >= 3) {
@@ -212,6 +236,7 @@ export class AddressAutocompleteComponent {
   private resolve(addressKey: string): void {
     this.pendingKey = addressKey;
     this.status.set('searching');
+    this.errorCode.set(null);
     this.api
       .getProperty(addressKey)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -223,9 +248,23 @@ export class AddressAutocompleteComponent {
           this.status.set('idle');
           this.selected.emit(property);
         },
-        error: () => {
+        error: (error: unknown) => {
           this.status.set('error');
+          this.errorCode.set(apiErrorCode(error));
         },
       });
   }
+}
+
+/**
+ * Extracts the machine-readable error code from a failed API call.
+ * The API service rejects with the `ApiError` contract shape (`code` /
+ * `message` / `retryable`); anything else maps to null (generic error).
+ */
+function apiErrorCode(error: unknown): string | null {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    return typeof code === 'string' && code.length > 0 ? code : null;
+  }
+  return null;
 }

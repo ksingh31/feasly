@@ -4,7 +4,8 @@
  * The Socrata HTTP layer is mocked (global fetch stub); these tests cover:
  * query normalization (street-type abbreviations), autocomplete mapping +
  * dedupe + limit, property record mapping, deterministic best-row choice for
- * multi-parcel addresses, NOT_FOUND on empty results, DEPENDENCY_UNAVAILABLE
+ * multi-parcel addresses, reno/05 miss mapping (OUT_OF_COVERAGE vs
+ * ADDRESS_NOT_FOUND) + lookup.miss metric, DEPENDENCY_UNAVAILABLE
  * on transport failures, and the in-memory cache.
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -154,20 +155,76 @@ describe('property service', () => {
       expect(res.assessedValue).toBe(60150000);
     });
 
-    it('throws NOT_FOUND when the City has no record', async () => {
+    it('throws ADDRESS_NOT_FOUND (reno/05) when the City has no record for a Calgary-looking address', async () => {
       mockFetchOnce([]);
       await expect(service.getProperty('999 NOWHERE ST NW')).rejects.toMatchObject({
         status: 404,
-        code: ErrorCodes.NOT_FOUND,
+        code: ErrorCodes.ADDRESS_NOT_FOUND,
       });
     });
 
-    it('throws NOT_FOUND on a blank address key', async () => {
+    it('throws ADDRESS_NOT_FOUND on a blank address key without hitting Socrata', async () => {
       const fetchSpy = vi.fn();
       vi.stubGlobal('fetch', fetchSpy);
       await expect(service.getProperty('   ')).rejects.toMatchObject({
         status: 404,
-        code: ErrorCodes.NOT_FOUND,
+        code: ErrorCodes.ADDRESS_NOT_FOUND,
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws OUT_OF_COVERAGE for an explicit non-Calgary city token', async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+      await expect(service.getProperty('123 KING ST W TORONTO')).rejects.toMatchObject({
+        status: 404,
+        code: ErrorCodes.OUT_OF_COVERAGE,
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws OUT_OF_COVERAGE for a non-Calgary postal code', async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+      // Socrata miss path: the query reaches the miss mapper with the
+      // out-of-coverage signal.
+      mockFetchOnce([]);
+      await expect(service.getProperty('V6B 1A1')).rejects.toMatchObject({
+        status: 404,
+        code: ErrorCodes.OUT_OF_COVERAGE,
+      });
+    });
+
+    it('emits lookup.miss with reason out_of_coverage', async () => {
+      const misses: Array<{ reason: string; key: string }> = [];
+      const svc = createPropertyService(CONFIG, {
+        onLookupMiss: (reason, addressKey) => misses.push({ reason, key: addressKey }),
+      });
+      mockFetchOnce([]);
+      await expect(svc.getProperty('V6B 1A1')).rejects.toMatchObject({
+        code: ErrorCodes.OUT_OF_COVERAGE,
+      });
+      expect(misses).toEqual([{ reason: 'out_of_coverage', key: 'V6B 1A1' }]);
+    });
+
+    it('emits lookup.miss with reason not_found', async () => {
+      const misses: Array<{ reason: string; key: string }> = [];
+      const svc = createPropertyService(CONFIG, {
+        onLookupMiss: (reason, addressKey) => misses.push({ reason, key: addressKey }),
+      });
+      mockFetchOnce([]);
+      await expect(svc.getProperty('999 NOWHERE ST NW')).rejects.toMatchObject({
+        code: ErrorCodes.ADDRESS_NOT_FOUND,
+      });
+      expect(misses).toEqual([{ reason: 'not_found', key: '999 NOWHERE ST NW' }]);
+    });
+
+    it('autocomplete throws OUT_OF_COVERAGE for an explicit non-Calgary query without hitting Socrata', async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+      await expect(service.autocomplete('123 King St W, Toronto')).rejects.toMatchObject({
+        status: 404,
+        code: ErrorCodes.OUT_OF_COVERAGE,
       });
       expect(fetchSpy).not.toHaveBeenCalled();
     });

@@ -44,6 +44,10 @@ export const ErrorCodes = {
   COMMUNITY_NOT_FOUND: 'COMMUNITY_NOT_FOUND',
   /** admin/03 — estimate lookup for an unknown id. */
   ESTIMATE_NOT_FOUND: 'ESTIMATE_NOT_FOUND',
+  /** Property lookup: the address is outside Feasly's Calgary coverage (reno/05). */
+  OUT_OF_COVERAGE: 'OUT_OF_COVERAGE',
+  /** Property lookup: no City record, but the query looks Calgarian (reno/05). */
+  ADDRESS_NOT_FOUND: 'ADDRESS_NOT_FOUND',
   UNKNOWN_TENANT: 'UNKNOWN_TENANT',
   CONFLICT: 'CONFLICT',
   /** Analytics ingest without a valid consent_ts (story consumer/01). */

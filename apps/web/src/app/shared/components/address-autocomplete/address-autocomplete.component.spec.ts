@@ -132,6 +132,104 @@ describe('AddressAutocompleteComponent', () => {
     expect(empty?.textContent).toContain("couldn't find that address");
   });
 
+  describe('Calgary-only gate (reno/05)', () => {
+    /** Exact story-pinned copy — the test is the copy lint. */
+    const HEADING = 'We only support Calgary right now.';
+    const BODY =
+      "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.";
+    const NOT_FOUND =
+      "We couldn't find that address. Check the spelling or try a nearby address.";
+
+    it('shows the exact Calgary-only copy for an out-of-coverage query', async () => {
+      const fixture = create();
+      await type(fixture, '123 King St W, Toronto');
+      const component = fixture.componentInstance;
+      expect(component.status()).toBe('error');
+      expect(component.outOfCoverage()).toBe(true);
+      const heading = fixture.nativeElement.querySelector('.ac-ooc-heading');
+      expect(heading?.textContent).toBe(HEADING);
+      const box = fixture.nativeElement.querySelector('.ac-out-of-coverage');
+      expect(box?.textContent).toContain(BODY);
+    });
+
+    it('collects no email on the out-of-coverage state (no input, no POST)', async () => {
+      const fixture = create();
+      await type(fixture, '123 King St W, Toronto');
+      const box = fixture.nativeElement.querySelector('.ac-out-of-coverage');
+      expect(box).toBeTruthy();
+      // No email field anywhere in the component…
+      expect(box.querySelector('input[type="email"]')).toBeNull();
+      const inputs: HTMLInputElement[] = Array.from(box.querySelectorAll('input'));
+      expect(
+        inputs.some((i) => /email/i.test(i.name + i.placeholder + (i.getAttribute('aria-label') ?? ''))),
+      ).toBe(false);
+      // …and no HTTP traffic beyond the lookup itself (mock mode makes no
+      // HTTP calls at all; assert none were attempted).
+      httpMock.expectNone(() => true);
+    });
+
+    it('offers a working retry path from the out-of-coverage state', async () => {
+      const fixture = create();
+      await type(fixture, '123 King St W, Toronto');
+      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+      const retry = fixture.nativeElement.querySelector('.ac-out-of-coverage .ac-retry');
+      expect(retry).toBeTruthy();
+      retry.click();
+      await awaitSearchSettled(fixture);
+      // Retry re-runs the same query → still out of coverage (no dead end).
+      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+    });
+
+    it('clears the out-of-coverage state when the user types a Calgary query', async () => {
+      const fixture = create();
+      await type(fixture, '123 King St W, Toronto');
+      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+      await type(fixture, '14 st');
+      expect(fixture.componentInstance.outOfCoverage()).toBe(false);
+      expect(fixture.componentInstance.status()).not.toBe('error');
+    });
+
+    it('shows the not-found copy (not the Calgary-only copy) for a Calgary-looking miss', async () => {
+      const fixture = create();
+      await type(fixture, 'zzz nowhere calgary');
+      const component = fixture.componentInstance;
+      expect(component.outOfCoverage()).toBe(false);
+      const empty = fixture.nativeElement.querySelector('.ac-empty');
+      expect(empty?.textContent).toBe(NOT_FOUND);
+    });
+
+    it('shows the not-found copy when the record lookup fails with ADDRESS_NOT_FOUND', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      // Simulate a getProperty failure with the ADDRESS_NOT_FOUND code.
+      component.errorCode.set('ADDRESS_NOT_FOUND');
+      component.status.set('error');
+      fixture.detectChanges();
+      expect(component.addressNotFound()).toBe(true);
+      expect(component.outOfCoverage()).toBe(false);
+      const box = fixture.nativeElement.querySelector('.ac-not-found');
+      expect(box?.textContent).toContain(NOT_FOUND);
+    });
+  });
+
+  describe('shared across all entry points (reno/05)', () => {
+    it('landing (new-build + reno) and embed templates both use the shared address component', async () => {
+      // The three entry points must not drift into separate implementations:
+      // new-build and reno share the landing page's hero search; embed has
+      // its own shell. Both must render <app-address-autocomplete>.
+      const { readFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      const root = join(__dirname, '..', '..', '..', 'features');
+      for (const template of [
+        join(root, 'landing', 'landing-page.component.html'),
+        join(root, 'embed', 'embed-shell.component.html'),
+      ]) {
+        const html = await readFile(template, 'utf8');
+        expect(html, template).toContain('<app-address-autocomplete');
+      }
+    });
+  });
+
   it('pickTop is false with no suggestions; nudgeIfEmpty shows the hint', async () => {
     const fixture = create();
     const component = fixture.componentInstance;
