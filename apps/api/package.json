@@ -31,6 +31,7 @@
     "@azure/communication-email": "^1.1.0",
     "@feasly/contracts": "^0.3.0",
     "@feasly/cost-engine": "^0.1.0",
+    "@feasly/mcp": "^0.1.0",
     "drizzle-orm": "^0.45.3",
     "googleapis": "^140.0.1",
     "pg": "^8.23.0",
