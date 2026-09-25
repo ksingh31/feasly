@@ -5,12 +5,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { PropertyRecord } from '@feasly/contracts';
-import { API_SERVICE } from '../../core/api/api.service';
+import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
+import { API_SERVICE, provideApi } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { SelectProperty, UpdateInputs, WizardState } from '../wizard';
+import { SelectProperty, StorePreviewEstimate, UpdateInputs, WizardState } from '../wizard';
 import { ReportState } from '../report/report.state';
 import { PreviewPageComponent } from './preview-page.component';
 
@@ -203,5 +203,93 @@ describe('PreviewPageComponent loading state', () => {
     // 50ms latency means the loading indicator is visible now.
     expect(fixture.nativeElement.querySelector('.loading')).toBeTruthy();
     TestBed.resetTestingModule();
+  });
+
+  describe('reno preview (RENO-04)', () => {
+    async function setupReno(): Promise<ComponentFixture<PreviewPageComponent>> {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [PreviewPageComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideApi(),
+          providePropertyData(),
+          provideStore([WizardState, ReportState]),
+          provideRouter([]),
+        ],
+      });
+      const httpMock = TestBed.inject(HttpTestingController);
+      const config = TestBed.inject(ConfigService);
+      const pending = config.load();
+      httpMock.expectOne('/assets/config/app-config.json').flush({
+        propertyData: { source: 'mock' },
+        wizard: { sqftDefault: 2200, sqftMin: 1200, sqftMax: 4000, sqftStep: 50 },
+      });
+      await pending;
+      const store = TestBed.inject(Store);
+      const { ChooseProjectType, UpdateRenoInputs } = await import('./wizard.actions');
+      store.dispatch([
+        new SelectProperty({
+          addressKey: 'calgary-1234-14-st-nw',
+          address: '1234 14 St NW, Calgary, AB',
+          community: 'Capitol Hill',
+          lotSqft: 5000,
+          zoning: 'R-CG',
+          assessedValue: 729000,
+          assessmentYear: 2025,
+          yearBuilt: 1978,
+          dataAsOf: '2025-07-01',
+          stale: false,
+        } as PropertyRecord),
+        new ChooseProjectType('renovation'),
+        new UpdateRenoInputs({
+          renoType: 'basement',
+          renoSqft: 800,
+          tier: 'premium',
+          underpinning: false,
+        }),
+      ]);
+      const fixture = TestBed.createComponent(PreviewPageComponent);
+      fixture.detectChanges();
+      // Wait for the preview to load (LoadPreview dispatched on init)
+      const deadline = Date.now() + 8000;
+      for (;;) {
+        fixture.detectChanges();
+        if (fixture.nativeElement.querySelector('.figures')) {
+          break;
+        }
+        if (Date.now() > deadline) {
+          throw new Error('timed out waiting for reno preview');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return fixture;
+    }
+
+    it('shows reno-specific visible facts (reno type, affected sqft, tier)', async () => {
+      const fixture = await setupReno();
+      const summary = fixture.nativeElement.querySelector('.inputs-summary') as HTMLElement;
+      expect(summary.textContent).toContain('Basement');
+      expect(summary.textContent).toContain('800');
+      expect(summary.textContent).toContain('premium');
+      TestBed.resetTestingModule();
+    });
+
+    it('has no $+digits in blurred regions pre-gate (DOM-leak test)', async () => {
+      const fixture = await setupReno();
+      const figures = fixture.nativeElement.querySelector('.figures') as HTMLElement;
+      expect(figures).toBeTruthy();
+      // RENO-04 AC2: no real numbers in the DOM pre-gate — check for $ followed by digits
+      expect(figures.textContent).not.toMatch(/\$\d/);
+      TestBed.resetTestingModule();
+    });
+
+    it('back link returns to reno scope step for reno', async () => {
+      const fixture = await setupReno();
+      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      expect(back?.getAttribute('href')).toBe('/estimate/reno-scope');
+      TestBed.resetTestingModule();
+    });
   });
 });

@@ -92,13 +92,40 @@ export class ReportState {
   @Action(LoadPreview)
   loadPreview(ctx: StateContext<ReportStateModel>) {
     const property = this.store.selectSnapshot(WizardState.property);
-    const inputs = this.store.selectSnapshot(WizardState.inputs);
-    if (!property || inputs.sqft <= 0) {
+    const projectType = this.store.selectSnapshot(WizardState.projectType);
+    
+    if (!property) {
       this.fail(ctx);
       return;
     }
+    
+    // RENO-04: build the preview request from reno inputs when projectType is renovation
+    let request: Parameters<typeof this.api.getPreviewEstimate>[0];
+    if (projectType === 'renovation') {
+      const reno = this.store.selectSnapshot(WizardState.renoInputs);
+      if (!reno.renoType || !reno.tier || reno.renoSqft <= 0) {
+        this.fail(ctx);
+        return;
+      }
+      request = {
+        projectType: 'renovation',
+        addressKey: property.addressKey,
+        renoType: reno.renoType,
+        renoSqft: reno.renoSqft,
+        tier: reno.tier,
+        underpinning: reno.underpinning,
+      };
+    } else {
+      const inputs = this.store.selectSnapshot(WizardState.inputs);
+      if (inputs.sqft <= 0) {
+        this.fail(ctx);
+        return;
+      }
+      request = { addressKey: property.addressKey, ...inputs };
+    }
+    
     this.beginLoad(ctx);
-    return this.api.getPreviewEstimate({ addressKey: property.addressKey, ...inputs }).pipe(
+    return this.api.getPreviewEstimate(request).pipe(
       tap((preview) => ctx.patchState({ preview, status: 'ready' })),
       catchError(() => {
         this.fail(ctx);

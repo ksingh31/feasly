@@ -3,6 +3,7 @@ import { map, of } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
+  AnyEstimateRequest,
   ApiError,
   AutocompleteResponse,
   CallbackRequest,
@@ -20,6 +21,8 @@ import type {
   PreviewEstimateResponse,
   EstimateResponse,
   PropertyRecord,
+  RenoEstimateInputs,
+  RenoEstimateRequest,
   TierRevisionRequest,
   TierRevisionResponse,
 } from '@feasly/contracts';
@@ -33,6 +36,8 @@ import {
   mockEstimate,
   mockLeadResponse,
   mockPreviewEstimate,
+  mockRenoEstimate,
+  mockRenoReport,
   mockReport,
   mockShareOk,
   mockVerifySuccess,
@@ -62,6 +67,8 @@ export class MockApiService implements ApiService {
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
   /** Inputs per estimate, so report/tier-revision stay consistent. */
   private readonly estimateInputs = new Map<string, EstimateInputs>();
+  /** Reno inputs per estimate (RENO-04), so reno reports include renoInputs. */
+  private readonly renoEstimateInputs = new Map<string, RenoEstimateInputs>();
   /** Report versions per estimate, so tier revisions increment monotonically. */
   private readonly reportVersions = new Map<string, number>();
 
@@ -76,7 +83,16 @@ export class MockApiService implements ApiService {
   }
 
   /** Drops the address key: the estimate math only needs the inputs. */
-  private toInputs(request: EstimateRequest): EstimateInputs {
+  private toInputs(request: AnyEstimateRequest): EstimateInputs {
+    // Reno requests carry renoSqft/tier; map to the legacy shape for preview.
+    if (request.projectType === 'renovation') {
+      return {
+        sqft: request.renoSqft,
+        tier: request.tier,
+        garage: 'none',
+        basement: 'unfinished',
+      };
+    }
     return {
       sqft: request.sqft,
       tier: request.tier,
@@ -110,14 +126,24 @@ export class MockApiService implements ApiService {
     return this.propertyData.getProperty(addressKey);
   }
 
-  getPreviewEstimate(request: EstimateRequest): Observable<PreviewEstimateResponse> {
+  getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
+    // Reno previews use the same blurred shape — the type guarantees no leaks.
     const inputs = this.toInputs(request);
     const response = mockPreviewEstimate(request.addressKey, inputs);
     this.estimateInputs.set(response.estimateId, inputs);
     return this.roundTrip(response);
   }
 
-  getEstimate(request: EstimateRequest): Observable<EstimateResponse> {
+  getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
+    if (request.projectType === 'renovation') {
+      const response = mockRenoEstimate(request.addressKey, request);
+      this.estimateInputs.set(response.estimateId, response.inputs);
+      // Track reno inputs for report generation (RENO-04)
+      if (response.renoInputs) {
+        this.renoEstimateInputs.set(response.estimateId, response.renoInputs);
+      }
+      return this.roundTrip(response);
+    }
     const inputs = this.toInputs(request);
     const response = mockEstimate(request.addressKey, inputs, this.referenceSqft());
     this.estimateInputs.set(response.estimateId, inputs);
@@ -172,9 +198,17 @@ export class MockApiService implements ApiService {
         retryable: false,
       });
     }
-    const inputs = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
     const disclaimer = this.config.get('copy').narrativeDisclaimer;
     const version = this.reportVersions.get(ids.estimateId) ?? 1;
+    // RENO-04: use reno report if this was a reno estimate
+    const renoInputs = this.renoEstimateInputs.get(ids.estimateId);
+    if (renoInputs) {
+      return this.roundTrip({
+        ...mockRenoReport(ids.estimateId, ids.leadId, renoInputs, disclaimer),
+        version,
+      });
+    }
+    const inputs = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
     return this.roundTrip({
       ...mockReport(ids.estimateId, ids.leadId, inputs, disclaimer, this.referenceSqft()),
       version,
