@@ -103,13 +103,55 @@ export class ReportPageComponent implements OnInit {
   protected readonly unlocked = computed(() => this.snapshot() !== null);
   protected readonly loading = computed(() => this.status() === 'loading');
 
-  /** True when this is a renovation report (vs new-build). */
+  /** Wizard project type (reactive): the pre-gate source of truth for reno. */
+  private readonly wizardProjectType = this.store.selectSignal(WizardState.projectType);
+
+  /**
+   * True when this is a renovation report (vs new-build): the verified
+   * snapshot says so post-gate, or the wizard is in the renovation flow
+   * pre-gate (the blurred preview contract carries no renoInputs).
+   */
   protected readonly isReno = computed(
-    () => this.snapshot()?.projectType === 'renovation',
+    () => this.snapshot()?.projectType === 'renovation' || this.wizardProjectType() === 'renovation',
   );
 
-  /** Reno inputs from the snapshot (if reno). */
-  protected readonly renoInputs = computed(() => this.snapshot()?.renoInputs ?? null);
+  /** Wizard reno inputs (reactive): pre-gate source for reno type/area. */
+  private readonly wizardRenoInputs = this.store.selectSignal(WizardState.renoInputs);
+
+  /** Reno inputs: verified snapshot post-gate, wizard state pre-gate. */
+  protected readonly renoInputs = computed(
+    () => this.snapshot()?.renoInputs ?? this.wizardRenoInputs(),
+  );
+
+  /** Display name of the renovation type (e.g. "Extensive remodel"). */
+  protected readonly renoTypeLabel = computed(() => {
+    const reno = this.renoInputs();
+    if (!reno?.renoType) {
+      return null;
+    }
+    const found = this.config.get('copy').wizard.renoTypes.find((t) => t.id === reno.renoType);
+    return found?.name ?? reno.renoType;
+  });
+
+  /** Affected-area cap for the current reno type (additions bill at most 400 sq ft). */
+  protected readonly renoSqftCap = computed(() => {
+    const reno = this.renoInputs();
+    return reno?.renoType === 'addition' ? this.wizard.renoAdditionCap : this.wizard.renoSqftMax;
+  });
+
+  /** Affected area to display on reno reports (snapshot post-gate, wizard inputs pre-gate). */
+  protected readonly renoSqftDisplay = computed(() => this.renoInputs()?.renoSqft ?? 0);
+
+  /** Stepper copy switches to affected-area wording on reno reports. */
+  protected readonly stepperTitle = computed(() =>
+    this.isReno() ? this.copy.adjustTitleReno : this.copy.adjustTitle,
+  );
+  protected readonly stepperHint = computed(() =>
+    this.isReno() ? this.copy.adjustHintReno : this.copy.adjustHint,
+  );
+  protected readonly stepperLockedNote = computed(() =>
+    this.isReno() ? this.copy.adjustLockedNoteReno : this.copy.adjustLockedNote,
+  );
 
   /** Engine-authored assumptions (reno only). */
   protected readonly assumptions = computed(() => this.snapshot()?.assumptions ?? []);
@@ -242,8 +284,15 @@ export class ReportPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/report');
-    this.sqftDraft.set(this.wizardInputs().sqft);
-    this.tierDraft.set(this.wizardInputs().tier);
+    // Reno reports step the affected area, not the new-build living area:
+    // seed the drafts from the reno inputs when in the renovation flow.
+    if (this.isReno()) {
+      this.sqftDraft.set(this.wizardRenoInputs().renoSqft);
+      this.tierDraft.set(this.wizardRenoInputs().tier);
+    } else {
+      this.sqftDraft.set(this.wizardInputs().sqft);
+      this.tierDraft.set(this.wizardInputs().tier);
+    }
     // D-02: rapid stepper taps coalesce into one revise. distinctUntilChanged
     // drops no-op re-emissions; the state's cancelUncompleted gives switchMap
     // semantics so a stale in-flight response can never overwrite a newer one.
@@ -313,8 +362,11 @@ export class ReportPageComponent implements OnInit {
     if (!this.unlocked()) {
       return;
     }
-    const { sqftMin, sqftMax } = this.wizard;
-    const next = Math.min(sqftMax, Math.max(sqftMin, this.sqftDraft() + delta));
+    // Reno reports step the affected area within the reno bounds (addition
+    // cap applies); new-build reports step the living area.
+    const min = this.isReno() ? this.wizard.renoSqftMin : this.wizard.sqftMin;
+    const max = this.isReno() ? this.renoSqftCap() : this.wizard.sqftMax;
+    const next = Math.min(max, Math.max(min, this.sqftDraft() + delta));
     if (next === this.sqftDraft()) {
       return;
     }

@@ -140,6 +140,19 @@ export class MockApiService implements ApiService {
     const inputs = this.toInputs(request);
     const response = mockPreviewEstimate(request.addressKey, inputs);
     this.estimateInputs.set(response.estimateId, inputs);
+    if (request.projectType === 'renovation') {
+      // Recorded so getReport() resolves a reno snapshot for reno leads.
+      // (The preview shape itself stays contract-clean: no renoInputs pre-gate.
+      // The report keys pre-gate reno UI off WizardState.projectType instead.)
+      const renoInputs: RenoEstimateInputs = {
+        projectType: 'renovation',
+        renoType: request.renoType,
+        renoSqft: request.renoSqft,
+        tier: request.tier,
+        underpinning: request.underpinning ?? false,
+      };
+      this.renoEstimateInputs.set(response.estimateId, renoInputs);
+    }
     return this.roundTrip(response);
   }
 
@@ -240,6 +253,26 @@ export class MockApiService implements ApiService {
         retryable: false,
       });
     }
+    // Reno reports stay reno: a stepper/tier revision on a reno token must
+    // produce a reno snapshot (with renoInputs), never a new-build one.
+    const reno = this.renoEstimateInputs.get(ids.estimateId);
+    const version = (this.reportVersions.get(ids.estimateId) ?? 1) + 1;
+    this.reportVersions.set(ids.estimateId, version);
+    if (reno) {
+      const nextReno: RenoEstimateInputs = {
+        ...reno,
+        tier: request.tier ?? reno.tier,
+        renoSqft: request.sqft ?? reno.renoSqft,
+      };
+      this.renoEstimateInputs.set(ids.estimateId, nextReno);
+      const revised = mockRenoReport(
+        ids.estimateId,
+        ids.leadId,
+        nextReno,
+        this.config.get('copy').narrativeDisclaimer,
+      );
+      return this.roundTrip({ ...revised, version });
+    }
     const current = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
     const next: EstimateInputs = {
       ...current,
@@ -256,8 +289,6 @@ export class MockApiService implements ApiService {
       this.referenceSqft(),
     );
     this.estimateInputs.set(ids.estimateId, next);
-    const version = (this.reportVersions.get(ids.estimateId) ?? 1) + 1;
-    this.reportVersions.set(ids.estimateId, version);
     return this.roundTrip({ ...revised, version });
   }
 

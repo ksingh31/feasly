@@ -68,8 +68,19 @@ export class RenoScopePageComponent implements OnInit {
 
   /** Reno-type card: stores the selection; underpinning clears automatically for non-basement types. */
   chooseRenoType(type: RenoType): void {
-    this.clampNote.set(null);
-    this.store.dispatch(new UpdateRenoInputs({ renoType: type }));
+    // Clamp the stored affected area to the new type's cap: additions bill at
+    // most 400 sq ft, so a value carried over from another type must not
+    // persist above the cap (it would desync the slider/number inputs and
+    // fail analyzing validation).
+    const cap = type === 'addition' ? this.wizard.renoAdditionCap : this.wizard.renoSqftMax;
+    const current = this.renoInputs().renoSqft;
+    if (current > cap) {
+      this.clampNote.set(this.copy.renoAdditionCapNote);
+      this.store.dispatch(new UpdateRenoInputs({ renoType: type, renoSqft: cap }));
+    } else {
+      this.clampNote.set(null);
+      this.store.dispatch(new UpdateRenoInputs({ renoType: type }));
+    }
   }
 
   /**
@@ -115,7 +126,22 @@ export class RenoScopePageComponent implements OnInit {
   }
 
   /**
-   * Numeric input: clamps to the effective range. Additions clamp at 400 with
+   * Numeric input (live keystrokes): commit finite values straight to the
+   * store so the slider tracks typing. No clamping while typing — the CTA
+   * stays disabled until the value is inside the valid range, and blur
+   * (onSqftNumber) clamps with an inline note.
+   */
+  onSqftNumberInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).valueAsNumber;
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    this.clampNote.set(null);
+    this.store.dispatch(new UpdateRenoInputs({ renoSqft: Math.round(value) }));
+  }
+
+  /**
+   * Numeric input commit (blur/Enter): clamps to the effective range. Additions clamp at 400 with
    * the exact inline note (never a silent clamp); other out-of-range entries
    * show a generic adjustment note.
    */
@@ -152,10 +178,23 @@ export class RenoScopePageComponent implements OnInit {
     this.store.dispatch(new UpdateRenoInputs({ underpinning: !this.renoInputs().underpinning }));
   }
 
-  /** CTA enablement: reno type + sqft + tier must all be set. */
+  /**
+   * CTA enablement: reno type + tier must be set AND the affected area must
+   * be inside the valid range for the selected type. An out-of-range value
+   * (e.g. typed but not yet clamped) keeps the CTA disabled so an invalid
+   * estimate can never reach the analyzing pipeline.
+   */
   protected canContinue(): boolean {
     const r = this.renoInputs();
-    return r.renoType != null && r.renoSqft > 0 && r.tier != null;
+    if (r.renoType == null || r.tier == null) {
+      return false;
+    }
+    const cap = this.sqftCap();
+    return (
+      Number.isFinite(r.renoSqft) &&
+      r.renoSqft >= this.wizard.renoSqftMin &&
+      r.renoSqft <= cap
+    );
   }
 
   goBack(): void {

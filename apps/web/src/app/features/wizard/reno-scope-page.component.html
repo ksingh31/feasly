@@ -42,6 +42,7 @@
                 [max]="sqftCap()"
                 [step]="wizard.renoSqftStep"
                 [value]="renoInputs().renoSqft"
+                (input)="onSqftNumberInput($event)"
                 (change)="onSqftNumber($event)"
                 [attr.aria-label]="copy.renoSqftLabel"
               />
