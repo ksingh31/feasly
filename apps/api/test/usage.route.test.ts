@@ -4,11 +4,14 @@
  * Covers: admin sees all keys, key owner sees only own key, owner
  * querying another key → 403, no auth → 401, bad date → 400.
  * The UsageService is faked; the AdminGuard uses the real
- * createConfigAdminGuard with a known key.
+ * createSessionAdminGuard with a fake AdminAuthService.
  */
 import { describe, expect, it } from 'vitest';
 import { createUsageRoute } from '../src/routes/usage.route';
-import { createConfigAdminGuard } from '../src/middleware/admin-guard';
+import {
+  ADMIN_SESSION_COOKIE,
+  createSessionAdminGuard,
+} from '../src/middleware/admin-guard';
 import { HttpError, ErrorCodes } from '../src/middleware/errors';
 import type { ApiKeyService } from '../src/services/api-key.service';
 import type {
@@ -16,7 +19,21 @@ import type {
   UsageService,
 } from '../src/services/usage.service';
 
-const ADMIN_KEY = 'test-admin-key';
+const SESSION_TOKEN = 'test-session-token';
+const adminHeaders = {
+  cookie: `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(SESSION_TOKEN)}`,
+};
+
+function fakeAdminAuth(validToken: string | null) {
+  return {
+    validateSession: async (token: string | null) =>
+      token !== null && token === validToken ? 'admin@example.com' : null,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sessionGuard = (validToken: string | null = SESSION_TOKEN) =>
+  createSessionAdminGuard({ adminAuth: fakeAdminAuth(validToken) as any });
 
 function createFakeUsage(aggregates: UsageAggregate[]): UsageService & {
   lastQuery: unknown;
@@ -99,9 +116,9 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
-    const result = await route.getUsage({ 'x-admin-key': ADMIN_KEY }, {});
+    const result = await route.getUsage(adminHeaders, {});
     expect(result).toEqual([
       {
         date: '2026-09-25',
@@ -118,7 +135,7 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     const result = await route.getUsage(
       { authorization: 'Bearer owner-token' },
@@ -136,7 +153,7 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(
       route.getUsage(
@@ -151,7 +168,7 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(route.getUsage({}, {})).rejects.toMatchObject({
       status: 401,
@@ -163,10 +180,10 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(
-      route.getUsage({ 'x-admin-key': ADMIN_KEY }, { from: 'not-a-date' }),
+      route.getUsage(adminHeaders, { from: 'not-a-date' }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
@@ -175,11 +192,11 @@ describe('usage route (api-mcp/07)', () => {
     const route = createUsageRoute({
       usage,
       apiKeys: createFakeApiKeys('owner-key-id'),
-      adminGuard: createConfigAdminGuard({ adminApiKey: ADMIN_KEY }),
+      adminGuard: sessionGuard(),
     });
     await expect(
       route.getUsage(
-        { 'x-admin-key': ADMIN_KEY },
+        adminHeaders,
         { from: '2026-09-26', to: '2026-09-25' },
       ),
     ).rejects.toMatchObject({ status: 400 });

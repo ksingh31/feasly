@@ -1,0 +1,15 @@
+<main class="admin-login">
+  <div class="admin-login__card">
+    <h1>Verifying sign in</h1>
+    @if (status === 'verifying') {
+      <p role="status">Checking your sign-in link…</p>
+    } @else {
+      <p class="admin-login__error" role="alert">
+        This sign-in link is invalid or has expired.
+      </p>
+      <button type="button" class="admin-login__submit" (click)="toLogin()">
+        Back to sign in
+      </button>
+    }
+  </div>
+</main>

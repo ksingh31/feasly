@@ -254,13 +254,29 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
-    path: '/api/v1/admin/auth/verify/{token}',
+    path: '/api/v1/admin/auth/verify',
     auth: 'magic-token',
     rateLimit: '10/min per IP',
     status: 'planned',
     summary:
-      'Consume the admin magic link → httpOnly Secure SameSite=Lax session ' +
-      'cookie, 7-day expiry. Single-use (replay-safe).',
+      'Consume the admin magic link (?token=…) → httpOnly Secure SameSite=Lax ' +
+      'session cookie, 7-day expiry. Single-use (replay-safe).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/auth/me',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'planned',
+    summary: 'Return the current admin session identity (email).',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/auth/logout',
+    auth: 'admin',
+    rateLimit: '10/min per session',
+    status: 'planned',
+    summary: 'Revoke the admin session; clears the session cookie.',
   },
   {
     method: 'GET',

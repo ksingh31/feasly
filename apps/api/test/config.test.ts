@@ -37,6 +37,7 @@ describe('loadConfig', () => {
         // HRD-03: per-email magic-link resend cooldown (default 60s).
         magicLinkReissueCooldownMs: 60_000,
         adminApiKey: undefined,
+        adminSessionTtlSeconds: 604_800,
       },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',

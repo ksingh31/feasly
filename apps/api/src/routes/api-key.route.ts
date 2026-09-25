@@ -77,13 +77,13 @@ export function createApiKeyRoute(deps: ApiKeyRouteDeps): ApiKeyRoute {
 
   return {
     async issue(headers, body): Promise<ApiKeyIssuedResponse> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       const { key, plaintext } = await apiKeys.issue(body);
       return { key: toResponse(key), plaintext };
     },
 
     async rotate(headers, id): Promise<ApiKeyIssuedResponse> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       const parsed = keyIdParamSchema.safeParse(id);
       if (!parsed.success) {
         throw new HttpError(400, ErrorCodes.VALIDATION_FAILED, 'Invalid key id.', false);
@@ -93,7 +93,7 @@ export function createApiKeyRoute(deps: ApiKeyRouteDeps): ApiKeyRoute {
     },
 
     async revoke(headers, id): Promise<{ readonly revoked: true }> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       const parsed = keyIdParamSchema.safeParse(id);
       if (!parsed.success) {
         throw new HttpError(400, ErrorCodes.VALIDATION_FAILED, 'Invalid key id.', false);
@@ -103,7 +103,7 @@ export function createApiKeyRoute(deps: ApiKeyRouteDeps): ApiKeyRoute {
     },
 
     async list(headers): Promise<ApiKeyListResponse> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       const keys = await apiKeys.list();
       return { keys: keys.map(toResponse) };
     },

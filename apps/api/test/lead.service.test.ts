@@ -32,11 +32,11 @@ const APP_BASE_URL = 'https://feasly.example';
 
 /** Minimal magic-link fake: records issuance, never used for verification here. */
 function fakeMagicLinkStore(): MagicLinkStore & {
-  issued: { token: string; leadId: string }[];
+  issued: { token: string; leadId: string | null }[];
   /** Pre-seeded rows returned by findByLeadIds (live/expired scenarios). */
   seededLinks: MagicLinkRecord[];
 } {
-  const issued: { token: string; leadId: string }[] = [];
+  const issued: { token: string; leadId: string | null }[] = [];
   const seededLinks: MagicLinkRecord[] = [];
   return {
     issued,
@@ -53,6 +53,7 @@ function fakeMagicLinkStore(): MagicLinkStore & {
     findByToken: async () => null,
     findByLeadIds: async () => seededLinks,
     revokeByLeadIds: async () => 0,
+    markUsed: async () => true,
   };
 }
 
@@ -61,6 +62,7 @@ function liveLink(leadId: string): MagicLinkRecord {
     id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     leadId,
     purpose: 'lead',
+    email: null,
     tokenHash: 'hash-live',
     expiresAt: new Date(NOW.getTime() + 86_400_000),
     usedAt: null,
@@ -74,6 +76,7 @@ function expiredLink(leadId: string): MagicLinkRecord {
     id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     leadId,
     purpose: 'lead',
+    email: null,
     tokenHash: 'hash-expired',
     expiresAt: new Date(NOW.getTime() - 86_400_000),
     usedAt: null,

@@ -1,0 +1,12 @@
+<div class="admin-shell">
+  <header class="admin-shell__header">
+    <span class="admin-shell__brand">Feasly Admin</span>
+    <nav class="admin-shell__nav">
+      <a routerLink="/admin/leads" routerLinkActive="active">Leads</a>
+      <button type="button" (click)="signOut()">Sign out</button>
+    </nav>
+  </header>
+  <main class="admin-shell__main">
+    <router-outlet />
+  </main>
+</div>

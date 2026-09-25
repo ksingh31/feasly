@@ -110,6 +110,7 @@ function link(
     id,
     leadId,
     purpose: 'lead',
+    email: null,
     tokenHash: `hash-${id}`,
     expiresAt: new Date(NOW.getTime() + 7 * 86_400_000),
     usedAt: null,
@@ -140,6 +141,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     issue: async () => {
       throw new Error('not used in these tests');
     },
+    markUsed: async () => true,
     findByToken: async (token: string) => {
       const id = tokenToLinkId.get(token);
       return (id && world.links.find((l) => l.id === id)) || null;

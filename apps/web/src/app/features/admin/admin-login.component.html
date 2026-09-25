@@ -1,0 +1,53 @@
+<main class="admin-login">
+  <div class="admin-login__card">
+    <h1>Admin sign in</h1>
+
+    @if (showExpired) {
+      <p class="admin-login__notice" role="status">
+        Your admin session expired. Enter your email for a fresh sign-in link.
+      </p>
+    }
+
+    @if (status === 'sent') {
+      <p class="admin-login__sent" role="status">
+        Check your email for your sign-in link.
+      </p>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label class="admin-login__field">
+          <span>Email</span>
+          <input
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            inputmode="email"
+            [attr.aria-invalid]="emailInvalid"
+            placeholder="you@example.com"
+          />
+        </label>
+        @if (emailInvalid) {
+          <p class="admin-login__error" role="alert">
+            Enter a valid email address.
+          </p>
+        }
+        @if (status === 'error') {
+          <p class="admin-login__error" role="alert">
+            Something went wrong. Please try again.
+            <button type="button" (click)="retry()">Retry</button>
+          </p>
+        }
+        <button
+          type="submit"
+          class="admin-login__submit"
+          [disabled]="form.invalid || status === 'sending'"
+        >
+          @if (status === 'sending') {
+            Sending…
+          } @else {
+            Send sign-in link
+          }
+        </button>
+      </form>
+    }
+  </div>
+</main>

@@ -1,58 +1,73 @@
 /**
- * Admin guard (INTERIM — api-mcp/01).
+ * Admin guard (admin/01) — session-cookie auth.
  *
- * api-mcp/01 depends on admin/01 (admin session auth), which is not built
- * yet. Until it lands, admin endpoints are gated by a pre-shared key in
- * the `X-Admin-Key` header, compared (timing-safe) against
- * `config.admin.apiKey`. Fail-closed: missing/unset key → every admin
- * call 401s.
+ * Replaces the interim pre-shared-key guard (api-mcp/01). Admin endpoints
+ * require a valid `feasly_admin_session` httpOnly cookie: the opaque token
+ * is SHA-256 hashed and looked up in `admin_sessions`; missing, revoked, or
+ * expired sessions → 401 UNAUTHENTICATED.
  *
- * This is intentionally minimal and clearly marked: admin/01 replaces
- * `createConfigAdminGuard` with the session-based guard without touching
- * the routes (they depend on the `AdminGuard` interface, not this impl).
+ * Routes depend on the `AdminGuard` interface, not this implementation.
  */
-import { timingSafeEqual } from 'node:crypto';
 import { ErrorCodes, HttpError } from './errors';
+import type { AdminAuthService } from '../services/admin-auth.service';
 
 export interface AdminGuard {
-  /** Throws 401 UNAUTHENTICATED when the request is not from an admin. */
-  requireAdmin(headers: Record<string, string | string[] | undefined>): void;
+  /**
+   * Throws 401 UNAUTHENTICATED when the request is not from an admin.
+   * Async: the session lookup hits the database.
+   */
+  requireAdmin(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<void>;
 }
 
-export interface ConfigAdminGuardDeps {
-  /** The pre-shared admin key; undefined = fail closed. */
-  readonly adminApiKey: string | undefined;
+export interface SessionAdminGuardDeps {
+  readonly adminAuth: AdminAuthService;
 }
 
-function header(
+/** The httpOnly session cookie name — must match the verify endpoint. */
+export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
+
+/**
+ * Extract the session token from the `Cookie` header. Returns null when
+ * absent or malformed (the guard treats it as unauthenticated).
+ */
+export function parseSessionCookie(
   headers: Record<string, string | string[] | undefined>,
-  name: string,
 ): string | null {
-  const raw = headers[name];
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return value?.trim() ? value.trim() : null;
+  const raw = headers['cookie'];
+  const cookieHeader = Array.isArray(raw) ? raw[0] : raw;
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const name = part.slice(0, idx).trim();
+    if (name === ADMIN_SESSION_COOKIE) {
+      const value = part.slice(idx + 1).trim();
+      return value ? decodeURIComponent(value) : null;
+    }
+  }
+  return null;
 }
 
-export function createConfigAdminGuard(
-  deps: ConfigAdminGuardDeps,
+function unauthorized(): HttpError {
+  return new HttpError(
+    401,
+    ErrorCodes.UNAUTHENTICATED,
+    'Admin authentication required.',
+    false,
+  );
+}
+
+export function createSessionAdminGuard(
+  deps: SessionAdminGuardDeps,
 ): AdminGuard {
   return {
-    requireAdmin(headers) {
-      const configured = deps.adminApiKey;
-      const presented = header(headers, 'x-admin-key');
-      const ok =
-        !!configured &&
-        !!presented &&
-        configured.length === presented.length &&
-        timingSafeEqual(Buffer.from(configured), Buffer.from(presented));
-      if (!ok) {
-        throw new HttpError(
-          401,
-          ErrorCodes.UNAUTHENTICATED,
-          'Admin authentication required.',
-          false,
-        );
-      }
+    async requireAdmin(headers): Promise<void> {
+      const token = parseSessionCookie(headers);
+      if (!token) throw unauthorized();
+      const email = await deps.adminAuth.validateSession(token);
+      if (!email) throw unauthorized();
     },
   };
 }

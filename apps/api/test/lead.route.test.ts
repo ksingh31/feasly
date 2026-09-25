@@ -86,6 +86,7 @@ describe('lead route', () => {
         findByToken: async () => null,
         findByLeadIds: async () => [],
         revokeByLeadIds: async () => 0,
+        markUsed: async () => true,
       },
       email: {
         sendMagicLink: async () => ({ provider: 'log' as const }),

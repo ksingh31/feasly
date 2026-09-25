@@ -20,6 +20,11 @@ import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
+import { AdminLoginComponent } from './features/admin/admin-login.component';
+import { AdminVerifyComponent } from './features/admin/admin-verify.component';
+import { AdminShellComponent } from './features/admin/admin-shell.component';
+import { AdminLeadsComponent } from './features/admin/admin-leads.component';
+import { adminGuard } from './features/admin/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -136,4 +141,29 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },
+  // Admin (admin/01): magic-link session auth. All admin routes are
+  // noindexed and excluded from prerendering (not in prerender-routes.txt).
+  // No public-page links point here.
+  {
+    path: 'admin/login',
+    component: AdminLoginComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'admin/verify',
+    component: AdminVerifyComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'admin',
+    component: AdminShellComponent,
+    canActivate: [robotsGuard, adminGuard],
+    data: { noindex: true },
+    children: [
+      { path: '', redirectTo: 'leads', pathMatch: 'full' },
+      { path: 'leads', component: AdminLeadsComponent },
+    ],
+  },
 ];
