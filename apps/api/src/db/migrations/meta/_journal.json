@@ -134,6 +134,13 @@
       "when": 1790336770698,
       "tag": "0020_admin_session_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790372394184,
+      "tag": "0021_narrative_columns",
+      "breakpoints": true
     }
   ]
 }
