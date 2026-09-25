@@ -24,7 +24,7 @@
  * the script location, so any cwd works).
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { dirname, join, relative, extname } from 'node:path';
+import { dirname, join, relative, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +180,8 @@ export function checkBannedPhrases(root = ROOT) {
   for (const base of [join(root, 'packages', 'mcp'), join(apiSrc, 'mcp')]) {
     try {
       for (const f of walk(base)) {
+        // Skip build output and dependencies — only source files carry copy.
+        if (f.includes(`${sep}dist${sep}`) || f.includes(`${sep}node_modules${sep}`)) continue;
         if (extname(f) === '.ts' && !f.endsWith('.test.ts') && !f.endsWith('.spec.ts')) mcpTools.push(f);
       }
     } catch { /* dir doesn't exist yet */ }

@@ -55,6 +55,8 @@ export function createMcpServer(
     server.registerTool(
       tool.name,
       {
+        // Tool descriptions are defined in tools.ts and carry the
+        // deterministic-math disclaimer ("calculated deterministically").
         description: tool.description,
         inputSchema: tool.inputShape,
       },
