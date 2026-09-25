@@ -274,6 +274,42 @@ export interface AppConfig {
       interimTitle: string;
       interimBody: string;
       interimBackLabel: string;
+      /**
+       * Comparison results (NBH-03): side-by-side cards + bar chart.
+       * Exact user-facing strings required by the story live here — never
+       * hardcoded in templates.
+       */
+      /** Results page heading. */
+      resultsHeading: string;
+      /** Summary line under the heading (sqft + tier filled by the component). */
+      resultsSubheading: string;
+      /** Exact label above each community's City-assessed figure. */
+      assessedLabel: string;
+      /** Visible pre-gate: the land cost range label. */
+      landLabel: string;
+      /** Blurred pre-gate: the build cost label. */
+      buildLabel: string;
+      /** Blurred pre-gate: the total figure label. */
+      totalLabel: string;
+      /** Exact badge copy on the cheapest-land community: "Lowest land cost". */
+      lowestLandBadge: string;
+      /** Screen-reader / visible alternative where blurred figures sit. */
+      lockedNote: string;
+      /** Single unlock CTA — exact copy "Unlock Full Numbers →". */
+      unlockCta: string;
+      /** Returns to the picker with selections intact. */
+      editLabel: string;
+      /** Bar chart title. */
+      chartTitle: string;
+      /** Chart axis note: ranges per community, never $/sqft or margins. */
+      chartAxisNote: string;
+      /** Analyzing beat stage labels (each tied to a real awaited operation). */
+      analyzingValidate: string;
+      analyzingFetch: string;
+      analyzingCalculate: string;
+      /** Tier what-if (post-gate): re-runs every row-set inline. */
+      whatIfLabel: string;
+      whatIfHint: string;
     };
     /**
      * Estimate preview step (S5) copy — the single lead-gate point.

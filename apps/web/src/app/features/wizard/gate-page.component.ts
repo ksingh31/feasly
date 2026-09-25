@@ -2,7 +2,7 @@ import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { map, switchMap } from 'rxjs';
 import type { TimelineOption } from '@feasly/contracts';
@@ -11,6 +11,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
+import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
 import { AnalyticsService } from '../consent';
 import { EmbedBridgeService } from '../embed/embed-bridge.service';
 
@@ -52,6 +53,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
 export class GatePageComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly api = inject(API_SERVICE);
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
@@ -102,6 +104,17 @@ export class GatePageComponent implements OnInit {
     });
   }
 
+  /**
+   * Comparison mode (NBH-03): the gate was entered from /estimate/compare
+   * (`?flow=comparison`) with an active comparison result. The same single
+   * gate UI and lead contract — but the estimateId already exists (minted by
+   * the comparison pipeline), the wizard steps hide, and success returns to
+   * the comparison instead of the analyzing screen.
+   */
+  protected get isComparisonFlow(): boolean {
+    return this.route.snapshot.queryParamMap.get('flow') === 'comparison';
+  }
+
   /** True when the control is invalid and the user has interacted or submitted. */
   showError(controlName: 'name' | 'email' | 'phone'): boolean {
     const control = this.form.get(controlName);
@@ -109,6 +122,10 @@ export class GatePageComponent implements OnInit {
   }
 
   goBack(): void {
+    if (this.isComparisonFlow) {
+      void this.router.navigate(['/estimate/compare']);
+      return;
+    }
     this.store.dispatch(new GoToStep(2));
     void this.router.navigate(['/estimate/scope']);
   }
@@ -119,6 +136,12 @@ export class GatePageComponent implements OnInit {
     }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      return;
+    }
+    // Comparison mode (NBH-03): the estimateId was already minted by the
+    // comparison pipeline — submit the lead against it and unlock.
+    if (this.isComparisonFlow) {
+      this.submitComparisonLead();
       return;
     }
     this.status = 'sending';
@@ -169,6 +192,55 @@ export class GatePageComponent implements OnInit {
             }),
           );
           void this.router.navigate(['/estimate/analyzing']);
+        },
+        error: () => {
+          this.status = 'error';
+        },
+      });
+  }
+
+  /**
+   * Comparison lead submit (NBH-03): the comparison estimateId already
+   * exists, so the lead attaches directly to it. Success marks the
+   * comparison unlocked and returns to /estimate/compare — no analyzing
+   * screen, no re-mint. The unlock is the successful lead submission (the
+   * comparison endpoint is public and returns full ranges; there is no
+   * separate token verification step like the magic-link report).
+   */
+  private submitComparisonLead(): void {
+    const result = this.store.selectSnapshot(ComparisonState.result);
+    if (!result) {
+      // Unreachable behind leadGateGuard; fail honestly if it ever happens.
+      this.status = 'error';
+      return;
+    }
+    this.status = 'sending';
+    const values = this.form.getRawValue();
+    this.api
+      .submitLead({
+        estimateId: result.estimateId,
+        name: values.name.trim(),
+        email: values.email.trim(),
+        phone: values.phone.trim() === '' ? undefined : values.phone.trim(),
+        timeline: values.timeline === '' ? 'exploring' : values.timeline,
+        marketingConsent: values.casl,
+        // HRD-03 honeypot — empty for humans, filled by bots.
+        website: values.website,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (lead) => {
+          this.analytics.track('gate_convert');
+          this.store.dispatch(
+            new StoreLeadResult({
+              leadId: lead.leadId,
+              email: values.email.trim(),
+              magicLinkSent: lead.magicLinkSent,
+              expiresInDays: lead.expiresInDays,
+            }),
+          );
+          this.store.dispatch(new ComparisonLeadSubmitted(lead.leadId));
+          void this.router.navigate(['/estimate/compare']);
         },
         error: () => {
           this.status = 'error';
