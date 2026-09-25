@@ -26,6 +26,18 @@ param swaLocation string = 'westus2'
 @secure()
 param postgresAdminPassword string
 
+@description('Email provider for transactional email (magic links, lead notifications)')
+@allowed([
+  'log'
+  'postmark'
+  'acs'
+])
+param emailProvider string = 'log'
+
+@description('Azure Communication Services connection string — NEVER logged or output; stored in Key Vault. Empty = not configured (app fails closed on send).')
+@secure()
+param acsConnectionString string = ''
+
 @description('Custom domain (empty until FND-014 resolves the domain purchase)')
 param domainName string = ''
 
@@ -59,6 +71,8 @@ var storageName = toLower('feasly${envShort}${take(uniqueString(resourceGroup().
 var postgresAdminLogin = 'feaslyadmin'
 var postgresSecretName = 'feasly-${environment}-postgres-admin'
 var postgresPasswordSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${postgresSecretName}'
+var acsSecretName = 'feasly-${environment}-acs-connection-string'
+var acsConnectionStringSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${acsSecretName}'
 
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
@@ -124,6 +138,8 @@ module functionApp 'modules/function-app.bicep' = {
     postgresDatabase: postgres.outputs.databaseName
     postgresUser: postgresAdminLogin
     postgresPasswordSecretUri: postgresPasswordSecretUri
+    emailProvider: emailProvider
+    acsConnectionStringSecretUri: empty(acsConnectionString) ? '' : acsConnectionStringSecretUri
   }
 }
 
@@ -142,6 +158,22 @@ resource postgresAdminSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
   // The module above creates the vault; `existing` only reads it, so the
   // ordering dependency must be explicit.
+  dependsOn: [
+    keyVault
+  ]
+}
+
+// --- Key Vault secret: ACS connection string ---
+// Only created when acsConnectionString is provided at deploy time. The
+// @secure() parameter is written straight into the vault; it never appears
+// in outputs, logs, or app settings. The Function App reads it via a
+// Key Vault reference (see function-app.bicep).
+resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(acsConnectionString)) {
+  parent: kv
+  name: acsSecretName
+  properties: {
+    value: acsConnectionString
+  }
   dependsOn: [
     keyVault
   ]

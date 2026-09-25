@@ -6,6 +6,12 @@
 // preferred, is passed explicitly at deploy time:
 //   --parameters postgresAdminPassword='<from-Key-Vault-or-generated>'
 // An explicit --parameters value always overrides this file's value.
+//
+// Email: prod keeps the 'log' provider until launch (sender domain + ACS
+// wiring verified). Flip emailProvider to 'acs' and provide the connection
+// string (via FEASLY_ACS_CONNECTION_STRING or explicit
+// --parameters acsConnectionString) when ready. The log provider refuses to
+// run in production, so 'acs' (or 'postmark') is required before launch.
 using '../main.bicep'
 
 param environment = 'prod'
@@ -14,3 +20,5 @@ param postgresSkuName = 'Standard_B2s'
 param postgresBackupRetentionDays = 30
 param domainName = ''
 param postgresAdminPassword = readEnvironmentVariable('FEASLY_POSTGRES_ADMIN_PASSWORD', '')
+param emailProvider = 'log'
+param acsConnectionString = readEnvironmentVariable('FEASLY_ACS_CONNECTION_STRING', '')

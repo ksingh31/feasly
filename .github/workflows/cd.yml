@@ -136,6 +136,22 @@ jobs:
           echo "::add-mask::$PGPASS"
           # Masked value only — never echo $PGPASS or print it in logs.
           echo "PGPASS=$PGPASS" >> "$GITHUB_ENV"
+          echo "KV_NAME=$KV_NAME" >> "$GITHUB_ENV"
+
+      - name: Read ACS connection string from Key Vault
+        run: |
+          set -euo pipefail
+          # May not exist on first run — Bicep creates it when acsConnectionString
+          # is provided. Empty is fine; the app fails closed on send.
+          ACSCONN=$(az keyvault secret show \
+            --vault-name "$KV_NAME" \
+            --name feasly-dev-acs-connection-string \
+            --query value -o tsv 2>/dev/null || echo "")
+          if [ -n "$ACSCONN" ]; then
+            echo "::add-mask::$ACSCONN"
+          fi
+          # Masked value only — never echo $ACSCONN or print it in logs.
+          echo "ACSCONN=$ACSCONN" >> "$GITHUB_ENV"
 
       - name: Bicep what-if (fail pipeline on errors)
         run: |
@@ -144,7 +160,8 @@ jobs:
             --resource-group rg-feasly-dev \
             --template-file infra/bicep/main.bicep \
             --parameters infra/bicep/environments/dev.bicepparam \
-            --parameters postgresAdminPassword="$PGPASS"
+            --parameters postgresAdminPassword="$PGPASS" \
+            --parameters acsConnectionString="$ACSCONN"
 
       - name: Bicep deploy
         run: |
@@ -153,7 +170,8 @@ jobs:
             --resource-group rg-feasly-dev \
             --template-file infra/bicep/main.bicep \
             --parameters infra/bicep/environments/dev.bicepparam \
-            --parameters postgresAdminPassword="$PGPASS"
+            --parameters postgresAdminPassword="$PGPASS" \
+            --parameters acsConnectionString="$ACSCONN"
 
       - name: Setup Node
         uses: actions/setup-node@v4
