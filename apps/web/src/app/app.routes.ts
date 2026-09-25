@@ -16,6 +16,7 @@ import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { SampleReportPageComponent } from './features/sample-report';
 import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
+import { CommunityPageComponent } from './features/communities/community-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
@@ -129,6 +130,13 @@ export const routes: Routes = [
     component: ErrorPageComponent,
     canActivate: [robotsGuard],
     data: { noindex: true },
+  },
+  // Community pages (SEO-04): prerendered per-community cost guides.
+  // Indexable — no `noindex` data, so crawlers rank them.
+  {
+    path: 'communities/:slug',
+    component: CommunityPageComponent,
+    canActivate: [robotsGuard],
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
   // setForRoute('404')); the CTA returns visitors home. SWA's

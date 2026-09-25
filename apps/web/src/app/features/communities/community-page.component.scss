@@ -1,0 +1,227 @@
+/* Community page (SEO-04): /communities/:slug/ — cream/charcoal/brass language. */
+
+.community {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 120px 24px 80px;
+  background: var(--cream);
+  color: var(--text);
+}
+
+.banner {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 32px;
+}
+
+.eyebrow {
+  font-size: var(--type-eyebrow);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+.community h1 {
+  font-family: var(--font-headline);
+  font-size: clamp(30px, 4.5vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 40px;
+}
+
+.community h2 {
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+/* Stat block. */
+.stat-block {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 56px;
+}
+
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-value {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.stat-note {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Tier ranges. */
+.tiers {
+  margin-bottom: 56px;
+}
+
+.tiers .sub {
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.tier-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.tier-card h3 {
+  font-family: var(--font-headline);
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+
+.tier-card dl {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.tier-card dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.tier-card dt {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.tier-card dd {
+  margin: 0;
+  font-weight: 600;
+  font-size: 17px;
+  text-align: right;
+}
+
+.tier-card .total dd {
+  font-family: var(--font-headline);
+  font-size: 20px;
+  color: var(--accent-dark);
+}
+
+.basis-note {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 16px 0 0;
+}
+
+/* FAQ accordion. */
+.faq {
+  margin-bottom: 56px;
+}
+
+.faq h2 {
+  margin-bottom: 20px;
+}
+
+.faq details {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.faq summary {
+  padding: 18px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq details p {
+  padding: 0 20px 18px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* CTA card. */
+.cta-card {
+  background: var(--canvas);
+  color: var(--on-dark);
+  border-radius: 20px;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.cta-card h2 {
+  color: var(--on-dark);
+  margin-bottom: 12px;
+}
+
+.cta-card p {
+  color: var(--on-dark);
+  opacity: 0.85;
+  max-width: 52ch;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+}
+
+.community .cta-card .cta {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  padding: 17px 28px;
+  font-weight: 600;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.community .cta-card .cta:hover {
+  background: var(--accent-dark);
+}
+
+@media (max-width: 640px) {
+  .stat-block {
+    grid-template-columns: 1fr;
+  }
+
+  .community {
+    padding: 96px 20px 64px;
+  }
+}

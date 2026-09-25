@@ -518,5 +518,28 @@ export interface AppConfig {
       accept: string;
       decline: string;
     };
+    /**
+     * Community pages (SEO-04). Static copy for `/communities/:slug/` —
+     * the per-community figures come from the build-time JSON artifacts.
+     * No accuracy guarantees, no sold-price claims.
+     */
+    communities: {
+      /** Shown when the cost data is still uncalibrated. */
+      illustrativeBanner: string;
+      /** Title pattern; {name} is the community display name. */
+      titleTemplate: string;
+      /** Meta description pattern; {name} is the community display name. */
+      descriptionTemplate: string;
+      statLabel: string;
+      statNote: string;
+      basisNote: string;
+      tierSectionTitle: string;
+      tierSectionSub: string;
+      faqTitle: string;
+      faqItems: { q: string; a: string }[];
+      ctaTitle: string;
+      ctaBody: string;
+      ctaLabel: string;
+    };
   };
 }
