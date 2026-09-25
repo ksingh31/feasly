@@ -151,6 +151,7 @@ function fakeMagicLinkStore(): MagicLinkStore {
     findByToken: async () => null,
     findByLeadIds: async () => [],
     revokeByLeadIds: async () => 0,
+    markUsed: async () => true,
   };
 }
 
