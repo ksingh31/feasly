@@ -14,6 +14,9 @@ param location string = 'canadacentral'
 @description('Blob URL of the deployment container, e.g. https://<sa>.blob.core.windows.net/deployment')
 param deploymentStorageContainerUrl string
 
+@description('Storage account name for the Functions host storage (AzureWebJobsStorage, identity-based)')
+param storageAccountName string
+
 @description('Application Insights connection string (non-secret)')
 param appInsightsConnectionString string
 
@@ -100,6 +103,19 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
             // Consumption instance. 1536MB leaves room for Functions host overhead.
             name: 'languageWorkers__node__arguments'
             value: '--max-old-space-size=1536'
+          }
+          {
+            // Functions host storage (required): identity-based connection to the
+            // storage account. The host uses blob/queue/table for trigger
+            // coordination (incl. the community-stats timer). System-assigned
+            // managed identity, so no __clientId is needed. Flex Consumption
+            // does not accept a connection-string AzureWebJobsStorage.
+            name: 'AzureWebJobsStorage__accountName'
+            value: storageAccountName
+          }
+          {
+            name: 'AzureWebJobsStorage__credential'
+            value: 'managedidentity'
           }
           // NOTE: no FUNCTIONS_WORKER_RUNTIME / WEBSITE_NODE_DEFAULT_VERSION here —
           // Flex Consumption rejects them; the runtime is declared in
