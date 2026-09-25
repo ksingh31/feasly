@@ -19,6 +19,8 @@
  *     (POST /api/v1/privacy/erase-requests)
  *   src/functions/privacy-erase-confirm.ts → privacy-erase-confirm/index.js
  *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
+ *   src/functions/communities-stats.ts    → communities-stats/index.js
+ *     (GET /api/v1/communities/{slug}/stats)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -39,6 +41,10 @@ const targets = [
   {
     entry: 'src/functions/privacy-erase-confirm.ts',
     out: 'privacy-erase-confirm/index.js',
+  },
+  {
+    entry: 'src/functions/communities-stats.ts',
+    out: 'communities-stats/index.js',
   },
 ];
 

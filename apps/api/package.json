@@ -5,6 +5,7 @@
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
     "vitest": "^5.0.1"
   },
   "name": "@feasly/api",
@@ -16,7 +17,8 @@
     "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
-    "bundle:functions": "node tools/bundle-functions.mjs"
+    "bundle:functions": "node tools/bundle-functions.mjs",
+    "db:seed:community-stats": "tsx tools/seed-community-stats.ts"
   },
   "version": "0.1.0",
   "dependencies": {

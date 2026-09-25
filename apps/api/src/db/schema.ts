@@ -252,3 +252,31 @@ export const privacyAuditLog = pgTable(
   },
   (t) => [index('privacy_audit_log_lead_id_idx').on(t.leadId)],
 );
+
+/**
+ * Community stats (neighbourhood/01).
+ *
+ * One row per Calgary community: real aggregates from the City of Calgary
+ * property assessment dataset (Socrata `4bsw-nn7w`). Cache-first: the API
+ * never calls Socrata per-request; rows are written by the seed script
+ * (`tools/seed-community-stats.mjs`) and refreshed by the monthly timer
+ * (`neighbourhood/05-community-stats-refresh.md`).
+ *
+ * Money is an integer (whole CAD dollars, City-assessed value — NOT market
+ * value). `slug` is derived from the community name (lowercase, hyphenated)
+ * and is the API lookup key.
+ */
+export const communityStats = pgTable('community_stats', {
+  /** URL-safe community key, e.g. 'mount-pleasant'. */
+  slug: text('slug').primaryKey(),
+  /** Display name as published by the City, e.g. 'Mount Pleasant'. */
+  name: text('name').notNull(),
+  /** Average City-assessed value, whole CAD dollars (not market value). */
+  avgAssessedValue: integer('avg_assessed_value').notNull(),
+  /** Number of assessment records behind the averages. */
+  assessmentCount: integer('assessment_count').notNull(),
+  /** Average lot size in square feet; null when the dataset lacks it. */
+  avgLotSqft: integer('avg_lot_sqft'),
+  /** When the row was last computed — drives the API's `stale` flag. */
+  refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull(),
+});
