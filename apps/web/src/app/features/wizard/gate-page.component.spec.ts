@@ -5,14 +5,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import type { PropertyRecord, PreviewEstimateResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { provideApi } from '../../core/api/api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
-import { GoToStep, LeadState, SelectProperty, WizardState } from '../wizard';
+import { GoToStep, ChooseProjectType, LeadState, SelectProperty, WizardState } from '../wizard';
 import { AnalyticsService } from '../consent';
 import { GatePageComponent } from './gate-page.component';
 
@@ -244,6 +244,63 @@ describe('GatePageComponent', () => {
       (fixture.nativeElement.querySelector('.form-error .retry') as HTMLButtonElement).click();
       await pollUrl('/estimate/analyzing');
       expect(store.selectSnapshot(LeadState.leadId)).toBe('lead-1');
+    });
+  });
+
+  describe('reno/06: project-type-aware gate copy', () => {
+    function timelineLabelText(): string {
+      const label = fixture.nativeElement.querySelector(
+        'label[for="gate-timeline"]',
+      ) as HTMLElement;
+      return label.textContent ?? '';
+    }
+
+    it('shows the new-build timeline question by default', async () => {
+      await setup();
+      expect(timelineLabelText()).toContain('When are you hoping to build?');
+      expect(timelineLabelText()).not.toContain('renovate');
+    });
+
+    it('shows the reno timeline question when projectType is renovation', async () => {
+      await setup();
+      await firstValueFrom(store.dispatch(new ChooseProjectType('renovation')));
+      fixture.detectChanges();
+      expect(timelineLabelText()).toContain('When are you hoping to renovate?');
+      expect(timelineLabelText()).not.toContain('When are you hoping to build?');
+    });
+
+    it('shows the new-build timeline question when projectType is new-build', async () => {
+      await setup();
+      await firstValueFrom(store.dispatch(new ChooseProjectType('new-build')));
+      fixture.detectChanges();
+      expect(timelineLabelText()).toContain('When are you hoping to build?');
+    });
+
+    it('sources both variants from config copy (no hardcoded flow strings)', async () => {
+      await setup();
+      const config = TestBed.inject(ConfigService);
+      const gate = config.get('copy').gate;
+      expect(gate.timelineLabel).toBe('When are you hoping to build?');
+      expect(gate.timelineLabelReno).toBe('When are you hoping to renovate?');
+      // The component selects the variant; the template renders whichever
+      // the getter returns — assert the getter tracks the store flag.
+      await firstValueFrom(store.dispatch(new ChooseProjectType('renovation')));
+      fixture.detectChanges();
+      expect(timelineLabelText()).toContain(gate.timelineLabelReno);
+    });
+
+    it('keeps the headline, CASL default, and single timeline question unchanged', async () => {
+      await setup();
+      await firstValueFrom(store.dispatch(new ChooseProjectType('renovation')));
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.gate-heading')?.textContent).toContain(
+        'Where should we send your estimate?',
+      );
+      const box = el.querySelector('.casl input[type="checkbox"]') as HTMLInputElement;
+      expect(box.checked).toBe(false);
+      // Exactly one timeline question on the page.
+      expect(el.querySelectorAll('#gate-timeline').length).toBe(1);
     });
   });
 });

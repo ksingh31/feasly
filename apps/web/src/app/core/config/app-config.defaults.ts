@@ -349,7 +349,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       optionalMarker: '(optional)',
       phoneInvalid: 'That phone number doesn’t look right — digits and basic punctuation only.',
       phonePattern: '^[+()\\-.\\s\\d]{7,20}$',
-      timelineLabel: 'When are you looking to build?',
+      timelineLabel: 'When are you hoping to build?',
+      timelineLabelReno: 'When are you hoping to renovate?',
       timelinePlaceholder: 'Choose one…',
       timelineOptions: [
         { id: '0-3mo', label: 'Within 3 months' },
