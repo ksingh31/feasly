@@ -182,6 +182,87 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
+  // GET /v1/properties/autocomplete
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/properties/autocomplete',
+    summary: 'Autocomplete a Calgary address',
+    description:
+      'Free-form address autocomplete backed by the City of Calgary ' +
+      'assessment roll. Queries shorter than 3 characters resolve to an ' +
+      'empty suggestion list. No auth — public by design.',
+    request: {
+      query: z.object({
+        q: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe('Partial address query (e.g. "100 8 Ave NW")'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Address suggestions',
+        content: {
+          'application/json': { schema: AutocompleteResponseSchema },
+        },
+      },
+      '503': {
+        description: 'City data source unavailable (retryable)',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/properties/lookup
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/properties/lookup',
+    summary: 'Look up a property record',
+    description:
+      'Returns the City-assessed property record for an exact address key ' +
+      '(as returned by the autocomplete endpoint). No auth — public by design.',
+    request: {
+      query: z.object({
+        addressKey: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe('Exact address key from an autocomplete suggestion'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Property record',
+        content: {
+          'application/json': { schema: PropertyRecordSchema },
+        },
+      },
+      '404': {
+        description: 'No City record for this address',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      '503': {
+        description: 'City data source unavailable (retryable)',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
   // GET /v1/embed/config
   registry.registerPath({
     method: 'get',
