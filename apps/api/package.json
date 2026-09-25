@@ -33,7 +33,7 @@
     "@feasly/cost-engine": "^0.1.0",
     "@feasly/mcp": "^0.1.0",
     "drizzle-orm": "^0.45.3",
-    "googleapis": "^140.0.1",
+    "googleapis": "^181.0.0",
     "pg": "^8.23.0",
     "stripe": "^22.6.2",
     "zod": "^4.6.5"
