@@ -76,9 +76,12 @@ describe('MockApiService', () => {
       expect(property.assessedValue).toBeGreaterThan(0);
     });
 
-    it('errors not_found for an unknown address key', async () => {
+    it('errors ADDRESS_NOT_FOUND for an unknown address key', async () => {
+      // Reno/05: the mock mirrors the backend coverage heuristic — an
+      // ambiguous key like 'nope' carries no Calgary signal, so the backend
+      // (and mock) report ADDRESS_NOT_FOUND instead of the legacy not_found.
       await expect(firstValueFrom(service.getProperty('nope'))).rejects.toMatchObject({
-        code: 'not_found',
+        code: 'ADDRESS_NOT_FOUND',
         retryable: false,
       });
     });
