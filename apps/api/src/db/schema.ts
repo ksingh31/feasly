@@ -52,6 +52,21 @@ export const estimates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * consumer/06: AI-generated narrative (validated by
+     * `validateNarrative()` before persistence). Nullable — absent until
+     * the narrative worker runs. Immutable once set (re-generation is a
+     * deliberate product decision, not an update path).
+     */
+    narrative: text('narrative'),
+    narrativeGeneratedAt: timestamp('narrative_generated_at', {
+      withTimezone: true,
+    }),
+    /**
+     * consumer/06: engine-authored assumptions (the qualitative
+     * engine→narrative channel). Only renovation estimates have them.
+     */
+    assumptions: jsonb('assumptions').$type<readonly string[] | null>(),
   },
   (t) => [index('estimates_address_key_idx').on(t.addressKey)],
 );

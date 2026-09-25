@@ -116,6 +116,17 @@ import {
 import { createAnalyticsRoute, type AnalyticsRoute } from './routes/analytics.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
+  createNarrativeRoute,
+  type NarrativeRoute,
+} from './routes/narrative.route';
+import {
+  createNarrativeService,
+  type NarrativeService,
+} from './services/narrative.service';
+import { createLogNarrativeProvider } from './services/narrative/providers/log.provider';
+import { createMetaNarrativeProvider } from './services/narrative/providers/meta.provider';
+import type { NarrativeProvider } from './services/narrative/narrative.types';
+import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
@@ -254,6 +265,8 @@ export interface AppComposition {
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
+  readonly narrativeService: NarrativeService;
+  readonly narrativeRoute: NarrativeRoute;
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
   readonly communityStatsRoute: CommunityStatsRoute;
@@ -615,6 +628,33 @@ export function createComposition(
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
   });
+  // Narrative worker (consumer/06): provider selected by config.
+  // 'log' is the dev/test default (refuses production); 'meta' is the
+  // Meta Llama API (Karan's pick) — fails closed until the API key is
+  // configured in Key Vault.
+  const narrativeProvider: NarrativeProvider =
+    config.narrative.provider === 'meta'
+      ? createMetaNarrativeProvider({
+          apiKey: config.narrative.metaApiKey || undefined,
+          model: config.narrative.model,
+          endpoint: config.narrative.metaEndpoint,
+        })
+      : createLogNarrativeProvider();
+  if (config.env === 'production' && config.narrative.provider === 'log') {
+    throw new Error(
+      'NARRATIVE_PROVIDER=log refuses production — configure the Meta API provider.',
+    );
+  }
+  const narrativeService: NarrativeService = createNarrativeService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    estimates: estimateStore,
+    provider: narrativeProvider,
+    opsAlerts: opsAlertsService,
+  });
+  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
+    narrative: narrativeService,
+  });
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -781,6 +821,8 @@ export function createComposition(
     privacyStore,
     privacyService,
     privacyRoute,
+    narrativeService,
+    narrativeRoute,
     communityStatsService,
     communityStatsRoute,
     builderConfigService,

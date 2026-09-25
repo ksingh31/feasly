@@ -86,6 +86,9 @@ function estimate(id: string): EstimateRecord {
     costDataVersion: 'v0.1.0-unclibrated',
     projectType: 'new_build',
     createdAt: NOW,
+    narrative: null,
+    narrativeGeneratedAt: null,
+    assumptions: null,
   };
 }
 
@@ -188,6 +191,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     save: async () => {},
     findById: async (id: string) =>
       world.estimates.find((e) => e.id === id) ?? null,
+    setNarrative: async () => false,
   };
 
   const privacy: PrivacyStore = {

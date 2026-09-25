@@ -167,6 +167,16 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'Confirm an erasure request (second factor via email link).',
   },
   {
+    method: 'POST',
+    path: '/api/v1/estimates/{estimateId}/narrative',
+    auth: 'magic-token',
+    rateLimit: '100/min per IP + 5/day per estimate (cost guard)',
+    status: 'live',
+    summary:
+      'Generate (or return cached) the AI narrative for an estimate. ' +
+      'LLM writes narrative only; figures are deterministic.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/unsubscribe/{token}',
     auth: 'magic-token',

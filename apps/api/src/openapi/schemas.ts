@@ -339,3 +339,12 @@ export const PrivacyEraseConfirmResponseSchema = z
     erased: z.boolean(),
   })
   .openapi('PrivacyEraseConfirmResponse');
+
+export const NarrativeResponseSchema = z
+  .object({
+    estimateId: z.string().uuid(),
+    narrative: z.string(),
+    narrativeGeneratedAt: z.string().datetime(),
+    cached: z.boolean(),
+  })
+  .openapi('NarrativeResponse');

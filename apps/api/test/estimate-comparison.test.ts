@@ -23,6 +23,20 @@ function fakeStore() {
       saved.push(record);
     },
     findById: async (id: string) => byId.get(id) ?? null,
+    setNarrative: async ({
+      id,
+      narrative,
+      generatedAt,
+    }: {
+      id: string;
+      narrative: string;
+      generatedAt: Date;
+    }) => {
+      const rec = byId.get(id);
+      if (!rec || rec.narrative) return false;
+      byId.set(id, { ...rec, narrative, narrativeGeneratedAt: generatedAt });
+      return true;
+    },
   };
 }
 

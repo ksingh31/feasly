@@ -111,10 +111,14 @@ function fakeEstimateStore(): EstimateStore {
     rows: {},
     costDataVersion: 'v0.1.0-unclibrated',
     createdAt: NOW,
+    narrative: null,
+    narrativeGeneratedAt: null,
+    assumptions: null,
   };
   return {
     save: async () => {},
     findById: async (id: string) => (id === ESTIMATE_ID ? record : null),
+    setNarrative: async () => false,
   };
 }
 
@@ -393,8 +397,12 @@ describe('lead service', () => {
               rows: {},
               costDataVersion: 'v0.1.0-unclibrated',
               createdAt: NOW,
+              narrative: null,
+              narrativeGeneratedAt: null,
+              assumptions: null,
             }
           : null,
+      setNarrative: async () => false,
     };
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
