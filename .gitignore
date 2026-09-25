@@ -41,3 +41,5 @@ apps/api/nudge-timer/index.js
 apps/api/api-keys/index.js
 apps/api/api-keys-rotate/index.js
 apps/api/api-keys-revoke/index.js
+apps/api/properties-autocomplete/index.js
+apps/api/properties-lookup/index.js

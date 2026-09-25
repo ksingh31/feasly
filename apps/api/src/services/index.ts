@@ -11,3 +11,4 @@ export * from './privacy.service';
 export * from './privacy.store';
 export * from './community-stats.service';
 export * from './builder-config.service';
+export * from './property.service';

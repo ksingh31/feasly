@@ -47,6 +47,9 @@ describe('composition root', () => {
     expect(app.communityStatsRoute).toBeDefined();
     expect(app.builderConfigService).toBeDefined();
     expect(app.embedConfigRoute).toBeDefined();
+    // api-mcp/02: Socrata-backed property lookup (service + route wired).
+    expect(app.propertyService).toBeDefined();
+    expect(app.propertyRoute).toBeDefined();
   });
 
   it('injects config into the health service', async () => {
