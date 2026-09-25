@@ -38,3 +38,6 @@ output connectionString string = ai.properties.ConnectionString
 
 @description('Resource ID of the Application Insights component')
 output id string = ai.id
+
+@description('Resource ID of the Log Analytics workspace')
+output workspaceId string = law.id
