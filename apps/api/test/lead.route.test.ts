@@ -30,6 +30,7 @@ describe('lead route', () => {
       save: async () => {},
       findById: async () => null,
       setNarrative: async () => false,
+      findByAddressKey: async () => [],
     };
     const leadStore = {
       findRecentByEmailAndAddress: async () => null,
@@ -59,6 +60,7 @@ describe('lead route', () => {
         createdAt: new Date(),
       }),
       findById: async () => null,
+      findByEstimateId: async () => null,
       setUnsubscribedAt: async () => null,
       findNudgeCandidates: async () => [],
       setNudgeSentAt: async () => null,

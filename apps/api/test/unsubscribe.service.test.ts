@@ -65,6 +65,7 @@ function fakeStore(world: World): LeadStore {
     },
     findNewestEstimateIdByEmailAndAddress: async () => null,
     findById: async (id: string) => world.records.get(id) ?? null,
+    findByEstimateId: async () => null,
     setUnsubscribedAt: async (args: { id: string; at: Date }) => {
       world.setUnsubscribedAtCalls.push(args);
       const record = world.records.get(args.id);

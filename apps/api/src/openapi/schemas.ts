@@ -348,3 +348,37 @@ export const NarrativeResponseSchema = z
     cached: z.boolean(),
   })
   .openapi('NarrativeResponse');
+// ── Admin estimate lookup (admin/03) ─────────────────────────────────────
+
+export const AdminEstimateSnapshotRefSchema = z
+  .object({
+    id: z.string().uuid().describe('The estimate lookup id'),
+    createdAt: z.string().datetime().describe('Snapshot creation time'),
+  })
+  .openapi('AdminEstimateSnapshotRef');
+
+export const AdminEstimateDetailSchema = z
+  .object({
+    id: z.string().uuid(),
+    projectType: z.enum(['new_build', 'renovation']),
+    inputs: z.record(z.string(), z.unknown()).describe('Wizard inputs as submitted'),
+    outputs: z
+      .object({
+        buildRange: CostRangeSchema,
+        totalRange: CostRangeSchema,
+        landValue: z.object({ value: z.number() }),
+      })
+      .describe('Report-parity figures: same shape the consumer report shows'),
+    rows: z.array(z.record(z.string(), z.unknown())),
+    costDataVersion: z.string(),
+    narrative: z
+      .string()
+      .nullable()
+      .describe('Present only when a narrative was generated; never invented'),
+    createdAt: z.string().datetime(),
+    linkedLeadId: z.string().uuid().nullable(),
+    snapshots: z
+      .array(AdminEstimateSnapshotRefSchema)
+      .describe('Same-address snapshot timeline, newest first'),
+  })
+  .openapi('AdminEstimateDetail');

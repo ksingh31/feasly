@@ -21,6 +21,8 @@ import {
   ApiKeyIssueRequestSchema,
   ApiKeyIssuedResponseSchema,
   ApiKeyListResponseSchema,
+  AdminEstimateDetailSchema,
+  AdminEstimateSnapshotRefSchema,
   ApiKeyScopeSchema,
   AutocompleteResponseSchema,
   CommunityStatsResponseSchema,
@@ -114,6 +116,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('ApiKeyIssueRequest', ApiKeyIssueRequestSchema);
   registry.register('ApiKeyIssuedResponse', ApiKeyIssuedResponseSchema);
   registry.register('ApiKeyListResponse', ApiKeyListResponseSchema);
+  registry.register('AdminEstimateSnapshotRef', AdminEstimateSnapshotRefSchema);
+  registry.register('AdminEstimateDetail', AdminEstimateDetailSchema);
   registry.register('AnalyticsEvent', AnalyticsEventSchema);
   registry.register('AnalyticsIngestResponse', AnalyticsIngestResponseSchema);
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
@@ -467,6 +471,39 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       ...errorResponses(),
     },
   });
+  // GET /v1/admin/estimates/{id} (admin/03 — read-only estimate lookup)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/estimates/{id}',
+    summary: 'Look up an estimate (admin)',
+    description:
+      'Returns the estimate exactly as the homeowner saw it — inputs, ' +
+      'report-parity ranges, cost-data version, snapshot timeline. ' +
+      'Read-only: no PUT/PATCH/DELETE exists for estimates. ' +
+      'Session-authenticated admins only.',
+    security: adminSecurity,
+    request: {
+      params: z.object({
+        id: z.string().uuid().describe('Estimate ID (UUID)'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Estimate detail with snapshot timeline',
+        content: {
+          'application/json': { schema: AdminEstimateDetailSchema },
+        },
+      },
+      '404': {
+        description: 'Unknown estimate id (ESTIMATE_NOT_FOUND)',
+        content: {
+          'application/problem+json': { schema: ApiErrorSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
 
   // GET /v1/admin/usage (api-mcp/07)
   registry.registerPath({

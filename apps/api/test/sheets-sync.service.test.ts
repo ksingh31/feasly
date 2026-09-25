@@ -54,6 +54,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     getStatusHistory: vi.fn(),
     listLeads: vi.fn(),
     findById: vi.fn(),
+    findByEstimateId: vi.fn().mockResolvedValue(null),
     setUnsubscribedAt: vi.fn(),
     findNudgeCandidates: vi.fn(),
     setNudgeSentAt: vi.fn(),
@@ -66,6 +67,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     save: vi.fn(),
     findById: vi.fn().mockResolvedValue(null),
     setNarrative: vi.fn().mockResolvedValue(false),
+    findByAddressKey: vi.fn().mockResolvedValue([]),
   };
   const sheets: SheetsClient = {
     upsertRows: vi.fn().mockResolvedValue(undefined),

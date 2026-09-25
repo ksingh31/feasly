@@ -74,6 +74,7 @@ function makeStores(estimateOverrides: Partial<EstimateRecord> = {}) {
       });
       return true;
     },
+    findByAddressKey: async () => [],
   };
 
   const magicLinks = {

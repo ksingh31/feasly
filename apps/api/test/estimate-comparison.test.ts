@@ -37,6 +37,10 @@ function fakeStore() {
       byId.set(id, { ...rec, narrative, narrativeGeneratedAt: generatedAt });
       return true;
     },
+    findByAddressKey: async (addressKey: string) =>
+      [...byId.values()]
+        .filter((r) => r.addressKey === addressKey)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
   };
 }
 

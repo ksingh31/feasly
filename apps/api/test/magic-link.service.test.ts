@@ -131,6 +131,7 @@ function fakeLeads(opts?: {
         : null,
     listLeads: async () => [],
     findById: async (id: string) => (lead && lead.id === id ? lead : null),
+    findByEstimateId: async () => null,
     setUnsubscribedAt: async () => lead,
     findNudgeCandidates: async () => [],
     setNudgeSentAt: async () => null,
