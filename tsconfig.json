@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/contracts" },
     { "path": "packages/cost-engine" },
+    { "path": "packages/mcp" },
     { "path": "apps/api" }
   ]
 }

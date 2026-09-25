@@ -49,6 +49,8 @@
  *     (POST /api/v1/stripe/webhooks)
  *   src/functions/invoice-reviewer-timer.ts  → invoice-reviewer-timer/index.js
  *     (Timer: daily commission-invoice reviewer)
+ *   src/functions/mcp.ts                    → mcp/index.js
+ *     (POST /mcp/v1)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -150,6 +152,10 @@ const targets = [
   {
     entry: 'src/functions/admin-auth-me.ts',
     out: 'admin-auth-me/index.js',
+  },
+  {
+    entry: 'src/functions/mcp.ts',
+    out: 'mcp/index.js',
   },
 ];
 
