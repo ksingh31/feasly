@@ -107,6 +107,14 @@ export class SeoService {
   }
 
   /**
+   * Public accessor for the canonical site URL (SEO-06: used for JSON-LD
+   * `url` fields). Resolves via the same priority order as the meta tags.
+   */
+  getSiteUrl(): string {
+    return this.resolveSiteUrl();
+  }
+
+  /**
    * Canonical origin for absolute tags, in priority order:
    * 1. `SITE_URL` build-time env var (present during prerender/SSR in Node),
    * 2. `site.url` from the served config (written by tools/apply-site-url.mjs),
