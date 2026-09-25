@@ -133,6 +133,7 @@ module functionApp 'modules/function-app.bicep' = {
     planName: functionPlanName
     location: location
     deploymentStorageContainerUrl: storage.outputs.deploymentContainerUrl
+    storageAccountName: storage.outputs.name
     appInsightsConnectionString: monitoring.outputs.connectionString
     postgresHost: postgres.outputs.fqdn
     postgresDatabase: postgres.outputs.databaseName
@@ -184,6 +185,9 @@ resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
 var kvSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7' // Key Vault Secrets Officer
 var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
 var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+var storageBlobDataOwnerRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b' // Storage Blob Data Owner (host secrets store)
+var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88' // Storage Queue Data Contributor (trigger coordination)
+var storageTableDataContributorRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160fc3c' // Storage Table Data Contributor (host state)
 
 // Deployer (CI OIDC identity or manual deployer) can write/read secrets in the vault.
 // principalType is intentionally omitted so ARM infers it — manual deploys run
@@ -228,6 +232,40 @@ resource funcAppBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04
   // NOTE: scoped at the resource group here (module outputs cannot be used in
   // roleAssignment name/scope, which must resolve at the start of deployment).
   // Tightening to the storage account scope is a future revision if needed.
+}
+
+// Function App system-assigned identity uses the storage account as the
+// Functions host storage (AzureWebJobsStorage__accountName + managedidentity).
+// The host needs blob (secrets/state), queue (trigger coordination), and table
+// (host state) data-plane access. Follows the same RG-scope pattern as above.
+resource funcAppHostStorageBlobOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, storageName, functionAppName, storageBlobDataOwnerRoleId)
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataOwnerRoleId)
+    principalId: functionApp.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource funcAppHostStorageQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, storageName, functionAppName, storageQueueDataContributorRoleId)
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageQueueDataContributorRoleId)
+    principalId: functionApp.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource funcAppHostStorageTableContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, storageName, functionAppName, storageTableDataContributorRoleId)
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageTableDataContributorRoleId)
+    principalId: functionApp.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 // --- Outputs ---
