@@ -1,70 +1,32 @@
 /**
- * Bundle the Azure Functions trigger adapters into self-contained files.
+ * Bundle the Azure Functions trigger adapters.
  *
- * Why bundling: the Function App runs on Flex Consumption with no remote
- * build, and `Azure/functions-action` deploys `apps/api` as-is — there is no
- * node_modules on the server (see apps/api/README.md). Each adapter is
- * therefore bundled with its full dependency closure (zod, cost-engine,
- * drizzle-orm, pg, …) into a single CJS file next to its function.json:
+ * Memory architecture (fix for the 2026-09-25 worker OOM crash-loop):
+ * the Function App runs on Flex Consumption with a 2048MB instance and the
+ * Node.js worker loads EVERY function at startup into a single process.
+ * Each adapter used to be bundled with its FULL dependency closure
+ * (28.9MB each — the entire API surface via src/index.ts), so the worker
+ * had to parse ~1.1GB of duplicated JS at startup and died at ~1.5GB heap
+ * within seconds (38 functions x ~80MB heap each).
  *
- *   src/functions/estimate.ts → estimate/index.js   (POST /api/v1/estimate)
- *   src/functions/leads.ts    → leads/index.js      (POST /api/v1/leads)
- *   src/functions/health.ts   → health/index.js     (GET /api/health, HRD-06)
- *   src/functions/magic-link-verify.ts  → magic-link-verify/index.js
- *     (GET /api/v1/magic-link/verify)
- *   src/functions/magic-link-reissue.ts → magic-link-reissue/index.js
- *     (POST /api/v1/magic-link/reissue)
- *   src/functions/events.ts   → events/index.js     (POST /api/v1/events)
- *   src/functions/privacy-export.ts        → privacy-export/index.js
- *     (GET /api/v1/privacy/export)
- *   src/functions/privacy-erase.ts         → privacy-erase/index.js
- *     (POST /api/v1/privacy/erase-requests)
- *   src/functions/privacy-erase-confirm.ts → privacy-erase-confirm/index.js
- *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
- *   src/functions/narrative.ts              → narrative/index.js
- *     (POST /api/v1/estimates/{estimateId}/narrative)
- *   src/functions/communities-stats.ts    → communities-stats/index.js
- *     (GET /api/v1/communities/{slug}/stats)
- *   src/functions/unsubscribe-get.ts      → unsubscribe-get/index.js
- *     (GET /api/v1/unsubscribe/{token})
- *   src/functions/unsubscribe-post.ts     → unsubscribe-post/index.js
- *     (POST /api/v1/unsubscribe/{token})
- *   src/functions/nudge-timer.ts          → nudge-timer/index.js
- *     (Timer: hourly 24h nudge for unverified leads)
- *   src/functions/sandbox-purge-timer.ts  → sandbox-purge-timer/index.js
- *     (Timer: daily sandbox test-data purge, api-mcp/09)
- *   src/functions/api-keys.ts             → api-keys/index.js
- *     (GET|POST /api/v1/admin/api-keys)
- *   src/functions/api-keys-rotate.ts      → api-keys-rotate/index.js
- *     (POST /api/v1/admin/api-keys/{id}/rotate)
- *   src/functions/api-keys-revoke.ts      → api-keys-revoke/index.js
- *     (POST /api/v1/admin/api-keys/{id}/revoke)
- *   src/functions/embed-config.ts         → embed-config/index.js
- *     (GET /api/v1/embed/config)
- *   src/functions/properties-autocomplete.ts → properties-autocomplete/index.js
- *     (GET /api/v1/properties/autocomplete)
- *   src/functions/properties-lookup.ts       → properties-lookup/index.js
- *     (GET /api/v1/properties/lookup)
- *   src/functions/stripe-webhooks.ts         → stripe-webhooks/index.js
- *     (POST /api/v1/stripe/webhooks)
- *   src/functions/invoice-reviewer-timer.ts  → invoice-reviewer-timer/index.js
- *     (Timer: daily commission-invoice reviewer)
- *   src/functions/mcp.ts                    → mcp/index.js
- *     (POST /mcp/v1)
- *   src/functions/admin-leads.ts             → admin-leads/index.js
- *     (GET /api/v1/admin/leads)
- *   src/functions/admin-leads-detail.ts      → admin-leads-detail/index.js
- *     (GET /api/v1/admin/leads/{id})
- *   src/functions/admin-leads-notes.ts       → admin-leads-notes/index.js
- *     (POST /api/v1/admin/leads/{id}/notes)
- *   src/functions/admin-leads-status.ts      → admin-leads-status/index.js
- *     (PATCH /api/v1/admin/leads/{id}/status)
- *   src/functions/admin-leads-export.ts      → admin-leads-export/index.js
- *     (GET /api/v1/admin/leads/export.csv)
- *   src/functions/community-stats-refresh-timer.ts → community-stats-refresh-timer/index.js
- *     (Timer: monthly community-stats refresh, neighbourhood/05)
- *   src/functions/admin-community-stats-refresh.ts → admin-community-stats-refresh/index.js
- *     (POST /api/v1/admin/community-stats/refresh — manual ops trigger)
+ * Now the shared closure is bundled ONCE into apps/api/index.js and each
+ * adapter is a tiny shim that require()s it:
+ *
+ *   src/index.ts            → index.js            (shared closure, ~29MB, parsed once)
+ *   src/functions/health.ts → health/index.js     (shim, a few KB)
+ *   ... (38 adapters)
+ *
+ * Why this works: the worker parses the 29MB closure a single time
+ * (~90MB heap) instead of 38 times (~3GB). No source changes were needed —
+ * adapters keep importing from the package public surface (`../index`);
+ * esbuild just leaves that import external and it resolves to the deployed
+ * shared bundle at runtime.
+ *
+ * Deploy note: `Azure/functions-action` ships the whole apps/api directory,
+ * so the shared index.js deploys automatically. The per-adapter
+ * `require("../index")` resolves to apps/api/index.js from every
+ * apps/api/<adapter>/index.js (all adapter outputs sit one level deep,
+ * hence the "../../index" -> "../index" normalization below).
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -72,8 +34,27 @@
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// The barrel specifiers as written in adapter sources. Both resolve to
+// src/index.ts at build time; both are left external so the adapters
+// require the shared runtime bundle instead of inlining the closure.
+const BARREL_SPECIFIERS = ['../index', '../../index'];
+
+const sharedBuild = {
+  entryPoints: [join(root, 'src/index.ts')],
+  outfile: join(root, 'index.js'),
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'cjs',
+  // config.ts inlines apps/api/package.json for the version — JSON is
+  // bundled, never read from disk at runtime.
+  loader: { '.json': 'json' },
+  logLevel: 'warning',
+};
 
 const targets = [
   { entry: 'src/functions/estimate.ts', out: 'estimate/index.js' },
@@ -152,6 +133,8 @@ const targets = [
   {
     entry: 'src/functions/invoice-reviewer-timer.ts',
     out: 'invoice-reviewer-timer/index.js',
+  },
+  {
     entry: 'src/functions/admin-auth-request.ts',
     out: 'admin-auth-request/index.js',
   },
@@ -200,11 +183,20 @@ const targets = [
     out: 'community-stats-refresh-timer/index.js',
   },
   {
+    entry: 'src/functions/sheets-sync-timer.ts',
+    out: 'sheets-sync-timer/index.js',
+  },
+  {
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
   },
 ];
 
+// 1. Shared closure, bundled once.
+await build(sharedBuild);
+console.log('bundled src/index.ts -> index.js (shared)');
+
+// 2. Tiny per-adapter shims; the barrel stays external.
 for (const { entry, out } of targets) {
   await build({
     entryPoints: [join(root, entry)],
@@ -213,10 +205,19 @@ for (const { entry, out } of targets) {
     platform: 'node',
     target: 'node20',
     format: 'cjs',
-    // config.ts inlines apps/api/package.json for the version — JSON is
-    // bundled, never read from disk at runtime.
+    external: BARREL_SPECIFIERS,
     loader: { '.json': 'json' },
-    logLevel: 'info',
+    logLevel: 'warning',
   });
+
+  // 3. Normalize the barrel require: every adapter output lives at
+  // apps/api/<adapter>/index.js, so the shared bundle is always ../index.
+  // (Adapters under src/functions/*/ import '../../index' as written;
+  // esbuild preserves the specifier verbatim when external.)
+  const outPath = join(root, out);
+  const code = readFileSync(outPath, 'utf8');
+  const normalized = code.split('require("../../index")').join('require("../index")');
+  if (normalized !== code) writeFileSync(outPath, normalized);
+
   console.log(`bundled ${entry} -> ${out}`);
 }

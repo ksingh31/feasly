@@ -11,9 +11,13 @@ no build step, no `npm install` on the server. Consequences:
 - `health/index.js` has **zero dependencies** and must stay that way — it is the
   deployed `/api/health` endpoint and runs without `node_modules` on the server.
 - `estimate/` and `leads/` are the BE-3 trigger adapters (`function.json` +
-  `index.js`, gitignored). Each `index.js` is a **self-contained esbuild bundle**
-  produced by `npm run bundle:functions` — `cd.yml` rebuilds them before every
-  Functions deploy, since the server has no `node_modules`.
+  `index.js`, gitignored). `index.js` at the package root is the **shared
+  closure bundle** (the whole API surface, parsed once by the worker); each
+  adapter `index.js` is a tiny shim that `require()`s it. Both are produced
+  by `npm run bundle:functions` — `cd.yml` rebuilds them before every
+  Functions deploy, since the server has no `node_modules`. (Bundling each
+  adapter self-contained was tried: 38×28.9MB duplicated JS OOM-crashed the
+  worker at startup, 2026-09-25.)
 - `src/` + `test/` compile to `dist/` (gitignored) for typechecking and tests;
   only the bundled trigger adapters ship to Azure.
 - Runtime dependencies (`drizzle-orm`, `pg`, `zod`, `@feasly/cost-engine`,
