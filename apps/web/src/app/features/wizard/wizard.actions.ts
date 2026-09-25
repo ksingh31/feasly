@@ -3,6 +3,9 @@ import type { EstimateInputs, PreviewEstimateResponse, PropertyRecord } from '@f
 /** Project types the wizard supports: new builds (M1) and renovations (RENO-02). */
 export type ProjectType = 'new-build' | 'renovation';
 
+/** Renovation scope kinds (RENO-01/RENO-03). */
+export type RenoType = 'extensive' | 'addition' | 'basement' | 'combined';
+
 /** Wizard steps: 1 address → 2 scope → 3 details. */
 export type WizardStep = 1 | 2 | 3;
 
@@ -22,6 +25,19 @@ export class ChooseProjectType {
 export class UpdateInputs {
   static readonly type = '[Wizard] Update inputs';
   constructor(public readonly inputs: Partial<EstimateInputs>) {}
+}
+
+/** NGXS action: reno scope-step inputs changed (RENO-03). */
+export class UpdateRenoInputs {
+  static readonly type = '[Wizard] Update reno inputs';
+  constructor(
+    public readonly inputs: Partial<{
+      renoType: RenoType | null;
+      renoSqft: number;
+      tier: import('@feasly/contracts').FinishTier;
+      underpinning: boolean;
+    }>,
+  ) {}
 }
 
 /** NGXS action: move the step indicator. */

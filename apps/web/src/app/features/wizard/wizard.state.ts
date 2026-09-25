@@ -1,7 +1,12 @@
 import { inject, Injectable, Optional } from '@angular/core';
 import { Action, NgxsOnInit, Selector, State, StateContext } from '@ngxs/store';
 import { STORAGE_ENGINE } from '@ngxs/storage-plugin';
-import type { EstimateInputs, PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
+import type {
+  EstimateInputs,
+  FinishTier,
+  PreviewEstimateResponse,
+  PropertyRecord,
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ChooseProjectType,
@@ -10,12 +15,26 @@ import {
   SelectProperty,
   StorePreviewEstimate,
   UpdateInputs,
+  UpdateRenoInputs,
   type ProjectType,
+  type RenoType,
   type WizardStep,
 } from './wizard.actions';
 
 /** The storage-plugin key for this state (mirrors the @State name). */
 const WizardStateName = 'wizard';
+
+/** Renovation scope inputs (RENO-03). Persisted via the storage plugin. */
+export interface RenoInputs {
+  /** Renovation kind; null until the user picks on the reno scope step. */
+  renoType: RenoType | null;
+  /** Affected area in sq ft. */
+  renoSqft: number;
+  /** Finish tier for the renovation. */
+  tier: FinishTier;
+  /** Underpinning toggle — only meaningful for basement/combined. */
+  underpinning: boolean;
+}
 
 export interface WizardStateModel {
   /** Selected City property record. Null until the user picks an address. */
@@ -24,6 +43,8 @@ export interface WizardStateModel {
   projectType: ProjectType | null;
   /** Scope/detail inputs for the estimate request. */
   inputs: EstimateInputs;
+  /** Renovation scope inputs (RENO-03); used when projectType is 'renovation'. */
+  renoInputs: RenoInputs;
   /** Current wizard step (1 address → 2 scope → 3 details). */
   step: WizardStep;
   /**
@@ -50,6 +71,12 @@ export interface WizardStateModel {
       garage: 'double',
       basement: 'unfinished',
     },
+    renoInputs: {
+      renoType: null,
+      renoSqft: 0,
+      tier: 'standard',
+      underpinning: false,
+    },
     step: 1,
     preview: null,
   },
@@ -61,7 +88,7 @@ export class WizardState implements NgxsOnInit {
   private readonly storage = inject(STORAGE_ENGINE, { optional: true });
 
   /**
-   * Seeds the square-footage default from deploy config for first-time
+   * Seeds the square-footage defaults from deploy config for first-time
    * visitors. The storage plugin rehydrates persisted state during the
    * InitState action — which runs before this hook — so a stored value
    * always wins: we only seed when nothing was persisted yet.
@@ -69,8 +96,10 @@ export class WizardState implements NgxsOnInit {
   ngxsOnInit(ctx: StateContext<WizardStateModel>): void {
     const stored = this.storage?.getItem(WizardStateName);
     if (stored == null) {
+      const wizard = this.config.get('wizard');
       ctx.patchState({
-        inputs: { ...ctx.getState().inputs, sqft: this.config.get('wizard').sqftDefault },
+        inputs: { ...ctx.getState().inputs, sqft: wizard.sqftDefault },
+        renoInputs: { ...ctx.getState().renoInputs, renoSqft: wizard.renoSqftDefault },
       });
     }
   }
@@ -83,6 +112,11 @@ export class WizardState implements NgxsOnInit {
   @Selector()
   static inputs(state: WizardStateModel): EstimateInputs {
     return state.inputs;
+  }
+
+  @Selector()
+  static renoInputs(state: WizardStateModel): RenoInputs {
+    return state.renoInputs;
   }
 
   @Selector()
@@ -115,6 +149,22 @@ export class WizardState implements NgxsOnInit {
     ctx.patchState({ inputs: { ...ctx.getState().inputs, ...action.inputs } });
   }
 
+  @Action(UpdateRenoInputs)
+  updateRenoInputs(ctx: StateContext<WizardStateModel>, action: UpdateRenoInputs): void {
+    const current = ctx.getState().renoInputs;
+    const next = { ...current, ...action.inputs };
+    // Underpinning only applies to basement/combined — clear it when the
+    // reno type changes to anything else (RENO-03 AC1).
+    if (
+      action.inputs.renoType !== undefined &&
+      action.inputs.renoType !== 'basement' &&
+      action.inputs.renoType !== 'combined'
+    ) {
+      next.underpinning = false;
+    }
+    ctx.patchState({ renoInputs: next });
+  }
+
   @Action(GoToStep)
   goToStep(ctx: StateContext<WizardStateModel>, action: GoToStep): void {
     ctx.patchState({ step: action.step });
@@ -136,6 +186,12 @@ export class WizardState implements NgxsOnInit {
         tier: 'standard',
         garage: 'double',
         basement: 'unfinished',
+      },
+      renoInputs: {
+        renoType: null,
+        renoSqft: wizard.renoSqftDefault,
+        tier: 'standard',
+        underpinning: false,
       },
       step: 1,
       preview: null,
