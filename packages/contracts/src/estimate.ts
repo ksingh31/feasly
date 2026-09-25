@@ -173,6 +173,14 @@ export interface EstimateResponse {
    * Byte-pinned by the HRD-05 banned-phrase/disclaimer check.
    */
   readonly disclaimer: string;
+  /**
+   * AI narrative summary (consumer/06). Absent until generated via
+   * `POST /api/v1/estimates/{id}/narrative`; the narrative worker persists
+   * it on the estimate row and later calls return the cached copy.
+   */
+  readonly narrative?: string;
+  /** When the narrative was generated (ISO-8601). Present iff `narrative` is. */
+  readonly narrativeGeneratedAt?: string;
 }
 
 /**

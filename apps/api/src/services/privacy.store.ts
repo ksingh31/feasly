@@ -33,7 +33,9 @@ export type PrivacyAuditAction =
   | 'erase.request.denied'
   | 'erase.confirm'
   | 'erase.confirm.denied'
-  | 'erase.blocked';
+  | 'erase.blocked'
+  /** consumer/06: narrative request denied (bad token or cross-user). */
+  | 'narrative.denied';
 
 export interface PrivacyStore {
   /** The newest erasure request for this email hash, or null. */

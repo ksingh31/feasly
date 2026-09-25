@@ -29,6 +29,7 @@ describe('lead route', () => {
     const estimateStore = {
       save: async () => {},
       findById: async () => null,
+      saveNarrative: async () => {},
     };
     const leadStore = {
       findRecentByEmailAndAddress: async () => null,

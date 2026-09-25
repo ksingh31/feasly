@@ -50,6 +50,10 @@ describe('composition root', () => {
     // api-mcp/02: Socrata-backed property lookup (service + route wired).
     expect(app.propertyService).toBeDefined();
     expect(app.propertyRoute).toBeDefined();
+    // consumer/06: AI narrative worker (service + route + generation log).
+    expect(app.narrativeGenerationStore).toBeDefined();
+    expect(app.narrativeService).toBeDefined();
+    expect(app.narrativeRoute).toBeDefined();
   });
 
   it('injects config into the health service', async () => {

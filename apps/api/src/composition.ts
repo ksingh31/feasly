@@ -116,6 +116,19 @@ import {
 import { createAnalyticsRoute, type AnalyticsRoute } from './routes/analytics.route';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
+  createNarrativeRoute,
+  type NarrativeRoute,
+} from './routes/narrative.route';
+import {
+  createNarrativeService,
+  type NarrativeService,
+} from './services/narrative.service';
+import { createNarrativeProvider } from './services/narrative.provider';
+import {
+  createDrizzleNarrativeGenerationStore,
+  type NarrativeGenerationStore,
+} from './services/narrative.store';
+import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
@@ -254,6 +267,10 @@ export interface AppComposition {
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
+  /** consumer/06: AI narrative worker (validated, cached, cost-guarded). */
+  readonly narrativeGenerationStore: NarrativeGenerationStore;
+  readonly narrativeService: NarrativeService;
+  readonly narrativeRoute: NarrativeRoute;
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
   readonly communityStatsRoute: CommunityStatsRoute;
@@ -332,6 +349,11 @@ export interface CompositionOptions {
    * Production wiring uses the real `ops_alert_state` table.
    */
   readonly opsAlertStore?: OpsAlertStore;
+  /**
+   * Test seam: substitute the narrative generation log store (fake in unit
+   * tests). Production wiring uses the real `narrative_generations` table.
+   */
+  readonly narrativeGenerationStore?: NarrativeGenerationStore;
 }
 
 /**
@@ -615,6 +637,33 @@ export function createComposition(
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
   });
+  // AI narrative worker (consumer/06): magic-link bearer auth, validated
+  // narratives, cached on the estimate row, per-estimate daily cost guard.
+  // The provider is 'log' (no network, no spend) until Karan provisions
+  // META_API_KEY and flips NARRATIVE_PROVIDER=meta.
+  const narrativeGenerationStore: NarrativeGenerationStore =
+    options.narrativeGenerationStore ??
+    createDrizzleNarrativeGenerationStore({ db: db.db });
+  const narrativeService: NarrativeService = createNarrativeService({
+    estimates: estimateStore,
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    generations: narrativeGenerationStore,
+    provider: createNarrativeProvider({
+      provider: config.narrative.provider,
+      model: config.narrative.model,
+      metaApiKey: config.narrative.metaApiKey,
+      metaApiBaseUrl: config.narrative.metaApiBaseUrl,
+      apiTimeoutMs: config.narrative.apiTimeoutMs,
+    }),
+    opsAlerts: opsAlertsService,
+    audit: privacyStore,
+    maxGenerationsPerDay: config.narrative.maxGenerationsPerDay,
+    generationWindowMs: config.narrative.generationWindowMs,
+  });
+  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
+    narrative: narrativeService,
+  });
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -781,6 +830,9 @@ export function createComposition(
     privacyStore,
     privacyService,
     privacyRoute,
+    narrativeGenerationStore,
+    narrativeService,
+    narrativeRoute,
     communityStatsService,
     communityStatsRoute,
     builderConfigService,

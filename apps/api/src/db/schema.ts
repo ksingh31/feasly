@@ -52,8 +52,43 @@ export const estimates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * consumer/06: AI narrative summary, persisted on first generation.
+     * Nullable until `POST /api/v1/estimates/{id}/narrative` runs. The
+     * estimate row is otherwise insert-only; this column is the deliberate,
+     * story-required exception (a cached derived artifact, not an input).
+     */
+    narrative: text('narrative'),
+    narrativeGeneratedAt: timestamp('narrative_generated_at', {
+      withTimezone: true,
+    }),
   },
   (t) => [index('estimates_address_key_idx').on(t.addressKey)],
+);
+
+/**
+ * consumer/06: append-only log of narrative LLM invocations, one row per
+ * provider call. The per-estimate daily cost guard counts rows in the
+ * trailing window — no counters to race, no updates, ever.
+ */
+export const narrativeGenerations = pgTable(
+  'narrative_generations',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    estimateId: uuid('estimate_id')
+      .notNull()
+      .references(() => estimates.id, { onDelete: 'cascade' }),
+    generatedAt: timestamp('generated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('narrative_generations_estimate_id_generated_at_idx').on(
+      t.estimateId,
+      t.generatedAt,
+    ),
+  ],
 );
 
 export const leads = pgTable(

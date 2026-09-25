@@ -23,6 +23,7 @@ function fakeStore() {
       saved.push(record);
     },
     findById: async (id: string) => byId.get(id) ?? null,
+    saveNarrative: async () => {},
   };
 }
 

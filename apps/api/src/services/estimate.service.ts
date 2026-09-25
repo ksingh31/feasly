@@ -336,6 +336,8 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           rows: response.rows,
           costDataVersion: response.costDataVersion,
           createdAt,
+          narrative: null,
+          narrativeGeneratedAt: null,
         });
         return response;
       }
@@ -395,6 +397,8 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           rows: response.rowSets,
           costDataVersion: response.costDataVersion,
           createdAt,
+          narrative: null,
+          narrativeGeneratedAt: null,
         });
         return response;
       }
@@ -431,6 +435,8 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         rows: response.rows,
         costDataVersion: response.costDataVersion,
         createdAt,
+        narrative: null,
+        narrativeGeneratedAt: null,
       });
       return response;
     },

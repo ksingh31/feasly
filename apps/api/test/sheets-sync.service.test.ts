@@ -64,6 +64,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
   const estimates: EstimateStore = {
     save: vi.fn(),
     findById: vi.fn().mockResolvedValue(null),
+    saveNarrative: vi.fn(),
   };
   const sheets: SheetsClient = {
     upsertRows: vi.fn().mockResolvedValue(undefined),

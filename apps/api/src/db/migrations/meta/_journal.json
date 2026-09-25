@@ -126,6 +126,13 @@
       "when": 1790316259442,
       "tag": "0017_funnel_tenant_key",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790320696429,
+      "tag": "0018_narrative_worker",
+      "breakpoints": true
     }
   ],
   "version": "7"

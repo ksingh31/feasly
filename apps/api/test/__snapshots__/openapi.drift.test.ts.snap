@@ -476,6 +476,14 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "inputs": {
             "$ref": "#/components/schemas/EstimateInputs",
           },
+          "narrative": {
+            "description": "AI narrative summary (consumer/06) — present once generated via POST /v1/estimates/{id}/narrative",
+            "type": "string",
+          },
+          "narrativeGeneratedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
           "projectType": {
             "enum": [
               "new_build",

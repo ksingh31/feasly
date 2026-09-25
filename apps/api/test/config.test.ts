@@ -92,6 +92,17 @@ describe('loadConfig', () => {
         apiScope: 'https://www.googleapis.com/auth/spreadsheets',
         enabled: false,
       },
+      // consumer/06: AI narrative worker. Default provider is 'log' (no
+      // network, no spend); meta requires META_API_KEY + NARRATIVE_API_BASE_URL.
+      narrative: {
+        provider: 'log',
+        model: 'llama-3.3-70b-versatile',
+        metaApiKey: undefined,
+        metaApiBaseUrl: undefined,
+        apiTimeoutMs: 30_000,
+        maxGenerationsPerDay: 5,
+        generationWindowMs: 86_400_000,
+      },
     });
   });
 
@@ -309,5 +320,47 @@ describe('loadConfig', () => {
   it('leaves billing dormant when no Stripe key is configured', () => {
     const config = loadConfig(VALID_ENV);
     expect(config.billing.stripeSecretKey).toBeUndefined();
+  });
+
+  it('defaults the narrative worker to the no-network log provider', () => {
+    const config = loadConfig(VALID_ENV);
+    expect(config.narrative.provider).toBe('log');
+    expect(config.narrative.metaApiKey).toBeUndefined();
+    expect(config.narrative.metaApiBaseUrl).toBeUndefined();
+  });
+
+  it('reads narrative tunables from env', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NARRATIVE_PROVIDER: 'meta',
+      NARRATIVE_MODEL: 'llama-4-scout',
+      META_API_KEY: 'meta-test-key',
+      NARRATIVE_API_BASE_URL: 'https://llm.example.invalid/v1',
+      NARRATIVE_API_TIMEOUT_MS: '5000',
+      NARRATIVE_MAX_GENERATIONS_PER_DAY: '10',
+      NARRATIVE_GENERATION_WINDOW_MS: '3600000',
+    });
+    expect(config.narrative).toEqual({
+      provider: 'meta',
+      model: 'llama-4-scout',
+      metaApiKey: 'meta-test-key',
+      metaApiBaseUrl: 'https://llm.example.invalid/v1',
+      apiTimeoutMs: 5_000,
+      maxGenerationsPerDay: 10,
+      generationWindowMs: 3_600_000,
+    });
+  });
+
+  it('rejects the meta narrative provider without credentials', () => {
+    expect(() =>
+      loadConfig({ ...VALID_ENV, NARRATIVE_PROVIDER: 'meta' }),
+    ).toThrow(/META_API_KEY/);
+    expect(() =>
+      loadConfig({
+        ...VALID_ENV,
+        NARRATIVE_PROVIDER: 'meta',
+        META_API_KEY: 'meta-test-key',
+      }),
+    ).toThrow(/NARRATIVE_API_BASE_URL/);
   });
 });

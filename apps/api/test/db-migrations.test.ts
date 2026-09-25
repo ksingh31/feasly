@@ -81,6 +81,8 @@ describe('drizzle stores', () => {
       rows: [],
       costDataVersion: 'v0.1.0-unclibrated',
       createdAt,
+      narrative: null,
+      narrativeGeneratedAt: null,
     });
     const found = await store.findById('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(found?.addressKey).toBe('calgary-123-fake-st-nw');
@@ -110,6 +112,8 @@ describe('drizzle stores', () => {
         rows: [],
         costDataVersion: 'v0.1.0-unclibrated',
         createdAt: new Date(),
+        narrative: null,
+        narrativeGeneratedAt: null,
       });
     }
     const inserted = await leads.insert({
@@ -193,6 +197,8 @@ describe('migration 0001 — estimates.project_type', () => {
       rows: [],
       costDataVersion: 'v0.1.0-unclibrated',
       createdAt: new Date(),
+      narrative: null,
+      narrativeGeneratedAt: null,
     });
     const found = await store.findById(id);
     expect(found?.projectType).toBe('renovation');
@@ -229,6 +235,8 @@ describe('migration 0002 — leads.quarantined', () => {
       rows: [],
       costDataVersion: 'v0.1.0-unclibrated',
       createdAt: new Date(),
+      narrative: null,
+      narrativeGeneratedAt: null,
     });
     const clean = await leads.insert({
       id: '55555555-5555-4333-8555-555555555555',

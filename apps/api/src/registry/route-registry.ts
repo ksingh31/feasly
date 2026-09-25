@@ -70,6 +70,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/estimates/{id}/narrative',
+    auth: 'magic-token',
+    rateLimit: '100/min per IP · 5 generations/day per estimate',
+    status: 'live',
+    summary:
+      'AI narrative summary for an estimate (consumer/06). Validated ' +
+      'against the engine output (no invented $-figures), cached on the ' +
+      'estimate row. Log provider until META_API_KEY is provisioned.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/leads',
     auth: 'none',
     rateLimit: '10/min per IP (dedicated lead limiter)',

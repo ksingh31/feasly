@@ -134,6 +134,13 @@ export const EstimateResponseSchema = z
       .describe(
         'Approved deterministic-math disclaimer, verbatim on every estimate response (HRD-05)',
       ),
+    narrative: z
+      .string()
+      .optional()
+      .describe(
+        'AI narrative summary (consumer/06) — present once generated via POST /v1/estimates/{id}/narrative',
+      ),
+    narrativeGeneratedAt: z.string().datetime().optional(),
   })
   .openapi('EstimateResponse');
 

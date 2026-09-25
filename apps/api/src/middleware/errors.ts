@@ -55,6 +55,12 @@ export const ErrorCodes = {
   BILLING_MODEL_MISMATCH: 'BILLING_MODEL_MISMATCH',
   /** Stripe signature verification failed (billing/02). */
   INVALID_SIGNATURE: 'INVALID_SIGNATURE',
+  /**
+   * Narrative worker could not produce a valid narrative (consumer/06):
+   * the LLM output failed validation twice, or the provider errored.
+   * The ops alert `narrative_worker_failed` fires alongside.
+   */
+  NARRATIVE_FAILED: 'NARRATIVE_FAILED',
 } as const;
 
 /**

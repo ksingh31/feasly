@@ -260,6 +260,7 @@ function createInMemoryEstimateStore(): EstimateStore {
     async findById(id: string): Promise<EstimateRecord | null> {
       return records.get(id) ?? null;
     },
+    async saveNarrative(): Promise<void> {},
   };
 }
 

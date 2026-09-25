@@ -21,11 +21,24 @@ export interface EstimateRecord {
   readonly rows: unknown;
   readonly costDataVersion: string;
   readonly createdAt: Date;
+  /**
+   * consumer/06: cached AI narrative (null until generated). The only
+   * mutable columns on an otherwise insert-only record — a cached derived
+   * artifact, never an input.
+   */
+  readonly narrative: string | null;
+  readonly narrativeGeneratedAt: Date | null;
 }
 
 export interface EstimateStore {
   save(record: EstimateRecord): Promise<void>;
   findById(id: string): Promise<EstimateRecord | null>;
+  /**
+   * consumer/06: persist (or replace) the cached narrative for an estimate.
+   * The single sanctioned UPDATE on the estimates table — everything else
+   * stays insert-only.
+   */
+  saveNarrative(id: string, narrative: string, generatedAt: Date): Promise<void>;
 }
 
 export interface DrizzleEstimateStoreDeps {
@@ -50,6 +63,17 @@ export function createDrizzleEstimateStore(
       });
     },
 
+    async saveNarrative(
+      id: string,
+      narrative: string,
+      generatedAt: Date,
+    ): Promise<void> {
+      await db
+        .update(estimates)
+        .set({ narrative, narrativeGeneratedAt: generatedAt })
+        .where(eq(estimates.id, id));
+    },
+
     async findById(id: string): Promise<EstimateRecord | null> {
       const rows = await db
         .select()
@@ -67,6 +91,8 @@ export function createDrizzleEstimateStore(
         rows: row.rows,
         costDataVersion: row.costDataVersion,
         createdAt: row.createdAt,
+        narrative: row.narrative,
+        narrativeGeneratedAt: row.narrativeGeneratedAt,
       };
     },
   };

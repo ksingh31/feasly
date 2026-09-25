@@ -230,6 +230,42 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((value) => value === 'true'),
+  // --- AI narrative worker (story consumer/06) ---
+  // Which LLM backend the narrative worker calls. 'log' is the default and
+  // the placeholder until Karan provisions META_API_KEY: it logs the prompt
+  // and returns a deterministic footer-only narrative (no network, no cost).
+  NARRATIVE_PROVIDER: z.enum(['log', 'meta']).default('log'),
+  // LLM model name for the narrative provider (story default; Karan's pick
+  // is the Meta API, which serves this model name).
+  NARRATIVE_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
+  // Meta API credentials + base URL. Key Vault reference in
+  // staging/production, never committed. Required only when
+  // NARRATIVE_PROVIDER=meta (enforced below — fail fast at startup).
+  META_API_KEY: z.string().min(1).optional(),
+  NARRATIVE_API_BASE_URL: z.string().url().optional(),
+  // Provider HTTP timeout (the narrative endpoint is synchronous).
+  NARRATIVE_API_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  // Cost guard: at most this many LLM generations per estimate per trailing
+  // NARRATIVE_GENERATION_WINDOW_MS. Cached reads are unlimited.
+  NARRATIVE_MAX_GENERATIONS_PER_DAY: z.coerce.number().int().positive().default(5),
+  NARRATIVE_GENERATION_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+}).superRefine((env, ctx) => {
+  if (env.NARRATIVE_PROVIDER === 'meta') {
+    if (!env.META_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['META_API_KEY'],
+        message: 'is required when NARRATIVE_PROVIDER=meta',
+      });
+    }
+    if (!env.NARRATIVE_API_BASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['NARRATIVE_API_BASE_URL'],
+        message: 'is required when NARRATIVE_PROVIDER=meta',
+      });
+    }
+  }
 });
 
 export interface RateLimitConfig {
@@ -407,6 +443,28 @@ export interface SheetsConfig {
   readonly enabled: boolean;
 }
 
+/**
+ * AI narrative worker (consumer/06). The provider abstraction keeps the LLM
+ * behind an interface: 'log' (default placeholder — no network, no cost)
+ * until Karan provisions META_API_KEY, then 'meta'.
+ */
+export interface NarrativeConfig {
+  /** Which LLM backend to call: 'log' (placeholder) or 'meta'. */
+  readonly provider: 'log' | 'meta';
+  /** Model name sent to the provider. */
+  readonly model: string;
+  /** Meta API key (Key Vault in staging/prod). Absent = provider stays 'log'. */
+  readonly metaApiKey: string | undefined;
+  /** Meta API base URL (OpenAI-compatible chat-completions shape). */
+  readonly metaApiBaseUrl: string | undefined;
+  /** Provider HTTP timeout. */
+  readonly apiTimeoutMs: number;
+  /** Cost guard: max LLM generations per estimate per trailing window. */
+  readonly maxGenerationsPerDay: number;
+  /** Trailing window for the generation cost guard. */
+  readonly generationWindowMs: number;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -431,6 +489,7 @@ export interface ApiConfig {
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly sheets: SheetsConfig;
+  readonly narrative: NarrativeConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -655,6 +714,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled:
         e.SHEETS_SHEET_ID.length > 0 &&
         e.SHEETS_SERVICE_ACCOUNT_EMAIL.length > 0,
+    },
+    narrative: {
+      provider: e.NARRATIVE_PROVIDER,
+      model: e.NARRATIVE_MODEL,
+      metaApiKey: e.META_API_KEY,
+      metaApiBaseUrl: e.NARRATIVE_API_BASE_URL,
+      apiTimeoutMs: e.NARRATIVE_API_TIMEOUT_MS,
+      maxGenerationsPerDay: e.NARRATIVE_MAX_GENERATIONS_PER_DAY,
+      generationWindowMs: e.NARRATIVE_GENERATION_WINDOW_MS,
     },
   };
 }
