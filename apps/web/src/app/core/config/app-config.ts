@@ -68,6 +68,8 @@ export interface AppConfig {
   timings: {
     /** Address-autocomplete debounce. */
     debounceMs: number;
+    /** Report sqft-stepper live-revise debounce (D-02: 400 ms trailing). */
+    reviseDebounceMs: number;
     /** Cooldown between magic-link resends. */
     resendCooldownSec: number;
     /** Mock API latency window (FE0-003). Real API ignores these. */
@@ -195,18 +197,24 @@ export interface AppConfig {
       freshnessMock: string;
     };
     /**
-     * Estimate report page (M1) copy. Ranges render as low/base/high — the
-     * middle figure is the engine's deterministic best estimate (the
-     * contract seam's `base`, not a client midpoint). Nothing here may
-     * carry ±, %, or accuracy claims (copy-linted).
+     * Estimate report page copy. The hero shows ONE prominent total (the
+     * engine's deterministic base) with a "Likely planning range" for
+     * context — never Low/Base/High labels on the report itself. Nothing
+     * here may carry ±, %, or accuracy claims (copy-linted).
      */
     report: {
       heading: string;
       subPreGate: string;
       subPostGate: string;
       totalLabel: string;
+      /** "Likely planning range" — the supporting range under the hero total. */
+      planningRangeLabel: string;
       buildLabel: string;
+      /** Clarifier under the highlighted build-cost figure. */
+      buildCostNote: string;
       landLabel: string;
+      /** Fixed-figure explainer: City assessment, never a range. */
+      landFixedNote: string;
       lowLabel: string;
       baseLabel: string;
       highLabel: string;
@@ -217,9 +225,9 @@ export interface AppConfig {
       pendingNote: string;
       breakdownTitle: string;
       breakdownLocked: string;
-      landRowLabel: string;
+      /** Display-only finish tier on the report ("Selected finish level — Standard"). */
+      finishLevelLabel: string;
       tierTitle: string;
-      tierHint: string;
       tierLockedNote: string;
       adjustTitle: string;
       decreaseLabel: string;
@@ -228,18 +236,30 @@ export interface AppConfig {
       adjustUnit: string;
       adjustCta: string;
       adjustLockedNote: string;
-      rerunningLabel: string;
+      /** Shown while a debounced sqft revision is in flight. */
+      updatingLabel: string;
+      /** "$X per sq ft" context line under the build cost. */
+      perSqftUnit: string;
       narrativeTitle: string;
       narrativeComingSoon: string;
+      aiSummaryLocked: string;
       stepsTitle: string;
       steps: { title: string; body: string }[];
       shareTitle: string;
       shareHint: string;
       shareEmailLabel: string;
       shareCta: string;
-      shareSuccess: string;
-      shareError: string;
       shareInvalid: string;
+      /** mailto: subject prefix for the email-draft share. */
+      shareSubject: string;
+      /**
+       * mailto: body template for the email-draft share. `{tokens}` are filled
+       * from the current snapshot (figures) and sibling report copy (labels),
+       * so every label stays individually tunable via config.
+       */
+      shareBodyTemplate: string;
+      /** Closing line of the mailto: body. */
+      shareBodyClose: string;
       callbackTitle: string;
       callbackHint: string;
       callbackNameLabel: string;

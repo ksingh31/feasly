@@ -8,7 +8,7 @@ import { assertValidCostData, PLACEHOLDER_COST_DATA } from '../src/cost-data';
 
 describe('placeholder cost-data table', () => {
   it('is versioned and explicitly marked uncalibrated', () => {
-    expect(PLACEHOLDER_COST_DATA.version).toBe('v0.1.0-unclibrated');
+    expect(PLACEHOLDER_COST_DATA.version).toBe('v0.2.0-unclibrated');
     expect(PLACEHOLDER_COST_DATA.calibrated).toBe(false);
     expect(PLACEHOLDER_COST_DATA.source).toBe('placeholder');
   });
@@ -51,5 +51,14 @@ describe('placeholder cost-data table', () => {
         },
       }),
     ).toThrow();
+  });
+
+  it('rejects the removed landSpread field', () => {
+    // v0.2.0 removed landSpread: the assessed land value is now a fixed
+    // figure. A stale table carrying landSpread must fail loudly, not be
+    // silently ignored.
+    expect(() =>
+      assertValidCostData({ ...PLACEHOLDER_COST_DATA, landSpread: 0.05 }),
+    ).toThrow(/landSpread was removed/);
   });
 });

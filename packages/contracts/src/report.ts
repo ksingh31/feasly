@@ -1,7 +1,7 @@
 /**
  * Report contracts. Snapshots are immutable — every re-run appends a new one.
  */
-import type { CostRange } from './common';
+import type { CostRange, FixedFigure } from './common';
 import type { CostRow, EstimateInputs, FinishTier } from './estimate';
 
 export interface ReportSnapshot {
@@ -12,7 +12,8 @@ export interface ReportSnapshot {
   /** Always real ranges here — snapshots exist only post-gate. */
   readonly buildRange: CostRange;
   readonly totalRange: CostRange;
-  readonly landRange: CostRange;
+  /** Fixed City assessed land value — never a range. */
+  readonly landValue: FixedFigure;
   readonly rows: readonly CostRow[];
   readonly narrative: string;
   readonly preparedAt: string;
