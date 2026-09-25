@@ -35,6 +35,8 @@ const ROUTES: SeoRouteConfig[] = [
   // Marketing pages (SEO-010): indexable — no `noindex`, so crawlers rank them.
   { pattern: 'how-it-works', titleKey: 'howItWorksTitle', descriptionKey: 'howItWorks' },
   { pattern: 'faq', titleKey: 'faqTitle', descriptionKey: 'faq' },
+  // API docs (api-mcp/03): indexable like the marketing pages above.
+  { pattern: 'developers', titleKey: 'developersTitle', descriptionKey: 'developers' },
   {
     pattern: 'estimate/scope',
     titleKey: 'scopeTitle',

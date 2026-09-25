@@ -419,6 +419,8 @@ export interface AppConfig {
       howItWorks: string;
       faqTitle: string;
       faq: string;
+      developersTitle: string;
+      developers: string;
       notFoundTitle: string;
       notFound: string;
       errorTitle: string;

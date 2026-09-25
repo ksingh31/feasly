@@ -48,3 +48,9 @@ apps/web/src/app/features/marketing/faq-page.component.ts
 # Landing WebSite+FAQPage JSON-LD context (SEO-06): same `https://schema.org`
 # fixed vocabulary URI as the FAQ page above — a web standard, not a tunable.
 apps/web/src/app/features/landing/landing-page.component.ts
+
+# API docs prose (api-mcp/03): endpoint docs, code samples, and the changelog
+# change with the API (code review), not by deploy tuning — same category as
+# the legal pages above. Copy-pinned by developers-page.component.spec.ts.
+apps/web/src/app/features/developers/developers-page.component.ts
+apps/web/src/app/features/developers/developers-page.component.html
