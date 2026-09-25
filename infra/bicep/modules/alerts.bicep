@@ -56,8 +56,8 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
 
 // 5xx alert: Flex Consumption function apps do NOT emit the `Http5xx`
 // platform metric, so this is a log-based scheduled query rule against the
-// App Insights `requests` table instead. Fires when more than 5 requests
-// return 5xx within a 5-minute window.
+// App Insights `AppRequests` table (Log Analytics workspace table name).
+// Fires when more than 5 requests return 5xx within a 5-minute window.
 resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
   name: '${namePrefix}-http5xx'
   location: workspaceLocation
@@ -74,7 +74,7 @@ resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
       allOf: [
         {
           criterionType: 'StaticThresholdCriterion'
-          query: 'requests | where timestamp > ago(5m) | where resultCode startswith "5" | summarize count()'
+          query: 'AppRequests | where TimeGenerated > ago(5m) | where ResultCode startswith "5" | summarize count()'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 5
@@ -97,9 +97,9 @@ resource poisonQueueAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${namePrefix}-poison-queue'
   location: location
   properties: {
-    description: 'Feasly poison queue depth above zero'
+    description: 'Feasly poison queue depth above zero (DISABLED: QueueMessageCount metric not available at storage account level; needs queueServices namespace fix)'
     severity: 2
-    enabled: true
+    enabled: false
     scopes: [
       storageAccountId
     ]
