@@ -14,7 +14,7 @@ import {
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type { ApiKeyRecord } from '../src/services/api-key.service';
 
-const ADMIN_HEADERS = { 'x-admin-key': 'secret-admin-key' };
+const ADMIN_HEADERS = { cookie: 'feasly_admin_session=valid-test-session' };
 
 function makeRecord(partial?: Partial<ApiKeyRecord>): ApiKeyRecord {
   return {
@@ -56,8 +56,13 @@ function makeDeps(
       authenticate: vi.fn(),
     },
     adminGuard: {
-      requireAdmin(headers) {
-        if (headers['x-admin-key'] !== 'secret-admin-key') {
+      async requireAdmin(
+        headers: Record<string, string | string[] | undefined>,
+      ) {
+        // Session-cookie mock: the test sets a valid cookie for admin.
+        const cookie = headers['cookie'];
+        const value = Array.isArray(cookie) ? cookie[0] : cookie;
+        if (value !== 'feasly_admin_session=valid-test-session') {
           throw new HttpError(
             401,
             ErrorCodes.UNAUTHENTICATED,
@@ -86,7 +91,7 @@ describe('api-key admin route (api-mcp/01)', () => {
     const route = createApiKeyRoute(deps);
 
     const error = await route
-      .issue({ 'x-admin-key': 'wrong' }, { name: 'A' })
+      .issue({ cookie: 'feasly_admin_session=wrong' }, { name: 'A' })
       .catch((e) => e);
 
     expect(error.status).toBe(401);

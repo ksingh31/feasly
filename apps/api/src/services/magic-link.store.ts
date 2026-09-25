@@ -21,6 +21,8 @@ export interface MagicLinkRecord {
   readonly purpose: string;
   /** SHA-256 hex — never the raw token. */
   readonly tokenHash: string;
+  /** Admin auth (admin/01): the email this link was issued for, else null. */
+  readonly email: string | null;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
   readonly revokedAt: Date | null;
@@ -36,8 +38,17 @@ export interface IssuedMagicLink {
 }
 
 export interface IssueMagicLinkArgs {
-  readonly leadId: string;
+  /**
+   * The lead this link is for. Null for non-lead purposes (e.g. admin
+   * auth) — the `purpose` distinguishes the flow.
+   */
+  readonly leadId: string | null;
   readonly purpose?: string;
+  /**
+   * Admin auth (admin/01): the allowlisted email this link is issued for.
+   * Null for lead flows.
+   */
+  readonly email?: string | null;
   /** Seconds from now until expiry — from config, never hardcoded. */
   readonly ttlSeconds: number;
   /** Injected clock for tests; defaults to wall time. */
@@ -61,6 +72,11 @@ export interface MagicLinkStore {
   findByLeadIds(leadIds: readonly string[]): Promise<MagicLinkRecord[]>;
   /** Mark every link for these leads revoked (erasure). Returns the count. */
   revokeByLeadIds(leadIds: readonly string[], revokedAt: Date): Promise<number>;
+  /**
+   * Mark a link consumed (single-use). Sets `usedAt`; returns false if the
+   * link was already used (replay attempt).
+   */
+  markUsed(id: string, usedAt: Date): Promise<boolean>;
 }
 
 /** SHA-256 hex — the only form in which tokens are stored or compared. */
@@ -77,6 +93,7 @@ function toRecord(row: typeof magicLinks.$inferSelect): MagicLinkRecord {
     id: row.id,
     leadId: row.leadId,
     purpose: row.purpose,
+    email: row.email,
     tokenHash: row.tokenHash,
     expiresAt: row.expiresAt,
     usedAt: row.usedAt,
@@ -100,6 +117,7 @@ export function createDrizzleMagicLinkStore(
           id: randomUUID(),
           leadId: args.leadId,
           purpose: args.purpose ?? 'lead',
+          email: args.email ?? null,
           tokenHash: hashMagicToken(token),
           expiresAt: new Date(now.getTime() + args.ttlSeconds * 1000),
         })
@@ -144,6 +162,15 @@ export function createDrizzleMagicLinkStore(
         )
         .returning({ id: magicLinks.id });
       return rows.length;
+    },
+
+    async markUsed(id: string, usedAt: Date): Promise<boolean> {
+      const rows = await db
+        .update(magicLinks)
+        .set({ usedAt })
+        .where(and(eq(magicLinks.id, id), isNull(magicLinks.usedAt)))
+        .returning({ id: magicLinks.id });
+      return rows.length > 0;
     },
   };
 }

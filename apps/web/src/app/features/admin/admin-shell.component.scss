@@ -1,0 +1,47 @@
+.admin-shell {
+  min-height: 100vh;
+  background: var(--color-background, #faf9f7);
+}
+
+.admin-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+}
+
+.admin-shell__brand {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.admin-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-shell__nav a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-shell__nav a.active {
+  font-weight: 700;
+}
+
+.admin-shell__nav button {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.admin-shell__main {
+  padding: 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}

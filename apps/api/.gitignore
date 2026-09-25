@@ -1,0 +1,5 @@
+# Function bundles (built by npm run bundle:functions)
+admin-auth-request/index.js
+admin-auth-verify/index.js
+admin-auth-logout/index.js
+admin-auth-me/index.js

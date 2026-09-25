@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["get","options"],"name":"req","route":"v1/admin/auth/verify","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

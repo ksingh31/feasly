@@ -81,7 +81,23 @@ import {
   type ApiKeyRoute,
 } from './routes/api-key.route';
 import {
-  createConfigAdminGuard,
+  createAdminAuthRoute,
+  type AdminAuthRoute,
+} from './routes/admin-auth.route';
+import {
+  createAdminAuthService,
+  type AdminAuthService,
+  type AdminAllowlistStore,
+  type AdminAuditStore,
+  type AdminSessionStore,
+} from './services/admin-auth.service';
+import {
+  createDrizzleAdminAllowlistStore,
+  createDrizzleAdminAuditStore,
+  createDrizzleAdminSessionStore,
+} from './services/admin-auth.store';
+import {
+  createSessionAdminGuard,
   type AdminGuard,
 } from './middleware/admin-guard';
 import {
@@ -261,6 +277,9 @@ export interface AppComposition {
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
+  /** admin/01: magic-link + allowlist session auth for /admin/*. */
+  readonly adminAuthService: AdminAuthService;
+  readonly adminAuthRoute: AdminAuthRoute;
   readonly adminGuard: AdminGuard;
   readonly privacyStore: PrivacyStore;
   readonly privacyService: PrivacyService;
@@ -327,6 +346,9 @@ export interface CompositionOptions {
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
   readonly apiKeyAuditStore?: ApiKeyAuditStore;
+  readonly adminSessionStore?: AdminSessionStore;
+  readonly adminAllowlistStore?: AdminAllowlistStore;
+  readonly adminAuditStore?: AdminAuditStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -597,10 +619,33 @@ export function createComposition(
       }),
     onSyncRecovered: () => opsAlertsService.notifyRecovered('sheets_sync_failed'),
   });
-  // api-mcp/01 — API key issuance + storage (admin-only). The admin guard
-  // is the INTERIM pre-shared-key guard until admin/01's session auth lands.
-  const adminGuard: AdminGuard = createConfigAdminGuard({
-    adminApiKey: config.auth.adminApiKey,
+  // admin/01 — magic-link + allowlist session auth. The session guard
+  // replaces the interim pre-shared-key guard; routes are untouched (they
+  // depend on the AdminGuard interface).
+  const adminSessionStore: AdminSessionStore =
+    options.adminSessionStore ??
+    createDrizzleAdminSessionStore({ db: db.db });
+  const adminAllowlistStore: AdminAllowlistStore =
+    options.adminAllowlistStore ??
+    createDrizzleAdminAllowlistStore({ db: db.db });
+  const adminAuditStore: AdminAuditStore =
+    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  const adminAuthService: AdminAuthService = createAdminAuthService({
+    allowlist: adminAllowlistStore,
+    sessions: adminSessionStore,
+    audit: adminAuditStore,
+    magicLinks: magicLinkStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+  });
+  const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
+    adminAuth: adminAuthService,
+    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+  });
+  const adminGuard: AdminGuard = createSessionAdminGuard({
+    adminAuth: adminAuthService,
   });
   const apiKeyService: ApiKeyService = createApiKeyService({
     keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
@@ -817,6 +862,8 @@ export function createComposition(
     opsAlertsService,
     apiKeyService,
     apiKeyRoute,
+    adminAuthService,
+    adminAuthRoute,
     adminGuard,
     privacyStore,
     privacyService,

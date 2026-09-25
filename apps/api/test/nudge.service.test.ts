@@ -61,6 +61,7 @@ function linkRecord(overrides?: Partial<MagicLinkRecord>): MagicLinkRecord {
     id: 'link-1',
     leadId: 'lead-1',
     purpose: 'lead',
+    email: null,
     tokenHash: 'hash-1',
     expiresAt: new Date(NOW.getTime() + HOUR),
     usedAt: null,
@@ -153,6 +154,7 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     findByToken: async () => null,
     findByLeadIds: async (ids) =>
       world.links.filter((l) => l.leadId && ids.includes(l.leadId)),
+    markUsed: async () => true,
     revokeByLeadIds: async (ids, revokedAt) => {
       let n = 0;
       for (const l of world.links) {

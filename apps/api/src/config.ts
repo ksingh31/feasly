@@ -102,6 +102,8 @@ const EnvSchema = z.object({
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
+  // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
+  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
 
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
@@ -297,6 +299,8 @@ export interface AuthConfig {
    * admin endpoints fail closed.
    */
   readonly adminApiKey: string | undefined;
+  /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
+  readonly adminSessionTtlSeconds: number;
 }
 
 export interface QueueConfig {
@@ -619,6 +623,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       adminApiKey: e.ADMIN_API_KEY,
+      adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
     },
     corsOrigins: resolveCorsOrigins(e),
     siteUrl: e.SITE_URL,

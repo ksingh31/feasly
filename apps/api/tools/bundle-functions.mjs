@@ -136,6 +136,20 @@ const targets = [
   {
     entry: 'src/functions/invoice-reviewer-timer.ts',
     out: 'invoice-reviewer-timer/index.js',
+    entry: 'src/functions/admin-auth-request.ts',
+    out: 'admin-auth-request/index.js',
+  },
+  {
+    entry: 'src/functions/admin-auth-verify.ts',
+    out: 'admin-auth-verify/index.js',
+  },
+  {
+    entry: 'src/functions/admin-auth-logout.ts',
+    out: 'admin-auth-logout/index.js',
+  },
+  {
+    entry: 'src/functions/admin-auth-me.ts',
+    out: 'admin-auth-me/index.js',
   },
 ];
 

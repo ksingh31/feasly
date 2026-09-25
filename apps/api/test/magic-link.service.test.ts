@@ -39,6 +39,7 @@ function linkRecord(overrides?: Partial<MagicLinkRecord>): MagicLinkRecord {
     id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     leadId: LEAD_ID,
     purpose: 'lead',
+    email: null,
     tokenHash: 'hash',
     expiresAt: new Date(NOW.getTime() + 86_400_000),
     usedAt: null,
@@ -101,6 +102,7 @@ function fakeMagicLinks(): FakeMagicLinks {
     findByLeadIds: async (leadIds: readonly string[]) =>
       leadIds.flatMap((id) => byLead.get(id) ?? []),
     revokeByLeadIds: async () => 0,
+    markUsed: async () => true,
   };
 }
 
