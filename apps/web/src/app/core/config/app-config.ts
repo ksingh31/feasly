@@ -285,6 +285,8 @@ export interface AppConfig {
       adjustLockedNote: string;
       /** Shown while a debounced sqft revision is in flight. */
       updatingLabel: string;
+      /** "Updated {date}" — shown when an old magic link resolved to a newer snapshot (consumer/02). */
+      updatedLabel: string;
       /** "$X per sq ft" context line under the build cost. */
       perSqftUnit: string;
       narrativeTitle: string;

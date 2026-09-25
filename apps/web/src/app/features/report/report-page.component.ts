@@ -113,6 +113,22 @@ export class ReportPageComponent implements OnInit {
     () => !this.unlocked() && this.leadEmail() !== null,
   );
 
+  /**
+   * "Updated {date}" — shown when an old magic link resolved to a newer
+   * snapshot (consumer/02). The backend sets `snapshot.updatedAt` when the
+   * link's original estimate was superseded. Null for first-view reports.
+   */
+  protected readonly updatedLabel = computed(() => {
+    const updatedAt = this.snapshot()?.updatedAt;
+    if (!updatedAt) return null;
+    const date = new Date(updatedAt).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    return this.copy.updatedLabel.replace('{date}', date);
+  });
+
   /** Chosen finish tier, display-only (snapshot post-gate, wizard inputs pre-gate). */
   protected readonly tierLabel = computed(() => {
     const tier = this.snapshot()?.inputs.tier ?? this.wizardInputs().tier;
