@@ -49,6 +49,12 @@ export const ErrorCodes = {
   INVALID_API_KEY: 'INVALID_API_KEY',
   DEPENDENCY_UNAVAILABLE: 'DEPENDENCY_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  /** Billing called without Stripe configured (billing/02). */
+  BILLING_NOT_CONFIGURED: 'BILLING_NOT_CONFIGURED',
+  /** Billing path disabled by the active BILLING_MODEL (billing/02). */
+  BILLING_MODEL_MISMATCH: 'BILLING_MODEL_MISMATCH',
+  /** Stripe signature verification failed (billing/02). */
+  INVALID_SIGNATURE: 'INVALID_SIGNATURE',
 } as const;
 
 /**

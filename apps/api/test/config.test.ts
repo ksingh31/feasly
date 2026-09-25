@@ -28,6 +28,9 @@ describe('loadConfig', () => {
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
       },
+      webhook: {
+        rateLimit: { windowMs: 60_000, maxRequests: 100 },
+      },
       auth: { jwtTtlSeconds: 3_600, magicLinkTtlSeconds: 604_800 },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',
@@ -64,6 +67,10 @@ describe('loadConfig', () => {
         flatPlanName: 'Builder Standard',
         flatMonthlyCents: 30_000,
         flatCurrency: 'CAD',
+        stripeSecretKey: undefined,
+        stripeWebhookSecret: undefined,
+        stripeFlatPriceId: undefined,
+        isProduction: false,
       },
     });
   });
@@ -92,6 +99,10 @@ describe('loadConfig', () => {
       flatPlanName: 'Builder Pro',
       flatMonthlyCents: 45_000,
       flatCurrency: 'USD',
+      stripeSecretKey: undefined,
+      stripeWebhookSecret: undefined,
+      stripeFlatPriceId: undefined,
+      isProduction: false,
     });
   });
 
@@ -242,5 +253,41 @@ describe('loadConfig', () => {
 
   it('version is the single source of truth: mirrors package.json', () => {
     expect(loadConfig(VALID_ENV).version).toBe(packageVersion);
+  });
+
+  it('requires sk_test_ Stripe keys outside production (no real charges in dev/staging)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      STRIPE_SECRET_KEY: 'sk_test_123',
+      STRIPE_WEBHOOK_SECRET: 'whsec_123',
+    });
+    expect(config.billing.stripeSecretKey).toBe('sk_test_123');
+
+    expect(() =>
+      loadConfig({ ...VALID_ENV, STRIPE_SECRET_KEY: 'sk_live_123' }),
+    ).toThrow(/non-production requires an sk_test_ key/);
+  });
+
+  it('requires sk_live_ Stripe keys in production', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NODE_ENV: 'production',
+      STRIPE_SECRET_KEY: 'sk_live_123',
+      STRIPE_WEBHOOK_SECRET: 'whsec_123',
+    });
+    expect(config.billing.stripeSecretKey).toBe('sk_live_123');
+
+    expect(() =>
+      loadConfig({
+        ...VALID_ENV,
+        NODE_ENV: 'production',
+        STRIPE_SECRET_KEY: 'sk_test_123',
+      }),
+    ).toThrow(/production requires an sk_live_ key/);
+  });
+
+  it('leaves billing dormant when no Stripe key is configured', () => {
+    const config = loadConfig(VALID_ENV);
+    expect(config.billing.stripeSecretKey).toBeUndefined();
   });
 });

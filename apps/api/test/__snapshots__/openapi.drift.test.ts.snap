@@ -793,6 +793,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         "scheme": "bearer",
         "type": "http",
       },
+      "StripeSignature": {
+        "description": "HMAC signature of the raw request body, computed with the endpoint webhook secret (STRIPE_WEBHOOK_SECRET). Invalid signatures are rejected with 401.",
+        "in": "header",
+        "name": "Stripe-Signature",
+        "type": "apiKey",
+      },
     },
   },
   "info": {
@@ -1954,6 +1960,64 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         },
         "summary": "Look up a property record",
+      },
+    },
+    "/v1/stripe/webhooks": {
+      "post": {
+        "description": "Receives Stripe events (payment_intent.succeeded, payment_intent.payment_failed). Auth is the Stripe-Signature header — there is no bearer token for provider callbacks by design. Event handling is idempotent: re-delivered events are acknowledged without re-processing. Always returns 200 once the signature verifies, so Stripe never retry-storms us.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Raw Stripe event payload (signed bytes). Parsed and verified against STRIPE_WEBHOOK_SECRET.",
+                "type": "object",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "received": {
+                      "type": "boolean",
+                    },
+                  },
+                  "type": "object",
+                },
+              },
+            },
+            "description": "Event accepted and processed (or acknowledged)",
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Invalid or missing Stripe signature",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded (100/min per IP)",
+          },
+        },
+        "security": [
+          {
+            "StripeSignature": [],
+          },
+        ],
+        "summary": "Stripe webhook receiver",
       },
     },
   },
