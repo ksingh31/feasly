@@ -54,3 +54,10 @@ apps/web/src/app/features/landing/landing-page.component.ts
 # the legal pages above. Copy-pinned by developers-page.component.spec.ts.
 apps/web/src/app/features/developers/developers-page.component.ts
 apps/web/src/app/features/developers/developers-page.component.html
+
+# Embed bridge protocol timings (embed/08): RESIZE_DEBOUNCE_MS=100 and
+# MIN_HEIGHT_PX=1 are protocol constants — the story requires the iframe to
+# settle within 300ms of a route/content change, so the debounce sits well
+# under that by design. They change by protocol revision (code review), not
+# by deploy tuning. Timing-pinned by embed-bridge.service.spec.ts.
+apps/web/src/app/features/embed/embed-bridge.service.ts

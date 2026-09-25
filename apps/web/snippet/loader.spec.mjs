@@ -211,6 +211,57 @@ describe('embed loader (embed/07)', () => {
     expect(seen).toEqual([{ addressKey: 'k1', address: '1 Main St' }]);
   });
 
+  it('re-dispatches lead-created with only estimateId + leadScore (zero PII)', () => {
+    const { iframe } = installLoader();
+    const seen = [];
+    iframe.parentElement.addEventListener('feasly:lead-created', (e) => seen.push(e.detail));
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        // Even if the iframe sent PII (it must not), the loader strips it.
+        data: {
+          type: 'feasly:lead-created',
+          estimateId: 'est_123',
+          leadScore: 82,
+          email: 'attacker@evil.test',
+          name: 'Mallory',
+        },
+        origin: 'null',
+        source: iframe.contentWindow,
+      }),
+    );
+    expect(seen).toEqual([{ estimateId: 'est_123', leadScore: 82 }]);
+    expect(JSON.stringify(seen[0])).not.toContain('attacker@evil.test');
+    expect(JSON.stringify(seen[0])).not.toContain('Mallory');
+  });
+
+  it('re-dispatches lead-created without leadScore when the backend omits it', () => {
+    const { iframe } = installLoader();
+    const seen = [];
+    iframe.parentElement.addEventListener('feasly:lead-created', (e) => seen.push(e.detail));
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'feasly:lead-created', estimateId: 'est_456' },
+        origin: 'null',
+        source: iframe.contentWindow,
+      }),
+    );
+    expect(seen).toEqual([{ estimateId: 'est_456' }]);
+  });
+
+  it('ignores spoofed lead-created from a non-iframe source', () => {
+    const { iframe } = installLoader();
+    const seen = [];
+    iframe.parentElement.addEventListener('feasly:lead-created', (e) => seen.push(e.detail));
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'feasly:lead-created', estimateId: 'est_spoof', leadScore: 100 },
+        origin: 'null',
+        source: window,
+      }),
+    );
+    expect(seen).toEqual([]);
+  });
+
   it('renders into the data-target container when specified', () => {
     const { iframe } = installLoader({
       attrs: { target: '#slot' },

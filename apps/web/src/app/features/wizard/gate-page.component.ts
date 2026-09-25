@@ -12,6 +12,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
 import { AnalyticsService } from '../consent';
+import { EmbedBridgeService } from '../embed/embed-bridge.service';
 
 type GateStatus = 'idle' | 'sending' | 'error';
 
@@ -57,6 +58,7 @@ export class GatePageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly analytics = inject(AnalyticsService);
+  private readonly bridge = inject(EmbedBridgeService);
 
   /** Gate copy (config-owned). */
   protected readonly copy = this.config.get('copy').gate;
@@ -141,15 +143,18 @@ export class GatePageComponent implements OnInit {
               timeline: values.timeline === '' ? 'exploring' : values.timeline,
               marketingConsent: values.casl,
             })
-            .pipe(map((lead) => ({ lead, email: values.email.trim() }))),
+            .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ lead, email }) => {
+        next: ({ lead, email, preview }) => {
           // The gate converted: consent-gated inside AnalyticsService, so a
           // declined/pending banner means this is a silent no-op.
           this.analytics.track('gate_convert');
+          // Embed bridge (embed/08): tell the parent page a lead was created.
+          // No-op when not embedded; carries zero PII (estimateId + score).
+          this.bridge.notifyLeadCreated(lead.leadId, preview.estimateId, lead.leadScore);
           this.store.dispatch(
             new StoreLeadResult({
               leadId: lead.leadId,

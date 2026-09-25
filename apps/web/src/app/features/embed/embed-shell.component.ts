@@ -14,26 +14,13 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { fromEvent } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { EmbedPublicConfig, PropertyRecord } from '@feasly/contracts';
+import type { EmbedPublicConfig, EmbedThemeMessage, PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { AddressAutocompleteComponent } from '../../shared/components/address-autocomplete';
 import { EmbedConfigFailed, LoadEmbedConfig } from './embed.actions';
 import { EmbedState } from './embed.state';
+import { EmbedBridgeService } from './embed-bridge.service';
 import { GoToStep, SelectProperty } from '../wizard/wizard.actions';
-
-/** Parent → shell: live theme update (see contracts EmbedThemeMessage). */
-interface ThemeInbound {
-  readonly type: 'feasly:theme';
-  readonly primaryColor?: unknown;
-}
-
-/** Shell → parent: lifecycle announcements and the lead handoff. */
-interface ShellOutbound {
-  readonly type: 'feasly:ready' | 'feasly:resize' | 'feasly:estimate-start';
-  readonly height?: number;
-  readonly addressKey?: string;
-  readonly address?: string;
-}
 
 const THEME_MESSAGE = 'feasly:theme';
 /** Strict 6-digit hex — anything else is ignored, never applied. */
@@ -48,10 +35,12 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
  * builder's brand, the address input, and the CTA. Invalid/missing keys show
  * the story-pinned fallback card, never a blank iframe.
  *
- * postMessage discipline: inbound messages are accepted only from origins
- * in the tenant's `allowed_origins` (a '*' entry never authorizes); the
- * shell announces `feasly:ready`/`feasly:resize` and hands the picked address
- * to the parent as `feasly:estimate-start`.
+ * postMessage discipline: outbound messages go through EmbedBridgeService
+ * (debounced resize, exactly-once lead events, never broadcast '*'); inbound
+ * messages are accepted only from origins in the tenant's `allowed_origins`
+ * (a '*' entry never authorizes). The shell announces `feasly:ready` /
+ * `feasly:resize` and hands the picked address to the parent as
+ * `feasly:estimate-start`.
  */
 @Component({
   selector: 'app-embed-shell',
@@ -67,6 +56,7 @@ export class EmbedShellComponent {
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly bridge = inject(EmbedBridgeService);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   protected readonly copy = this.config.get('copy').embed;
@@ -94,22 +84,24 @@ export class EmbedShellComponent {
       const cfg = this.builderConfig();
       if (cfg !== null) {
         this.applyAccent(cfg.accent_color);
-        this.postToParent({ type: 'feasly:ready' });
-        this.postResize();
+        this.bridge.notifyReady();
+        this.bridge.requestResize();
       }
     });
 
     if (this.isBrowser) {
       // Inbound: only the tenant's allowlisted origins may theme the shell.
+      // Spoofed origins are dropped and logged (embed/08 AC3).
       fromEvent<MessageEvent>(window, 'message')
         .pipe(
           takeUntilDestroyed(this.destroyRef),
           filter((ev) => this.isAllowedThemeMessage(ev)),
         )
-        .subscribe((ev) => this.onThemeMessage(ev.data as ThemeInbound));
+        .subscribe((ev) => this.onThemeMessage(ev.data as EmbedThemeMessage));
 
       // Keep the parent iframe sized to the content; disconnect with the component.
-      const ro = new ResizeObserver(() => this.postResize());
+      // The bridge debounces bursts so rapid changes collapse into one post.
+      const ro = new ResizeObserver(() => this.bridge.requestResize());
       ro.observe(this.host.nativeElement);
       this.destroyRef.onDestroy(() => ro.disconnect());
     }
@@ -123,11 +115,7 @@ export class EmbedShellComponent {
       return;
     }
     this.store.dispatch([new SelectProperty(picked), new GoToStep(2)]);
-    this.postToParent({
-      type: 'feasly:estimate-start',
-      addressKey: picked.addressKey,
-      address: picked.address,
-    });
+    this.bridge.notifyEstimateStart(picked.addressKey, picked.address);
     // Direct visits continue into the estimate flow. Inside a builder iframe
     // the parent owns what happens next (the snippet sandbox forbids
     // top-navigation anyway), so the shell stays put.
@@ -136,15 +124,22 @@ export class EmbedShellComponent {
     }
   }
 
-  /** Origin-gated: only `feasly:theme` from an allowlisted origin passes. */
+  /**
+   * Origin-gated: only `feasly:theme` from an allowlisted origin passes.
+   * Spoofed origins are dropped and logged (embed/08 AC3).
+   */
   private isAllowedThemeMessage(ev: MessageEvent): boolean {
     const data = ev.data as { type?: unknown } | null;
     if (data === null || data.type !== THEME_MESSAGE) return false;
-    const allowed = this.builderConfig()?.allowed_origins ?? [];
-    return ev.origin !== '' && allowed.includes(ev.origin);
+    if (!this.bridge.isAllowedInbound(ev.origin)) {
+      // eslint-disable-next-line no-console
+      console.warn('[feasly] embed: dropped msg from bad origin', ev.origin);
+      return false;
+    }
+    return true;
   }
 
-  private onThemeMessage(msg: ThemeInbound): void {
+  private onThemeMessage(msg: EmbedThemeMessage): void {
     if (typeof msg.primaryColor === 'string') {
       this.applyAccent(msg.primaryColor);
     }
@@ -154,44 +149,6 @@ export class EmbedShellComponent {
   private applyAccent(color: string): void {
     if (this.isBrowser && HEX_COLOR.test(color)) {
       this.host.nativeElement.style.setProperty('--embed-accent', color);
-    }
-  }
-
-  private postToParent(msg: ShellOutbound): void {
-    if (!this.isBrowser) return;
-    const target = this.parentTargetOrigin();
-    if (target === undefined) return;
-    window.parent.postMessage(msg, target);
-  }
-
-  /**
-   * Outbound postMessage never broadcasts ('*'). In an iframe the target is
-   * the embedding page's origin, but only when it appears in the builder's
-   * allowlist; standalone, it's our own origin. Otherwise nothing is sent.
-   * A wildcard in allowed_origins never authorizes anything.
-   */
-  private parentTargetOrigin(): string | undefined {
-    try {
-      const ref = document.referrer;
-      if (ref !== '') {
-        const origin = new URL(ref).origin;
-        const allowed = this.builderConfig()?.allowed_origins ?? [];
-        if (origin !== '*' && allowed.includes(origin)) return origin;
-        return undefined;
-      }
-    } catch {
-      // Malformed referrer — no safe target.
-      return undefined;
-    }
-    // Standalone visit (no referrer): only ever talk to ourselves.
-    return window.location.origin;
-  }
-
-  private postResize(): void {
-    if (!this.isBrowser) return;
-    const height = this.host.nativeElement.offsetHeight;
-    if (height > 0) {
-      this.postToParent({ type: 'feasly:resize', height });
     }
   }
 }
