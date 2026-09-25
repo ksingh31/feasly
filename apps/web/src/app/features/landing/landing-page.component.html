@@ -23,15 +23,6 @@
     <!-- Sample report: behind features.sampleReport; entry point lands with the report story (FE2-x). -->
   </section>
 
-  <!-- ── Trust strip (never ±, %, or accuracy claims — copy-linted) ── -->
-  <section class="trust" aria-label="Why Feasly">
-    <ul class="trust-list">
-      @for (item of trustItems; track item) {
-        <li class="trust-item">{{ item }}</li>
-      }
-    </ul>
-  </section>
-
   <!-- ── Compare neighbourhoods entry (NBH-04) ── -->
   <section class="compare-entry" aria-labelledby="compare-entry-title">
     <a class="compare-card" routerLink="/estimate/compare">
@@ -41,6 +32,15 @@
       </div>
       <span class="compare-arrow" aria-hidden="true">→</span>
     </a>
+  </section>
+
+  <!-- ── Trust strip (never ±, %, or accuracy claims — copy-linted) ── -->
+  <section class="trust" aria-label="Why Feasly">
+    <ul class="trust-list">
+      @for (item of trustItems; track item) {
+        <li class="trust-item">{{ item }}</li>
+      }
+    </ul>
   </section>
 
   <!-- ── How it works ─────────────────────────── -->
