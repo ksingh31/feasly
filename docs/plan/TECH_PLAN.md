@@ -1291,6 +1291,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/admin/api-keys` | admin | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
 | POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
 | POST | `/api/v1/admin/api-keys/{id}/revoke` | admin | 10/min per session | live | Revoke a key immediately. Audit-logged. |
+| PATCH | `/api/v1/admin/api-keys/{id}` | admin | 10/min per session | live | Update a key’s scopes and/or rate limit (api-mcp/02). Takes effect on the next request. Audit-logged. |
 | GET | `/api/v1/admin/leads` | admin | 300/min per session | planned | Leads explorer (admin/02): filters, free-text search, cursor pagination. |
 | GET | `/api/v1/admin/leads/{id}` | admin | 300/min per session | planned | Lead detail: estimate summary, timeline, consent, attribution. |
 | POST | `/api/v1/admin/leads/{id}/notes` | admin | 60/min per session | planned | Append-only lead notes. |
