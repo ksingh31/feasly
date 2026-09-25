@@ -291,5 +291,13 @@ describe('PreviewPageComponent loading state', () => {
       expect(back?.getAttribute('href')).toBe('/estimate/reno-scope');
       TestBed.resetTestingModule();
     });
+
+    it('back link says "Back to scope" (not "details") for reno', async () => {
+      const fixture = await setupReno();
+      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      expect(back?.textContent).toContain('Back to scope');
+      expect(back?.textContent).not.toContain('Back to details');
+      TestBed.resetTestingModule();
+    });
   });
 });

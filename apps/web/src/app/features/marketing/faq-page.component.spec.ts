@@ -3,8 +3,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config';
+import { WizardState } from '../wizard/wizard.state';
 import { FaqPageComponent } from './faq-page.component';
 
 /**
@@ -38,7 +40,12 @@ describe('FaqPageComponent', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [FaqPageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideStore([WizardState]),
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     const pending = TestBed.inject(ConfigService).load();

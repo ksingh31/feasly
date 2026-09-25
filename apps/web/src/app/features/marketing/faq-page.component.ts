@@ -4,7 +4,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import { Reset } from '../wizard/wizard.actions';
+import { ResetWizard } from '../wizard/wizard.actions';
 
 /**
  * FAQ (SEO-010): prerendered marketing page with FAQPage JSON-LD.
@@ -56,7 +56,7 @@ export class FaqPageComponent implements OnInit {
    * address step (`/`). The user picks the project type on the scope step.
    */
   startEstimate(): void {
-    this.store.dispatch(new Reset());
+    this.store.dispatch(new ResetWizard());
     void this.router.navigate(['/']);
   }
 }
