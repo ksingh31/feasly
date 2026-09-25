@@ -74,3 +74,16 @@ in the manifest (bidirectional parity); blocklist asserted (`/r/*`, `/preview`,
 **Mobile:** n/a.
 **Config notes:** `SITE_URL`, page limit flow through.
 **Dependencies:** FE6-002.
+
+### FE6-004 — Neighbourhood lot price from sampled lots (replaces single average)
+**Size:** M
+**Description:** When users browse/search by neighbourhood (community pages, comparison tool, neighbourhood cards), the lot price shown must come from real sampled lots — not a single precomputed community average. At build time, implement sampling in a new shared module `apps/web/scripts/community-lot-sampling.ts` and wire it into the existing `build-community-data.ts` (NOT a separate `build-community-ranges.ts`: the Socrata client, freshness skip, and DB/Socrata fallback logic already live in `build-community-data.ts`, and sharing one data fetch per community avoids ~80 redundant Socrata requests). For each community, query the City assessment Socrata dataset for up to 10 properties where `comm_name` matches AND (`land_use_designation` indicates vacant residential land OR (single-family residential AND `year_of_construction` <= current_year - 30)). Average their `assessed_value` → `lotSampleAverage`; store `lotSampleCount` and the sample addresses for transparency. Figures are assessed values only — never framed as market or sold prices. If fewer than 5 qualifying lots are found, fall back to the existing community average and mark `lotPriceSource: 'community-average'` (vs `'sampled-lots'`). UI shows "Typical lot: $X" with a subline "Based on N lots in {community}" or "Based on neighbourhood average" for the fallback. Deterministic math only — no LLM involvement in any dollar figure (standing rule).
+**Acceptance criteria:**
+- Per-community JSON carries `lotSampleAverage`, `lotSampleCount`, `lotPriceSource`, and sample addresses.
+- Communities with <5 qualifying lots fall back to the community average with the fallback label.
+- Community pages and comparison UI render the sampled figure + basis subline; no hardcoded values.
+- Build regenerates deterministically; spec covers sampling, fallback threshold, and averaging math.
+**Tests:** spec — sample filtering (vacant + 30yr+ old homes), 5-sample fallback threshold, average math, JSON shape.
+**Mobile:** lot-price block stacks cleanly at 390px.
+**Config notes:** sample size cap (10), minimum (5), age threshold (30) in config, not code.
+**Dependencies:** PR #66 (community build pipeline) merged.
