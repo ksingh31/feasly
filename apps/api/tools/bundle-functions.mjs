@@ -21,6 +21,8 @@
  *     (POST /api/v1/privacy/erase-requests)
  *   src/functions/privacy-erase-confirm.ts → privacy-erase-confirm/index.js
  *     (POST /api/v1/privacy/erase-requests/{requestId}/confirm)
+ *   src/functions/narrative.ts              → narrative/index.js
+ *     (POST /api/v1/estimates/{estimateId}/narrative)
  *   src/functions/communities-stats.ts    → communities-stats/index.js
  *     (GET /api/v1/communities/{slug}/stats)
  *   src/functions/unsubscribe-get.ts      → unsubscribe-get/index.js
@@ -70,6 +72,7 @@ const targets = [
     entry: 'src/functions/privacy-erase-confirm.ts',
     out: 'privacy-erase-confirm/index.js',
   },
+  { entry: 'src/functions/narrative.ts', out: 'narrative/index.js' },
   {
     entry: 'src/functions/communities-stats.ts',
     out: 'communities-stats/index.js',

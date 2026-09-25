@@ -44,6 +44,9 @@ describe('lead store dedupe (consumer/02)', () => {
         rows: [],
         costDataVersion: 'v0.1.0-unclibrated',
         createdAt,
+        narrative: null,
+        narrativeGeneratedAt: null,
+        assumptions: null,
       });
     }
 

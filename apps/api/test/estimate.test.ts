@@ -51,6 +51,20 @@ function fakeStore(): EstimateStore & { saved: EstimateRecord[] } {
       byId.set(record.id, record);
     },
     findById: async (id: string) => byId.get(id) ?? null,
+    setNarrative: async ({
+      id,
+      narrative,
+      generatedAt,
+    }: {
+      id: string;
+      narrative: string;
+      generatedAt: Date;
+    }) => {
+      const rec = byId.get(id);
+      if (!rec || rec.narrative) return false;
+      byId.set(id, { ...rec, narrative, narrativeGeneratedAt: generatedAt });
+      return true;
+    },
   };
 }
 
@@ -167,6 +181,7 @@ describe('estimate service', () => {
         throw new Error('connection refused: secrets must not leak');
       },
       findById: async () => null,
+      setNarrative: async () => false,
     };
     const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store: broken, allowDraftCostData: true,
     communityStats: mockCommunityStatsService(),});
@@ -237,6 +252,7 @@ describe('estimate through the request pipeline (PGlite-backed stores)', () => {
           throw new Error('connection refused: pg password hunter2');
         },
         findById: async () => null,
+        setNarrative: async () => false,
       },
     });
     try {

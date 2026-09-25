@@ -121,6 +121,16 @@ const EnvSchema = z.object({
   // Destination Sheet ID — placeholder until Karan shares his Sheet with the
   // service account. Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SHEET_ID: z.string().default(''),
+  // --- AI narrative worker (consumer/06) ---
+  // Narrative LLM provider: 'log' = dev/test console transport (default,
+  // refuses production); 'meta' = Meta Llama API (Karan's pick).
+  NARRATIVE_PROVIDER: z.enum(['log', 'meta']).default('log'),
+  // Meta API key — from Key Vault, never in repo/env files. Empty with
+  // provider='meta' = fail-closed generation naming this var.
+  NARRATIVE_META_API_KEY: z.string().default(''),
+  // LLM model for narratives. Default is the Meta Llama 3.3 70B instruct
+  // model; overridable without a code change.
+  NARRATIVE_MODEL: z.string().default('llama-3.3-70b-versatile'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -407,6 +417,15 @@ export interface SheetsConfig {
   readonly enabled: boolean;
 }
 
+export interface NarrativeConfig {
+  /** 'log' = dev/test console transport; 'meta' = Meta Llama API. */
+  readonly provider: 'log' | 'meta';
+  /** Meta API key (from Key Vault, never in repo). Empty = fail-closed. */
+  readonly metaApiKey: string;
+  /** LLM model name for narratives. */
+  readonly model: string;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -431,6 +450,7 @@ export interface ApiConfig {
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly sheets: SheetsConfig;
+  readonly narrative: NarrativeConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -655,6 +675,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled:
         e.SHEETS_SHEET_ID.length > 0 &&
         e.SHEETS_SERVICE_ACCOUNT_EMAIL.length > 0,
+    },
+    narrative: {
+      provider: e.NARRATIVE_PROVIDER,
+      metaApiKey: e.NARRATIVE_META_API_KEY,
+      model: e.NARRATIVE_MODEL,
     },
   };
 }

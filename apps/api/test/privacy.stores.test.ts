@@ -33,6 +33,10 @@ async function seedLeadAndEstimate(testDb: TestDb): Promise<void> {
     costDataVersion: 'v0.1.0-unclibrated',
     projectType: 'new_build',
     createdAt: NOW,
+
+    narrative: null,
+    narrativeGeneratedAt: null,
+    assumptions: null,
   });
   const leads = createDrizzleLeadStore({ db: testDb.db });
   await leads.insert({

@@ -36,6 +36,10 @@ describe('lead store quarantine exclusions (HRD-03)', () => {
       rows: [],
       costDataVersion: 'v0.1.0-unclibrated',
       createdAt: T1,
+
+      narrative: null,
+      narrativeGeneratedAt: null,
+      assumptions: null,
     });
 
     cleanId = randomUUID();
