@@ -107,6 +107,18 @@ import {
   type EmbedConfigRoute,
 } from './routes/embed-config.route';
 import {
+  createEmbedSessionRoute,
+  type EmbedSessionRoute,
+} from './routes/embed-session.route';
+import {
+  createDrizzleEmbedRelayStore,
+  type EmbedRelayStore,
+} from './services/embed-relay.store';
+import {
+  createEmbedRelayService,
+  type EmbedRelayService,
+} from './services/embed-relay.service';
+import {
   createPropertyService,
   type PropertyService,
 } from './services/property.service';
@@ -176,6 +188,10 @@ export interface AppComposition {
   readonly communityStatsRoute: CommunityStatsRoute;
   readonly builderConfigService: BuilderConfigService;
   readonly embedConfigRoute: EmbedConfigRoute;
+  /** Embed relay-code exchange (embed/06): single-use codes → session tokens. */
+  readonly embedRelayStore: EmbedRelayStore;
+  readonly embedRelayService: EmbedRelayService;
+  readonly embedSessionRoute: EmbedSessionRoute;
   /** Property lookup (api-mcp/02): City of Calgary Socrata, cache-first. */
   readonly propertyService: PropertyService;
   readonly propertyRoute: PropertyRoute;
@@ -432,6 +448,21 @@ export function createComposition(
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
     builderConfig: builderConfigService,
   });
+  // Embed relay-code exchange (embed/06): the iframe trades its one-time
+  // `?feasly_rt=` code for a 12h in-memory session token. Single-use is
+  // enforced atomically by the store; every attempt is audit-logged.
+  const embedRelayStore: EmbedRelayStore = createDrizzleEmbedRelayStore({
+    db: db.db,
+  });
+  const embedRelayService: EmbedRelayService = createEmbedRelayService({
+    relayCodes: embedRelayStore,
+    leads: leadStore,
+    relayCodeTtlSeconds: config.embed.relayCodeTtlSeconds,
+    sessionTtlSeconds: config.embed.sessionTtlSeconds,
+  });
+  const embedSessionRoute: EmbedSessionRoute = createEmbedSessionRoute({
+    relayService: embedRelayService,
+  });
   // Property lookup (api-mcp/02): Socrata-backed address autocomplete +
   // property records. Public by design (City open data); the MCP server and
   // embeds call these instead of hitting Socrata directly.
@@ -485,6 +516,9 @@ export function createComposition(
     communityStatsRoute,
     builderConfigService,
     embedConfigRoute,
+    embedRelayStore,
+    embedRelayService,
+    embedSessionRoute,
     propertyService,
     propertyRoute,
     openApiRoute,

@@ -41,6 +41,10 @@
  *     (GET /api/v1/properties/autocomplete)
  *   src/functions/properties-lookup.ts       → properties-lookup/index.js
  *     (GET /api/v1/properties/lookup)
+ *   src/functions/openapi.ts                → openapi/index.js
+ *     (GET /api/v1/openapi.json)
+ *   src/functions/embed-session.ts          → embed-session/index.js
+ *     (POST /api/v1/embed/session)
  *
  * Run: `npm run bundle:functions --workspace @feasly/api`
  * (cd.yml runs this before the Functions deploy; the outputs are gitignored).
@@ -107,6 +111,10 @@ const targets = [
   {
     entry: 'src/functions/openapi.ts',
     out: 'openapi/index.js',
+  },
+  {
+    entry: 'src/functions/embed-session.ts',
+    out: 'embed-session/index.js',
   },
 ];
 

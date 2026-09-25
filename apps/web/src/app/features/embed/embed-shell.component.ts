@@ -14,10 +14,19 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { fromEvent } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { EmbedPublicConfig, PropertyRecord } from '@feasly/contracts';
+import type {
+  EmbedAuthOkMessage,
+  EmbedPublicConfig,
+  PropertyRecord,
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { AddressAutocompleteComponent } from '../../shared/components/address-autocomplete';
-import { EmbedConfigFailed, LoadEmbedConfig } from './embed.actions';
+import {
+  EmbedConfigFailed,
+  ExchangeRelayCode,
+  LoadEmbedConfig,
+  RelaySessionEstablished,
+} from './embed.actions';
 import { EmbedState } from './embed.state';
 import { GoToStep, SelectProperty } from '../wizard/wizard.actions';
 
@@ -27,17 +36,30 @@ interface ThemeInbound {
   readonly primaryColor?: unknown;
 }
 
+/** Parent → shell: one-time relay code from `?feasly_rt=` (embed/06). */
+interface RelayInbound {
+  readonly type: 'feasly:relay';
+  readonly code?: unknown;
+}
+
 /** Shell → parent: lifecycle announcements and the lead handoff. */
 interface ShellOutbound {
-  readonly type: 'feasly:ready' | 'feasly:resize' | 'feasly:estimate-start';
+  readonly type:
+    | 'feasly:ready'
+    | 'feasly:resize'
+    | 'feasly:estimate-start'
+    | 'feasly:relay-resend';
   readonly height?: number;
   readonly addressKey?: string;
   readonly address?: string;
 }
 
 const THEME_MESSAGE = 'feasly:theme';
+const RELAY_MESSAGE = 'feasly:relay';
 /** Strict 6-digit hex — anything else is ignored, never applied. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+/** 64 hex chars = the 32-byte relay code. Anything else is ignored. */
+const RELAY_CODE = /^[0-9a-fA-F]{64}$/;
 
 /**
  * White-label embed shell (EMB-01): the minimal widget a builder iframes on
@@ -72,6 +94,9 @@ export class EmbedShellComponent {
   protected readonly copy = this.config.get('copy').embed;
   protected readonly status = this.store.selectSignal(EmbedState.status);
   protected readonly builderConfig = this.store.selectSignal(EmbedState.config);
+  protected readonly relayStatus = this.store.selectSignal(EmbedState.relayStatus);
+  /** Accepted once per boot — a second relay is ignored (AC1 single-use). */
+  private relayAccepted = false;
 
   /** Property picked in the autocomplete; null until the user picks one. */
   readonly property = signal<PropertyRecord | null>(null);
@@ -99,6 +124,18 @@ export class EmbedShellComponent {
       }
     });
 
+    // React to a completed relay exchange: tell the parent the auth
+    // succeeded (AC6 — only estimateId + leadScore, never PII).
+    effect(() => {
+      const relay = this.relayStatus();
+      if (relay === 'active') {
+        const estimateId = this.store.selectSnapshot(EmbedState.sessionEstimateId) ?? '';
+        const leadScore = this.store.selectSnapshot(EmbedState.sessionLeadScore) ?? 0;
+        const msg: EmbedAuthOkMessage = { type: 'FEASLY_AUTH_OK', estimateId, leadScore };
+        this.postToParent(msg as unknown as ShellOutbound);
+      }
+    });
+
     if (this.isBrowser) {
       // Inbound: only the tenant's allowlisted origins may theme the shell.
       fromEvent<MessageEvent>(window, 'message')
@@ -107,6 +144,16 @@ export class EmbedShellComponent {
           filter((ev) => this.isAllowedThemeMessage(ev)),
         )
         .subscribe((ev) => this.onThemeMessage(ev.data as ThemeInbound));
+
+      // Inbound: the one-time relay code (embed/06). Accepted only from an
+      // allowlisted origin, only once per boot, and only in the 64-hex
+      // shape — anything else is ignored, never exchanged.
+      fromEvent<MessageEvent>(window, 'message')
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          filter((ev) => this.isAllowedRelayMessage(ev)),
+        )
+        .subscribe((ev) => this.onRelayMessage(ev.data as RelayInbound));
 
       // Keep the parent iframe sized to the content; disconnect with the component.
       const ro = new ResizeObserver(() => this.postResize());
@@ -136,12 +183,43 @@ export class EmbedShellComponent {
     }
   }
 
+  /**
+   * "Email me a fresh link" (AC3 re-issue affordance). The parent owns the
+   * re-issue flow — the shell asks for it via postMessage and the snippet
+   * (or builder page) triggers a fresh magic-link email. The shell itself
+   * never sees the homeowner's email address (no PII in the iframe).
+   */
+  protected onResendLink(): void {
+    this.postToParent({ type: 'feasly:relay-resend' } as unknown as ShellOutbound);
+  }
+
   /** Origin-gated: only `feasly:theme` from an allowlisted origin passes. */
   private isAllowedThemeMessage(ev: MessageEvent): boolean {
     const data = ev.data as { type?: unknown } | null;
     if (data === null || data.type !== THEME_MESSAGE) return false;
     const allowed = this.builderConfig()?.allowed_origins ?? [];
     return ev.origin !== '' && allowed.includes(ev.origin);
+  }
+
+  /**
+   * Origin-gated relay (AC7): the `feasly:relay` code is accepted only from
+   * an allowlisted origin, only once per boot, and only when it matches the
+   * 64-hex shape. Spoofed origins, malformed codes, and re-posts are
+   * silently ignored — the shell never exchanges a code it shouldn't.
+   */
+  private isAllowedRelayMessage(ev: MessageEvent): boolean {
+    if (this.relayAccepted) return false;
+    const data = ev.data as RelayInbound | null;
+    if (data === null || data.type !== RELAY_MESSAGE) return false;
+    if (typeof data.code !== 'string' || !RELAY_CODE.test(data.code)) return false;
+    const allowed = this.builderConfig()?.allowed_origins ?? [];
+    return ev.origin !== '' && allowed.includes(ev.origin);
+  }
+
+  private onRelayMessage(msg: RelayInbound): void {
+    if (typeof msg.code !== 'string' || !RELAY_CODE.test(msg.code)) return;
+    this.relayAccepted = true;
+    this.store.dispatch(new ExchangeRelayCode(msg.code));
   }
 
   private onThemeMessage(msg: ThemeInbound): void {

@@ -164,6 +164,14 @@ export interface AppConfig {
       contactPrefix: string;
       /** "Powered by" badge text — non-removable in v1. */
       poweredBy: string;
+      /**
+       * Relay session strings (embed/06). Shown when the one-time relay code
+       * has expired or was already used — the user gets a fresh link, never
+       * a dead end.
+       */
+      sessionExpiredHeading: string;
+      sessionExpiredBody: string;
+      resendLinkLabel: string;
     };
     /**
      * Wizard scope-step copy (S2 — FE-2). Step labels are structural;

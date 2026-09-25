@@ -65,6 +65,10 @@ describe('loadConfig', () => {
         flatMonthlyCents: 30_000,
         flatCurrency: 'CAD',
       },
+      embed: {
+        relayCodeTtlSeconds: 600,
+        sessionTtlSeconds: 43_200,
+      },
     });
   });
 

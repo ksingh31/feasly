@@ -124,6 +124,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ctaLabel: 'Get my estimate →',
       contactPrefix: 'Questions?',
       poweredBy: 'Powered by Feasly',
+      sessionExpiredHeading: 'This link has expired',
+      sessionExpiredBody:
+        'For your security, report links are single-use and expire after 10 minutes. Tap below and we’ll email you a fresh link.',
+      resendLinkLabel: 'Email me a fresh link',
     },
     wizard: {
       stepAddress: 'Address',
