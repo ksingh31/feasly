@@ -228,8 +228,13 @@ export const magicLinks = pgTable(
     leadId: uuid('lead_id').references(() => leads.id, {
       onDelete: 'set null',
     }),
-    /** 'lead' | 'partner-share' — extend as new issuance flows land. */
+    /** 'lead' | 'partner-share' | 'admin' — extend as new issuance flows land. */
     purpose: text('purpose').notNull().default('lead'),
+    /**
+     * Admin auth (admin/01): the allowlisted email this link was issued for.
+     * Null for lead flows (the email lives on the lead row).
+     */
+    email: text('email'),
     /** SHA-256 hex of the opaque bearer token. Never the raw token. */
     tokenHash: text('token_hash').notNull().unique(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -694,3 +699,73 @@ export const opsAlertState = pgTable('ops_alert_state', {
   /** When the last all-clear email for this class was sent. */
   lastRecoveredAt: timestamp('last_recovered_at', { withTimezone: true }),
 });
+
+/**
+ * Admin allowlist (admin/01).
+ *
+ * Email is the PK, stored lowercased + trimmed (same discipline as leads).
+ * Only allowlisted emails can request an admin magic link. Seeded with
+ * Karan's email; changes are audit-logged in `admin_audit_log`.
+ */
+export const adminAllowlist = pgTable('admin_allowlist', {
+  /** Lowercased, trimmed email — the PK. */
+  email: text('email').primaryKey(),
+  /** Email of the admin who added this entry (or 'seed' for the initial row). */
+  addedBy: text('added_by').notNull(),
+  addedAt: timestamp('added_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Admin sessions (admin/01).
+ *
+ * One row per active admin session. Only the SHA-256 hash of the opaque
+ * session token is stored — the plaintext lives only in the httpOnly
+ * session cookie. 7-day expiry (D-02, same as consumer magic links).
+ */
+export const adminSessions = pgTable(
+  'admin_sessions',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Lowercased, trimmed admin email (from the allowlist). */
+    email: text('email').notNull(),
+    /** SHA-256 hex of the opaque session token — the ONLY stored form. */
+    sessionTokenHash: text('session_token_hash').notNull().unique(),
+    /** Null = active. Set on logout/expiry. */
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('admin_sessions_token_hash_idx').on(t.sessionTokenHash),
+    index('admin_sessions_email_idx').on(t.email),
+  ],
+);
+
+/**
+ * Admin audit log (admin/01).
+ *
+ * Allowlist changes (add/remove) and auth events. `detail` is
+ * machine-readable and never contains tokens or credentials.
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Actor email (the admin performing the action), null for system. */
+    actorEmail: text('actor_email'),
+    /** 'allowlist_added' | 'allowlist_removed' | 'magic_link_requested' | 'session_created' | 'session_revoked' | 'auth_failed' */
+    action: text('action').notNull(),
+    /** Short machine-readable detail — never tokens, never credentials. */
+    detail: text('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('admin_audit_log_action_idx').on(t.action)],
+);

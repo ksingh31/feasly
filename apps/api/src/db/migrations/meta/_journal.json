@@ -126,6 +126,13 @@
       "when": 1790316259442,
       "tag": "0017_funnel_tenant_key",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790336770698,
+      "tag": "0020_admin_session_auth",
+      "breakpoints": true
     }
   ],
   "version": "7"
