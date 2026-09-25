@@ -1291,6 +1291,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
 | GET | `/api/v1/builder/leads` | builder-session | 300/min per session | planned | Builder pipeline dashboard: attributed leads (embed/09). |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
+| POST | `/api/mcp/v1` | api-key | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
 
 ---

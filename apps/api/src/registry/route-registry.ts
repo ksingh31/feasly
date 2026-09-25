@@ -433,6 +433,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'Attributed lead detail (tenant-scoped).',
   },
 
+  // ── MCP server (agent API) ──────────────────────────────────────────
+  {
+    method: 'POST',
+    path: '/api/mcp/v1',
+    auth: 'api-key',
+    rateLimit: '100/min per key',
+    status: 'live',
+    summary:
+      'MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> ' +
+      'key + per-tool scopes; stateless JSON-RPC.',
+  },
+
   // ── Billing webhooks ──────────────────────────────────────────────
   {
     method: 'POST',
