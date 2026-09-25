@@ -1,0 +1,1377 @@
+{
+  "version": 1,
+  "costDataVersion": "v0.2.0-unclibrated",
+  "cases": [
+    {
+      "expected": {
+        "addressKey": "100-8 Ave NW, Calgary",
+        "inputs": {
+          "sqft": 400,
+          "tier": "standard",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "figures": {
+          "build": {
+            "low": 79199,
+            "base": 92235,
+            "high": 105272
+          },
+          "total": {
+            "low": 104199,
+            "base": 117235,
+            "high": 130272
+          },
+          "land": {
+            "value": 25000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 25000,
+              "base": 25000,
+              "high": 25000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 10880,
+              "base": 12800,
+              "high": 14720
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 18040,
+              "base": 22000,
+              "high": 25960
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 9856,
+              "base": 11200,
+              "high": 12544
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 13376,
+              "base": 15200,
+              "high": 17024
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 10200,
+              "base": 12000,
+              "high": 13800
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 3840,
+              "base": 4800,
+              "high": 5760
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 3744,
+              "base": 4680,
+              "high": 5616
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 878,
+              "base": 1170,
+              "high": 1463
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 8385,
+              "base": 8385,
+              "high": 8385
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-standard-min-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "100-8 Ave NW, Calgary",
+          "assessedLandValue": 25000,
+          "lotSizeSqft": 1200,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "basement": "unfinished",
+          "buildSqft": 400,
+          "garage": "none",
+          "tier": "standard"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "200-Elbow Dr SW, Calgary",
+        "inputs": {
+          "sqft": 12000,
+          "tier": "premium",
+          "garage": "double",
+          "basement": "finished"
+        },
+        "figures": {
+          "build": {
+            "low": 3108522,
+            "base": 3623180,
+            "high": 4137838
+          },
+          "total": {
+            "low": 4308522,
+            "base": 4823180,
+            "high": 5337838
+          },
+          "land": {
+            "value": 1200000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 1200000,
+              "base": 1200000,
+              "high": 1200000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 428400,
+              "base": 504000,
+              "high": 579600
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 836400,
+              "base": 1020000,
+              "high": 1203600
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 359040,
+              "base": 408000,
+              "high": 456960
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 485760,
+              "base": 552000,
+              "high": 618240
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 408000,
+              "base": 480000,
+              "high": 552000
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 80000,
+              "base": 100000,
+              "high": 120000
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 147072,
+              "base": 183840,
+              "high": 220608
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 34470,
+              "base": 45960,
+              "high": 57450
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 329380,
+              "base": 329380,
+              "high": 329380
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-premium-max-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "200-Elbow Dr SW, Calgary",
+          "assessedLandValue": 1200000,
+          "lotSizeSqft": 20000,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "basement": "finished",
+          "buildSqft": 12000,
+          "garage": "double",
+          "tier": "premium"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "300-10 St NW, Calgary",
+        "inputs": {
+          "sqft": 400,
+          "tier": "luxury",
+          "garage": "triple",
+          "basement": "finished"
+        },
+        "figures": {
+          "build": {
+            "low": 161604,
+            "base": 189792,
+            "high": 217980
+          },
+          "total": {
+            "low": 1011604,
+            "base": 1039792,
+            "high": 1067980
+          },
+          "land": {
+            "value": 850000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 850000,
+              "base": 850000,
+              "high": 850000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 18700,
+              "base": 22000,
+              "high": 25300
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 42640,
+              "base": 52000,
+              "high": 61360
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 14784,
+              "base": 16800,
+              "high": 18816
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 20416,
+              "base": 23200,
+              "high": 25984
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 18700,
+              "base": 22000,
+              "high": 25300
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 19600,
+              "base": 24500,
+              "high": 29400
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 7704,
+              "base": 9630,
+              "high": 11556
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 1806,
+              "base": 2408,
+              "high": 3010
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 17254,
+              "base": 17254,
+              "high": 17254
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-luxury-min-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "300-10 St NW, Calgary",
+          "assessedLandValue": 850000,
+          "lotSizeSqft": 3500,
+          "zoning": "R-CG"
+        },
+        "scope": {
+          "basement": "finished",
+          "buildSqft": 400,
+          "garage": "triple",
+          "tier": "luxury"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "400-24 Ave NE, Calgary",
+        "inputs": {
+          "sqft": 12000,
+          "tier": "standard",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "figures": {
+          "build": {
+            "low": 2259945,
+            "base": 2625150,
+            "high": 2990355
+          },
+          "total": {
+            "low": 2679945,
+            "base": 3045150,
+            "high": 3410355
+          },
+          "land": {
+            "value": 420000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 420000,
+              "base": 420000,
+              "high": 420000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 326400,
+              "base": 384000,
+              "high": 441600
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 541200,
+              "base": 660000,
+              "high": 778800
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 295680,
+              "base": 336000,
+              "high": 376320
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 401280,
+              "base": 456000,
+              "high": 510720
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 306000,
+              "base": 360000,
+              "high": 414000
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 19200,
+              "base": 24000,
+              "high": 28800
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 106560,
+              "base": 133200,
+              "high": 159840
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 24975,
+              "base": 33300,
+              "high": 41625
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 238650,
+              "base": 238650,
+              "high": 238650
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-standard-max-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "400-24 Ave NE, Calgary",
+          "assessedLandValue": 420000,
+          "lotSizeSqft": 6000,
+          "zoning": "R-C2"
+        },
+        "scope": {
+          "basement": "unfinished",
+          "buildSqft": 12000,
+          "garage": "none",
+          "tier": "standard"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "500-32 Ave NW, Calgary",
+        "inputs": {
+          "sqft": 2400,
+          "tier": "premium",
+          "garage": "double",
+          "basement": "unfinished"
+        },
+        "figures": {
+          "build": {
+            "low": 626538,
+            "base": 730549,
+            "high": 834560
+          },
+          "total": {
+            "low": 1276538,
+            "base": 1380549,
+            "high": 1484560
+          },
+          "land": {
+            "value": 650000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 650000,
+              "base": 650000,
+              "high": 650000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 85680,
+              "base": 100800,
+              "high": 115920
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 167280,
+              "base": 204000,
+              "high": 240720
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 71808,
+              "base": 81600,
+              "high": 91392
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 97152,
+              "base": 110400,
+              "high": 123648
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 81600,
+              "base": 96000,
+              "high": 110400
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 20000,
+              "base": 25000,
+              "high": 30000
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 29654,
+              "base": 37068,
+              "high": 44482
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 6950,
+              "base": 9267,
+              "high": 11584
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 66414,
+              "base": 66414,
+              "high": 66414
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-premium-mid-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "500-32 Ave NW, Calgary",
+          "assessedLandValue": 650000,
+          "lotSizeSqft": 5000,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "basement": "unfinished",
+          "buildSqft": 2400,
+          "garage": "double",
+          "tier": "premium"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "600-5 St SW, Calgary",
+        "inputs": {
+          "sqft": 1800,
+          "tier": "luxury",
+          "garage": "none",
+          "basement": "finished"
+        },
+        "figures": {
+          "build": {
+            "low": 649054,
+            "base": 758456,
+            "high": 867858
+          },
+          "total": {
+            "low": 1629054,
+            "base": 1738456,
+            "high": 1847858
+          },
+          "land": {
+            "value": 980000
+          }
+        },
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "range": {
+              "low": 980000,
+              "base": 980000,
+              "high": 980000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "range": {
+              "low": 84150,
+              "base": 99000,
+              "high": 113850
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "range": {
+              "low": 191880,
+              "base": 234000,
+              "high": 276120
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "range": {
+              "low": 66528,
+              "base": 75600,
+              "high": 84672
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "range": {
+              "low": 91872,
+              "base": 104400,
+              "high": 116928
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "range": {
+              "low": 84150,
+              "base": 99000,
+              "high": 113850
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "range": {
+              "low": 23520,
+              "base": 29400,
+              "high": 35280
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "range": {
+              "low": 30787,
+              "base": 38484,
+              "high": 46181
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "range": {
+              "low": 7216,
+              "base": 9621,
+              "high": 12026
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "range": {
+              "low": 68951,
+              "base": 68951,
+              "high": 68951
+            }
+          }
+        ],
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "new-build-luxury-mid-sqft",
+      "request": {
+        "projectType": "new_build",
+        "property": {
+          "addressKey": "600-5 St SW, Calgary",
+          "assessedLandValue": 980000,
+          "lotSizeSqft": 4200,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "basement": "finished",
+          "buildSqft": 1800,
+          "garage": "none",
+          "tier": "luxury"
+        }
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 1500,
+          "tier": "standard",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "extensive",
+          "renoSqft": 1500,
+          "tier": "standard",
+          "underpinning": false
+        },
+        "figures": {
+          "build": {
+            "low": 198000,
+            "base": 248000,
+            "high": 309000
+          },
+          "total": {
+            "low": 198000,
+            "base": 248000,
+            "high": 309000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.extensive",
+            "label": "Extensive renovation",
+            "range": {
+              "low": 198000,
+              "base": 248000,
+              "high": 309000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Extensive renovation, 1500 sq ft, Standard tier.",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-extensive-standard",
+      "request": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 1500,
+        "renoType": "extensive",
+        "tier": "standard",
+        "underpinning": false
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 1500,
+          "tier": "premium",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "extensive",
+          "renoSqft": 1500,
+          "tier": "premium",
+          "underpinning": false
+        },
+        "figures": {
+          "build": {
+            "low": 276000,
+            "base": 345000,
+            "high": 431000
+          },
+          "total": {
+            "low": 276000,
+            "base": 345000,
+            "high": 431000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.extensive",
+            "label": "Extensive renovation",
+            "range": {
+              "low": 276000,
+              "base": 345000,
+              "high": 431000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Extensive renovation, 1500 sq ft, Premium tier.",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-extensive-premium",
+      "request": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 1500,
+        "renoType": "extensive",
+        "tier": "premium",
+        "underpinning": false
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 1500,
+          "tier": "luxury",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "extensive",
+          "renoSqft": 1500,
+          "tier": "luxury",
+          "underpinning": false
+        },
+        "figures": {
+          "build": {
+            "low": 372000,
+            "base": 465000,
+            "high": 581000
+          },
+          "total": {
+            "low": 372000,
+            "base": 465000,
+            "high": 581000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.extensive",
+            "label": "Extensive renovation",
+            "range": {
+              "low": 372000,
+              "base": 465000,
+              "high": 581000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Extensive renovation, 1500 sq ft, Luxury tier.",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-extensive-luxury",
+      "request": {
+        "addressKey": "700-12 Ave SE, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 1500,
+        "renoType": "extensive",
+        "tier": "luxury",
+        "underpinning": false
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "800-9 St NW, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 100,
+          "tier": "standard",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "basement",
+          "renoSqft": 100,
+          "tier": "standard",
+          "underpinning": true
+        },
+        "figures": {
+          "build": {
+            "low": 42000,
+            "base": 67000,
+            "high": 91000
+          },
+          "total": {
+            "low": 42000,
+            "base": 67000,
+            "high": 91000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.basement",
+            "label": "Basement development",
+            "range": {
+              "low": 7000,
+              "base": 9000,
+              "high": 11000
+            }
+          },
+          {
+            "key": "reno.underpinning",
+            "label": "Foundation underpinning",
+            "range": {
+              "low": 35000,
+              "base": 58000,
+              "high": 80000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Basement development, 100 sq ft, Standard tier.",
+          "Underpinning included as a flat allowance (existing-foundation risk).",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-basement-standard-min-sqft",
+      "request": {
+        "addressKey": "800-9 St NW, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 100,
+        "renoType": "basement",
+        "tier": "standard",
+        "underpinning": true
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "900-14 Ave SW, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 12000,
+          "tier": "luxury",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "basement",
+          "renoSqft": 12000,
+          "tier": "luxury",
+          "underpinning": true
+        },
+        "figures": {
+          "build": {
+            "low": 1715000,
+            "base": 2158000,
+            "high": 2705000
+          },
+          "total": {
+            "low": 1715000,
+            "base": 2158000,
+            "high": 2705000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.basement",
+            "label": "Basement development",
+            "range": {
+              "low": 1680000,
+              "base": 2100000,
+              "high": 2625000
+            }
+          },
+          {
+            "key": "reno.underpinning",
+            "label": "Foundation underpinning",
+            "range": {
+              "low": 35000,
+              "base": 58000,
+              "high": 80000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Basement development, 12000 sq ft, Luxury tier.",
+          "Underpinning included as a flat allowance (existing-foundation risk).",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-basement-luxury-max-sqft",
+      "request": {
+        "addressKey": "900-14 Ave SW, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 12000,
+        "renoType": "basement",
+        "tier": "luxury",
+        "underpinning": true
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "1000-20 St NE, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 400,
+          "tier": "premium",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "addition",
+          "renoSqft": 400,
+          "tier": "premium",
+          "underpinning": false
+        },
+        "figures": {
+          "build": {
+            "low": 115000,
+            "base": 144000,
+            "high": 180000
+          },
+          "total": {
+            "low": 115000,
+            "base": 144000,
+            "high": 180000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.addition",
+            "label": "Addition",
+            "range": {
+              "low": 115000,
+              "base": 144000,
+              "high": 180000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Addition, 400 sq ft, Premium tier.",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-addition-premium",
+      "request": {
+        "addressKey": "1000-20 St NE, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 400,
+        "renoType": "addition",
+        "tier": "premium",
+        "underpinning": false
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "1100-6 Ave NW, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 2000,
+          "tier": "luxury",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "combined",
+          "renoSqft": 2000,
+          "tier": "luxury",
+          "underpinning": true
+        },
+        "figures": {
+          "build": {
+            "low": 945000,
+            "base": 1196000,
+            "high": 1503000
+          },
+          "total": {
+            "low": 945000,
+            "base": 1196000,
+            "high": 1503000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.extensive",
+            "label": "Extensive renovation",
+            "range": {
+              "low": 496000,
+              "base": 620000,
+              "high": 775000
+            }
+          },
+          {
+            "key": "reno.addition",
+            "label": "Addition",
+            "range": {
+              "low": 134000,
+              "base": 168000,
+              "high": 210000
+            }
+          },
+          {
+            "key": "reno.basement",
+            "label": "Basement development",
+            "range": {
+              "low": 280000,
+              "base": 350000,
+              "high": 438000
+            }
+          },
+          {
+            "key": "reno.underpinning",
+            "label": "Foundation underpinning",
+            "range": {
+              "low": 35000,
+              "base": 58000,
+              "high": 80000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Combined renovation, 2000 sq ft, Luxury tier.",
+          "Addition component billed at the 400 sq ft cap (requested 2000 sq ft).",
+          "Underpinning included as a flat allowance (existing-foundation risk).",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-combined-luxury-underpinning",
+      "request": {
+        "addressKey": "1100-6 Ave NW, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 2000,
+        "renoType": "combined",
+        "tier": "luxury",
+        "underpinning": true
+      }
+    },
+    {
+      "expected": {
+        "addressKey": "1200-30 Ave SE, Calgary",
+        "projectType": "renovation",
+        "inputs": {
+          "sqft": 12000,
+          "tier": "standard",
+          "garage": "none",
+          "basement": "unfinished"
+        },
+        "renoInputs": {
+          "projectType": "renovation",
+          "renoType": "extensive",
+          "renoSqft": 12000,
+          "tier": "standard",
+          "underpinning": false
+        },
+        "figures": {
+          "build": {
+            "low": 1584000,
+            "base": 1980000,
+            "high": 2475000
+          },
+          "total": {
+            "low": 1584000,
+            "base": 1980000,
+            "high": 2475000
+          },
+          "land": {
+            "value": 0
+          }
+        },
+        "rows": [
+          {
+            "key": "reno.extensive",
+            "label": "Extensive renovation",
+            "range": {
+              "low": 1584000,
+              "base": 1980000,
+              "high": 2475000
+            }
+          }
+        ],
+        "assumptions": [
+          "Renovation scope: Extensive renovation, 12000 sq ft, Standard tier.",
+          "PLACEHOLDER — replaced by calibration: reno rates are uncalibrated stand-ins, not builder costs."
+        ],
+        "visibility": {
+          "land": "not_applicable",
+          "build": "blurred",
+          "total": "blurred"
+        },
+        "costDataVersion": "v0.2.0-unclibrated"
+      },
+      "id": "reno-extensive-standard-max-sqft",
+      "request": {
+        "addressKey": "1200-30 Ave SE, Calgary",
+        "projectType": "renovation",
+        "renoSqft": 12000,
+        "renoType": "extensive",
+        "tier": "standard",
+        "underpinning": false
+      }
+    }
+  ]
+}
