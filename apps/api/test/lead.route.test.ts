@@ -51,10 +51,13 @@ describe('lead route', () => {
         leadScore: 0,
         status: 'new',
         unsubscribedAt: null,
+        nudgeSentAt: null,
         createdAt: new Date(),
       }),
       findById: async () => null,
       setUnsubscribedAt: async () => null,
+      findNudgeCandidates: async () => [],
+      setNudgeSentAt: async () => null,
       findAllByEmail: async () => [],
       deleteByEmail: async () => 0,
       updateOnRepeat: async () => {

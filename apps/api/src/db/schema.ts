@@ -102,6 +102,8 @@ export const leads = pgTable(
      * emails still send (they are requested content, not marketing).
      */
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+    /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
+    nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -65,6 +65,7 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+      nudgeSentAt: null,
     createdAt: NOW,
     ...overrides,
   };
@@ -126,6 +127,8 @@ function fakeLeads(opts?: {
     listLeads: async () => [],
     findById: async (id: string) => (lead && lead.id === id ? lead : null),
     setUnsubscribedAt: async () => lead,
+    findNudgeCandidates: async () => [],
+    setNudgeSentAt: async () => null,
     findAllByEmail: async () => household,
     deleteByEmail: async () => 0,
     appendNote: noop,

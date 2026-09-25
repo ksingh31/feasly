@@ -144,6 +144,7 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+      nudgeSentAt: null,
     createdAt: NOW,
   };
 }
@@ -184,6 +185,8 @@ function fakeLeadStore(): FakeLeadStore {
       unsubscribed.set(args.id, stamped);
       return { ...toFakeRecord(found), unsubscribedAt: stamped };
     },
+    findNudgeCandidates: async () => [],
+    setNudgeSentAt: async () => null,
     findAllByEmail: async (email: string) =>
       inserted.filter((l) => l.email === email).map(toFakeRecord),
     deleteByEmail: async (email: string) => {
@@ -257,6 +260,7 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+      nudgeSentAt: null,
     createdAt: NOW,
     ...overrides,
   };
