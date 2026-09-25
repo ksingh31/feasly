@@ -1,6 +1,6 @@
 {
-  "id": "ac773813-c589-44fa-9c85-72de00ac3d17",
-  "prevId": "cedc7bb5-2ad3-4cd3-a67e-5405cadc635b",
+  "id": "10436035-c193-4985-8647-98ebd4a5cc34",
+  "prevId": "ac773813-c589-44fa-9c85-72de00ac3d17",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -948,6 +948,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "tenant_key": {
+          "name": "tenant_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "inputs": {
           "name": "inputs",
           "type": "jsonb",
@@ -985,7 +991,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-<<<<<<< HEAD
         },
         "narrative": {
           "name": "narrative",
@@ -1004,8 +1009,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-=======
->>>>>>> 683756f (chore(db): renumber embed-attribution migration 0020 -> 0021 (conflict with #79))
         }
       },
       "indexes": {
@@ -1869,8 +1872,4 @@
     "schemas": {},
     "tables": {}
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 683756f (chore(db): renumber embed-attribution migration 0020 -> 0021 (conflict with #79))
