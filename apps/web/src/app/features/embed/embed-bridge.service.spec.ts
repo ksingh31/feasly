@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import { EmbedBridgeService } from './embed-bridge.service';
 import { EmbedConfigLoaded } from './embed.actions';
@@ -49,6 +49,10 @@ describe('EmbedBridgeService', () => {
     store = TestBed.inject(Store);
     bridge = TestBed.inject(EmbedBridgeService);
     postMessage = vi.fn();
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
     vi.unstubAllGlobals();
   });
 
