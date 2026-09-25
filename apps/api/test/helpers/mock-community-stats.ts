@@ -29,3 +29,16 @@ export function expectEstimateResponse(
   }
   return result;
 }
+
+/**
+ * Narrow the estimate service result to ComparisonEstimateResponse.
+ * Throws if it's not a comparison (test bug).
+ */
+export function expectComparisonResponse(
+  result: EstimateResponse | ComparisonEstimateResponse,
+): ComparisonEstimateResponse {
+  if (result.projectType !== 'comparison') {
+    throw new Error('Expected ComparisonEstimateResponse, got EstimateResponse');
+  }
+  return result as ComparisonEstimateResponse;
+}

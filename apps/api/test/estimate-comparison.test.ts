@@ -8,8 +8,9 @@ import { createEstimateService } from '../src/services/estimate.service';
 import { createDrizzleCommunityStatsService } from '../src/services/community-stats.service';
 import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
 import { HttpError } from '../src/middleware/errors';
-import type { EstimateStore, EstimateRecord } from '../src/services/estimate-store.interface';
+import type { EstimateStore, EstimateRecord } from '../src/services/estimate.store';
 import { createTestDb, type TestDb } from './pglite-db';
+import { expectComparisonResponse } from './helpers/mock-community-stats';
 import { communityStats } from '../src/db/schema';
 
 function fakeStore() {
@@ -81,28 +82,27 @@ describe('estimate service — comparison (NBH-02)', () => {
     });
 
     // Must be a comparison response (has projectType: 'comparison')
-    expect(result.projectType).toBe('comparison');
-    if (result.projectType !== 'comparison') throw new Error('Expected comparison');
+    const comparison = expectComparisonResponse(result);
 
-    expect(result.rowSets.map((rs) => rs.slug)).toEqual(['community-a', 'community-b']);
-    expect(result.rowSets).toHaveLength(2);
-    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
+    expect(comparison.rowSets.map((rs) => rs.slug)).toEqual(['community-a', 'community-b']);
+    expect(comparison.rowSets).toHaveLength(2);
+    expect(comparison.costDataVersion).toBe('v0.3.0-unclibrated');
 
     // Exactly one lowestLand
-    const lowest = result.rowSets.filter((rs) => rs.lowestLand);
+    const lowest = comparison.rowSets.filter((rs) => rs.lowestLand);
     expect(lowest).toHaveLength(1);
     // community-a has smaller lot (5000 vs 6000) → cheaper land
     expect(lowest[0].slug).toBe('community-a');
 
     // Componentwise sums
-    for (const rs of result.rowSets) {
+    for (const rs of comparison.rowSets) {
       expect(rs.total.low).toBe(rs.land.low + rs.build.low);
       expect(rs.total.base).toBe(rs.land.base + rs.build.base);
       expect(rs.total.high).toBe(rs.land.high + rs.build.high);
     }
 
     // Visibility: land visible, build/total blurred
-    for (const rs of result.rowSets) {
+    for (const rs of comparison.rowSets) {
       expect(rs.visibility).toEqual({
         land: 'visible',
         build: 'blurred',
@@ -136,9 +136,8 @@ describe('estimate service — comparison (NBH-02)', () => {
       tier: 'standard',
     });
 
-    expect(result.projectType).toBe('comparison');
-    if (result.projectType !== 'comparison') throw new Error('Expected comparison');
-    expect(result.rowSets).toHaveLength(3);
+    const comparison = expectComparisonResponse(result);
+    expect(comparison.rowSets).toHaveLength(3);
   });
 
   it('rejects unknown slug with 422 COMMUNITY_NOT_FOUND', async () => {
@@ -235,11 +234,10 @@ describe('estimate service — comparison (NBH-02)', () => {
       tier: 'standard',
     });
 
-    expect(result.projectType).toBe('comparison');
-    if (result.projectType !== 'comparison') throw new Error('Expected comparison');
+    const comparison = expectComparisonResponse(result);
 
-    const first = result.rowSets.find((rs) => rs.slug === 'community-a')!;
-    const second = result.rowSets.find((rs) => rs.slug === 'community-e')!;
+    const first = comparison.rowSets.find((rs) => rs.slug === 'community-a')!;
+    const second = comparison.rowSets.find((rs) => rs.slug === 'community-e')!;
     expect(first.lowestLand).toBe(true);
     expect(second.lowestLand).toBe(false);
   });
