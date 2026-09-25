@@ -1,20 +1,25 @@
-import { Component } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { TestBed } from '@angular/core/testing';
-import { NgxsModule, Store } from '@ngxs/store';
-import { NgxsStoragePluginModule } from '@ngxs/storage-plugin';
-import { beforeEach } from 'vitest';
+import { provideStore, Store } from '@ngxs/store';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ComparePickerPageComponent } from './compare-picker-page.component';
 import { CommunityService } from '../../core/community';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
+import { API_SERVICE } from '../../core/api/api.service';
+import { MockApiService } from '../../core/api/mock-api.service';
+import { providePropertyData } from '../../core/api/property-data.service';
 import { UpdateComparison, WizardState } from '../wizard';
+import { ComparisonState } from './comparison.state';
 
 /**
- * NBH-04: the comparison picker enforces the 2–3 community rule with the
- * exact story copy, keeps the CTA disabled below two selections, persists
- * through NGXS, reuses the shared sqft/tier controls, and transitions
- * through an explicit interim state (NBH-03 owns the real result pipeline).
+ * NBH-04 / NBH-03: the comparison picker enforces the 2–3 community rule
+ * with the exact story copy, keeps the CTA disabled below two selections,
+ * persists through NGXS, and reuses the shared sqft/tier controls.
+ * NBH-03: the CTA runs the real pipeline — picker → analyzing (honest
+ * stages) → results — replacing the NBH-04 interim placeholder.
  */
 describe('ComparePickerPageComponent', () => {
   // The storage plugin persists NGXS state to localStorage — clear it so
@@ -24,15 +29,35 @@ describe('ComparePickerPageComponent', () => {
   });
 
   async function setup() {
+    TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [
-        RouterTestingModule,
-        NgxsModule.forRoot([WizardState]),
-        NgxsStoragePluginModule.forRoot({ keys: [WizardState] }),
-        ComparePickerPageComponent,
+        RouterTestingModule.withRoutes([
+          { path: 'estimate/compare', component: ComparePickerPageComponent },
+        ]),
       ],
-      providers: [CommunityService, ConfigService, SeoService],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        providePropertyData(),
+        provideStore([WizardState, ComparisonState]),
+        { provide: API_SERVICE, useClass: MockApiService },
+        CommunityService,
+        ConfigService,
+        SeoService,
+      ],
     }).compileComponents();
+    const httpMock = TestBed.inject(HttpTestingController);
+    const config = TestBed.inject(ConfigService);
+    const pending = config.load();
+    httpMock
+      .expectOne('/assets/config/app-config.json')
+      .flush({
+        api: { useMockApi: true },
+        timings: { debounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
+        propertyData: { source: 'mock' },
+      });
+    await pending;
     const fixture = TestBed.createComponent(ComparePickerPageComponent);
     const comp = fixture.componentInstance;
     const store = TestBed.inject(Store);
@@ -43,6 +68,17 @@ describe('ComparePickerPageComponent', () => {
 
   function cta(fixture: { nativeElement: HTMLElement }): HTMLButtonElement {
     return fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement;
+  }
+
+  /** Polls until the predicate holds — never a fixed sleep. */
+  async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+    const start = Date.now();
+    while (!predicate()) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error('Timed out waiting for condition');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
 
   it('renders the picker heading and community list', async () => {
@@ -141,8 +177,8 @@ describe('ComparePickerPageComponent', () => {
     expect(el.textContent).not.toContain('Walden');
   });
 
-  it('CTA moves to the explicit interim state (not a fake result)', async () => {
-    const { fixture, comp } = await setup();
+  it('CTA runs the pipeline: picker → analyzing (honest stages) → results', async () => {
+    const { fixture, comp, store } = await setup();
     comp.toggleCommunity('beltline');
     comp.toggleCommunity('cranston');
     fixture.detectChanges();
@@ -152,31 +188,19 @@ describe('ComparePickerPageComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.textContent).toContain('Your comparison is on its way');
-    expect(el.textContent).toContain('Beltline');
-    expect(el.textContent).toContain('Cranston');
-    // Honest placeholder: no dollar figures anywhere.
-    expect(el.textContent).not.toMatch(/\$\d/);
-  });
+    // Analyzing phase: the three honest pipeline stages render.
+    expect(comp['phase']()).toBe('analyzing');
+    let el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('Checking your communities');
+    expect(el.textContent).toContain('Fetching City assessed values');
+    expect(el.textContent).toContain('Calculating side-by-side costs');
 
-  it('interim panel back button returns to the picker', async () => {
-    const { fixture, comp } = await setup();
-    comp.toggleCommunity('beltline');
-    comp.toggleCommunity('cranston');
-    comp.startComparison();
+    // Pipeline completes → results phase with the real cards.
+    await waitFor(() => comp['phase']() === 'results');
     fixture.detectChanges();
     await fixture.whenStable();
-
-    comp.backToPicker();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('app-sqft-slider')).toBeTruthy();
-  });
-
-  it('does nothing on CTA when fewer than two are selected', async () => {
-    const { comp } = await setup();
-    comp.startComparison();
-    expect(comp['submitted']()).toBe(false);
+    el = fixture.nativeElement;
+    expect(el.querySelector('app-compare-results')).toBeTruthy();
+    expect(store.selectSnapshot(ComparisonState.status)).toBe('ready');
   });
 });

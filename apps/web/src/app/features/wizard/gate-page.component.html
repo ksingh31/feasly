@@ -1,6 +1,8 @@
     <app-site-nav />
     <main class="wrap">
-      <app-wizard-steps [current]="3" />
+      @if (!isComparisonFlow) {
+        <app-wizard-steps [current]="3" />
+      }
       <h1 class="gate-heading">{{ copy.heading }}</h1>
       <p class="gate-sub">{{ copy.sub }}</p>
 

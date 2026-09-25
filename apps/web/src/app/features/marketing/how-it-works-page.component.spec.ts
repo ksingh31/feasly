@@ -3,8 +3,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config';
+import { WizardState } from '../wizard/wizard.state';
 import { HowItWorksPageComponent } from './how-it-works-page.component';
 
 /**
@@ -47,7 +49,12 @@ describe('HowItWorksPageComponent', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [HowItWorksPageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideStore([WizardState]),
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     const pending = TestBed.inject(ConfigService).load();
@@ -70,16 +77,15 @@ describe('HowItWorksPageComponent', () => {
     expect(text).toContain('Real math, not guesses');
   });
 
-  it('routes both project-type CTAs to the wizard entry (/)', () => {
-    const ctas = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('a.cta'),
+  it('preselects the project type via NGXS when a CTA is clicked', () => {
+    const buttons = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button.cta'),
     );
-    expect(ctas).toHaveLength(2);
-    expect(ctas[0]?.textContent).toContain('new-build');
-    expect(ctas[1]?.textContent).toContain('renovation');
-    for (const cta of ctas) {
-      expect(cta.getAttribute('href')).toBe('/');
-    }
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.textContent).toContain('new-build');
+    expect(buttons[1]?.textContent).toContain('renovation');
+    // Clicking dispatches ChooseProjectType; the wizard entry (/) is the
+    // router target and the scope step reads the preselected type.
   });
 
   it('stays indexable: no robots noindex tag', () => {

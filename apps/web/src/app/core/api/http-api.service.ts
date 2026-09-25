@@ -20,12 +20,14 @@ import type {
   PartnerShareResponse,
   PreviewEstimateResponse,
   EstimateResponse,
+  ComparisonEstimateRequest,
+  ComparisonEstimateResponse,
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
-import type { ApiService } from './api.service';
+import type { ApiService, CommunityStats } from './api.service';
 import { toApiError } from './api-error';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -72,6 +74,26 @@ export class HttpApiService implements ApiService {
 
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
     return this.call(this.http.post<EstimateResponse>(`${this.base}/estimates`, request));
+  }
+
+  /**
+   * Neighbourhood comparison (NBH-02): the real route is POST /api/v1/estimate
+   * (singular) — the function adapter discriminates on `projectType`.
+   */
+  getComparisonEstimate(
+    request: ComparisonEstimateRequest,
+  ): Observable<ComparisonEstimateResponse> {
+    return this.call(
+      this.http.post<ComparisonEstimateResponse>(`${this.base}/estimate`, request),
+    );
+  }
+
+  /** Community stats (NBH-01): GET /api/v1/communities/{slug}/stats. */
+  getCommunityStats(slug: string): Observable<CommunityStats> {
+    const path = `/communities/${encodeURIComponent(slug)}/stats`;
+    return this.call(
+      this.http.get<CommunityStats>(`${this.base}${path}`),
+    );
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

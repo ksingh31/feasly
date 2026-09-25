@@ -8,6 +8,8 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  ComparisonEstimateRequest,
+  ComparisonEstimateResponse,
   EstimateInputs,
   EstimateRequest,
   GetReportResponse,
@@ -27,12 +29,13 @@ import type {
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
-import type { ApiService } from './api.service';
+import type { ApiService, CommunityStats } from './api.service';
 import { simulateLatency } from './latency';
-import { PROPERTY_DATA_SERVICE } from './property-data.service';
 import {
   MOCK_VERIFY_FAILURE,
   mockCallbackOk,
+  mockCommunityStats,
+  mockComparisonEstimate,
   mockEstimate,
   mockLeadResponse,
   mockPreviewEstimate,
@@ -42,6 +45,7 @@ import {
   mockShareOk,
   mockVerifySuccess,
 } from './mock-data';
+import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
 /**
  * Mock API harness (FE0-003): implements every FE0-001 contract with fixture
@@ -161,6 +165,31 @@ export class MockApiService implements ApiService {
     const response = mockEstimate(request.addressKey, inputs, this.referenceSqft());
     this.estimateInputs.set(response.estimateId, inputs);
     return this.roundTrip(response);
+  }
+
+  /**
+   * Neighbourhood comparison (NBH-02 / NBH-03): honest deterministic mock
+   * backed by the real City aggregates for stats and the NBH-02 placeholder
+   * land math. Replaces the old "not supported" throw — comparison is now
+   * exercisable end to end in mock mode.
+   */
+  getComparisonEstimate(
+    request: ComparisonEstimateRequest,
+  ): Observable<ComparisonEstimateResponse> {
+    try {
+      return this.roundTrip(mockComparisonEstimate(request));
+    } catch (error) {
+      return this.roundTripError(error as ApiError);
+    }
+  }
+
+  /** Community stats (NBH-01 / NBH-03): real City aggregates, mock latency. */
+  getCommunityStats(slug: string): Observable<CommunityStats> {
+    try {
+      return this.roundTrip(mockCommunityStats(slug));
+    } catch (error) {
+      return this.roundTripError(error as ApiError);
+    }
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
