@@ -56,7 +56,7 @@ function makeDeps(
     refresh,
     audit,
     adminGuard: {
-      requireAdmin(headers) {
+      async requireAdmin(headers) {
         if (headers['x-admin-key'] !== 'secret-admin-key') {
           throw new HttpError(
             401,
@@ -65,6 +65,9 @@ function makeDeps(
             false,
           );
         }
+      },
+      async getAdminEmail() {
+        return 'admin';
       },
     },
   };
@@ -137,6 +140,7 @@ describe('community-stats manual refresh route', () => {
           throw new Error('audit db down');
         }),
         recent: vi.fn(async () => []),
+        log: vi.fn(async () => {}),
       },
     });
     // Refresh succeeded — the response still comes back.

@@ -62,7 +62,7 @@ export function createCommunityStatsRefreshRoute(
 
   return {
     async trigger(headers): Promise<ManualRefreshResponse> {
-      adminGuard.requireAdmin(headers);
+      await adminGuard.requireAdmin(headers);
       try {
         const result = await refresh.runRefreshCycle();
         await auditAttempt(
