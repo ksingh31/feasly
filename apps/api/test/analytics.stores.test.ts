@@ -35,13 +35,13 @@ describe('analytics store (PGlite)', () => {
     expect(record.createdAt).toBeInstanceOf(Date);
 
     // The raw row proves the closed shape: the only columns are the
-    // contract fields — email/name/address cannot be stored.
+    // contract fields + the sandbox flag — email/name/address cannot be stored.
     const rows = await testDb.rows<Record<string, unknown>>(
       `select * from analytics_events where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
     );
     expect(rows).toHaveLength(1);
     const keys = Object.keys(rows[0]).sort();
-    expect(keys).toEqual(['consent_ts', 'created_at', 'event', 'id', 'route', 'ts']);
+    expect(keys).toEqual(['consent_ts', 'created_at', 'event', 'id', 'route', 'sandbox', 'ts']);
   });
 
   it('creates the analytics_events lookup index', async () => {
