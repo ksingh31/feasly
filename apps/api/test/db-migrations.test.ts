@@ -20,12 +20,35 @@ describe('migrations', () => {
     await testDb.close();
   });
 
-  it('creates the estimates and leads tables', async () => {
+  it('creates the estimates, leads, lead_notes, and lead_status_history tables', async () => {
     const rows = await testDb.rows<{ table_name: string }>(
-      `select table_name from information_schema.tables where table_schema = 'public' and table_name in ('estimates', 'leads')`,
+      `select table_name from information_schema.tables where table_schema = 'public' and table_name in ('estimates', 'leads', 'lead_notes', 'lead_status_history')`,
     );
     const names = rows.map((r) => r.table_name).sort();
-    expect(names).toEqual(['estimates', 'leads']);
+    expect(names).toEqual([
+      'estimates',
+      'lead_notes',
+      'lead_status_history',
+      'leads',
+    ]);
+  });
+
+  it('adds lead_score and status columns with safe defaults (consumer/02)', async () => {
+    const cols = await testDb.rows<{
+      column_name: string;
+      column_default: string | null;
+    }>(
+      `select column_name, column_default from information_schema.columns where table_name = 'leads' and column_name in ('lead_score', 'status')`,
+    );
+    const byName = Object.fromEntries(cols.map((c) => [c.column_name, c.column_default]));
+    expect(byName['lead_score']).toBe('0');
+    expect(byName['status']).toBe("'new'::text");
+    const idx = await testDb.rows<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'public' and tablename in ('lead_notes', 'lead_status_history')`,
+    );
+    const names = idx.map((r) => r.indexname);
+    expect(names).toContain('lead_notes_lead_id_idx');
+    expect(names).toContain('lead_status_history_lead_id_idx');
   });
 
   it('creates the leads foreign key and the lookup indexes', async () => {
@@ -145,7 +168,9 @@ describe('drizzle stores', () => {
     });
     expect(hit?.id).toBe(inserted.id);
 
-    // Outside the window → not found.
+    // Outside the window → not found. `since` is derived from the wall
+    // clock, never hardcoded — a fixed date becomes "inside the window"
+    // as soon as the calendar passes it.
     const miss = await leads.findRecentByEmailAndAddress({
       email: 'sam@example.com',
       addressKey,

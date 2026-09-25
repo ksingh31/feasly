@@ -27,8 +27,18 @@ no build step, no `npm install` on the server. Consequences:
   every Functions deploy; generate new migrations with `npm run db:generate`.
 - `POST /api/v1/estimate` persists the immutable estimate before returning;
   `POST /api/v1/leads` dedups on (normalized email, address) within the
-  configured 90-day window — a fresh estimate for the same property is still
-  the same lead. Store failures are sanitized — submitted PII never reaches logs.
+  configured 90-day window — a repeat estimate for the same property
+  updates the existing lead in place (name, phone, timeline, `lead_score`
+  recomputed, `estimate_id` → newest; email/consent/notes/status history
+  never clobbered) and emails the magic link immediately, reissuing it
+  only when the lead has no live link. Store failures are sanitized —
+  submitted PII never reaches logs.
+- `GET /api/v1/magic-link/verify?token=…` resolves a magic-link token to
+  its report — an old token for a re-estimated property resolves to the
+  NEWEST estimate (`reportToken` is the presented token, the stable handle
+  for the future `GET /api/v1/reports/{reportToken}`).
+  `POST /api/v1/magic-link/reissue` idempotently resends the link
+  (`{ sent: false }` when a live link exists or the email is unknown).
 
 ## Layered pattern (non-negotiable — see `docs/epics-api/README.md`)
 

@@ -17,16 +17,30 @@
  * field *values*. Nothing in this service logs; the pipeline logger only ever
  * sees these messages.
  *
- * Magic-link emailing is BE-5's queue — `magicLinkSent` is false until then.
+ * consumer/02 duplicate-estimate semantics:
+ * - Dedupe HIT (same email + address inside the window): the existing lead
+ *   is UPDATED in place — name, phone, timeline, lead_score (recomputed
+ *   from the latest submission), estimate_id → newest. Email, address,
+ *   consent, consent_ts, status, notes, and status history are never
+ *   touched (the store's `updateOnRepeat` column list is the guarantee).
+ * - AC4: on a dedupe hit the magic-link email is sent ONLY when the lead
+ *   has no live link (expired or missing → reissue). A live link means
+ *   zero new sends.
+ * - New capture: the magic-link email is sent immediately (this wires the
+ *   BE-5/email seam — `magicLinkSent` is true on success). Quarantined
+ *   (honeypot) rows are issued a token but never emailed.
  * `expiresInDays` is derived from the configured magic-link TTL so the UI
  * never hardcodes it.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { LeadResponse } from '@feasly/contracts';
+import { computeLeadScore } from '../lib/lead-score';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { EmailService } from './email/email.service';
 import type { EstimateStore } from './estimate.store';
-import type { LeadStore } from './lead.store';
+import type { LeadRecord, LeadStore } from './lead.store';
+import { isMagicLinkLive, issueAndSendMagicLink } from './magic-link.service';
 import type { MagicLinkStore } from './magic-link.store';
 
 /**
@@ -66,6 +80,10 @@ export interface LeadServiceDeps {
   readonly estimateStore: EstimateStore;
   /** Issues the magic-link bearer token for every captured lead. */
   readonly magicLinks: MagicLinkStore;
+  /** Sends the magic-link email (consumer/02 wires the BE-5 seam). */
+  readonly email: EmailService;
+  /** From config — minted into the magic-link URL, never hardcoded. */
+  readonly appBaseUrl: string;
   /** 90-day window: same email + address → existing lead. */
   readonly dedupWindowDays: number;
   /** Magic-link TTL, seconds — drives the UI's `expiresInDays`. */
@@ -76,8 +94,90 @@ export interface LeadServiceDeps {
 
 const MS_PER_DAY = 86_400_000;
 
+/**
+ * Defensive read of the estimate figures' total-base (whole CAD dollars).
+ * The figures shape is versioned (`costDataVersion`); never let an
+ * unexpected shape fail a lead capture — the score just skips the band.
+ */
+function extractTotalBase(figures: unknown): number | undefined {
+  if (typeof figures !== 'object' || figures === null) return undefined;
+  const total = (figures as { readonly total?: unknown }).total;
+  if (typeof total !== 'object' || total === null) return undefined;
+  const base = (total as { readonly base?: unknown }).base;
+  return typeof base === 'number' && Number.isFinite(base) ? base : undefined;
+}
+
 export function createLeadService(deps: LeadServiceDeps): LeadService {
   const clock = deps.clock ?? (() => new Date());
+
+  /**
+   * consumer/02 — the dedupe-hit path. Updates the existing lead's scalar
+   * columns (name, phone, timeline, lead_score, estimate_id → newest) and
+   * sends a magic-link email ONLY when the lead has no live link (AC4).
+   */
+  async function handleRepeatEstimate(args: {
+    readonly existing: LeadRecord;
+    readonly input: LeadRequest;
+    readonly estimate: { readonly figures: unknown };
+    readonly email: string;
+    readonly now: Date;
+    readonly expiresInDays: number;
+  }): Promise<LeadResponse> {
+    const { existing, input, estimate, email, now, expiresInDays } = args;
+    if (existing.quarantined) {
+      // Spam stays buried: no update, no email, same response shape.
+      return { leadId: existing.id, magicLinkSent: false, expiresInDays };
+    }
+    const effectivePhone = input.phone ?? existing.phone ?? undefined;
+    const leadScore = computeLeadScore({
+      timeline: input.timeline,
+      marketingConsent: existing.marketingConsent,
+      hasPhone: effectivePhone !== undefined && effectivePhone.length > 0,
+      estimateTotalBase: extractTotalBase(estimate.figures),
+    });
+    let updated: LeadRecord;
+    try {
+      updated = await deps.store.updateOnRepeat({
+        id: existing.id,
+        name: input.name,
+        phone: input.phone,
+        timeline: input.timeline,
+        leadScore,
+        estimateId: input.estimateId,
+      });
+    } catch (error) {
+      throw new Error('lead dedupe update failed', { cause: error });
+    }
+    // AC4: a live magic link means zero new sends. Only an expired or
+    // missing link takes the reissue path.
+    let links;
+    try {
+      links = await deps.magicLinks.findByLeadIds([existing.id]);
+    } catch (error) {
+      throw new Error('magic link lookup failed', { cause: error });
+    }
+    const live = links
+      .filter((l) => l.purpose === 'lead')
+      .some((l) => isMagicLinkLive(l, now));
+    if (live) {
+      return { leadId: updated.id, magicLinkSent: false, expiresInDays };
+    }
+    try {
+      await issueAndSendMagicLink({
+        magicLinks: deps.magicLinks,
+        email: deps.email,
+        leadId: existing.id,
+        to: email,
+        name: input.name,
+        appBaseUrl: deps.appBaseUrl,
+        magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
+        clock,
+      });
+    } catch (error) {
+      throw new Error('magic link reissue failed', { cause: error });
+    }
+    return { leadId: updated.id, magicLinkSent: true, expiresInDays };
+  }
 
   return {
     async submitLead(requestBody: unknown): Promise<LeadResponse> {
@@ -123,7 +223,14 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       }
       const expiresInDays = Math.max(1, Math.ceil(deps.magicLinkTtlSeconds / 86_400));
       if (existing) {
-        return { leadId: existing.id, magicLinkSent: false, expiresInDays };
+        return handleRepeatEstimate({
+          existing,
+          input,
+          estimate,
+          email,
+          now,
+          expiresInDays,
+        });
       }
 
       // HRD-03 honeypot: a filled trap field quarantines the row instead of
@@ -151,20 +258,37 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         throw new Error('lead store insert failed', { cause: error });
       }
       // legal/02: every captured lead gets a magic-link bearer token — the
-      // credential for the PIPEDA self-service endpoints. The store returns
-      // the raw token exactly once; the BE-5/email story enqueues it with
-      // the magic-link email at this seam (until then it is intentionally
-      // discarded — hashes only, never persisted raw).
+      // credential for the PIPEDA self-service endpoints. consumer/02 wires
+      // the BE-5/email seam: the link is emailed immediately (log provider
+      // until ACS is provisioned). Quarantined rows are issued a token but
+      // never emailed — no mail for suspected bots.
       try {
-        await deps.magicLinks.issue({
-          leadId: inserted.id,
-          ttlSeconds: deps.magicLinkTtlSeconds,
-          clock,
-        });
+        if (quarantined) {
+          await deps.magicLinks.issue({
+            leadId: inserted.id,
+            ttlSeconds: deps.magicLinkTtlSeconds,
+            clock,
+          });
+        } else {
+          await issueAndSendMagicLink({
+            magicLinks: deps.magicLinks,
+            email: deps.email,
+            leadId: inserted.id,
+            to: email,
+            name: input.name,
+            appBaseUrl: deps.appBaseUrl,
+            magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
+            clock,
+          });
+        }
       } catch (error) {
         throw new Error('magic link issuance failed', { cause: error });
       }
-      return { leadId: inserted.id, magicLinkSent: false, expiresInDays };
+      return {
+        leadId: inserted.id,
+        magicLinkSent: !quarantined,
+        expiresInDays,
+      };
     },
   };
 }

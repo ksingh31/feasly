@@ -10,7 +10,7 @@
  */
 import { and, desc, eq, gte } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
-import { leads } from '../db/schema';
+import { estimates, leadNotes, leadStatusHistory, leads } from '../db/schema';
 
 export interface LeadRecord {
   readonly id: string;
@@ -27,6 +27,10 @@ export interface LeadRecord {
   readonly source: string;
   /** HRD-03: honeypot-tripped rows. Excluded from default listings. */
   readonly quarantined: boolean;
+  /** consumer/02: heuristic score, recomputed on every dedupe update. */
+  readonly leadScore: number;
+  /** Pipeline status: new | contacted | quoting | won | lost. */
+  readonly status: string;
   readonly createdAt: Date;
 }
 
@@ -57,6 +61,66 @@ export interface LeadStore {
     readonly since: Date;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
+  /**
+   * consumer/02 — the 90-day dedupe update. Rewrites ONLY the scalar
+   * columns the repeat submission is allowed to refresh (name, phone,
+   * timeline, lead_score, estimate_id → newest). Everything else on the
+   * row — email, address, consent, consent_ts, status, quarantined,
+   * created_at — and the append-only note/status history are never
+   * touched. The explicit column list is the guarantee.
+   */
+  updateOnRepeat(args: {
+    readonly id: string;
+    readonly name: string;
+    readonly phone?: string;
+    readonly timeline: string;
+    readonly leadScore: number;
+    readonly estimateId: string;
+  }): Promise<LeadRecord>;
+  /**
+   * consumer/02 — the newest estimate row for this email + property
+   * across ALL of the household's leads (old magic links must resolve to
+   * the newest snapshot). Joins through leads so leads older than the
+   * dedupe window still resolve forward. Null when the household has no
+   * estimates (erasure raced us).
+   */
+  findNewestEstimateIdByEmailAndAddress(args: {
+    readonly email: string;
+    readonly addressKey: string;
+  }): Promise<{ readonly estimateId: string; readonly createdAt: Date } | null>;
+  /**
+   * Append one note to the lead's append-only history (consumer/02
+   * persistence; the admin/02 HTTP endpoints arrive separately).
+   */
+  appendNote(args: {
+    readonly id: string;
+    readonly leadId: string;
+    readonly note: string;
+  }): Promise<void>;
+  /** Every note for a lead, oldest first. */
+  getNotes(
+    leadId: string,
+  ): Promise<ReadonlyArray<{ readonly note: string; readonly createdAt: Date }>>;
+  /**
+   * Append one status transition to the lead's append-only history
+   * (consumer/02 persistence; admin/02 HTTP endpoints arrive separately).
+   */
+  appendStatusHistory(args: {
+    readonly id: string;
+    readonly leadId: string;
+    readonly oldStatus: string | null;
+    readonly newStatus: string;
+    readonly changedBy?: string;
+  }): Promise<void>;
+  /** Every status transition for a lead, oldest first. */
+  getStatusHistory(leadId: string): Promise<
+    ReadonlyArray<{
+      readonly oldStatus: string | null;
+      readonly newStatus: string;
+      readonly changedBy: string | null;
+      readonly changedAt: Date;
+    }>
+  >;
   /**
    * Default lead listing, newest first. Quarantined rows are EXCLUDED
    * unless `includeQuarantined` is true — the admin `GET /api/v1/admin/leads`
@@ -101,6 +165,8 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     tenantKey: row.tenantKey,
     source: row.source,
     quarantined: row.quarantined,
+    leadScore: row.leadScore,
+    status: row.status,
     createdAt: row.createdAt,
   };
 }
@@ -183,6 +249,95 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .where(eq(leads.email, email))
         .returning({ id: leads.id });
       return rows.length;
+    },
+
+    async updateOnRepeat(args): Promise<LeadRecord> {
+      // The explicit .set() column list is the consumer/02 contract: only
+      // these scalars may change on a repeat submission.
+      const rows = await db
+        .update(leads)
+        .set({
+          name: args.name,
+          phone: args.phone ?? null,
+          timeline: args.timeline,
+          leadScore: args.leadScore,
+          estimateId: args.estimateId,
+        })
+        .where(eq(leads.id, args.id))
+        .returning();
+      const row = rows[0];
+      if (!row) {
+        // The service looked the lead up first; reaching here means it was
+        // erased between the lookup and the update.
+        throw new Error(`lead not found for dedupe update: ${args.id}`);
+      }
+      return toRecord(row);
+    },
+
+    async findNewestEstimateIdByEmailAndAddress(args): Promise<{
+      readonly estimateId: string;
+      readonly createdAt: Date;
+    } | null> {
+      const rows = await db
+        .select({
+          estimateId: estimates.id,
+          createdAt: estimates.createdAt,
+        })
+        .from(leads)
+        .innerJoin(estimates, eq(leads.estimateId, estimates.id))
+        .where(
+          and(
+            eq(leads.email, args.email),
+            eq(leads.addressKey, args.addressKey),
+          ),
+        )
+        .orderBy(desc(estimates.createdAt))
+        .limit(1);
+      const row = rows[0];
+      return row
+        ? { estimateId: row.estimateId, createdAt: row.createdAt }
+        : null;
+    },
+
+    async appendNote(args): Promise<void> {
+      await db.insert(leadNotes).values({
+        id: args.id,
+        leadId: args.leadId,
+        note: args.note,
+      });
+    },
+
+    async getNotes(leadId: string) {
+      const rows = await db
+        .select({ note: leadNotes.note, createdAt: leadNotes.createdAt })
+        .from(leadNotes)
+        .where(eq(leadNotes.leadId, leadId))
+        .orderBy(leadNotes.createdAt);
+      return rows;
+    },
+
+    async appendStatusHistory(args): Promise<void> {
+      await db.insert(leadStatusHistory).values({
+        id: args.id,
+        leadId: args.leadId,
+        oldStatus: args.oldStatus,
+        newStatus: args.newStatus,
+        changedBy: args.changedBy ?? null,
+      });
+    },
+
+    async getStatusHistory(leadId: string) {
+      const rows = await db
+        .select({
+          oldStatus: leadStatusHistory.oldStatus,
+          newStatus: leadStatusHistory.newStatus,
+          changedBy: leadStatusHistory.changedBy,
+          changedAt: leadStatusHistory.changedAt,
+        })
+        .from(leadStatusHistory)
+        .where(eq(leadStatusHistory.leadId, leadId))
+        .orderBy(leadStatusHistory.changedAt);
+      return rows;
     },
   };
 }
