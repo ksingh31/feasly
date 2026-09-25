@@ -80,10 +80,14 @@ function fakeEstimateStore(): EstimateStore {
     rows: [],
     costDataVersion: 'v1',
     createdAt: NOW,
+    narrative: null,
+    narrativeGeneratedAt: null,
+    assumptions: null,
   };
   return {
     save: async () => {},
     findById: async (id: string) => (id === ESTIMATE_ID ? estimate : null),
+    setNarrative: async () => true,
   };
 }
 
@@ -115,6 +119,8 @@ function fakeLeadStore(): LeadStore & { inserted: NewLead[] } {
         unsubscribedAt: null,
         nudgeSentAt: null,
         createdAt: NOW,
+        sheetsSyncedAt: null,
+        updatedAt: NOW,
       };
       return record;
     },

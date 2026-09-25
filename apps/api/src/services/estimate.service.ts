@@ -333,7 +333,11 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
 
       const estimateId = randomUUID();
       const createdAt = new Date();
-      const tenantKey = await resolveTenantKey(parsed.data.tenantKey);
+      // NBH-02 comparison requests carry no tenant key — resolve only when
+      // the field exists on this request variant.
+      const tenantKey = await resolveTenantKey(
+        'tenantKey' in parsed.data ? parsed.data.tenantKey : undefined,
+      );
 
       if (parsed.data.projectType === 'renovation') {
         // Draft-data gate: reno rates are uncalibrated placeholders. Refuse
