@@ -537,7 +537,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value, Standard/Premium/Luxury build ranges, and FAQs.',
       statLabel: 'Average City-assessed value (not market value)',
       statNote:
-        'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and differ from market value.',
+        'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and can differ from actual sale prices.',
       basisNote:
         'City-assessed basis: land is the community average City-assessed value (a fixed fact, not a range). Build ranges assume 2,400 sqft of above-grade living area.',
       tierSectionTitle: 'What it costs to build in {name}',
@@ -549,8 +549,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           a: 'The range covers construction of a typical new home (2,400 sqft above grade) plus the community average City-assessed land value. It is a planning budget, not a builder quote — get your address-specific estimate for figures tuned to your lot.',
         },
         {
-          q: 'What is the difference between assessed value and market value?',
-          a: 'The City-assessed value is set by the City of Calgary for property tax purposes. Market value is what a buyer would pay. They often differ — assessments can lag the market. We use assessed values because they are public, consistent, and available for every property.',
+          q: 'What is the difference between assessed value and sale price?',
+          a: 'The City-assessed value is set by the City of Calgary for property tax purposes. Sale price is what a buyer actually pays. The two often differ — assessments can lag behind real sales. We use assessed values because they are public, consistent, and available for every property.',
         },
         {
           q: 'Why do you show ranges instead of a fixed price?',
