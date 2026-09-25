@@ -76,6 +76,14 @@ describe('loadConfig', () => {
         retentionDays: 30,
         dryRun: true,
       },
+      sheets: {
+        sheetId: '',
+        serviceAccountEmail: '',
+        serviceAccountPrivateKey: '',
+        maxLeadsPerRun: 500,
+        apiScope: 'https://www.googleapis.com/auth/spreadsheets',
+        enabled: false,
+      },
     });
   });
 

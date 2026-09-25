@@ -144,7 +144,9 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
-      nudgeSentAt: null,
+    nudgeSentAt: null,
+    sheetsSyncedAt: null,
+    updatedAt: NOW,
     createdAt: NOW,
   };
 }
@@ -196,6 +198,8 @@ function fakeLeadStore(): FakeLeadStore {
       }
       return before - inserted.length;
     },
+    findSheetsSyncCandidates: async () => [],
+    setSheetsSyncedAt: async () => null,
     insert: async (lead: NewLead) => {
       inserted.push(lead);
       return toFakeRecord(lead);
@@ -260,7 +264,9 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
-      nudgeSentAt: null,
+    nudgeSentAt: null,
+    sheetsSyncedAt: null,
+    updatedAt: NOW,
     createdAt: NOW,
     ...overrides,
   };

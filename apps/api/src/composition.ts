@@ -55,6 +55,12 @@ import {
 } from './services/sandbox-purge.service';
 import { createDrizzleSandboxPurgeStore } from './services/sandbox-purge.store';
 import {
+  createSheetsSyncService,
+  type SheetsSyncService,
+} from './services/sheets-sync.service';
+import type { SheetsClient } from './services/sheets/sheets-client';
+import { createGoogleSheetsClient } from './services/sheets/google-sheets-client';
+import {
   createApiKeyService,
   type ApiKeyService,
   type ApiKeyStore,
@@ -217,6 +223,8 @@ export interface AppComposition {
   readonly nudgeService: NudgeService;
   /** api-mcp/09: daily sandbox test-data purge timer. */
   readonly sandboxPurgeService: SandboxPurgeService;
+  /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
+  readonly sheetsSyncService: SheetsSyncService;
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
@@ -286,6 +294,25 @@ export interface CompositionOptions {
   readonly dbPing?: () => Promise<void>;
   readonly analyticsStore?: AnalyticsStore;
   readonly usageStore?: UsageStore;
+  /**
+   * Test seam: substitute the Google Sheets client (fake in unit tests).
+   * Production wiring uses the real Google Sheets API client.
+   */
+  readonly sheetsClient?: SheetsClient;
+}
+
+/**
+ * Build a SheetsClient from config. Throws if Sheets is not configured
+ * (fail-closed) — the caller catches this and the worker alerts instead
+ * of syncing.
+ */
+function createSheetsClientFromConfig(config: ApiConfig): SheetsClient {
+  return createGoogleSheetsClient({
+    sheetId: config.sheets.sheetId,
+    serviceAccountEmail: config.sheets.serviceAccountEmail,
+    privateKey: config.sheets.serviceAccountPrivateKey,
+    apiScope: config.sheets.apiScope,
+  });
 }
 
 /**
@@ -468,6 +495,20 @@ export function createComposition(
     retentionDays: config.sandboxPurge.retentionDays,
     dryRun: config.sandboxPurge.dryRun,
   });
+  // admin/04 — hourly Google Sheets sync. Postgres is the source of truth;
+  // the worker only writes the sheets_synced_at watermark. Fail-closed when
+  // the Sheet ID or service-account email is unconfigured (placeholders).
+  const sheetsSyncService: SheetsSyncService = createSheetsSyncService({
+    leads: leadStore,
+    estimates: estimateStore,
+    sheets:
+      options.sheetsClient ??
+      (config.sheets.enabled
+        ? createSheetsClientFromConfig(config)
+        : createDisabledSheetsClient()),
+    enabled: config.sheets.enabled,
+    maxLeadsPerRun: config.sheets.maxLeadsPerRun,
+  });
   // api-mcp/01 — API key issuance + storage (admin-only). The admin guard
   // is the INTERIM pre-shared-key guard until admin/01's session auth lands.
   const adminGuard: AdminGuard = createConfigAdminGuard({
@@ -644,6 +685,7 @@ export function createComposition(
     unsubscribeRoute,
     nudgeService,
     sandboxPurgeService,
+    sheetsSyncService,
     apiKeyService,
     apiKeyRoute,
     adminGuard,

@@ -35,6 +35,10 @@ export interface LeadRecord {
   readonly unsubscribedAt: Date | null;
   /** email/02: 24h-nudge exactly-once guard; null = not yet sent. */
   readonly nudgeSentAt: Date | null;
+  /** admin/04: Sheets sync watermark; null = never synced. */
+  readonly sheetsSyncedAt: Date | null;
+  /** admin/04: last modification timestamp (DB trigger-maintained). */
+  readonly updatedAt: Date;
   readonly createdAt: Date;
 }
 
@@ -177,6 +181,23 @@ export interface LeadStore {
    * Returns the number of rows deleted.
    */
   deleteByEmail(email: string): Promise<number>;
+  /**
+   * admin/04 — Sheets sync candidates. Leads where `sheets_synced_at IS NULL`
+   * (never synced) OR `updated_at > sheets_synced_at` (modified since last
+   * sync). Quarantined rows are EXCLUDED (spam never reaches the Sheet).
+   * Ordered by created_at for stable batching.
+   */
+  findSheetsSyncCandidates(args: {
+    readonly limit: number;
+  }): Promise<LeadRecord[]>;
+  /**
+   * admin/04 — record a successful Sheets upsert. Sets `sheets_synced_at`
+   * to `at`. The sync worker is the ONLY writer of this column.
+   */
+  setSheetsSyncedAt(args: {
+    readonly id: string;
+    readonly at: Date;
+  }): Promise<LeadRecord | null>;
 }
 
 export interface DrizzleLeadStoreDeps {
@@ -201,6 +222,8 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
     nudgeSentAt: row.nudgeSentAt,
+    sheetsSyncedAt: row.sheetsSyncedAt,
+    updatedAt: row.updatedAt,
     createdAt: row.createdAt,
   };
 }
@@ -410,6 +433,39 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .where(eq(leadStatusHistory.leadId, leadId))
         .orderBy(leadStatusHistory.changedAt);
       return rows;
+    },
+
+    async findSheetsSyncCandidates(args): Promise<LeadRecord[]> {
+      // admin/04: leads never synced (sheets_synced_at IS NULL) OR modified
+      // since their last sync (updated_at > sheets_synced_at). Quarantined
+      // rows are excluded — spam never reaches the Sheet.
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(
+          and(
+            eq(leads.quarantined, false),
+            sql`(${leads.sheetsSyncedAt} IS NULL OR ${leads.updatedAt} > ${leads.sheetsSyncedAt})`,
+          ),
+        )
+        .orderBy(leads.createdAt)
+        .limit(args.limit);
+      return rows.map(toRecord);
+    },
+
+    async setSheetsSyncedAt(args): Promise<LeadRecord | null> {
+      // The sync worker is the ONLY writer of this column. Note: the
+      // updated_at trigger will also fire, which is correct — the sync
+      // itself is a modification, but sheets_synced_at is set to `at`
+      // (the sync time), so the next run's `updated_at > sheets_synced_at`
+      // check will be false unless the lead is modified again.
+      const rows = await db
+        .update(leads)
+        .set({ sheetsSyncedAt: args.at })
+        .where(eq(leads.id, args.id))
+        .returning();
+      const row = rows[0];
+      return row ? toRecord(row) : null;
     },
   };
 }

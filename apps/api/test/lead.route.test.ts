@@ -52,6 +52,8 @@ describe('lead route', () => {
         status: 'new',
         unsubscribedAt: null,
         nudgeSentAt: null,
+        sheetsSyncedAt: null,
+        updatedAt: new Date(),
         createdAt: new Date(),
       }),
       findById: async () => null,
@@ -68,6 +70,8 @@ describe('lead route', () => {
       getNotes: async () => [],
       appendStatusHistory: async () => {},
       getStatusHistory: async () => [],
+      findSheetsSyncCandidates: async () => [],
+      setSheetsSyncedAt: async () => null,
     };
     const service = createLeadService({
       store: leadStore,
