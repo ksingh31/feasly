@@ -577,6 +577,52 @@ export const apiUsage = pgTable(
 );
 
 /**
+ * Embed relay codes (embed/06).
+ *
+ * Single-use, 10-minute-expiry tokens that carry auth from the magic-link
+ * email back to the builder's page. The email URL points at the builder's
+ * `report_url_template` with `?feasly_rt={code}`; the builder snippet posts
+ * the code into the iframe, which exchanges it via
+ * `POST /api/v1/embed/session` for a 12h session token.
+ *
+ * Security model (mirrors magic_links): only the SHA-256 hex of the opaque
+ * code is stored. Hashing lives in the store — the single place codes become
+ * hashes — so no caller can persist or compare a raw code. Raw codes exist
+ * only in the `issue` return value, destined for the magic-link email.
+ *
+ * Single-use is enforced atomically: the exchange does
+ * `UPDATE ... SET used_at = now() WHERE id = ? AND used_at IS NULL` and
+ * checks the affected row count. Concurrent double-exchanges → exactly one
+ * success.
+ */
+export const embedRelayCodes = pgTable(
+  'embed_relay_codes',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** SHA-256 hex of the opaque code — never the raw code. */
+    codeHash: text('code_hash').notNull().unique(),
+    /** Builder tenant the code was issued for — must match on exchange. */
+    tenantKey: text('tenant_key').notNull(),
+    /** Homeowner the code unlocks the report for. */
+    userId: uuid('user_id'),
+    /** The estimate whose report the code unlocks. */
+    estimateId: uuid('estimate_id'),
+    /** The lead row for attribution continuity. */
+    leadId: uuid('lead_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** Set atomically on first successful exchange — the single-use gate. */
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('embed_relay_codes_expires_at_idx').on(t.expiresAt),
+  ],
+);
+
+/**
  * Commission invoices (billing/02 commission engine).
  *
  * Internal billing records for the 1% commission model (Karan 2026-09-24):
@@ -1019,4 +1065,37 @@ export const sheetsSyncRuns = pgTable(
     errorMessage: text('error_message'),
   },
   (t) => [index('sheets_sync_runs_started_at_idx').on(t.startedAt)],
+);
+
+/**
+ * Embed relay audit log (embed/06).
+ *
+ * Every exchange attempt — success AND failure — lands here. Columns are
+ * deliberately PII-free: `codeId` (a UUID, not the code), `tenantKey`,
+ * `ipHash` (SHA-256 of the client IP, not the IP itself), plus a
+ * machine-readable action and detail. Raw codes, IPs, emails and names must
+ * never be written here — enforced by code review, not the schema.
+ */
+export const embedRelayAuditLog = pgTable(
+  'embed_relay_audit_log',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** The relay code row; null when the code was unrecognized. */
+    codeId: uuid('code_id'),
+    tenantKey: text('tenant_key').notNull(),
+    /** SHA-256 hex of the client IP — audit without PII. */
+    ipHash: text('ip_hash').notNull(),
+    /** 'exchanged' | 'exchange.denied' | 'issued' */
+    action: text('action').notNull(),
+    /** Short machine-readable detail — never PII, never code material. */
+    detail: text('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('embed_relay_audit_log_code_id_idx').on(t.codeId),
+    index('embed_relay_audit_log_tenant_key_idx').on(t.tenantKey),
+  ],
 );

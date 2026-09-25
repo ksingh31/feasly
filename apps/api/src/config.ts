@@ -106,6 +106,11 @@ const EnvSchema = z.object({
   // the residual case (revoked/expired link + immediate re-request) so one
   // address can't be mail-bombed faster than this.
   MAGIC_LINK_REISSUE_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
+  // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
+  // lifetime it exchanges into (12 hours per story). Both from env so tests
+  // and staging can shorten them without code changes.
+  EMBED_RELAY_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+  EMBED_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -402,6 +407,22 @@ export interface PropertyDataConfig {
   readonly suggestionLimit: number;
 }
 
+/**
+ * Embed platform config (embed/02, embed/06).
+ */
+export interface EmbedConfig {
+  /**
+   * Relay-code lifetime in seconds (embed/06). The single-use token in the
+   * magic-link email URL (`?feasly_rt=`). Story pins 10 minutes.
+   */
+  readonly relayCodeTtlSeconds: number;
+  /**
+   * Session-token lifetime in seconds (embed/06). What the iframe holds in
+   * memory after exchanging the relay code. Story pins 12 hours.
+   */
+  readonly sessionTtlSeconds: number;
+}
+
 export interface BillingConfig {
   /**
    * Active billing model. 'commission' = % of signed construction contract
@@ -540,6 +561,7 @@ export interface ApiConfig {
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
   readonly backupCheck: BackupCheckConfig;
+  readonly embed: EmbedConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -787,6 +809,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       metaApiKey: e.NARRATIVE_META_API_KEY,
       model: e.NARRATIVE_MODEL,
       metaEndpoint: e.NARRATIVE_META_ENDPOINT,
+    },
+    embed: {
+      relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,
+      sessionTtlSeconds: e.EMBED_SESSION_TTL_SECONDS,
     },
   };
 }

@@ -116,6 +116,10 @@ describe('loadConfig', () => {
         model: 'llama-3.3-70b-versatile',
         metaEndpoint: 'https://api.llama.com/v1/chat/completions',
       },
+      embed: {
+        relayCodeTtlSeconds: 600,
+        sessionTtlSeconds: 43_200,
+      },
     });
   });
 

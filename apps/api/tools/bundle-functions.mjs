@@ -260,6 +260,11 @@ const targets = [
     entry: 'src/functions/shares.ts',
     out: 'shares/index.js',
   },
+  // embed/06: token relay inside the iframe.
+  {
+    entry: 'src/functions/embed-session.ts',
+    out: 'embed-session/index.js',
+  },
 ];
 
 // 1. Shared closure, bundled once.
