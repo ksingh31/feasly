@@ -1,6 +1,7 @@
-import { provideHttpClient, withFetch } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import {
   ApplicationConfig,
+  ErrorHandler,
   inject,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
@@ -10,6 +11,7 @@ import { provideStore } from '@ngxs/store';
 import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
+import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { ConfigService } from './core/config/config.service';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
@@ -18,8 +20,14 @@ import { routes } from './app.routes';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // Uncaught client failures route to the branded /error page (HRD-02) —
+    // never a blank screen. The handler logs the raw error to the console
+    // only; the page renders static copy (no stack traces, no PII).
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideRouter(routes),
-    provideHttpClient(withFetch()),
+    // The connectivity interceptor (HRD-02) re-verifies reachability via the
+    // health probe whenever a request fails at the network layer.
+    provideHttpClient(withFetch(), withInterceptors([connectivityInterceptor])),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
     provideAppInitializer(() => inject(ConfigService).load()),
