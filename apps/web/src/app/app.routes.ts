@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
-import { lazyProvider } from '@ngxs/store';
 import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
+import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -80,6 +80,14 @@ export const routes: Routes = [
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
   // crawlable. Sitemap already reserves /developers (seo/02).
   { path: 'developers', component: DevelopersPageComponent, canActivate: [robotsGuard] },
+  // Community index (SEO-05): prerendered hub listing all 40 community
+  // cost guides. Indexable — no `noindex` data. The `communities/:slug`
+  // pages (SEO-04) link back here; this page links out to each of them.
+  {
+    path: 'communities',
+    component: CommunitiesIndexPageComponent,
+    canActivate: [robotsGuard],
+  },
   // Labelled sample report (seo/09): fictional data, watermarked, never
   // gated/emailed/persisted. noindex like the wizard routes — it's a trust
   // page for visitors, not a search landing page.
@@ -154,17 +162,6 @@ export const routes: Routes = [
     component: CommunityPageComponent,
     canActivate: [robotsGuard],
   },
-  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
-  // never in sitemap or prerender.
-  {
-    path: 'admin/api-keys',
-    loadComponent: () =>
-      import('./features/admin/api-keys-page.component').then(
-        (m) => m.ApiKeysPageComponent,
-      ),
-    canActivate: [robotsGuard, adminGuard],
-    data: { noindex: true },
-  },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
   // setForRoute('404')); the CTA returns visitors home. SWA's
   // responseOverrides.404 rewrites platform-level 404s to /index.html so the
@@ -230,25 +227,30 @@ export const routes: Routes = [
       },
     ],
   },
-  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
-  // never in sitemap or prerender. ApiKeysState is lazy-loaded at this route
-  // via lazyProvider (dynamic import): the state + its actions stay in the
-  // api-keys chunk, out of the initial bundle (790kB production budget).
+  // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
+  // pipeline. All builder routes are noindexed and excluded from
+  // prerendering (not in prerender-routes.txt). No public-page links point
+  // here.
   {
-    path: 'admin/api-keys',
-    loadComponent: () =>
-      import('./features/admin/api-keys-page.component').then(
-        (m) => m.ApiKeysPageComponent,
-      ),
-    canActivate: [
-      robotsGuard,
-      adminGuard,
-      lazyProvider(
-        async () =>
-          (await import('./features/admin/api-keys.state')).apiKeysStateProvider,
-      ),
-    ],
+    path: 'builder/login',
+    component: BuilderLoginComponent,
+    canActivate: [robotsGuard],
     data: { noindex: true },
+  },
+  {
+    path: 'builder/verify',
+    component: BuilderVerifyComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'builder',
+    component: BuilderShellComponent,
+    canActivate: [robotsGuard, builderGuard],
+    data: { noindex: true },
+    children: [
+      { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
+    ],
   },
   // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
   // pipeline. All builder routes are noindexed and excluded from
@@ -274,6 +276,17 @@ export const routes: Routes = [
     children: [
       { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
     ],
+  },
+  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
+  // never in sitemap or prerender.
+  {
+    path: 'admin/api-keys',
+    loadComponent: () =>
+      import('./features/admin/api-keys-page.component').then(
+        (m) => m.ApiKeysPageComponent,
+      ),
+    canActivate: [robotsGuard, adminGuard],
+    data: { noindex: true },
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
   // before the admin routes above would swallow /admin/login etc. (P0 fix).
