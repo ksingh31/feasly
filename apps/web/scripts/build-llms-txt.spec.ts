@@ -7,10 +7,14 @@
  */
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildLlmsFiles } from './build-llms-txt.js';
 import { DEFAULT_APP_CONFIG } from '../src/app/core/config/app-config.defaults.js';
+
+const SPEC_DIR = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = join(SPEC_DIR, '..', 'src', 'content', 'data');
 
 describe('build-llms-txt (SEO-07)', () => {
   it('generates both files with size limits respected', () => {
@@ -55,6 +59,52 @@ describe('build-llms-txt (SEO-07)', () => {
     // If the aggregates regenerate, this test reads the same source so it stays green;
     // it fails only if llms.txt drifts from the source.
     expect(llmsTxt).toContain('$607,351');
+  });
+
+  it('all 40 community figures match the community page rendering (AC4 parity)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'llms-'));
+    const { llmsTxt, llmsFullTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
+
+    // Same formatting the community page component uses (formatCad):
+    // Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).
+    const formatCad = (n: number): string =>
+      new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+        maximumFractionDigits: 0,
+      }).format(Math.round(n));
+
+    const aggregates = JSON.parse(
+      readFileSync(join(DATA_DIR, 'community-aggregates.json'), 'utf-8'),
+    ) as { communities: Array<{ slug: string; name: string; avgAssessedValue: number }> };
+    const ranges = JSON.parse(
+      readFileSync(join(DATA_DIR, 'community-ranges.json'), 'utf-8'),
+    ) as {
+      communities: Array<{
+        slug: string;
+        tiers: Record<'standard' | 'premium' | 'luxury', { buildLow: number; buildHigh: number; landValue: number; totalLow: number; totalHigh: number }>;
+      }>;
+    };
+    const tiersBySlug = new Map(ranges.communities.map((c) => [c.slug, c.tiers]));
+
+    expect(aggregates.communities.length).toBe(40);
+
+    for (const c of aggregates.communities) {
+      // Assessed value rendered on the page must appear in both files.
+      expect(llmsTxt).toContain(formatCad(c.avgAssessedValue));
+      expect(llmsFullTxt).toContain(formatCad(c.avgAssessedValue));
+
+      // Per-tier figures rendered on the page (build cost, land, total) must appear.
+      const tiers = tiersBySlug.get(c.slug);
+      expect(tiers).toBeDefined();
+      for (const key of ['standard', 'premium', 'luxury'] as const) {
+        const t = tiers![key];
+        for (const value of [t.buildLow, t.buildHigh, t.landValue, t.totalLow, t.totalHigh]) {
+          expect(llmsTxt).toContain(formatCad(value));
+          expect(llmsFullTxt).toContain(formatCad(value));
+        }
+      }
+    }
   });
 
   it('llms.txt has FAQ pointers; llms-full.txt has complete answers (no drift)', () => {

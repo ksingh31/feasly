@@ -14,9 +14,10 @@
  * Content sources (single source of truth, no hand-maintained copy):
  * - `src/content/data/community-aggregates.json` (SEO-03): community names,
  *   slugs, avg assessed values, record counts, costDataVersion.
- * - `src/content/data/community-ranges.json` (SEO-04, optional): build-cost
- *   ranges per community. If missing (SEO-04 not yet merged), community
- *   summaries include assessed values only and note that ranges are coming.
+ * - `src/content/data/community-ranges.json` (SEO-04): build-cost ranges per
+ *   community — tiers.{standard,premium,luxury} each with buildLow/buildHigh,
+ *   landValue, totalLow/totalHigh. If missing or malformed, community summaries
+ *   include assessed values only and note that ranges are pending.
  * - `DEFAULT_APP_CONFIG.copy.marketing` (ConfigService): FAQ items and
  *   how-it-works steps — the same copy rendered on the site.
  *
@@ -44,15 +45,23 @@ const RANGES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-
 const LLMS_TXT_MAX_BYTES = 50 * 1024;
 const LLMS_FULL_TXT_MAX_BYTES = 500 * 1024;
 
+interface CommunityTierRanges {
+  readonly buildLow: number;
+  readonly buildHigh: number;
+  readonly landValue: number;
+  readonly totalLow: number;
+  readonly totalHigh: number;
+}
+
 interface CommunitySummary {
   readonly slug: string;
   readonly name: string;
   readonly avgAssessedValue: number;
   readonly count: number;
-  readonly ranges?: {
-    readonly standard: { readonly low: number; readonly high: number };
-    readonly premium: { readonly low: number; readonly high: number };
-    readonly luxury: { readonly low: number; readonly high: number };
+  readonly tiers?: {
+    readonly standard: CommunityTierRanges;
+    readonly premium: CommunityTierRanges;
+    readonly luxury: CommunityTierRanges;
   };
 }
 
@@ -77,22 +86,25 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
     communities: Array<{ slug: string; name: string; avgAssessedValue: number; count: number }>;
   };
 
-  // Build-cost ranges are optional until SEO-04 merges (community-ranges.json).
-  let rangesBySlug = new Map<string, CommunitySummary['ranges']>();
+  // Build-cost ranges (SEO-04, community-ranges.json). Shape: tiers.{standard,premium,luxury}
+  // each with buildLow/buildHigh (build cost), landValue (assessed), totalLow/totalHigh.
+  let tiersBySlug = new Map<string, CommunitySummary['tiers']>();
   if (existsSync(RANGES_PATH)) {
     try {
       const rangesRaw = JSON.parse(readFileSync(RANGES_PATH, 'utf-8')) as {
         communities: Array<{
           slug: string;
-          bands: {
-            standard: { low: number; high: number };
-            premium: { low: number; high: number };
-            luxury: { low: number; high: number };
+          tiers: {
+            standard: CommunityTierRanges;
+            premium: CommunityTierRanges;
+            luxury: CommunityTierRanges;
           };
         }>;
       };
       for (const c of rangesRaw.communities) {
-        rangesBySlug.set(c.slug, c.bands);
+        if (c.tiers?.standard && c.tiers?.premium && c.tiers?.luxury) {
+          tiersBySlug.set(c.slug, c.tiers);
+        }
       }
     } catch {
       // If the ranges file is malformed, proceed without ranges rather than failing.
@@ -104,7 +116,7 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
     name: c.name,
     avgAssessedValue: c.avgAssessedValue,
     count: c.count,
-    ranges: rangesBySlug.get(c.slug),
+    tiers: tiersBySlug.get(c.slug),
   }));
 
   return { communities, costDataVersion: raw.costDataVersion };
@@ -142,9 +154,9 @@ function buildLlmsTxt(
     '',
   );
   for (const c of communities) {
-    const rangeText = c.ranges
-      ? ` | Build: Standard ${formatMoney(c.ranges.standard.low)}–${formatMoney(c.ranges.standard.high)}, Premium ${formatMoney(c.ranges.premium.low)}–${formatMoney(c.ranges.premium.high)}, Luxury ${formatMoney(c.ranges.luxury.low)}–${formatMoney(c.ranges.luxury.high)}`
-      : '';
+    const rangeText = c.tiers
+      ? ` | Build: Std ${formatMoney(c.tiers.standard.buildLow)}–${formatMoney(c.tiers.standard.buildHigh)}, Prem ${formatMoney(c.tiers.premium.buildLow)}–${formatMoney(c.tiers.premium.buildHigh)}, Lux ${formatMoney(c.tiers.luxury.buildLow)}–${formatMoney(c.tiers.luxury.buildHigh)}; Total: Std ${formatMoney(c.tiers.standard.totalLow)}–${formatMoney(c.tiers.standard.totalHigh)}, Prem ${formatMoney(c.tiers.premium.totalLow)}–${formatMoney(c.tiers.premium.totalHigh)}, Lux ${formatMoney(c.tiers.luxury.totalLow)}–${formatMoney(c.tiers.luxury.totalHigh)}`
+      : ' (build-cost ranges pending)';
     lines.push(
       `- **${c.name}**: avg assessed ${formatMoney(c.avgAssessedValue)} (${c.count.toLocaleString()} records)${rangeText} — ${siteUrl}/communities/${c.slug}/`,
     );
@@ -220,14 +232,21 @@ function buildLlmsFullTxt(
 
   lines.push('## Calgary communities (all)', '');
   for (const c of communities) {
-    const rangeText = c.ranges
-      ? ` | Standard ${formatMoney(c.ranges.standard.low)}–${formatMoney(c.ranges.standard.high)} / Premium ${formatMoney(c.ranges.premium.low)}–${formatMoney(c.ranges.premium.high)} / Luxury ${formatMoney(c.ranges.luxury.low)}–${formatMoney(c.ranges.luxury.high)}`
-      : ' (build-cost ranges pending)';
+    const tierLines = c.tiers
+      ? (['standard', 'premium', 'luxury'] as const)
+          .map((key) => {
+            const t = c.tiers![key];
+            const label = key === 'standard' ? 'Standard' : key === 'premium' ? 'Premium' : 'Luxury';
+            return `- ${label}: build ${formatMoney(t.buildLow)}–${formatMoney(t.buildHigh)}, land (assessed) ${formatMoney(t.landValue)}, total ${formatMoney(t.totalLow)}–${formatMoney(t.totalHigh)}`;
+          })
+          .join('\n')
+      : '- (build-cost ranges pending)';
     lines.push(
       `### ${c.name}`,
       `- URL: ${siteUrl}/communities/${c.slug}/`,
       `- Average City-assessed value: ${formatMoney(c.avgAssessedValue)} (not market value, ${c.count.toLocaleString()} assessment records)`,
-      `- 2,400 sq ft new-build planning ranges:${rangeText}`,
+      `- 2,400 sq ft new-build planning ranges (not quotes):`,
+      tierLines,
       '',
     );
   }
