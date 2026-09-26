@@ -29,17 +29,10 @@
           }
           <h2 class="community-card__name">{{ displayName(rowSet.slug) }}</h2>
 
-          <div class="community-card__assessed">
-            <span class="community-card__label">{{ copy.assessedLabel }}</span>
-            <span class="community-card__assessed-value" data-testid="assessed-value">
-              {{ formatMoney(statsFor(rowSet.slug)?.avg_assessed_value ?? 0) }}
-            </span>
-          </div>
-
           <dl class="community-card__figures">
             <div class="community-card__figure">
               <dt>{{ copy.landLabel }}</dt>
-              <dd data-testid="land-range">{{ formatRange(rowSet.land) }}</dd>
+              <dd data-testid="land-value">{{ formatMoney(assessedValue(rowSet.slug)) }}</dd>
             </div>
             <div class="community-card__figure">
               <dt>{{ copy.buildLabel }}</dt>
@@ -49,7 +42,7 @@
                 } @else {
                   <!-- Locked: the REAL build range, blurred until unlock. -->
                   <span class="locked-slot">
-                    <span class="locked-slot__value" aria-hidden="true">{{ formatRange(rowSet.build) }}</span>
+                    <span class="locked-slot__value" aria-hidden="true" data-testid="build-range-locked">{{ formatRange(rowSet.build) }}</span>
                     <span class="locked-slot__note">{{ copy.lockedNote }}</span>
                   </span>
                 }
@@ -59,11 +52,16 @@
               <dt>{{ copy.totalLabel }}</dt>
               <dd>
                 @if (unlocked()) {
-                  <span data-testid="total-range">{{ formatRange(rowSet.total) }}</span>
+                  <span data-testid="total-range">{{ formatRange(totalRange(rowSet)) }}</span>
+                  <span class="community-card__total-math" data-testid="total-math">{{
+                    totalMathNote(rowSet)
+                  }}</span>
                 } @else {
                   <!-- Locked: the REAL total range, blurred until unlock. -->
                   <span class="locked-slot">
-                    <span class="locked-slot__value" aria-hidden="true">{{ formatRange(rowSet.total) }}</span>
+                    <span class="locked-slot__value" aria-hidden="true" data-testid="total-range-locked">{{
+                      formatRange(totalRange(rowSet))
+                    }}</span>
                     <span class="locked-slot__note">{{ copy.lockedNote }}</span>
                   </span>
                 }

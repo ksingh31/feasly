@@ -287,12 +287,17 @@ export interface AppConfig {
       resultsSubheading: string;
       /** Exact label above each community's City-assessed figure. */
       assessedLabel: string;
-      /** Visible pre-gate: the land cost range label. */
+      /** Visible pre-gate: the fixed land figure label (never a range). */
       landLabel: string;
       /** Blurred pre-gate: the build cost label. */
       buildLabel: string;
       /** Blurred pre-gate: the total figure label. */
       totalLabel: string;
+      /**
+       * Transparent total derivation shown under each total:
+       * '{assessed}' + '{buildRange}'.
+       */
+      totalMathTemplate: string;
       /** Exact badge copy on the cheapest-land community: "Lowest land cost". */
       lowestLandBadge: string;
       /** Screen-reader / visible alternative where blurred figures sit. */

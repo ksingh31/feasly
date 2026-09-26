@@ -16,9 +16,10 @@ import { ComparisonState } from '../comparison.state';
 
 /**
  * NBH-03 acceptance criteria: the results render 2–3 community cards with
- * the exact assessed-value label, real City-assessed figures, visible land
- * ranges, one "Lowest land cost" badge, and a blurred chart — with zero
- * numeric build/total leakage into the DOM pre-gate.
+ * the fixed land figure label, a single City-assessed land value (never a
+ * range), transparent derived totals, one "Lowest land cost" badge, and a
+ * blurred chart — pre-gate the locked build/total figures render as blurred
+ * (aria-hidden) real numbers, never animated skeleton bars.
  */
 describe('CompareResultsComponent', () => {
   beforeEach(() => {
@@ -72,31 +73,35 @@ describe('CompareResultsComponent', () => {
     }
   }
 
-  it('renders one card per community with the exact assessed-value label', async () => {
+  it('renders one card per community with the fixed land-value label', async () => {
     const { fixture } = await setup();
     const el: HTMLElement = fixture.nativeElement;
     const cards = el.querySelectorAll('.community-card');
     expect(cards).toHaveLength(2);
-    // Exact story label on every card.
-    const labels = el.querySelectorAll('.community-card__label');
-    expect(labels).toHaveLength(2);
-    for (const label of labels) {
-      expect(label.textContent).toContain('Average City-assessed value (not market value)');
+    // Exact story label on every card: land is a fixed value, never a range.
+    for (const card of cards) {
+      const dt = card.querySelector('.community-card__figure dt');
+      expect(dt?.textContent).toContain('Land (assessed value)');
     }
+    expect(el.textContent).not.toContain('Land range');
   });
 
-  it('shows real City-assessed values from the stats fixture (never hardcoded)', async () => {
+  it('shows the single City-assessed land value from the stats fixture (never a range)', async () => {
     const { fixture, store } = await setup();
     const el: HTMLElement = fixture.nativeElement;
     const stats = store.selectSnapshot(ComparisonState.stats);
-    const assessed = el.querySelectorAll('[data-testid="assessed-value"]');
-    expect(assessed).toHaveLength(2);
+    const landValues = el.querySelectorAll('[data-testid="land-value"]');
+    expect(landValues).toHaveLength(2);
     const expected = [
       stats['beltline'].avg_assessed_value,
       stats['panorama-hills'].avg_assessed_value,
     ].map((v) => `$${v.toLocaleString('en-CA')}`);
-    const rendered = Array.from(assessed).map((n) => n.textContent?.trim());
+    const rendered = Array.from(landValues).map((n) => n.textContent?.trim());
     expect(rendered).toEqual(expect.arrayContaining(expected));
+    // A single fixed figure — no range separator anywhere in the land cells.
+    for (const cell of landValues) {
+      expect(cell.textContent).not.toMatch(/–|-/);
+    }
   });
 
   it('shows exactly one "Lowest land cost" badge matching the API flag', async () => {
@@ -115,19 +120,54 @@ describe('CompareResultsComponent', () => {
     expect(flaggedCard).toBeTruthy();
   });
 
-  it('pre-gate: land ranges visible, build/total blurred real digits', async () => {
+  it('renders the results subheading without a duplicated "Calgary communities"', async () => {
+    const { fixture } = await setup();
+    const el: HTMLElement = fixture.nativeElement;
+    const sub = el.querySelector('.compare-results__sub')?.textContent ?? '';
+    expect(sub).toContain('2 Calgary communities');
+    expect(sub).not.toContain('Calgary communities Calgary communities');
+    expect(sub).toContain('2,200 sq ft');
+  });
+
+  it('pre-gate: fixed land value visible, build/total blurred (never animated)', async () => {
     const { fixture, store } = await setup();
     const el: HTMLElement = fixture.nativeElement;
     const result = store.selectSnapshot(ComparisonState.result);
     expect(result).not.toBeNull();
 
-    // Land ranges are visible pre-gate.
-    expect(el.querySelectorAll('[data-testid="land-range"]')).toHaveLength(2);
+    // The fixed assessed land value is visible pre-gate — as a single number.
+    expect(el.querySelectorAll('[data-testid="land-value"]')).toHaveLength(2);
+    expect(el.querySelector('[data-testid="land-range"]')).toBeNull();
 
-    // Build/total render the REAL computed digits — blurred (aria-hidden),
-    // never as readable numbers, with the accessible locked note.
+    // Build/total render as blurred REAL numbers (aria-hidden) — never
+    // animated skeleton bars. Unlocked testids are absent pre-gate.
     expect(el.querySelector('[data-testid="build-range"]')).toBeNull();
     expect(el.querySelector('[data-testid="total-range"]')).toBeNull();
+    expect(el.querySelector('.locked-slot__skeleton')).toBeNull();
+
+    const stats = store.selectSnapshot(ComparisonState.stats);
+    const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    result?.rowSets.forEach((rowSet, i) => {
+      const buildLocked = el.querySelectorAll('[data-testid="build-range-locked"]')[i];
+      const totalLocked = el.querySelectorAll('[data-testid="total-range-locked"]')[i];
+      expect(buildLocked).toBeTruthy();
+      expect(totalLocked).toBeTruthy();
+      // The blurred figures are the real numbers: build range and the
+      // derived total (assessed + build).
+      expect(buildLocked.textContent?.trim()).toBe(
+        `${fmt(rowSet.build.low)} – ${fmt(rowSet.build.high)}`,
+      );
+      const assessed = stats[rowSet.slug].avg_assessed_value;
+      expect(totalLocked.textContent?.trim()).toBe(
+        `${fmt(assessed + rowSet.build.low)} – ${fmt(assessed + rowSet.build.high)}`,
+      );
+      // Blurred, non-interactive, hidden from assistive tech.
+      for (const node of [buildLocked, totalLocked]) {
+        expect(node.classList.contains('locked-slot__value')).toBe(true);
+        expect(node.getAttribute('aria-hidden')).toBe('true');
+      }
+    });
+
     const lockedNotes = el.querySelectorAll('.locked-slot__note');
     expect(lockedNotes.length).toBeGreaterThan(0);
     for (const note of lockedNotes) {
@@ -189,6 +229,68 @@ describe('CompareResultsComponent', () => {
     for (const bar of bars) {
       expect((bar as HTMLElement).style.left).not.toBe('');
       expect((bar as HTMLElement).style.width).not.toBe('');
+    }
+  });
+
+  it('post-gate: total is derived transparently as assessed + build range', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const result = store.selectSnapshot(ComparisonState.result);
+    const stats = store.selectSnapshot(ComparisonState.stats);
+    expect(result).not.toBeNull();
+
+    const totals = el.querySelectorAll('[data-testid="total-range"]');
+    const maths = el.querySelectorAll('[data-testid="total-math"]');
+    expect(totals).toHaveLength(2);
+    expect(maths).toHaveLength(2);
+
+    const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    result?.rowSets.forEach((rowSet, i) => {
+      const assessed = stats[rowSet.slug].avg_assessed_value;
+      const expectedLow = assessed + rowSet.build.low;
+      const expectedHigh = assessed + rowSet.build.high;
+      // The displayed total is assessed + build — never the API's land-spread total.
+      expect(totals[i].textContent?.trim()).toBe(
+        `${fmt(expectedLow)} – ${fmt(expectedHigh)}`,
+      );
+      // The derivation is visible: "$assessed + $buildLow – $buildHigh".
+      expect(maths[i].textContent?.trim()).toBe(
+        `${fmt(assessed)} + ${fmt(rowSet.build.low)} – ${fmt(rowSet.build.high)}`,
+      );
+    });
+  });
+
+  it('post-gate: chart bars use the same derived totals the cards show', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const result = store.selectSnapshot(ComparisonState.result);
+    const stats = store.selectSnapshot(ComparisonState.stats);
+    expect(result).not.toBeNull();
+
+    const derived = (result?.rowSets ?? []).map((r) => {
+      const assessed = stats[r.slug].avg_assessed_value;
+      return { slug: r.slug, low: assessed + r.build.low, high: assessed + r.build.high };
+    });
+    const maxHigh = Math.max(...derived.map((d) => d.high));
+    for (const d of derived) {
+      const bar = el.querySelector(
+        `.compare-chart__bar[data-slug="${d.slug}"]`,
+      ) as HTMLElement;
+      expect(bar).toBeTruthy();
+      // The CSSOM normalizes "90.50%" to "90.5%" — compare numerically.
+      expect(parseFloat(bar.style.left)).toBeCloseTo((d.low / maxHigh) * 100, 2);
+      expect(parseFloat(bar.style.width)).toBeCloseTo(
+        Math.max(((d.high - d.low) / maxHigh) * 100, 2),
+        2,
+      );
     }
   });
 

@@ -124,7 +124,18 @@
  * Locked slot: the REAL computed digits, blurred until unlock (aria-hidden
  * in markup) + the accessible locked note. Per Karan 2026-09-26 — no
  * animated shimmer/skeleton bars.
+ *
+ * Transparent derivation note under each total
+ * ("$520,000 + $310,000 – $410,000"): small, muted, wraps on narrow cards.
  */
+.community-card__total-math {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .locked-slot {
   display: flex;
   flex-direction: column;

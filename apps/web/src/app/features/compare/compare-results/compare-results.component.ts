@@ -16,16 +16,21 @@ import { WizardState } from '../../wizard/wizard.state';
  * Comparison results (NBH-03): side-by-side community cards + total-range
  * bar chart.
  *
+ * Land is ALWAYS the single fixed City-assessed value — never a range.
  * Pre-gate the build/total figures and the chart are locked: the locked
  * slots render the REAL computed digits blurred (CSS `filter: blur()`,
  * `aria-hidden`, unselectable, no pointer interaction — the blur is a
  * lead-capture nudge, not a security boundary) plus the accessible
  * "Available after email verification" note. The chart bars use the real
- * bar geometry, blurred. Land ranges and the City-assessed
- * values are always visible (per the API's visibility hints).
+ * bar geometry, blurred. The fixed assessed value is always visible
+ * (per the API's visibility hints).
  *
  * Exactly one card carries the "Lowest land cost" badge, driven by the
  * API's `lowestLand` flag (ties broken server-side by input order).
+ *
+ * Post-gate the total is derived transparently as assessed + build range
+ * (low/high), with the math shown under each total; the chart bars use the
+ * same derived totals so the visuals always match the numbers.
  *
  * Post-gate the tier what-if re-runs every row-set inline via
  * ReviseComparisonTier.
@@ -64,13 +69,43 @@ export class CompareResultsComponent {
     const tierName =
       this.tierOptions.find((o) => o.id === inputs.tier)?.name ?? inputs.tier;
     return this.copy.resultsSubheading
-      .replace('{count}', `${count} Calgary communities`)
+      .replace('{count}', `${count}`)
       .replace('{sqft}', `${inputs.sqft.toLocaleString('en-CA')} sq ft`)
       .replace('{tier}', `${tierName} finish`);
   }
 
   protected statsFor(slug: string): CommunityStats | undefined {
     return this.stats()[slug];
+  }
+
+  /**
+   * The land figure: ALWAYS the single fixed City-assessed value for the
+   * community — never a range. Sourced from the same community stats the
+   * results pipeline fetched (the real City data).
+   */
+  protected assessedValue(slug: string): number {
+    return this.statsFor(slug)?.avg_assessed_value ?? 0;
+  }
+
+  /**
+   * The displayed total range, derived transparently as
+   * assessed + build (componentwise). The API's own `total` (land-spread +
+   * build) is never shown — land has no spread.
+   */
+  protected totalRange(rowSet: ComparisonRowSet): CostRange {
+    const land = this.assessedValue(rowSet.slug);
+    return {
+      low: land + rowSet.build.low,
+      base: land + rowSet.build.base,
+      high: land + rowSet.build.high,
+    };
+  }
+
+  /** Visible derivation note under each total, e.g. "$520,000 + $310,000 – $410,000". */
+  protected totalMathNote(rowSet: ComparisonRowSet): string {
+    return this.copy.totalMathTemplate
+      .replace('{assessed}', this.formatMoney(this.assessedValue(rowSet.slug)))
+      .replace('{buildRange}', this.formatRange(rowSet.build));
   }
 
   /**
@@ -92,14 +127,18 @@ export class CompareResultsComponent {
   }
 
   /**
-   * Bar geometry as percentages of the widest total-high across row-sets.
-   * Only rendered post-gate — pre-gate the chart shows skeleton bars.
+   * Bar geometry as percentages of the widest derived total-high across
+   * row-sets. Uses the same derived totals the cards show (assessed +
+   * build), so the visuals always match the numbers. Only rendered
+   * post-gate — pre-gate the chart shows skeleton bars.
    */
   protected barStyle(rowSet: ComparisonRowSet): Record<string, string> {
     const rowSets = this.result()?.rowSets ?? [];
-    const maxHigh = Math.max(...rowSets.map((r) => r.total.high), 1);
-    const left = (rowSet.total.low / maxHigh) * 100;
-    const width = Math.max(((rowSet.total.high - rowSet.total.low) / maxHigh) * 100, 2);
+    const totals = rowSets.map((r) => this.totalRange(r));
+    const maxHigh = Math.max(...totals.map((t) => t.high), 1);
+    const total = this.totalRange(rowSet);
+    const left = (total.low / maxHigh) * 100;
+    const width = Math.max(((total.high - total.low) / maxHigh) * 100, 2);
     return { left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%` };
   }
 
