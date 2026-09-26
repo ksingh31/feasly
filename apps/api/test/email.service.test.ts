@@ -125,6 +125,24 @@ describe('magic-link template', () => {
     });
     expect(admin.subject.toLowerCase()).toContain('admin');
   });
+
+  it('admin audience CTA says sign-in, never "View my estimate"', () => {
+    const admin = renderMagicLinkEmail(CTX, {
+      magicLinkUrl: MAGIC_URL,
+      expiresInDays: 7,
+      audience: 'admin',
+    });
+    expect(admin.html).toContain('Sign in to');
+    expect(admin.html).toContain('admin');
+    expect(admin.html).not.toContain('View my estimate');
+    expect(admin.text).not.toContain('View my estimate');
+    const consumer = renderMagicLinkEmail(CTX, {
+      magicLinkUrl: MAGIC_URL,
+      expiresInDays: 7,
+      audience: 'consumer',
+    });
+    expect(consumer.html).toContain('View my estimate');
+  });
 });
 
 describe('partner-share template', () => {
