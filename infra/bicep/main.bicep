@@ -162,6 +162,9 @@ module functionApp 'modules/function-app.bicep' = {
     acsConnectionStringSecretUri: (environment == 'dev' || !empty(acsConnectionString)) ? acsConnectionStringSecretUri : ''
     // Sender identity for dev: the provisioned Azure-managed domain sender
     // (ACS requires a verified-domain sender). Empty elsewhere → config default.
+    // PLACEHOLDER (ADM-10): Azure-managed DoNotReply sender for overnight
+    // verification only — swap for Karan's custom-domain sender when he
+    // provides one.
     emailFromAddress: environment == 'dev' ? communication.outputs.senderAddress : ''
     // Magic-link URLs in emails must open on the live site (ADM-10), not the
     // feasly.example config default.
