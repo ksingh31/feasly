@@ -168,6 +168,13 @@
   padding: 32px 20px 0;
 }
 
+/* Last entry before the trust strip: bottom breathing room so the card
+   doesn't sit flush on the dark band (mobile QA 2026-09-26). 32px matches
+   the section's own top rhythm. */
+.compare-entry--last {
+  padding-bottom: 32px;
+}
+
 .compare-card {
   display: flex;
   align-items: center;
