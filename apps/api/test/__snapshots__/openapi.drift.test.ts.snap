@@ -1180,9 +1180,9 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
     },
     "securitySchemes": {
       "AdminKey": {
-        "description": "Interim admin guard (pre-shared key). Being replaced by session auth (admin/01).",
-        "in": "header",
-        "name": "X-Admin-Key",
+        "description": "Admin session auth (admin/01): the opaque session token is set as an httpOnly cookie by the admin magic-link flow. The legacy X-Admin-Key header was removed — do not send it.",
+        "in": "cookie",
+        "name": "feasly_admin_session",
         "type": "apiKey",
       },
       "ApiKeyAuth": {

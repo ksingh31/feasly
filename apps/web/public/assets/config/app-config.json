@@ -359,7 +359,6 @@
     "sampleReport": false
   },
   "admin": {
-    "adminKey": "",
     "defaultRateLimit": 60
   },
   "limits": {

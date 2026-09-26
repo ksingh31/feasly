@@ -158,11 +158,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   });
   registry.registerComponent('securitySchemes', 'AdminKey', {
     type: 'apiKey',
-    in: 'header',
-    name: 'X-Admin-Key',
+    in: 'cookie',
+    name: 'feasly_admin_session',
     description:
-      'Interim admin guard (pre-shared key). ' +
-      'Being replaced by session auth (admin/01).',
+      'Admin session auth (admin/01): the opaque session token is set as an ' +
+      'httpOnly cookie by the admin magic-link flow. The legacy X-Admin-Key ' +
+      'header was removed — do not send it.',
   });
 
   // ── Public v1 endpoints ───────────────────────────────────────────
