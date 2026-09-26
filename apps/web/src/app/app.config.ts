@@ -18,6 +18,7 @@ import { ComparisonState } from './features/compare';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
+import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -61,8 +62,11 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
+    // AdminLeadsState is memory-only on purpose: admin lead data is
+    // sensitive and must not persist in localStorage — it refetches on mount.
+    // (Kept out of the storage plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState],
       withNgxsStoragePlugin({
         keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
         beforeSerialize: (obj, key) =>

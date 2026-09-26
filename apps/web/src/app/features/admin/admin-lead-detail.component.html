@@ -1,0 +1,136 @@
+<aside class="lead-detail" role="dialog" aria-modal="false" aria-label="Lead detail">
+  <div class="lead-detail__header">
+    <h2>Lead detail</h2>
+    <button type="button" class="lead-detail__close" (click)="close()" aria-label="Close detail">
+      ✕
+    </button>
+  </div>
+
+  @if (detailStatus() === 'loading') {
+    <p class="lead-detail__state">Loading lead…</p>
+  } @else if (detailStatus() === 'error') {
+    <div class="lead-detail__state lead-detail__state--error">
+      <p>{{ detailError() }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else if (detail(); as lead) {
+    <section class="lead-detail__section" aria-label="Contact">
+      <h3>{{ lead.name }}</h3>
+      <dl class="lead-detail__grid">
+        <div><dt>Email</dt><dd>{{ lead.email }}</dd></div>
+        <div><dt>Phone</dt><dd>{{ lead.phone ?? '—' }}</dd></div>
+        <div><dt>Address</dt><dd>{{ lead.addressKey }}</dd></div>
+        <div><dt>Lead score</dt><dd>{{ lead.leadScore }}</dd></div>
+        <div><dt>Source</dt><dd>{{ lead.source }}</dd></div>
+        <div><dt>Project type</dt><dd>{{ lead.projectType }}</dd></div>
+        <div><dt>Tenant</dt><dd>{{ lead.tenantKey ?? '—' }}</dd></div>
+        @if (lead.sandbox) {
+          <div><dt>Environment</dt><dd><span class="badge badge--sandbox">Sandbox</span></dd></div>
+        }
+        @if (lead.quarantined) {
+          <div><dt>Quarantine</dt><dd><span class="badge badge--quarantine">Honeypot-flagged</span></dd></div>
+        }
+      </dl>
+    </section>
+
+    <section class="lead-detail__section" aria-label="Pipeline status">
+      <h3>Pipeline</h3>
+      <label class="lead-detail__status">
+        <span>Status</span>
+        <select
+          [formControl]="statusControl"
+          (change)="changeStatus()"
+          [disabled]="statusUpdating()"
+        >
+          @for (s of pipelineStatuses; track s) {
+            <option [value]="s">{{ s }}</option>
+          }
+        </select>
+      </label>
+      @if (statusUpdating()) {
+        <p class="lead-detail__hint">Updating…</p>
+      }
+      @if (lead.statusHistory.length > 0) {
+        <ol class="lead-detail__history">
+          @for (entry of lead.statusHistory; track entry.changedAt) {
+            <li>
+              {{ entry.oldStatus ?? '—' }} → <strong>{{ entry.newStatus }}</strong>
+              <span class="lead-detail__muted">
+                {{ formatDate(entry.changedAt) }}
+                @if (entry.changedBy) {
+                  · {{ entry.changedBy }}
+                }
+              </span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="lead-detail__hint">No status changes yet.</p>
+      }
+    </section>
+
+    @if (lead.estimate; as estimate) {
+      <section class="lead-detail__section" aria-label="Estimate summary">
+        <h3>Estimate</h3>
+        <dl class="lead-detail__grid">
+          <div><dt>Address</dt><dd>{{ estimate.addressKey }}</dd></div>
+          <div><dt>Project type</dt><dd>{{ estimate.projectType }}</dd></div>
+          <div><dt>Living area</dt><dd>{{ estimate.sqft !== null ? estimate.sqft + ' sq ft' : '—' }}</dd></div>
+          <div><dt>Finish tier</dt><dd>{{ estimate.tier ?? '—' }}</dd></div>
+          <div><dt>Total range</dt><dd>{{ cadRange(estimate.totalRangeCents) }}</dd></div>
+          <div><dt>Build range</dt><dd>{{ cadRange(estimate.buildRangeCents) }}</dd></div>
+          <div><dt>Land (assessed)</dt><dd>{{ cad(estimate.landCents) }}</dd></div>
+          <div><dt>Estimated</dt><dd>{{ formatDate(estimate.createdAt) }}</dd></div>
+        </dl>
+      </section>
+    }
+
+    <section class="lead-detail__section" aria-label="Consent and access">
+      <h3>Consent &amp; access</h3>
+      <dl class="lead-detail__grid">
+        <div><dt>Marketing consent</dt><dd>{{ lead.marketingConsent ? 'Yes' : 'No' }}</dd></div>
+        <div><dt>Consented</dt><dd>{{ formatDate(lead.consentTs) }}</dd></div>
+        <div><dt>Magic link</dt><dd>{{ magicLinkLabel(lead.magicLinkStatus) }}</dd></div>
+        <div><dt>Sheets synced</dt><dd>{{ formatDate(lead.sheetsSyncedAt) }}</dd></div>
+        <div><dt>Report snapshots</dt><dd>{{ lead.snapshotCount }}</dd></div>
+        <div><dt>Unsubscribed</dt><dd>{{ formatDate(lead.unsubscribedAt) }}</dd></div>
+        <div><dt>Nudge sent</dt><dd>{{ formatDate(lead.nudgeSentAt) }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="lead-detail__section" aria-label="Notes">
+      <h3>Notes</h3>
+      @if (lead.notes.length > 0) {
+        <ol class="lead-detail__notes">
+          @for (note of lead.notes; track note.id) {
+            <li>
+              <p>{{ note.note }}</p>
+              <span class="lead-detail__muted">{{ formatDate(note.createdAt) }}</span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="lead-detail__hint">No notes yet.</p>
+      }
+      <div class="lead-detail__note-form">
+        <label>
+          <span class="sr-only">Add a note</span>
+          <textarea
+            [formControl]="noteControl"
+            rows="3"
+            maxlength="5000"
+            placeholder="Add a note…"
+          ></textarea>
+        </label>
+        <button
+          type="button"
+          (click)="addNote()"
+          [disabled]="noteControl.invalid || notePosting()"
+        >
+          {{ notePosting() ? 'Adding…' : 'Add note' }}
+        </button>
+      </div>
+      <p class="lead-detail__hint">Notes are append-only — they can't be edited or deleted.</p>
+    </section>
+  }
+</aside>

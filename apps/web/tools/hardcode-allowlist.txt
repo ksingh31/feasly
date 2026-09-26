@@ -85,3 +85,23 @@ apps/web/src/app/features/compare/compare-results/compare-results.component.ts
 # Pinned by jsonld-schemas.spec.ts (builders) and seo.service.spec.ts.
 apps/web/src/app/core/seo/jsonld-schemas.ts
 apps/web/src/app/core/seo/seo.service.ts
+
+# Leads explorer filters (admin/02): lead_score is a fixed 0–100 domain
+# scale (the `100` clamp is a domain bound, not a tunable); the `T00:00:00` /
+# `T23:59:59.999` day-boundary times are calendar constants for the date-range
+# filter, not tunables. They change by product decision, never by deploy tuning.
+apps/web/src/app/features/admin/admin-leads.component.ts
+
+# Lead detail note maxlength (admin/02): the 5000-char bound is a validation
+# limit matching the backend, not a deploy tunable.
+apps/web/src/app/features/admin/admin-lead-detail.component.ts
+
+# Quarantine-tab placeholder copy (admin/02): explains that approve/discard
+# needs a backend endpoint — product copy pinned by the story's placeholder
+# rule, not tunable text.
+apps/web/src/app/features/admin/admin-leads.component.html
+
+# Cents-to-CAD formatting (admin/02 AC2): `100` is the mathematical
+# cents-per-dollar constant, and the `$x – $y` format strings are display
+# logic — integer math only, no float division. Pinned by money.spec.ts.
+apps/web/src/app/shared/utils/money.ts

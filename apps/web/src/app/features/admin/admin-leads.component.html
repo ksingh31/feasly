@@ -1,2 +1,220 @@
-<h1>Leads</h1>
-<p>Leads dashboard arrives in the next admin story.</p>
+<div class="leads-page" (keydown)="onKeydown($event)">
+  <div class="leads-page__header">
+    <h1>Leads</h1>
+    <div class="leads-page__actions">
+      <label class="leads-page__sandbox">
+        <input
+          type="checkbox"
+          [checked]="includeSandbox()"
+          (change)="toggleSandbox($event.target.checked)"
+        />
+        Include sandbox
+      </label>
+      <button
+        type="button"
+        class="leads-page__export"
+        (click)="exportCsv()"
+        [disabled]="exporting() || listStatus() !== 'idle'"
+      >
+        {{ exporting() ? 'Exporting…' : 'Export CSV' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="leads-page__tabs" role="tablist" aria-label="Lead lists">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'all'"
+      [class.leads-page__tab--active]="tab() === 'all'"
+      class="leads-page__tab"
+      (click)="setTab('all')"
+    >
+      All leads
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'quarantine'"
+      [class.leads-page__tab--active]="tab() === 'quarantine'"
+      class="leads-page__tab"
+      (click)="setTab('quarantine')"
+    >
+      Quarantine
+    </button>
+  </div>
+  @if (tab() === 'quarantine') {
+    <p class="leads-page__quarantine-note">
+      Honeypot-flagged submissions are quarantined here — never silently dropped.
+      Approve/discard actions need a backend endpoint and aren't available yet.
+    </p>
+  }
+
+  <form class="leads-page__filters" [formGroup]="filtersForm" aria-label="Lead filters">
+    <label class="leads-page__filter leads-page__filter--search">
+      <span>Search</span>
+      <input
+        type="search"
+        formControlName="search"
+        placeholder="Name, email, or address…"
+        autocomplete="off"
+      />
+    </label>
+    <label class="leads-page__filter">
+      <span>Status</span>
+      <select formControlName="status" (change)="applyFilters()">
+        @for (s of statusOptions; track s) {
+          <option [value]="s">{{ s === '' ? 'All statuses' : s }}</option>
+        }
+      </select>
+    </label>
+    <label class="leads-page__filter">
+      <span>Source</span>
+      <select formControlName="source" (change)="applyFilters()">
+        @for (s of sourceOptions; track s) {
+          <option [value]="s">{{ s === '' ? 'All sources' : s }}</option>
+        }
+      </select>
+    </label>
+    <label class="leads-page__filter">
+      <span>Project type</span>
+      <select formControlName="projectType" (change)="applyFilters()">
+        @for (p of projectTypeOptions; track p) {
+          <option [value]="p">{{ p === '' ? 'All types' : projectTypeLabel(p) }}</option>
+        }
+      </select>
+    </label>
+    <label class="leads-page__filter">
+      <span>Min score</span>
+      <input
+        type="number"
+        formControlName="minScore"
+        min="0"
+        max="100"
+        placeholder="0"
+        (change)="applyFilters()"
+      />
+    </label>
+    <label class="leads-page__filter">
+      <span>Max score</span>
+      <input
+        type="number"
+        formControlName="maxScore"
+        min="0"
+        max="100"
+        placeholder="100"
+        (change)="applyFilters()"
+      />
+    </label>
+    <label class="leads-page__filter">
+      <span>From</span>
+      <input type="date" formControlName="createdAfter" (change)="applyFilters()" />
+    </label>
+    <label class="leads-page__filter">
+      <span>To</span>
+      <input type="date" formControlName="createdBefore" (change)="applyFilters()" />
+    </label>
+    <label class="leads-page__filter">
+      <span>Tenant</span>
+      <input
+        type="text"
+        formControlName="tenantId"
+        placeholder="tenant key…"
+        autocomplete="off"
+        (change)="applyFilters()"
+      />
+    </label>
+    <button type="button" class="leads-page__clear" (click)="clearFilters()">
+      Clear
+    </button>
+  </form>
+
+  <p class="leads-page__count" aria-live="polite">
+    @if (listStatus() === 'loading') {
+      Loading leads…
+    } @else {
+      {{ totalCount() }} lead{{ totalCount() === 1 ? '' : 's' }}
+      @if (!includeSandbox()) {
+        <span class="leads-page__count-note">(sandbox excluded)</span>
+      }
+    }
+  </p>
+
+  @if (listStatus() === 'error') {
+    <div class="leads-page__error" role="alert">
+      <p>{{ listError() }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else {
+    <div class="leads-page__table-wrap">
+      <table class="leads-page__table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Email</th>
+            <th scope="col">Address</th>
+            <th scope="col">Score</th>
+            <th scope="col">Status</th>
+            <th scope="col">Source</th>
+            <th scope="col">Type</th>
+            <th scope="col">Tenant</th>
+            <th scope="col">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (lead of leads(); track lead.id) {
+            <tr
+              class="leads-page__row"
+              [class.leads-page__row--selected]="selectedLeadId() === lead.id"
+              (click)="selectLead(lead.id)"
+              (keydown.enter)="selectLead(lead.id)"
+              tabindex="0"
+              [attr.aria-label]="'Open lead ' + lead.name"
+            >
+              <td>
+                {{ lead.name }}
+                @if (lead.sandbox) {
+                  <span class="badge badge--sandbox">Sandbox</span>
+                }
+              </td>
+              <td>{{ lead.email }}</td>
+              <td>{{ lead.addressKey }}</td>
+              <td>{{ lead.leadScore }}</td>
+              <td><span class="badge badge--status-{{ lead.status }}">{{ lead.status }}</span></td>
+              <td>{{ lead.source }}</td>
+              <td>{{ projectTypeLabel(lead.projectType) }}</td>
+              <td>{{ lead.tenantKey ?? '—' }}</td>
+              <td>{{ formatDate(lead.createdAt) }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="9" class="leads-page__empty">
+                @if (listStatus() === 'loading') {
+                  Loading…
+                } @else {
+                  No leads match these filters.
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (hasMore()) {
+      <button
+        type="button"
+        class="leads-page__load-more"
+        (click)="loadMore()"
+        [disabled]="listStatus() === 'loading-more'"
+      >
+        {{ listStatus() === 'loading-more' ? 'Loading…' : 'Load more' }}
+      </button>
+    }
+  }
+
+  @if (selectedLeadId()) {
+    <div class="leads-page__drawer-backdrop" (click)="closeDetail()"></div>
+    <app-admin-lead-detail class="leads-page__drawer" />
+  }
+</div>
