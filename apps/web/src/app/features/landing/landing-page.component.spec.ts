@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
@@ -201,5 +201,11 @@ describe('LandingPageComponent', () => {
     expect(questions.length).toBeGreaterThanOrEqual(3);
     expect(questions[0]['@type']).toBe('Question');
     expect(questions[0]['name']).toBe('Is Feasly free?');
+  });
+  afterEach(() => {
+    // Remove JSON-LD scripts to prevent test pollution (SEO-06).
+    document.head
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((el) => el.remove());
   });
 });

@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { provideStore } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config';
 import { WizardState } from '../wizard/wizard.state';
 import { FaqPageComponent } from './faq-page.component';
@@ -92,5 +92,11 @@ describe('FaqPageComponent', () => {
 
   it('stays indexable: no robots noindex tag', () => {
     expect(TestBed.inject(Meta).getTag('name="robots"')).toBeNull();
+  });
+  afterEach(() => {
+    // Remove JSON-LD scripts to prevent test pollution (SEO-06).
+    document.head
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((el) => el.remove());
   });
 });
