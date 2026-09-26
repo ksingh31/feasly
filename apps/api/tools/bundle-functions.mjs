@@ -198,6 +198,27 @@ const targets = [
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
   },
+  // phase-2 wiring: the five live-API endpoints the web app needs.
+  {
+    entry: 'src/functions/estimates-preview.ts',
+    out: 'estimates-preview/index.js',
+  },
+  {
+    entry: 'src/functions/reports-get.ts',
+    out: 'reports-get/index.js',
+  },
+  {
+    entry: 'src/functions/reports-revisions.ts',
+    out: 'reports-revisions/index.js',
+  },
+  {
+    entry: 'src/functions/callbacks.ts',
+    out: 'callbacks/index.js',
+  },
+  {
+    entry: 'src/functions/shares.ts',
+    out: 'shares/index.js',
+  },
 ];
 
 // 1. Shared closure, bundled once.

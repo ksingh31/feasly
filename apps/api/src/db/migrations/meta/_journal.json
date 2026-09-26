@@ -155,6 +155,13 @@
       "when": 1790397000000,
       "tag": "0023_quarantine_discard",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790399218818,
+      "tag": "0024_phase2_wire",
+      "breakpoints": true
     }
   ]
 }

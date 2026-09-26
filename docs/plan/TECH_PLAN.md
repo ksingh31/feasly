@@ -1255,10 +1255,14 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 |---|---|---|---|---|---|
 | GET | `/api/health` | none | 100/min per IP | live | Liveness + dependency checks (2s DB timeout). |
 | POST | `/api/v1/estimate` | none | 20/hr per IP · 20/hr per tenant (embed) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
+| POST | `/api/v1/estimates/preview` | none | 20/hr per IP | live | Pre-gate estimate preview (same deterministic engine as /estimate; figures blurred, rows empty — never leaks real numbers). |
 | POST | `/api/v1/leads` | none | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
 | GET | `/api/v1/magic-link/verify` | magic-token | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |
 | POST | `/api/v1/magic-link/reissue` | none | 60s cooldown · 5/hr per email+IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
-| GET | `/api/v1/reports/{reportToken}` | magic-token | 100/min per IP | planned | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
+| GET | `/api/v1/reports/{reportToken}` | magic-token | 100/min per IP | live | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
+| POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | 20/hr per IP | live | Tier/sqft what-if: recompute through the deterministic engine and append a new immutable report snapshot version. Token IS the credential. |
+| POST | `/api/v1/callbacks` | magic-token | 10/min per IP | live | Record a callback request (name/phone/preferred window) for a report lead. Token IS the credential. |
+| POST | `/api/v1/shares` | magic-token | 10/min per IP | live | Email a report to a partner: mints a fresh partner-share magic link (never the owner token) and records the audit row. Token IS the credential. |
 | GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
 | POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |

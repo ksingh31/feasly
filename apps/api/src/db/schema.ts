@@ -26,6 +26,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -809,4 +810,124 @@ export const adminAuditLog = pgTable(
       .defaultNow(),
   },
   (t) => [index('admin_audit_log_action_idx').on(t.action)],
+);
+
+/**
+ * Report snapshots (phase-2 wiring).
+ *
+ * Immutable per-version copies of an estimate's report figures. Snapshots
+ * exist only post-gate: v1 is created lazily on the first
+ * GET /v1/reports/{reportToken}; tier/sqft revisions append v+1. The report
+ * page renders the LATEST snapshot for the estimate — a shared link
+ * re-renders exactly the same numbers.
+ *
+ * Money is integer dollars inside the JSONB payloads (never float), matching
+ * the estimates table convention.
+ */
+export const reportSnapshots = pgTable(
+  'report_snapshots',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    estimateId: uuid('estimate_id')
+      .notNull()
+      .references(() => estimates.id),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    /** Contract `EstimateInputs` (renovation inputs merged under `renoInputs`). */
+    inputs: jsonb('inputs').notNull(),
+    /** Contract `CostRange` { low, base, high }. */
+    buildRange: jsonb('build_range').notNull(),
+    totalRange: jsonb('total_range').notNull(),
+    /** Contract `FixedFigure` { value } — the City assessed value. */
+    landValue: jsonb('land_value').notNull(),
+    /** Contract `CostRow[]`. */
+    rows: jsonb('rows').notNull(),
+    /** AI narrative — '' until the narrative worker fills it in. */
+    narrative: text('narrative').notNull().default(''),
+    /** Engine-authored assumptions (renovation snapshots only). */
+    assumptions: jsonb('assumptions').$type<readonly string[] | null>(),
+    /** 'new_build' | 'renovation' — comparison estimates have no snapshots. */
+    projectType: text('project_type').notNull().default('new_build'),
+    /** Contract `RenoEstimateInputs`, present only for renovations. */
+    renoInputs: jsonb('reno_inputs'),
+    /** Monotonic per estimateId, starting at 1. */
+    version: integer('version').notNull(),
+    preparedAt: timestamp('prepared_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * Set when an old magic link resolved to a newer snapshot
+     * (consumer/02). The report header shows "Updated {date}" from it.
+     * Absent for first-view reports.
+     */
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('report_snapshots_estimate_id_idx').on(t.estimateId),
+    unique('report_snapshots_estimate_version_uq').on(t.estimateId, t.version),
+  ],
+);
+
+/**
+ * Callback requests (phase-2 wiring).
+ *
+ * A "call me back" ask attached to a report. The reportToken resolves to
+ * the lead at request time — only the leadId is persisted (the token itself
+ * is a bearer credential and is never stored).
+ */
+export const callbackRequests = pgTable(
+  'callback_requests',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    name: text('name').notNull(),
+    /** Required at the callback step (optional at the lead gate). */
+    phone: text('phone').notNull(),
+    /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
+    window: text('window').notNull(),
+    /** 'pending' → 'done' — worked by the team inbox flow (future). */
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('callback_requests_lead_id_idx').on(t.leadId)],
+);
+
+/**
+ * Partner shares (phase-2 wiring).
+ *
+ * Audit record for each email-to-partner share. The partner's credential is
+ * a fresh magic-link row (purpose 'partner-share', lead_id → the owner's
+ * lead — never the owner's token); this table records who it went to and
+ * whether the email provider accepted the message. The partner email is PII
+ * and gets the same handling as lead emails.
+ */
+export const partnerShares = pgTable(
+  'partner_shares',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    magicLinkId: uuid('magic_link_id').references(() => magicLinks.id, {
+      onDelete: 'set null',
+    }),
+    partnerEmail: text('partner_email').notNull(),
+    /** True when the email provider accepted the message. */
+    sent: boolean('sent').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('partner_shares_lead_id_idx').on(t.leadId)],
 );
