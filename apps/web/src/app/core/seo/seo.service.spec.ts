@@ -189,6 +189,47 @@ describe('SeoService', () => {
     expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
   });
 
+  it('setJsonLdScript manages multiple keyed scripts independently (SEO-06)', () => {
+    service.setJsonLdScript('faq', { '@type': 'FAQPage' });
+    service.setJsonLdScript('business', { '@type': 'LocalBusiness' });
+
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(2);
+
+    const faq = document.querySelector('script[data-jsonld-id="faq"]');
+    const business = document.querySelector('script[data-jsonld-id="business"]');
+    expect(faq?.textContent).toContain('FAQPage');
+    expect(business?.textContent).toContain('LocalBusiness');
+
+    // Replacing one leaves the other untouched.
+    service.setJsonLdScript('faq', { '@type': 'FAQPage', extra: true });
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(2);
+    expect(document.querySelector('script[data-jsonld-id="faq"]')?.textContent).toContain('extra');
+
+    // Removing one leaves the other.
+    service.setJsonLdScript('faq', null);
+    expect(document.querySelector('script[data-jsonld-id="faq"]')).toBeNull();
+    expect(document.querySelector('script[data-jsonld-id="business"]')?.textContent).toContain(
+      'LocalBusiness',
+    );
+
+    // Cleanup.
+    service.setJsonLdScript('business', null);
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0);
+  });
+
+  it('setJsonLdScript with empty id targets the default unkeyed script', () => {
+    service.setJsonLdScript('', { '@type': 'FAQPage' });
+    const script = document.querySelector(
+      'script[type="application/ld+json"]:not([data-jsonld-id])',
+    );
+    expect(script?.textContent).toContain('FAQPage');
+    service.setJsonLdScript('', null);
+    expect(
+      document.querySelector('script[type="application/ld+json"]:not([data-jsonld-id])'),
+    ).toBeNull();
+  });
+
   it('falls back to the request origin when site.url is empty (staging)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({

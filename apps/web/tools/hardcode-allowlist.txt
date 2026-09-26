@@ -78,3 +78,10 @@ apps/web/src/app/core/api/mock-property-data.service.ts
 # percentage — a mathematical constant, not a tunable. It changes by geometry
 # (code review), never by deploy tuning.
 apps/web/src/app/features/compare/compare-results/compare-results.component.ts
+# Schema.org context URL + JSON-LD script selectors (SEO-06): the
+# "https://schema.org" @context is a fixed vocabulary identifier, not tunable
+# copy — changing it would break schema validation. The
+# script[type="application/ld+json"] selectors are DOM implementation details.
+# Pinned by jsonld-schemas.spec.ts (builders) and seo.service.spec.ts.
+apps/web/src/app/core/seo/jsonld-schemas.ts
+apps/web/src/app/core/seo/seo.service.ts
