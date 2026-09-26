@@ -8,7 +8,7 @@
       </p>
     }
 
-    @if (status === 'sent') {
+    @if (status() === 'sent') {
       <p class="admin-login__sent" role="status">
         Check your email for your sign-in link.
       </p>
@@ -30,7 +30,7 @@
             Enter a valid email address.
           </p>
         }
-        @if (status === 'error') {
+        @if (status() === 'error') {
           <p class="admin-login__error" role="alert">
             Something went wrong. Please try again.
             <button type="button" (click)="retry()">Retry</button>
@@ -39,9 +39,9 @@
         <button
           type="submit"
           class="admin-login__submit"
-          [disabled]="form.invalid || status === 'sending'"
+          [disabled]="form.invalid || status() === 'sending'"
         >
-          @if (status === 'sending') {
+          @if (status() === 'sending') {
             Sending…
           } @else {
             Send sign-in link
