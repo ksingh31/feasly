@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type {
   CommunityAggregate,
@@ -8,6 +8,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
+import ranges from '../../../content/data/community-ranges.json';
 
 /** Minimal shape of SEO-04's community-ranges.json (only what the index needs). */
 interface CommunityRangesFile {
@@ -23,11 +24,10 @@ interface CommunityRangesFile {
  * page (`/communities/{slug}`); the page is the single crawl hub so no
  * community guide is orphaned.
  *
- * Data: `community-aggregates.json` (static import — renders at prerender).
- * The "from $X" teaser reads `community-ranges.json` (SEO-04) via a
- * best-effort dynamic import: when ranges are unavailable the card still
- * renders name + assessed value, and the teaser appears automatically once
- * SEO-04 lands — no code change needed.
+ * Data: `community-aggregates.json` and `community-ranges.json` are both
+ * static imports — bundled at build time, so teasers render at prerender
+ * with no runtime fetch (a dynamic import previously 404'd on the deployed
+ * site because the JSON was never in `angular.json` assets).
  */
 @Component({
   selector: 'app-communities-index-page',
@@ -48,34 +48,22 @@ export class CommunitiesIndexPageComponent implements OnInit {
     aggregates as CommunityAggregatesFile
   ).communities;
 
-  /** Lowest-tier build-low by slug, when the ranges file is available. */
-  protected readonly fromPrices = signal<ReadonlyMap<string, number>>(new Map());
+  /** Lowest-tier build-low by slug, from the bundled ranges file. */
+  protected readonly fromPrices: ReadonlyMap<string, number> = new Map(
+    (ranges as CommunityRangesFile).communities.map((c) => [
+      c.slug,
+      c.tiers.standard.buildLow,
+    ]),
+  );
 
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): void {
     this.seo.setForRoute('communities');
     this.seo.setJsonLd(null);
-    // Best-effort: SEO-04's ranges file may not exist yet (separate PR).
-    // A missing module rejects at runtime; we degrade to assessed-value-only
-    // cards. The path is a variable (not a literal) plus @vite-ignore so
-    // neither TypeScript nor Vite statically resolve the optional file.
-    try {
-      const rangesPath = '../../../content/data/community-ranges.json';
-      const mod = (await import(/* @vite-ignore */ rangesPath)) as {
-        default: CommunityRangesFile;
-      };
-      const map = new Map<string, number>();
-      for (const c of mod.default.communities) {
-        map.set(c.slug, c.tiers.standard.buildLow);
-      }
-      this.fromPrices.set(map);
-    } catch {
-      // Ranges unavailable — cards render without the teaser.
-    }
   }
 
-  /** "from $X" teaser, or null when ranges are unavailable. */
+  /** "from $X" teaser, or null when the ranges file lacks the community. */
   fromPrice(community: CommunityAggregate): string | null {
-    const low = this.fromPrices().get(community.slug);
+    const low = this.fromPrices.get(community.slug);
     return low == null ? null : this.formatCad(low);
   }
 

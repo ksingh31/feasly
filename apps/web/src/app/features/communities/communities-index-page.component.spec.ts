@@ -71,11 +71,15 @@ describe('CommunitiesIndexPageComponent', () => {
     }
   });
 
-  it('degrades gracefully when ranges are unavailable (no teaser)', () => {
-    // The dynamic import rejects in the test env (no ranges file) — the
-    // component must still render all cards without throwing.
+  it('shows the "from $X" teaser on every card (ranges bundled at build)', () => {
+    fixture.detectChanges();
+    const teasers = fixture.nativeElement.querySelectorAll('.from-price strong');
+    expect(teasers).toHaveLength(40);
+    for (const el of Array.from(teasers)) {
+      expect((el as HTMLElement).textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
+    }
     const first = component['communities'][0];
-    expect(component.fromPrice(first)).toBeNull();
+    expect(component.fromPrice(first)).toMatch(/^\$\d{1,3}(,\d{3})*$/);
   });
 
   it('sets SEO for the communities route and clears JSON-LD', () => {
