@@ -105,3 +105,13 @@ apps/web/src/app/features/admin/admin-leads.component.html
 # cents-per-dollar constant, and the `$x – $y` format strings are display
 # logic — integer math only, no float division. Pinned by money.spec.ts.
 apps/web/src/app/shared/utils/money.ts
+
+# Calibration console copy (admin/09): the subtitle, warning, and empty-state
+# strings are UI copy pinned by the story's acceptance criteria — they change
+# by product decision, not by deploy tuning. Copy-pinned by
+# admin-calibration.component.spec.ts.
+apps/web/src/app/features/admin/admin-calibration.component.html
+apps/web/src/app/features/admin/admin-calibration.component.ts
+# Calibration console load-error copy (admin/09): the user-facing failure
+# string is UI copy, not a tunable — it changes by product decision.
+apps/web/src/app/features/admin/admin-calibration.state.ts

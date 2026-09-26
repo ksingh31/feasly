@@ -20,6 +20,7 @@ import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
+import { CalibrationState } from './features/admin/admin-calibration.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -67,10 +68,15 @@ export const appConfig: ApplicationConfig = {
     // because the magic-link email is the only re-verification path.
     // AdminLeadsState is memory-only on purpose: admin lead data is
     // sensitive and must not persist in localStorage — it refetches on mount.
-    // (Kept out of the storage plugin's keys below.)
+    // CalibrationState is deliberately EXCLUDED from persistence as well:
+    // calibration data is admin-internal and must never sit in localStorage.
+    // (Both kept out of the storage plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState],
       withNgxsStoragePlugin({
+        // CalibrationState is deliberately EXCLUDED from persistence:
+        // calibration data is admin-internal and must never sit in
+        // localStorage. It is memory-only, re-fetched on each visit.
         keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
         beforeSerialize: (obj, key) =>
           // The report token and the comparison unlock are session-scoped:

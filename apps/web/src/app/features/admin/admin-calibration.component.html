@@ -1,0 +1,194 @@
+<div class="calibration">
+  <h1 class="calibration__title">Calibration console</h1>
+  <p class="calibration__subtitle">
+    Cost engine calibration state. Parameters change only through the freeze
+    process — never here.
+  </p>
+
+  @if ((status$ | async) === 'loading' || (status$ | async) === 'idle') {
+    <p class="calibration__loading" role="status">Loading calibration…</p>
+  }
+
+  @if ((status$ | async) === 'error') {
+    <div class="calibration__error" role="alert">
+      <p>{{ error$ | async }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  }
+
+  @if ((status$ | async) === 'ready' && (calibration$ | async); as cal) {
+    <!-- Version card -->
+    <section class="calibration__card" aria-labelledby="version-heading">
+      <h2 id="version-heading">Current version</h2>
+      <dl class="calibration__facts">
+        <div>
+          <dt>Version</dt>
+          <dd><code>{{ cal.current.version }}</code></dd>
+        </div>
+        <div>
+          <dt>Calibrated</dt>
+          <dd>
+            @if (cal.current.calibrated) {
+              <span class="calibration__badge calibration__badge--ok">Yes</span>
+            } @else {
+              <span class="calibration__badge calibration__badge--warn">No — placeholder</span>
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>Frozen</dt>
+          <dd>
+            @if (cal.current.frozen) {
+              <span class="calibration__badge calibration__badge--ok">Frozen (immutable)</span>
+            } @else {
+              <span class="calibration__badge calibration__badge--warn">Not frozen</span>
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{{ cal.current.source }}</dd>
+        </div>
+        <div>
+          <dt>Hard-cost categories</dt>
+          <dd>{{ cal.current.hardCostCategories }}</dd>
+        </div>
+        <div>
+          <dt>Soft-cost categories</dt>
+          <dd>{{ cal.current.softCostCategories }}</dd>
+        </div>
+        <div>
+          <dt>Finish tiers</dt>
+          <dd>{{ cal.current.tiers.join(', ') }}</dd>
+        </div>
+      </dl>
+      @if (cal.current.notes) {
+        <p class="calibration__notes">{{ cal.current.notes }}</p>
+      }
+    </section>
+
+    <!-- Calibration report -->
+    <section class="calibration__card" aria-labelledby="report-heading">
+      <h2 id="report-heading">Calibration report</h2>
+      <p class="calibration__meta">
+        Sample size: <strong>{{ cal.report.sampleSize }}</strong>
+        @if (cal.report.meanAbsoluteErrorFraction !== null) {
+          · Mean absolute error:
+          <strong>{{ formatError(cal.report.meanAbsoluteErrorFraction) }}</strong>
+        }
+      </p>
+
+      @if (cal.report.smallSampleWarning) {
+        <p class="calibration__warning" role="note">
+          {{ cal.report.smallSampleWarning }}
+        </p>
+      }
+
+      @if (cal.report.houses.length > 0) {
+        <table class="calibration__table">
+          <caption>Per-house actuals vs. engine output</caption>
+          <thead>
+            <tr>
+              <th scope="col">House</th>
+              <th scope="col">Actual</th>
+              <th scope="col">Engine</th>
+              <th scope="col">Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (house of cal.report.houses; track trackByHouseId($index, house)) {
+              <tr>
+                <th scope="row">{{ house.houseId }}</th>
+                <td>{{ formatCents(house.actualTotalCents) }}</td>
+                <td>{{ formatCents(house.engineTotalCents) }}</td>
+                <td>{{ formatError(house.errorFraction) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (cal.report.errorDistribution.buckets.length > 0) {
+          <h3>Error distribution</h3>
+          <div class="calibration__chart" role="img" aria-label="Error distribution across houses">
+            @for (bucket of cal.report.errorDistribution.buckets; track bucket; let i = $index) {
+              <div class="calibration__bar-row">
+                <span class="calibration__bar-label">{{ bucket }}</span>
+                <div
+                  class="calibration__bar"
+                  [style.width.%]="barWidth(cal.report.errorDistribution.counts[i], cal.report.sampleSize)"
+                ></div>
+                <span class="calibration__bar-count">{{ cal.report.errorDistribution.counts[i] }}</span>
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <p class="calibration__empty">
+          No houses in the report yet. Per-house actuals vs. engine output
+          will appear here after the first calibration import.
+        </p>
+      }
+    </section>
+
+    <!-- Import history -->
+    <section class="calibration__card" aria-labelledby="history-heading">
+      <h2 id="history-heading">Import history</h2>
+      @if (cal.importHistory.length > 0) {
+        <table class="calibration__table">
+          <caption>Calibration imports, newest first</caption>
+          <thead>
+            <tr>
+              <th scope="col">Version</th>
+              <th scope="col">Imported</th>
+              <th scope="col">Houses</th>
+              <th scope="col">By</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of cal.importHistory; track trackById($index, item)) {
+              <tr>
+                <td><code>{{ item.version }}</code></td>
+                <td>{{ item.importedAt }}</td>
+                <td>{{ item.houseCount }}</td>
+                <td>{{ item.importedBy }}</td>
+                <td>{{ item.status }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="calibration__empty">
+          No imports yet. The first import runs when Karan's cost Sheet
+          arrives (cost-engine/01).
+        </p>
+      }
+    </section>
+
+    <!-- V2 -->
+    <section class="calibration__card" aria-labelledby="v2-heading">
+      <h2 id="v2-heading">Next calibration</h2>
+      @if (cal.hasDraftV2) {
+        <p class="calibration__warning" role="note">
+          A v2 draft import is in progress. The frozen v1 parameters are
+          untouched — the draft is isolated until it is reviewed and frozen.
+        </p>
+      } @else {
+        <p>
+          When new cost data arrives, start the v2 import flow. The frozen
+          v1 stays live until v2 is reviewed and frozen.
+        </p>
+      }
+      <!-- PLACEHOLDER (admin/09): the v2 import flow ships with
+           cost-engine/01, which needs Karan's cost Sheet. Until then the
+           action is disabled and says so — no dead buttons. -->
+      <button
+        type="button"
+        disabled
+        title="Available after the first calibration import (waiting on Karan's cost Sheet)"
+      >
+        Start v2 import
+      </button>
+    </section>
+  }
+</div>

@@ -159,6 +159,10 @@ const targets = [
     out: 'admin-leads/index.js',
   },
   {
+    entry: 'src/functions/admin-calibration.ts',
+    out: 'admin-calibration/index.js',
+  },
+  {
     entry: 'src/functions/admin-leads-detail.ts',
     out: 'admin-leads-detail/index.js',
   },

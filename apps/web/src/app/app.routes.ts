@@ -26,6 +26,7 @@ import { AdminLoginComponent } from './features/admin/admin-login.component';
 import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
+import { AdminCalibrationComponent } from './features/admin/admin-calibration.component';
 import { adminGuard } from './features/admin/admin.guard';
 
 export const routes: Routes = [
@@ -181,6 +182,7 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'leads', pathMatch: 'full' },
       { path: 'leads', component: AdminLeadsComponent },
+      { path: 'calibration', component: AdminCalibrationComponent },
     ],
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
