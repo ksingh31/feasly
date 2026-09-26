@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
+import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -78,6 +79,14 @@ export const routes: Routes = [
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
   // crawlable. Sitemap already reserves /developers (seo/02).
   { path: 'developers', component: DevelopersPageComponent, canActivate: [robotsGuard] },
+  // Community index (SEO-05): prerendered hub listing all 40 community
+  // cost guides. Indexable — no `noindex` data. The `communities/:slug`
+  // pages (SEO-04) link back here; this page links out to each of them.
+  {
+    path: 'communities',
+    component: CommunitiesIndexPageComponent,
+    canActivate: [robotsGuard],
+  },
   // Labelled sample report (seo/09): fictional data, watermarked, never
   // gated/emailed/persisted. noindex like the wizard routes — it's a trust
   // page for visitors, not a search landing page.

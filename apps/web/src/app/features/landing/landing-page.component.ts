@@ -42,6 +42,8 @@ export class LandingPageComponent implements OnInit {
   readonly searchCopy = this.config.get('copy').search;
   /** Neighbourhood comparison entry copy (NBH-04). */
   readonly compareCopy = this.config.get('copy').comparison;
+  /** Community guides entry copy (SEO-05). */
+  readonly guidesCopy = this.config.get('copy').marketing.communities;
 
   /**
    * Trust items with mock-aware substitution: while the mock property

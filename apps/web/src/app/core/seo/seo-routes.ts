@@ -37,6 +37,8 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: 'faq', titleKey: 'faqTitle', descriptionKey: 'faq' },
   // API docs (api-mcp/03): indexable like the marketing pages above.
   { pattern: 'developers', titleKey: 'developersTitle', descriptionKey: 'developers' },
+  // Community index (SEO-05): indexable guide listing — no `noindex`.
+  { pattern: 'communities', titleKey: 'communitiesTitle', descriptionKey: 'communities' },
   {
     pattern: 'estimate/scope',
     titleKey: 'scopeTitle',
