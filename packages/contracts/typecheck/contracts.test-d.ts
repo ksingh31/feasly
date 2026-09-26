@@ -82,9 +82,12 @@ declare const suggestion: AutocompleteSuggestion;
 assertType<string>(suggestion.addressKey);
 
 declare const estimateReq: EstimateRequest;
-assertType<'standard' | 'premium' | 'luxury'>(estimateReq.tier);
-assertType<'none' | 'double' | 'triple'>(estimateReq.garage);
-assertType<'unfinished' | 'finished'>(estimateReq.basement);
+assertType<string>(estimateReq.property.addressKey);
+assertType<number>(estimateReq.property.assessedLandValue);
+assertType<number>(estimateReq.scope.buildSqft);
+assertType<'standard' | 'premium' | 'luxury'>(estimateReq.scope.tier);
+assertType<'none' | 'double' | 'triple'>(estimateReq.scope.garage);
+assertType<'unfinished' | 'finished'>(estimateReq.scope.basement);
 
 declare const leadReq: LeadRequest;
 assertType<string | undefined>(leadReq.phone);
