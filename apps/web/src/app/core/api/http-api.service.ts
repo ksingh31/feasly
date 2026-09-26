@@ -26,6 +26,7 @@ import type {
   TierRevisionRequest,
   TierRevisionResponse,
 } from '@feasly/contracts';
+import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { ConfigService } from '../config/config.service';
 import type { ApiService, CommunityStats } from './api.service';
 import { toApiError } from './api-error';
@@ -138,5 +139,34 @@ export class HttpApiService implements ApiService {
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
     return this.call(this.http.post<void>(`${this.base}/events`, event));
+  }
+
+  /**
+   * Admin funnel report (admin/07).
+   *
+   * Admin session auth (admin/01) is the real gate: the browser sends the
+   * HttpOnly session cookie automatically (same-origin). The `X-Admin-Key`
+   * header below is vestigial — kept for parity with the interim setup, the
+   * backend no longer honors it. The key comes from `admin.adminKey` deploy
+   * config — never from the page URL or localStorage, so it can't leak into
+   * shared links.
+   */
+  getFunnel(query: FunnelQuery): Observable<FunnelReport> {
+    let params = new HttpParams();
+    if (query.from) {
+      params = params.set('from', query.from);
+    }
+    if (query.to) {
+      params = params.set('to', query.to);
+    }
+    // 'all' = omit the param (backend treats absent as all; an empty string
+    // would fail the min(1) validation).
+    if (query.tenant !== 'all') {
+      params = params.set('tenant_key', query.tenant);
+    }
+    const headers = { 'X-Admin-Key': this.config.get('admin').adminKey };
+    return this.call(
+      this.http.get<FunnelReport>(`${this.base}/admin/funnels`, { params, headers }),
+    );
   }
 }

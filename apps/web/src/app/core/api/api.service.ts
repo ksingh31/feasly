@@ -25,6 +25,7 @@ import type {
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
+import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { HttpApiService } from './http-api.service';
 import { MockApiService } from './mock-api.service';
 
@@ -112,6 +113,12 @@ export interface ApiService {
   ): Observable<PartnerShareResponse>;
   /** First-party analytics event. Fire-and-forget. */
   trackEvent(event: AnalyticsEvent): Observable<void>;
+  /**
+   * Admin funnel report (admin/07): per-step counts + conversion rates for
+   * a date range and tenant filter. Numbers only — no PII. Admin-guarded
+   * server-side (admin/01 session auth).
+   */
+  getFunnel(query: FunnelQuery): Observable<FunnelReport>;
 }
 
 /** DI token for the ApiService. Inject this, never a concrete class. */
@@ -208,5 +215,9 @@ class LazyApiService implements ApiService {
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
     return this.resolve().trackEvent(event);
+  }
+
+  getFunnel(query: FunnelQuery): Observable<FunnelReport> {
+    return this.resolve().getFunnel(query);
   }
 }

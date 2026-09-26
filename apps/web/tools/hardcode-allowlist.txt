@@ -78,3 +78,8 @@ apps/web/src/app/core/api/mock-property-data.service.ts
 # percentage — a mathematical constant, not a tunable. It changes by geometry
 # (code review), never by deploy tuning.
 apps/web/src/app/features/compare/compare-results/compare-results.component.ts
+
+# Admin funnel dashboard (admin/07): the two `100` literals are percentage
+# unit conversions (0–1 ratio → % for bar widths and labels), not tunables.
+# They change by math, not by deploy tuning.
+apps/web/src/app/features/admin/funnels-page.component.ts

@@ -3,6 +3,7 @@ import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
+import { FunnelsPageComponent, adminGuard } from './features/admin';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
@@ -25,7 +26,6 @@ import { AdminLoginComponent } from './features/admin/admin-login.component';
 import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
-import { adminGuard } from './features/admin/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -121,6 +121,15 @@ export const routes: Routes = [
     path: 'embed/:tenantKey',
     component: EmbedShellComponent,
     canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  // Admin funnel dashboard (admin/07): Karan's conversion visibility —
+  // per-step counts + conversion %, date-range + tenant filters. Session-auth
+  // adminGuard (admin/01). noindex — private.
+  {
+    path: 'admin/funnels',
+    component: FunnelsPageComponent,
+    canActivate: [robotsGuard, adminGuard],
     data: { noindex: true },
   },
   // Branded error page (HRD-02): uncaught client failures land here via the
