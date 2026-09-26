@@ -103,35 +103,84 @@
   margin: 0 0 16px;
 }
 
-.tier-card dl {
-  margin: 0;
-  display: grid;
-  gap: 10px;
-}
-
-.tier-card dl > div {
+/* Hero number: the one figure each tier card leads with. */
+.total-hero {
+  margin: 0 0 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 16px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.tier-card dt {
+.total-hero-label {
+  font-size: var(--type-eyebrow);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 15px;
+  font-weight: 500;
 }
 
-.tier-card dd {
-  margin: 0;
-  font-weight: 600;
-  font-size: 17px;
-  text-align: right;
-}
-
-.tier-card .total dd {
+.total-hero-value {
   font-family: var(--font-headline);
-  font-size: 20px;
+  font-size: clamp(22px, 5.5vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   color: var(--accent-deep);
+}
+
+/* Land-vs-build split bar (CSS-only). Text equivalent via aria-label. */
+.split-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--cream-2);
+  margin: 0 0 10px;
+}
+
+.split-segment {
+  height: 100%;
+  min-width: 0;
+}
+
+.split-land {
+  background: var(--accent);
+}
+
+.split-build {
+  background: var(--text);
+}
+
+/* Caption doubles as the legend — swatches are never the only signal. */
+.split-caption {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.legend-swatch.land {
+  background: var(--accent);
+}
+
+.legend-swatch.build {
+  background: var(--text);
+}
+
+.legend-sep {
+  margin: 0 2px;
 }
 
 .basis-note {

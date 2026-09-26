@@ -599,6 +599,17 @@ export interface AppConfig {
       basisNote: string;
       tierSectionTitle: string;
       tierSectionSub: string;
+      /** Eyebrow above the hero total on each tier card. */
+      totalLabel: string;
+      /** Legend label for the land segment of the split bar. */
+      landSplitLabel: string;
+      /** Legend label for the build segment of the split bar. */
+      buildSplitLabel: string;
+      /**
+       * aria-label template for the split bar (text equivalent, never
+       * color-only). Placeholders: {land}, {landPct}, {build}, {buildPct}.
+       */
+      splitBarLabelTemplate: string;
       faqTitle: string;
       faqItems: { q: string; a: string }[];
       ctaTitle: string;

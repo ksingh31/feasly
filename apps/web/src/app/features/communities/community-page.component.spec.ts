@@ -24,6 +24,11 @@ describe('CommunityPageComponent', () => {
     basisNote: 'Basis note.',
     tierSectionTitle: 'What it costs to build in {name}',
     tierSectionSub: 'Sub.',
+    totalLabel: 'Total investment',
+    landSplitLabel: 'Land',
+    buildSplitLabel: 'Build',
+    splitBarLabelTemplate:
+      'Cost split: land {land} is about {landPct}% of the total; build {build} makes up about {buildPct}%.',
     faqTitle: 'Common questions',
     faqItems: [
       { q: 'Q1?', a: 'A1.' },
@@ -95,6 +100,52 @@ describe('CommunityPageComponent', () => {
     expect(cards.length).toBe(3);
     const labels = [...cards].map((c: Element) => c.querySelector('h3')?.textContent);
     expect(labels).toEqual(['Standard', 'Premium', 'Luxury']);
+  });
+
+  it('leads each tier card with one hero total-investment number', async () => {
+    await setup('beltline');
+    const heroes = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-value');
+    expect(heroes.length).toBe(3);
+    // Beltline Standard: total 1132040 – 1310570.
+    expect(heroes[0]?.textContent).toContain('$1,132,040');
+    expect(heroes[0]?.textContent).toContain('$1,310,570');
+    const eyebrows = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-label');
+    expect([...eyebrows].every((e: Element) => e.textContent === 'Total investment')).toBe(true);
+  });
+
+  it('does not repeat the assessed land figure inside tier cards', async () => {
+    await setup('beltline');
+    const cards = fixture.nativeElement.querySelectorAll('.tier-card');
+    for (const card of cards) {
+      // The old "Land (assessed)" line is gone — land lives in the stat block now.
+      expect(card.textContent).not.toContain('Land (assessed)');
+      expect(card.querySelector('dl')).toBeNull();
+    }
+  });
+
+  it('renders a split bar with a text equivalent (never color-only)', async () => {
+    await setup('beltline');
+    const bars = fixture.nativeElement.querySelectorAll('.tier-card .split-bar');
+    expect(bars.length).toBe(3);
+    const label = bars[0]?.getAttribute('aria-label') ?? '';
+    expect(bars[0]?.getAttribute('role')).toBe('img');
+    // Beltline Standard: land 607351, build mid 613954 → land ≈ 50%.
+    expect(label).toContain('Cost split: land $607,351 is about 50% of the total');
+    expect(label).toContain('build $524,689–$703,219 makes up about 50%');
+    // Segment widths sum to 100%.
+    const segments = bars[0]?.querySelectorAll('.split-segment');
+    const widths = [...segments].map((s: Element) => parseFloat((s as HTMLElement).style.width));
+    expect(widths.reduce((a: number, b: number) => a + b, 0)).toBeCloseTo(100, 5);
+  });
+
+  it('captions each card with build range and land in small text', async () => {
+    await setup('beltline');
+    const captions = fixture.nativeElement.querySelectorAll('.tier-card .split-caption');
+    expect(captions.length).toBe(3);
+    expect(captions[0]?.textContent).toContain('Land');
+    expect(captions[0]?.textContent).toContain('~$607,351');
+    expect(captions[0]?.textContent).toContain('Build');
+    expect(captions[0]?.textContent).toContain('$524,689');
   });
 
   it('renders exactly 5 FAQ items', async () => {

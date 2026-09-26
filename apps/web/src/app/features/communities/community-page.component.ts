@@ -119,6 +119,35 @@ export class CommunityPageComponent implements OnInit {
     }).format(value);
   }
 
+  /**
+   * Land's share of the tier total as a 0–100 percentage, computed against
+   * the build-range midpoint (land is a fixed value, build is a range).
+   * Drives the CSS-only land-vs-build split bar.
+   */
+  landSharePct(tier: TierRow): number {
+    const buildMid = (tier.buildLow + tier.buildHigh) / 2;
+    const total = tier.landValue + buildMid;
+    return total > 0 ? (tier.landValue / total) * 100 : 0;
+  }
+
+  /** Build's share of the tier total — the complement of landSharePct. */
+  buildSharePct(tier: TierRow): number {
+    return 100 - this.landSharePct(tier);
+  }
+
+  /**
+   * Text equivalent for the split bar (the bar must never be color-only
+   * for assistive tech). Interpolates the config-owned label template.
+   */
+  splitBarLabel(tier: TierRow): string {
+    const landPct = Math.round(this.landSharePct(tier));
+    return this.copy.splitBarLabelTemplate
+      .replace('{land}', this.formatCad(tier.landValue))
+      .replace('{landPct}', String(landPct))
+      .replace('{build}', `${this.formatCad(tier.buildLow)}–${this.formatCad(tier.buildHigh)}`)
+      .replace('{buildPct}', String(100 - landPct));
+  }
+
   private buildView(slug: string): CommunityView | null {
     const agg = (aggregates as { communities: AggregateRow[] }).communities.find((c) => c.slug === slug);
     const range = (ranges as { communities: RangeRow[] }).communities.find((c) => c.slug === slug);
