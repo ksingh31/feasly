@@ -223,6 +223,23 @@ const targets = [
     entry: 'src/functions/builder-leads-status.ts',
     out: 'builder-leads-status/index.js',
   },
+  // billing/01 first charge path — model-aware charge endpoints.
+  {
+    entry: 'src/functions/billing-report-contract.ts',
+    out: 'billing-report-contract/index.js',
+  },
+  {
+    entry: 'src/functions/billing-invoice-get.ts',
+    out: 'billing-invoice-get/index.js',
+  },
+  {
+    entry: 'src/functions/billing-invoice-dispute.ts',
+    out: 'billing-invoice-dispute/index.js',
+  },
+  {
+    entry: 'src/functions/billing-invoice-resolve.ts',
+    out: 'billing-invoice-resolve/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

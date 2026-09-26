@@ -223,3 +223,167 @@ describe('builder-leads service (embed/09)', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
+
+describe('builder-leads won → billing charge path (billing/01)', () => {
+  function makeBillingDeps(billingResult?: {
+    readonly billed: boolean;
+    readonly reason?: string;
+  }) {
+    const base = makeDeps();
+    const recordBillableEvent = vi.fn(async () => ({
+      billed: false,
+      reason: 'awaiting_contract_details',
+      ...billingResult,
+    }));
+    const billingHook = { recordBillableEvent };
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      billingHook: billingHook as never,
+    });
+    return { ...base, service, recordBillableEvent };
+  }
+
+  it('won with contract details runs the billing hook and returns its result', async () => {
+    const { service, recordBillableEvent, leads } = makeBillingDeps({
+      billed: true,
+      reason: undefined,
+    });
+    const result = await service.updateStatus(
+      'lead-1',
+      {
+        status: 'won',
+        contractValueCents: 50_000_000,
+        contractSignedAt: '2026-09-20T10:00:00.000Z',
+      },
+      'elite-craft',
+      'builder@example.com',
+    );
+
+    expect(recordBillableEvent).toHaveBeenCalledTimes(1);
+    expect(recordBillableEvent).toHaveBeenCalledWith(
+      'elite-craft',
+      'lead_won',
+      expect.objectContaining({
+        leadId: 'lead-1',
+        contractValueCents: 50_000_000,
+        contractSignedAt: new Date('2026-09-20T10:00:00.000Z'),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.billing).toMatchObject({ billed: true });
+    // The pipeline status still transitions.
+    expect(leads.get('lead-1')?.status).toBe('won');
+  });
+
+  it('won without contract details still calls the hook (parked invoice)', async () => {
+    const { service, recordBillableEvent } = makeBillingDeps();
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'won' },
+      'elite-craft',
+      'builder@example.com',
+    );
+
+    expect(recordBillableEvent).toHaveBeenCalledTimes(1);
+    expect(recordBillableEvent).toHaveBeenCalledWith(
+      'elite-craft',
+      'lead_won',
+      expect.objectContaining({ leadId: 'lead-1' }),
+    );
+    expect(result.billing).toMatchObject({
+      billed: false,
+      reason: 'awaiting_contract_details',
+    });
+  });
+
+  it('non-won transitions never call the billing hook', async () => {
+    const { service, recordBillableEvent } = makeBillingDeps();
+    await service.updateStatus(
+      'lead-1',
+      { status: 'quoted' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+  });
+
+  it('already-won lead does not re-run the hook', async () => {
+    const { service, recordBillableEvent, leads } = makeBillingDeps();
+    leads.set('lead-1', { ...leads.get('lead-1')!, status: 'won' });
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'won' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.billing).toBeUndefined();
+  });
+
+  it('contract details with a non-won status are rejected with 400', async () => {
+    const { service, recordBillableEvent } = makeBillingDeps();
+    await expect(
+      service.updateStatus(
+        'lead-1',
+        { status: 'quoted', contractValueCents: 50_000_000 },
+        'elite-craft',
+        'builder@example.com',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+  });
+
+  it('partial contract details (missing signed date) are rejected with 400', async () => {
+    const { service, recordBillableEvent } = makeBillingDeps();
+    await expect(
+      service.updateStatus(
+        'lead-1',
+        { status: 'won', contractValueCents: 50_000_000 },
+        'elite-craft',
+        'builder@example.com',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+  });
+
+  it('a billing failure leaves the pipeline status untouched', async () => {
+    const base = makeDeps();
+    const billingHook = {
+      recordBillableEvent: vi.fn(async () => {
+        throw Object.assign(new Error('billing exploded'), { status: 422 });
+      }),
+    };
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      billingHook: billingHook as never,
+    });
+
+    await expect(
+      service.updateStatus(
+        'lead-1',
+        {
+          status: 'won',
+          contractValueCents: 50_000_000,
+          contractSignedAt: '2026-09-20T10:00:00.000Z',
+        },
+        'elite-craft',
+        'builder@example.com',
+      ),
+    ).rejects.toThrow('billing exploded');
+    expect(base.leads.get('lead-1')?.status).toBe('new');
+  });
+
+  it('works without a billing hook (tests that do not cover billing)', async () => {
+    const { service } = makeDeps();
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'won' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result).toEqual({ ok: true });
+  });
+});
