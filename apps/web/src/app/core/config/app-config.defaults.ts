@@ -713,8 +713,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         lastUsedLabel: 'Last used',
         createdLabel: 'Created',
       },
-    },
-    admin: {
       funnels: {
         title: 'Funnel dashboard',
         subtitle: 'Landing → scope → details → preview → gate → report. Numbers only — no personal data on this page.',
