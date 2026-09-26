@@ -103,11 +103,11 @@
               </div>
               <div>
                 <dt>{{ copy.leadCreatedLabel }}</dt>
-                <dd>{{ lead.createdAt }}</dd>
+                <dd>{{ lead.createdAt | date: 'medium' }}</dd>
               </div>
               <div>
                 <dt>{{ copy.leadStatusUpdatedLabel }}</dt>
-                <dd>{{ lead.statusUpdatedAt }}</dd>
+                <dd>{{ lead.statusUpdatedAt | date: 'medium' }}</dd>
               </div>
             </dl>
             <div class="builder-dashboard__actions" role="group" [attr.aria-label]="copy.actionsLabel">

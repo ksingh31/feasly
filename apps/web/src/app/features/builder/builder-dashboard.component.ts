@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type { BuilderLeadListItem, BuilderLeadStatus } from '@feasly/contracts';
@@ -23,6 +24,7 @@ import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 @Component({
   selector: 'app-builder-dashboard',
   standalone: true,
+  imports: [DatePipe],
   templateUrl: './builder-dashboard.component.html',
   styleUrls: ['./builder-dashboard.component.scss'],
 })
