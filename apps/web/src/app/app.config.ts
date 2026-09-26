@@ -22,7 +22,6 @@ import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
-import { SheetsSyncState } from './features/admin/sheets-sync.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
