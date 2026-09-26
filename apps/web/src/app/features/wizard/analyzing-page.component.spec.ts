@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Subject, firstValueFrom, of } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi } from '../../core/api/api.service';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, LeadState, SelectProperty, StoreLeadResult, WizardState } from '../wizard';
@@ -139,13 +140,14 @@ describe('AnalyzingPageComponent', () => {
     async function submitLeadAsGate(): Promise<string> {
       const api = TestBed.inject(API_SERVICE);
       const preview = await firstValueFrom(
-        api.getPreviewEstimate({
-          addressKey: fakeProperty.addressKey,
-          sqft: 2200,
-          tier: 'standard',
-          garage: 'double',
-          basement: 'unfinished',
-        }),
+        api.getPreviewEstimate(
+          buildNewBuildRequest(fakeProperty, {
+            sqft: 2200,
+            tier: 'standard',
+            garage: 'double',
+            basement: 'unfinished',
+          }),
+        ),
       );
       const lead = await firstValueFrom(
         api.submitLead({

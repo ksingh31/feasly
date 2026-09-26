@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import type { PropertyRecord, TierRevisionRequest, TierRevisionResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
@@ -89,7 +90,7 @@ describe('ReportState', () => {
   /** Full mock lead flow: preview → lead → token. */
   async function mockToken(): Promise<string> {
     store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
-    const preview = await firstValueFrom(api.getPreviewEstimate({ addressKey: fakeProperty.addressKey, ...baseInputs }));
+    const preview = await firstValueFrom(api.getPreviewEstimate(buildNewBuildRequest(fakeProperty, baseInputs)));
     const lead = await firstValueFrom(
       api.submitLead({
         email: 'buyer@example.com',

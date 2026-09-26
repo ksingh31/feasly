@@ -152,6 +152,27 @@ describe('estimate service', () => {
     expect(error.status).toBe(400);
   });
 
+  it('rejects the legacy flat new-build body with 400 VALIDATION_FAILED', async () => {
+    const service = createEstimateService({
+      costData: PLACEHOLDER_COST_DATA,
+      store: fakeStore(),
+      allowDraftCostData: true,
+    communityStats: mockCommunityStatsService(),});
+    // Old flat shape: { addressKey, sqft, tier, garage, basement } at top level.
+    const error = await service
+      .estimate({
+        addressKey: 'calgary-123-fake-st-nw',
+        sqft: 2_200,
+        tier: 'premium',
+        garage: 'double',
+        basement: 'unfinished',
+      })
+      .catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.status).toBe(400);
+    expect(error.code).toBe('VALIDATION_FAILED');
+  });
+
   it('rejects a wrong-typed field with 400', async () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,

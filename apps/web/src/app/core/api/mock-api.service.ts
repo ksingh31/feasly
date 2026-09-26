@@ -11,7 +11,6 @@ import type {
   ComparisonEstimateRequest,
   ComparisonEstimateResponse,
   EstimateInputs,
-  EstimateRequest,
   GetReportResponse,
   LeadRequest,
   LeadResponse,
@@ -19,6 +18,7 @@ import type {
   MagicLinkReissueResponse,
   MagicLinkVerifyResponse,
   NarrativeResponse,
+  NewBuildEstimateRequest,
   PartnerShareRequest,
   PartnerShareResponse,
   PreviewEstimateResponse,
@@ -117,12 +117,22 @@ export class MockApiService implements ApiService {
     if (request.projectType === 'comparison') {
       throw new Error('Comparison not supported in mock');
     }
+    // New-build requests are nested { property, scope } (mirrors the live API).
     return {
-      sqft: request.sqft,
-      tier: request.tier,
-      garage: request.garage,
-      basement: request.basement,
+      sqft: request.scope.buildSqft,
+      tier: request.scope.tier,
+      garage: request.scope.garage,
+      basement: request.scope.basement,
     };
+  }
+
+  /** Address key regardless of request shape (new-build nests it under `property`). */
+  private requestAddressKey(
+    request: NewBuildEstimateRequest | RenoEstimateRequest,
+  ): string {
+    return request.projectType === 'renovation'
+      ? request.addressKey
+      : request.property.addressKey;
   }
 
   /** Simulates one network round trip using the configured mock latency. */
@@ -168,12 +178,13 @@ export class MockApiService implements ApiService {
     // value when available. Falls back to the canned default for addresses
     // not in the fixtures (e.g. live City API data) — the preview never
     // blocks on this.
+    const addressKey = this.requestAddressKey(request);
     const assessedLandValue =
-      mockPropertyFor(request.addressKey)?.assessedValue ??
-      this.propertyAssessedValues.get(request.addressKey);
+      mockPropertyFor(addressKey)?.assessedValue ??
+      this.propertyAssessedValues.get(addressKey);
     // Pre-gate preview carries the real computed figures — the UI renders
     // them blurred until the lead gate unlocks (2026-09-26).
-    const response = mockPreviewEstimate(request.addressKey, inputs, {
+    const response = mockPreviewEstimate(addressKey, inputs, {
       assessedLandValue,
       referenceSqft: this.referenceSqft(),
       renoRequest: request.projectType === 'renovation' ? request : undefined,
@@ -215,11 +226,12 @@ export class MockApiService implements ApiService {
     const inputs = this.toInputs(request);
     // Mirror the real backend: land is the property's City assessed value.
     // (Synchronous fixture lookup; see getPreviewEstimate.)
+    const addressKey = this.requestAddressKey(request);
     const assessedLandValue =
-      mockPropertyFor(request.addressKey)?.assessedValue ??
-      this.propertyAssessedValues.get(request.addressKey);
+      mockPropertyFor(addressKey)?.assessedValue ??
+      this.propertyAssessedValues.get(addressKey);
     const response = mockEstimate(
-      request.addressKey,
+      addressKey,
       inputs,
       this.referenceSqft(),
       assessedLandValue,

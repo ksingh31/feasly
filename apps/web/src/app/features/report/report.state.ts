@@ -4,6 +4,7 @@ import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
 import type { PreviewEstimateResponse, ReportSnapshot } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { WizardState } from '../wizard/wizard.state';
 import { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } from './report.actions';
 
@@ -124,7 +125,7 @@ export class ReportState {
         this.fail(ctx);
         return;
       }
-      request = { addressKey: property.addressKey, ...inputs };
+      request = buildNewBuildRequest(property, inputs);
     }
     
     this.beginLoad(ctx);

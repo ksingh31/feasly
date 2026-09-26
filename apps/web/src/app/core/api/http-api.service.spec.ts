@@ -48,11 +48,19 @@ describe('HttpApiService', () => {
   }
 
   const estimateRequest = {
-    addressKey: 'calgary-1234-14-st-nw',
-    sqft: 2400,
-    tier: 'premium',
-    garage: 'double',
-    basement: 'unfinished',
+    projectType: 'new_build',
+    property: {
+      addressKey: 'calgary-1234-14-st-nw',
+      assessedLandValue: 4930000,
+      lotSizeSqft: 5000,
+      zoning: 'R-CG',
+    },
+    scope: {
+      buildSqft: 2400,
+      tier: 'premium',
+      garage: 'double',
+      basement: 'unfinished',
+    },
   } as const;
 
   const cases: RouteCase[] = [

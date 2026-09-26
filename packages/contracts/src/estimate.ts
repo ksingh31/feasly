@@ -52,8 +52,36 @@ export interface EstimateVisibility {
   readonly total: VisibilityHint;
 }
 
-export interface EstimateRequest extends EstimateInputs {
+/** Property facts a new-build estimate is anchored to (matches the API's nested request shape). */
+export interface EstimatePropertyInputs {
+  /** Opaque property identifier from lookup. */
   readonly addressKey: string;
+  /** City-assessed land value, integer CAD. */
+  readonly assessedLandValue: number;
+  /** Lot size in square feet. */
+  readonly lotSizeSqft: number;
+  /** City land-use designation, verbatim. */
+  readonly zoning: string;
+}
+
+/** New-build scope inputs (matches the API's nested request shape). */
+export interface EstimateScopeInputs {
+  /** Above-grade living area in square feet. */
+  readonly buildSqft: number;
+  readonly tier: FinishTier;
+  readonly garage: GarageOption;
+  readonly basement: BasementOption;
+}
+
+/**
+ * New-build estimate request. NESTED `{ property, scope }` — mirrors the
+ * API's `NewBuildRequestSchema`; the live backend rejects a flat body
+ * (`addressKey`/`sqft` at top level) with a 400.
+ */
+export interface EstimateRequest {
+  readonly projectType?: 'new_build';
+  readonly property: EstimatePropertyInputs;
+  readonly scope: EstimateScopeInputs;
 }
 
 /** Renovation estimate request (RENO-01). Discriminated by projectType. */
@@ -67,9 +95,7 @@ export interface RenoEstimateRequest {
 }
 
 /** New-build estimate request (explicit discriminator for the union). */
-export interface NewBuildEstimateRequest extends EstimateRequest {
-  readonly projectType?: 'new_build';
-}
+export type NewBuildEstimateRequest = EstimateRequest;
 
 /** Any estimate request — new build, renovation, or comparison (NBH-02). */
 export type AnyEstimateRequest = NewBuildEstimateRequest | RenoEstimateRequest | ComparisonEstimateRequest;
