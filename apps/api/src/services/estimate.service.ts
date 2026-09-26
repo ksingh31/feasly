@@ -50,6 +50,7 @@ import type {
 } from '@feasly/contracts';
 import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { BuilderConfigService } from './builder-config.service';
 import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateStore } from './estimate.store';
 
@@ -64,6 +65,8 @@ import type { EstimateStore } from './estimate.store';
  */
 const NewBuildRequestSchema = z.object({
   projectType: z.literal('new_build').default('new_build'),
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  tenantKey: z.string().trim().min(1).max(120).optional(),
   property: z.object({
     addressKey: z.string().trim().min(1).max(200),
     assessedLandValue: z.number().int().positive(),
@@ -81,6 +84,8 @@ const NewBuildRequestSchema = z.object({
 /** Renovation request shape (RENO-01). `addressKey` is required. */
 const RenoRequestSchema = z.object({
   projectType: z.literal('renovation'),
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  tenantKey: z.string().trim().min(1).max(120).optional(),
   addressKey: z.string().trim().min(1).max(200),
   renoType: z.enum(['extensive', 'addition', 'basement', 'combined']),
   renoSqft: z.number().int().positive(),
@@ -139,6 +144,8 @@ export interface EstimateServiceDeps {
    * Wired once in composition.ts.
    */
   readonly communityStats: CommunityStatsService;
+  /** Validates embed tenant keys (EMB-03). Optional — embeds disabled when absent. */
+  readonly builderConfigs?: BuilderConfigService;
 }
 
 /** Engine bands are { low, base, high }; the contract carries all three. */
@@ -259,6 +266,34 @@ function toComparisonResponse(
 }
 
 export function createEstimateService(deps: EstimateServiceDeps): EstimateService {
+  /**
+   * EMB-03: resolve and validate the embed tenant key server-side.
+   * Returns the validated key, or undefined when no key was supplied.
+   * An unknown key is a 400 — the client must not invent tenants.
+   */
+  async function resolveTenantKey(tenantKey: string | undefined): Promise<string | undefined> {
+    if (tenantKey === undefined) return undefined;
+    if (!deps.builderConfigs) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Embed tenant keys are not supported.',
+        false,
+      );
+    }
+    try {
+      await deps.builderConfigs.getByKey(tenantKey);
+    } catch {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Unknown tenant key.',
+        false,
+      );
+    }
+    return tenantKey;
+  }
+
   return {
     async estimate(
       requestBody: unknown,
@@ -298,6 +333,11 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
 
       const estimateId = randomUUID();
       const createdAt = new Date();
+      // NBH-02 comparison requests carry no tenant key — resolve only when
+      // the field exists on this request variant.
+      const tenantKey = await resolveTenantKey(
+        'tenantKey' in parsed.data ? parsed.data.tenantKey : undefined,
+      );
 
       if (parsed.data.projectType === 'renovation') {
         // Draft-data gate: reno rates are uncalibrated placeholders. Refuse
@@ -331,6 +371,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           id: estimateId,
           projectType: 'renovation',
           addressKey: response.addressKey,
+          tenantKey,
           inputs: { ...response.inputs, renoInputs: response.renoInputs },
           figures: response.figures,
           rows: response.rows,
@@ -432,6 +473,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         id: estimateId,
         projectType: 'new_build',
         addressKey: response.addressKey,
+        tenantKey,
         inputs: response.inputs,
         figures: response.figures,
         rows: response.rows,

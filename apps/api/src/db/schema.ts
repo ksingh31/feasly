@@ -37,6 +37,8 @@ export const estimates = pgTable(
     /** Which engine branch produced the row: 'new_build' or 'renovation'. */
     projectType: text('project_type').notNull().default('new_build'),
     addressKey: text('address_key').notNull(),
+    /** Present only on builder embeds; the tenant key from the embed URL. */
+    tenantKey: text('tenant_key'),
     /** The contract `EstimateInputs` the estimate was computed from. */
     inputs: jsonb('inputs').notNull(),
     /** The contract `figures` ({ build, total, land } ranges). */
@@ -95,7 +97,7 @@ export const leads = pgTable(
     consentTs: timestamp('consent_ts', { withTimezone: true }).notNull(),
     /** Present only on builder embeds; FK arrives with the tenants table. */
     tenantKey: text('tenant_key'),
-    /** web | api | mcp — which surface captured the lead. */
+    /** web | api | mcp | embed — which surface captured the lead. */
     source: text('source').notNull().default('api'),
     /**
      * Anti-spam quarantine (HRD-03). Set when the honeypot field arrives

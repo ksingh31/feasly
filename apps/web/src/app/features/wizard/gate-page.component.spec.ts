@@ -14,6 +14,8 @@ import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, ChooseProjectType, LeadState, SelectProperty, WizardState } from '../wizard';
 import { AnalyticsService } from '../consent';
+import { EmbedState } from '../embed/embed.state';
+import { EmbedConfigLoaded, EmbedConfigFailed, LoadEmbedConfig } from '../embed/embed.actions';
 import { GatePageComponent } from './gate-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -92,7 +94,7 @@ describe('GatePageComponent', () => {
           { path: 'estimate/scope', component: BlankComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
-        provideStore([WizardState, LeadState]),
+        provideStore([WizardState, LeadState, EmbedState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
         { provide: AnalyticsService, useValue: { track: vi.fn() } },
@@ -338,6 +340,92 @@ describe('GatePageComponent', () => {
       expect(box.checked).toBe(false);
       // Exactly one timeline question on the page.
       expect(el.querySelectorAll('#gate-timeline').length).toBe(1);
+    });
+  });
+
+  describe('EMB-03 embed attribution', () => {
+    const acmeConfig = {
+      business_name: 'Acme Builders Ltd.',
+      display_name: 'Acme Builders',
+      logo_url: '',
+      accent_color: '#b08d57',
+      allowed_origins: ['https://acme.example'],
+      fallback_phone: '',
+      fallback_email: '',
+      plan: null,
+    };
+
+    const betaConfig = {
+      ...acmeConfig,
+      business_name: 'Beta Homes Inc.',
+      display_name: 'Beta Homes',
+    };
+
+    beforeEach(() => setup());
+
+    it('shows the consent line with the builder name from config', () => {
+      store.dispatch(new LoadEmbedConfig('acme-builders'));
+      store.dispatch(new EmbedConfigLoaded(acmeConfig as never));
+      fixture.detectChanges();
+
+      const consent = fixture.nativeElement.querySelector('.embed-consent') as HTMLElement;
+      expect(consent).not.toBeNull();
+      expect(consent.textContent).toContain('Acme Builders');
+      expect(consent.textContent).toContain(
+        'Your details go to Acme Builders, who may contact you about this estimate.',
+      );
+    });
+
+    it('updates the consent line when the config has a different name', () => {
+      store.dispatch(new LoadEmbedConfig('beta-homes'));
+      store.dispatch(new EmbedConfigLoaded(betaConfig as never));
+      fixture.detectChanges();
+
+      const consent = fixture.nativeElement.querySelector('.embed-consent') as HTMLElement;
+      expect(consent).not.toBeNull();
+      expect(consent.textContent).toContain('Beta Homes');
+      expect(consent.textContent).not.toContain('Acme Builders');
+    });
+
+    it('hides the consent line outside embed context', () => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.embed-consent')).toBeNull();
+    });
+
+    it('fail-closed: config failure shows the unavailable copy and no form', () => {
+      store.dispatch(new LoadEmbedConfig('unknown-tenant'));
+      store.dispatch(new EmbedConfigFailed('unknown_tenant'));
+      fixture.detectChanges();
+
+      const unavailable = fixture.nativeElement.querySelector(
+        '.embed-unavailable',
+      ) as HTMLElement;
+      expect(unavailable).not.toBeNull();
+      expect(unavailable.textContent).toContain(
+        'This estimator is temporarily unavailable right now.',
+      );
+      // The gate form does not render — nothing can be collected.
+      expect(fixture.nativeElement.querySelector('form.gate-form')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#gate-name')).toBeNull();
+    });
+
+    it('passes the tenant key through to the lead submission', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      const previewSpy = vi.spyOn(mockApi, 'getPreviewEstimate');
+
+      store.dispatch(new LoadEmbedConfig('acme-builders'));
+      store.dispatch(new EmbedConfigLoaded(acmeConfig as never));
+      fixture.detectChanges();
+
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+
+      expect(submitSpy).toHaveBeenCalledOnce();
+      expect(submitSpy.mock.calls[0][0].tenantKey).toBe('acme-builders');
+      expect(previewSpy.mock.calls[0][0].tenantKey).toBe('acme-builders');
+
     });
   });
 });

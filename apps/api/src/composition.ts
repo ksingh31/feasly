@@ -552,11 +552,20 @@ export function createComposition(
   // Cost engine: the versioned calibration table is injected here — the only
   // place the concrete table is chosen. A calibrated successor file swaps in
   // with a one-line change; every estimate pins which version it used.
+  // Builder configs (EMB-02/03): created before estimate/lead services so
+  // embed tenant keys can be validated server-side. Resolution order: repo
+  // JSON first, DB tenants row as fallback. Unknown key → 404 UNKNOWN_TENANT.
+  const builderConfigService: BuilderConfigService = createBuilderConfigService({
+    db: db.db,
+    configs: BUILDER_CONFIGS,
+    isDev: config.env !== 'production',
+  });
   const estimateService: EstimateService = createEstimateService({
     costData: PLACEHOLDER_COST_DATA,
     store: estimateStore,
     allowDraftCostData: config.costEngine.allowDraftCostData,
     communityStats: communityStatsService,
+    builderConfigs: builderConfigService,
   });
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =
@@ -595,6 +604,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    builderConfigs: builderConfigService,
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -812,16 +822,7 @@ export function createComposition(
       adminGuard,
     });
   // Builder embed config (embed/02): repo JSON inlined at build time wins,
-  // DB tenants row is the fallback. Unknown key → 404 UNKNOWN_TENANT.
-  // isDev mirrors the generator's rule (tools/generate-builder-configs.ts):
-  // localhost origins are allowed everywhere except production.
-  const builderConfigService: BuilderConfigService = createBuilderConfigService(
-    {
-      db: db.db,
-      configs: BUILDER_CONFIGS,
-      isDev: config.env !== 'production',
-    },
-  );
+  // Embed config route uses the builderConfigService created above.
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
     builderConfig: builderConfigService,
   });

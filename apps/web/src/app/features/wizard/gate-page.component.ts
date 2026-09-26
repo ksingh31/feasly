@@ -10,6 +10,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
+import { EmbedState } from '../embed/embed.state';
 import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
 import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
 import { AnalyticsService } from '../consent';
@@ -96,6 +97,26 @@ export class GatePageComponent implements OnInit {
 
   protected status: GateStatus = 'idle';
 
+  /** EMB-03: embed context from the session-scoped EmbedState. */
+  protected readonly embedStatus = this.store.selectSignal(EmbedState.status);
+  protected readonly embedConfig = this.store.selectSignal(EmbedState.config);
+  protected readonly embedTenantKey = this.store.selectSignal(EmbedState.tenantKey);
+
+  /** True when the gate is rendered inside a builder embed with a loaded config. */
+  protected get isEmbed(): boolean {
+    return this.embedTenantKey() !== null && this.embedStatus() === 'ready';
+  }
+
+  /** Builder display name from the signed embed config (never from URL params). */
+  protected get builderName(): string {
+    return this.embedConfig()?.display_name ?? '';
+  }
+
+  /** EMB-03 fail-closed: config failed to load → gate does not render. */
+  protected get embedUnavailable(): boolean {
+    return this.embedTenantKey() !== null && this.embedStatus() === 'error';
+  }
+
   ngOnInit(): void {
     this.seo.setPage({
       title: this.config.get('copy').seo.gateTitle,
@@ -153,11 +174,15 @@ export class GatePageComponent implements OnInit {
       return;
     }
     const values = this.form.getRawValue();
+    // EMB-03: in embed context, the tenant key flows through to the backend
+    // for server-side attribution. The backend validates the key against
+    // the tenants table — it is never trusted blindly.
+    const tenantKey = this.embedTenantKey() ?? undefined;
     // The lead must reference an estimate: mint the estimateId with a real
     // preview call first. The analyzing screen re-runs the full pipeline
     // visibly right after this.
     this.api
-      .getPreviewEstimate({ addressKey: property.addressKey, ...inputs })
+      .getPreviewEstimate({ addressKey: property.addressKey, tenantKey, ...inputs })
       .pipe(
         switchMap((preview) =>
           this.api
@@ -170,6 +195,7 @@ export class GatePageComponent implements OnInit {
               marketingConsent: values.casl,
               // HRD-03 honeypot — empty for humans, filled by bots.
               website: values.website,
+              tenantKey,
             })
             .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
         ),

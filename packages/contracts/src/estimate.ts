@@ -52,6 +52,8 @@ export interface EstimateVisibility {
 
 export interface EstimateRequest extends EstimateInputs {
   readonly addressKey: string;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** Renovation estimate request (RENO-01). Discriminated by projectType. */
@@ -62,6 +64,8 @@ export interface RenoEstimateRequest {
   readonly renoSqft: number;
   readonly tier: FinishTier;
   readonly underpinning: boolean;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** New-build estimate request (explicit discriminator for the union). */
@@ -80,6 +84,8 @@ export interface ComparisonEstimateRequest {
   /** Above-grade living area in square feet (same for all communities). */
   readonly sqft: number;
   readonly tier: FinishTier;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** One neighbourhood's figures in a comparison response (NBH-02). */
