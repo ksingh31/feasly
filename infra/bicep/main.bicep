@@ -128,6 +128,21 @@ module staticWebApp 'modules/static-web-app.bicep' = {
   }
 }
 
+// --- Link Function App as the SWA backend API ---
+// Without this, the SWA's /api/* requests hit the SPA fallback (405/HTML)
+// instead of the Function App. P0 fix 2026-09-26.
+resource swaLinkedBackend 'Microsoft.Web/staticSites/linkedBackends@2024-04-01' = {
+  name: '${swaName}/backend'
+  properties: {
+    backendResourceId: functionApp.outputs.id
+    region: location
+  }
+  dependsOn: [
+    staticWebApp
+    functionApp
+  ]
+}
+
 // --- Function App (Flex Consumption) ---
 module functionApp 'modules/function-app.bicep' = {
   name: 'function-app'

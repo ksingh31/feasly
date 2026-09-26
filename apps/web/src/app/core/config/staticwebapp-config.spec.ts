@@ -49,6 +49,17 @@ describe('staticwebapp.config.json SPA fallback', () => {
     expect(exclude.some((pattern) => pattern.startsWith('/assets'))).toBe(true);
   });
 
+  it('never swallows /api/* into the SPA fallback (P0 2026-09-26)', () => {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      navigationFallback?: { rewrite?: string; exclude?: string[] };
+    };
+    const exclude = config.navigationFallback?.exclude ?? [];
+    // The SWA has a linked Function App backend: /api/* must reach it.
+    // Without this exclusion a missing/stale linked backend silently serves
+    // index.html (GET) / 405 (POST) instead of the API.
+    expect(exclude).toContain('/api/*');
+  });
+
   it('overrides platform 404s to the SPA shell (branded /404 route)', () => {
     const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
       responseOverrides?: { '404'?: { rewrite?: string } };
