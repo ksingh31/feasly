@@ -82,6 +82,8 @@ export interface EstimateRequest {
   readonly projectType?: 'new_build';
   readonly property: EstimatePropertyInputs;
   readonly scope: EstimateScopeInputs;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** Renovation estimate request (RENO-01). Discriminated by projectType. */
@@ -92,6 +94,8 @@ export interface RenoEstimateRequest {
   readonly renoSqft: number;
   readonly tier: FinishTier;
   readonly underpinning: boolean;
+  /** Present only on builder embeds. Validated server-side against the tenants table. */
+  readonly tenantKey?: string;
 }
 
 /** New-build estimate request (explicit discriminator for the union). */

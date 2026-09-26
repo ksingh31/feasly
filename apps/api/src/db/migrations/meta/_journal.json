@@ -194,8 +194,15 @@
     {
       "idx": 27,
       "version": "7",
-      "when": 1790306900000,
+"when": 1790306900000,
       "tag": "0029_embed_relay_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790457297046,
+      "tag": "0030_embed_attribution",
       "breakpoints": true
     }
   ]

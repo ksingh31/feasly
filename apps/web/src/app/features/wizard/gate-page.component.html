@@ -1,12 +1,26 @@
     <app-site-nav />
     <main class="wrap">
-      @if (!isComparisonFlow) {
-        <app-wizard-steps [current]="3" />
-      }
-      <h1 class="gate-heading">{{ copy.heading }}</h1>
-      <p class="gate-sub">{{ copy.sub }}</p>
+      @if (embedUnavailable) {
+        <!-- EMB-03 fail-closed: config failed to load → collect nothing. -->
+        <div class="embed-unavailable" role="alert">
+          <p>This estimator is temporarily unavailable right now.</p>
+        </div>
+      } @else {
+        @if (!isComparisonFlow) {
+          <app-wizard-steps [current]="3" />
+        }
+        <h1 class="gate-heading">{{ copy.heading }}</h1>
+        <p class="gate-sub">{{ copy.sub }}</p>
 
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="gate-form" novalidate>
+        @if (isEmbed) {
+          <!-- EMB-03: builder attribution consent line. Builder name comes -->
+          <!-- from the signed embed config, never from URL params. -->
+          <p class="embed-consent">
+            Your details go to {{ builderName }}, who may contact you about this estimate.
+          </p>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="gate-form" novalidate>
         <div class="field">
           <label for="gate-name">{{ copy.nameLabel }}</label>
           <input
@@ -110,5 +124,6 @@
           {{ copy.privacyNote }} <a routerLink="/privacy">{{ copy.privacyLinkLabel }}</a>
         </p>
       </form>
+      }
     </main>
     <app-site-footer />

@@ -37,6 +37,7 @@ import { z } from 'zod';
 import type { LeadResponse } from '@feasly/contracts';
 import { computeLeadScore } from '../lib/lead-score';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { BuilderConfigService } from './builder-config.service';
 import type { EmailService } from './email/email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
@@ -88,6 +89,8 @@ export interface LeadServiceDeps {
   readonly dedupWindowDays: number;
   /** Magic-link TTL, seconds — drives the UI's `expiresInDays`. */
   readonly magicLinkTtlSeconds: number;
+  /** Validates embed tenant keys (EMB-03). Optional — embeds disabled when absent. */
+  readonly builderConfigs?: BuilderConfigService;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -109,6 +112,32 @@ function extractTotalBase(figures: unknown): number | undefined {
 
 export function createLeadService(deps: LeadServiceDeps): LeadService {
   const clock = deps.clock ?? (() => new Date());
+
+  /**
+   * EMB-03: resolve and validate the embed tenant key server-side.
+   * An unknown key is a 400 — the client must not invent tenants.
+   */
+  async function resolveTenantKey(tenantKey: string): Promise<string> {
+    if (!deps.builderConfigs) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Embed tenant keys are not supported.',
+        false,
+      );
+    }
+    try {
+      await deps.builderConfigs.getByKey(tenantKey);
+    } catch {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Unknown tenant key.',
+        false,
+      );
+    }
+    return tenantKey;
+  }
 
   /**
    * consumer/02 — the dedupe-hit path. Updates the existing lead's scalar
@@ -238,6 +267,17 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // capture so bots can't probe for the trap.
       const quarantined = (input.website ?? '').trim().length > 0;
 
+      // EMB-03: resolve the embed tenant key server-side. The key is
+      // validated against the tenants table — a forged or unknown key is a
+      // 400, never silently trusted. A client-supplied `tenant_id` field is
+      // not in the schema, so Zod strips it; only the validated key wins.
+      let tenantKey: string | undefined;
+      let source = 'api';
+      if (input.tenantKey !== undefined) {
+        tenantKey = await resolveTenantKey(input.tenantKey);
+        source = 'embed';
+      }
+
       let inserted;
       try {
         inserted = await deps.store.insert({
@@ -250,8 +290,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           timeline: input.timeline,
           marketingConsent: input.marketingConsent,
           consentTs: now,
-          tenantKey: input.tenantKey,
-          source: 'api',
+          tenantKey,
+          source,
           quarantined,
         });
       } catch (error) {

@@ -16,6 +16,8 @@ export interface EstimateRecord {
   /** 'new_build' | 'renovation' — which engine branch produced the row. */
   readonly projectType: string;
   readonly addressKey: string;
+  /** Present only on builder embeds; the validated tenant key. */
+  readonly tenantKey?: string;
   readonly inputs: unknown;
   readonly figures: unknown;
   readonly rows: unknown;
@@ -65,6 +67,7 @@ export function createDrizzleEstimateStore(
         id: record.id,
         projectType: record.projectType,
         addressKey: record.addressKey,
+        tenantKey: record.tenantKey ?? null,
         inputs: record.inputs,
         figures: record.figures,
         rows: record.rows,
