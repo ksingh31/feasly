@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "contract:regen": "CONTRACT_REGEN=1 vitest run test/contract-conformance.test.ts",
-    "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs",
+    "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs && node tools/check-function-bundle.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
     "bundle:functions": "node tools/bundle-functions.mjs",
