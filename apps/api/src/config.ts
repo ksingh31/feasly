@@ -254,6 +254,28 @@ const EnvSchema = z.object({
   // Ops alert dedupe window per alert class: at most one failure email
   // per class inside this window (admin/06).
   OPS_ALERT_DEDUPE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+  // --- Postgres backup freshness check (admin/06 `backup_missed`) ---
+  // Daily timer queries ARM with the Function App's managed identity. Off
+  // by default; Bicep enables it per environment with the server details.
+  BACKUP_CHECK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  BACKUP_CHECK_SUBSCRIPTION_ID: z.string().default(''),
+  BACKUP_CHECK_RESOURCE_GROUP: z.string().default('rg-feasly-dev'),
+  BACKUP_CHECK_SERVER_NAME: z.string().default('feasly-dev-pg-4fhkep'),
+  // Azure endpoint tunables (defaults are the public-cloud values; config
+  // holds all URL literals — services/ must not hardcode them).
+  BACKUP_CHECK_IMDS_TOKEN_URL: z
+    .string()
+    .url()
+    .default(
+      'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F',
+    ),
+  BACKUP_CHECK_ARM_BASE_URL: z.string().url().default('https://management.azure.com'),
+  // Same thresholds as CI's check-postgres-backup.sh.
+  BACKUP_CHECK_MIN_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
+  BACKUP_CHECK_MAX_STALE_HOURS: z.coerce.number().int().positive().default(48),
   // Dev/test behavior: the log provider logs full links so magic-link flows
   // can be exercised without a provider. Never render links in UI.
   EMAIL_LOG_LINKS: z
@@ -437,6 +459,27 @@ export interface CommunityStatsRefreshConfig {
 }
 
 /**
+ * Postgres backup freshness check (admin/06 `backup_missed`). The daily
+ * timer queries ARM with the Function App's managed identity; a stale or
+ * missing backup chain fires the alert, recovery sends the all-clear.
+ * Disabled unless BACKUP_CHECK_ENABLED=true and the server details are set.
+ */
+export interface BackupCheckConfig {
+  readonly enabled: boolean;
+  readonly subscriptionId: string;
+  readonly resourceGroup: string;
+  readonly serverName: string;
+  /** Minimum backup retention days (same threshold as CI's backup-config job). */
+  readonly minRetentionDays: number;
+  /** Max age of the earliest restore point in hours before "stale". */
+  readonly maxStaleHours: number;
+  /** IMDS token endpoint (config holds the URL literal, not the service). */
+  readonly imdsTokenUrl: string;
+  /** ARM base URL (config holds the URL literal, not the service). */
+  readonly armBaseUrl: string;
+}
+
+/**
  * Google Sheets sync (admin/04). Empty sheetId/serviceAccountEmail = sync
  * disabled; the worker fails closed (no sync, alert fires).
  */
@@ -496,6 +539,7 @@ export interface ApiConfig {
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
+  readonly backupCheck: BackupCheckConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -633,6 +677,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
+    },
+    backupCheck: {
+      enabled: e.BACKUP_CHECK_ENABLED,
+      subscriptionId: e.BACKUP_CHECK_SUBSCRIPTION_ID,
+      resourceGroup: e.BACKUP_CHECK_RESOURCE_GROUP,
+      serverName: e.BACKUP_CHECK_SERVER_NAME,
+      minRetentionDays: e.BACKUP_CHECK_MIN_RETENTION_DAYS,
+      maxStaleHours: e.BACKUP_CHECK_MAX_STALE_HOURS,
+      imdsTokenUrl: e.BACKUP_CHECK_IMDS_TOKEN_URL,
+      armBaseUrl: e.BACKUP_CHECK_ARM_BASE_URL,
     },
     estimate: {
       rateLimit: {

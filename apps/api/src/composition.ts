@@ -84,6 +84,10 @@ import {
   createDrizzleSheetsSyncStateStore,
   type SheetsSyncStateStore,
 } from './services/sheets-sync-state.store';
+import {
+  createBackupCheckService,
+  type BackupCheckService,
+} from './services/backup-check.service';
 import type { SheetsClient } from './services/sheets/sheets-client';
 import { createGoogleSheetsClient } from './services/sheets/google-sheets-client';
 import {
@@ -423,6 +427,12 @@ export interface AppComposition {
   readonly sheetsSyncService: SheetsSyncService;
   /** admin/06: ops alerting (worker failures → deduped email). */
   readonly opsAlertsService: OpsAlertsService;
+  /**
+   * admin/06: daily Postgres backup freshness probe (`backup_missed`).
+   * Undefined when BACKUP_CHECK_ENABLED is false or the server details are
+   * unconfigured — the timer adapter fails closed in that case.
+   */
+  readonly backupCheckService?: BackupCheckService;
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
@@ -827,6 +837,23 @@ export function createComposition(
       lagAfterHours: config.sheets.lagAfterHours,
       runStaleAfterMin: config.sheets.runStaleAfterMin,
     });
+  // admin/06 — daily Postgres backup freshness probe (`backup_missed`).
+  // ARM is queried with the Function App's system-assigned managed identity
+  // (no secrets). Undefined when disabled/unconfigured — the timer adapter
+  // fails closed. Bicep enables it per environment and grants the identity
+  // Reader on the resource group.
+  const backupCheckService: BackupCheckService | undefined =
+    config.backupCheck.enabled && config.backupCheck.subscriptionId
+      ? createBackupCheckService({
+          subscriptionId: config.backupCheck.subscriptionId,
+          resourceGroup: config.backupCheck.resourceGroup,
+          serverName: config.backupCheck.serverName,
+          minRetentionDays: config.backupCheck.minRetentionDays,
+          maxStaleHours: config.backupCheck.maxStaleHours,
+          imdsTokenUrl: config.backupCheck.imdsTokenUrl,
+          armBaseUrl: config.backupCheck.armBaseUrl,
+        })
+      : undefined;
   // admin/01 — magic-link + allowlist session auth. The session guard
   // replaces the interim pre-shared-key guard; routes are untouched (they
   // depend on the AdminGuard interface).
@@ -1246,6 +1273,7 @@ export function createComposition(
     sandboxPurgeService,
     sheetsSyncService,
     opsAlertsService,
+    backupCheckService,
     apiKeyService,
     apiKeyRoute,
     adminAuthService,

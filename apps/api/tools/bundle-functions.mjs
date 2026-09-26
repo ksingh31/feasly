@@ -135,6 +135,10 @@ const targets = [
     out: 'invoice-reviewer-timer/index.js',
   },
   {
+    entry: 'src/functions/backup-check-timer.ts',
+    out: 'backup-check-timer/index.js',
+  },
+  {
     entry: 'src/functions/admin-auth-request.ts',
     out: 'admin-auth-request/index.js',
   },

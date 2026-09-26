@@ -2,9 +2,9 @@
  * Ops alerting service (admin/06).
  *
  * One email to Karan when platform machinery needs a human — Sheets sync
- * failing, stats refresh failing, repeated webhook failures — deduplicated
- * so he's never spammed: at most one failure email per alert class per
- * 24h, one all-clear on recovery.
+ * failing, stats refresh failing, repeated webhook failures, stale Postgres
+ * backups — deduplicated so he's never spammed: at most one failure email
+ * per alert class per 24h, one all-clear on recovery.
  *
  * Dedupe state lives in `ops_alert_state` (DB-backed) so a cold start
  * doesn't reset the window and re-spam. Delivery goes through the one
@@ -20,6 +20,7 @@ export const OPS_ALERT_TYPES = [
   'community_stats_failed',
   'stripe_webhook_failed',
   'narrative_worker_failed',
+  'backup_missed',
 ] as const;
 
 export type OpsAlertType = (typeof OPS_ALERT_TYPES)[number];
@@ -47,6 +48,10 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   narrative_worker_failed: {
     name: 'Narrative worker',
     detailsPath: '/admin/ops/narrative',
+  },
+  backup_missed: {
+    name: 'Postgres backup',
+    detailsPath: '/admin/ops/backup',
   },
 };
 
