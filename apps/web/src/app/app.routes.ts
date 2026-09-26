@@ -25,6 +25,7 @@ import { AdminLoginComponent } from './features/admin/admin-login.component';
 import { AdminVerifyComponent } from './features/admin/admin-verify.component';
 import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
+import { adminGuard } from './features/admin/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
