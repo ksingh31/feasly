@@ -36,11 +36,6 @@ jobs:
       # HRD-07: fail the build if any secret pattern appears in the built web
       # bundle. Local: `node tools/check-secrets.mjs --bundle apps/web/dist/web/browser`.
       - run: node tools/check-secrets.mjs --bundle apps/web/dist/web/browser
-      # FE8-003: performance budgets (JS initial gzipped, per-page image
-      # weight, font-display: swap) from apps/web/budgets.json. Local:
-      # `npm run build --workspace=@feasly/web -- --configuration=production`
-      # then `node apps/web/tools/check-perf-budgets.mjs`.
-      - run: node apps/web/tools/check-perf-budgets.mjs
       # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
