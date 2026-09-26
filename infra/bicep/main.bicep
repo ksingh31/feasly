@@ -38,6 +38,16 @@ param emailProvider string = 'log'
 @secure()
 param acsConnectionString string = ''
 
+@description('Google Sheet ID for the hourly leads sync (admin/04). PLACEHOLDER — Karan shares his Sheet with the service account and provides the ID. Empty = sync disabled (fail-closed).')
+param sheetsSheetId string = ''
+
+@description('Google service-account email for the Sheets sync (admin/04). PLACEHOLDER until the service account is provisioned. Empty = sync disabled.')
+param sheetsServiceAccountEmail string = ''
+
+@description('Google service-account private key (PEM) for the Sheets sync — NEVER logged or output; stored in Key Vault. PLACEHOLDER until Karan provisions the service account. Empty = not configured.')
+@secure()
+param sheetsServiceAccountPrivateKey string = ''
+
 @description('Custom domain (empty until FND-014 resolves the domain purchase)')
 param domainName string = ''
 
@@ -76,6 +86,8 @@ var postgresSecretName = 'feasly-${environment}-postgres-admin'
 var postgresPasswordSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${postgresSecretName}'
 var acsSecretName = 'feasly-${environment}-acs-connection-string'
 var acsConnectionStringSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${acsSecretName}'
+var sheetsPrivateKeySecretName = 'feasly-${environment}-sheets-service-account-key'
+var sheetsPrivateKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${sheetsPrivateKeySecretName}'
 
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
@@ -176,6 +188,11 @@ module functionApp 'modules/function-app.bicep' = {
       'https://${staticWebApp.outputs.hostname}'
       'http://localhost:4200'
     ]
+    // admin/04 — Sheets sync placeholders (fail closed until Karan provisions
+    // the service account).
+    sheetsSheetId: sheetsSheetId
+    sheetsServiceAccountEmail: sheetsServiceAccountEmail
+    sheetsServiceAccountPrivateKeySecretUri: empty(sheetsServiceAccountPrivateKey) ? '' : sheetsPrivateKeySecretUri
   }
   // The dev ACS secret (below) must exist before the app first resolves its
   // Key Vault references at startup. Skipped automatically when the
@@ -246,6 +263,25 @@ resource acsDevConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07
   dependsOn: [
     keyVault
     communication
+  ]
+}
+
+// --- Key Vault secret: Sheets service-account private key (admin/04) ---
+// Only created when sheetsServiceAccountPrivateKey is provided at deploy
+// time. PLACEHOLDER — Karan provisions the Google service account and
+// supplies the PEM private key. The @secure() parameter is written
+// straight into the vault; it never appears in outputs, logs, or app
+// settings. The Function App reads it via a Key Vault reference
+// (see function-app.bicep). The Function App's managed identity already
+// holds Key Vault Secrets User on this vault (funcAppKvSecretsUser).
+resource sheetsPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(sheetsServiceAccountPrivateKey)) {
+  parent: kv
+  name: sheetsPrivateKeySecretName
+  properties: {
+    value: sheetsServiceAccountPrivateKey
+  }
+  dependsOn: [
+    keyVault
   ]
 }
 

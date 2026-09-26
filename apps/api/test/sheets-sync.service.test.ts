@@ -13,6 +13,10 @@ import {
 } from '../src/services/sheets-sync.service';
 import type { LeadStore, LeadRecord } from '../src/services/lead.store';
 import type { EstimateStore } from '../src/services/estimate.store';
+import type {
+  SheetsSyncStateRecord,
+  SheetsSyncStateStore,
+} from '../src/services/sheets-sync-state.store';
 import type { SheetsClient, SheetLeadRow } from '../src/services/sheets/sheets-client';
 
 function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
@@ -40,6 +44,27 @@ function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     createdAt: now,
     ...overrides,
   };
+}
+
+function makeSyncStateStore(initial?: Partial<SheetsSyncStateRecord>) {
+  let state: SheetsSyncStateRecord = {
+    lastRunAt: null,
+    lastSuccessAt: null,
+    consecutiveFailures: 0,
+    firstFailureAt: null,
+    rowsSyncedTotal: 0,
+    lagging: false,
+    updatedAt: new Date('2026-09-25T00:00:00Z'),
+    ...initial,
+  };
+  const store: SheetsSyncStateStore = {
+    get: vi.fn().mockImplementation(async () => ({ ...state })),
+    update: vi.fn().mockImplementation(async (patch) => {
+      state = { ...state, ...patch, updatedAt: new Date() };
+      return { ...state };
+    }),
+  };
+  return { store, getState: () => ({ ...state }) };
 }
 
 function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
@@ -73,15 +98,17 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     upsertRows: vi.fn().mockResolvedValue(undefined),
     checkAccess: vi.fn().mockResolvedValue(undefined),
   };
+  const { store: syncState, getState: getSyncState } = makeSyncStateStore();
   const deps: SheetsSyncServiceDeps = {
     leads,
     estimates,
     sheets,
+    syncState,
     enabled: true,
     maxLeadsPerRun: 500,
     ...overrides,
   };
-  return { leads, estimates, sheets, deps };
+  return { leads, estimates, sheets, syncState, getSyncState, deps };
 }
 
 describe('SheetsSyncService', () => {
@@ -285,5 +312,69 @@ describe('SheetsSyncService', () => {
     const result = await service.runSyncCycle();
     expect(result.consecutiveFailures).toBe(0);
     expect(onSyncRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists the lagging metric in sync state (AC4)', async () => {
+    const onSyncLagging = vi.fn().mockResolvedValue(undefined);
+    const onSyncRecovered = vi.fn().mockResolvedValue(undefined);
+    const lead = makeLead();
+    const { deps, leads, sheets, getSyncState } = makeDeps({
+      onSyncLagging,
+      onSyncRecovered,
+      retryPolicy: { maxAttempts: 1, baseDelayMs: 0 },
+      sleep: async () => {},
+    });
+    vi.mocked(leads.findSheetsSyncCandidates).mockResolvedValue([lead]);
+    vi.mocked(leads.findById).mockResolvedValue(lead);
+    vi.mocked(sheets.upsertRows).mockRejectedValue(new Error('Sheets API down'));
+
+    const service = createSheetsSyncService(deps);
+
+    // Not lagging before the 3rd failure.
+    await expect(service.runSyncCycle()).rejects.toThrow();
+    expect(getSyncState().lagging).toBe(false);
+    expect(getSyncState().consecutiveFailures).toBe(1);
+
+    await expect(service.runSyncCycle()).rejects.toThrow();
+    expect(getSyncState().lagging).toBe(false);
+    expect(getSyncState().consecutiveFailures).toBe(2);
+
+    // 3rd failure → lagging=true, alert fires.
+    await expect(service.runSyncCycle()).rejects.toThrow();
+    expect(getSyncState().lagging).toBe(true);
+    expect(getSyncState().consecutiveFailures).toBe(3);
+    expect(getSyncState().firstFailureAt).toBeInstanceOf(Date);
+    expect(onSyncLagging).toHaveBeenCalledTimes(1);
+
+    // 4th failure → still lagging, alert NOT re-fired (one per streak).
+    await expect(service.runSyncCycle()).rejects.toThrow();
+    expect(getSyncState().lagging).toBe(true);
+    expect(onSyncLagging).toHaveBeenCalledTimes(1);
+
+    // Recovery clears the metric.
+    vi.mocked(sheets.upsertRows).mockResolvedValue(undefined);
+    vi.mocked(leads.findSheetsSyncCandidates).mockResolvedValue([]);
+    const result = await service.runSyncCycle();
+    expect(result.lagging).toBe(false);
+    expect(getSyncState().lagging).toBe(false);
+    expect(getSyncState().consecutiveFailures).toBe(0);
+    expect(getSyncState().lastSuccessAt).toBeInstanceOf(Date);
+    expect(onSyncRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it('tracks rows_synced_total across cycles for the status view', async () => {
+    const lead = makeLead();
+    const { deps, leads, sheets, getSyncState } = makeDeps();
+    vi.mocked(leads.findSheetsSyncCandidates).mockResolvedValue([lead]);
+    vi.mocked(leads.findById).mockResolvedValue(lead);
+
+    const service = createSheetsSyncService(deps);
+    await service.runSyncCycle();
+    expect(getSyncState().rowsSyncedTotal).toBe(1);
+    expect(getSyncState().lastRunAt).toBeInstanceOf(Date);
+    expect(getSyncState().lastSuccessAt).toBeInstanceOf(Date);
+
+    await service.runSyncCycle();
+    expect(getSyncState().rowsSyncedTotal).toBe(2);
   });
 });
