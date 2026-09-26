@@ -80,9 +80,12 @@ export class AdminLeadDetailComponent implements OnInit {
     if (!detail || note.length === 0 || this.notePosting()) {
       return;
     }
-    this.store.dispatch(new AddAdminLeadNote(detail.id, note)).subscribe({
-      next: () => this.noteControl.reset(),
-    });
+    this.store
+      .dispatch(new AddAdminLeadNote(detail.id, note))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.noteControl.reset(),
+      });
   }
 
   protected changeStatus(): void {
