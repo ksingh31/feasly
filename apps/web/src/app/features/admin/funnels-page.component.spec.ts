@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, throwError, type Observable } from 'rxjs';
+import { of, Subject, throwError, type Observable } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { FunnelsPageComponent } from './funnels-page.component';
 import { API_SERVICE } from '../../core/api/api.service';
@@ -132,5 +132,42 @@ describe('FunnelsPageComponent', () => {
     component.tenantMode.set('key');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('input[name="tenantKey"]')).toBeTruthy();
+  });
+
+  it('ignores a stale response when a newer load supersedes it', async () => {
+    // resetFilters while a fetch is in flight: the first response must not
+    // overwrite the report from the second (newer) load.
+    const first$ = new Subject<FunnelReport>();
+    const second$ = new Subject<FunnelReport>();
+    api = { getFunnel: vi.fn().mockReturnValueOnce(first$).mockReturnValueOnce(second$) };
+    const configStub = {
+      get: (section: string) =>
+        section === 'copy' ? { admin: { funnels: FUNNELS_COPY } } : {},
+    };
+    const seoStub = { setForRoute: () => undefined };
+    await TestBed.configureTestingModule({
+      imports: [FunnelsPageComponent, RouterTestingModule],
+      providers: [
+        { provide: API_SERVICE, useValue: api },
+        { provide: ConfigService, useValue: configStub },
+        { provide: SeoService, useValue: seoStub },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(FunnelsPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance as unknown as {
+      resetFilters(): void;
+      report: () => FunnelReport | null;
+    };
+    // ngOnInit started the first load (first$); resetFilters starts the second.
+    component.resetFilters();
+    expect(api.getFunnel).toHaveBeenCalledTimes(2);
+    // Newest resolves first, stale arrives later — the stale zeros must not win.
+    second$.next(REPORT);
+    first$.next(EMPTY_REPORT);
+    fixture.detectChanges();
+    expect(component.report()).toEqual(REPORT);
   });
 });

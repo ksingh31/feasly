@@ -54,6 +54,13 @@ export class FunnelsPageComponent implements OnInit {
   protected readonly loading = signal(false);
   /** Fetch failure flag. The banner copy is static. */
   protected readonly loadFailed = signal(false);
+  /**
+   * Monotonic request generation. A newer load() supersedes any in-flight
+   * request (e.g. resetFilters while a fetch is pending); responses from a
+   * superseded generation are ignored so stale data can never overwrite the
+   * latest report.
+   */
+  private requestId = 0;
 
   /** Steps of the latest report (empty array before the first load). */
   protected readonly steps = computed(() => this.report()?.steps ?? []);
@@ -130,6 +137,7 @@ export class FunnelsPageComponent implements OnInit {
 
   private load(): void {
     const query = this.buildQuery();
+    const id = ++this.requestId;
     this.loading.set(true);
     this.loadFailed.set(false);
     this.api
@@ -137,12 +145,20 @@ export class FunnelsPageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (report) => {
+          // Superseded by a newer load — ignore the stale response.
+          if (id !== this.requestId) {
+            return;
+          }
           this.report.set(report);
           this.loading.set(false);
         },
         error: () => {
           // Keep the last good report visible; the banner explains the
           // failure. Static copy only — no error text or PII in the DOM.
+          // Superseded by a newer load — ignore the stale error.
+          if (id !== this.requestId) {
+            return;
+          }
           this.loadFailed.set(true);
           this.loading.set(false);
         },
