@@ -4,7 +4,6 @@ import { CommunitiesIndexPageComponent } from './features/communities/communitie
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
-import { FunnelsPageComponent } from './features/admin';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
@@ -136,10 +135,14 @@ export const routes: Routes = [
   },
   // Admin funnel dashboard (admin/07): Karan's conversion visibility —
   // per-step counts + conversion %, date-range + tenant filters. Session-auth
-  // adminGuard (admin/01). noindex — private.
+  // adminGuard (admin/01). noindex — private. Lazy-loaded: this is an
+  // admin-only page, so it stays out of the public initial bundle (budget).
   {
     path: 'admin/funnels',
-    component: FunnelsPageComponent,
+    loadComponent: () =>
+      import('./features/admin/funnels-page.component').then(
+        (m) => m.FunnelsPageComponent,
+      ),
     canActivate: [robotsGuard, adminGuard],
     data: { noindex: true },
   },
