@@ -89,6 +89,7 @@ const FUTURE_NOINDEX: SeoRouteConfig[] = [
   { pattern: 'r/:token', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'embed/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'admin/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
+  { pattern: 'builder/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
 ];
 
 /** Fallback for unknown paths: renders the branded 404 (noindexed). */

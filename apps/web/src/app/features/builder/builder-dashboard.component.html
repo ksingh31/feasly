@@ -1,0 +1,131 @@
+<section class="builder-dashboard" aria-labelledby="builder-dashboard-heading">
+  <h1 id="builder-dashboard-heading">{{ copy.dashboardHeading }}</h1>
+
+  @if (leadsStatus() === 'loading') {
+    <p class="builder-dashboard__loading" role="status">{{ copy.loadingLeads }}</p>
+  } @else if (loadFailed()) {
+    <p class="builder-dashboard__error" role="alert">
+      {{ copy.loadError }}
+      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
+    </p>
+  } @else {
+    <!-- Pipeline summary: counts per status, incl. won/lost. -->
+    <div class="builder-dashboard__summary" role="region" [attr.aria-label]="copy.summaryHeading">
+      <h2>{{ copy.summaryHeading }}</h2>
+      <dl class="builder-dashboard__summary-list">
+        <div>
+          <dt>{{ copy.summaryTotal }}</dt>
+          <dd>{{ summary().total }}</dd>
+        </div>
+        <div>
+          <dt>{{ statusLabel('contacted') }}</dt>
+          <dd>{{ summary().contacted }}</dd>
+        </div>
+        <div>
+          <dt>{{ statusLabel('quoted') }}</dt>
+          <dd>{{ summary().quoted }}</dd>
+        </div>
+        <div>
+          <dt>{{ statusLabel('won') }}</dt>
+          <dd>{{ summary().won }}</dd>
+        </div>
+        <div>
+          <dt>{{ statusLabel('lost') }}</dt>
+          <dd>{{ summary().lost }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    @if (updateError() === 'forbidden') {
+      <p class="builder-dashboard__error" role="alert">{{ copy.updateForbidden }}</p>
+    } @else if (updateError() === 'failed') {
+      <p class="builder-dashboard__error" role="alert">{{ copy.updateFailed }}</p>
+    }
+
+    @if (leads().length === 0) {
+      <p class="builder-dashboard__empty" role="status">{{ copy.emptyLeads }}</p>
+    } @else {
+      <div class="builder-dashboard__filter">
+        <label for="builder-status-filter">{{ copy.filterLabel }}</label>
+        <select
+          id="builder-status-filter"
+          [value]="statusFilter()"
+          (change)="onFilterChange($event)"
+        >
+          <option value="all">{{ copy.filterAllLabel }}</option>
+          <option value="new">{{ statusLabel('new') }}</option>
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ statusLabel(status) }}</option>
+          }
+        </select>
+      </div>
+
+      @if (filterEmpty) {
+        <p class="builder-dashboard__empty" role="status">{{ copy.emptyFilterLeads }}</p>
+      } @else {
+      <ul class="builder-dashboard__leads">
+        @for (lead of filteredLeads(); track lead.id) {
+          <li class="builder-dashboard__lead">
+            <div class="builder-dashboard__lead-head">
+              <strong>{{ lead.name }}</strong>
+              <span
+                class="builder-dashboard__status builder-dashboard__status--{{ lead.status }}"
+              >
+                {{ statusLabel(lead.status) }}
+              </span>
+            </div>
+            <dl class="builder-dashboard__lead-details">
+              <div>
+                <dt>{{ copy.leadAddressLabel }}</dt>
+                <dd>{{ lead.addressKey }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.leadEmailLabel }}</dt>
+                <dd>{{ lead.email }}</dd>
+              </div>
+              @if (lead.phone) {
+                <div>
+                  <dt>{{ copy.leadPhoneLabel }}</dt>
+                  <dd>{{ lead.phone }}</dd>
+                </div>
+              }
+              <div>
+                <dt>{{ copy.leadTimelineLabel }}</dt>
+                <dd>{{ lead.timeline }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.leadScoreLabel }}</dt>
+                <dd>{{ lead.leadScore }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.leadProjectLabel }}</dt>
+                <dd>{{ lead.projectType }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.leadCreatedLabel }}</dt>
+                <dd>{{ lead.createdAt | date: 'medium' }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.leadStatusUpdatedLabel }}</dt>
+                <dd>{{ lead.statusUpdatedAt | date: 'medium' }}</dd>
+              </div>
+            </dl>
+            <div class="builder-dashboard__actions" role="group" [attr.aria-label]="copy.actionsLabel">
+              @for (status of statuses; track status) {
+                <button
+                  type="button"
+                  [disabled]="isUpdating(lead.id) || lead.status === status"
+                  [attr.aria-pressed]="lead.status === status"
+                  (click)="setStatus(lead.id, status)"
+                >
+                  {{ statusLabel(status) }}
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+      }
+    }
+  }
+</section>

@@ -621,5 +621,95 @@ export interface AppConfig {
       ctaBody: string;
       ctaLabel: string;
     };
+    /**
+     * Builder portal (embed/09). All user-facing builder-portal copy lives
+     * here so the no-hardcode tripwire stays green and copy is
+     * deploy-tunable. Mirrors the admin login semantics (magic link, no
+     * enumeration oracle, session expiry).
+     */
+    builder: {
+      /** `/builder/login` heading. */
+      loginHeading: string;
+      /** Session-expired notice on the login page. */
+      loginExpired: string;
+      /** Shown after the magic-link request (always — no oracle). */
+      loginSent: string;
+      /** Email field label. */
+      emailLabel: string;
+      /** Email field placeholder. */
+      emailPlaceholder: string;
+      /** Invalid-email validation message. */
+      emailInvalid: string;
+      /** Submit button label. */
+      submitLabel: string;
+      /** Submit button label while the request is in flight. */
+      sendingLabel: string;
+      /** Generic submit-failure message. */
+      submitError: string;
+      /** Retry button label (submit failure). */
+      retryLabel: string;
+      /** `/builder/verify` heading. */
+      verifyHeading: string;
+      /** Verify in-progress copy. */
+      verifyProgress: string;
+      /** Verify-failed copy (expired/used/invalid token). */
+      verifyError: string;
+      /** Back-to-login button label on the verify error. */
+      backToLoginLabel: string;
+      /** Builder shell brand text. */
+      shellBrand: string;
+      /** Builder shell nav: dashboard link label. */
+      shellNavDashboard: string;
+      /** Sign-out button label. */
+      signOutLabel: string;
+      /** Dashboard heading. */
+      dashboardHeading: string;
+      /** Leads-loading status copy. */
+      loadingLeads: string;
+      /** Leads-load failure copy. */
+      loadError: string;
+      /** Empty pipeline copy. */
+      emptyLeads: string;
+      /** Pipeline filter label. */
+      filterLabel: string;
+      /** Pipeline filter "all statuses" option. */
+      filterAllLabel: string;
+      /** Pipeline copy when the active filter matches nothing. */
+      emptyFilterLeads: string;
+      /** Pipeline summary heading. */
+      summaryHeading: string;
+      /** Summary: total row label. */
+      summaryTotal: string;
+      /** Pipeline status labels, keyed by the BuilderLeadStatus union. */
+      statusLabels: {
+        new: string;
+        contacted: string;
+        quoted: string;
+        won: string;
+        lost: string;
+      };
+      /** Status-update 403 copy: the lead belongs to another tenant. */
+      updateForbidden: string;
+      /** Generic status-update failure copy. */
+      updateFailed: string;
+      /** Lead email field label. */
+      leadEmailLabel: string;
+      /** Lead address field label. */
+      leadAddressLabel: string;
+      /** Lead phone field label. */
+      leadPhoneLabel: string;
+      /** Lead timeline field label. */
+      leadTimelineLabel: string;
+      /** Lead score field label. */
+      leadScoreLabel: string;
+      /** Lead project-type field label. */
+      leadProjectLabel: string;
+      /** Lead created-date field label. */
+      leadCreatedLabel: string;
+      /** Lead status-updated timestamp label. */
+      leadStatusUpdatedLabel: string;
+      /** Status action group label (screen reader). */
+      actionsLabel: string;
+    };
   };
 }

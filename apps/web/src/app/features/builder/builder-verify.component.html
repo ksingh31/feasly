@@ -1,0 +1,13 @@
+<main class="admin-login">
+  <div class="admin-login__card">
+    <h1>{{ copy.verifyHeading }}</h1>
+    @if (status === 'verifying') {
+      <p class="admin-login__notice" role="status">{{ copy.verifyProgress }}</p>
+    } @else {
+      <p class="admin-login__error" role="alert">
+        {{ copy.verifyError }}
+        <button type="button" (click)="toLogin()">{{ copy.backToLoginLabel }}</button>
+      </p>
+    }
+  </div>
+</main>

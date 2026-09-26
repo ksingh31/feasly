@@ -1,0 +1,53 @@
+<main class="admin-login builder-login">
+  <div class="admin-login__card">
+    <h1>{{ copy.loginHeading }}</h1>
+
+    @if (showExpired) {
+      <p class="admin-login__notice" role="status">
+        {{ copy.loginExpired }}
+      </p>
+    }
+
+    @if (status === 'sent') {
+      <p class="admin-login__sent" role="status">
+        {{ copy.loginSent }}
+      </p>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label class="admin-login__field">
+          <span>{{ copy.emailLabel }}</span>
+          <input
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            inputmode="email"
+            [attr.aria-invalid]="emailInvalid"
+            [placeholder]="copy.emailPlaceholder"
+          />
+        </label>
+        @if (emailInvalid) {
+          <p class="admin-login__error" role="alert">
+            {{ copy.emailInvalid }}
+          </p>
+        }
+        @if (status === 'error') {
+          <p class="admin-login__error" role="alert">
+            {{ copy.submitError }}
+            <button type="button" (click)="retry()">{{ copy.retryLabel }}</button>
+          </p>
+        }
+        <button
+          type="submit"
+          class="admin-login__submit"
+          [disabled]="form.invalid || status === 'sending'"
+        >
+          @if (status === 'sending') {
+            {{ copy.sendingLabel }}
+          } @else {
+            {{ copy.submitLabel }}
+          }
+        </button>
+      </form>
+    }
+  </div>
+</main>

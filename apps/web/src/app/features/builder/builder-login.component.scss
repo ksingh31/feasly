@@ -1,0 +1,8 @@
+/**
+ * Builder login (embed/09) — reuses the admin login card styling via
+ * styleUrls; the `.builder-login` hook exists for builder-specific
+ * overrides only.
+ */
+.builder-login .admin-login__card {
+  /* Inherits the admin card; builder theming can extend here. */
+}

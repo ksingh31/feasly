@@ -63,6 +63,7 @@ describe('seo-routes', () => {
       'r/:token': 'r/abc123',
       'embed/**': 'embed/acme/embed.js',
       'admin/**': 'admin/leads',
+      'builder/**': 'builder/login',
     };
     for (const pattern of noindexPatterns()) {
       const sample = samples[pattern];

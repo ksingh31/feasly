@@ -22,6 +22,7 @@ import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
+import { BuilderState } from './features/builder';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -67,13 +68,12 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
-    // AdminLeadsState is memory-only on purpose: admin lead data is
-    // sensitive and must not persist in localStorage — it refetches on mount.
-    // CalibrationState is deliberately EXCLUDED from persistence as well:
-    // calibration data is admin-internal and must never sit in localStorage.
-    // (Both kept out of the storage plugin's keys below.)
+    // AdminLeadsState, CalibrationState, and BuilderState are memory-only on
+    // purpose: admin/builder data is sensitive and must not persist in
+    // localStorage — it refetches on mount. (All kept out of the storage
+    // plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState, BuilderState],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in
