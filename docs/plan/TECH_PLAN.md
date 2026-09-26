@@ -1282,7 +1282,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/auth/me` | admin | 100/min per session | planned | Return the current admin session identity (email). |
 | POST | `/api/v1/admin/auth/logout` | admin | 10/min per session | planned | Revoke the admin session; clears the session cookie. |
 | POST | `/api/v1/builder/auth/request` | none | 5/hr per email+IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
-| GET | `/api/v1/builder/auth/verify` | magic-token | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=Lax session cookie, 7-day expiry. Single-use (replay-safe). |
+| GET | `/api/v1/builder/auth/verify` | magic-token | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
 | GET | `/api/v1/builder/auth/me` | builder-session | 100/min per session | live | Return the current builder session identity (email + tenant). |
 | POST | `/api/v1/builder/auth/logout` | builder-session | 10/min per session | live | Revoke the builder session; clears the session cookie. |
 | GET | `/api/v1/builder/leads` | builder-session | 100/min per session | live | List the builder's leads (tenant-scoped, newest first) with a pipeline summary (new/contacted/quoted/won/lost). |

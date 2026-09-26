@@ -9,7 +9,13 @@
  *
  * - A request whose `Origin` is allowlisted gets
  *   `Access-Control-Allow-Origin: <origin>` (echoed, never `*`) plus
- *   `Vary: Origin`.
+ *   `Vary: Origin` and `Access-Control-Allow-Credentials: true`.
+ * - `Access-Control-Allow-Credentials: true` is REQUIRED: this is the
+ *   single CORS source (no platform-level CORS on the Function App), and
+ *   the web app calls the API cross-origin with `withCredentials`, so
+ *   the session cookies (`SameSite=None; Secure`) only flow when the
+ *   browser sees this header. Echo + credentials demands `Vary: Origin`
+ *   so shared caches never serve one origin's response to another.
  * - Any other origin (or a missing `Origin` header) gets no CORS headers
  *   at all — fail-closed.
  * - `isPreflight()` identifies CORS preflight requests so adapters can
@@ -21,6 +27,7 @@
  */
 export const VARY_ORIGIN = 'Vary';
 export const ALLOW_ORIGIN = 'Access-Control-Allow-Origin';
+export const ALLOW_CREDENTIALS = 'Access-Control-Allow-Credentials';
 
 const ALLOW_METHODS = 'GET, POST, OPTIONS';
 const ALLOW_HEADERS = 'Content-Type, Authorization, X-Correlation-Id';
@@ -51,7 +58,13 @@ export function resolveCorsHeaders(
   if (!candidate) return {};
   const match = allowlist.some((allowed) => allowed.toLowerCase() === candidate.toLowerCase());
   if (!match) return {};
-  return { [ALLOW_ORIGIN]: candidate, [VARY_ORIGIN]: 'Origin' };
+  // Credentials MUST be allowed: the API is cross-origin by design (ADM-10)
+  // and session auth is cookie-based (withCredentials on the client).
+  return {
+    [ALLOW_ORIGIN]: candidate,
+    [ALLOW_CREDENTIALS]: 'true',
+    [VARY_ORIGIN]: 'Origin',
+  };
 }
 
 /** Static headers for a 204 preflight response (call after allowlist check). */
