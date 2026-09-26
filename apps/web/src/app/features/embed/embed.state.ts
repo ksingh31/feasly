@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
-import { catchError, map } from 'rxjs';
+import { catchError, EMPTY, map } from 'rxjs';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import type { ApiError } from '@feasly/contracts';
 import {
@@ -141,7 +141,7 @@ export class EmbedState {
     // in-flight session is ignored (the loader clears the code after
     // FEASLY_AUTH_OK, so duplicates only come from re-posts).
     if (state.relayStatus === 'exchanging' || state.relayStatus === 'active') {
-      return;
+      return EMPTY;
     }
     const tenantKey = state.tenantKey;
     if (tenantKey === null) {
