@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent, toDisplayName } from './community-page.component';
 
@@ -137,5 +137,11 @@ describe('toDisplayName', () => {
   it('preserves slashes', () => {
     expect(toDisplayName('DOUGLASDALE/GLEN')).toBe('Douglasdale/Glen');
     expect(toDisplayName('BRIDGELAND/RIVERSIDE')).toBe('Bridgeland/Riverside');
+  });
+  afterEach(() => {
+    // Remove JSON-LD scripts to prevent test pollution (SEO-06).
+    document.head
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((el) => el.remove());
   });
 });

@@ -200,4 +200,52 @@ describe('WizardState', () => {
     expect(rehydrated.inputs.tier).toBe('luxury');
     localStorage.clear();
   });
+
+  it('migrates stale persisted state missing renoInputs/comparison (pre-RENO-03)', async () => {
+    // Regression test for the /estimate/reno-scope crash: localStorage written
+    // by versions before RENO-03 (PR #83) has no `renoInputs` field, and
+    // versions before NBH-04 (PR #106) have no `comparison`. Without migration,
+    // the selectors return undefined and the reno-scope template throws
+    // (global error handler redirects to /error).
+    localStorage.setItem(
+      'wizard',
+      JSON.stringify({
+        property: null,
+        projectType: 'renovation',
+        step: 2,
+        inputs: { sqft: 2100, tier: 'standard', garage: 'double', basement: 'unfinished' },
+        // NOTE: no renoInputs, no comparison — simulates pre-RENO-03 data.
+      }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([WizardState], withNgxsStoragePlugin({ keys: [WizardState] })),
+      ],
+    });
+    const config = TestBed.inject(ConfigService);
+    const pending = config.load();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/assets/config/app-config.json')
+      .flush({ wizard: { sqftDefault: 2200, renoSqftDefault: 800 } });
+    await pending;
+    const store = TestBed.inject(Store);
+    const rehydrated = store.selectSnapshot<WizardStateModel>((state) => state.wizard);
+    // Missing sub-states are backfilled with defaults...
+    expect(rehydrated.renoInputs).toBeDefined();
+    expect(rehydrated.renoInputs.renoType).toBeNull();
+    expect(rehydrated.renoInputs.renoSqft).toBe(800);
+    expect(rehydrated.comparison).toBeDefined();
+    expect(rehydrated.comparison.slugs).toEqual([]);
+    // ...while existing user data is preserved.
+    expect(rehydrated.projectType).toBe('renovation');
+    expect(rehydrated.step).toBe(2);
+    expect(rehydrated.inputs.sqft).toBe(2100);
+    // Selectors must not return undefined (the crash trigger).
+    expect(store.selectSnapshot(WizardState.renoInputs)).toBeDefined();
+    expect(store.selectSnapshot(WizardState.renoInputs).renoType).toBeNull();
+    localStorage.clear();
+  });
 });
