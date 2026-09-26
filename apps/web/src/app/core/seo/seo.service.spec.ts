@@ -167,8 +167,13 @@ describe('SeoService', () => {
     const patterns = noindexPatterns();
     for (const required of [
       'estimate/scope',
+      'estimate/reno-scope',
       'estimate/details',
       'estimate/report',
+      'estimate/gate',
+      'estimate/analyzing',
+      'estimate/preview',
+      'estimate/compare',
       'preview',
       'check-email',
       'analyzing',
@@ -180,6 +185,11 @@ describe('SeoService', () => {
     }
     // and each of them actually renders the robots tag
     for (const path of ['preview', 'r/abc123', 'embed/acme', 'admin/leads']) {
+      service.setForRoute(path);
+      expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
+    }
+    // the estimate funnel routes added in SEO-01 completion
+    for (const path of ['estimate/gate', 'estimate/analyzing', 'estimate/preview']) {
       service.setForRoute(path);
       expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
     }

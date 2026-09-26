@@ -56,11 +56,7 @@ export class AnalyzingPageComponent implements OnInit {
   protected failed = false;
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.analyzingTitle,
-      description: this.config.get('copy').seo.analyzing,
-      path: '/estimate/analyzing',
-    });
+    this.seo.setForRoute('estimate/analyzing');
     // Belt and braces behind wizardScopeGuard: with no property there is no
     // pipeline to run — bounce to the wizard instead of a stuck loader.
     if (!this.store.selectSnapshot(WizardState.property)) {

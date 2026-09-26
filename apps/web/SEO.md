@@ -63,16 +63,21 @@ accidentally deindex the marketing pages.
 `https://<SITE_URL>/privacy/`. Enforced in `SeoService.withTrailingSlash`;
 internal links must use the trailing-slash form.
 
-**No platform 301 (deliberate).** Azure SWA's `trailingSlash: "always"` is
+**No platform 301 for the global case (deliberate).** Azure SWA's `trailingSlash: "always"` is
 global — it would 301 every asset, `/robots.txt`, `/sitemap.xml`, and
 `/api/*` (a 301 converts POSTs to GETs on redirect-following clients, which
 would break the estimate/lead API when it wires up off mocks). A scoped
 `routes` rule is not expressible either: SWA wildcards (`/communities/*`)
 also match the trailing-slash URL, so a redirect rule would loop, and
-redirect targets are static strings (no slug capture). The per-slug exact
-301s for `/communities/*` ship with the community-page story (seo/04), whose
-build step knows every slug. Until then, canonicals carry the policy and
-duplicate-content risk is contained.
+redirect targets are static strings (no slug capture).
+
+**Per-slug exact 301s (implemented).** `staticwebapp.config.json` contains an
+exact 301 redirect for every prerendered community slug:
+`/communities/{slug}` → `/communities/{slug}/` (40 rules, generated from
+`prerender-routes.txt`). When a new community is added to the prerender list,
+its 301 must be added to the config in the same change — the config test
+(`staticwebapp.config.spec.ts`) fails if a prerendered slug lacks a redirect.
+Until then, canonicals carry the policy and duplicate-content risk is contained.
 
 ## SITE_URL — the undecided domain [PLACEHOLDER]
 

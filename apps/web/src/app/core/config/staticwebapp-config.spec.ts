@@ -12,8 +12,9 @@ import { describe, expect, it } from 'vitest';
  * SEO-01: platform 404s are overridden to `/index.html` so the branded
  * `/404` SPA route renders; `trailingSlash` is deliberately NOT set —
  * it is global (it would 301 assets, /robots.txt, /sitemap.xml, and
- * /api/* POSTs) and SWA redirect targets are static strings, so per-slug
- * 301s ship with the community-page story instead (see SEO.md).
+ * /api/* POSTs) and SWA redirect targets are static strings, so the
+ * trailing-slash 301s are per-slug exact rules for every prerendered
+ * community page (see SEO.md "Trailing-slash policy").
  */
 describe('staticwebapp.config.json SPA fallback', () => {
   const configPath = join(
@@ -71,10 +72,33 @@ describe('staticwebapp.config.json SPA fallback', () => {
     const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
       trailingSlash?: string;
     };
-    // Deliberate: trailing-slash 301s are per-route (community slugs) and
-    // ship with the community-page story. A global flag would 301 assets,
-    // /robots.txt, /sitemap.xml, and /api/* POSTs (see SEO.md).
+    // Deliberate: trailing-slash 301s are per-slug exact rules (community
+    // pages) in `routes`, not the global flag. A global flag would 301
+    // assets, /robots.txt, /sitemap.xml, and /api/* POSTs (see SEO.md).
     expect(config.trailingSlash).toBeUndefined();
+  });
+
+  it('301-redirects every prerendered community slug to its trailing-slash form (SEO-01 AC6)', () => {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      routes?: Array<{ route?: string; redirect?: string; statusCode?: number }>;
+    };
+    const routes = config.routes ?? [];
+    // Every /communities/{slug}/ in prerender-routes.txt must have an exact
+    // 301 from the non-trailing-slash form (SWA wildcards would loop, so the
+    // rules are per-slug — see SEO.md).
+    const prerenderPath = join(publicDir, '..', 'prerender-routes.txt');
+    const slugs = readFileSync(prerenderPath, 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('/communities/') && line !== '/communities/')
+      .map((line) => line.replace(/\/+$/, ''));
+    expect(slugs.length).toBeGreaterThan(0);
+    for (const slug of slugs) {
+      const rule = routes.find((r) => r.route === slug);
+      expect(rule, `missing 301 for ${slug}`).toBeDefined();
+      expect(rule?.redirect).toBe(`${slug}/`);
+      expect(rule?.statusCode).toBe(301);
+    }
   });
 
   it('every literal excluded path exists in public/ or is build-generated', () => {
