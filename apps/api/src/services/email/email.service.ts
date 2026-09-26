@@ -47,6 +47,8 @@ export interface PartnerShareEmailInput {
    */
   readonly shareUrl: string;
   readonly note?: string;
+  /** Days until the share link expires — rendered from config, never hardcoded. */
+  readonly expiresInDays: number;
 }
 
 export interface CallbackConfirmationInput {
