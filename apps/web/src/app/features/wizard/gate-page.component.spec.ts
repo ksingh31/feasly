@@ -6,7 +6,7 @@ import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of, throwError } from 'rxjs';
-import type { PropertyRecord, PreviewEstimateResponse } from '@feasly/contracts';
+import type { PropertyRecord, PreviewEstimateResponse, NewBuildEstimateRequest } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { provideApi } from '../../core/api/api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
@@ -429,7 +429,8 @@ describe('GatePageComponent', () => {
 
       expect(submitSpy).toHaveBeenCalledOnce();
       expect(submitSpy.mock.calls[0][0].tenantKey).toBe('acme-builders');
-      expect(previewSpy.mock.calls[0][0].tenantKey).toBe('acme-builders');
+      // New-build flow: the preview request is a NewBuildEstimateRequest.
+      expect((previewSpy.mock.calls[0][0] as NewBuildEstimateRequest).tenantKey).toBe('acme-builders');
 
     });
   });
