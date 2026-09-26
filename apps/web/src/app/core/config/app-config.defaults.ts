@@ -41,8 +41,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     sampleReport: false,
     renovationWaitlist: false,
   },
-  // INTERIM (api-mcp/02): empty adminKey locks /admin/* until a deploy config
-  // sets the key or admin/01 lands with session auth.
   wizard: {
     sqftDefault: 2200,
     sqftMin: 1200,
@@ -72,7 +70,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     optInWording: 'Allow anonymous usage analytics to help improve Feasly.',
   },
   admin: {
-    adminKey: '',
     defaultRateLimit: 60,
   },
   copy: {

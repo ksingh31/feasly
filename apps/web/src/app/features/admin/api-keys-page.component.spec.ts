@@ -56,7 +56,7 @@ describe('ApiKeysPageComponent (api-mcp/02)', () => {
           };
         }
         if (key === 'admin') {
-          return { adminKey: 'secret', defaultRateLimit: 60 };
+          return { defaultRateLimit: 60 };
         }
         return {};
       }),

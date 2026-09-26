@@ -2,8 +2,9 @@
  * Thin API-key admin route (api-mcp/01). Routes are adapters, not logic:
  * validate input → call exactly one service method → return the result.
  *
- * All endpoints are admin-gated (the `AdminGuard` interface — currently the
- * interim pre-shared-key guard; admin/01 swaps in session auth).
+ * All endpoints are admin-gated (the `AdminGuard` interface — the
+ * admin/01 session-cookie implementation: `feasly_admin_session` httpOnly
+ * cookie; missing/revoked/expired → 401 UNAUTHENTICATED).
  *
  * - `POST /api/v1/admin/api-keys` — issue a key (plaintext returned once).
  * - `POST /api/v1/admin/api-keys/{id}/rotate` — rotate (new plaintext once).
