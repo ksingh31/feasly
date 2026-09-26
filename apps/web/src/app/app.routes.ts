@@ -278,7 +278,9 @@ export const routes: Routes = [
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
-  // never in sitemap or prerender.
+  // never in sitemap or prerender. ApiKeysState is provided on the lazy
+  // page component (not root) so the admin state stays in this lazy chunk,
+  // out of the initial bundle budget.
   {
     path: 'admin/api-keys',
     loadComponent: () =>
