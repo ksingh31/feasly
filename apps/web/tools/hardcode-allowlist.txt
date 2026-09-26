@@ -26,6 +26,11 @@ apps/web/src/app/features/not-found/not-found-page.component.ts
 # Copy-pinned by admin-login.component.spec.ts.
 apps/web/src/app/features/admin/admin-login.component.html
 
+# Admin estimate-lookup copy (admin/03): support-view strings pinned by the
+# story's acceptance criteria — they change by product decision, not by
+# deploy tuning. Copy-pinned by admin-estimate-lookup.component.spec.ts.
+apps/web/src/app/features/admin/admin-estimate-lookup.component.html
+
 # The `/404` route path (SEO-01): 404 is the HTTP status code — a web
 # standard, not a tunable. The no-hardcode tripwire's magic-number rule
 # cannot distinguish it from a tunable threshold.
