@@ -134,6 +134,8 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
+      listByTenantKey: async () => [],
+      updateStatus: async () => null,
   };
 
   const magicLinks: MagicLinkStore = {

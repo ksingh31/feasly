@@ -105,19 +105,45 @@ import {
   type AdminAuthRoute,
 } from './routes/admin-auth.route';
 import {
+  createBuilderAuthRoute,
+  type BuilderAuthRoute,
+} from './routes/builder-auth.route';
+import {
+  createBuilderLeadsRoute,
+  type BuilderLeadsRoute,
+} from './routes/builder-leads.route';
+import {
   createAdminAuthService,
   type AdminAuthService,
   type AdminAllowlistStore,
   type AdminSessionStore,
 } from './services/admin-auth.service';
 import {
+  createBuilderAuthService,
+  type BuilderAuthService,
+  type BuilderAllowlistStore,
+  type BuilderSessionStore,
+} from './services/builder-auth.service';
+import {
+  createBuilderLeadsService,
+  type BuilderLeadsService,
+} from './services/builder-leads.service';
+import {
   createDrizzleAdminAllowlistStore,
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import {
+  createDrizzleBuilderAllowlistStore,
+  createDrizzleBuilderSessionStore,
+} from './services/builder-auth.store';
+import {
   createSessionAdminGuard,
   type AdminGuard,
 } from './middleware/admin-guard';
+import {
+  createSessionBuilderGuard,
+  type BuilderGuard,
+} from './middleware/builder-guard';
 import {
   createAdminLeadsRoute,
   type AdminLeadsRoute,
@@ -404,6 +430,15 @@ export interface AppComposition {
   readonly adminAuthService: AdminAuthService;
   readonly adminAuthRoute: AdminAuthRoute;
   readonly adminGuard: AdminGuard;
+  /** embed/09: magic-link + allowlist session auth for /builder/*. */
+  readonly builderAuthService: BuilderAuthService;
+  readonly builderAuthRoute: BuilderAuthRoute;
+  readonly builderGuard: BuilderGuard;
+  /** embed/09: tenant-scoped lead pipeline for the builder portal. */
+  readonly builderLeadsService: BuilderLeadsService;
+  readonly builderLeadsRoute: BuilderLeadsRoute;
+  readonly builderAllowlistStore: BuilderAllowlistStore;
+  readonly builderSessionStore: BuilderSessionStore;
   /** admin/02: leads explorer (list, detail, notes, status, CSV export). */
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
@@ -491,6 +526,8 @@ export interface CompositionOptions {
   readonly apiKeyAuditStore?: ApiKeyAuditStore;
   readonly adminSessionStore?: AdminSessionStore;
   readonly adminAllowlistStore?: AdminAllowlistStore;
+  readonly builderSessionStore?: BuilderSessionStore;
+  readonly builderAllowlistStore?: BuilderAllowlistStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
   /**
@@ -832,6 +869,38 @@ export function createComposition(
       audit: adminAuditStore,
       adminGuard,
     });
+  // embed/09 — builder portal auth. The stores are injectable for tests.
+  const builderAllowlistStore: BuilderAllowlistStore =
+    options.builderAllowlistStore ??
+    createDrizzleBuilderAllowlistStore({ db: db.db });
+  const builderSessionStore: BuilderSessionStore =
+    options.builderSessionStore ??
+    createDrizzleBuilderSessionStore({ db: db.db });
+  const builderAuthService: BuilderAuthService = createBuilderAuthService({
+    allowlist: builderAllowlistStore,
+    sessions: builderSessionStore,
+    audit: adminAuditStore,
+    magicLinks: magicLinkStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+  });
+  const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
+    builderAuth: builderAuthService,
+    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+  });
+  const builderGuard: BuilderGuard = createSessionBuilderGuard({
+    builderAuth: builderAuthService,
+  });
+  const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
+    leadStore,
+    audit: adminAuditStore,
+  });
+  const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
+    builderLeads: builderLeadsService,
+    builderGuard,
+  });
   // admin/02 — leads explorer. The store is injectable for tests.
   const adminLeadsStore: AdminLeadsStore =
     options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
@@ -1182,6 +1251,13 @@ export function createComposition(
     adminAuthService,
     adminAuthRoute,
     adminGuard,
+    builderAuthService,
+    builderAuthRoute,
+    builderGuard,
+    builderLeadsService,
+    builderLeadsRoute,
+    builderAllowlistStore,
+    builderSessionStore,
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,

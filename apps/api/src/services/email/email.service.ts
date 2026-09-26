@@ -34,7 +34,7 @@ export interface MagicLinkEmailInput {
   readonly magicLinkUrl: string;
   /** Days until expiry — rendered from config, never hardcoded. */
   readonly expiresInDays: number;
-  readonly audience: 'consumer' | 'admin';
+  readonly audience: 'consumer' | 'admin' | 'builder';
 }
 
 export interface PartnerShareEmailInput {

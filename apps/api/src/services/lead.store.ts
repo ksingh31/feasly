@@ -144,8 +144,25 @@ export interface LeadStore {
     readonly includeQuarantined?: boolean;
     readonly limit?: number;
   }): Promise<LeadRecord[]>;
+  /**
+   * embed/09 — tenant-scoped lead listing for the builder portal.
+   * Returns only leads with the given tenant_key, newest first.
+   * Quarantined rows are EXCLUDED (spam never reaches the builder).
+   */
+  listByTenantKey(args: {
+    readonly tenantKey: string;
+    readonly limit?: number;
+  }): Promise<LeadRecord[]>;
   /** One lead by id, or null. */
   findById(id: string): Promise<LeadRecord | null>;
+  /**
+   * embed/09 — update a lead's pipeline status. Used by the builder portal
+   * (tenant-scoped at the service layer). Returns the updated record.
+   */
+  updateStatus(args: {
+    readonly id: string;
+    readonly status: string;
+  }): Promise<LeadRecord | null>;
   /**
    * admin/03 — the lead currently pointing at an estimate, or null when the
    * gate hasn't completed. The consumer/02 dedupe rewrites `estimate_id` to
@@ -300,6 +317,26 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .orderBy(desc(leads.createdAt))
         .limit(args?.limit ?? 100);
       return rows.map(toRecord);
+    },
+    async listByTenantKey(args): Promise<LeadRecord[]> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(
+          and(eq(leads.tenantKey, args.tenantKey), eq(leads.quarantined, false)),
+        )
+        .orderBy(desc(leads.createdAt))
+        .limit(args.limit ?? 100);
+      return rows.map(toRecord);
+    },
+    async updateStatus(args): Promise<LeadRecord | null> {
+      const rows = await db
+        .update(leads)
+        .set({ status: args.status })
+        .where(eq(leads.id, args.id))
+        .returning();
+      const row = rows[0];
+      return row ? toRecord(row) : null;
     },
     async findById(id: string): Promise<LeadRecord | null> {
       const rows = await db

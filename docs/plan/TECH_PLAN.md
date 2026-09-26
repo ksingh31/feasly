@@ -1281,6 +1281,12 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/auth/verify` | magic-token | 10/min per IP | planned | Consume the admin magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
 | GET | `/api/v1/admin/auth/me` | admin | 100/min per session | planned | Return the current admin session identity (email). |
 | POST | `/api/v1/admin/auth/logout` | admin | 10/min per session | planned | Revoke the admin session; clears the session cookie. |
+| POST | `/api/v1/builder/auth/request` | none | 5/hr per email+IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
+| GET | `/api/v1/builder/auth/verify` | magic-token | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=Lax session cookie, 7-day expiry. Single-use (replay-safe). |
+| GET | `/api/v1/builder/auth/me` | builder-session | 100/min per session | live | Return the current builder session identity (email + tenant). |
+| POST | `/api/v1/builder/auth/logout` | builder-session | 10/min per session | live | Revoke the builder session; clears the session cookie. |
+| GET | `/api/v1/builder/leads` | builder-session | 100/min per session | live | List the builder's leads (tenant-scoped, newest first) with a pipeline summary (new/contacted/quoted/won/lost). |
+| PATCH | `/api/v1/builder/leads/{id}` | builder-session | 100/min per session | live | Transition a builder lead's pipeline status. 403 when the lead belongs to a different tenant. |
 | GET | `/api/v1/admin/api-keys` | admin | 100/min per session | live | List API keys (masked, paginated). |
 | POST | `/api/v1/admin/api-keys` | admin | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
 | POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
@@ -1300,11 +1306,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | live | Sheets sync worker status (admin/05). |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live | Trigger an immediate Sheets sync (admin/05). |
 | POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
-| GET | `/api/v1/builder/leads` | builder-session | 300/min per session | planned | Builder pipeline dashboard: attributed leads (embed/09). |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
-| PATCH | `/api/v1/builder/leads/{id}` | builder-session | 60/min per session | planned | Builder lead status updates: contacted/quoted/won/lost with timestamps (embed/09). Tenant-scoped; won/lost feeds attribution. Audit-logged. |
 | POST | `/api/mcp/v1` | api-key | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
----
 
-*End of TECH_PLAN.md — implements ADR-001; drives stories in `plan/epics/`.*

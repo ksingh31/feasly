@@ -81,7 +81,7 @@ export interface MagicLinkTemplateInput {
   readonly magicLinkUrl: string;
   /** Days until the link expires — rendered from config, never hardcoded. */
   readonly expiresInDays: number;
-  readonly audience: 'consumer' | 'admin';
+  readonly audience: 'consumer' | 'admin' | 'builder';
 }
 
 /** Single-CTA magic-link email. Transactional: no unsubscribe link. */
@@ -96,6 +96,11 @@ export function renderMagicLinkEmail(
       : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
   const isAdmin = input.audience === 'admin';
   const ctaLabel = isAdmin ? `Sign in to ${ctx.brandName} admin` : 'View my estimate';
+      : input.audience === 'builder'
+        ? `Your ${ctx.brandName} builder dashboard sign-in link`
+        : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
+  const ctaLabel =
+    input.audience === 'builder' ? 'Open builder dashboard' : 'View my estimate';
   const body = `<p>${greeting}</p>
 <p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
 ${ctaButton(input.magicLinkUrl, ctaLabel)}

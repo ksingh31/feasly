@@ -318,6 +318,63 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'planned',
     summary: 'Revoke the admin session; clears the session cookie.',
   },
+  // ── Builder v1 (session cookie; embed/09) ──────────────────────────
+  {
+    method: 'POST',
+    path: '/api/v1/builder/auth/request',
+    auth: 'none',
+    rateLimit: '5/hr per email+IP',
+    status: 'live',
+    summary:
+      'Request a builder magic link. Identical response for allowlisted and ' +
+      'non-allowlisted emails (no enumeration oracle).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/auth/verify',
+    auth: 'magic-token',
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Consume the builder magic link (?token=…) → httpOnly Secure SameSite=Lax ' +
+      'session cookie, 7-day expiry. Single-use (replay-safe).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/auth/me',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary: 'Return the current builder session identity (email + tenant).',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/auth/logout',
+    auth: 'builder-session',
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary: 'Revoke the builder session; clears the session cookie.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/leads',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'List the builder\'s leads (tenant-scoped, newest first) with a ' +
+      'pipeline summary (new/contacted/quoted/won/lost).',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/builder/leads/{id}',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Transition a builder lead\'s pipeline status. 403 when the lead ' +
+      'belongs to a different tenant.',
+  },
   {
     method: 'GET',
     path: '/api/v1/admin/api-keys',
@@ -492,30 +549,11 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
-    path: '/api/v1/builder/leads',
-    auth: 'builder-session',
-    rateLimit: '300/min per session',
-    status: 'planned',
-    summary: 'Builder pipeline dashboard: attributed leads (embed/09).',
-  },
-  {
-    method: 'GET',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Attributed lead detail (tenant-scoped).',
-  },
-  {
-    method: 'PATCH',
-    path: '/api/v1/builder/leads/{id}',
-    auth: 'builder-session',
-    rateLimit: '60/min per session',
-    status: 'planned',
-    summary:
-      'Builder lead status updates: contacted/quoted/won/lost with ' +
-      'timestamps (embed/09). Tenant-scoped; won/lost feeds attribution. ' +
-      'Audit-logged.',
   },
 
   // ── MCP server (agent API) ──────────────────────────────────────────

@@ -789,6 +789,62 @@ export const adminSessions = pgTable(
 );
 
 /**
+ * Builder allowlist (embed/09).
+ *
+ * Maps builder emails to their tenant. Only allowlisted emails can request
+ * a builder magic link. Managed by admins (Karan). Email is the PK, stored
+ * lowercased + trimmed (same discipline as admin allowlist).
+ */
+export const builderAllowlist = pgTable('builder_allowlist', {
+  /** Lowercased, trimmed builder email — the PK. */
+  email: text('email').primaryKey(),
+  /** The builder tenant this email is authorized for. */
+  tenantKey: text('tenant_key')
+    .notNull()
+    .references(() => tenants.tenantKey, { onDelete: 'cascade' }),
+  /** Email of the admin who added this entry. */
+  addedBy: text('added_by').notNull(),
+  addedAt: timestamp('added_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Builder sessions (embed/09).
+ *
+ * One row per active builder session. Only the SHA-256 hash of the opaque
+ * session token is stored — the plaintext lives only in the httpOnly
+ * session cookie. 7-day expiry (same as admin sessions). Each session is
+ * bound to a tenant_key; all lead reads are scoped to that tenant.
+ */
+export const builderSessions = pgTable(
+  'builder_sessions',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Lowercased, trimmed builder email (from the allowlist). */
+    email: text('email').notNull(),
+    /** The tenant this session is authorized for. */
+    tenantKey: text('tenant_key')
+      .notNull()
+      .references(() => tenants.tenantKey, { onDelete: 'cascade' }),
+    /** SHA-256 hex of the opaque session token — the ONLY stored form. */
+    sessionTokenHash: text('session_token_hash').notNull().unique(),
+    /** Null = active. Set on logout. */
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('builder_sessions_token_hash_idx').on(t.sessionTokenHash),
+    index('builder_sessions_email_idx').on(t.email),
+    index('builder_sessions_tenant_key_idx').on(t.tenantKey),
+  ],
+);
+
+/**
  * Admin audit log (admin/01).
  *
  * Allowlist changes (add/remove) and auth events. `detail` is
@@ -799,8 +855,7 @@ export const adminAuditLog = pgTable(
   {
     /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
     id: uuid('id').primaryKey(),
-    /** Actor email (the admin performing the action), null for system. */
-    actorEmail: text('actor_email'),
+    /** Actor email (the admin performing the action), null for system. */    actorEmail: text('actor_email'),
     /** 'allowlist_added' | 'allowlist_removed' | 'magic_link_requested' | 'session_created' | 'session_revoked' | 'auth_failed' */
     action: text('action').notNull(),
     /** Short machine-readable detail — never tokens, never credentials. */
