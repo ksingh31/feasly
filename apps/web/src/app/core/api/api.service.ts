@@ -24,6 +24,8 @@ import type {
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribeResultResponse,
+  UnsubscribeStateResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import { HttpApiService } from './http-api.service';
@@ -119,6 +121,17 @@ export interface ApiService {
   shareWithPartner(
     request: PartnerShareRequest,
   ): Observable<PartnerShareResponse>;
+  /**
+   * Unsubscribe center (email/03): read-only state for an unsubscribe token.
+   * The token IS the credential — it is never logged and the email is never
+   * exposed to the client.
+   */
+  getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse>;
+  /**
+   * Unsubscribe center (email/03): records the opt-out for the token.
+   * Idempotent — already-unsubscribed tokens succeed without state change.
+   */
+  confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse>;
   /** First-party analytics event. Fire-and-forget. */
   trackEvent(event: AnalyticsEvent): Observable<void>;
 }
@@ -217,6 +230,14 @@ class LazyApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.resolve().shareWithPartner(request);
+  }
+
+  getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {
+    return this.resolve().getUnsubscribeState(token);
+  }
+
+  confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse> {
+    return this.resolve().confirmUnsubscribe(token);
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {

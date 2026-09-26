@@ -1,0 +1,99 @@
+/* Unsubscribe center (email/03) — prototype cream/charcoal/brass language. */
+
+/* NOTE: the sticky-footer flex shell lives in global styles.scss (applies to
+   every page host); do not set display on :host here — it would override it. */
+
+.unsubscribe {
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.04);
+}
+
+.unsubscribe h1 {
+  font-family: var(--font-headline);
+  font-size: var(--type-hero);
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.body {
+  font-size: var(--type-hero-sub);
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.status {
+  font-size: var(--type-hero-sub);
+  color: var(--muted);
+  margin: 0;
+}
+
+.resub {
+  font-size: var(--type-section-body);
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--text);
+  color: var(--cream);
+  font-weight: 600;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.cta.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.text-button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 32px 24px;
+  }
+}

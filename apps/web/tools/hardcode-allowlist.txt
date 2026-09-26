@@ -21,10 +21,18 @@ apps/web/src/app/features/legal/terms-page.component.ts
 # tuning. Copy-pinned by not-found-page.component.spec.ts.
 apps/web/src/app/features/not-found/not-found-page.component.ts
 
+<<<<<<< HEAD
 # Admin login expired-session copy (admin/01): the exact string is pinned by
 # the story's acceptance criteria ("shows the exact expired-session copy").
 # Copy-pinned by admin-login.component.spec.ts.
 apps/web/src/app/features/admin/admin-login.component.html
+=======
+# Unsubscribe center page (email/03): the only long literals are the import
+# paths of the shared site-nav/site-footer chrome components. All user copy
+# lives in ConfigService; the exact confirmation sentence is copy-pinned by
+# unsubscribe-page.component.spec.ts.
+apps/web/src/app/features/unsubscribe/unsubscribe-page.component.ts
+>>>>>>> 5324768 (feat(web): one-click unsubscribe center (email/03))
 
 # The `/404` route path (SEO-01): 404 is the HTTP status code — a web
 # standard, not a tunable. The no-hardcode tripwire's magic-number rule

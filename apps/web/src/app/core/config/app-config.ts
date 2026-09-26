@@ -536,6 +536,8 @@ export interface AppConfig {
       communities: string;
       notFoundTitle: string;
       notFound: string;
+      unsubscribeTitle: string;
+      unsubscribe: string;
       errorTitle: string;
       error: string;
     };
@@ -710,6 +712,33 @@ export interface AppConfig {
       leadStatusUpdatedLabel: string;
       /** Status action group label (screen reader). */
       actionsLabel: string;
+    };
+    /**
+     * Unsubscribe center (email/03) copy. The confirmation line
+     * `doneHeading` is pinned by the story's acceptance criteria.
+     */
+    unsubscribe: {
+      loadingLabel: string;
+      confirmHeading: string;
+      confirmBody: string;
+      confirmCta: string;
+      keepCta: string;
+      submittingLabel: string;
+      doneHeading: string;
+      doneBody: string;
+      resubscribePrompt: string;
+      resubscribeBody: string;
+      alreadyHeading: string;
+      alreadyBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      expiredCta: string;
+      invalidHeading: string;
+      invalidBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      homeCta: string;
     };
   };
 }

@@ -28,6 +28,8 @@ import type {
   RenoEstimateRequest,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribeResultResponse,
+  UnsubscribeStateResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { ApiService, CommunityStats } from './api.service';
@@ -71,6 +73,8 @@ export class MockApiService implements ApiService {
 
   /** Tokens this instance issued: token → { estimateId, leadId }. */
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
+  /** Unsubscribe tokens already opted out (email/03 dev harness). */
+  private readonly unsubscribedTokens = new Set<string>();
   /** Inputs per estimate, so report/tier-revision stay consistent. */
   private readonly estimateInputs = new Map<string, EstimateInputs>();
   /** Reno inputs per estimate (RENO-04), so reno reports include renoInputs. */
@@ -418,6 +422,30 @@ export class MockApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.roundTrip(mockShareOk(request.partnerEmail));
+  }
+
+  /**
+   * Dev harness for the unsubscribe center (email/03): any non-empty token
+   * resolves as valid — the real backend HMAC-verifies the token, which the
+   * mock cannot mint. POST is idempotent: repeat calls report
+   * `alreadyUnsubscribed` without changing state.
+   */
+  getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {
+    const response: UnsubscribeStateResponse =
+      token.trim().length > 0
+        ? {
+            valid: true,
+            leadId: 'mock-lead',
+            alreadyUnsubscribed: this.unsubscribedTokens.has(token),
+          }
+        : { valid: false, reason: 'invalid' };
+    return this.roundTrip(response);
+  }
+
+  confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse> {
+    const alreadyUnsubscribed = this.unsubscribedTokens.has(token);
+    this.unsubscribedTokens.add(token);
+    return this.roundTrip({ unsubscribed: true, alreadyUnsubscribed });
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
