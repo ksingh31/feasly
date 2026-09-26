@@ -56,14 +56,6 @@ export interface AppConfig {
     /** Show the renovation waitlist capture instead of the estimator. */
     renovationWaitlist: boolean;
   };
-  /**
-   * Admin dashboard wiring (api-mcp/02).
-   *
-   * INTERIM: until admin/01 (magic-link admin session auth) lands, admin
-   * routes authenticate with the `X-Admin-Key` header. Empty string = admin
-   * routes are locked (the admin guard redirects to /). Deploy config only —
-   * never commit a real key.
-   */
   /** Wizard tunables (FE-2). */
   wizard: {
     sqftDefault: number;
@@ -108,15 +100,7 @@ export interface AppConfig {
     optInWording: string;
   };
   /** User-facing copy, namespaced by area. Extended by FE1-001. */
-  /**
-   * INTERIM: until admin/01 (magic-link admin session auth) lands, admin
-   * routes authenticate with the `X-Admin-Key` header. Empty string = admin
-   * routes are locked (the admin guard redirects to /). Deploy config only —
-   * never commit a real key.
-   */
   admin: {
-    /** Pre-shared key sent as `X-Admin-Key`. Empty = locked. */
-    adminKey: string;
     /** Default per-minute rate limit prefilled in the issue form. */
     defaultRateLimit: number;
   };

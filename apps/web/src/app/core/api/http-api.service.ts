@@ -172,67 +172,42 @@ export class HttpApiService implements ApiService {
   }
 
   /**
-   * Sends the interim `X-Admin-Key` header until admin/01 lands (session
-   * auth). The key comes from `admin.adminKey` deploy config — never from
-   * user input, never logged.
+   * Admin session auth (admin/01): the `feasly_admin_session` httpOnly cookie
+   * rides on every API request via `credentialsInterceptor` — no per-call
+   * header is needed or sent.
    */
-  private adminHeaders(): Record<string, string> {
-    return { 'X-Admin-Key': this.config.get('admin').adminKey };
-  }
-
   listApiKeys(): Observable<ApiKeyListResponse> {
-    return this.call(
-      this.http.get<ApiKeyListResponse>(this.adminBase, {
-        headers: this.adminHeaders(),
-      }),
-    );
+    return this.call(this.http.get<ApiKeyListResponse>(this.adminBase));
   }
 
   issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse> {
     return this.call(
-      this.http.post<ApiKeyIssuedResponse>(this.adminBase, request, {
-        headers: this.adminHeaders(),
-      }),
+      this.http.post<ApiKeyIssuedResponse>(this.adminBase, request),
     );
   }
 
   rotateApiKey(id: string): Observable<ApiKeyIssuedResponse> {
     const path = `${this.adminBase}/${encodeURIComponent(id)}`;
     return this.call(
-      this.http.post<ApiKeyIssuedResponse>(
-        `${path}/rotate`,
-        {},
-        { headers: this.adminHeaders() },
-      ),
+      this.http.post<ApiKeyIssuedResponse>(`${path}/rotate`, {}),
     );
   }
 
   revokeApiKey(id: string): Observable<{ readonly revoked: boolean }> {
     const path = `${this.adminBase}/${encodeURIComponent(id)}`;
     return this.call(
-      this.http.post<{ readonly revoked: boolean }>(
-        `${path}/revoke`,
-        {},
-        { headers: this.adminHeaders() },
-      ),
+      this.http.post<{ readonly revoked: boolean }>(`${path}/revoke`, {}),
     );
   }
 
   updateApiKey(id: string, patch: ApiKeyUpdatePatch): Observable<ApiKeyRecordResponse> {
     const path = `${this.adminBase}/${encodeURIComponent(id)}`;
-    return this.call(
-      this.http.patch<ApiKeyRecordResponse>(
-        path,
-        patch,
-        { headers: this.adminHeaders() },
-      ),
-    );
+    return this.call(this.http.patch<ApiKeyRecordResponse>(path, patch));
   }
 
   getApiKeyUsage(keyId: string): Observable<readonly ApiKeyUsageAggregate[]> {
     return this.call(
       this.http.get<readonly ApiKeyUsageAggregate[]>(`${this.base}/admin/usage`, {
-        headers: this.adminHeaders(),
         params: { key_id: keyId },
       }),
     );

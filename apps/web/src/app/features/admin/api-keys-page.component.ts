@@ -28,7 +28,7 @@ import { ApiKeyUsageComponent } from './api-key-usage.component';
  * revoke with confirm dialogs, scope + rate-limit editors (take effect on
  * the next request, no restart), and a per-key usage panel.
  *
- * Guarded by {@link adminGuard} (interim X-Admin-Key until admin/01).
+ * Guarded by {@link adminGuard} (admin/01 session-cookie auth).
  * State lives in {@link ApiKeysState} (not persisted — the once-only
  * plaintext must never survive a refresh).
  */
