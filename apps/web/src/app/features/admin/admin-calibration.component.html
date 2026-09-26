@@ -179,8 +179,15 @@
           v1 stays live until v2 is reviewed and frozen.
         </p>
       }
-      <button type="button" [disabled]="cal.hasDraftV2" (click)="startV2Import()">
-        {{ cal.hasDraftV2 ? 'V2 draft in progress' : 'Start v2 import' }}
+      <!-- PLACEHOLDER (admin/09): the v2 import flow ships with
+           cost-engine/01, which needs Karan's cost Sheet. Until then the
+           action is disabled and says so — no dead buttons. -->
+      <button
+        type="button"
+        disabled
+        title="Available after the first calibration import (waiting on Karan's cost Sheet)"
+      >
+        Start v2 import
       </button>
     </section>
   }

@@ -15,7 +15,8 @@ import {
  *
  * Shows the cost engine's calibration state — current version, error
  * distribution, sample size — and the import history. The "Start v2 import"
- * action opens the v2 flow (cost-engine/01); params are never edited inline
+ * action is disabled until the import tooling lands (cost-engine/01,
+ * blocked on Karan's cost Sheet); params are never edited inline
  * (AC2: no write endpoints are wired to this page).
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
@@ -96,17 +97,4 @@ export class AdminCalibrationComponent implements OnInit {
     return Math.max(2, Math.round((count / sampleSize) * 100));
   }
 
-  /**
-   * "Start v2 import" (AC3): opens the v2 import flow from cost-engine/01.
-   * The flow itself creates an isolated draft — it never touches the
-   * frozen v1, and no params are edited inline on this page (AC2).
-   *
-   * Placeholder: the import tooling lands with cost-engine/01 (blocked on
-   * Karan's cost Sheet). Until then this is disabled in the template when
-   * a draft exists; the click is a no-op hook for the future flow.
-   */
-  protected startV2Import(): void {
-    // Hook for the cost-engine/01 import flow. Intentionally a no-op
-    // until the tooling exists — the button copy makes the state clear.
-  }
 }
