@@ -1,5 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngxs/store';
 import { Observable } from 'rxjs';
@@ -31,7 +30,6 @@ import {
 export class AdminCalibrationComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly seo = inject(SeoService);
-  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly calibration$: Observable<AdminCalibrationResponse | null> =
     this.store.select(CalibrationState.calibration);
