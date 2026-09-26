@@ -134,6 +134,73 @@ echo "$out" | grep -q "ALERT: site_root failing" \
   || bad "alert independence: '$out'"
 rm -rf "$(dirname "$STATE")"
 
+# --- 8. check-postgres-backup.sh with a fake az -------------------------------
+# The backup script only shells out to `az`; a fake az in PATH exercises every
+# failure branch without Azure. (CI's backup-config job runs the real thing.)
+fakeaz="$(mktemp -d)"
+cat > "$fakeaz/az" <<'EOF'
+#!/usr/bin/env bash
+# Fake `az postgres flexible-server` for check-postgres-backup.sh tests.
+# Modes via FAKE_AZ_BACKUP: ok | low-retention | stale | no-server | no-earliest
+mode="${FAKE_AZ_BACKUP:-ok}"
+if [[ "$1" == "postgres" && "$2" == "flexible-server" && "$3" == "list" ]]; then
+  [[ "$mode" == "no-server" ]] && echo "None" || echo "feasly-dev-pg-test"
+  exit 0
+fi
+if [[ "$1" == "postgres" && "$2" == "flexible-server" && "$3" == "show" ]]; then
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  case "$mode" in
+    ok)            echo "{\"retention\":7,\"earliest\":\"$now\",\"geo\":\"Disabled\"}" ;;
+    low-retention) echo "{\"retention\":3,\"earliest\":\"$now\",\"geo\":\"Disabled\"}" ;;
+    stale)         echo '{"retention":7,"earliest":"2020-01-01T00:00:00Z","geo":"Disabled"}' ;;
+    no-earliest)   echo '{"retention":7,"earliest":null,"geo":"Disabled"}' ;;
+  esac
+  exit 0
+fi
+echo "fake az: unexpected args: $*" >&2
+exit 1
+EOF
+chmod +x "$fakeaz/az"
+backup_check() { # backup_check <mode>
+  PATH="$fakeaz:$PATH" FAKE_AZ_BACKUP="$1" PG_RESOURCE_GROUP=rg-test \
+    bash "$ROOT/infra/health/check-postgres-backup.sh"
+}
+
+out="$(backup_check ok)"; code=$?
+[[ $code -eq 0 ]] && ok "backup: healthy -> exit 0" || bad "backup healthy: exit $code"
+echo "$out" | grep -q "OK: PITR-capable" && ok "backup: healthy prints OK" \
+  || bad "backup healthy line: $out"
+
+out="$(backup_check low-retention 2>&1)"; code=$?
+[[ $code -eq 1 ]] && ok "backup: low retention -> exit 1" \
+  || bad "backup low-retention: exit $code"
+echo "$out" | grep -q "FAIL: backup retention" \
+  && ok "backup: low retention mentions retention" \
+  || bad "backup low-retention line: $out"
+
+out="$(backup_check stale 2>&1)"; code=$?
+[[ $code -eq 1 ]] && ok "backup: stale chain -> exit 1" \
+  || bad "backup stale: exit $code"
+echo "$out" | grep -q "FAIL: earliest restore point" \
+  && ok "backup: stale chain mentions restore point" \
+  || bad "backup stale line: $out"
+
+out="$(backup_check no-server 2>&1)"; code=$?
+[[ $code -eq 1 ]] && ok "backup: no server -> exit 1" \
+  || bad "backup no-server: exit $code"
+echo "$out" | grep -q "FAIL: no Postgres flexible server found" \
+  && ok "backup: no server message" \
+  || bad "backup no-server line: $out"
+
+out="$(backup_check no-earliest 2>&1)"; code=$?
+[[ $code -eq 1 ]] && ok "backup: missing earliest -> exit 1" \
+  || bad "backup no-earliest: exit $code"
+echo "$out" | grep -q "FAIL: earliestRestoreDate is missing" \
+  && ok "backup: missing earliest message" \
+  || bad "backup no-earliest line: $out"
+
+rm -rf "$fakeaz"
+
 # --- summary ------------------------------------------------------------------
 echo "---"
 echo "passed: $pass  failed: $fail"
