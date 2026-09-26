@@ -1,0 +1,157 @@
+<div class="estimate-lookup">
+  <h1>Estimate lookup</h1>
+  <p class="hint">
+    Paste an estimate ID to see exactly what the homeowner saw — inputs,
+    ranges, cost-data version, snapshot history. Read-only.
+  </p>
+
+  <form class="search" (ngSubmit)="search()">
+    <label class="search__field">
+      <span>Estimate ID</span>
+      <input
+        type="text"
+        name="estimateId"
+        [(ngModel)]="searchId"
+        placeholder="e.g. 3f9b2c1a-…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </label>
+    <button type="submit" class="search__submit" [disabled]="searchId().trim().length === 0">
+      Look up
+    </button>
+  </form>
+
+  @if (showLoading()) {
+    <p class="loading" role="status">Loading estimate…</p>
+  } @else if (showNotFound()) {
+    <div class="error-card" role="alert">
+      <p>No estimate found for ID “{{ lookupId() }}”.</p>
+      <p class="hint">Check the ID and try again.</p>
+    </div>
+  } @else if (showError()) {
+    <div class="error-card" role="alert">
+      <p>Something went wrong loading this estimate.</p>
+      <button type="button" class="link-btn" (click)="retry()">Retry</button>
+    </div>
+  } @else if (detail(); as d) {
+    <!-- OPS STRIP: version string, created-at, linked lead, snapshot timeline. -->
+    <section class="card ops" aria-label="Estimate metadata">
+      <h2>Ops</h2>
+      <dl class="ops__grid">
+        <div>
+          <dt>Estimate ID</dt>
+          <dd class="mono">{{ d.id }}</dd>
+        </div>
+        <div>
+          <dt>Cost data version</dt>
+          <dd class="mono">{{ d.costDataVersion }}</dd>
+        </div>
+        <div>
+          <dt>Created</dt>
+          <dd>{{ formatDate(d.createdAt) }}</dd>
+        </div>
+        <div>
+          <dt>Project type</dt>
+          <dd>{{ isReno() ? 'Renovation' : 'New build' }}</dd>
+        </div>
+        <div>
+          <dt>Linked lead</dt>
+          <dd>
+            @if (d.linkedLeadId) {
+              <a [routerLink]="['/admin/leads']" class="mono">{{ d.linkedLeadId }}</a>
+            } @else {
+              <span class="hint">No lead yet — gate not completed.</span>
+            }
+          </dd>
+        </div>
+      </dl>
+
+      <h3>Snapshot timeline</h3>
+      @if (d.snapshots.length > 0) {
+        <ol class="timeline">
+          @for (s of d.snapshots; track s.id) {
+            <li [class.current]="s.id === d.id">
+              <a [routerLink]="['/admin/estimates', s.id]" class="mono">{{ s.id }}</a>
+              <span class="timeline__date">{{ formatDate(s.createdAt) }}</span>
+              @if (s.id === d.id) {
+                <span class="timeline__badge">current</span>
+              }
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="hint">No snapshots for this address.</p>
+      }
+    </section>
+
+    <!-- HERO: one prominent total + planning range, like the consumer report. -->
+    <section class="card hero" aria-label="Estimate totals">
+      <h2>Total project cost</h2>
+      <p class="hero__value">{{ formatCad(d.outputs.totalRange.base) }}</p>
+      <p class="hero__range">
+        Planning range
+        <strong>{{ formatCad(d.outputs.totalRange.low) }}–{{ formatCad(d.outputs.totalRange.high) }}</strong>
+      </p>
+      <dl class="hero__grid">
+        <div>
+          <dt>Build cost</dt>
+          <dd>
+            {{ formatCad(d.outputs.buildRange.base) }}
+            <span class="hint">({{ formatCad(d.outputs.buildRange.low) }}–{{ formatCad(d.outputs.buildRange.high) }})</span>
+          </dd>
+        </div>
+        @if (!isReno()) {
+          <div>
+            <dt>Land value (City assessed, fixed)</dt>
+            <dd>{{ formatCad(d.outputs.landValue.value) }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <!-- INPUTS: fixed inputs the estimate was built from. -->
+    <section class="card" aria-label="Estimate inputs">
+      <h2>Inputs</h2>
+      <dl class="inputs__grid">
+        @for (row of inputRows(); track row.label) {
+          <div>
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <!-- COST BREAKDOWN: same three buckets as the consumer report. -->
+    <section class="card" aria-label="Cost breakdown">
+      <h2>Cost breakdown</h2>
+      @if (buckets().length > 0) {
+        <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
+          @for (b of buckets(); track b.key) {
+            <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
+          }
+        </div>
+        <ul class="bucket-legend">
+          @for (b of buckets(); track b.key) {
+            <li>
+              <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
+              <span class="bucket-label">{{ b.label }}</span>
+              <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="hint">No breakdown rows on this estimate.</p>
+      }
+    </section>
+
+    <!-- NARRATIVE: shown only when generated (AC5). -->
+    @if (d.narrative) {
+      <section class="card" aria-label="AI summary">
+        <h2>AI summary</h2>
+        <p class="narrative">{{ d.narrative }}</p>
+      </section>
+    }
+  }
+</div>

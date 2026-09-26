@@ -22,12 +22,6 @@ import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
-import { AdminLoginComponent } from './features/admin/admin-login.component';
-import { AdminVerifyComponent } from './features/admin/admin-verify.component';
-import { AdminShellComponent } from './features/admin/admin-shell.component';
-import { AdminLeadsComponent } from './features/admin/admin-leads.component';
-import { AdminCalibrationComponent } from './features/admin/admin-calibration.component';
-import { AdminSheetsStatusComponent } from './features/admin/admin-sheets-status.component';
 import { adminGuard } from './features/admin/admin.guard';
 import { BuilderLoginComponent } from './features/builder/builder-login.component';
 import { BuilderVerifyComponent } from './features/builder/builder-verify.component';
@@ -167,30 +161,57 @@ export const routes: Routes = [
   },
   // Admin (admin/01): magic-link session auth. All admin routes are
   // noindexed and excluded from prerendering (not in prerender-routes.txt).
-  // No public-page links point here.
+  // No public-page links point here. All admin views are lazy-loaded so they
+  // stay out of the initial bundle (bundle-budget regression, PR #159).
   {
     path: 'admin/login',
-    component: AdminLoginComponent,
+    loadComponent: () =>
+      import('./features/admin/admin-login.component').then((m) => m.AdminLoginComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
   {
     path: 'admin/verify',
-    component: AdminVerifyComponent,
+    loadComponent: () =>
+      import('./features/admin/admin-verify.component').then((m) => m.AdminVerifyComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
   {
     path: 'admin',
-    component: AdminShellComponent,
+    loadComponent: () =>
+      import('./features/admin/admin-shell.component').then((m) => m.AdminShellComponent),
     canActivate: [robotsGuard, adminGuard],
     data: { noindex: true },
     children: [
       { path: '', redirectTo: 'leads', pathMatch: 'full' },
-      { path: 'leads', component: AdminLeadsComponent },
-      { path: 'calibration', component: AdminCalibrationComponent },
+      {
+        path: 'leads',
+        loadComponent: () =>
+          import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
+      },
+      {
+        path: 'calibration',
+        loadComponent: () =>
+          import('./features/admin/admin-calibration.component').then((m) => m.AdminCalibrationComponent),
+      },
       // admin/05: Sheets sync ops panel.
-      { path: 'ops/sheets', component: AdminSheetsStatusComponent },
+      {
+        path: 'ops/sheets',
+        loadComponent: () =>
+          import('./features/admin/admin-sheets-status.component').then((m) => m.AdminSheetsStatusComponent),
+      },
+      // Admin estimate lookup (admin/03): search entry + read-only detail.
+      {
+        path: 'estimates',
+        loadComponent: () =>
+          import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
+      },
+      {
+        path: 'estimates/:id',
+        loadComponent: () =>
+          import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
+      },
     ],
   },
   // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
