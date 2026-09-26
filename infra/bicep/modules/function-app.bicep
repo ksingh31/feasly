@@ -46,7 +46,7 @@ param acsConnectionStringSecretUri string = ''
 @description('Sender address for transactional email (must be an ACS-verified domain sender). Empty = app config default.')
 param emailFromAddress string = ''
 
-@description('CORS allowed origins for the Function App (ADM-10: the web app calls the API cross-origin). Never "*" when supportCredentials is true.')
+@description('CORS allowed origins for the Function App (ADM-10: the web app calls the API cross-origin). Fed to the in-app CORS middleware via CORS_ORIGINS — the single CORS source; platform-level CORS stays OFF so responses never carry duplicate Access-Control-Allow-Origin headers. Never "*".')
 param corsAllowedOrigins string[] = []
 
 @description('Public base URL of the web app, used to build magic-link URLs in emails (ADM-10: must be the live SWA hostname, not the feasly.example config default).')
@@ -222,15 +222,24 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 name: 'SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY'
                 value: '@Microsoft.KeyVault(SecretUri=${sheetsServiceAccountPrivateKeySecretUri})'
               }
-            ]
+            ],
+        // CORS allowlist for the in-app middleware (ADM-10): the SWA calls
+        // this API cross-origin (Free SKU has no linked backend). The
+        // resolveCorsHeaders middleware echoes allowlisted origins with
+        // Access-Control-Allow-Credentials: true so the SameSite=None session
+        // cookies flow. Explicit allowlist — never '*'. Empty = the
+        // middleware emits no CORS headers (fail-closed).
+        [
+          {
+            name: 'CORS_ORIGINS'
+            value: join(corsAllowedOrigins, ',')
+          }
+        ]
       )
-      // CORS (ADM-10): the SWA calls this API cross-origin (Free SKU has no
-      // linked backend). supportCredentials=true so the session cookie flows;
-      // allowedOrigins is an explicit allowlist — never '*'.
-      cors: {
-        allowedOrigins: corsAllowedOrigins
-        supportCredentials: true
-      }
+      // In-app CORS is the single CORS source: platform-level siteConfig.cors
+      // is deliberately NOT set — the two layers would each emit
+      // Access-Control-Allow-Origin and browsers would reject credentialed
+      // requests on the duplicate header. Never re-add cors here.
     }
     // functionAppConfig MUST be a direct child of properties (sibling of
     // siteConfig) — Flex Consumption requires it on site create. The Bicep

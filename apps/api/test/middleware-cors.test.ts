@@ -1,7 +1,8 @@
 /**
  * CORS allowlist enforcement (HRD-01).
  *
- * - Allowlisted origins get the echoed Access-Control-Allow-Origin + Vary.
+ * - Allowlisted origins get the echoed Access-Control-Allow-Origin +
+ *   Access-Control-Allow-Credentials: true + Vary: Origin.
  * - Non-allowlisted origins (e.g. evil.example) and missing Origin get
  *   NOTHING — fail-closed (story acceptance criterion 3).
  * - Localhost origins are env-gated: added only when NODE_ENV=development.
@@ -22,9 +23,10 @@ const VALID_ENV = {
 } as NodeJS.ProcessEnv;
 
 describe('resolveCorsHeaders', () => {
-  it('echoes an allowlisted origin with Vary: Origin', () => {
+  it('echoes an allowlisted origin with Vary: Origin + credentials', () => {
     expect(resolveCorsHeaders('https://feasly.com', ALLOWLIST)).toEqual({
       'Access-Control-Allow-Origin': 'https://feasly.com',
+      'Access-Control-Allow-Credentials': 'true',
       Vary: 'Origin',
     });
   });
@@ -32,6 +34,7 @@ describe('resolveCorsHeaders', () => {
   it('matches case-insensitively but echoes the request origin', () => {
     expect(resolveCorsHeaders('HTTPS://FEASLY.COM', ALLOWLIST)).toEqual({
       'Access-Control-Allow-Origin': 'HTTPS://FEASLY.COM',
+      'Access-Control-Allow-Credentials': 'true',
       Vary: 'Origin',
     });
   });
@@ -58,6 +61,7 @@ describe('resolveCorsHeaders', () => {
       resolveCorsHeaders(['https://feasly.com', 'https://evil.example'], ALLOWLIST),
     ).toEqual({
       'Access-Control-Allow-Origin': 'https://feasly.com',
+      'Access-Control-Allow-Credentials': 'true',
       Vary: 'Origin',
     });
   });

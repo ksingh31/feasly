@@ -66,7 +66,10 @@ const verifyQuerySchema = z.object({
 /**
  * Build the `Set-Cookie` value for the builder session. `Secure` is safe:
  * browsers treat http://localhost as a secure context, and production is
- * HTTPS-only.
+ * HTTPS-only. `SameSite=None` is required because the web app calls the API
+ * cross-origin (SWA Free SKU rejects linked backends, so the Angular app
+ * talks to the Function App URL directly with CORS + credentials) —
+ * `SameSite=Lax` would never send the cookie cross-site.
  */
 export function buildBuilderSessionCookie(
   sessionToken: string,
@@ -75,13 +78,13 @@ export function buildBuilderSessionCookie(
   const encoded = encodeURIComponent(sessionToken);
   return (
     `${BUILDER_SESSION_COOKIE}=${encoded}; ` +
-    `HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}; Path=/`
+    `HttpOnly; Secure; SameSite=None; Max-Age=${maxAgeSeconds}; Path=/`
   );
 }
 
 /** Expired cookie value that clears the session. */
 export function buildClearBuilderSessionCookie(): string {
-  return `${BUILDER_SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/`;
+  return `${BUILDER_SESSION_COOKIE}=; HttpOnly; Secure; SameSite=None; Max-Age=0; Path=/`;
 }
 
 export function createBuilderAuthRoute(
