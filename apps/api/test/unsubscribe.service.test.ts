@@ -82,6 +82,7 @@ function fakeStore(world: World): LeadStore {
     deleteByEmail: async () => 0,
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
+    countNeverSynced: async () => 0,
     appendNote: async () => {},
     getNotes: async () => [],
     appendStatusHistory: async () => {},

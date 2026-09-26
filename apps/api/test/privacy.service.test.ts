@@ -181,6 +181,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     },
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
+    countNeverSynced: async () => 0,
     updateOnRepeat: async () => {
       throw new Error('not used in these tests');
     },

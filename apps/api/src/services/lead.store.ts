@@ -208,6 +208,13 @@ export interface LeadStore {
     readonly id: string;
     readonly at: Date;
   }): Promise<LeadRecord | null>;
+  /**
+   * admin/05 — count of leads never synced (`sheets_synced_at IS NULL`).
+   * Quarantined rows are EXCLUDED (spam never reaches the Sheet), matching
+   * the worker's candidate predicate. The ops panel's pending count
+   * reconciles exactly with this query.
+   */
+  countNeverSynced(): Promise<number>;
 }
 
 export interface DrizzleLeadStoreDeps {
@@ -489,6 +496,20 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .returning();
       const row = rows[0];
       return row ? toRecord(row) : null;
+    },
+
+    async countNeverSynced(): Promise<number> {
+      // admin/05: the ops panel's pending count. Same predicate the worker
+      // uses for candidates, minus the re-sync branch (updated_at >
+      // sheets_synced_at) — "pending" = never synced, quarantined excluded.
+      const rows = await db
+        .select({ n: sql<number>`count(*)` })
+        .from(leads)
+        .where(
+          and(eq(leads.quarantined, false), isNull(leads.sheetsSyncedAt)),
+        );
+      const n = rows[0]?.n ?? 0;
+      return typeof n === 'number' ? n : Number(n);
     },
   };
 }

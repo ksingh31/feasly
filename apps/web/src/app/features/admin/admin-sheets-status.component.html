@@ -1,0 +1,144 @@
+<div class="sheets-panel">
+  <header class="sheets-panel__header">
+    <div>
+      <h1>Sheets sync</h1>
+      <p class="sheets-panel__sub">
+        Hourly worker health. Postgres is the source of truth — the Sheet is a
+        synced copy.
+      </p>
+    </div>
+    @if (badge(); as b) {
+      <span
+        class="sheets-panel__badge sheets-panel__badge--{{ b }}"
+        role="status"
+        [attr.aria-label]="'Sync status: ' + b"
+      >
+        @switch (b) {
+          @case ('healthy') {
+            <span aria-hidden="true">●</span> Healthy
+          }
+          @case ('lagging') {
+            <span aria-hidden="true">●</span> Lagging
+          }
+          @case ('failing') {
+            <span aria-hidden="true">●</span> Failing
+          }
+        }
+      </span>
+    }
+  </header>
+
+  @if (loadStatus() === 'loading' && !status()) {
+    <p class="sheets-panel__loading">Loading sync status…</p>
+  }
+
+  @if (error(); as err) {
+    <div class="sheets-panel__alert" role="alert">
+      <p>{{ err }}</p>
+      <button type="button" (click)="retry()">Retry</button>
+    </div>
+  }
+
+  @if (status(); as s) {
+    @if (!s.sheets_configured) {
+      <div class="sheets-panel__alert sheets-panel__alert--warn" role="alert">
+        <p>
+          <strong>Sheets is not configured.</strong> The worker runs
+          fail-closed and records “disabled” runs. Set the Sheet ID and
+          service-account email to enable syncing.
+        </p>
+      </div>
+    }
+
+    <dl class="sheets-panel__stats">
+      <div class="sheets-panel__stat">
+        <dt>Last run</dt>
+        <dd>
+          @if (s.last_run_at) {
+            {{ s.last_run_at | date: 'medium' }}
+          } @else {
+            <span class="sheets-panel__muted">No runs yet</span>
+          }
+        </dd>
+      </div>
+      <div class="sheets-panel__stat">
+        <dt>Last success</dt>
+        <dd>
+          @if (s.last_success_at) {
+            {{ s.last_success_at | date: 'medium' }}
+          } @else if (s.last_run_at) {
+            <span class="sheets-panel__muted">Never — runs attempted, none succeeded</span>
+          } @else {
+            <span class="sheets-panel__muted">No runs yet</span>
+          }
+        </dd>
+      </div>
+      <div class="sheets-panel__stat">
+        <dt>Rows synced (all time)</dt>
+        <dd>{{ s.rows_synced_total }}</dd>
+      </div>
+      <div class="sheets-panel__stat">
+        <dt>Pending</dt>
+        <dd>
+          {{ s.pending_count }}
+          <span class="sheets-panel__muted">leads not yet in the Sheet</span>
+        </dd>
+      </div>
+      <div class="sheets-panel__stat">
+        <dt>Consecutive failures</dt>
+        <dd>{{ s.consecutive_failures }}</dd>
+      </div>
+      <div class="sheets-panel__stat">
+        <dt>Run in flight</dt>
+        <dd>{{ s.run_in_flight ? 'Yes' : 'No' }}</dd>
+      </div>
+    </dl>
+
+    <div class="sheets-panel__actions">
+      <button
+        type="button"
+        class="sheets-panel__sync-now"
+        (click)="onSyncNow()"
+        [disabled]="syncNowDisabled()"
+      >
+        {{ triggering() ? 'Syncing…' : 'Sync now' }}
+      </button>
+      @if (s.run_in_flight) {
+        <p class="sheets-panel__muted">A sync run is currently in flight.</p>
+      }
+      @if (lastTrigger(); as t) {
+        <p class="sheets-panel__muted">
+          Last manual run: {{ t.synced }} synced, {{ t.skipped }} skipped
+          ({{ t.triggered_at | date: 'short' }}).
+        </p>
+      }
+    </div>
+
+    <p class="sheets-panel__legend">
+      Badge: <strong>Failing</strong> = 3+ consecutive failures ·
+      <strong>Lagging</strong> = no successful sync in the last 2 hours ·
+      <strong>Healthy</strong> = otherwise.
+    </p>
+
+    @if (s.recent_failures.length > 0) {
+      <section
+        class="sheets-panel__failures"
+        aria-label="Recent sync failures"
+      >
+        <h2>Recent failures</h2>
+        <ul>
+          @for (f of s.recent_failures; track $index) {
+            <li>
+              <time>{{ f.at | date: 'medium' }}</time>
+              <p>{{ f.error }}</p>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+
+  @if (loadStatus() === 'error' && !status()) {
+    <button type="button" (click)="retry()">Retry</button>
+  }
+</div>

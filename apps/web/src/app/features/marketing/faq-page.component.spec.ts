@@ -80,7 +80,12 @@ describe('FaqPageComponent', () => {
   });
 
   it('injects FAQPage JSON-LD matching the visible items', () => {
-    const script = document.querySelector('script[type="application/ld+json"]');
+    // Other spec files share this document and may leave their own keyed
+    // JSON-LD scripts behind — select the unkeyed script this component
+    // injects via SeoService.setJsonLd (same selector the service uses).
+    const script = document.querySelector(
+      'script[type="application/ld+json"]:not([data-jsonld-id])',
+    );
     expect(script?.textContent).toBeTruthy();
     const data = JSON.parse(script?.textContent ?? '{}') as {
       '@type': string;

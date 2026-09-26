@@ -59,6 +59,22 @@ import {
   type SheetsSyncService,
 } from './services/sheets-sync.service';
 import {
+  createDrizzleSheetsSyncRunStore,
+  type SheetsSyncRunStore,
+} from './services/sheets-sync-run.store';
+import {
+  createSheetsSyncStatusService,
+  type SheetsSyncStatusService,
+} from './services/sheets-sync-status.service';
+import {
+  createAdminSheetsStatusRoute,
+  type AdminSheetsStatusRoute,
+} from './routes/admin-sheets-status.route';
+import {
+  createAdminSheetsSyncNowRoute,
+  type AdminSheetsSyncNowRoute,
+} from './routes/admin-sheets-sync-now.route';
+import {
   createOpsAlertsService,
   type OpsAlertsService,
 } from './services/ops-alerts.service';
@@ -395,6 +411,9 @@ export interface AppComposition {
   /** admin/09: calibration console (read-only version + report + history). */
   readonly adminCalibrationService: AdminCalibrationService;
   readonly adminCalibrationRoute: AdminCalibrationRoute;
+  /** admin/05: Sheets sync ops status panel + manual "Sync now" trigger. */
+  readonly adminSheetsStatusRoute: AdminSheetsStatusRoute;
+  readonly adminSheetsSyncNowRoute: AdminSheetsSyncNowRoute;
   /** admin/03: read-only estimate lookup by ID. */
   readonly adminEstimatesService: AdminEstimatesService;
   readonly adminEstimatesRoute: AdminEstimatesRoute;
@@ -736,6 +755,8 @@ export function createComposition(
     dedupeWindowMs: config.email.opsAlertDedupeWindowMs,
   });
 
+  const sheetsSyncRunStore: SheetsSyncRunStore =
+    createDrizzleSheetsSyncRunStore({ db: db.db });
   const sheetsSyncService: SheetsSyncService = createSheetsSyncService({
     leads: leadStore,
     estimates: estimateStore,
@@ -747,6 +768,7 @@ export function createComposition(
     syncState:
       options.sheetsSyncStateStore ??
       createDrizzleSheetsSyncStateStore({ db: db.db }),
+    runs: sheetsSyncRunStore,
     enabled: config.sheets.enabled,
     maxLeadsPerRun: config.sheets.maxLeadsPerRun,
     onSyncLagging: ({ consecutiveFailures, firstFailureAt }) =>
@@ -756,6 +778,18 @@ export function createComposition(
       }),
     onSyncRecovered: () => opsAlertsService.notifyRecovered('sheets_sync_failed'),
   });
+  // admin/05 — Sheets sync ops status + manual trigger. The status service
+  // reads the durable run history (sheets_sync_runs); the manual trigger
+  // runs one worker cycle inline and is audit-logged by the route.
+  const sheetsSyncStatusService: SheetsSyncStatusService =
+    createSheetsSyncStatusService({
+      runs: sheetsSyncRunStore,
+      leads: leadStore,
+      sheets: sheetsSyncService,
+      sheetsConfigured: config.sheets.enabled,
+      lagAfterHours: config.sheets.lagAfterHours,
+      runStaleAfterMin: config.sheets.runStaleAfterMin,
+    });
   // admin/01 — magic-link + allowlist session auth. The session guard
   // replaces the interim pre-shared-key guard; routes are untouched (they
   // depend on the AdminGuard interface).
@@ -784,6 +818,20 @@ export function createComposition(
   const adminGuard: AdminGuard = createSessionAdminGuard({
     adminAuth: adminAuthService,
   });
+  // admin/05 — Sheets sync ops status + manual trigger routes. Built after
+  // the session guard: both routes are admin-gated, and the manual trigger
+  // is audit-logged with the admin's email.
+  const adminSheetsStatusRoute: AdminSheetsStatusRoute =
+    createAdminSheetsStatusRoute({
+      status: sheetsSyncStatusService,
+      adminGuard,
+    });
+  const adminSheetsSyncNowRoute: AdminSheetsSyncNowRoute =
+    createAdminSheetsSyncNowRoute({
+      status: sheetsSyncStatusService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // admin/02 — leads explorer. The store is injectable for tests.
   const adminLeadsStore: AdminLeadsStore =
     options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
@@ -1139,6 +1187,8 @@ export function createComposition(
     adminLeadsStore,
     adminCalibrationService,
     adminCalibrationRoute,
+    adminSheetsStatusRoute,
+    adminSheetsSyncNowRoute,
     adminEstimatesService,
     adminEstimatesRoute,
     privacyStore,

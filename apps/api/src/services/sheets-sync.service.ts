@@ -20,6 +20,8 @@ import type { LeadStore } from './lead.store';
 import type { EstimateStore } from './estimate.store';
 import type { SheetsSyncStateStore } from './sheets-sync-state.store';
 import type { SheetLeadRow, SheetsClient } from './sheets/sheets-client';
+import type { SheetsSyncRunStore } from './sheets-sync-run.store';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
 
 export interface SheetsSyncServiceDeps {
   readonly leads: LeadStore;
@@ -27,6 +29,11 @@ export interface SheetsSyncServiceDeps {
   readonly sheets: SheetsClient;
   /** Persistent worker health (lagging metric, failure streak). */
   readonly syncState: SheetsSyncStateStore;
+  /**
+   * Durable run history (admin/05). Every cycle records one row in
+   * `sheets_sync_runs` so the ops panel survives Function App restarts.
+   */
+  readonly runs: SheetsSyncRunStore;
   /** From config — empty = sync disabled (fail closed). */
   readonly enabled: boolean;
   /** Max leads per run (backpressure). */
@@ -68,8 +75,16 @@ export interface SheetsSyncService {
    * Run one sync cycle. Returns counts. Never throws for per-lead
    * failures (one bad lead doesn't kill the batch); throws only when
    * the Sheets API itself is unreachable (counts as a cycle failure).
+   *
+   * Every cycle records one row in `sheets_sync_runs` (admin/05) — the
+   * durable run history the ops panel reads.
    */
-  runSyncCycle(): Promise<SheetsSyncResult>;
+  runSyncCycle(args?: {
+    /** 'timer' for the hourly run (default), 'manual' for admin "Sync now". */
+    readonly trigger?: 'timer' | 'manual';
+    /** Admin email for manual runs (recorded on the run row + audit). */
+    readonly actorEmail?: string | null;
+  }): Promise<SheetsSyncResult>;
 }
 
 /** Failures before the worker is considered lagging (AC4). */
@@ -83,6 +98,7 @@ export function createSheetsSyncService(
     estimates,
     sheets,
     syncState,
+    runs,
     enabled,
     maxLeadsPerRun,
     onSyncLagging,
@@ -94,8 +110,14 @@ export function createSheetsSyncService(
   } = deps;
 
   return {
-    async runSyncCycle(): Promise<SheetsSyncResult> {
+    async runSyncCycle(args): Promise<SheetsSyncResult> {
+      const run = await runs.startRun({
+        trigger: args?.trigger ?? 'timer',
+        actorEmail: args?.actorEmail ?? null,
+      });
+
       if (!enabled) {
+        await runs.finishRun({ id: run.id, status: 'disabled' });
         return {
           synced: 0,
           skipped: 0,
@@ -155,6 +177,13 @@ export function createSheetsSyncService(
           await onSyncRecovered?.();
         }
 
+        await runs.finishRun({
+          id: run.id,
+          status: 'success',
+          syncedCount: synced,
+          skippedCount: skipped,
+        });
+
         return {
           synced,
           skipped,
@@ -173,6 +202,12 @@ export function createSheetsSyncService(
           consecutiveFailures,
           firstFailureAt,
           lagging,
+        });
+        await runs.finishRun({
+          id: run.id,
+          status: 'failed',
+          // Sanitized: no credentials, no PII in the run history.
+          errorMessage: sanitizeErrorMessage(error),
         });
         if (lagging && !state.lagging) {
           // Transition into lagging — fire the alert exactly once per

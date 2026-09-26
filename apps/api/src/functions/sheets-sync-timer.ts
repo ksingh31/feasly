@@ -32,7 +32,9 @@ export async function sheetsSyncTimerHandler(
   context: TimerFunctionContext,
 ): Promise<void> {
   const app = getApp();
-  const result = await app.sheetsSyncService.runSyncCycle();
+  const result = await app.sheetsSyncService.runSyncCycle({
+    trigger: 'timer',
+  });
   // Aggregates only — never lead emails, ids, or tokens.
   // The `lagging` flag is the `sheets_sync.lagging` metric (AC4): a
   // structured log line lets Azure Monitor pick it up, and admin/05's

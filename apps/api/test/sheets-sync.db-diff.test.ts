@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm';
 import { leads, estimates } from '../src/db/schema';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
 import { createDrizzleSheetsSyncStateStore } from '../src/services/sheets-sync-state.store';
+import { createDrizzleSheetsSyncRunStore } from '../src/services/sheets-sync-run.store';
 import { createSheetsSyncService } from '../src/services/sheets-sync.service';
 import type { EstimateStore } from '../src/services/estimate.store';
 import type { SheetsClient } from '../src/services/sheets/sheets-client';
@@ -66,6 +67,7 @@ describe('sheets sync — zero writes to leads except the watermark (AC3)', () =
     // (the estimate join is not what this test exercises).
     const leadStore = createDrizzleLeadStore({ db: testDb.db });
     const syncState = createDrizzleSheetsSyncStateStore({ db: testDb.db });
+    const runs = createDrizzleSheetsSyncRunStore({ db: testDb.db });
     const estimateStore: EstimateStore = {
       save: vi.fn(),
       findById: vi.fn().mockResolvedValue({
@@ -87,6 +89,7 @@ describe('sheets sync — zero writes to leads except the watermark (AC3)', () =
       estimates: estimateStore,
       sheets,
       syncState,
+      runs,
       enabled: true,
       maxLeadsPerRun: 500,
     });
@@ -136,11 +139,13 @@ describe('sheets sync — zero writes to leads except the watermark (AC3)', () =
 
     const leadStore = createDrizzleLeadStore({ db: testDb.db });
     const syncState = createDrizzleSheetsSyncStateStore({ db: testDb.db });
+    const runs = createDrizzleSheetsSyncRunStore({ db: testDb.db });
     const service = createSheetsSyncService({
       leads: leadStore,
       estimates: {} as EstimateStore,
       sheets: {} as SheetsClient,
       syncState,
+      runs,
       enabled: false,
       maxLeadsPerRun: 500,
     });

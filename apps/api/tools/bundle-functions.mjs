@@ -191,6 +191,14 @@ const targets = [
     out: 'admin-estimates-get/index.js',
   },
   {
+    entry: 'src/functions/admin-sheets-status.ts',
+    out: 'admin-sheets-status/index.js',
+  },
+  {
+    entry: 'src/functions/admin-sheets-sync-now.ts',
+    out: 'admin-sheets-sync-now/index.js',
+  },
+  {
     entry: 'src/functions/community-stats-refresh-timer.ts',
     out: 'community-stats-refresh-timer/index.js',
   },
