@@ -10,8 +10,9 @@
 #   PG_SERVER_NAME          default: discover first server starting with feasly-dev-pg
 #   PG_MIN_RETENTION_DAYS   default: 7
 #
-# Fails (exit 1) when: retention < minimum, or the earliest restore point is
-# older than 48h (meaning automated backups are not actually running).
+# Fails (exit 1) when: retention < minimum, earliestRestoreDate is missing, or
+# the earliest restore point is older than the whole retention window (+48h
+# grace) — meaning automated backups are not actually running.
 set -euo pipefail
 
 RG="${PG_RESOURCE_GROUP:-rg-feasly-dev}"
@@ -53,10 +54,15 @@ else
   earliest_epoch="$(date -d "$earliest" +%s 2>/dev/null || echo 0)"
   now_epoch="$(date +%s)"
   age_hours=$(( (now_epoch - earliest_epoch) / 3600 ))
-  # The earliest restore point only advances as backups complete; if it is
-  # older than 48h the backup chain is stale or broken.
-  if (( age_hours > 48 )); then
-    echo "FAIL: earliest restore point is ${age_hours}h old (> 48h) — backup chain may be stale" >&2
+  # The earliest restore point only starts sliding forward once the server is
+  # older than the retention window — a young server's fixed creation-time
+  # restore point is healthy, not stale. It is genuinely stale only when older
+  # than the whole retention window (+48h grace for backup-expiry scheduling),
+  # which is what a silently stopped backup chain looks like.
+  max_age_hours=48
+  [[ "$retention" =~ ^[0-9]+$ ]] && max_age_hours=$(( retention * 24 + 48 ))
+  if (( age_hours > max_age_hours )); then
+    echo "FAIL: earliest restore point is ${age_hours}h old (> ${max_age_hours}h = ${retention}d retention + 48h grace) — backup chain may be stale" >&2
     failures=1
   fi
 fi

@@ -23,9 +23,14 @@ window, which is what gives the RPO below.
 
 **Continuous verification:** CI runs `infra/health/check-postgres-backup.sh`
 on every push to main (workflow job `backup-config`). It fails if retention
-drops below 7 days or the earliest restore point goes stale (> 48h old),
-which is the "scheduled backup missed" signal until the ops-alert service
-(`admin/06`) wires a dedicated alert class.
+drops below 7 days, the earliest restore point is missing, or the restore
+point falls outside the retention window (+48h grace) — the last being the
+"scheduled backup missed" signal until the ops-alert service
+(`admin/06`) wires a dedicated alert class. (A young server's fixed
+creation-time restore point is healthy, not stale — the check is
+window-relative, not a flat 48h.) The script's failure branches are unit-tested with a
+mocked `az` in `infra/health/test/test-checks.sh` (§8), so a regression in the
+check itself fails the `build` job before it ever runs against Azure.
 
 ## 2. RTO / RPO
 
@@ -86,8 +91,12 @@ echo "drill server: $DRILL"
 # Allow a firewall rule for the operator IP, then:
 DRILL_HOST="$(az postgres flexible-server show -n "$DRILL" -g "$RG" \
   --query fullyQualifiedDomainName -o tsv)"
-ADMIN_PW="$(az keyvault secret show --vault-name <kv-name> \
-  --name <pg-admin-password-secret> --query value -o tsv)"
+# Key Vault name carries a hash suffix — discover it; the secret name is fixed
+# by infra/bicep/main.bicep (postgresSecretName).
+KV_NAME="$(az keyvault list -g "$RG" \
+  --query "[?starts_with(name,'feasly-dev-kv')].name | [0]" -o tsv)"
+ADMIN_PW="$(az keyvault secret show --vault-name "$KV_NAME" \
+  --name feasly-dev-postgres-admin --query value -o tsv)"
 
 export PGPASSWORD="$ADMIN_PW"
 # Row counts + latest write must be present and no newer than the restore point.
