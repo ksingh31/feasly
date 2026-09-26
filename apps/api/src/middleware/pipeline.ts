@@ -138,11 +138,18 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
       try {
         return await handler(ctx);
       } catch (error) {
+        // Include error.cause: Drizzle wraps the Postgres error there, and
+        // without it the "Failed query" message hides the actual cause
+        // (e.g. column does not exist, permission denied).
+        const cause =
+          error instanceof Error && error.cause instanceof Error
+            ? `\nCaused by: ${error.cause.name}: ${error.cause.message}`
+            : '';
         logger({
           level: 'error',
           message:
             error instanceof Error
-              ? `${error.name}: ${error.message}\n${error.stack ?? ''}`
+              ? `${error.name}: ${error.message}${cause}\n${error.stack ?? ''}`
               : `non-error thrown: ${String(error)}`,
           correlationId,
         });
