@@ -18,7 +18,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -77,6 +77,15 @@ export interface AttributionService {
   /** Builder proved a pre-existing relationship — excluded from billing. */
   excludePriorRelationship(attributionId: string): Promise<AttributionRecord>;
   getById(attributionId: string): Promise<AttributionRecord>;
+  /**
+   * The newest non-terminal attribution for a lead+tenant, or null when the
+   * lead has no open introduction. Used by the billing won-flow to stay
+   * idempotent: one lead yields at most one open attribution.
+   */
+  findOpenByLead(
+    leadId: string,
+    tenantKey: string,
+  ): Promise<AttributionRecord | null>;
   /**
    * The 14-day reporting deadline for a reported contract, or null when no
    * contract has been reported yet.
@@ -223,6 +232,23 @@ export function createAttributionService(deps: AttributionServiceDeps): Attribut
         throw new HttpError(404, ErrorCodes.NOT_FOUND, `Attribution not found: "${attributionId}"`);
       }
       return toRecord(row);
+    },
+
+    async findOpenByLead(
+      leadId: string,
+      tenantKey: string,
+    ): Promise<AttributionRecord | null> {
+      const rows = await db.query.attributionEvents.findMany({
+        where: and(
+          eq(attributionEvents.leadId, leadId),
+          eq(attributionEvents.tenantKey, tenantKey),
+          notInArray(attributionEvents.status, [...TERMINAL_STATUSES]),
+        ),
+        orderBy: [desc(attributionEvents.createdAt)],
+        limit: 1,
+      });
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
     },
 
     reportingDeadlineFor(record: AttributionRecord): Date | null {

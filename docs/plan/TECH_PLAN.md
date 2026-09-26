@@ -1286,7 +1286,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/builder/auth/me` | builder-session | 100/min per session | live | Return the current builder session identity (email + tenant). |
 | POST | `/api/v1/builder/auth/logout` | builder-session | 10/min per session | live | Revoke the builder session; clears the session cookie. |
 | GET | `/api/v1/builder/leads` | builder-session | 100/min per session | live | List the builder's leads (tenant-scoped, newest first) with a pipeline summary (new/contacted/quoted/won/lost). |
-| PATCH | `/api/v1/builder/leads/{id}` | builder-session | 100/min per session | live | Transition a builder lead's pipeline status. 403 when the lead belongs to a different tenant. |
+| PATCH | `/api/v1/builder/leads/{id}` | builder-session | 100/min per session | live | Transition a builder lead's pipeline status. 403 when the lead belongs to a different tenant. A transition to "won" runs the billing/01 charge path: with contractValueCents + contractSignedAt it creates the draft commission invoice (auto-submitted into review); without them the invoice waits for POST /api/v1/billing/report-contract. |
 | GET | `/api/v1/admin/api-keys` | admin | 100/min per session | live | List API keys (masked, paginated). |
 | POST | `/api/v1/admin/api-keys` | admin | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
 | POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
@@ -1310,4 +1310,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
 | POST | `/api/mcp/v1` | api-key | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
-
+| POST | `/api/v1/billing/report-contract` | builder-session | 100/min per session | live | Builder reports the signed construction contract (value excl. land) for one of their leads. Runs the commission charge path: attribution → draft invoice → auto-submitted into the 7-day review window. Idempotent: re-reporting returns the existing invoice. |
+| GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live | Read a commission invoice. Builders see only their own tenant's invoices; admins see all. |
+| POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | 100/min per session | live | Builder disputes their own invoice (reason required): the charge clock freezes and ops is alerted. 403 for another tenant's invoice. |
+| POST | `/api/v1/billing/invoices/{id}/resolve` | admin | 100/min per session | live | Admin resolves a billing dispute: "resume" returns the invoice to review with a fresh 7-day window, "void" cancels it. |

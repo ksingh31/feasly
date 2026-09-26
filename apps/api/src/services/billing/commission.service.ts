@@ -99,6 +99,17 @@ export interface CommissionService {
   markFailedByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
+  /**
+   * The invoice for an attribution, or null. Used by the billing won-flow
+   * for idempotency: one attribution yields exactly one invoice.
+   */
+  findByAttribution(attributionId: string): Promise<CommissionInvoiceRecord | null>;
+  /**
+   * The invoice for a lead, or null. The won-flow checks this FIRST —
+   * before recording a new introduction — so a retried won event can never
+   * mint a second invoice for the same lead.
+   */
+  findByLead(leadId: string): Promise<CommissionInvoiceRecord | null>;
   getById(invoiceId: string): Promise<CommissionInvoiceRecord>;
 }
 
@@ -529,6 +540,24 @@ export function createCommissionService(
         ),
       });
       return rows.map(toRecord);
+    },
+
+    async findByAttribution(
+      attributionId: string,
+    ): Promise<CommissionInvoiceRecord | null> {
+      requireCommissionModel();
+      const row = await db.query.commissionInvoices.findFirst({
+        where: eq(commissionInvoices.attributionId, attributionId),
+      });
+      return row === undefined ? null : toRecord(row);
+    },
+
+    async findByLead(leadId: string): Promise<CommissionInvoiceRecord | null> {
+      requireCommissionModel();
+      const row = await db.query.commissionInvoices.findFirst({
+        where: eq(commissionInvoices.leadId, leadId),
+      });
+      return row === undefined ? null : toRecord(row);
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {

@@ -1,0 +1,186 @@
+/**
+ * Thin billing route (billing/01 first charge path). Routes are adapters,
+ * not logic: validate input → require auth → call exactly one service
+ * method → return the result.
+ *
+ * - `POST /api/v1/billing/report-contract` — builder reports the signed
+ *   contract for one of their leads (won-without-details retry path, or a
+ *   standalone report). Builder-gated; tenant-scoped.
+ * - `GET /api/v1/billing/invoices/{id}` — read a commission invoice.
+ *   Builders see only their own tenant's invoices; admins see all.
+ * - `POST /api/v1/billing/invoices/{id}/dispute` — builder disputes their
+ *   own invoice (charge clock freezes, ops alerted). Builder-gated.
+ * - `POST /api/v1/billing/invoices/{id}/resolve` — admin resolves a
+ *   dispute (resume with a fresh review window, or void). Admin-gated.
+ *
+ * Hard rules (enforced by test/boundaries.test.ts):
+ * - a route NEVER imports from src/db/
+ * - a route NEVER reads process.env (config arrives via the service)
+ * - a route depends on the service *interface*, never the implementation
+ */
+import { z } from 'zod';
+import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { AdminGuard } from '../middleware/admin-guard';
+import type { BuilderGuard } from '../middleware/builder-guard';
+import type {
+  BillableEventResult,
+} from '../services/billing/embed-billing-hook.service';
+import type {
+  BillingService,
+  ReportContractInput,
+} from '../services/billing/billing.service';
+import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
+
+export interface BillingRouteDeps {
+  readonly billing: BillingService;
+  readonly builderGuard: BuilderGuard;
+  readonly adminGuard: AdminGuard;
+}
+
+export interface BillingRoute {
+  /** POST /api/v1/billing/report-contract */
+  reportContract(
+    headers: Record<string, string | string[] | undefined>,
+    body: unknown,
+  ): Promise<BillableEventResult>;
+  /** GET /api/v1/billing/invoices/{id} */
+  getInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<CommissionInvoiceRecord>;
+  /** POST /api/v1/billing/invoices/{id}/dispute */
+  disputeInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    body: unknown,
+  ): Promise<CommissionInvoiceRecord>;
+  /** POST /api/v1/billing/invoices/{id}/resolve */
+  resolveDispute(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    body: unknown,
+  ): Promise<CommissionInvoiceRecord>;
+}
+
+const uuidSchema = z.string().trim().uuid();
+
+const reportContractBodySchema = z.object({
+  leadId: uuidSchema,
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  contractValueCents: z.number().int().positive(),
+  contractSignedAt: z.string().datetime({ offset: true }),
+});
+
+const disputeBodySchema = z.object({
+  reason: z.string().trim().min(1).max(2000),
+});
+
+const resolveBodySchema = z.object({
+  outcome: z.enum(['resume', 'void']),
+});
+
+function parseInvoiceId(id: unknown): string {
+  const parsed = uuidSchema.safeParse(id);
+  if (!parsed.success) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'Invalid invoice id.',
+      false,
+    );
+  }
+  return parsed.data;
+}
+
+async function requireBuilderSession(
+  builderGuard: BuilderGuard,
+  headers: Record<string, string | string[] | undefined>,
+): Promise<{ readonly email: string; readonly tenantKey: string }> {
+  const session = await builderGuard.getBuilderSession(headers);
+  if (!session) {
+    throw new HttpError(
+      401,
+      ErrorCodes.UNAUTHENTICATED,
+      'Builder authentication required.',
+      false,
+    );
+  }
+  return session;
+}
+
+export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
+  const { billing, builderGuard, adminGuard } = deps;
+
+  return {
+    async reportContract(headers, body): Promise<BillableEventResult> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      const parsed = reportContractBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid contract report body.',
+          false,
+        );
+      }
+      const input: ReportContractInput = {
+        tenantKey: session.tenantKey,
+        leadId: parsed.data.leadId,
+        contractValueCents: parsed.data.contractValueCents,
+        contractSignedAt: new Date(parsed.data.contractSignedAt),
+      };
+      return billing.reportContract(input);
+    },
+
+    async getInvoice(headers, id): Promise<CommissionInvoiceRecord> {
+      const invoiceId = parseInvoiceId(id);
+      // Admins see all invoices; builders are scoped to their tenant.
+      const builderSession = await builderGuard.getBuilderSession(headers);
+      if (builderSession) {
+        return billing.getInvoice(invoiceId, builderSession.tenantKey);
+      }
+      await adminGuard.requireAdmin(headers);
+      return billing.getInvoice(invoiceId, null);
+    },
+
+    async disputeInvoice(
+      headers,
+      id,
+      body,
+    ): Promise<CommissionInvoiceRecord> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      const parsed = disputeBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'A dispute reason is required.',
+          false,
+        );
+      }
+      return billing.disputeInvoice(
+        parseInvoiceId(id),
+        session.tenantKey,
+        parsed.data.reason,
+      );
+    },
+
+    async resolveDispute(
+      headers,
+      id,
+      body,
+    ): Promise<CommissionInvoiceRecord> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = resolveBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid resolve body: outcome must be "resume" or "void".',
+          false,
+        );
+      }
+      return billing.resolveDispute(parseInvoiceId(id), parsed.data.outcome);
+    },
+  };
+}

@@ -23,6 +23,10 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
+import type {
+  BillableEventResult,
+  EmbedBillingHookService,
+} from './billing/embed-billing-hook.service';
 import type { LeadStore } from './lead.store';
 
 export const BuilderLeadStatusSchema = z.enum([
@@ -35,6 +39,15 @@ export const BuilderLeadStatusSchema = z.enum([
 
 export const BuilderLeadStatusBodySchema = z.object({
   status: BuilderLeadStatusSchema,
+  /**
+   * Signed construction contract, excl. land — only meaningful with
+   * status='won'. When present, the won transition runs the billing
+   * charge path (billing/01): attribution → draft commission invoice →
+   * auto-submitted into the review window. Without them the won status is
+   * recorded and the invoice waits for POST /api/v1/billing/report-contract.
+   */
+  contractValueCents: z.number().int().positive().optional(),
+  contractSignedAt: z.string().datetime({ offset: true }).optional(),
 });
 
 export interface BuilderLeadsService {
@@ -47,19 +60,34 @@ export interface BuilderLeadsService {
    * Transition a lead's pipeline status. Throws 404 when the lead doesn't
    * exist, 403 when it belongs to a different tenant. Writes
    * `lead_status_history` + audit row with the builder's email.
+   *
+   * When the transition is to 'won', the billing charge path runs first
+   * (billing/01): with contract details it creates the draft commission
+   * invoice; without them the won status is recorded and the invoice waits
+   * for POST /api/v1/billing/report-contract. Billing errors propagate —
+   * the status is only updated when the charge path succeeds.
    */
   updateStatus(
     id: string,
     body: unknown,
     tenantKey: string,
     builderEmail: string,
-  ): Promise<{ readonly ok: true }>;
+  ): Promise<{ readonly ok: true; readonly billing?: BillableEventResult }>;
 }
 
 export interface BuilderLeadsServiceDeps {
   readonly leadStore: LeadStore;
   readonly audit: AdminAuditStore;
   readonly clock?: () => Date;
+  /**
+   * Billing charge path (billing/01). Invoked when a lead transitions to
+   * 'won'. Optional for tests that don't cover billing.
+   */
+  readonly billingHook?: EmbedBillingHookService;
+}
+
+export interface WonBillingResult {
+  readonly billing: BillableEventResult;
 }
 
 function toListItem(record: {
@@ -94,7 +122,7 @@ function toListItem(record: {
 export function createBuilderLeadsService(
   deps: BuilderLeadsServiceDeps,
 ): BuilderLeadsService {
-  const { leadStore, audit } = deps;
+  const { leadStore, audit, billingHook } = deps;
 
   return {
     async listLeads(tenantKey: string): Promise<BuilderLeadListResponse> {
@@ -175,6 +203,41 @@ export function createBuilderLeadsService(
       const oldStatus = record.status;
       const newStatus = parsed.data.status;
 
+      // Contract details are only meaningful on a won transition.
+      const { contractValueCents, contractSignedAt } = parsed.data;
+      const hasContractDetails =
+        contractValueCents !== undefined || contractSignedAt !== undefined;
+      if (newStatus !== 'won' && hasContractDetails) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Contract details are only accepted with status "won".',
+          false,
+        );
+      }
+      if (hasContractDetails && (contractValueCents === undefined || contractSignedAt === undefined)) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Contract details require both contractValueCents and contractSignedAt.',
+          false,
+        );
+      }
+
+      // Billing runs BEFORE the status update: won + invoice stay atomic.
+      // A billing failure leaves the pipeline status untouched so the
+      // builder can retry; the hook is idempotent against double-won.
+      let billing: BillableEventResult | undefined;
+      if (newStatus === 'won' && oldStatus !== 'won' && billingHook !== undefined) {
+        billing = await billingHook.recordBillableEvent(tenantKey, 'lead_won', {
+          leadId: id,
+          introducedAt: record.createdAt,
+          contractValueCents,
+          contractSignedAt:
+            contractSignedAt === undefined ? undefined : new Date(contractSignedAt),
+        });
+      }
+
       if (oldStatus !== newStatus) {
         await leadStore.updateStatus({ id, status: newStatus });
         await leadStore.appendStatusHistory({
@@ -192,7 +255,9 @@ export function createBuilderLeadsService(
         detail: `leadId=${id} oldStatus=${oldStatus} newStatus=${newStatus} tenantKey=${tenantKey}`,
       });
 
-      return { ok: true as const };
+      const result: { readonly ok: true; readonly billing?: BillableEventResult } =
+        billing === undefined ? { ok: true } : { ok: true, billing };
+      return result;
     },
   };
 }

@@ -373,7 +373,11 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Transition a builder lead\'s pipeline status. 403 when the lead ' +
-      'belongs to a different tenant.',
+      'belongs to a different tenant. A transition to "won" runs the ' +
+      'billing/01 charge path: with contractValueCents + contractSignedAt ' +
+      'it creates the draft commission invoice (auto-submitted into ' +
+      'review); without them the invoice waits for ' +
+      'POST /api/v1/billing/report-contract.',
   },
   {
     method: 'GET',
@@ -588,6 +592,49 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Stripe webhook receiver (billing track). Signature-verified; ' +
       'idempotent event handling.',
+  },
+  // ── Billing first charge path (billing/01) ─────────────────────────
+  {
+    method: 'POST',
+    path: '/api/v1/billing/report-contract',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder reports the signed construction contract (value excl. land) ' +
+      'for one of their leads. Runs the commission charge path: attribution ' +
+      '→ draft invoice → auto-submitted into the 7-day review window. ' +
+      'Idempotent: re-reporting returns the existing invoice.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/invoices/{id}',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Read a commission invoice. Builders see only their own tenant\'s ' +
+      'invoices; admins see all.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/dispute',
+    auth: 'builder-session',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder disputes their own invoice (reason required): the charge ' +
+      'clock freezes and ops is alerted. 403 for another tenant\'s invoice.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/resolve',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Admin resolves a billing dispute: "resume" returns the invoice to ' +
+      'review with a fresh 7-day window, "void" cancels it.',
   },
 ];
 

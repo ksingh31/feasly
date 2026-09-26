@@ -117,6 +117,10 @@ import {
   type BuilderLeadsRoute,
 } from './routes/builder-leads.route';
 import {
+  createBillingRoute,
+  type BillingRoute,
+} from './routes/billing.route';
+import {
   createAdminAuthService,
   type AdminAuthService,
   type AdminAllowlistStore,
@@ -345,6 +349,10 @@ import {
   type EmbedBillingHookService,
 } from './services/billing/embed-billing-hook.service';
 import {
+  createBillingService,
+  type BillingService,
+} from './services/billing/billing.service';
+import {
   createStripeService,
   type StripeService,
 } from './services/billing/stripe.service';
@@ -513,8 +521,12 @@ export interface AppComposition {
   readonly attributionService: AttributionService;
   /** billing/02: append-only billing audit log. */
   readonly billingAuditService: BillingAuditService;
-  /** embed/04: no-op billable-event hook for embed tenants (billing not enabled). */
+  /** billing/01: first charge path — attribution → draft invoice → review. */
   readonly embedBillingHookService: EmbedBillingHookService;
+  /** billing/01: facade behind the /api/v1/billing/* routes. */
+  readonly billingService: BillingService;
+  /** billing/01: thin route for /api/v1/billing/*. */
+  readonly billingRoute: BillingRoute;
   /** billing/02: the only Stripe SDK touchpoint. */
   readonly stripeService: StripeService;
   /** billing/02: 1% commission engine (active when BILLING_MODEL=commission). */
@@ -946,14 +958,9 @@ export function createComposition(
   const builderGuard: BuilderGuard = createSessionBuilderGuard({
     builderAuth: builderAuthService,
   });
-  const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
-    leadStore,
-    audit: adminAuditStore,
-  });
-  const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
-    builderLeads: builderLeadsService,
-    builderGuard,
-  });
+  // builderLeadsService/builderLeadsRoute are constructed after the billing
+  // block (billing/01): the service's won transition needs the billing hook,
+  // which is built with the billing services below.
   // admin/02 — leads explorer. The store is injectable for tests.
   const adminLeadsStore: AdminLeadsStore =
     options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
@@ -1196,12 +1203,6 @@ export function createComposition(
   const billingAuditService: BillingAuditService = createBillingAuditService({
     db: db.db,
   });
-  // embed/04: no-op hook — records the event for future reconciliation,
-  // returns billed:false. The real charge path replaces this, not beside it.
-  const embedBillingHookService: EmbedBillingHookService =
-    createEmbedBillingHookService({
-      audit: billingAuditService,
-    });
   const stripeService: StripeService = createStripeService({
     db: db.db,
     billing: config.billing,
@@ -1214,6 +1215,38 @@ export function createComposition(
     stripe: stripeService,
     email: emailService,
     opsInbox: config.email.opsInbox,
+  });
+  // billing/01 first charge path — the embed/04 no-op was replaced with the
+  // real charge path here (per the placeholder's IRON RULE). commission +
+  // lead_won + contract details → attribution → draft invoice → review.
+  const embedBillingHookService: EmbedBillingHookService =
+    createEmbedBillingHookService({
+      billing: config.billing,
+      attribution: attributionService,
+      commission: commissionService,
+      audit: billingAuditService,
+    });
+  // billing/01 API surface: POST /api/v1/billing/report-contract,
+  // GET/POST /api/v1/billing/invoices/{id}[/dispute|/resolve].
+  const billingService: BillingService = createBillingService({
+    leadStore,
+    billingHook: embedBillingHookService,
+    commission: commissionService,
+  });
+  const billingRoute: BillingRoute = createBillingRoute({
+    billing: billingService,
+    builderGuard,
+    adminGuard,
+  });
+  // embed/09 builder portal: won transitions run the billing charge path.
+  const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
+    leadStore,
+    audit: adminAuditStore,
+    billingHook: embedBillingHookService,
+  });
+  const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
+    builderLeads: builderLeadsService,
+    builderGuard,
   });
   // billing/02 flat path — dormant until BILLING_MODEL=flat. Both charge
   // paths are built; config selects the active one.
@@ -1353,6 +1386,8 @@ export function createComposition(
     attributionService,
     billingAuditService,
     embedBillingHookService,
+    billingService,
+    billingRoute,
     stripeService,
     commissionService,
     flatPlanService,

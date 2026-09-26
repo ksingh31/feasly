@@ -18,7 +18,10 @@ import { z } from 'zod';
 import type { BuilderLeadListResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderGuard } from '../middleware/builder-guard';
-import type { BuilderLeadsService } from '../services/builder-leads.service';
+import type {
+  BuilderLeadsService,
+  WonBillingResult,
+} from '../services/builder-leads.service';
 
 export interface BuilderLeadsRouteDeps {
   readonly builderLeads: BuilderLeadsService;
@@ -35,7 +38,7 @@ export interface BuilderLeadsRoute {
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
     body: unknown,
-  ): Promise<{ readonly ok: true }>;
+  ): Promise<{ readonly ok: true } & Partial<WonBillingResult>>;
 }
 
 const leadIdParamSchema = z.string().trim().uuid();
