@@ -420,16 +420,6 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
-    path: '/api/v1/admin/calibration',
-    auth: 'admin',
-    rateLimit: '300/min per session',
-    status: 'live',
-    summary:
-      'Calibration console (admin/09): current cost-data version, ' +
-      'calibration report, import history. Read-only.',
-  },
-  {
-    method: 'GET',
     path: '/api/v1/admin/estimates/{id}',
     auth: 'admin',
     rateLimit: '300/min per session',
@@ -467,8 +457,10 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/calibration',
     auth: 'admin',
     rateLimit: '300/min per session',
-    status: 'planned',
-    summary: 'Calibration console reads (admin/09).',
+    status: 'live',
+    summary:
+      'Calibration console (admin/09): current cost-data version, ' +
+      'calibration report, import history. Read-only.',
   },
   {
     method: 'GET',
