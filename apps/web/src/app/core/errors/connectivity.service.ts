@@ -15,6 +15,14 @@ import { ConfigService } from '../config/config.service';
  * Only network-level failures (status 0, timeout) count as offline — an HTTP
  * 500 means the API is reachable but sick, which is `/error` territory, not
  * the offline page. The probe never runs during prerender/SSR.
+ *
+ * The probe is skipped when it cannot be meaningful:
+ * - `api.useMockApi` is true — the "API" is the in-process mock, always
+ *   reachable; a down Function App must not show the offline page while the
+ *   app works fine on mocks.
+ * - `api.baseUrl` is empty — the startup config failed to load and the probe
+ *   would hit the SWA origin's `/api/health`, which can never succeed (the
+ *   API is cross-origin by architecture).
  */
 @Injectable({ providedIn: 'root' })
 export class ConnectivityService {
@@ -54,11 +62,17 @@ export class ConnectivityService {
     if (!this.browser || this.probeInFlight) {
       return;
     }
+    const api = this.config.get('api');
+    // No meaningful probe target: mock mode has no network API to reach, and
+    // an empty baseUrl means the probe would 404 against the SWA origin.
+    if (api.useMockApi || !api.baseUrl) {
+      return;
+    }
     this.probeInFlight = true;
-    const url = `${this.config.get('api').baseUrl}/api/health`;
+    const url = `${api.baseUrl}/api/health`;
     // The shared API timeout bounds the probe — a hung health check must not
     // hang offline detection (or the "Try again" button) indefinitely.
-    const timeoutMs = this.config.get('api').timeoutMs;
+    const timeoutMs = api.timeoutMs;
     this.http
       .get(url, { responseType: 'text' })
       .pipe(

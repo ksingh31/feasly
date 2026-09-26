@@ -15,9 +15,10 @@ describe('ConnectivityService', () => {
   let httpMock: HttpTestingController;
   let service: ConnectivityService;
 
-  /** Creates the service and settles its constructor probe. */
+  /** Creates the service and settles its constructor probe (live-API mode). */
   async function createWithProbeResult(
     respond: (req: ReturnType<HttpTestingController['expectOne']>) => void,
+    api: { baseUrl: string; useMockApi: boolean } = { baseUrl, useMockApi: false },
   ): Promise<ConnectivityService> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -25,10 +26,12 @@ describe('ConnectivityService', () => {
     });
     httpMock = TestBed.inject(HttpTestingController);
     const pending = TestBed.inject(ConfigService).load();
-    httpMock.expectOne('/assets/config/app-config.json').flush({ api: { baseUrl } });
+    httpMock.expectOne('/assets/config/app-config.json').flush({ api });
     await pending;
     const svc = TestBed.inject(ConnectivityService);
-    respond(httpMock.expectOne(`${baseUrl}/api/health`));
+    if (!api.useMockApi && api.baseUrl) {
+      respond(httpMock.expectOne(`${api.baseUrl}/api/health`));
+    }
     return svc;
   }
 
@@ -63,6 +66,31 @@ describe('ConnectivityService', () => {
 
     service.markUnreachable();
     httpMock.expectOne(`${baseUrl}/api/health`).flush('ok');
+    expect(service.offline()).toBe(false);
+  });
+
+  it('skips the probe entirely when useMockApi is true', async () => {
+    service = await createWithProbeResult(
+      () => undefined,
+      { baseUrl, useMockApi: true },
+    );
+    httpMock.expectNone(`${baseUrl}/api/health`);
+    expect(service.offline()).toBe(false);
+
+    service.checkHealth();
+    service.markUnreachable();
+    httpMock.expectNone(`${baseUrl}/api/health`);
+    httpMock.verify();
+    expect(service.offline()).toBe(false);
+  });
+
+  it('skips the probe when baseUrl is empty (config failed to load)', async () => {
+    service = await createWithProbeResult(() => undefined, {
+      baseUrl: '',
+      useMockApi: false,
+    });
+    httpMock.expectNone('/api/health');
+    httpMock.verify();
     expect(service.offline()).toBe(false);
   });
 });
