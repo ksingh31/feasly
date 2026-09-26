@@ -35,7 +35,7 @@ const PARTNER_LINK_ID = 'pppppppp-pppp-4ppp-8ppp-pppppppppppp';
 function fakeStores(opts?: { live?: boolean }) {
   const live = opts?.live ?? true;
   const persisted: NewPartnerShare[] = [];
-  const sentEmails: { to: string; shareUrl: string }[] = [];
+  const sentEmails: { to: string; shareUrl: string; expiresInDays?: number }[] = [];
   const magicLinks = {
     findByToken: async (token: string) =>
       token === OWNER_TOKEN && live
@@ -110,6 +110,8 @@ describe('share service', () => {
     expect(sentEmails[0]?.shareUrl).toContain(PARTNER_TOKEN);
     // The owner's token never goes into the partner's email.
     expect(sentEmails[0]?.shareUrl).not.toContain(OWNER_TOKEN);
+    // Expiry rendered from the share-token TTL config (604800s = 7 days), never hardcoded.
+    expect(sentEmails[0]?.expiresInDays).toBe(7);
     expect(persisted).toHaveLength(1);
     expect(persisted[0]).toMatchObject({
       leadId: LEAD_ID,

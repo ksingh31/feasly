@@ -87,6 +87,9 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         to: partnerEmail,
         ownerName: lead.name,
         shareUrl,
+        // Share-link expiry rendered from config, never hardcoded (#186):
+        // same derivation as the magic-link callers.
+        expiresInDays: Math.max(1, Math.ceil(deps.magicLinkTtlSeconds / 86_400)),
       });
 
       await deps.shares.insert({
