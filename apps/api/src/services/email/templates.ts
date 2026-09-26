@@ -93,14 +93,16 @@ export function renderMagicLinkEmail(
   const subject =
     input.audience === 'admin'
       ? `Your ${ctx.brandName} admin sign-in link`
-      : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
-  const isAdmin = input.audience === 'admin';
-  const ctaLabel = isAdmin ? `Sign in to ${ctx.brandName} admin` : 'View my estimate';
       : input.audience === 'builder'
         ? `Your ${ctx.brandName} builder dashboard sign-in link`
         : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
+  const isAdmin = input.audience === 'admin';
   const ctaLabel =
-    input.audience === 'builder' ? 'Open builder dashboard' : 'View my estimate';
+    isAdmin
+      ? `Sign in to ${ctx.brandName} admin`
+      : input.audience === 'builder'
+        ? 'Open builder dashboard'
+        : 'View my estimate';
   const body = `<p>${greeting}</p>
 <p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
 ${ctaButton(input.magicLinkUrl, ctaLabel)}

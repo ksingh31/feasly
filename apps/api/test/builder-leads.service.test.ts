@@ -38,6 +38,10 @@ function makeLead(overrides?: {
     quarantined: false,
     quarantineReason: null,
     projectType: 'new-build',
+    sandbox: false,
+    unsubscribedAt: null,
+    nudgeSentAt: null,
+    sheetsSyncedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -66,27 +70,45 @@ function makeDeps() {
     findById: async (id) => leads.get(id) ?? null,
     findByEstimateId: async () => null,
     findNewestEstimateIdByEmailAndAddress: async () => null,
-    updateOnRepeat: async () => null,
-    updateContact: async () => null,
-    updateStatus: async ({ id, status }) => {
+    updateOnRepeat: async () => {
+      throw new Error('not implemented');
+    },
+    updateStatus: async ({ id, status }: { id: string; status: string }) => {
       const lead = leads.get(id);
       if (!lead) return null;
       const updated = { ...lead, status, updatedAt: new Date() };
       leads.set(id, updated);
       return updated;
     },
-    appendStatusHistory: async ({ leadId, oldStatus, newStatus, changedBy }) => {
-      statusHistory.push({ leadId, oldStatus, newStatus, changedBy });
+    appendStatusHistory: async ({
+      leadId,
+      oldStatus,
+      newStatus,
+      changedBy,
+    }: {
+      leadId: string;
+      oldStatus: string | null;
+      newStatus: string;
+      changedBy?: string;
+    }) => {
+      statusHistory.push({
+        leadId,
+        oldStatus: oldStatus ?? 'unknown',
+        newStatus,
+        changedBy: changedBy ?? 'system',
+      });
     },
     getStatusHistory: async () => [],
-    addNote: async () => {},
+    appendNote: async () => {},
     getNotes: async () => [],
+    setUnsubscribedAt: async () => null,
+    findNudgeCandidates: async () => [],
+    countNeverSynced: async () => 0,
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
     setNudgeSentAt: async () => null,
     findAllByEmail: async () => [],
     deleteByEmail: async () => 0,
-    updateQuarantine: async () => null,
   };
 
   const audit: AdminAuditStore = {

@@ -129,7 +129,7 @@ describe('builder-auth service (embed/09)', () => {
 
   it('logout with no token returns loggedOut:true (idempotent)', async () => {
     const { service } = makeDeps();
-    const result = await service.logout(undefined);
+    const result = await service.logout(null);
     expect(result.loggedOut).toBe(true);
   });
 });
