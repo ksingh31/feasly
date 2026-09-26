@@ -4,12 +4,12 @@ Budgets: `apps/web/budgets.json` (single source of truth). Gate: `.github/workfl
 
 ## Static bundle metrics (measured locally, production build)
 
-Recorded 2026-09-26 on `origin/main` at #145 (`d52ce82`), before any SEO-08 changes:
+Recorded 2026-09-26 on `origin/main` at #125 (`a7f9a21`) — re-measured after rebase onto latest main:
 
 | Metric | Measured | Budget | Headroom |
 |---|---|---|---|
-| Initial JS (gzipped) | 175.64 KB | 200 KB | 24.4 KB |
-| Initial JS (raw, Angular `initial` budget) | 647 KB | 750 KB (error) / 650 KB (warn) | 103 KB to error |
+| Initial JS (gzipped) | 176.78 KB | 200 KB | 23.2 KB |
+| Initial JS (raw, Angular `initial` budget) | 664 KB | 750 KB (error) / 700 KB (warn) | 86 KB to error |
 | Heaviest page image weight | < 1 KB (no `<img>` on prerendered pages) | 500 KB/page | full |
 
 Reproduce: `npm run build --workspace @feasly/web -- --configuration=production && node apps/web/tools/check-perf-budgets.mjs`
@@ -18,9 +18,9 @@ Reproduce: `npm run build --workspace @feasly/web -- --configuration=production 
 
 Audit set (deterministic, from `node apps/web/tools/perf-audit-urls.mjs`):
 
-- `/`, `/how-it-works`, `/faq`
+- `/`, `/how-it-works`, `/faq`, `/communities`
 - `/communities/arbour-lake`, `/communities/auburn-bay`, `/communities/beddington-heights`
-  (first 3 alphabetically; `/communities/` joins the set automatically once the index route lands)
+  (first 3 alphabetically)
 
 Lighthouse scores are recorded by the `lighthouse` CI job (LHCI uploads results as the
 `lhci-results` artifact on every PR). No Chrome was available in the build environment where
@@ -32,6 +32,7 @@ this file was written, so score baselines below are filled in from the first gre
 | `/` | — | — | — | — | — | — | — |
 | `/how-it-works` | — | — | — | — | — | — | — |
 | `/faq` | — | — | — | — | — | — | — |
+| `/communities` | — | — | — | — | — | — | — |
 | `/communities/arbour-lake` | — | — | — | — | — | — | — |
 | `/communities/auburn-bay` | — | — | — | — | — | — | — |
 | `/communities/beddington-heights` | — | — | — | — | — | — | — |
