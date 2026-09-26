@@ -65,7 +65,8 @@ describe('providePropertyData', () => {
     const service = await wireWith('backend');
     const pending = firstValueFrom(service.autocomplete('ave'));
     const req = httpMock.expectOne((r) => r.url.includes('/properties/autocomplete'));
-    expect(req.request.method).toBe('POST');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('q')).toBe('ave');
     req.flush({ suggestions: [] });
     const response = await pending;
     expect(response.suggestions).toEqual([]);

@@ -43,6 +43,8 @@ describe('HttpApiService', () => {
     method: string;
     url: string;
     body?: unknown;
+    /** Query params expected on the request (for GET routes). */
+    params?: Record<string, string>;
   }
 
   const estimateRequest = {
@@ -57,15 +59,16 @@ describe('HttpApiService', () => {
     {
       name: 'autocomplete',
       call: (api) => api.autocomplete('14 st'),
-      method: 'POST',
+      method: 'GET',
       url: `${BASE}/properties/autocomplete`,
-      body: { query: '14 st' },
+      params: { q: '14 st' },
     },
     {
       name: 'getProperty',
       call: (api) => api.getProperty('calgary-1234-14-st-nw'),
       method: 'GET',
-      url: `${BASE}/properties/calgary-1234-14-st-nw`,
+      url: `${BASE}/properties/lookup`,
+      params: { addressKey: 'calgary-1234-14-st-nw' },
     },
     {
       name: 'getPreviewEstimate',
@@ -78,7 +81,7 @@ describe('HttpApiService', () => {
       name: 'getEstimate',
       call: (api) => api.getEstimate(estimateRequest),
       method: 'POST',
-      url: `${BASE}/estimates`,
+      url: `${BASE}/estimate`,
       body: estimateRequest,
     },
     {
@@ -111,6 +114,13 @@ describe('HttpApiService', () => {
       call: (api) => api.getReport('rep-123'),
       method: 'GET',
       url: `${BASE}/reports/rep-123`,
+    },
+    {
+      name: 'getNarrative',
+      call: (api) => api.getNarrative('est-1', 'rep-123'),
+      method: 'POST',
+      url: `${BASE}/estimates/est-1/narrative`,
+      body: {},
     },
     {
       name: 'reviseTier',
@@ -147,10 +157,17 @@ describe('HttpApiService', () => {
   for (const c of cases) {
     it(`maps ${c.name} → ${c.method} ${c.url}`, async () => {
       const pending = firstValueFrom(c.call(service));
-      const req = httpMock.expectOne(c.url);
+      const req = c.params
+        ? httpMock.expectOne((r) => r.url === c.url && r.method === c.method)
+        : httpMock.expectOne(c.url);
       expect(req.request.method).toBe(c.method);
       if (c.body !== undefined) {
         expect(req.request.body).toEqual(c.body);
+      }
+      if (c.params) {
+        for (const [key, value] of Object.entries(c.params)) {
+          expect(req.request.params.get(key)).toBe(value);
+        }
       }
       req.flush({});
       await pending;
@@ -158,15 +175,33 @@ describe('HttpApiService', () => {
     });
   }
 
+  it('sends the magic-link token as Bearer auth on getNarrative', async () => {
+    const pending = firstValueFrom(service.getNarrative('est-1', 'rep-123'));
+    const req = httpMock.expectOne(`${BASE}/estimates/est-1/narrative`);
+    expect(req.request.headers.get('Authorization')).toBe('Bearer rep-123');
+    req.flush({
+      estimateId: 'est-1',
+      narrative: 'Summary text.',
+      narrativeGeneratedAt: new Date().toISOString(),
+      cached: false,
+    });
+    await pending;
+    httpMock.verify();
+  });
+
   it('maps HTTP failures onto the ApiError envelope (retryable on 5xx)', async () => {
     const pending = firstValueFrom(service.getProperty('x'));
-    httpMock.expectOne(`${BASE}/properties/x`).flush({ code: 'boom', message: 'Down.' }, { status: 500, statusText: 'Error' });
+    httpMock
+      .expectOne((r) => r.url === `${BASE}/properties/lookup`)
+      .flush({ code: 'boom', message: 'Down.' }, { status: 500, statusText: 'Error' });
     await expect(pending).rejects.toMatchObject({ code: 'boom', message: 'Down.', retryable: true });
   });
 
   it('marks 4xx failures as non-retryable with a fallback message', async () => {
     const pending = firstValueFrom(service.getProperty('x'));
-    httpMock.expectOne(`${BASE}/properties/x`).flush({}, { status: 404, statusText: 'Not Found' });
+    httpMock
+      .expectOne((r) => r.url === `${BASE}/properties/lookup`)
+      .flush({}, { status: 404, statusText: 'Not Found' });
     await expect(pending).rejects.toMatchObject({ code: 'http_404', retryable: false });
   });
 });

@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
-import { EMPTY, catchError, tap } from 'rxjs';
+import { EMPTY, catchError, map, of, switchMap, tap } from 'rxjs';
+import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
 import type { PreviewEstimateResponse, ReportSnapshot } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
@@ -141,6 +142,28 @@ export class ReportState {
     ctx.patchState({ reportToken: action.reportToken, snapshot: null });
   }
 
+  /**
+   * Narrative top-up (FE0-006): the real backend ships the AI narrative
+   * separately from the snapshot (POST /v1/estimates/{id}/narrative), so a
+   * snapshot that arrived with an empty narrative gets it fetched and folded
+   * in. A narrative fetch failure keeps the snapshot as-is — the page then
+   * shows the honest empty state, never mock text.
+   */
+  private withNarrative(
+    token: string,
+    snapshot: ReportSnapshot,
+  ): Observable<ReportSnapshot> {
+    if (snapshot.narrative?.trim()) {
+      return of(snapshot);
+    }
+    return this.api.getNarrative(snapshot.estimateId, token).pipe(
+      map((res) =>
+        res.narrative?.trim() ? { ...snapshot, narrative: res.narrative } : snapshot,
+      ),
+      catchError(() => of(snapshot)),
+    );
+  }
+
   @Action(UnlockReport)
   unlockReport(ctx: StateContext<ReportStateModel>) {
     const token = ctx.getState().reportToken;
@@ -150,6 +173,7 @@ export class ReportState {
     }
     this.beginLoad(ctx);
     return this.api.getReport(token).pipe(
+      switchMap((snapshot) => this.withNarrative(token, snapshot)),
       tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
       catchError(() => {
         this.fail(ctx);
@@ -176,6 +200,7 @@ export class ReportState {
     }
     this.beginLoad(ctx);
     return this.api.reviseTier(token, { tier: action.tier, sqft: action.sqft }).pipe(
+      switchMap((snapshot) => this.withNarrative(token, snapshot)),
       tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
       catchError(() => {
         this.fail(ctx);

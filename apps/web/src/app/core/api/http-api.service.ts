@@ -1,4 +1,4 @@
-import { HttpParams } from '@angular/common/http';
+import { HttpHeaders, HttpParams } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
@@ -16,6 +16,7 @@ import type {
   MagicLinkReissueRequest,
   MagicLinkReissueResponse,
   MagicLinkVerifyResponse,
+  NarrativeResponse,
   PartnerShareRequest,
   PartnerShareResponse,
   PreviewEstimateResponse,
@@ -72,8 +73,12 @@ export class HttpApiService implements ApiService {
     );
   }
 
+  /**
+   * Post-gate estimate (new-build and renovation): POST /api/v1/estimate
+   * (singular — the function adapter discriminates on `projectType`).
+   */
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
-    return this.call(this.http.post<EstimateResponse>(`${this.base}/estimates`, request));
+    return this.call(this.http.post<EstimateResponse>(`${this.base}/estimate`, request));
   }
 
   /**
@@ -116,6 +121,24 @@ export class HttpApiService implements ApiService {
   getReport(reportToken: string): Observable<GetReportResponse> {
     return this.call(
       this.http.get<GetReportResponse>(`${this.base}/reports/${reportToken}`),
+    );
+  }
+
+  /**
+   * AI narrative (consumer/06): POST /api/v1/estimates/{estimateId}/narrative.
+   * Authenticated by the magic-link Bearer token — the same token that
+   * unlocked the report (ReportState holds it memory-only). The response
+   * carries the verbatim footer, so the caller renders it as-is.
+   */
+  getNarrative(estimateId: string, reportToken: string): Observable<NarrativeResponse> {
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${reportToken}`);
+    const encoded = encodeURIComponent(estimateId);
+    return this.call(
+      this.http.post<NarrativeResponse>(
+        `${this.base}/estimates/${encoded}/narrative`,
+        {},
+        { headers },
+      ),
     );
   }
 

@@ -332,6 +332,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       narrativeComingSoon:
         'An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.',
       aiSummaryLocked: 'Unlock your report to read the AI summary of your estimate.',
+      aiSummaryUnavailable:
+        'The AI summary is not available for this report right now — the figures above are the complete estimate.',
       stepsTitle: 'Your next 3 steps',
       steps: [
         {
