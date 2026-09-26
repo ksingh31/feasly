@@ -199,6 +199,8 @@ describe('WizardState', () => {
     );
     expect(rehydrated.inputs.sqft).toBe(2600);
     expect(rehydrated.inputs.tier).toBe('luxury');
+    expect(rehydrated.projectType).toBe('new-build');
+    expect(rehydrated.step).toBe(2);
     localStorage.clear();
   });
 
