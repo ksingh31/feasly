@@ -229,9 +229,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'Runs the same deterministic engine as POST /v1/estimate and persists ' +
       'the full estimate row (the lead gate attaches to its estimateId), but ' +
-      'returns ONLY the blurred preview shape: every figure is ' +
-      '{ blurred: true } and rows is empty. Real figures are never exposed ' +
-      'pre-gate — the narrowing is type-enforced in the preview service.',
+      'returns ONLY the preview shape: the REAL computed figures ' +
+      '(build/total ranges, fixed land value) with rows empty. Figures are ' +
+      'readable in the API response by design — the UI renders them blurred ' +
+      'pre-gate (lead-capture nudge, not a security boundary).',
     security: [{ ApiKeyAuth: [] }],
     request: {
       body: {
@@ -242,7 +243,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
     responses: {
       '200': {
-        description: 'Blurred preview (no real figures)',
+        description: 'Preview with real figures (UI renders blurred pre-gate)',
         content: {
           'application/json': { schema: PreviewEstimateResponseSchema },
         },

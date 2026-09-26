@@ -339,7 +339,7 @@ export interface AppComposition {
   readonly leadStore: LeadStore;
   readonly leadService: LeadService;
   readonly leadRoute: LeadRoute;
-  /** phase-2 wiring: pre-gate blurred preview. */
+  /** phase-2 wiring: pre-gate preview (real figures, rows empty). */
   readonly previewService: PreviewService;
   readonly previewRoute: PreviewRoute;
   /** phase-2 wiring: immutable report snapshots + tier/sqft revisions. */

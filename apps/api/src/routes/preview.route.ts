@@ -4,8 +4,9 @@
  *
  * Public endpoint (pre-gate by definition) — the Function adapter applies
  * the public rate limiter. The return type is the contracts
- * `PreviewEstimateResponse`: blurred figures + empty rows, so leaking a
- * real figure here is a compile error.
+ * `PreviewEstimateResponse`: REAL computed figures (the UI renders them
+ * blurred pre-gate) + empty rows, so returning rows here is a compile
+ * error.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/

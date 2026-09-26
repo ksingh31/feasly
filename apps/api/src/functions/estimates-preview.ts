@@ -6,8 +6,9 @@
  * (consumer/03 — 20/hr per IP + per-tenant aggregation) with the same
  * api-key wrapper as the canonical estimate endpoint, since it runs the
  * same deterministic engine. The return type is the contracts
- * `PreviewEstimateResponse` (blurred figures, empty rows) — the narrowing
- * is type-enforced in the preview service, not here.
+ * `PreviewEstimateResponse` (real computed figures — UI renders them
+ * blurred pre-gate — and empty rows) — the narrowing is type-enforced
+ * in the preview service, not here.
  *
  * Bundled by `npm run bundle:functions` into `estimates-preview/index.js`
  * (self-contained — the Function App has no node_modules).

@@ -3,8 +3,11 @@
  *
  * Service (deps faked at the interface boundary), route (service stubbed),
  * and contract-conformance: every response parses through the contracts
- * `PreviewEstimateResponse` zod schema, and no real figure can appear —
- * figures are always `{ blurred: true }` and rows are always empty.
+ * `PreviewEstimateResponse` zod schema. Per the merged contract (2026-09-26)
+ * the preview carries the REAL computed figures — build/total ranges and
+ * the fixed land value — with rows always empty. The blur is a lead-capture
+ * nudge, not a security boundary: figures are readable in the API response
+ * by design.
  */
 import { describe, expect, it } from 'vitest';
 import type {
@@ -44,23 +47,27 @@ function fakeEstimateService(
 }
 
 describe('preview service', () => {
-  it('returns only the blurred preview shape — never real figures', async () => {
+  it('returns the real computed figures with rows empty — never the itemized breakdown', async () => {
     const service: PreviewService = createPreviewService({
       estimates: fakeEstimateService(async () => FULL_ESTIMATE),
     });
     const result = await service.preview({ property: {}, scope: {} });
     expect(result.estimateId).toBe(FULL_ESTIMATE.estimateId);
     expect(result.addressKey).toBe(FULL_ESTIMATE.addressKey);
-    expect(result.figures).toEqual({
-      build: { blurred: true },
-      total: { blurred: true },
-      land: { blurred: true },
-    });
+    // Real computed figures pass through: the UI renders them blurred
+    // pre-gate (readable in the API response by design, 2026-09-26).
+    expect(result.figures).toEqual(FULL_ESTIMATE.figures);
+    expect(result.figures.build).toEqual({ low: 400000, base: 450000, high: 500000 });
+    expect(result.figures.total).toEqual({ low: 700000, base: 780000, high: 860000 });
+    expect(result.figures.land).toEqual({ value: 330000 });
+    // Rows stay empty pre-gate — the itemized breakdown is never exposed.
     expect(result.rows).toEqual([]);
-    // No real dollar amount anywhere in the payload.
     const serialized = JSON.stringify(result);
-    for (const leaked of ['400000', '450000', '500000', '700000', '780000', '860000', '330000']) {
-      expect(serialized).not.toContain(leaked);
+    for (const real of ['400000', '450000', '500000', '700000', '780000', '860000', '330000']) {
+      expect(serialized).toContain(real);
+    }
+    for (const rowOnly of ['site-prep', 'Site prep', '12000', '14000']) {
+      expect(serialized).not.toContain(rowOnly);
     }
   });
 
@@ -97,7 +104,7 @@ describe('preview route', () => {
     });
     const route = createPreviewRoute({ preview: service });
     const result = await route.handle({ property: {}, scope: {} });
-    expect(result.figures.build).toEqual({ blurred: true });
+    expect(result.figures.build).toEqual({ low: 400000, base: 450000, high: 500000 });
     expect(result.rows).toEqual([]);
   });
 });

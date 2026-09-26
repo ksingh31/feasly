@@ -76,7 +76,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Pre-gate estimate preview (same deterministic engine as /estimate; ' +
-      'figures blurred, rows empty — never leaks real numbers).',
+      'real figures — UI renders them blurred pre-gate — rows empty).',
   },
   {
     method: 'POST',

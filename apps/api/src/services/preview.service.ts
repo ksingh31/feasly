@@ -4,12 +4,14 @@
  * Runs the SAME deterministic engine as the full estimate endpoint and
  * persists the full estimate row (the lead gate attaches to its
  * estimateId), but returns ONLY the `PreviewEstimateResponse` shape:
- * every figure is `{ blurred: true }` and rows is empty.
+ * the REAL computed figures (build/total ranges, fixed land value) with
+ * rows empty.
  *
- * Pre-gate blur is type-enforced: the contract types `figures` with
- * `BlurredFigure`, so assigning a real `CostRange` here is a compile
- * error, not a convention. The projection below is the only place the
- * full response is narrowed — nothing real can leak by construction.
+ * The blur is a lead-capture nudge, not a security boundary: figures are
+ * readable in the API response by design (2026-09-26) and the UI renders
+ * them blurred (CSS `filter: blur()`) until the lead gate unlocks. The
+ * type-enforced rule here is that `rows` stays empty pre-gate — the
+ * projection below is the only place the full response is narrowed.
  */
 import type {
   ComparisonEstimateResponse,
@@ -34,20 +36,16 @@ export interface PreviewServiceDeps {
 }
 
 /**
- * The type-enforced narrowing. `figures` only accepts `BlurredFigure`;
- * `rows` only accepts the empty tuple — a real range or a real row here
- * fails compilation.
+ * The narrowing projection: real computed figures pass through (the UI
+ * blurs them pre-gate); `rows` only accepts the empty tuple — a real
+ * row here fails compilation.
  */
 function toPreview(response: EstimateResponse): PreviewEstimateResponse {
   return {
     estimateId: response.estimateId,
     addressKey: response.addressKey,
     inputs: response.inputs,
-    figures: {
-      build: { blurred: true },
-      total: { blurred: true },
-      land: { blurred: true },
-    },
+    figures: response.figures,
     rows: [],
     costDataVersion: response.costDataVersion,
     createdAt: response.createdAt,
