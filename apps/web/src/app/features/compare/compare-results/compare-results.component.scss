@@ -7,7 +7,9 @@
 .compare-results {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  /* 7.5rem (120px) top clears the fixed site nav — matches the
+     communities / wizard / legal page offset pattern. */
+  padding: 7.5rem 1.25rem 4rem;
   font-family: var(--font-ui);
   color: var(--text);
 }
@@ -274,6 +276,11 @@
 }
 
 @media (max-width: 480px) {
+  .compare-results {
+    /* 6rem (96px) top on small phones — matches communities-index mobile. */
+    padding-top: 6rem;
+  }
+
   .compare-chart__row {
     grid-template-columns: 1fr;
     gap: 0.25rem;
