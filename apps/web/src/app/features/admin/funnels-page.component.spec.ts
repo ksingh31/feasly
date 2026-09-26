@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of, throwError, type Observable } from 'rxjs';
-import { vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { FunnelsPageComponent } from './funnels-page.component';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config';
