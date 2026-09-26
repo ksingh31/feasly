@@ -146,3 +146,20 @@ app-privacy-page > main,
 app-terms-page > main {
   flex: 1;
 }
+
+/* ── FE8-003: reduced motion ────────────────── */
+/* Systematic kill-switch: under `prefers-reduced-motion`, every animation and
+   transition on the page becomes instant. The component-level rules
+   (analyzing beat, preview shimmer, report segments) remain as explicit
+   documentation of intent, but this global rule is the guarantee — no
+   component, present or future, can animate for reduced-motion users. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

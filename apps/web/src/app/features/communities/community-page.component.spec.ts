@@ -176,6 +176,14 @@ describe('CommunityPageComponent', () => {
     // The checked-in ranges are uncalibrated (placeholder cost data).
     expect(banner?.textContent).toContain('Illustrative ranges');
   });
+
+  afterEach(() => {
+    // SEO-06: the component injects JSON-LD scripts into document.head;
+    // remove them so later specs see a clean DOM (test isolation).
+    document.head
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((el) => el.remove());
+  });
 });
 
 describe('toDisplayName', () => {
