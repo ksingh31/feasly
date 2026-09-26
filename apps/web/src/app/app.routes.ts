@@ -28,6 +28,7 @@ import { AdminShellComponent } from './features/admin/admin-shell.component';
 import { AdminLeadsComponent } from './features/admin/admin-leads.component';
 import { AdminCalibrationComponent } from './features/admin/admin-calibration.component';
 import { AdminSheetsStatusComponent } from './features/admin/admin-sheets-status.component';
+import { AdminEstimateLookupComponent } from './features/admin/admin-estimate-lookup.component';
 import { adminGuard } from './features/admin/admin.guard';
 import { BuilderLoginComponent } from './features/builder/builder-login.component';
 import { BuilderVerifyComponent } from './features/builder/builder-verify.component';
@@ -191,6 +192,9 @@ export const routes: Routes = [
       { path: 'calibration', component: AdminCalibrationComponent },
       // admin/05: Sheets sync ops panel.
       { path: 'ops/sheets', component: AdminSheetsStatusComponent },
+      // Admin estimate lookup (admin/03): search entry + read-only detail.
+      { path: 'estimates', component: AdminEstimateLookupComponent },
+      { path: 'estimates/:id', component: AdminEstimateLookupComponent },
     ],
   },
   // Builder portal (embed/09): magic-link session auth, tenant-scoped lead

@@ -99,9 +99,9 @@ export function createAdminEstimatesService(
         },
         rows: (estimate.rows as AdminEstimateDetail['rows'] | null) ?? [],
         costDataVersion: estimate.costDataVersion,
-        // The backend stores no narrative — the report's narrative is
-        // generated client-side. Never invent one here (AC5).
-        narrative: null,
+        // AC5: the stored narrative, only present when the narrative worker
+        // generated one — never invented here.
+        narrative: estimate.narrative,
         createdAt: estimate.createdAt.toISOString(),
         linkedLeadId: lead ? lead.id : null,
         snapshots: snapshots.map((s) => ({

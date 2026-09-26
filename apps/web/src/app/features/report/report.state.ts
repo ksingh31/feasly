@@ -100,7 +100,7 @@ export class ReportState {
     
     if (!property) {
       this.fail(ctx);
-      return;
+      return EMPTY;
     }
     
     // RENO-04: build the preview request from reno inputs when projectType is renovation
@@ -109,7 +109,7 @@ export class ReportState {
       const reno = this.store.selectSnapshot(WizardState.renoInputs);
       if (!reno.renoType || !reno.tier || reno.renoSqft <= 0) {
         this.fail(ctx);
-        return;
+        return EMPTY;
       }
       request = {
         projectType: 'renovation',
@@ -123,7 +123,7 @@ export class ReportState {
       const inputs = this.store.selectSnapshot(WizardState.inputs);
       if (inputs.sqft <= 0) {
         this.fail(ctx);
-        return;
+        return EMPTY;
       }
       request = buildNewBuildRequest(property, inputs);
     }
@@ -170,7 +170,7 @@ export class ReportState {
     const token = ctx.getState().reportToken;
     if (!token) {
       this.fail(ctx);
-      return;
+      return EMPTY;
     }
     this.beginLoad(ctx);
     return this.api.getReport(token).pipe(
@@ -197,7 +197,7 @@ export class ReportState {
       // Fail honestly with the inline error instead of silently doing nothing:
       // the magic-link email is the only re-verification path.
       this.fail(ctx);
-      return;
+      return EMPTY;
     }
     this.beginLoad(ctx);
     return this.api.reviseTier(token, { tier: action.tier, sqft: action.sqft }).pipe(

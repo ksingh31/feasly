@@ -152,6 +152,18 @@ describe('admin/03 estimate lookup service', () => {
     expect(detail.narrative).toBeNull();
   });
 
+  it('returns the stored narrative when one was generated (AC5)', async () => {
+    const estimate = estimateFixture({
+      narrative: 'A solid infill opportunity on a quiet street.',
+      narrativeGeneratedAt: new Date('2026-09-20T11:00:00Z'),
+    });
+    const service = makeService({ estimates: [estimate], leads: [] });
+
+    const detail = await service.getEstimate(estimate.id);
+
+    expect(detail.narrative).toBe('A solid infill opportunity on a quiet street.');
+  });
+
   it('returns linkedLeadId null when the gate has not completed', async () => {
     const estimate = estimateFixture();
     const service = makeService({ estimates: [estimate], leads: [] });
