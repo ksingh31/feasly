@@ -1,0 +1,17 @@
+<div class="builder-shell">
+  <header class="builder-shell__header">
+    <span class="builder-shell__brand">{{ copy.shellBrand }}</span>
+    <nav class="builder-shell__nav">
+      <a routerLink="/builder" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        {{ copy.shellNavDashboard }}
+      </a>
+      @if (session(); as s) {
+        <span class="builder-shell__email">{{ s.email }}</span>
+      }
+      <button type="button" (click)="signOut()">{{ copy.signOutLabel }}</button>
+    </nav>
+  </header>
+  <main class="builder-shell__main">
+    <router-outlet />
+  </main>
+</div>

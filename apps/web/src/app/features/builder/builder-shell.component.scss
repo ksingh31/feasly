@@ -1,0 +1,56 @@
+/**
+ * Builder shell (embed/09): mirrors the admin shell layout; the
+ * `.builder-shell` hook exists for builder-specific overrides only.
+ */
+.builder-shell {
+  min-height: 100vh;
+  background: var(--color-background, #faf9f7);
+}
+
+.builder-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+}
+
+.builder-shell__brand {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.builder-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.builder-shell__nav a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.builder-shell__nav a.active {
+  font-weight: 700;
+}
+
+.builder-shell__email {
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #6b6257);
+}
+
+.builder-shell__nav button {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.builder-shell__main {
+  padding: 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}

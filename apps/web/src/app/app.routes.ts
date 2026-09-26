@@ -29,6 +29,11 @@ import { AdminLeadsComponent } from './features/admin/admin-leads.component';
 import { AdminCalibrationComponent } from './features/admin/admin-calibration.component';
 import { AdminSheetsStatusComponent } from './features/admin/admin-sheets-status.component';
 import { adminGuard } from './features/admin/admin.guard';
+import { BuilderLoginComponent } from './features/builder/builder-login.component';
+import { BuilderVerifyComponent } from './features/builder/builder-verify.component';
+import { BuilderShellComponent } from './features/builder/builder-shell.component';
+import { BuilderDashboardComponent } from './features/builder/builder-dashboard.component';
+import { builderGuard } from './features/builder/builder.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -186,6 +191,31 @@ export const routes: Routes = [
       { path: 'calibration', component: AdminCalibrationComponent },
       // admin/05: Sheets sync ops panel.
       { path: 'ops/sheets', component: AdminSheetsStatusComponent },
+    ],
+  },
+  // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
+  // pipeline. All builder routes are noindexed and excluded from
+  // prerendering (not in prerender-routes.txt). No public-page links point
+  // here.
+  {
+    path: 'builder/login',
+    component: BuilderLoginComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'builder/verify',
+    component: BuilderVerifyComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'builder',
+    component: BuilderShellComponent,
+    canActivate: [robotsGuard, builderGuard],
+    data: { noindex: true },
+    children: [
+      { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
     ],
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it

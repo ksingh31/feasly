@@ -20,8 +20,12 @@ import { SheetsSyncState } from './features/admin/sheets-sync.state';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
+<<<<<<< HEAD
 import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
+=======
+import { BuilderState } from './features/builder';
+>>>>>>> 0ae07c2 (feat(embed/09): builder portal UI — magic-link auth, guarded /builder, NGXS lead pipeline)
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -67,6 +71,7 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
+<<<<<<< HEAD
     // AdminLeadsState is memory-only on purpose: admin lead data is
     // sensitive and must not persist in localStorage — it refetches on mount.
     // CalibrationState is deliberately EXCLUDED from persistence as well:
@@ -74,6 +79,13 @@ export const appConfig: ApplicationConfig = {
     // (Both kept out of the storage plugin's keys below.)
     provideStore(
       [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState],
+=======
+    // BuilderState is intentionally NOT persisted and NOT in the storage
+    // plugin keys: the session is cookie-based (HttpOnly) and the lead
+    // list is homeowner PII — a refresh re-probes /me and reloads leads.
+    provideStore(
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, BuilderState],
+>>>>>>> 0ae07c2 (feat(embed/09): builder portal UI — magic-link auth, guarded /builder, NGXS lead pipeline)
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in
