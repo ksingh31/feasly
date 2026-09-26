@@ -250,7 +250,12 @@ describe('GatePageComponent', () => {
       estimateId: 'est-mock-2200-standard',
       addressKey: fakeProperty.addressKey,
       inputs: { sqft: 2200, tier: 'standard', garage: 'double', basement: 'unfinished' },
-      figures: { build: { blurred: true }, total: { blurred: true }, land: { blurred: true } },
+      figures: {
+        // Real computed figures — the UI renders them blurred pre-gate.
+        build: { low: 380000, base: 420000, high: 465000 },
+        total: { low: 760000, base: 840000, high: 930000 },
+        land: { value: 420000 },
+      },
       rows: [],
       costDataVersion: 'mock-v1',
       createdAt: '2026-09-24T00:00:00.000Z',

@@ -152,20 +152,43 @@ export function stableMockEstimateId(addressKey: string, inputs: EstimateInputs)
   return `est-mock-${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
-/** Pre-gate preview: blurred figures only — the type makes leaks a compile error. */
+/** Options for the pre-gate preview figure computation. */
+export interface MockPreviewOpts {
+  /** Resolved City assessed value for the property (new-build land figure). */
+  assessedLandValue?: number;
+  /** Reference sqft for scaling (mirrors config wizard.sqftDefault). */
+  referenceSqft?: number;
+  /** Full reno request when previewing a renovation (needs the reno math). */
+  renoRequest?: RenoEstimateRequest;
+}
+
+/**
+ * Pre-gate preview with the REAL computed figures — the UI renders them
+ * blurred (CSS) until the lead gate unlocks. New-build figures come from the
+ * same scaled mock machinery as post-gate estimates (land = the property's
+ * City assessed value); renovations use the reno figure math with land
+ * fixed at zero. Rows stay empty pre-gate.
+ */
 export function mockPreviewEstimate(
   addressKey: string,
   inputs: EstimateInputs,
+  opts: MockPreviewOpts = {},
 ): PreviewEstimateResponse {
+  let figures: PreviewEstimateResponse['figures'];
+  if (opts.renoRequest) {
+    figures = mockRenoEstimate(addressKey, opts.renoRequest).figures;
+  } else {
+    figures = scaledMockFigures(
+      inputs,
+      opts.referenceSqft ?? 2200,
+      opts.assessedLandValue,
+    ).figures;
+  }
   return {
     estimateId: stableMockEstimateId(addressKey, inputs),
     addressKey,
     inputs,
-    figures: {
-      build: { blurred: true },
-      total: { blurred: true },
-      land: { blurred: true },
-    },
+    figures,
     rows: [],
     costDataVersion: MOCK_COST_DATA_VERSION,
     createdAt: new Date().toISOString(),

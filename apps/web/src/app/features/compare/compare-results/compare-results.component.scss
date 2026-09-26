@@ -1,7 +1,7 @@
 /**
  * Comparison results (NBH-03): side-by-side cards + total-range bar chart.
- * Reuses the app's token palette (cream/brass) and the report's shimmer
- * skeleton language for locked slots — no new visual system.
+ * Reuses the app's token palette (cream/brass); locked slots render the
+ * real computed digits blurred — no shimmer/skeleton bars.
  */
 
 .compare-results {
@@ -121,8 +121,9 @@
 }
 
 /**
- * Locked slot: CSS-only skeleton bar (aria-hidden in markup) + the
- * accessible locked note. No real figures in the DOM pre-gate.
+ * Locked slot: the REAL computed digits, blurred until unlock (aria-hidden
+ * in markup) + the accessible locked note. Per Karan 2026-09-26 — no
+ * animated shimmer/skeleton bars.
  */
 .locked-slot {
   display: flex;
@@ -130,15 +131,13 @@
   gap: 0.375rem;
 }
 
-.locked-slot__skeleton {
+.locked-slot__value {
   display: inline-block;
-  height: 1.1em;
-  width: 9ch;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
-  background-size: 200% 100%;
-  animation: compare-shimmer 2.4s ease-in-out infinite;
+  filter: blur(8px);
   user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .locked-slot__note {
@@ -205,16 +204,13 @@
   min-width: 2%;
 }
 
-.compare-chart__bar--skeleton {
-  left: 8%;
-  width: 64%;
-  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
-  background-size: 200% 100%;
-  animation: compare-shimmer 2.4s ease-in-out infinite;
-}
-
-.compare-chart__bars--locked .compare-chart__track {
-  filter: blur(1px);
+/* Locked chart bar: the REAL bar geometry (via barStyle), blurred until
+   unlock. Keeps the accent fill so the shape reads; the 8px blur hides it. */
+.compare-chart__bar--locked {
+  filter: blur(8px);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
 }
 
 .compare-chart__locked-note {
@@ -262,16 +258,6 @@
 
   &:hover {
     color: var(--text);
-  }
-}
-
-@keyframes compare-shimmer {
-  0%,
-  100% {
-    background-position: 0% 0;
-  }
-  50% {
-    background-position: 100% 0;
   }
 }
 

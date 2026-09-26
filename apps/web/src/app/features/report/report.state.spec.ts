@@ -111,14 +111,16 @@ describe('ReportState', () => {
     await pollStatus('ready');
   }
 
-  it('loads the blurred preview pre-gate', async () => {
+  it('loads the real-figures preview pre-gate (UI blurs them)', async () => {
     store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200 })]);
     store.dispatch(new LoadPreview());
     await pollStatus('ready');
     const preview = store.selectSnapshot(ReportState.preview);
-    expect(preview?.figures.build).toEqual({ blurred: true });
-    expect(preview?.figures.total).toEqual({ blurred: true });
-    expect(preview?.figures.land).toEqual({ blurred: true });
+    const figures = preview?.figures;
+    expect(figures).toBeDefined();
+    expect(figures?.build.low).toBeGreaterThan(0);
+    expect(figures?.total.high).toBeGreaterThanOrEqual(figures?.total.low ?? 0);
+    expect(figures?.land.value).toBeGreaterThanOrEqual(0);
     expect(preview?.rows).toEqual([]);
     expect(store.selectSnapshot(ReportState.unlocked)).toBe(false);
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();

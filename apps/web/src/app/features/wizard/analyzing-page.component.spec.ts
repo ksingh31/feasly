@@ -46,7 +46,12 @@ describe('AnalyzingPageComponent', () => {
     estimateId: 'est-mock-2200-standard',
     addressKey: fakeProperty.addressKey,
     inputs: { sqft: 2200, tier: 'standard', garage: 'double', basement: 'unfinished' },
-    figures: { build: { blurred: true }, total: { blurred: true }, land: { blurred: true } },
+    figures: {
+      // Real computed figures — the UI renders them blurred pre-gate.
+      build: { low: 380000, base: 420000, high: 465000 },
+      total: { low: 760000, base: 840000, high: 930000 },
+      land: { value: 420000 },
+    },
     rows: [],
     costDataVersion: 'mock-v1',
     createdAt: '2026-09-24T00:00:00.000Z',
@@ -114,13 +119,17 @@ describe('AnalyzingPageComponent', () => {
       fixture.detectChanges();
     });
 
-    it('stores the blurred preview and routes to the report', async () => {
+    it('stores the real-figures preview and routes to the report', async () => {
       await pollUrl('/estimate/report');
       const preview = store.selectSnapshot(WizardState.preview);
       expect(preview?.estimateId).toMatch(/^est-mock-/);
-      // Pre-gate shape: blurred figures only, never real dollar amounts.
-      expect(preview?.figures.build).toEqual({ blurred: true });
-      expect(preview?.figures.total).toEqual({ blurred: true });
+      // Pre-gate shape: real computed figures (the UI blurs them), rows empty.
+      const figures = preview?.figures;
+      expect(figures).toBeDefined();
+      expect(figures?.build.low).toBeGreaterThan(0);
+      expect(figures?.build.high).toBeGreaterThanOrEqual(figures?.build.low ?? 0);
+      expect(figures?.total.high).toBeGreaterThanOrEqual(figures?.total.low ?? 0);
+      expect(figures?.land.value).toBeGreaterThanOrEqual(0);
       expect(preview?.rows).toEqual([]);
     });
   });

@@ -6,7 +6,6 @@
 import type {
   AnalyticsEvent,
   AutocompleteSuggestion,
-  BlurredFigure,
   CallbackRequest,
   CommunityAggregate,
   CostRange,
@@ -33,21 +32,12 @@ function assertType<T>(value: T): void {
   void value;
 }
 
-// --- BlurredFigure and CostRange are mutually exclusive ---
-// Negative assertions: @ts-expect-error fails the build if these ever BECOME
-// assignable, which is exactly the drift we want to catch.
-// @ts-expect-error — BlurredFigure must never satisfy CostRange
-const notARange: CostRange = { blurred: true } as BlurredFigure;
-// @ts-expect-error — CostRange must never satisfy BlurredFigure
-const notBlurred: BlurredFigure = { low: 1, high: 2 } as CostRange;
-void notARange;
-void notBlurred;
-
-// --- the blur guarantee: pre-gate can never carry a real dollar amount ---
+// --- pre-gate preview carries the REAL computed figures (rendered blurred
+// by the UI until the lead gate unlocks); rows stay empty pre-gate ---
 declare const previewRes: PreviewEstimateResponse;
-assertType<BlurredFigure>(previewRes.figures.build);
-assertType<BlurredFigure>(previewRes.figures.total);
-assertType<BlurredFigure>(previewRes.figures.land);
+assertType<CostRange>(previewRes.figures.build);
+assertType<CostRange>(previewRes.figures.total);
+assertType<FixedFigure>(previewRes.figures.land);
 assertType<readonly []>(previewRes.rows);
 
 declare const estimateRes: EstimateResponse;

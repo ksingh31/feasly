@@ -367,21 +367,6 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
-      "BlurredFigure": {
-        "properties": {
-          "blurred": {
-            "description": "Pre-gate placeholder — no real figures",
-            "enum": [
-              true,
-            ],
-            "type": "boolean",
-          },
-        },
-        "required": [
-          "blurred",
-        ],
-        "type": "object",
-      },
       "CommunityStatsResponse": {
         "properties": {
           "avgAssessedValue": {
@@ -738,13 +723,34 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "figures": {
             "properties": {
               "build": {
-                "$ref": "#/components/schemas/BlurredFigure",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CostRange",
+                  },
+                  {
+                    "description": "Real computed build range — UI renders blurred pre-gate",
+                  },
+                ],
               },
               "land": {
-                "$ref": "#/components/schemas/BlurredFigure",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/FixedFigure",
+                  },
+                  {
+                    "description": "Fixed City assessed land value — UI renders blurred pre-gate",
+                  },
+                ],
               },
               "total": {
-                "$ref": "#/components/schemas/BlurredFigure",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CostRange",
+                  },
+                  {
+                    "description": "Real computed total range — UI renders blurred pre-gate",
+                  },
+                ],
               },
             },
             "required": [
@@ -1869,7 +1875,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/estimate": {
       "post": {
-        "description": "Runs the deterministic cost engine on the given inputs. Returns real ranges (post-gate) — the pre-gate preview uses the blurred placeholder shape.",
+        "description": "Runs the deterministic cost engine on the given inputs. Returns real ranges (post-gate) — the pre-gate preview carries the same real computed figures (rendered blurred client-side).",
         "requestBody": {
           "content": {
             "application/json": {

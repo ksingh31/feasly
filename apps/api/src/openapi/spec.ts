@@ -157,8 +157,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     summary: 'Run a cost estimate',
     description:
       'Runs the deterministic cost engine on the given inputs. ' +
-      'Returns real ranges (post-gate) — the pre-gate preview uses ' +
-      'the blurred placeholder shape.',
+      'Returns real ranges (post-gate) — the pre-gate preview carries the ' +
+      'same real computed figures (rendered blurred client-side).',
     security: [{ ApiKeyAuth: [] }],
     request: {
       body: {

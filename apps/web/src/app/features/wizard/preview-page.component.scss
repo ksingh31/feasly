@@ -113,46 +113,23 @@
   border-width: 2px;
 }
 
-/* Blurred pre-gate placeholders: view-source reveals nothing real. */
-.blur-value {
+/* Blurred pre-gate figures: the REAL computed digits, unreadable until the
+   lead gate unlocks (per Karan 2026-09-26 — no animated shimmer bars). */
+.locked-value {
   margin: 0;
-  user-select: none;
-}
-
-/* CSS-only locked placeholder: no fake dollar figures in markup. */
-.blur-bar {
-  display: inline-block;
-  height: 1em;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--border), var(--muted), var(--border));
-  background-size: 200% 100%;
-  animation: blur-shimmer 2.4s ease-in-out infinite;
   font-size: 32px;
-  vertical-align: middle;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  filter: blur(8px);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  color: var(--ink);
 }
 
-.blur-bar-lg {
-  width: 7ch;
-}
-
-.blur-bar-sm {
-  width: 5.5ch;
-}
-
-@keyframes blur-shimmer {
-  0%,
-  100% {
-    background-position: 0% 0;
-  }
-  50% {
-    background-position: 100% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .blur-bar {
-    animation: none;
-  }
+.hero-total .locked-value {
+  font-size: 40px;
 }
 
 .locked-note {

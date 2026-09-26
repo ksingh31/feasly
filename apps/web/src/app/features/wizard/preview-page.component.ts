@@ -1,5 +1,6 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import type { CostRange } from '@feasly/contracts';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
@@ -13,14 +14,15 @@ import { WizardState } from './wizard.state';
  * S5 estimate preview step — the single lead-gate point.
  *
  * Visible: address, community, lot size, zoning, assessed value (property
- * card) plus the chosen sqft/tier. Blurred (CSS-only placeholders, lock
- * note): build cost range and total project range — the API contract
- * (`PreviewEstimateResponse`) types every figure as `{ blurred: true }`,
- * so rendering a real dollar figure here is a compile error.
+ * card) plus the chosen sqft/tier. The build cost range and total project
+ * range render BLURRED (real computed figures behind CSS `filter: blur()`,
+ * `aria-hidden`, unselectable) with the lock note — per Karan 2026-09-26,
+ * blurred real digits replace the old animated shimmer bars. The blur is a
+ * lead-capture nudge, not a security boundary.
  *
  * The one "Unlock" CTA in the flow routes to the lead gate; "← Back to
  * details" returns to S3 with wizard state intact (NGXS storage plugin).
- * Loads the blurred preview through the shared ReportState — this component
+ * Loads the preview through the shared ReportState — this component
  * never calls the API directly.
  */
 @Component({
@@ -65,6 +67,18 @@ export class PreviewPageComponent implements OnInit {
 
   protected readonly loading = computed(() => this.status() === 'loading' && this.preview() === null);
   protected readonly ready = computed(() => this.status() === 'ready' && this.preview() !== null);
+
+  /** Real computed figures from the pre-gate preview — rendered blurred. */
+  protected readonly previewFigures = computed(() => this.preview()?.figures ?? null);
+
+  /** Blurred pre-gate range, e.g. "$608,000 – $735,000". */
+  protected previewRange(range: CostRange): string {
+    return this.formatCad(range.low) + ' – ' + this.formatCad(range.high);
+  }
+
+  protected formatCad(value: number): string {
+    return `$${Math.round(value).toLocaleString('en-CA')}`;
+  }
   /** Full-page error card only when nothing loaded yet. */
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);
 

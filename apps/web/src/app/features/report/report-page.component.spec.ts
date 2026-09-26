@@ -213,18 +213,19 @@ describe('ReportPageComponent', () => {
   });
 
   describe('pre-gate', () => {
-    it('renders blurred placeholders and the Unlock CTA toward the gate', () => {
-      expect(fixture.nativeElement.querySelectorAll('.blur-value').length).toBeGreaterThan(0);
+    it('renders the real figures blurred and the Unlock CTA toward the gate', () => {
+      const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
+      expect(lockedValues.length).toBe(3);
       expect(fixture.nativeElement.querySelectorAll('.hero-value').length).toBe(0);
+      lockedValues.forEach((el: HTMLElement) => {
+        expect(el.getAttribute('aria-hidden')).toBe('true');
+        expect(el.textContent).toMatch(/\$\d/);
+        expect(getComputedStyle(el).filter).toContain('blur');
+        expect(getComputedStyle(el).userSelect).toBe('none');
+      });
       const unlock = fixture.nativeElement.querySelector('a.unlock') as HTMLAnchorElement;
       expect(unlock?.textContent).toContain('Unlock');
       expect(unlock?.getAttribute('href')).toBe('/estimate/gate');
-    });
-
-    it('shows no real dollar figures pre-gate', () => {
-      // The blur guarantee: every real figure is >= 100000, so no run of 6+
-      // digits may appear anywhere (the "2,200 sq ft" stepper is 4 digits).
-      expect(text()).not.toMatch(/\d{6}/);
     });
 
     it('keeps the stepper visible but disabled behind the gate (no revise without a token)', () => {
