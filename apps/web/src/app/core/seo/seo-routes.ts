@@ -95,6 +95,14 @@ const ROUTES: SeoRouteConfig[] = [
   // Branded error page (HRD-02): uncaught failures land here. noindexed —
   // it must never appear in search results.
   { pattern: 'error', titleKey: 'errorTitle', descriptionKey: 'error', noindex: true },
+  // Unsubscribe center (email/03): token-authenticated private page.
+  // noindex — it must never appear in search results.
+  {
+    pattern: 'unsubscribe/:token',
+    titleKey: 'unsubscribeTitle',
+    descriptionKey: 'unsubscribe',
+    noindex: true,
+  },
 ];
 
 /**
