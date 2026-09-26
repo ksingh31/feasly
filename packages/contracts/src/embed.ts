@@ -67,7 +67,8 @@ export interface EmbedLeadCreatedMessage {
  */
 export interface EmbedAuthOkMessage {
   readonly type: 'FEASLY_AUTH_OK';
-  readonly estimateId?: string;
+  readonly estimateId: string;
+  readonly leadScore: number;
 }
 
 /** Parent → iframe: single-use relay code for the embed/06 auth handoff. */
@@ -92,6 +93,46 @@ export interface EmbedRelayCode {
   readonly code: string;
   readonly expiresInSeconds: number;
 }
+
+/** Parent page → iframe: the one-time relay code (embed/06). */
+export interface EmbedRelayMessage {
+  readonly type: 'feasly:relay';
+  readonly code: string;
+}
+
+/**
+ * POST /api/v1/embed/session request (embed/06).
+ *
+ * The iframe exchanges the single-use relay code (posted by the builder
+ * snippet from `?feasly_rt=`) for a short-lived session token. The code is
+ * validated atomically server-side: single-use, 10-minute expiry, and the
+ * tenant_key must match the code's tenant.
+ */
+export interface EmbedSessionRequest {
+  readonly code: string;
+  readonly tenant_key: string;
+}
+
+/**
+ * POST /api/v1/embed/session response (embed/06).
+ *
+ * `sessionToken` is the 12-hour in-memory session token the iframe uses to
+ * load the report. `estimateId` + `leadScore` are the only fields the iframe
+ * may echo back to the parent via FEASLY_AUTH_OK — no PII crosses postMessage.
+ */
+export interface EmbedSessionResponse {
+  readonly sessionToken: string;
+  readonly estimateId: string;
+  readonly leadScore: number;
+  readonly expiresInSeconds: number;
+}
+
+/** Machine-readable relay failure reasons (embed/06). Never user-facing copy. */
+export type EmbedRelayFailureReason =
+  | 'invalid_code'
+  | 'expired_code'
+  | 'used_code'
+  | 'tenant_mismatch';
 
 /**
  * Public builder config served by GET /api/v1/embed/config (EMB-02).

@@ -114,9 +114,9 @@ export class EmbedBridgeService {
   }
 
   /** The embed/06 relay handshake completed (reused, not rebuilt here). */
-  notifyAuthOk(estimateId?: string): void {
-    const msg: EmbedAuthOkMessage = { type: 'FEASLY_AUTH_OK' };
-    this.post(estimateId === undefined ? msg : { ...msg, estimateId });
+  notifyAuthOk(estimateId: string, leadScore: number): void {
+    const msg: EmbedAuthOkMessage = { type: 'FEASLY_AUTH_OK', estimateId, leadScore };
+    this.post(msg);
   }
 
   /**

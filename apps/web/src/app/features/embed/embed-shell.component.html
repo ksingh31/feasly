@@ -6,6 +6,14 @@
       <h1 class="embed-fallback-title">{{ copy.unavailableHeading }}</h1>
       <p class="embed-fallback-body">{{ copy.unavailableBody }}</p>
     </div>
+  } @else if (relayStatus() === 'failed') {
+    <div class="embed-fallback" role="alert">
+      <h1 class="embed-fallback-title">{{ copy.sessionExpiredHeading }}</h1>
+      <p class="embed-fallback-body">{{ copy.sessionExpiredBody }}</p>
+      <button type="button" class="embed-cta" (click)="onResendLink()">
+        {{ copy.resendLinkLabel }}
+      </button>
+    </div>
   } @else if (builderConfig(); as cfg) {
     <header class="embed-header">
       @if (cfg.logo_url) {
