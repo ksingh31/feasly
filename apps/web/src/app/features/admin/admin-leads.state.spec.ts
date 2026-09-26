@@ -29,6 +29,7 @@ const LEAD_A: AdminLeadListItem = {
   tenantKey: null,
   timeline: '6-12 months',
   sandbox: false,
+  discarded: false,
   createdAt: '2026-09-20T10:00:00.000Z',
 };
 
