@@ -23,9 +23,12 @@ window, which is what gives the RPO below.
 
 **Continuous verification:** CI runs `infra/health/check-postgres-backup.sh`
 on every push to main (workflow job `backup-config`). It fails if retention
-drops below 7 days or the earliest restore point goes stale (> 48h old),
-which is the "scheduled backup missed" signal until the ops-alert service
-(`admin/06`) wires a dedicated alert class. The script's failure branches are unit-tested with a
+drops below 7 days, the earliest restore point is missing, or the restore
+point falls outside the retention window (+48h grace) — the last being the
+"scheduled backup missed" signal until the ops-alert service
+(`admin/06`) wires a dedicated alert class. (A young server's fixed
+creation-time restore point is healthy, not stale — the check is
+window-relative, not a flat 48h.) The script's failure branches are unit-tested with a
 mocked `az` in `infra/health/test/test-checks.sh` (§8), so a regression in the
 check itself fails the `build` job before it ever runs against Azure.
 

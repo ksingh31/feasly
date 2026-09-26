@@ -142,6 +142,7 @@ cat > "$fakeaz/az" <<'EOF'
 #!/usr/bin/env bash
 # Fake `az postgres flexible-server` for check-postgres-backup.sh tests.
 # Modes via FAKE_AZ_BACKUP: ok | low-retention | stale | no-server | no-earliest
+#   | within-window (young server: earliest 50h old, inside the 7d window)
 mode="${FAKE_AZ_BACKUP:-ok}"
 if [[ "$1" == "postgres" && "$2" == "flexible-server" && "$3" == "list" ]]; then
   [[ "$mode" == "no-server" ]] && echo "None" || echo "feasly-dev-pg-test"
@@ -149,11 +150,13 @@ if [[ "$1" == "postgres" && "$2" == "flexible-server" && "$3" == "list" ]]; then
 fi
 if [[ "$1" == "postgres" && "$2" == "flexible-server" && "$3" == "show" ]]; then
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  young="$(date -u -d '50 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
   case "$mode" in
     ok)            echo "{\"retention\":7,\"earliest\":\"$now\",\"geo\":\"Disabled\"}" ;;
     low-retention) echo "{\"retention\":3,\"earliest\":\"$now\",\"geo\":\"Disabled\"}" ;;
     stale)         echo '{"retention":7,"earliest":"2020-01-01T00:00:00Z","geo":"Disabled"}' ;;
     no-earliest)   echo '{"retention":7,"earliest":null,"geo":"Disabled"}' ;;
+    within-window) echo "{\"retention\":7,\"earliest\":\"$young\",\"geo\":\"Disabled\"}" ;;
   esac
   exit 0
 fi
@@ -198,6 +201,15 @@ out="$(backup_check no-earliest 2>&1)"; code=$?
 echo "$out" | grep -q "FAIL: earliestRestoreDate is missing" \
   && ok "backup: missing earliest message" \
   || bad "backup no-earliest line: $out"
+
+# Regression: a young server's fixed creation-time restore point (50h old,
+# inside the 7d retention window) is healthy — the old >48h rule false-fired.
+out="$(backup_check within-window 2>&1)"; code=$?
+[[ $code -eq 0 ]] && ok "backup: young server within window -> exit 0" \
+  || bad "backup within-window: exit $code (out: $out)"
+echo "$out" | grep -q "OK: PITR-capable" \
+  && ok "backup: young server prints OK" \
+  || bad "backup within-window line: $out"
 
 rm -rf "$fakeaz"
 
