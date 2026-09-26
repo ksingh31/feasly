@@ -4,7 +4,7 @@ import { CommunitiesIndexPageComponent } from './features/communities/communitie
 import { DevelopersPageComponent } from './features/developers';
 import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
-import { FunnelsPageComponent, adminGuard } from './features/admin';
+import { FunnelsPageComponent } from './features/admin';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
