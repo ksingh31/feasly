@@ -1,0 +1,124 @@
+# SEO-08: Lighthouse CI performance gate.
+#
+# What it does: builds the PR's production web bundle, serves it locally, and
+# runs Lighthouse CI with the budgets from apps/web/budgets.json (single
+# source of truth — thresholds live there, not here). Fails the PR when:
+#   - Lighthouse categories drop below Performance 90 / Accessibility 95 /
+#     Best Practices 90 / SEO 100 (SEO 100 is non-negotiable), or
+#   - web-vital limits are breached (LCP 2.5s, CLS 0.1, TBT 200ms), or
+#   - asset budgets are breached (initial JS 200 KB gzipped, 500 KB images/page).
+#
+# Why local serve instead of the SWA PR preview URL: the SWA preview deploys
+# are capped at 3 staging environments and fail often for infra reasons; the
+# bytes served locally are identical to what the preview would serve, so the
+# gate stays deterministic. Manual drill against a live preview/dev URL:
+# workflow_dispatch with the preview_url input.
+#
+# Buy-back rule (AC4): when initial JS grows > 5 KB gzipped vs the baseline in
+# budgets.json, a bot comments on the PR asking for the tradeoff note — not a
+# hard fail.
+#
+# The job is named `lighthouse` — add it as a required status check for main
+# in branch protection (repo settings; cannot be done from a workflow file).
+#
+# Local equivalents:
+#   npm run build --workspace @feasly/web -- --configuration=production
+#   node apps/web/tools/check-perf-budgets.mjs
+#   node apps/web/tools/gen-lighthouserc.mjs --base http://localhost:8931 --out /tmp/lhrc.json
+#   npx -y @lhci/cli@0.14.0 autorun --config=/tmp/lhrc.json   (needs Chrome)
+
+name: Lighthouse
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: 'Audit a live URL instead of the local build (manual drill)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lighthouse:
+    name: lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build production web bundle
+        run: npm run build --workspace=@feasly/web -- --configuration=production
+
+      # Fast local gate: hard-fails on asset-budget breaches before spending
+      # minutes on full Lighthouse runs. Also detects buy-back growth.
+      - name: Check performance budgets
+        id: budgets
+        run: |
+          set -o pipefail
+          node apps/web/tools/check-perf-budgets.mjs 2>&1 | tee /tmp/perf-budgets.log
+          if grep -q 'BUYBACK_NOTICE' /tmp/perf-budgets.log; then
+            echo "buyback=true" >> "$GITHUB_OUTPUT"
+            grep 'BUYBACK_NOTICE' /tmp/perf-budgets.log | head -1 \
+              | sed 's/^BUYBACK_NOTICE: //' > /tmp/buyback-note.txt
+          fi
+
+      - name: Generate LHCI config from budgets.json
+        run: |
+          BASE="http://localhost:8931"
+          if [ -n "${{ inputs.preview_url }}" ]; then BASE="${{ inputs.preview_url }}"; fi
+          node apps/web/tools/gen-lighthouserc.mjs --base "$BASE" --runs 3 --out "$RUNNER_TEMP/lighthouserc.json"
+          echo "Auditing:"
+          node apps/web/tools/perf-audit-urls.mjs --base "$BASE"
+
+      - name: Run Lighthouse CI
+        run: npx -y @lhci/cli@0.14.0 autorun --config="$RUNNER_TEMP/lighthouserc.json"
+
+      - name: Upload LHCI results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lhci-results
+          path: .lighthouseci/
+          if-no-files-found: warn
+
+      # AC4: buy-back rule — bot comment, not a hard fail.
+      - name: Buy-back bot comment
+        if: github.event_name == 'pull_request' && steps.budgets.outputs.buyback == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const note = fs.readFileSync('/tmp/buyback-note.txt', 'utf8').trim();
+            const marker = '<!-- feasly-perf-buyback -->';
+            const body = [
+              marker,
+              '### Performance buy-back notice',
+              '',
+              note,
+              '',
+              'Per the [buy-back rule](apps/web/budgets.json), note the tradeoff in the PR description ' +
+              '(what got slower, why it is worth it). If the growth is accepted, update ' +
+              '`baselineJsInitialGzipKb` in `apps/web/budgets.json` to the new measured value.',
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }

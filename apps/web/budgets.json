@@ -1,0 +1,29 @@
+{
+  "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json).",
+  "assets": {
+    "imageWeightPerPageKb": 500,
+    "jsInitialGzipKb": 200
+  },
+  "auditUrls": {
+    "$comment": "Generated deterministically by apps/web/tools/perf-audit-urls.mjs from prerender-routes.txt: '/' + marketing pages + first 3 community pages alphabetically. '/communities/' is included automatically once the route exists in prerender-routes.txt.",
+    "strategy": "root + marketing + 3 sampled community pages"
+  },
+  "buyback": {
+    "baselineJsInitialGzipKb": 175.6,
+    "noteThresholdKb": 5,
+    "rule": "BUY-BACK RULE (SEO-08 AC4): any PR that grows initial JS by more than 5 KB (gzipped) versus the baseline below must note the tradeoff in the PR description (what got slower, why it is worth it). This is a bot comment, not a hard fail \u2014 softer than the Lighthouse gate. If the growth is accepted, update baselineJsInitialGzipKb to the new measured value in the same PR so the next PR is measured against reality."
+  },
+  "lighthouseCategories": {
+    "accessibility": 95,
+    "bestPractices": 90,
+    "performance": 90,
+    "seo": 100
+  },
+  "version": 1,
+  "webVitals": {
+    "cls": 0.1,
+    "inpMs": 200,
+    "lcpMs": 2500,
+    "tbtMs": 200
+  }
+}
