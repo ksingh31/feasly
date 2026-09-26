@@ -177,11 +177,19 @@ describe('ReportPageComponent', () => {
   async function unlock(): Promise<void> {
     const preview = await firstValueFrom(
       api.getPreviewEstimate({
-        addressKey: fakeProperty.addressKey,
-        sqft: 2200,
-        tier: 'premium',
-        garage: 'double',
-        basement: 'unfinished',
+        projectType: 'new_build',
+        property: {
+          addressKey: fakeProperty.addressKey,
+          assessedLandValue: fakeProperty.assessedValue,
+          lotSizeSqft: fakeProperty.lotSqft,
+          zoning: fakeProperty.zoning,
+        },
+        scope: {
+          buildSqft: 2200,
+          tier: 'premium',
+          garage: 'double',
+          basement: 'unfinished',
+        },
       }),
     );
     const lead = await firstValueFrom(

@@ -3,8 +3,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { switchMap, tap, timeout } from 'rxjs';
-import type { AnyEstimateRequest, EstimateInputs, PropertyRecord, RenoEstimateRequest } from '@feasly/contracts';
+import type { EstimateInputs, PropertyRecord, RenoEstimateRequest } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
@@ -215,7 +216,9 @@ export class AnalyzingPageComponent implements OnInit {
         }),
         switchMap((fresh) =>
           this.api
-            .getPreviewEstimate({ addressKey: fresh.addressKey, ...inputs })
+            // Nested request shape mirrors the live backend's
+            // NewBuildRequestSchema: { property, scope }. A flat body 400s.
+            .getPreviewEstimate(buildNewBuildRequest(fresh, inputs))
             .pipe(
               timeout(this.config.get('timings').analyzingTimeoutMs),
               tap({ error: () => this.failStage('estimate') }),

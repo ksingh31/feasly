@@ -21,11 +21,19 @@ describe('MockApiService', () => {
   let httpMock: HttpTestingController;
 
   const estimateRequest: EstimateRequest = {
-    addressKey: 'calgary-1234-14-st-nw',
-    sqft: 2400,
-    tier: 'premium',
-    garage: 'double',
-    basement: 'unfinished',
+    projectType: 'new_build',
+    property: {
+      addressKey: 'calgary-1234-14-st-nw',
+      assessedLandValue: 685000,
+      lotSizeSqft: 5000,
+      zoning: 'R-CG',
+    },
+    scope: {
+      buildSqft: 2400,
+      tier: 'premium',
+      garage: 'double',
+      basement: 'unfinished',
+    },
   };
 
   beforeEach(async () => {
@@ -237,7 +245,7 @@ describe('MockApiService', () => {
 
     it('uses the property assessed value as fixed land (not the canned fixture)', async () => {
       // 'calgary-918-16-ave-nw' is in the mock fixtures with assessedValue 823000.
-      const request = { ...estimateRequest, addressKey: 'calgary-918-16-ave-nw' };
+      const request = { ...estimateRequest, property: { ...estimateRequest.property, addressKey: 'calgary-918-16-ave-nw' } };
       const preview = await firstValueFrom(service.getPreviewEstimate(request));
       const lead = await firstValueFrom(
         service.submitLead({
@@ -260,7 +268,7 @@ describe('MockApiService', () => {
     });
 
     it('tier revision preserves the same fixed land value', async () => {
-      const request = { ...estimateRequest, addressKey: 'calgary-918-16-ave-nw' };
+      const request = { ...estimateRequest, property: { ...estimateRequest.property, addressKey: 'calgary-918-16-ave-nw' } };
       const preview = await firstValueFrom(service.getPreviewEstimate(request));
       const lead = await firstValueFrom(
         service.submitLead({
@@ -307,7 +315,10 @@ describe('MockApiService', () => {
 
     it('initial estimate applies the selected tier and size', async () => {
       const estimate = await firstValueFrom(
-        service.getEstimate({ ...estimateRequest, tier: 'standard', sqft: 2200 }),
+        service.getEstimate({
+          ...estimateRequest,
+          scope: { ...estimateRequest.scope, buildSqft: 2200, tier: 'standard' },
+        }),
       );
       // Build is the sum of the scaled (rounded) rows — 0.92 tier factor on
       // the canned row lows sums to 561000. (Scaling the pre-summed total
@@ -412,7 +423,7 @@ describe('MockApiService', () => {
 
     it('carries the request address key on the preview (not a hardcoded fixture)', async () => {
       const res = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
-      expect(res.addressKey).toBe(estimateRequest.addressKey);
+      expect(res.addressKey).toBe(estimateRequest.property.addressKey);
     });
   });
 });

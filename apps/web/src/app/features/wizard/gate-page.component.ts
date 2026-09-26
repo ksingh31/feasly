@@ -7,6 +7,7 @@ import { Store } from '@ngxs/store';
 import { map, switchMap } from 'rxjs';
 import type { TimelineOption } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
@@ -157,7 +158,7 @@ export class GatePageComponent implements OnInit {
     // preview call first. The analyzing screen re-runs the full pipeline
     // visibly right after this.
     this.api
-      .getPreviewEstimate({ addressKey: property.addressKey, ...inputs })
+      .getPreviewEstimate(buildNewBuildRequest(property, inputs))
       .pipe(
         switchMap((preview) =>
           this.api
