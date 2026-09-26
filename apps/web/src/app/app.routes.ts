@@ -133,6 +133,19 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
+  // Admin funnel dashboard (admin/07): Karan's conversion visibility —
+  // per-step counts + conversion %, date-range + tenant filters. Session-auth
+  // adminGuard (admin/01). noindex — private. Lazy-loaded: this is an
+  // admin-only page, so it stays out of the public initial bundle (budget).
+  {
+    path: 'admin/funnels',
+    loadComponent: () =>
+      import('./features/admin/funnels-page.component').then(
+        (m) => m.FunnelsPageComponent,
+      ),
+    canActivate: [robotsGuard, adminGuard],
+    data: { noindex: true },
+  },
   // Branded error page (HRD-02): uncaught client failures land here via the
   // global error handler — never a blank screen. Static story-pinned copy
   // only, so no error text or PII can leak into the DOM. noindexed.

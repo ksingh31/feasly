@@ -719,5 +719,51 @@ export interface AppConfig {
       /** Status action group label (screen reader). */
       actionsLabel: string;
     };
+    /**
+     * Admin funnel dashboard (story admin/07). All user-facing dashboard
+     * copy lives here so the no-hardcode tripwire stays green.
+     */
+    admin: {
+      funnels: {
+        /** Page heading. */
+        title: string;
+        /** Page subheading. */
+        subtitle: string;
+        /** Date-range "from" label. */
+        fromLabel: string;
+        /** Date-range "to" label. */
+        toLabel: string;
+        /** Tenant filter label. */
+        tenantLabel: string;
+        /** Tenant filter: all traffic. */
+        tenantAll: string;
+        /** Tenant filter: Feasly-direct only. */
+        tenantDirect: string;
+        /** Tenant filter: one embed tenant. */
+        tenantKey: string;
+        /** Tenant-key text input label. */
+        tenantKeyLabel: string;
+        /** Tenant-key text input placeholder. */
+        tenantKeyPlaceholder: string;
+        /** Apply-filters button. */
+        apply: string;
+        /** Reset-filters button. */
+        reset: string;
+        /** Loading indicator text. */
+        loading: string;
+        /** Empty funnel state. */
+        empty: string;
+        /** Fetch failure banner (static — no error detail in the DOM). */
+        loadError: string;
+        /** Invalid date range (from after to). */
+        invalidRange: string;
+        /** First-step conversion label. */
+        entryStep: string;
+        /** Conversion prefix before the percentage. */
+        conversionPrefix: string;
+        /** Shown when conversion is meaningless (first step / zero prior). */
+        noConversion: string;
+      };
+    };
   };
 }

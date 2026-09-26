@@ -4,7 +4,7 @@
  * Consumer funnel dashboard (admin/07): per-step counts + step-to-step
  * conversion rates from the analytics events table, over an optional date
  * range, optionally filtered to one tenant (or Feasly-direct only).
- * Admin-only (X-Admin-Key interim until admin/01).
+ * Admin-only via `AdminGuard` (session-cookie auth, admin/01).
  *
  * Bundled by `npm run bundle:functions` into `funnels/index.js`
  * (self-contained — the Function App has no node_modules).

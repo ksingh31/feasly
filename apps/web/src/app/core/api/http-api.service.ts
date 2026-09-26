@@ -27,6 +27,7 @@ import type {
   TierRevisionRequest,
   TierRevisionResponse,
 } from '@feasly/contracts';
+import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { ConfigService } from '../config/config.service';
 import type { ApiService, CommunityStats } from './api.service';
 import { toApiError } from './api-error';
@@ -161,5 +162,34 @@ export class HttpApiService implements ApiService {
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
     return this.call(this.http.post<void>(`${this.base}/events`, event));
+  }
+
+  /**
+   * Admin funnel report (admin/07).
+   *
+   * Admin session auth (admin/01) is the gate: `withCredentials: true` sends
+   * the `feasly_admin_session` HttpOnly cookie automatically (same-origin) —
+   * the same pattern as AdminOpsApiService. Session-cookie auth is the only
+   * gate: the backend no longer honors any pre-shared-key header.
+   */
+  getFunnel(query: FunnelQuery): Observable<FunnelReport> {
+    let params = new HttpParams();
+    if (query.from) {
+      params = params.set('from', query.from);
+    }
+    if (query.to) {
+      params = params.set('to', query.to);
+    }
+    // 'all' = omit the param (backend treats absent as all; an empty string
+    // would fail the min(1) validation).
+    if (query.tenant !== 'all') {
+      params = params.set('tenant_key', query.tenant);
+    }
+    return this.call(
+      this.http.get<FunnelReport>(`${this.base}/admin/funnels`, {
+        params,
+        withCredentials: true,
+      }),
+    );
   }
 }
