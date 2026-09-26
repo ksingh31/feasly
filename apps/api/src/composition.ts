@@ -64,6 +64,10 @@ import {
 } from './services/ops-alerts.service';
 import { createDrizzleOpsAlertStore } from './services/ops-alerts.store';
 import type { OpsAlertStore } from './services/ops-alerts.store';
+import {
+  createDrizzleSheetsSyncStateStore,
+  type SheetsSyncStateStore,
+} from './services/sheets-sync-state.store';
 import type { SheetsClient } from './services/sheets/sheets-client';
 import { createGoogleSheetsClient } from './services/sheets/google-sheets-client';
 import {
@@ -417,6 +421,11 @@ export interface CompositionOptions {
    * Production wiring uses the real `ops_alert_state` table.
    */
   readonly opsAlertStore?: OpsAlertStore;
+  /**
+   * Test seam: substitute the sheets-sync worker state store (fake in unit
+   * tests). Production wiring uses the real `sheets_sync_state` table.
+   */
+  readonly sheetsSyncStateStore?: SheetsSyncStateStore;
 }
 
 /**
@@ -660,6 +669,9 @@ export function createComposition(
       (config.sheets.enabled
         ? createSheetsClientFromConfig(config)
         : createDisabledSheetsClient()),
+    syncState:
+      options.sheetsSyncStateStore ??
+      createDrizzleSheetsSyncStateStore({ db: db.db }),
     enabled: config.sheets.enabled,
     maxLeadsPerRun: config.sheets.maxLeadsPerRun,
     onSyncLagging: ({ consecutiveFailures, firstFailureAt }) =>

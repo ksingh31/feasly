@@ -12,12 +12,14 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
+import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
 import { EmbedState } from './features/embed';
 import { ComparisonState } from './features/compare';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
+import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -30,8 +32,10 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideRouter(routes),
     // The connectivity interceptor (HRD-02) re-verifies reachability via the
-    // health probe whenever a request fails at the network layer.
-    provideHttpClient(withFetch(), withInterceptors([connectivityInterceptor])),
+    // health probe whenever a request fails at the network layer. The
+    // credentials interceptor (ADM-10) attaches withCredentials to API-base
+    // requests so the admin session cookie flows cross-origin.
+    provideHttpClient(withFetch(), withInterceptors([credentialsInterceptor, connectivityInterceptor])),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
     provideAppInitializer(() => inject(ConfigService).load()),
@@ -61,8 +65,11 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
+    // AdminLeadsState is memory-only on purpose: admin lead data is
+    // sensitive and must not persist in localStorage — it refetches on mount.
+    // (Kept out of the storage plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState],
       withNgxsStoragePlugin({
         keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
         beforeSerialize: (obj, key) =>

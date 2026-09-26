@@ -14,9 +14,11 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Admin auth API client (admin/01).
  *
- * Speaks the versioned `/api/v1/admin/auth/*` routes. All calls use
- * `withCredentials: true` so the `feasly_admin_session` HttpOnly cookie is
- * sent on same-origin admin requests.
+ * Speaks the versioned `/api/v1/admin/auth/*` routes. Credential flow is
+ * handled centrally by `credentialsInterceptor` (ADM-10): every request to
+ * the API base URL carries `withCredentials`, so the `feasly_admin_session`
+ * HttpOnly cookie (`SameSite=None; Secure`) is sent on cross-origin admin
+ * requests.
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).
@@ -42,9 +44,7 @@ export class AdminAuthApiService {
   /** Request a magic link. Always returns `{ sent: true }` (no oracle). */
   requestMagicLink(body: AdminAuthRequestBody): Observable<AdminAuthRequestResponse> {
     return this.call(
-      this.http.post<AdminAuthRequestResponse>(`${this.authBase}/request`, body, {
-        withCredentials: true,
-      }),
+      this.http.post<AdminAuthRequestResponse>(`${this.authBase}/request`, body),
     );
   }
 
@@ -53,7 +53,6 @@ export class AdminAuthApiService {
     return this.call(
       this.http.get<AdminAuthVerifyResponse>(`${this.authBase}/verify`, {
         params: { token },
-        withCredentials: true,
       }),
     );
   }
@@ -61,11 +60,7 @@ export class AdminAuthApiService {
   /** Log out: revoke the session and clear the cookie. */
   logout(): Observable<AdminAuthLogoutResponse> {
     return this.call(
-      this.http.post<AdminAuthLogoutResponse>(
-        `${this.authBase}/logout`,
-        {},
-        { withCredentials: true },
-      ),
+      this.http.post<AdminAuthLogoutResponse>(`${this.authBase}/logout`, {}),
     );
   }
 
@@ -75,8 +70,6 @@ export class AdminAuthApiService {
    * can show the right login copy.
    */
   me(): Observable<{ email: string }> {
-    return this.call(
-      this.http.get<{ email: string }>(`${this.authBase}/me`, { withCredentials: true }),
-    );
+    return this.call(this.http.get<{ email: string }>(`${this.authBase}/me`));
   }
 }

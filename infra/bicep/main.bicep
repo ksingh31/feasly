@@ -38,6 +38,16 @@ param emailProvider string = 'log'
 @secure()
 param acsConnectionString string = ''
 
+@description('Google Sheet ID for the hourly leads sync (admin/04). PLACEHOLDER — Karan shares his Sheet with the service account and provides the ID. Empty = sync disabled (fail-closed).')
+param sheetsSheetId string = ''
+
+@description('Google service-account email for the Sheets sync (admin/04). PLACEHOLDER until the service account is provisioned. Empty = sync disabled.')
+param sheetsServiceAccountEmail string = ''
+
+@description('Google service-account private key (PEM) for the Sheets sync — NEVER logged or output; stored in Key Vault. PLACEHOLDER until Karan provisions the service account. Empty = not configured.')
+@secure()
+param sheetsServiceAccountPrivateKey string = ''
+
 @description('Custom domain (empty until FND-014 resolves the domain purchase)')
 param domainName string = ''
 
@@ -76,6 +86,8 @@ var postgresSecretName = 'feasly-${environment}-postgres-admin'
 var postgresPasswordSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${postgresSecretName}'
 var acsSecretName = 'feasly-${environment}-acs-connection-string'
 var acsConnectionStringSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${acsSecretName}'
+var sheetsPrivateKeySecretName = 'feasly-${environment}-sheets-service-account-key'
+var sheetsPrivateKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${sheetsPrivateKeySecretName}'
 
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
@@ -128,6 +140,20 @@ module staticWebApp 'modules/static-web-app.bicep' = {
   }
 }
 
+// --- Azure Communication Services email (ADM-10) ---
+// Free to provision; billed per email sent (negligible at magic-link
+// volumes — free-tier safe). Dev gets a provisioned ACS + Azure-managed
+// domain; other environments use the deploy-time acsConnectionString param.
+// The connection string is written straight into Key Vault via the module
+// output — it never appears in outputs, logs, or app settings.
+module communication 'modules/communication.bicep' = if (environment == 'dev') {
+  name: 'communication'
+  params: {
+    envShort: envShort
+    token: token
+  }
+}
+
 // --- Function App (Flex Consumption) ---
 module functionApp 'modules/function-app.bicep' = {
   name: 'function-app'
@@ -142,9 +168,38 @@ module functionApp 'modules/function-app.bicep' = {
     postgresDatabase: postgres.outputs.databaseName
     postgresUser: postgresAdminLogin
     postgresPasswordSecretUri: postgresPasswordSecretUri
-    emailProvider: emailProvider
-    acsConnectionStringSecretUri: empty(acsConnectionString) ? '' : acsConnectionStringSecretUri
+    // Dev uses the provisioned ACS (module above); other environments use
+    // the deploy-time emailProvider param (default 'log', fail-closed).
+    emailProvider: environment == 'dev' ? 'acs' : emailProvider
+    acsConnectionStringSecretUri: (environment == 'dev' || !empty(acsConnectionString)) ? acsConnectionStringSecretUri : ''
+    // Sender identity for dev: the provisioned Azure-managed domain sender
+    // (ACS requires a verified-domain sender). Empty elsewhere → config default.
+    // PLACEHOLDER (ADM-10): Azure-managed DoNotReply sender for overnight
+    // verification only — swap for Karan's custom-domain sender when he
+    // provides one.
+    emailFromAddress: environment == 'dev' ? communication.outputs.senderAddress : ''
+    // Magic-link URLs in emails must open on the live site (ADM-10), not the
+    // feasly.example config default.
+    appBaseUrl: 'https://${staticWebApp.outputs.hostname}'
+    // CORS (ADM-10): the web app calls the API cross-origin (SWA Free SKU
+    // rejects linked backends). Allowed: the live SWA hostname + local dev.
+    // Never '*' — credentials are required.
+    corsAllowedOrigins: [
+      'https://${staticWebApp.outputs.hostname}'
+      'http://localhost:4200'
+    ]
+    // admin/04 — Sheets sync placeholders (fail closed until Karan provisions
+    // the service account).
+    sheetsSheetId: sheetsSheetId
+    sheetsServiceAccountEmail: sheetsServiceAccountEmail
+    sheetsServiceAccountPrivateKeySecretUri: empty(sheetsServiceAccountPrivateKey) ? '' : sheetsPrivateKeySecretUri
   }
+  // The dev ACS secret (below) must exist before the app first resolves its
+  // Key Vault references at startup. Skipped automatically when the
+  // conditional secret is not deployed (non-dev).
+  dependsOn: [
+    acsDevConnectionStringSecret
+  ]
 }
 
 // --- Metric alerts (BE8-001): 5xx rate + poison queue depth ---
@@ -178,16 +233,52 @@ resource postgresAdminSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   ]
 }
 
-// --- Key Vault secret: ACS connection string ---
-// Only created when acsConnectionString is provided at deploy time. The
-// @secure() parameter is written straight into the vault; it never appears
-// in outputs, logs, or app settings. The Function App reads it via a
-// Key Vault reference (see function-app.bicep).
-resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(acsConnectionString)) {
+// --- Key Vault secret: ACS connection string (deploy-time param) ---
+// Only created when acsConnectionString is provided at deploy time AND the
+// environment is not dev (dev uses the provisioned ACS module below — the
+// two paths are mutually exclusive on the same secret name). The @secure()
+// parameter is written straight into the vault; it never appears in outputs,
+// logs, or app settings. The Function App reads it via a Key Vault reference
+// (see function-app.bicep).
+resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(acsConnectionString) && environment != 'dev') {
   parent: kv
   name: acsSecretName
   properties: {
     value: acsConnectionString
+  }
+  dependsOn: [
+    keyVault
+  ]
+}
+
+// --- Key Vault secret: ACS connection string (provisioned, dev) ---
+// Written from the communication module output — the value never appears in
+// outputs, logs, or app settings.
+resource acsDevConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (environment == 'dev') {
+  parent: kv
+  name: acsSecretName
+  properties: {
+    value: communication.outputs.connectionString
+  }
+  dependsOn: [
+    keyVault
+    communication
+  ]
+}
+
+// --- Key Vault secret: Sheets service-account private key (admin/04) ---
+// Only created when sheetsServiceAccountPrivateKey is provided at deploy
+// time. PLACEHOLDER — Karan provisions the Google service account and
+// supplies the PEM private key. The @secure() parameter is written
+// straight into the vault; it never appears in outputs, logs, or app
+// settings. The Function App reads it via a Key Vault reference
+// (see function-app.bicep). The Function App's managed identity already
+// holds Key Vault Secrets User on this vault (funcAppKvSecretsUser).
+resource sheetsPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(sheetsServiceAccountPrivateKey)) {
+  parent: kv
+  name: sheetsPrivateKeySecretName
+  properties: {
+    value: sheetsServiceAccountPrivateKey
   }
   dependsOn: [
     keyVault

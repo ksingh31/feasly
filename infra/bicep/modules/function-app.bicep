@@ -43,6 +43,24 @@ param emailProvider string = 'log'
 @description('Key Vault secret URI (versionless) for the ACS email connection string. Empty = not configured; the app fails closed on send.')
 param acsConnectionStringSecretUri string = ''
 
+@description('Sender address for transactional email (must be an ACS-verified domain sender). Empty = app config default.')
+param emailFromAddress string = ''
+
+@description('CORS allowed origins for the Function App (ADM-10: the web app calls the API cross-origin). Never "*" when supportCredentials is true.')
+param corsAllowedOrigins string[] = []
+
+@description('Public base URL of the web app, used to build magic-link URLs in emails (ADM-10: must be the live SWA hostname, not the feasly.example config default).')
+param appBaseUrl string = ''
+
+@description('Google Sheet ID for the hourly leads sync (admin/04). Empty = sync disabled (fail-closed).')
+param sheetsSheetId string = ''
+
+@description('Google service-account email for the Sheets sync. Empty = sync disabled.')
+param sheetsServiceAccountEmail string = ''
+
+@description('Key Vault secret URI (versionless) for the Sheets service-account private key. Empty = not configured; the app fails closed on sync.')
+param sheetsServiceAccountPrivateKeySecretUri string = ''
+
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: planName
   location: location
@@ -129,8 +147,58 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 name: 'EMAIL_ACS_CONNECTION_STRING'
                 value: '@Microsoft.KeyVault(SecretUri=${acsConnectionStringSecretUri})'
               }
+            ],
+        // Sender identity override (ADM-10): the provisioned Azure-managed
+        // domain sender for dev. Empty elsewhere → the app config default.
+        empty(emailFromAddress)
+          ? []
+          : [
+              {
+                name: 'EMAIL_FROM_ADDRESS'
+                value: emailFromAddress
+              }
+            ],
+        // Magic-link URLs in emails must open on the live site (ADM-10).
+        // Empty → the app config default (feasly.example placeholder).
+        empty(appBaseUrl)
+          ? []
+          : [
+              {
+                name: 'APP_BASE_URL'
+                value: appBaseUrl
+              }
+            ],
+        // admin/04 — hourly Google Sheets sync. Sheet ID + service-account
+        // email are plain config (not secrets); the private key is a Key
+        // Vault reference. All empty until Karan provisions the service
+        // account (placeholders) — the worker fails closed when unset.
+        [
+          {
+            name: 'SHEETS_SHEET_ID'
+            value: sheetsSheetId
+          }
+          {
+            name: 'SHEETS_SERVICE_ACCOUNT_EMAIL'
+            value: sheetsServiceAccountEmail
+          }
+        ],
+        empty(sheetsServiceAccountPrivateKeySecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the PEM private key never lands in app settings.
+                name: 'SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY'
+                value: '@Microsoft.KeyVault(SecretUri=${sheetsServiceAccountPrivateKeySecretUri})'
+              }
             ]
       )
+      // CORS (ADM-10): the SWA calls this API cross-origin (Free SKU has no
+      // linked backend). supportCredentials=true so the session cookie flows;
+      // allowedOrigins is an explicit allowlist — never '*'.
+      cors: {
+        allowedOrigins: corsAllowedOrigins
+        supportCredentials: true
+      }
     }
     // functionAppConfig MUST be a direct child of properties (sibling of
     // siteConfig) — Flex Consumption requires it on site create. The Bicep
