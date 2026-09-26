@@ -139,6 +139,7 @@ function fakeLeads(opts?: {
     deleteByEmail: async () => 0,
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
+    countNeverSynced: async () => 0,
     appendNote: noop,
     getNotes: async () => [],
     appendStatusHistory: noop,

@@ -104,6 +104,7 @@ function makeService(world: World) {
       getStatusHistory: async () => [],
       findSheetsSyncCandidates: async () => [],
       setSheetsSyncedAt: async (_args: { readonly id: string; readonly at: Date }) => null,
+      countNeverSynced: async () => 0,
     },
   });
 }

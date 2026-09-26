@@ -16,11 +16,13 @@ import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
 import { EmbedState } from './features/embed';
 import { ComparisonState } from './features/compare';
+import { SheetsSyncState } from './features/admin/sheets-sync.state';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
+import { SheetsSyncState } from './features/admin/sheets-sync.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -72,7 +74,7 @@ export const appConfig: ApplicationConfig = {
     // calibration data is admin-internal and must never sit in localStorage.
     // (Both kept out of the storage plugin's keys below.)
     provideStore(
-      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState],
+      [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in

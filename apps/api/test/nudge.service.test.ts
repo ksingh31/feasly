@@ -133,6 +133,7 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     deleteByEmail: async () => 0,
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
+    countNeverSynced: async () => 0,
   };
 
   const magicLinks: MagicLinkStore = {

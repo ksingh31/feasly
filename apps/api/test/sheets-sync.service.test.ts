@@ -18,6 +18,7 @@ import type {
   SheetsSyncStateStore,
 } from '../src/services/sheets-sync-state.store';
 import type { SheetsClient, SheetLeadRow } from '../src/services/sheets/sheets-client';
+import type { SheetsSyncRunStore } from '../src/services/sheets-sync-run.store';
 
 function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
   const now = new Date('2026-09-25T00:00:00Z');
@@ -87,6 +88,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     deleteByEmail: vi.fn(),
     findSheetsSyncCandidates: vi.fn().mockResolvedValue([]),
     setSheetsSyncedAt: vi.fn(),
+    countNeverSynced: vi.fn().mockResolvedValue(0),
   };
   const estimates: EstimateStore = {
     save: vi.fn(),
@@ -99,16 +101,40 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     checkAccess: vi.fn().mockResolvedValue(undefined),
   };
   const { store: syncState, getState: getSyncState } = makeSyncStateStore();
+  // admin/05: durable run history. In-memory fake of SheetsSyncRunStore.
+  const runs: SheetsSyncRunStore = {
+    startRun: vi
+      .fn()
+      .mockImplementation(
+        async (args: { trigger: 'timer' | 'manual'; actorEmail?: string | null }) =>
+          ({
+            id: `run-${args.trigger}`,
+            startedAt: new Date(),
+            finishedAt: null,
+            trigger: args.trigger,
+            actorEmail: args.actorEmail ?? null,
+            status: 'running' as const,
+            syncedCount: 0,
+            skippedCount: 0,
+            errorMessage: null,
+          }),
+      ),
+    finishRun: vi.fn().mockResolvedValue(undefined),
+    recent: vi.fn().mockResolvedValue([]),
+    totalSyncedRows: vi.fn().mockResolvedValue(0),
+    findInFlight: vi.fn().mockResolvedValue(null),
+  };
   const deps: SheetsSyncServiceDeps = {
     leads,
     estimates,
     sheets,
     syncState,
+    runs,
     enabled: true,
     maxLeadsPerRun: 500,
     ...overrides,
   };
-  return { leads, estimates, sheets, syncState, getSyncState, deps };
+  return { leads, estimates, sheets, syncState, getSyncState, runs, deps };
 }
 
 describe('SheetsSyncService', () => {

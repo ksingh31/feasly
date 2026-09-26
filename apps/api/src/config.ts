@@ -153,6 +153,12 @@ const EnvSchema = z.object({
   SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().default(''),
   // Max leads per hourly sync run (backpressure). Default 500.
   SHEETS_MAX_LEADS_PER_RUN: z.coerce.number().int().positive().default(500),
+  // Hours without a successful sync before the ops panel (admin/05) calls
+  // the worker "lagging". Default 2 (story AC2).
+  SHEETS_LAG_AFTER_HOURS: z.coerce.number().int().positive().default(2),
+  // A 'running' sync run older than this is treated as stale (crashed
+  // instance), not in flight — manual "Sync now" is allowed again.
+  SHEETS_RUN_STALE_AFTER_MIN: z.coerce.number().int().positive().default(30),
   // Google Sheets API OAuth scope. Not a secret, but config keeps it out of code.
   SHEETS_API_SCOPE: z
     .string()
@@ -447,6 +453,10 @@ export interface SheetsConfig {
   readonly apiScope: string;
   /** True when both sheetId and serviceAccountEmail are configured. */
   readonly enabled: boolean;
+  /** Hours without a successful sync before the ops panel calls it lagging. */
+  readonly lagAfterHours: number;
+  /** Minutes after which a stuck 'running' run is considered stale. */
+  readonly runStaleAfterMin: number;
 }
 
 export interface NarrativeConfig {
@@ -715,6 +725,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled:
         e.SHEETS_SHEET_ID.length > 0 &&
         e.SHEETS_SERVICE_ACCOUNT_EMAIL.length > 0,
+      lagAfterHours: e.SHEETS_LAG_AFTER_HOURS,
+      runStaleAfterMin: e.SHEETS_RUN_STALE_AFTER_MIN,
     },
     narrative: {
       provider: e.NARRATIVE_PROVIDER,

@@ -169,6 +169,13 @@
       "when": 1790407897475,
       "tag": "0025_repair_lead_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790388149632,
+      "tag": "0026_sheets_sync_runs",
+      "breakpoints": true
     }
   ]
 }

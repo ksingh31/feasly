@@ -467,7 +467,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/ops/sheets-status',
     auth: 'admin',
     rateLimit: '300/min per session',
-    status: 'planned',
+    status: 'live',
     summary: 'Sheets sync worker status (admin/05).',
   },
   {
@@ -475,8 +475,8 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/ops/sheets-sync-now',
     auth: 'admin',
     rateLimit: '10/min per session',
-    status: 'planned',
-    summary: 'Trigger an immediate Sheets sync (admin/04).',
+    status: 'live',
+    summary: 'Trigger an immediate Sheets sync (admin/05).',
   },
 
   // ── Builder portal v1 (builder dashboard sessions) ───────────────

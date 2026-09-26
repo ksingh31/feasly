@@ -115,3 +115,10 @@ apps/web/src/app/features/admin/admin-calibration.component.ts
 # Calibration console load-error copy (admin/09): the user-facing failure
 # string is UI copy, not a tunable — it changes by product decision.
 apps/web/src/app/features/admin/admin-calibration.state.ts
+
+
+# Sheets sync ops panel copy (admin/05): the panel's explanatory copy
+# (threshold definitions, failure-label semantics) is pinned by the story's
+# acceptance criteria — it changes by product decision, not by deploy
+# tuning. Pinned by sheets-sync state specs.
+apps/web/src/app/features/admin/admin-sheets-status.component.html

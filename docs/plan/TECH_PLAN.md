@@ -1297,8 +1297,8 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/admin/community-stats/refresh` | admin | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
 | GET | `/api/v1/admin/calibration` | admin | 300/min per session | live | Calibration console (admin/09): current cost-data version, calibration report, import history. Read-only. |
-| GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | planned | Sheets sync worker status (admin/05). |
-| POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | planned | Trigger an immediate Sheets sync (admin/04). |
+| GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | live | Sheets sync worker status (admin/05). |
+| POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live | Trigger an immediate Sheets sync (admin/05). |
 | POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
 | GET | `/api/v1/builder/leads` | builder-session | 300/min per session | planned | Builder pipeline dashboard: attributed leads (embed/09). |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |

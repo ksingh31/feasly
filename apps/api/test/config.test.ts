@@ -96,6 +96,8 @@ describe('loadConfig', () => {
         maxLeadsPerRun: 500,
         apiScope: 'https://www.googleapis.com/auth/spreadsheets',
         enabled: false,
+        lagAfterHours: 2,
+        runStaleAfterMin: 30,
       },
       narrative: {
         provider: 'log',

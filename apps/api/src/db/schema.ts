@@ -813,6 +813,7 @@ export const adminAuditLog = pgTable(
 );
 
 /**
+/**
  * Report snapshots (phase-2 wiring).
  *
  * Immutable per-version copies of an estimate's report figures. Snapshots
@@ -873,61 +874,36 @@ export const reportSnapshots = pgTable(
   ],
 );
 
-/**
- * Callback requests (phase-2 wiring).
- *
- * A "call me back" ask attached to a report. The reportToken resolves to
- * the lead at request time — only the leadId is persisted (the token itself
- * is a bearer credential and is never stored).
- */
-export const callbackRequests = pgTable(
-  'callback_requests',
-  {
-    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
-    id: uuid('id').primaryKey(),
-    leadId: uuid('lead_id')
-      .notNull()
-      .references(() => leads.id),
-    name: text('name').notNull(),
-    /** Required at the callback step (optional at the lead gate). */
-    phone: text('phone').notNull(),
-    /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
-    window: text('window').notNull(),
-    /** 'pending' → 'done' — worked by the team inbox flow (future). */
-    status: text('status').notNull().default('pending'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [index('callback_requests_lead_id_idx').on(t.leadId)],
-);
 
 /**
- * Partner shares (phase-2 wiring).
+ * Sheets sync run history (admin/05).
  *
- * Audit record for each email-to-partner share. The partner's credential is
- * a fresh magic-link row (purpose 'partner-share', lead_id → the owner's
- * lead — never the owner's token); this table records who it went to and
- * whether the email provider accepted the message. The partner email is PII
- * and gets the same handling as lead emails.
+ * Every sync cycle (hourly timer from admin/04 + admin manual trigger from
+ * admin/05) records one row: the worker's run state is durable and
+ * restart-safe here instead of process memory. `status` is
+ * 'running' | 'success' | 'failed' | 'disabled'. `error_message` is the
+ * SANITIZED worker error text (no credentials, no PII).
  */
-export const partnerShares = pgTable(
-  'partner_shares',
+export const sheetsSyncRuns = pgTable(
+  'sheets_sync_runs',
   {
     /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
     id: uuid('id').primaryKey(),
-    leadId: uuid('lead_id')
-      .notNull()
-      .references(() => leads.id),
-    magicLinkId: uuid('magic_link_id').references(() => magicLinks.id, {
-      onDelete: 'set null',
-    }),
-    partnerEmail: text('partner_email').notNull(),
-    /** True when the email provider accepted the message. */
-    sent: boolean('sent').notNull().default(false),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    startedAt: timestamp('started_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    /** 'timer' (hourly admin/04 run) or 'manual' (admin/05 "Sync now"). */
+    trigger: text('trigger').notNull(),
+    /** Admin email for manual runs; null for timer runs. */
+    actorEmail: text('actor_email'),
+    /** 'running' | 'success' | 'failed' | 'disabled'. */
+    status: text('status').notNull(),
+    syncedCount: integer('synced_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+    /** Sanitized error text — never credentials, never PII. */
+    errorMessage: text('error_message'),
   },
-  (t) => [index('partner_shares_lead_id_idx').on(t.leadId)],
+  (t) => [index('sheets_sync_runs_started_at_idx').on(t.startedAt)],
+);
 );
