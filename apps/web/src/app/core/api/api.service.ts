@@ -14,6 +14,7 @@ import type {
   MagicLinkReissueRequest,
   MagicLinkReissueResponse,
   MagicLinkVerifyResponse,
+  NarrativeResponse,
   PartnerShareRequest,
   PartnerShareResponse,
   PreviewEstimateResponse,
@@ -99,6 +100,14 @@ export interface ApiService {
   ): Observable<MagicLinkReissueResponse>;
   /** Verified report snapshot for a report token. */
   getReport(reportToken: string): Observable<GetReportResponse>;
+  /**
+   * AI narrative for an estimate (consumer/06): POST
+   * /api/v1/estimates/{estimateId}/narrative, authenticated with the
+   * magic-link Bearer token. The state calls this only when the snapshot
+   * arrived with an empty narrative; failures leave the snapshot as-is so
+   * the page shows the honest empty state, never mock text.
+   */
+  getNarrative(estimateId: string, reportToken: string): Observable<NarrativeResponse>;
   /** Inline tier/sqft what-if: appends a new snapshot version. */
   reviseTier(
     reportToken: string,
@@ -192,6 +201,10 @@ class LazyApiService implements ApiService {
 
   getReport(reportToken: string): Observable<GetReportResponse> {
     return this.resolve().getReport(reportToken);
+  }
+
+  getNarrative(estimateId: string, reportToken: string): Observable<NarrativeResponse> {
+    return this.resolve().getNarrative(estimateId, reportToken);
   }
 
   reviseTier(reportToken: string, request: TierRevisionRequest): Observable<TierRevisionResponse> {

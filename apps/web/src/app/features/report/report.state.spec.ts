@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { firstValueFrom, Subject } from 'rxjs';
+import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import type { PropertyRecord, TierRevisionRequest, TierRevisionResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
@@ -146,6 +146,71 @@ describe('ReportState', () => {
     store.dispatch(new UnlockReport());
     await pollStatus('error');
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
+  });
+
+  it('top-ups an empty snapshot narrative via getNarrative', async () => {
+    const token = await mockToken();
+    const emptyNarrative: TierRevisionResponse = {
+      ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+      version: 1,
+      narrative: '   ',
+    };
+    const reportSpy = vi.spyOn(api, 'getReport').mockImplementation(() => of(emptyNarrative));
+    const narrativeSpy = vi.spyOn(api, 'getNarrative').mockImplementation(() =>
+      of({
+        estimateId: 'estimate-1',
+        narrative: 'Fresh narrative from the backend.',
+        narrativeGeneratedAt: new Date().toISOString(),
+        cached: false,
+      }),
+    );
+    try {
+      store.dispatch(new SetReportToken(token));
+      store.dispatch(new UnlockReport());
+      await pollStatus('ready');
+      expect(narrativeSpy).toHaveBeenCalledWith('estimate-1', token);
+      expect(store.selectSnapshot(ReportState.snapshot)?.narrative).toBe(
+        'Fresh narrative from the backend.',
+      );
+    } finally {
+      reportSpy.mockRestore();
+      narrativeSpy.mockRestore();
+    }
+  });
+
+  it('keeps the snapshot (honest empty narrative) when the narrative fetch fails', async () => {
+    const token = await mockToken();
+    const emptyNarrative: TierRevisionResponse = {
+      ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+      version: 1,
+      narrative: '',
+    };
+    const reportSpy = vi.spyOn(api, 'getReport').mockImplementation(() => of(emptyNarrative));
+    const narrativeSpy = vi
+      .spyOn(api, 'getNarrative')
+      .mockImplementation(() => throwError(() => new Error('narrative down')));
+    try {
+      store.dispatch(new SetReportToken(token));
+      store.dispatch(new UnlockReport());
+      await pollStatus('ready');
+      const snapshot = store.selectSnapshot(ReportState.snapshot);
+      expect(snapshot).not.toBeNull();
+      expect(snapshot?.narrative).toBe('');
+    } finally {
+      reportSpy.mockRestore();
+      narrativeSpy.mockRestore();
+    }
+  });
+
+  it('skips the narrative fetch when the snapshot already has one', async () => {
+    const narrativeSpy = vi.spyOn(api, 'getNarrative');
+    try {
+      await unlock();
+      expect(store.selectSnapshot(ReportState.snapshot)?.narrative).toBeTruthy();
+      expect(narrativeSpy).not.toHaveBeenCalled();
+    } finally {
+      narrativeSpy.mockRestore();
+    }
   });
 
   it('reviseReport re-runs the estimate and bumps the version', async () => {

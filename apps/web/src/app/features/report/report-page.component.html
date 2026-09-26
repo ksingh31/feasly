@@ -185,6 +185,8 @@
       <h2>{{ copy.narrativeTitle }}</h2>
       @if (unlocked() && narrative()) {
         <p class="narrative">{{ narrative() }}</p>
+      } @else if (unlocked()) {
+        <p class="hint">{{ copy.aiSummaryUnavailable }}</p>
       } @else {
         <p class="hint">{{ copy.aiSummaryLocked }}</p>
       }

@@ -18,6 +18,7 @@ import type {
   MagicLinkReissueRequest,
   MagicLinkReissueResponse,
   MagicLinkVerifyResponse,
+  NarrativeResponse,
   PartnerShareRequest,
   PartnerShareResponse,
   PreviewEstimateResponse,
@@ -326,6 +327,23 @@ export class MockApiService implements ApiService {
       ),
       version,
     });
+  }
+
+  /**
+   * AI narrative (consumer/06, dev harness): the mock snapshot already
+   * carries the deterministic narrative, so this just re-wraps it in the
+   * NarrativeResponse shape. In mock mode the state never calls this —
+   * snapshots always ship a narrative — it exists for interface parity.
+   */
+  getNarrative(estimateId: string, reportToken: string): Observable<NarrativeResponse> {
+    return this.getReport(reportToken).pipe(
+      map((snapshot) => ({
+        estimateId,
+        narrative: snapshot.narrative,
+        narrativeGeneratedAt: snapshot.preparedAt,
+        cached: true,
+      })),
+    );
   }
 
   reviseTier(

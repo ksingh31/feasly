@@ -393,6 +393,8 @@ export interface AppConfig {
       narrativeTitle: string;
       narrativeComingSoon: string;
       aiSummaryLocked: string;
+      /** Shown post-gate when the AI narrative could not be produced — never mock text. */
+      aiSummaryUnavailable: string;
       stepsTitle: string;
       steps: { title: string; body: string }[];
       shareTitle: string;

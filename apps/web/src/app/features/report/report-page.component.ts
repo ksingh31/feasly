@@ -6,7 +6,6 @@ import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import type { CallbackWindow, CostRange, FinishTier } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
-import { mockNarrative } from '../../core/api/mock-data';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, TierSelectorComponent } from '../../shared/components';
@@ -90,7 +89,6 @@ export class ReportPageComponent implements OnInit {
   protected readonly tierOptions = this.config.get('copy').wizard.scopeTiers;
   /** Wizard tunables bound the sqft stepper (config-owned). */
   protected readonly wizard = this.config.get('wizard');
-  protected readonly narrativeDisclaimer = this.config.get('copy').narrativeDisclaimer;
 
   protected readonly property = this.store.selectSignal(WizardState.property);
   protected readonly wizardInputs = this.store.selectSignal(WizardState.inputs);
@@ -207,24 +205,17 @@ export class ReportPageComponent implements OnInit {
 
   /**
    * AI summary: the server-authored narrative (deterministic — engine figures
-   * only, no LLM-invented numbers). Falls back to the mock narrative shape
-   * when the backend ships an empty one. Re-renders on every revision, so a
-   * size change refreshes it along with the figures.
+   * only, no LLM-invented numbers, verbatim footer included). The state
+   * top-ups an empty snapshot narrative via POST /v1/estimates/{id}/narrative
+   * before the snapshot lands here. Empty when unavailable — the template
+   * shows the honest empty state, never mock text.
    */
   protected readonly narrative = computed(() => {
     const snap = this.snapshot();
     if (!snap) {
       return '';
     }
-    if (snap.narrative.trim()) {
-      return snap.narrative;
-    }
-    const deterministic = mockNarrative(
-      snap.inputs,
-      { build: snap.buildRange, total: snap.totalRange, land: snap.landValue },
-      this.tierLabel(),
-    );
-    return `${deterministic} ${this.narrativeDisclaimer}`;
+    return snap.narrative?.trim() ? snap.narrative : '';
   });
 
   /** Per-sq-ft context from the SERVER's build base and sqft — display only. */
