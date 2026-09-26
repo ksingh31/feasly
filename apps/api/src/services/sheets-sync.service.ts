@@ -11,16 +11,22 @@
  * surfaced via the returned result).
  *
  * Failure handling: 3 consecutive failures → alert + `sheets_sync.lagging`
- * metric. The consecutive-failure counter resets on success.
+ * metric. The consecutive-failure counter and the `lagging` flag live in
+ * the persistent `sheets_sync_state` table (not in memory) so a Function
+ * App restart or scale-out can't reset the streak or hide a lagging sync.
+ * Recovery (a successful cycle) clears both and fires the all-clear hook.
  */
 import type { LeadStore } from './lead.store';
 import type { EstimateStore } from './estimate.store';
+import type { SheetsSyncStateStore } from './sheets-sync-state.store';
 import type { SheetLeadRow, SheetsClient } from './sheets/sheets-client';
 
 export interface SheetsSyncServiceDeps {
   readonly leads: LeadStore;
   readonly estimates: EstimateStore;
   readonly sheets: SheetsClient;
+  /** Persistent worker health (lagging metric, failure streak). */
+  readonly syncState: SheetsSyncStateStore;
   /** From config — empty = sync disabled (fail closed). */
   readonly enabled: boolean;
   /** Max leads per run (backpressure). */
@@ -53,6 +59,8 @@ export interface SheetsSyncResult {
   readonly disabled: boolean;
   /** Consecutive failure count (0 on success). */
   readonly consecutiveFailures: number;
+  /** The `sheets_sync.lagging` metric (AC4). */
+  readonly lagging: boolean;
 }
 
 export interface SheetsSyncService {
@@ -64,6 +72,9 @@ export interface SheetsSyncService {
   runSyncCycle(): Promise<SheetsSyncResult>;
 }
 
+/** Failures before the worker is considered lagging (AC4). */
+export const SHEETS_SYNC_LAG_AFTER_FAILURES = 3;
+
 export function createSheetsSyncService(
   deps: SheetsSyncServiceDeps,
 ): SheetsSyncService {
@@ -71,6 +82,7 @@ export function createSheetsSyncService(
     leads,
     estimates,
     sheets,
+    syncState,
     enabled,
     maxLeadsPerRun,
     onSyncLagging,
@@ -81,11 +93,6 @@ export function createSheetsSyncService(
       new Promise((resolve) => setTimeout(resolve, ms)),
   } = deps;
 
-  let consecutiveFailures = 0;
-  let wasLagging = false;
-  /** Start of the current failure streak (null when healthy). */
-  let firstFailureAt: Date | null = null;
-
   return {
     async runSyncCycle(): Promise<SheetsSyncResult> {
       if (!enabled) {
@@ -94,8 +101,12 @@ export function createSheetsSyncService(
           skipped: 0,
           disabled: true,
           consecutiveFailures: 0,
+          lagging: false,
         };
       }
+
+      const state = await syncState.get();
+      const now = clock();
 
       try {
         const candidates = await leads.findSheetsSyncCandidates({
@@ -123,21 +134,25 @@ export function createSheetsSyncService(
 
         if (rows.length > 0) {
           await upsertWithRetry(rows);
-          const now = clock();
+          const stampedAt = clock();
           for (const row of rows) {
-            await leads.setSheetsSyncedAt({ id: row.leadId, at: now });
+            await leads.setSheetsSyncedAt({ id: row.leadId, at: stampedAt });
           }
           synced = rows.length;
         }
 
-        // Success resets the failure counter.
-        if (consecutiveFailures > 0 || wasLagging) {
-          consecutiveFailures = 0;
-          firstFailureAt = null;
-          if (wasLagging) {
-            wasLagging = false;
-            await onSyncRecovered?.();
-          }
+        // Success: refresh the watermark stats and clear any lag.
+        const wasLagging = state.lagging;
+        await syncState.update({
+          lastRunAt: now,
+          lastSuccessAt: now,
+          consecutiveFailures: 0,
+          firstFailureAt: null,
+          rowsSyncedTotal: state.rowsSyncedTotal + synced,
+          lagging: false,
+        });
+        if (wasLagging) {
+          await onSyncRecovered?.();
         }
 
         return {
@@ -145,18 +160,24 @@ export function createSheetsSyncService(
           skipped,
           disabled: false,
           consecutiveFailures: 0,
+          lagging: false,
         };
       } catch (error) {
-        if (consecutiveFailures === 0) {
-          firstFailureAt = clock();
-        }
-        consecutiveFailures++;
-        if (consecutiveFailures >= 3 && !wasLagging) {
-          wasLagging = true;
-          await onSyncLagging?.({
-            consecutiveFailures,
-            firstFailureAt: firstFailureAt ?? clock(),
-          });
+        const consecutiveFailures = state.consecutiveFailures + 1;
+        const firstFailureAt =
+          state.consecutiveFailures === 0 ? now : (state.firstFailureAt ?? now);
+        const lagging =
+          consecutiveFailures >= SHEETS_SYNC_LAG_AFTER_FAILURES;
+        await syncState.update({
+          lastRunAt: now,
+          consecutiveFailures,
+          firstFailureAt,
+          lagging,
+        });
+        if (lagging && !state.lagging) {
+          // Transition into lagging — fire the alert exactly once per
+          // streak (the ops-alerts service dedupes repeat emails anyway).
+          await onSyncLagging?.({ consecutiveFailures, firstFailureAt });
         }
         throw error;
       }

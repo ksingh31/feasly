@@ -701,6 +701,37 @@ export const opsAlertState = pgTable('ops_alert_state', {
 });
 
 /**
+ * Sheets sync worker health (admin/04).
+ *
+ * Single-row table (id = 'singleton') tracking the hourly sync worker.
+ * The `lagging` flag IS the `sheets_sync.lagging` metric from AC4: set
+ * true on the 3rd consecutive cycle failure, cleared on recovery.
+ * Persisted (not in-memory) so a Function App restart or scale-out doesn't
+ * reset the failure counter or hide a lagging sync. Read by admin/05's
+ * status view (`lagging`, `consecutiveFailures`, `lastRunAt`,
+ * `lastSuccessAt`, `rowsSyncedTotal`). Only the sync worker writes here.
+ */
+export const sheetsSyncState = pgTable('sheets_sync_state', {
+  /** Always 'singleton' — one row for the whole worker. */
+  id: text('id').primaryKey(),
+  /** When the last sync cycle ran (success or failure). */
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  /** When the last sync cycle succeeded. */
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  /** Consecutive cycle failures (resets to 0 on success). */
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  /** When the current failure streak started (null when healthy). */
+  firstFailureAt: timestamp('first_failure_at', { withTimezone: true }),
+  /** Lifetime rows synced (for the admin/05 status view). */
+  rowsSyncedTotal: integer('rows_synced_total').notNull().default(0),
+  /** The `sheets_sync.lagging` metric: true from the 3rd consecutive failure until recovery. */
+  lagging: boolean('lagging').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * Admin allowlist (admin/01).
  *
  * Email is the PK, stored lowercased + trimmed (same discipline as leads).
