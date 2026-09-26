@@ -24,6 +24,10 @@
   /* Accent (brass) */
   --accent: #a8761a;
   --accent-dark: #c49235;
+  /* Deep bronze: the only brass tone dark enough for 4.5:1 text contrast.
+   * Use for brass-colored text on light surfaces AND for solid brass
+   * backgrounds behind white text (white on --accent is only 3.98:1). */
+  --accent-deep: #6e5410;
   --accent-bg: rgba(168, 118, 26, 0.08);
   /* Status */
   --danger: #b3261e;
@@ -108,7 +112,7 @@ body {
   z-index: 300;
   padding: 12px 20px;
   border-radius: 8px;
-  background: var(--accent);
+  background: var(--accent-deep);
   color: #fff;
   font-weight: 600;
   font-size: 14px;

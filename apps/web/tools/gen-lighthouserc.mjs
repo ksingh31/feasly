@@ -61,9 +61,9 @@ export function genConfig({ base, runs = 3, webDir = WEB_DIR }) {
           'largest-contentful-paint': ['error', { maxNumericValue: b.webVitals.lcpMs, aggregationMethod: 'median-run' }],
           'cumulative-layout-shift': ['error', { maxNumericValue: b.webVitals.cls, aggregationMethod: 'median-run' }],
           'total-blocking-time': ['error', { maxNumericValue: b.webVitals.tbtMs, aggregationMethod: 'median-run' }],
-          // INP has no stable Lighthouse audit yet (experimental in v12+):
-          // TBT is the enforced proxy; experimental INP is warn-only.
-          'experimental-interaction-to-next-paint': ['warn', { maxNumericValue: b.webVitals.inpMs, aggregationMethod: 'median-run' }],
+          // INP has no stable Lighthouse audit id (experimental-interaction-to-next-paint
+          // is not recognized by LHCI 0.14.0): TBT above is the enforced lab proxy
+          // for the budgets.json INP target.
           'resource-summary:script:size': [
             'error',
             { maxNumericValue: b.assets.jsInitialGzipKb * 1024, aggregationMethod: 'median-run' },
