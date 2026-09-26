@@ -1,0 +1,29 @@
+// Shared blurred pre-gate figures (preview + report pages): the REAL computed
+// digits, unreadable until the lead gate unlocks (Karan 2026-09-26).
+//
+// FIX(mobile-overflow): was `white-space: nowrap` — a single ~400px line that
+// caused grid blowout on 375px viewports, pushing cards + CTA off-screen.
+// Wrapping is harmless (blurred unreadable digits).
+
+.locked-value {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  filter: blur(8px);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  color: var(--ink);
+}
+
+.hero-total .locked-value {
+  font-size: 40px;
+}
+
+.locked-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 12px 0 0;
+}

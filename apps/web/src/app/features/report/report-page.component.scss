@@ -1,6 +1,9 @@
 /* Estimate report page — redesigned: one clear total, fixed land, 3-bucket breakdown.
    Mobile-first; mirrors the wizard shell. */
 
+// Shared blurred-figure pattern (also used by the preview page).
+@use '../../shared/locked-figures' as *;
+
 .report-heading {
   font-family: var(--font-ui);
   font-size: 28px;
@@ -166,15 +169,16 @@
   white-space: nowrap;
 }
 
+// FIX(mobile-overflow): minmax(0, …) stops grid blowout on narrow screens.
 .hero-sub {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 @media (min-width: 640px) {
   .hero-sub {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -184,7 +188,8 @@
   font-weight: 700;
   color: var(--text);
   margin: 0;
-  white-space: nowrap;
+  // FIX(mobile-overflow): never let a long figure force the card wider.
+  overflow-wrap: anywhere;
 }
 
 /* Brass build-cost highlight panel (per the approved mockup). */
@@ -225,31 +230,6 @@
   margin: 12px 0 0;
   font-size: 12px;
   color: var(--muted);
-}
-
-/* Blurred pre-gate figures: the REAL computed digits, unreadable until the
-   lead gate unlocks (per Karan 2026-09-26 — no placeholder bars). */
-.locked-value {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  filter: blur(8px);
-  user-select: none;
-  -webkit-user-select: none;
-  pointer-events: none;
-  color: var(--ink);
-}
-
-.hero-total .locked-value {
-  font-size: 40px;
-}
-
-.locked-note {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 12px 0 0;
 }
 
 /* Post-gate, pre-verification (real backend): the magic-link email is on its

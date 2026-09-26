@@ -1,5 +1,8 @@
 /* S5 estimate preview step. Mobile-first; mirrors the wizard shell. */
 
+// Shared blurred-figure pattern (also used by the report page).
+@use '../../shared/locked-figures' as *;
+
 /* Back link uses the shared .back class from the wizard shell. */
 
 .preview-heading {
@@ -12,9 +15,10 @@
 
 /* Visible estimate basis: chosen sqft + tier (labels reused from the
    details step; two-up on desktop, stacked on mobile). */
+// FIX(mobile-overflow): minmax(0, …) stops grid blowout on narrow screens.
 .inputs-summary {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 20px 0 0;
   padding: 20px 24px;
@@ -25,7 +29,7 @@
 
 @media (min-width: 640px) {
   .inputs-summary {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -79,15 +83,16 @@
 
 /* Blurred pre-gate figures: total as the hero, build below; side by side
    on desktop. */
+// FIX(mobile-overflow): minmax(0, …) stops grid blowout.
 .figures {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 @media (min-width: 640px) {
   .figures {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
   }
 }
@@ -113,30 +118,7 @@
   border-width: 2px;
 }
 
-/* Blurred pre-gate figures: the REAL computed digits, unreadable until the
-   lead gate unlocks (per Karan 2026-09-26 — no animated shimmer bars). */
-.locked-value {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  filter: blur(8px);
-  user-select: none;
-  -webkit-user-select: none;
-  pointer-events: none;
-  color: var(--ink);
-}
-
-.hero-total .locked-value {
-  font-size: 40px;
-}
-
-.locked-note {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 12px 0 0;
-}
+// (Blurred pre-gate figure styles live in the shared locked-figures partial.)
 
 .tier-hint {
   font-size: 14px;
