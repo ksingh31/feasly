@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Store, provideStates } from '@ngxs/store';
+import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
@@ -36,10 +36,10 @@ import { ApiKeyUsageComponent } from './api-key-usage.component';
   selector: 'app-api-keys-page',
   standalone: true,
   imports: [FormsModule, SiteFooterComponent, SiteNavComponent, ApiKeyUsageComponent],
-  // ApiKeysState is provided here (not root): the state + its actions live in
-  // this lazy chunk, keeping the initial bundle under budget. Memory-only by
+  // ApiKeysState is provided at the `admin/api-keys` route level via
+  // lazyProvider (see app.routes.ts): the state + its actions stay in this
+  // lazy chunk, keeping the initial bundle under budget. Memory-only by
   // design — the once-only plaintext must never survive a refresh.
-  providers: [provideStates([ApiKeysState])],
   templateUrl: './api-keys-page.component.html',
   styleUrl: './api-keys-page.component.scss',
 })

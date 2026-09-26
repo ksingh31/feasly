@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { lazyProvider } from '@ngxs/store';
 import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
 import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { DevelopersPageComponent } from './features/developers';
@@ -278,16 +279,23 @@ export const routes: Routes = [
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
-  // never in sitemap or prerender. ApiKeysState is provided on the lazy
-  // page component (not root) so the admin state stays in this lazy chunk,
-  // out of the initial bundle budget.
+  // never in sitemap or prerender. ApiKeysState is lazy-loaded at this route
+  // via lazyProvider (dynamic import): the state + its actions stay in the
+  // api-keys chunk, out of the initial bundle (790kB production budget).
   {
     path: 'admin/api-keys',
     loadComponent: () =>
       import('./features/admin/api-keys-page.component').then(
         (m) => m.ApiKeysPageComponent,
       ),
-    canActivate: [robotsGuard, adminGuard],
+    canActivate: [
+      robotsGuard,
+      adminGuard,
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/api-keys.state')).apiKeysStateProvider,
+      ),
+    ],
     data: { noindex: true },
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it

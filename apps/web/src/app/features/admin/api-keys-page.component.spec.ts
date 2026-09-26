@@ -65,9 +65,10 @@ describe('ApiKeysPageComponent (api-mcp/02)', () => {
       imports: [ApiKeysPageComponent],
       providers: [
         provideRouter([]),
-        // The component provides ApiKeysState itself (lazy, route-level) —
-        // the TestBed only needs the store infrastructure.
-        provideStore([]),
+        // ApiKeysState is lazy-loaded at the route level (lazyProvider) in
+        // production; the TestBed registers it directly since route guards
+        // don't run here.
+        provideStore([ApiKeysState]),
         { provide: API_SERVICE, useValue: api },
         { provide: ConfigService, useValue: config },
         { provide: SeoService, useValue: { setForRoute: vi.fn() } },

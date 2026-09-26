@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
 import { tap } from 'rxjs';
 import type {
   ApiKeyRecordResponse,
@@ -222,3 +222,11 @@ export class ApiKeysState {
     );
   }
 }
+
+/**
+ * Route-level provider for the lazy `admin/api-keys` route (api-mcp/02).
+ * Registered via `lazyProvider` in `app.routes.ts` with a dynamic import so
+ * the state + its actions stay in the api-keys lazy chunk, out of the
+ * initial bundle (790kB production budget).
+ */
+export const apiKeysStateProvider = provideStates([ApiKeysState]);

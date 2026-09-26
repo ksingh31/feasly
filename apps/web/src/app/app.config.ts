@@ -73,8 +73,8 @@ export const appConfig: ApplicationConfig = {
     // localStorage — it refetches on mount. (All kept out of the storage
     // plugin's keys below.)
     provideStore(
-// ApiKeysState is NOT here: it is provided on the lazy api-keys page
-// component (api-mcp/02) so the admin state stays out of the initial bundle.
+// ApiKeysState is NOT here: it is lazy-loaded at the `admin/api-keys` route
+// via lazyProvider (api-mcp/02) so the admin state stays out of the initial bundle.
 [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState, BuilderState],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
