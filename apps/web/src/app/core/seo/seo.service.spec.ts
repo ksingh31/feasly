@@ -4,7 +4,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../config/config.service';
 import { noindexPatterns } from './seo-routes';
 import { SeoService } from './seo.service';
@@ -58,6 +58,15 @@ describe('SeoService', () => {
     httpMock.expectOne('/assets/config/app-config.json').flush(siteConfig);
     await pending;
     service = TestBed.inject(SeoService);
+  });
+
+  // The DOM is shared across tests in this file, but each test gets a fresh
+  // SeoService (whose injected-script tracking starts empty). Clear any
+  // leftover JSON-LD so tests stay isolated from each other.
+  afterEach(() => {
+    document
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((script) => script.remove());
   });
 
   it('sets title, description, OG tags, twitter:card, og:type, and canonical', () => {
@@ -286,14 +295,19 @@ describe('SeoService', () => {
 
   it('does not remove third-party JSON-LD it did not inject', async () => {
     const router = TestBed.inject(Router);
+    // The service manages the default unkeyed script, so inject first; the
+    // third-party tag arrives afterwards (e.g. a tag manager).
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
     const thirdParty = document.createElement('script');
     thirdParty.type = 'application/ld+json';
     thirdParty.textContent = JSON.stringify({ '@type': 'WebSite' });
     document.head.appendChild(thirdParty);
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(2);
 
-    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
     await router.navigateByUrl('/privacy');
 
+    // Navigation clears only the service-injected script; the third-party
+    // tag survives.
     const remaining = document.querySelectorAll('script[type="application/ld+json"]');
     expect(remaining).toHaveLength(1);
     expect(remaining[0].textContent).toContain('WebSite');
