@@ -1,1 +1,233 @@
-{"globalHeaders": {"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'", "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()", "Referrer-Policy": "strict-origin-when-cross-origin", "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload", "X-Content-Type-Options": "nosniff"}, "navigationFallback": {"exclude": ["/api/*", "/assets/*", "/robots.txt", "/sitemap.xml", "/llms.txt", "/llms-full.txt"], "rewrite": "/index.html"}, "routes": [{"headers": {"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca; frame-ancestors 'self' https://PLACEHOLDER-TENANT.feasly.example; form-action 'self'; base-uri 'self'; object-src 'none'"}, "route": "/embed/*"}], "responseOverrides": {"404": {"rewrite": "/index.html"}}}
+{
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "navigationFallback": {
+    "exclude": [
+      "/api/*",
+      "/assets/*",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/llms.txt",
+      "/llms-full.txt"
+    ],
+    "rewrite": "/index.html"
+  },
+  "routes": [
+    {
+      "route": "/communities/arbour-lake",
+      "redirect": "/communities/arbour-lake/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/auburn-bay",
+      "redirect": "/communities/auburn-bay/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/beddington-heights",
+      "redirect": "/communities/beddington-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/beltline",
+      "redirect": "/communities/beltline/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bowness",
+      "redirect": "/communities/bowness/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bridgeland-riverside",
+      "redirect": "/communities/bridgeland-riverside/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bridlewood",
+      "redirect": "/communities/bridlewood/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/chaparral",
+      "redirect": "/communities/chaparral/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/copperfield",
+      "redirect": "/communities/copperfield/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/cornerstone",
+      "redirect": "/communities/cornerstone/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/coventry-hills",
+      "redirect": "/communities/coventry-hills/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/cranston",
+      "redirect": "/communities/cranston/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/douglasdale-glen",
+      "redirect": "/communities/douglasdale-glen/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/dover",
+      "redirect": "/communities/dover/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/downtown-commercial-core",
+      "redirect": "/communities/downtown-commercial-core/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/edgemont",
+      "redirect": "/communities/edgemont/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/evanston",
+      "redirect": "/communities/evanston/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/evergreen",
+      "redirect": "/communities/evergreen/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/huntington-hills",
+      "redirect": "/communities/huntington-hills/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/lake-bonavista",
+      "redirect": "/communities/lake-bonavista/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/legacy",
+      "redirect": "/communities/legacy/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/livingston",
+      "redirect": "/communities/livingston/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mahogany",
+      "redirect": "/communities/mahogany/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mckenzie-lake",
+      "redirect": "/communities/mckenzie-lake/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mckenzie-towne",
+      "redirect": "/communities/mckenzie-towne/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/new-brighton",
+      "redirect": "/communities/new-brighton/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/panorama-hills",
+      "redirect": "/communities/panorama-hills/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rocky-ridge",
+      "redirect": "/communities/rocky-ridge/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/royal-oak",
+      "redirect": "/communities/royal-oak/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/saddle-ridge",
+      "redirect": "/communities/saddle-ridge/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/sage-hill",
+      "redirect": "/communities/sage-hill/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/seton",
+      "redirect": "/communities/seton/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/signal-hill",
+      "redirect": "/communities/signal-hill/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/skyview-ranch",
+      "redirect": "/communities/skyview-ranch/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/springbank-hill",
+      "redirect": "/communities/springbank-hill/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/taradale",
+      "redirect": "/communities/taradale/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/tuscany",
+      "redirect": "/communities/tuscany/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/varsity",
+      "redirect": "/communities/varsity/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/walden",
+      "redirect": "/communities/walden/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/west-springs",
+      "redirect": "/communities/west-springs/",
+      "statusCode": 301
+    },
+    {
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca; frame-ancestors 'self' https://PLACEHOLDER-TENANT.feasly.example; form-action 'self'; base-uri 'self'; object-src 'none'"
+      },
+      "route": "/embed/*"
+    }
+  ],
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html"
+    }
+  }
+}

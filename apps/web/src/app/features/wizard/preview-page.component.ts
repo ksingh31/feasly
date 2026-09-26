@@ -83,11 +83,7 @@ export class PreviewPageComponent implements OnInit {
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.previewTitle,
-      description: this.config.get('copy').seo.preview,
-      path: '/estimate/preview',
-    });
+    this.seo.setForRoute('estimate/preview');
     // Re-runs on every visit so the preview always reflects the current
     // details inputs (e.g. after "← Back to details" edits).
     this.store.dispatch(new LoadPreview());

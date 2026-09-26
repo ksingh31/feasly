@@ -98,11 +98,7 @@ export class GatePageComponent implements OnInit {
   protected status: GateStatus = 'idle';
 
   ngOnInit(): void {
-    this.seo.setPage({
-      title: this.config.get('copy').seo.gateTitle,
-      description: this.config.get('copy').seo.gate,
-      path: '/estimate/gate',
-    });
+    this.seo.setForRoute('estimate/gate');
   }
 
   /**

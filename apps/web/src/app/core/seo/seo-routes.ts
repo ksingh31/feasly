@@ -63,6 +63,27 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'report',
     noindex: true,
   },
+  // Lead gate (FE-004): private funnel route — noindex.
+  {
+    pattern: 'estimate/gate',
+    titleKey: 'gateTitle',
+    descriptionKey: 'gate',
+    noindex: true,
+  },
+  // Analyzing (FE-004): private funnel route — noindex.
+  {
+    pattern: 'estimate/analyzing',
+    titleKey: 'analyzingTitle',
+    descriptionKey: 'analyzing',
+    noindex: true,
+  },
+  // Preview (S5): private funnel route — noindex.
+  {
+    pattern: 'estimate/preview',
+    titleKey: 'previewTitle',
+    descriptionKey: 'preview',
+    noindex: true,
+  },
   // Neighbourhood comparison picker (NBH-04): private funnel route — noindex.
   {
     pattern: 'estimate/compare',
