@@ -193,6 +193,51 @@ import {
   createPropertyRoute,
   type PropertyRoute,
 } from './routes/property.route';
+// phase-2 wiring: the five live-API endpoints the web app needs.
+import {
+  createDrizzleReportSnapshotStore,
+  type ReportSnapshotStore,
+} from './services/report-snapshot.store';
+import {
+  createDrizzleCallbackRequestStore,
+  type CallbackRequestStore,
+} from './services/callback-request.store';
+import {
+  createDrizzlePartnerShareStore,
+  type PartnerShareStore,
+} from './services/partner-share.store';
+import {
+  createPreviewService,
+  type PreviewService,
+} from './services/preview.service';
+import {
+  createReportService,
+  type ReportService,
+} from './services/report.service';
+import {
+  createCallbackService,
+  type CallbackService,
+} from './services/callback.service';
+import {
+  createShareService,
+  type ShareService,
+} from './services/share.service';
+import {
+  createPreviewRoute,
+  type PreviewRoute,
+} from './routes/preview.route';
+import {
+  createReportRoute,
+  type ReportRoute,
+} from './routes/report.route';
+import {
+  createCallbackRoute,
+  type CallbackRoute,
+} from './routes/callback.route';
+import {
+  createShareRoute,
+  type ShareRoute,
+} from './routes/share.route';
 import {
   createOpenApiRoute,
   type OpenApiRoute,
@@ -294,6 +339,21 @@ export interface AppComposition {
   readonly leadStore: LeadStore;
   readonly leadService: LeadService;
   readonly leadRoute: LeadRoute;
+  /** phase-2 wiring: pre-gate preview (real figures, rows empty). */
+  readonly previewService: PreviewService;
+  readonly previewRoute: PreviewRoute;
+  /** phase-2 wiring: immutable report snapshots + tier/sqft revisions. */
+  readonly reportSnapshotStore: ReportSnapshotStore;
+  readonly reportService: ReportService;
+  readonly reportRoute: ReportRoute;
+  /** phase-2 wiring: callback requests (name/phone/window). */
+  readonly callbackRequestStore: CallbackRequestStore;
+  readonly callbackService: CallbackService;
+  readonly callbackRoute: CallbackRoute;
+  /** phase-2 wiring: email-to-partner shares. */
+  readonly partnerShareStore: PartnerShareStore;
+  readonly shareService: ShareService;
+  readonly shareRoute: ShareRoute;
   readonly analyticsStore: AnalyticsStore;
   readonly analyticsService: AnalyticsService;
   readonly analyticsRoute: AnalyticsRoute;
@@ -411,6 +471,10 @@ export interface CompositionOptions {
   readonly analyticsStore?: AnalyticsStore;
   readonly usageStore?: UsageStore;
   readonly funnelStore?: FunnelStore;
+  /** phase-2 wiring: test seam for the report/callback/share stores. */
+  readonly reportSnapshotStore?: ReportSnapshotStore;
+  readonly callbackRequestStore?: CallbackRequestStore;
+  readonly partnerShareStore?: PartnerShareStore;
   /**
    * Test seam: substitute the Google Sheets client (fake in unit tests).
    * Production wiring uses the real Google Sheets API client.
@@ -846,6 +910,51 @@ export function createComposition(
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });
+  // phase-2 wiring: the five live-API endpoints the web app needs. Same
+  // pinned cost data + draft gate as the estimate endpoint, so preview,
+  // report and revision figures always agree with the canonical estimate.
+  // (Placed after propertyService, which the report service depends on.)
+  const reportSnapshotStore: ReportSnapshotStore =
+    options.reportSnapshotStore ??
+    createDrizzleReportSnapshotStore({ db: db.db });
+  const callbackRequestStore: CallbackRequestStore =
+    options.callbackRequestStore ??
+    createDrizzleCallbackRequestStore({ db: db.db });
+  const partnerShareStore: PartnerShareStore =
+    options.partnerShareStore ?? createDrizzlePartnerShareStore({ db: db.db });
+  const previewService: PreviewService = createPreviewService({
+    estimates: estimateService,
+  });
+  const previewRoute: PreviewRoute = createPreviewRoute({
+    preview: previewService,
+  });
+  const reportService: ReportService = createReportService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    estimates: estimateStore,
+    snapshots: reportSnapshotStore,
+    properties: propertyService,
+    costData: PLACEHOLDER_COST_DATA,
+    allowDraftCostData: config.costEngine.allowDraftCostData,
+  });
+  const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
+  const callbackService: CallbackService = createCallbackService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    callbacks: callbackRequestStore,
+  });
+  const callbackRoute: CallbackRoute = createCallbackRoute({
+    callbacks: callbackService,
+  });
+  const shareService: ShareService = createShareService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    shares: partnerShareStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+  });
+  const shareRoute: ShareRoute = createShareRoute({ shares: shareService });
   const openApiRoute: OpenApiRoute = createOpenApiRoute({
     siteUrl: config.siteUrl,
     version: config.version,
@@ -974,6 +1083,17 @@ export function createComposition(
     leadStore,
     leadService,
     leadRoute,
+    previewService,
+    previewRoute,
+    reportSnapshotStore,
+    reportService,
+    reportRoute,
+    callbackRequestStore,
+    callbackService,
+    callbackRoute,
+    partnerShareStore,
+    shareService,
+    shareRoute,
     analyticsStore,
     analyticsService,
     analyticsRoute,

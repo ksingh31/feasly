@@ -367,6 +367,60 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
+      "CallbackRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string",
+          },
+          "phone": {
+            "maxLength": 32,
+            "minLength": 7,
+            "type": "string",
+          },
+          "reportToken": {
+            "description": "The magic-link report token (Bearer <redacted>)",
+            "type": "string",
+          },
+          "window": {
+            "$ref": "#/components/schemas/CallbackWindow",
+          },
+        },
+        "required": [
+          "reportToken",
+          "name",
+          "phone",
+          "window",
+        ],
+        "type": "object",
+      },
+      "CallbackResponse": {
+        "properties": {
+          "ok": {
+            "enum": [
+              true,
+            ],
+            "type": "boolean",
+          },
+          "window": {
+            "$ref": "#/components/schemas/CallbackWindow",
+          },
+        },
+        "required": [
+          "ok",
+          "window",
+        ],
+        "type": "object",
+      },
+      "CallbackWindow": {
+        "enum": [
+          "morning",
+          "afternoon",
+          "evening",
+        ],
+        "type": "string",
+      },
       "CommunityStatsResponse": {
         "properties": {
           "avgAssessedValue": {
@@ -705,6 +759,41 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "PartnerShareRequest": {
+        "properties": {
+          "partnerEmail": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string",
+          },
+          "reportToken": {
+            "description": "The owner magic-link report token (Bearer <redacted>)",
+            "type": "string",
+          },
+        },
+        "required": [
+          "reportToken",
+          "partnerEmail",
+        ],
+        "type": "object",
+      },
+      "PartnerShareResponse": {
+        "properties": {
+          "sent": {
+            "description": "Whether the email provider accepted the message (log channel until ACS is provisioned)",
+            "type": "boolean",
+          },
+          "sharedTo": {
+            "format": "email",
+            "type": "string",
+          },
+        },
+        "required": [
+          "sent",
+          "sharedTo",
+        ],
+        "type": "object",
+      },
       "PreviewEstimateResponse": {
         "properties": {
           "addressKey": {
@@ -893,6 +982,133 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "dataAsOf",
           "stale",
         ],
+        "type": "object",
+      },
+      "RenoEstimateInputs": {
+        "properties": {
+          "projectType": {
+            "enum": [
+              "renovation",
+            ],
+            "type": "string",
+          },
+          "renoSqft": {
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "renoType": {
+            "enum": [
+              "extensive",
+              "addition",
+              "basement",
+              "combined",
+            ],
+            "type": "string",
+          },
+          "tier": {
+            "$ref": "#/components/schemas/FinishTier",
+          },
+          "underpinning": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "projectType",
+          "renoType",
+          "renoSqft",
+          "tier",
+          "underpinning",
+        ],
+        "type": "object",
+      },
+      "ReportSnapshot": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "buildRange": {
+            "$ref": "#/components/schemas/CostRange",
+          },
+          "estimateId": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/EstimateInputs",
+          },
+          "landValue": {
+            "$ref": "#/components/schemas/FixedFigure",
+          },
+          "leadId": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "narrative": {
+            "type": "string",
+          },
+          "preparedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "projectType": {
+            "type": "string",
+          },
+          "renoInputs": {
+            "$ref": "#/components/schemas/RenoEstimateInputs",
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow",
+            },
+            "type": "array",
+          },
+          "snapshotId": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "totalRange": {
+            "$ref": "#/components/schemas/CostRange",
+          },
+          "updatedAt": {
+            "description": "Set when an old magic link resolved to a newer snapshot or a revision was appended",
+            "format": "date-time",
+            "type": "string",
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "snapshotId",
+          "estimateId",
+          "leadId",
+          "inputs",
+          "buildRange",
+          "totalRange",
+          "landValue",
+          "rows",
+          "narrative",
+          "preparedAt",
+          "version",
+        ],
+        "type": "object",
+      },
+      "TierRevisionRequest": {
+        "description": "At least one of tier or sqft is required",
+        "properties": {
+          "sqft": {
+            "exclusiveMinimum": 0,
+            "maximum": 20000,
+            "type": "integer",
+          },
+          "tier": {
+            "$ref": "#/components/schemas/FinishTier",
+          },
+        },
         "type": "object",
       },
       "TimelineOption": {
@@ -1701,6 +1917,89 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         "summary": "Per-day API usage by endpoint",
       },
     },
+    "/v1/callbacks": {
+      "post": {
+        "description": "Records a callback request (name/phone/preferred window) for the report token's lead. The report token IS the credential; it is never stored — only the leadId is persisted.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallbackRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackResponse",
+                },
+              },
+            },
+            "description": "Callback request recorded",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Request a callback",
+      },
+    },
     "/v1/communities/{slug}/stats": {
       "get": {
         "description": "Aggregated City-assessment stats for a community page.",
@@ -1959,6 +2258,94 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Run a cost estimate",
+      },
+    },
+    "/v1/estimates/preview": {
+      "post": {
+        "description": "Runs the same deterministic engine as POST /v1/estimate and persists the full estimate row (the lead gate attaches to its estimateId), but returns ONLY the preview shape: the REAL computed figures (build/total ranges, fixed land value) with rows empty. Figures are readable in the API response by design — the UI renders them blurred pre-gate (lead-capture nudge, not a security boundary).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewEstimateResponse",
+                },
+              },
+            },
+            "description": "Preview with real figures (UI renders blurred pre-gate)",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [
+          {
+            "ApiKeyAuth": [],
+          },
+        ],
+        "summary": "Run a pre-gate estimate preview",
       },
     },
     "/v1/events": {
@@ -2357,6 +2744,270 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         },
         "summary": "Look up a property record",
+      },
+    },
+    "/v1/reports/{reportToken}": {
+      "get": {
+        "description": "Returns the latest immutable report snapshot for the token's lead. The report token IS the credential (magic-link bearer). Old links resolve to the newest estimate for the email + property. Unknown or expired tokens return 404.",
+        "parameters": [
+          {
+            "description": "The magic-link report token (Bearer <redacted>)",
+            "in": "path",
+            "name": "reportToken",
+            "required": true,
+            "schema": {
+              "description": "The magic-link report token (Bearer <redacted>)",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSnapshot",
+                },
+              },
+            },
+            "description": "Latest report snapshot",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Resolve a report snapshot",
+      },
+    },
+    "/v1/reports/{reportToken}/revisions": {
+      "post": {
+        "description": "Applies a tier and/or sqft what-if through the same deterministic engine and appends a new immutable snapshot version (old versions are never mutated). At least one of tier or sqft is required. The report token IS the credential.",
+        "parameters": [
+          {
+            "description": "The magic-link report token (Bearer <redacted>)",
+            "in": "path",
+            "name": "reportToken",
+            "required": true,
+            "schema": {
+              "description": "The magic-link report token (Bearer <redacted>)",
+              "type": "string",
+            },
+          },
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierRevisionRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSnapshot",
+                },
+              },
+            },
+            "description": "New snapshot version",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Append a tier/sqft what-if revision",
+      },
+    },
+    "/v1/shares": {
+      "post": {
+        "description": "Mints a FRESH partner-share magic link attached to the same lead (the owner's token is never reused or persisted), emails it to the partner address, and records the audit row. The report token IS the credential.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerShareRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerShareResponse",
+                },
+              },
+            },
+            "description": "Share recorded (and emailed when the provider accepts)",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "summary": "Share a report with a partner",
       },
     },
     "/v1/stripe/webhooks": {

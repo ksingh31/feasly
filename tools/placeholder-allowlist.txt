@@ -34,3 +34,10 @@ tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder sec
 # SEO-04 community ranges pipeline — uses PLACEHOLDER_COST_DATA until calibrated.
 # Same unblock condition as the engine: Karan's cost Sheet (story cost-engine/01).
 apps/web/scripts/build-community-ranges.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA for community range bands, blocked on Karan's cost Sheet
+
+# Phase-2 callbacks — no outbound email/SMS yet by design (ADM-10 live email
+# only landed for magic links; the ACS sender domain is still undecided).
+# Callback requests persist; team works them from the future inbox flow.
+# Unblock: Karan's sender-domain decision → wire the ACS send in
+# callback.service.ts and remove both the placeholder comment and this entry.
+apps/api/src/services/callback.service.ts :: PLACEHOLDER :: outbound email/SMS not wired; callback requests persisted only, blocked on Karan's ACS sender-domain decision

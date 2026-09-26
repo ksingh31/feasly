@@ -376,3 +376,91 @@ export const AdminEstimateDetailSchema = z
       .describe('Same-address snapshot timeline, newest first'),
   })
   .openapi('AdminEstimateDetail');
+
+// ── Report snapshots (phase-2 wiring) ─────────────────────────────────────
+
+export const RenoEstimateInputsSchema = z
+  .object({
+    projectType: z.literal('renovation'),
+    renoType: z.enum(['extensive', 'addition', 'basement', 'combined']),
+    renoSqft: z.number().int().positive(),
+    tier: FinishTierSchema,
+    underpinning: z.boolean(),
+  })
+  .openapi('RenoEstimateInputs');
+
+export const ReportSnapshotSchema = z
+  .object({
+    snapshotId: z.string().uuid(),
+    estimateId: z.string().uuid(),
+    leadId: z.string().uuid(),
+    inputs: EstimateInputsSchema,
+    buildRange: CostRangeSchema,
+    totalRange: CostRangeSchema,
+    landValue: FixedFigureSchema.describe(
+      'City-assessed land value — a fixed fact, never a range',
+    ),
+    rows: z.array(CostRowSchema),
+    narrative: z.string(),
+    preparedAt: z.string().datetime(),
+    version: z.number().int().min(1),
+    updatedAt: z
+      .string()
+      .datetime()
+      .optional()
+      .describe(
+        'Set when an old magic link resolved to a newer snapshot or a revision was appended',
+      ),
+    projectType: z.string().optional(),
+    renoInputs: RenoEstimateInputsSchema.optional(),
+    assumptions: z.array(z.string()).optional(),
+  })
+  .openapi('ReportSnapshot');
+
+export const TierRevisionRequestSchema = z
+  .object({
+    tier: FinishTierSchema.optional(),
+    sqft: z.number().int().positive().max(20000).optional(),
+  })
+  .openapi('TierRevisionRequest')
+  .describe('At least one of tier or sqft is required');
+
+// ── Callback requests (phase-2 wiring) ──────────────────────────────────
+
+export const CallbackWindowSchema = z
+  .enum(['morning', 'afternoon', 'evening'])
+  .openapi('CallbackWindow');
+
+export const CallbackRequestSchema = z
+  .object({
+    reportToken: z.string().describe('The magic-link report token (Bearer <redacted>)'),
+    name: z.string().min(1).max(120),
+    phone: z.string().min(7).max(32),
+    window: CallbackWindowSchema,
+  })
+  .openapi('CallbackRequest');
+
+export const CallbackResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    window: CallbackWindowSchema,
+  })
+  .openapi('CallbackResponse');
+
+// ── Partner shares (phase-2 wiring) ─────────────────────────────────────
+
+export const PartnerShareRequestSchema = z
+  .object({
+    reportToken: z.string().describe('The owner magic-link report token (Bearer <redacted>)'),
+    partnerEmail: z.string().email().max(254),
+  })
+  .openapi('PartnerShareRequest');
+
+export const PartnerShareResponseSchema = z
+  .object({
+    sent: z.boolean().describe(
+      'Whether the email provider accepted the message (log channel until ACS is provisioned)',
+    ),
+    sharedTo: z.string().email(),
+  })
+  .openapi('PartnerShareResponse');

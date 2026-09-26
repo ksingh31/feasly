@@ -70,6 +70,16 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/estimates/preview',
+    auth: 'none',
+    rateLimit: '20/hr per IP',
+    status: 'live',
+    summary:
+      'Pre-gate estimate preview (same deterministic engine as /estimate; ' +
+      'real figures — UI renders them blurred pre-gate — rows empty).',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/leads',
     auth: 'none',
     rateLimit: '10/min per IP (dedicated lead limiter)',
@@ -103,10 +113,40 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/reports/{reportToken}',
     auth: 'magic-token',
     rateLimit: '100/min per IP',
-    status: 'planned',
+    status: 'live',
     summary:
       'Resolve a report snapshot by token (immutable shared snapshot; ' +
       'see report redesign). Token IS the credential.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/reports/{reportToken}/revisions',
+    auth: 'magic-token',
+    rateLimit: '20/hr per IP',
+    status: 'live',
+    summary:
+      'Tier/sqft what-if: recompute through the deterministic engine and ' +
+      'append a new immutable report snapshot version. Token IS the credential.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/callbacks',
+    auth: 'magic-token',
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Record a callback request (name/phone/preferred window) for a report ' +
+      'lead. Token IS the credential.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/shares',
+    auth: 'magic-token',
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Email a report to a partner: mints a fresh partner-share magic link ' +
+      '(never the owner token) and records the audit row. Token IS the credential.',
   },
 
   // ── Public v1: property data ──────────────────────────────────────

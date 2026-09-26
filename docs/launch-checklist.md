@@ -60,6 +60,12 @@ only Karan can provide.
       replaces the placeholders in `config/builders/elite-craft-builders.json`
       (story embed/05).
 
+- [ ] **[KARAN]** Callback/share outbound notifications: no email/SMS is
+      sent yet — callback requests and partner shares persist and are worked
+      from the future inbox flow (placeholder allowlisted in
+      `tools/placeholder-allowlist.txt`, `apps/api/src/services/callback.service.ts`).
+      Unblocks when Karan's ACS sender-domain decision lands.
+
 ## Technical readiness
 
 - [ ] All CI checks green on main (build, typecheck, lint, tests).

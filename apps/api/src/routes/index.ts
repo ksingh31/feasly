@@ -11,3 +11,7 @@ export * from './property.route';
 export * from './openapi.route';
 export * from './usage.route';
 export * from './mcp.route';
+export * from './preview.route';
+export * from './report.route';
+export * from './callback.route';
+export * from './share.route';

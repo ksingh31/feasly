@@ -25,6 +25,9 @@ import {
   AdminEstimateSnapshotRefSchema,
   ApiKeyScopeSchema,
   AutocompleteResponseSchema,
+  CallbackRequestSchema,
+  CallbackResponseSchema,
+  CallbackWindowSchema,
   CommunityStatsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
@@ -33,11 +36,16 @@ import {
   LeadRequestSchema,
   LeadResponseSchema,
   MagicLinkVerifyResponseSchema,
+  PartnerShareRequestSchema,
+  PartnerShareResponseSchema,
   PreviewEstimateResponseSchema,
   PrivacyEraseConfirmResponseSchema,
   PrivacyEraseRequestSchema,
   ProblemDetailsSchema,
   PropertyRecordSchema,
+  RenoEstimateInputsSchema,
+  ReportSnapshotSchema,
+  TierRevisionRequestSchema,
 } from './schemas';
 
 export interface OpenApiSpecOptions {
@@ -123,6 +131,14 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
+  registry.register('ReportSnapshot', ReportSnapshotSchema);
+  registry.register('RenoEstimateInputs', RenoEstimateInputsSchema);
+  registry.register('TierRevisionRequest', TierRevisionRequestSchema);
+  registry.register('CallbackWindow', CallbackWindowSchema);
+  registry.register('CallbackRequest', CallbackRequestSchema);
+  registry.register('CallbackResponse', CallbackResponseSchema);
+  registry.register('PartnerShareRequest', PartnerShareRequestSchema);
+  registry.register('PartnerShareResponse', PartnerShareResponseSchema);
   registry.register('PrivacyEraseRequest', PrivacyEraseRequestSchema);
   registry.register(
     'PrivacyEraseConfirmResponse',
@@ -199,6 +215,153 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Lead captured',
         content: {
           'application/json': { schema: LeadResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/estimates/preview (phase-2 wiring)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/estimates/preview',
+    summary: 'Run a pre-gate estimate preview',
+    description:
+      'Runs the same deterministic engine as POST /v1/estimate and persists ' +
+      'the full estimate row (the lead gate attaches to its estimateId), but ' +
+      'returns ONLY the preview shape: the REAL computed figures ' +
+      '(build/total ranges, fixed land value) with rows empty. Figures are ' +
+      'readable in the API response by design — the UI renders them blurred ' +
+      'pre-gate (lead-capture nudge, not a security boundary).',
+    security: [{ ApiKeyAuth: [] }],
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: EstimateRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Preview with real figures (UI renders blurred pre-gate)',
+        content: {
+          'application/json': { schema: PreviewEstimateResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/reports/{reportToken} (phase-2 wiring)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/reports/{reportToken}',
+    summary: 'Resolve a report snapshot',
+    description:
+      'Returns the latest immutable report snapshot for the token\'s lead. ' +
+      'The report token IS the credential (magic-link bearer). Old links ' +
+      'resolve to the newest estimate for the email + property. Unknown or ' +
+      'expired tokens return 404.',
+    request: {
+      params: z.object({
+        reportToken: z
+          .string()
+          .describe('The magic-link report token (Bearer <redacted>)'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Latest report snapshot',
+        content: {
+          'application/json': { schema: ReportSnapshotSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/reports/{reportToken}/revisions (phase-2 wiring)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/reports/{reportToken}/revisions',
+    summary: 'Append a tier/sqft what-if revision',
+    description:
+      'Applies a tier and/or sqft what-if through the same deterministic ' +
+      'engine and appends a new immutable snapshot version (old versions are ' +
+      'never mutated). At least one of tier or sqft is required. The report ' +
+      'token IS the credential.',
+    request: {
+      params: z.object({
+        reportToken: z
+          .string()
+          .describe('The magic-link report token (Bearer <redacted>)'),
+      }),
+      body: {
+        content: {
+          'application/json': { schema: TierRevisionRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'New snapshot version',
+        content: {
+          'application/json': { schema: ReportSnapshotSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/callbacks (phase-2 wiring)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/callbacks',
+    summary: 'Request a callback',
+    description:
+      'Records a callback request (name/phone/preferred window) for the ' +
+      'report token\'s lead. The report token IS the credential; it is never ' +
+      'stored — only the leadId is persisted.',
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: CallbackRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Callback request recorded',
+        content: {
+          'application/json': { schema: CallbackResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/shares (phase-2 wiring)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/shares',
+    summary: 'Share a report with a partner',
+    description:
+      'Mints a FRESH partner-share magic link attached to the same lead ' +
+      '(the owner\'s token is never reused or persisted), emails it to the ' +
+      'partner address, and records the audit row. The report token IS the ' +
+      'credential.',
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: PartnerShareRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Share recorded (and emailed when the provider accepts)',
+        content: {
+          'application/json': { schema: PartnerShareResponseSchema },
         },
       },
       ...errorResponses(),
