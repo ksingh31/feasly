@@ -76,9 +76,56 @@ export const EstimateInputsSchema = z
   })
   .openapi('EstimateInputs');
 
-export const EstimateRequestSchema = EstimateInputsSchema.extend({
-  addressKey: z.string().describe('Opaque property identifier from lookup'),
-}).openapi('EstimateRequest');
+export const EstimatePropertySchema = z
+  .object({
+    addressKey: z
+      .string()
+      .describe('Opaque property identifier from lookup'),
+    assessedLandValue: z
+      .number()
+      .int()
+      .positive()
+      .describe('City-assessed land value, integer CAD'),
+    lotSizeSqft: z
+      .number()
+      .int()
+      .positive()
+      .describe('Lot size in square feet'),
+    zoning: z.string().describe('Zoning code, e.g. R-CG'),
+  })
+  .openapi('EstimateProperty');
+
+export const EstimateScopeSchema = z
+  .object({
+    buildSqft: z
+      .number()
+      .int()
+      .positive()
+      .describe('Above-grade living area in square feet'),
+    tier: FinishTierSchema,
+    garage: GarageOptionSchema,
+    basement: BasementOptionSchema,
+  })
+  .openapi('EstimateScope');
+
+/**
+ * Canonical new-build estimate request (2026-09-26).
+ *
+ * This mirrors the service's Zod validation in
+ * `src/services/estimate.service.ts` (`NewBuildRequestSchema`) — the nested
+ * `{ property, scope }` shape is what the live API accepts. The previous
+ * flat `{ addressKey, sqft, tier, ... }` shape was stale and would 400.
+ */
+export const EstimateRequestSchema = z
+  .object({
+    projectType: z
+      .literal('new_build')
+      .optional()
+      .describe("Discriminator; defaults to 'new_build' when absent"),
+    property: EstimatePropertySchema,
+    scope: EstimateScopeSchema,
+  })
+  .openapi('EstimateRequest');
 
 export const CostRowSchema = z
   .object({

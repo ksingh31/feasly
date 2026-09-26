@@ -569,25 +569,56 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
-      "EstimateRequest": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/EstimateInputs",
+      "EstimateProperty": {
+        "properties": {
+          "addressKey": {
+            "description": "Opaque property identifier from lookup",
+            "type": "string",
           },
-          {
-            "default": undefined,
-            "properties": {
-              "addressKey": {
-                "description": "Opaque property identifier from lookup",
-                "type": "string",
-              },
-            },
-            "required": [
-              "addressKey",
-            ],
-            "type": "object",
+          "assessedLandValue": {
+            "description": "City-assessed land value, integer CAD",
+            "exclusiveMinimum": 0,
+            "type": "integer",
           },
+          "lotSizeSqft": {
+            "description": "Lot size in square feet",
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "zoning": {
+            "description": "Zoning code, e.g. R-CG",
+            "type": "string",
+          },
+        },
+        "required": [
+          "addressKey",
+          "assessedLandValue",
+          "lotSizeSqft",
+          "zoning",
         ],
+        "type": "object",
+      },
+      "EstimateRequest": {
+        "properties": {
+          "projectType": {
+            "description": "Discriminator; defaults to 'new_build' when absent",
+            "enum": [
+              "new_build",
+            ],
+            "type": "string",
+          },
+          "property": {
+            "$ref": "#/components/schemas/EstimateProperty",
+          },
+          "scope": {
+            "$ref": "#/components/schemas/EstimateScope",
+          },
+        },
+        "required": [
+          "property",
+          "scope",
+        ],
+        "type": "object",
       },
       "EstimateResponse": {
         "properties": {
@@ -653,6 +684,31 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "costDataVersion",
           "createdAt",
           "disclaimer",
+        ],
+        "type": "object",
+      },
+      "EstimateScope": {
+        "properties": {
+          "basement": {
+            "$ref": "#/components/schemas/BasementOption",
+          },
+          "buildSqft": {
+            "description": "Above-grade living area in square feet",
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "garage": {
+            "$ref": "#/components/schemas/GarageOption",
+          },
+          "tier": {
+            "$ref": "#/components/schemas/FinishTier",
+          },
+        },
+        "required": [
+          "buildSqft",
+          "tier",
+          "garage",
+          "basement",
         ],
         "type": "object",
       },
