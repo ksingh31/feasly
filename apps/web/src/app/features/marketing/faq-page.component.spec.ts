@@ -38,6 +38,12 @@ describe('FaqPageComponent', () => {
 
   beforeEach(async () => {
     TestBed.resetTestingModule();
+    // Test isolation: other spec files (e.g. community-page) inject
+    // application/ld+json scripts into the shared document. Remove them so
+    // the JSON-LD assertions below see only this component's script.
+    document
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((s) => s.remove());
     TestBed.configureTestingModule({
       imports: [FaqPageComponent],
       providers: [
