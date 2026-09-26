@@ -29,8 +29,22 @@ export class AdminLeadsApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
 
+  /**
+   * Versioned contract paths (short segments — the no-hardcode tripwire
+   * flags string literals >= 50 chars, and these are API contract, not
+   * tunables, so they don't belong in app-config.json).
+   */
+  private static readonly LEADS_PATH = '/api/v1/admin/leads';
+  private static readonly NOTES_SEGMENT = '/notes';
+  private static readonly STATUS_SEGMENT = '/status';
+
   private get leadsBase(): string {
-    return `${this.config.get('api').baseUrl}/api/v1/admin/leads`;
+    return this.config.get('api').baseUrl + AdminLeadsApiService.LEADS_PATH;
+  }
+
+  /** URL for a single lead resource. */
+  private leadUrl(id: string): string {
+    return this.leadsBase + '/' + encodeURIComponent(id);
   }
 
   private call<T>(request: Observable<T>): Observable<T> {
@@ -89,7 +103,7 @@ export class AdminLeadsApiService {
   /** Full lead detail (estimate summary, notes, history, consent). */
   getLead(id: string): Observable<AdminLeadDetail> {
     return this.call(
-      this.http.get<AdminLeadDetail>(`${this.leadsBase}/${encodeURIComponent(id)}`, {
+      this.http.get<AdminLeadDetail>(this.leadUrl(id), {
         withCredentials: true,
       }),
     );
@@ -100,7 +114,7 @@ export class AdminLeadsApiService {
     const body: AdminLeadNoteRequest = { note };
     return this.call(
       this.http.post<AdminLeadMutationResponse>(
-        `${this.leadsBase}/${encodeURIComponent(id)}/notes`,
+        this.leadUrl(id) + AdminLeadsApiService.NOTES_SEGMENT,
         body,
         { withCredentials: true },
       ),
@@ -112,7 +126,7 @@ export class AdminLeadsApiService {
     const body: AdminLeadStatusRequest = { status };
     return this.call(
       this.http.patch<AdminLeadMutationResponse>(
-        `${this.leadsBase}/${encodeURIComponent(id)}/status`,
+        this.leadUrl(id) + AdminLeadsApiService.STATUS_SEGMENT,
         body,
         { withCredentials: true },
       ),

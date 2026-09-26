@@ -8,6 +8,7 @@ import type {
   AdminLeadSource,
   AdminLeadStatus,
 } from '@feasly/contracts';
+import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import {
@@ -35,8 +36,6 @@ const SOURCE_OPTIONS: readonly ('' | AdminLeadSource)[] = ['', 'web', 'embed', '
 
 const PROJECT_TYPE_OPTIONS: readonly string[] = ['', 'new_build', 'renovation'];
 
-const SEARCH_DEBOUNCE_MS = 400;
-
 /**
  * Leads explorer (admin/02) — Karan's daily lead view.
  *
@@ -61,6 +60,7 @@ export class AdminLeadsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly seo = inject(SeoService);
+  private readonly config = inject(ConfigService);
 
   protected readonly leads = this.store.selectSignal(AdminLeadsState.leads);
   protected readonly totalCount = this.store.selectSignal(AdminLeadsState.totalCount);
@@ -99,10 +99,11 @@ export class AdminLeadsComponent implements OnInit {
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminLeads());
 
-    // Free-text search is debounced; every other filter applies on change.
+    // Free-text search is debounced (shared timings.debounceMs); every other
+    // filter applies on change.
     this.filtersForm.controls.search.valueChanges
       .pipe(
-        debounceTime(SEARCH_DEBOUNCE_MS),
+        debounceTime(this.config.get('timings').debounceMs),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -133,12 +134,12 @@ export class AdminLeadsComponent implements OnInit {
     if (raw.projectType) {
       filters.projectType = raw.projectType;
     }
-    const minScore = Number.parseInt(raw.minScore, 10);
-    if (Number.isInteger(minScore) && minScore >= 0) {
+    const minScore = Number(raw.minScore);
+    if (raw.minScore !== '' && Number.isInteger(minScore) && minScore >= 0) {
       filters.minScore = Math.min(minScore, 100);
     }
-    const maxScore = Number.parseInt(raw.maxScore, 10);
-    if (Number.isInteger(maxScore) && maxScore >= 0) {
+    const maxScore = Number(raw.maxScore);
+    if (raw.maxScore !== '' && Number.isInteger(maxScore) && maxScore >= 0) {
       filters.maxScore = Math.min(maxScore, 100);
     }
     if (raw.createdAfter) {
