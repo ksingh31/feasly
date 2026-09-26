@@ -1,7 +1,7 @@
 <main class="admin-login">
   <div class="admin-login__card">
     <h1>Verifying sign in</h1>
-    @if (status === 'verifying') {
+    @if (status() === 'verifying') {
       <p role="status">Checking your sign-in link…</p>
     } @else {
       <p class="admin-login__error" role="alert">

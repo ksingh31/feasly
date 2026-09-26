@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
@@ -11,8 +11,12 @@ type VerifyStatus = 'verifying' | 'error';
  *
  * Route: `/admin/verify?token=…` (linked from the email). On success the
  * backend sets the `feasly_admin_session` HttpOnly cookie and we land on
- * `/admin/leads`. On failure (expired/used/invalid token) we redirect to
- * `/admin/login` — the uniform 401 gives no detail to surface.
+ * `/admin/leads`. On failure (expired/used/invalid token) we show the
+ * error state below.
+ *
+ * `status` is a signal, not a plain field: the app runs zoneless change
+ * detection (no zone.js), so a plain-field write inside the HTTP callbacks
+ * would never re-render — the page would sit on "verifying" forever (P0).
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
@@ -29,7 +33,7 @@ export class AdminVerifyComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected status: VerifyStatus = 'verifying';
+  protected readonly status = signal<VerifyStatus>('verifying');
 
   constructor() {
     this.seo.setPage({
@@ -54,7 +58,7 @@ export class AdminVerifyComponent implements OnInit {
           void this.router.navigate(['/admin/leads']);
         },
         error: () => {
-          this.status = 'error';
+          this.status.set('error');
         },
       });
   }
