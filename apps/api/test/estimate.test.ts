@@ -364,31 +364,31 @@ describe('estimate service — renovation', () => {
     expect(result.renoInputs!.underpinning).toBe(true);
   });
 
-  it('rejects an invalid renoType with 400 naming the field (AC7)', async () => {
+  it('rejects an invalid renoType with 422 naming the field (AC7)', async () => {
     const { service } = renoService();
     const error = await service
       .estimate({ ...RENO_BODY, renoType: 'gut-rehab' })
       .catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
-    expect(error.status).toBe(400);
+    expect(error.status).toBe(422);
     expect(error.code).toBe('VALIDATION_FAILED');
     expect(String(error.message)).toContain('renoType');
   });
 
-  it('rejects a negative renoSqft with 400 naming the field (AC7)', async () => {
+  it('rejects a negative renoSqft with 422 naming the field (AC7)', async () => {
     const { service } = renoService();
     const error = await service.estimate({ ...RENO_BODY, renoSqft: -50 }).catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
-    expect(error.status).toBe(400);
+    expect(error.status).toBe(422);
     expect(String(error.message)).toContain('renoSqft');
   });
 
-  it('rejects a missing addressKey with 400 naming the field (AC7)', async () => {
+  it('rejects a missing addressKey with 422 naming the field (AC7)', async () => {
     const { service } = renoService();
     const { addressKey: _omitted, ...noAddress } = RENO_BODY;
     const error = await service.estimate(noAddress).catch((e) => e);
     expect(error).toBeInstanceOf(HttpError);
-    expect(error.status).toBe(400);
+    expect(error.status).toBe(422);
     expect(String(error.message)).toContain('addressKey');
   });
 
@@ -496,7 +496,7 @@ describe('renovation through the request pipeline (PGlite-backed stores)', () =>
     );
     expect(isProblemDetails(outcome)).toBe(true);
     if (isProblemDetails(outcome)) {
-      expect(outcome.status).toBe(400);
+      expect(outcome.status).toBe(422);
       expect(outcome.code).toBe('VALIDATION_FAILED');
       expect(String(outcome.detail)).toContain('renoType');
     }

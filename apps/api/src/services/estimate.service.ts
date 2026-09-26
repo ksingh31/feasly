@@ -288,6 +288,21 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           );
         }
 
+        // RENO-01: invalid reno fields → 422 (not 400), naming the field per
+        // the story's acceptance criteria (AC7).
+        const isRenovation =
+          typeof requestBody === 'object' &&
+          requestBody !== null &&
+          (requestBody as Record<string, unknown>).projectType === 'renovation';
+        if (isRenovation) {
+          throw new HttpError(
+            422,
+            ErrorCodes.VALIDATION_FAILED,
+            `Invalid renovation estimate request at '${where}'.`,
+            false,
+          );
+        }
+
         throw new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
