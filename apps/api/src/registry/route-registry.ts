@@ -349,6 +349,28 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'lead_status_history; audit-logged.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/leads/{id}/quarantine/approve',
+    auth: 'admin',
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Approve a quarantined lead: clears the honeypot/quarantine flag ' +
+      '(and any discard flag); the lead returns to the normal pipeline. ' +
+      '422 when the lead is not quarantined; audit-logged.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/leads/{id}/quarantine/discard',
+    auth: 'admin',
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Discard a quarantined lead: kept for audit, excluded from every ' +
+      'listing and count. 422 when the lead is not quarantined; ' +
+      'idempotent; audit-logged.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/leads/export.csv',
     auth: 'admin',

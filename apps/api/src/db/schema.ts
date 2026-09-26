@@ -105,6 +105,16 @@ export const leads = pgTable(
      */
     quarantined: boolean('quarantined').notNull().default(false),
     /**
+     * Quarantine review outcome (admin/02 follow-up). Set when an admin
+     * discards a honeypot-flagged lead via
+     * `POST /api/v1/admin/leads/{id}/quarantine/discard`. Discarded rows are
+     * kept for audit but excluded from every listing and count (admin list,
+     * quarantine tab, consumer lists, Sheets sync). `quarantined` stays true
+     * so all existing quarantine exclusions keep working; `discarded`
+     * distinguishes "reviewed and thrown away" from "pending review".
+     */
+    discarded: boolean('discarded').notNull().default(false),
+    /**
      * Heuristic lead score (consumer/02, `src/lib/lead-score.ts` v1).
      * Recomputed on every dedupe update from the latest submission.
      */

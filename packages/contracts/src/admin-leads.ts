@@ -62,6 +62,12 @@ export interface AdminLeadListItem {
   readonly timeline: string;
   /** True when created via a sandbox API key — UI badges "Sandbox". */
   readonly sandbox: boolean;
+  /**
+   * True when an admin discarded this honeypot-flagged lead
+   * (`POST /api/v1/admin/leads/{id}/quarantine/discard`). Discarded rows
+   * are kept for audit but excluded from every listing and count.
+   */
+  readonly discarded: boolean;
   readonly createdAt: string;
 }
 

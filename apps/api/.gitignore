@@ -10,3 +10,5 @@ admin-leads-status/index.js
 admin-leads-export/index.js
 admin-estimates-get/index.js
 openapi/index.js
+admin-leads-quarantine-approve/index.js
+admin-leads-quarantine-discard/index.js

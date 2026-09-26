@@ -9,6 +9,10 @@
  * - `GET /api/v1/admin/leads/{id}` — full detail with estimate summary.
  * - `POST /api/v1/admin/leads/{id}/notes` — append a note (append-only).
  * - `PATCH /api/v1/admin/leads/{id}/status` — pipeline status transition.
+ * - `POST /api/v1/admin/leads/{id}/quarantine/approve` — clear the
+ *   quarantine/honeypot flag; the lead returns to the normal pipeline.
+ * - `POST /api/v1/admin/leads/{id}/quarantine/discard` — mark the lead
+ *   discarded (kept for audit, excluded from lists/counts).
  * - `GET /api/v1/admin/leads/export.csv` — CSV export of the filtered set.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
@@ -20,6 +24,7 @@ import { z } from 'zod';
 import type {
   AdminLeadDetail,
   AdminLeadListResponse,
+  AdminLeadMutationResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
@@ -53,6 +58,16 @@ export interface AdminLeadsRoute {
     id: unknown,
     body: unknown,
   ): Promise<{ readonly ok: true }>;
+  /** POST /api/v1/admin/leads/{id}/quarantine/approve */
+  approveQuarantine(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<AdminLeadMutationResponse>;
+  /** POST /api/v1/admin/leads/{id}/quarantine/discard */
+  discardQuarantine(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<AdminLeadMutationResponse>;
   /** GET /api/v1/admin/leads/export.csv */
   exportCsv(
     headers: Record<string, string | string[] | undefined>,
@@ -92,6 +107,16 @@ export function createAdminLeadsRoute(deps: AdminLeadsRouteDeps): AdminLeadsRout
     async updateStatus(headers, id, body): Promise<{ readonly ok: true }> {
       const adminEmail = await requireAdminEmail(adminGuard, headers);
       return adminLeads.updateStatus(parseLeadId(id), body, adminEmail);
+    },
+
+    async approveQuarantine(headers, id): Promise<AdminLeadMutationResponse> {
+      const adminEmail = await requireAdminEmail(adminGuard, headers);
+      return adminLeads.approveQuarantine(parseLeadId(id), adminEmail);
+    },
+
+    async discardQuarantine(headers, id): Promise<AdminLeadMutationResponse> {
+      const adminEmail = await requireAdminEmail(adminGuard, headers);
+      return adminLeads.discardQuarantine(parseLeadId(id), adminEmail);
     },
 
     async exportCsv(
