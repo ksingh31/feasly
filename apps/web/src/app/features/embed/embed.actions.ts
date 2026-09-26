@@ -22,3 +22,38 @@ export class EmbedConfigFailed {
   static readonly type = '[Embed] Config failed';
   constructor(public readonly reason: string) {}
 }
+
+/**
+ * NGXS action: exchange the one-time relay code (embed/06).
+ *
+ * The builder snippet posts `feasly:relay {code}` into the iframe (from
+ * `?feasly_rt=` in the builder page URL). The shell accepts it once per
+ * boot, exchanges it via `POST /api/v1/embed/session`, and on success
+ * holds the 12h session token in memory (never localStorage, never a
+ * cookie — privacy-strict by design).
+ */
+export class ExchangeRelayCode {
+  static readonly type = '[Embed] Exchange relay code';
+  constructor(public readonly code: string) {}
+}
+
+/** NGXS action: the relay exchange succeeded — the session is live. */
+export class RelaySessionEstablished {
+  static readonly type = '[Embed] Relay session established';
+  constructor(
+    public readonly sessionToken: string,
+    public readonly estimateId: string,
+    public readonly leadScore: number,
+  ) {}
+}
+
+/**
+ * NGXS action: the relay exchange failed — expired/used/invalid code or
+ * tenant mismatch. The shell shows the "session expired" state with a
+ * one-tap "Email me a fresh link"; `reason` is a machine code for logs,
+ * never user-facing copy.
+ */
+export class RelaySessionFailed {
+  static readonly type = '[Embed] Relay session failed';
+  constructor(public readonly reason: string) {}
+}

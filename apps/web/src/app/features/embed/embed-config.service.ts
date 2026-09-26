@@ -2,7 +2,11 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
-import type { EmbedPublicConfig } from '@feasly/contracts';
+import type {
+  EmbedPublicConfig,
+  EmbedSessionRequest,
+  EmbedSessionResponse,
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -26,6 +30,20 @@ export class EmbedConfigService {
     const params = new HttpParams().set('key', tenantKey);
     return this.http
       .get<EmbedPublicConfig>(`${base}/api/v1/embed/config`, { params })
+      .pipe(timeout(this.config.get('api').timeoutMs), catchError(toApiError));
+  }
+
+  /**
+   * Exchange a one-time relay code for a session token (embed/06).
+   *
+   * The iframe calls this once per boot after receiving `feasly:relay`
+   * from the builder snippet. The session token is held in NGXS state
+   * (memory only) — never localStorage, never a cookie.
+   */
+  exchangeRelayCode(request: EmbedSessionRequest): Observable<EmbedSessionResponse> {
+    const base = this.config.get('api').baseUrl;
+    return this.http
+      .post<EmbedSessionResponse>(`${base}/api/v1/embed/session`, request)
       .pipe(timeout(this.config.get('api').timeoutMs), catchError(toApiError));
   }
 }

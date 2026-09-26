@@ -122,3 +122,8 @@ apps/web/src/app/features/admin/admin-calibration.state.ts
 # acceptance criteria — it changes by product decision, not by deploy
 # tuning. Pinned by sheets-sync state specs.
 apps/web/src/app/features/admin/admin-sheets-status.component.html
+# Embed relay code shape (embed/06): the 64-hex regex is a protocol constant —
+# the server issues 32-byte relay codes (64 hex chars), so the iframe's
+# inbound gate only accepts exactly that shape. It changes by protocol
+# revision (code review), not by deploy tuning.
+apps/web/src/app/features/embed/embed-shell.component.ts
