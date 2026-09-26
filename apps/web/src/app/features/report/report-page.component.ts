@@ -4,7 +4,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import type { CallbackWindow, FinishTier } from '@feasly/contracts';
+import type { CallbackWindow, CostRange, FinishTier } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { mockNarrative } from '../../core/api/mock-data';
 import { ConfigService } from '../../core/config/config.service';
@@ -55,8 +55,10 @@ export function buildEstimateShareMailto(args: ShareMailtoArgs): string {
 /**
  * Estimate report page (the payoff screen).
  *
- * Pre-gate it renders the blurred preview with the single "Unlock" CTA toward
- * the lead gate; post-gate it renders the verified snapshot: ONE prominent
+ * Pre-gate it renders the real computed figures blurred (CSS `filter: blur()`,
+ * `aria-hidden`, unselectable — the blur is a lead-capture nudge, not a
+ * security boundary) with the single "Unlock" CTA toward the lead gate;
+ * post-gate it renders the verified snapshot: ONE prominent
  * total with its likely planning range, the highlighted build cost, the fixed
  * City-assessed land figure, the always-on sqft stepper (debounced live
  * revise), the tier what-if toggle (debounced live revise), the 3-bucket
@@ -325,6 +327,11 @@ export class ReportPageComponent implements OnInit {
 
   protected formatCad(value: number): string {
     return `$${Math.round(value).toLocaleString('en-CA')}`;
+  }
+
+  /** Blurred pre-gate range, e.g. "$608,000 – $735,000". */
+  protected previewRange(range: CostRange): string {
+    return this.formatCad(range.low) + ' – ' + this.formatCad(range.high);
   }
 
   protected formatSqft(value: number): string {

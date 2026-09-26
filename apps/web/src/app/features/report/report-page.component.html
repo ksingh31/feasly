@@ -115,20 +115,23 @@
           <!-- RENO-04: permit/contingency note (exact copy required) -->
           <p class="reno-permit-note" role="note">{{ copy.renoPermitNote }}</p>
         }
-      } @else {
+      } @else if (preview(); as p) {
+        <!-- Blurred pre-gate figures: the REAL computed digits, blurred via
+             CSS (aria-hidden, unselectable, no pointer interaction) until the
+             lead gate unlocks. -->
         <div class="figure-card hero-total locked">
           <h2>{{ copy.totalLabel }}</h2>
-          <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-lg"></span></p>
+          <p class="locked-value" aria-hidden="true">{{ previewRange(p.figures.total) }}</p>
           <p class="locked-note">{{ copy.lockedNote }}</p>
         </div>
         <div class="hero-sub">
           <div class="figure-card locked">
             <h2>{{ copy.buildLabel }}</h2>
-            <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
+            <p class="locked-value" aria-hidden="true">{{ previewRange(p.figures.build) }}</p>
           </div>
           <div class="figure-card locked">
             <h2>{{ copy.landLabel }}</h2>
-            <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
+            <p class="locked-value" aria-hidden="true">{{ formatCad(p.figures.land.value) }}</p>
           </div>
         </div>
         <div class="stepper-card no-print">

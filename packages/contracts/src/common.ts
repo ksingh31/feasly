@@ -29,12 +29,10 @@ export interface FixedFigure {
 }
 
 /**
- * Placeholder returned pre-gate so real figures never reach the client.
- * The UI renders blur + lock icon for these; view-source reveals nothing.
+ * Any figure the UI may render: a real range, or a fixed single value.
+ * Pre-gate previews carry the same real computed figures as post-gate
+ * estimates — the UI renders them blurred (CSS) until the lead gate
+ * unlocks. The blur is a lead-capture nudge, not a security boundary:
+ * figures are readable in the API response by design (2026-09-26).
  */
-export interface BlurredFigure {
-  readonly blurred: true;
-}
-
-/** Any figure the UI may render: a real range, or a pre-gate placeholder. */
-export type Figure = CostRange | BlurredFigure;
+export type Figure = CostRange | FixedFigure;

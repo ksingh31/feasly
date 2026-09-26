@@ -11,8 +11,9 @@ import { mockSuggestions, stableMockEstimateId } from './mock-data';
 
 /**
  * Contract-conformance for the mock harness (FE0-003): every mock response
- * must satisfy its FE0-001 contract shape, and the pre-gate preview must be
- * incapable of carrying real figures — asserted here at runtime on top of the
+ * must satisfy its FE0-001 contract shape. The pre-gate preview carries the
+ * REAL computed figures (the UI renders them blurred until the lead gate
+ * unlocks, per Karan 2026-09-26) — asserted here at runtime on top of the
  * compile-time type guarantee.
  */
 describe('MockApiService', () => {
@@ -128,16 +129,17 @@ describe('MockApiService', () => {
   });
 
   describe('estimates', () => {
-    it('pre-gate preview carries zero real figures (blur guarantee)', async () => {
+    it('pre-gate preview carries the real computed figures (UI blurs them)', async () => {
       const preview = await firstValueFrom(service.getPreviewEstimate(estimateRequest));
-      // Structural: every figure is the blurred placeholder, rows are empty.
-      expect(preview.figures.build).toEqual({ blurred: true });
-      expect(preview.figures.total).toEqual({ blurred: true });
-      expect(preview.figures.land).toEqual({ blurred: true });
+      // Structural: real ranges for build/total, a fixed figure for land,
+      // rows empty pre-gate. The UI renders these blurred until the gate.
+      for (const range of [preview.figures.build, preview.figures.total]) {
+        expect(range.low).toBeGreaterThan(0);
+        expect(range.base).toBeGreaterThanOrEqual(range.low);
+        expect(range.high).toBeGreaterThanOrEqual(range.base);
+      }
+      expect(preview.figures.land.value).toBeGreaterThanOrEqual(0);
       expect(preview.rows).toEqual([]);
-      // Runtime backstop: no 5+ digit number anywhere in the payload (every
-      // real figure is >= 100000; ids and dates never reach 5 digits).
-      expect(JSON.stringify(preview)).not.toMatch(/\d{5,}/);
       expect(preview.estimateId).toBeTruthy();
       expect(preview.costDataVersion).toBeTruthy();
     });

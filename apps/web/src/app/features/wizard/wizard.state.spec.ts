@@ -142,9 +142,10 @@ describe('WizardState', () => {
       addressKey: fakeProperty.addressKey,
       inputs: snapshot().inputs,
       figures: {
-        build: { blurred: true },
-        total: { blurred: true },
-        land: { blurred: true },
+        // Real computed figures — the UI renders them blurred pre-gate.
+        build: { low: 380000, base: 420000, high: 465000 },
+        total: { low: 760000, base: 840000, high: 930000 },
+        land: { value: 420000 },
       },
       rows: [],
       costDataVersion: 'mock-v1',

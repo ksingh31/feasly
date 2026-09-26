@@ -17,9 +17,11 @@ import { WizardState } from '../../wizard/wizard.state';
  * bar chart.
  *
  * Pre-gate the build/total figures and the chart are locked: the locked
- * slots render CSS-only skeleton bars (`aria-hidden`) plus the accessible
- * "Available after email verification" note — real numbers never enter the
- * DOM until the lead gate converts. Land ranges and the City-assessed
+ * slots render the REAL computed digits blurred (CSS `filter: blur()`,
+ * `aria-hidden`, unselectable, no pointer interaction — the blur is a
+ * lead-capture nudge, not a security boundary) plus the accessible
+ * "Available after email verification" note. The chart bars use the real
+ * bar geometry, blurred. Land ranges and the City-assessed
  * values are always visible (per the API's visibility hints).
  *
  * Exactly one card carries the "Lowest land cost" badge, driven by the

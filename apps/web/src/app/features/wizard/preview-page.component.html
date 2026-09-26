@@ -47,20 +47,23 @@
   } @else if (ready()) {
     <p class="ready-note">{{ copy.readyNote }}</p>
 
-    <!-- Blurred pre-gate figures: CSS-only placeholders — no real dollar
-         figures exist in the markup (the API type forbids them). -->
-    <section class="figures" aria-label="Locked estimate figures">
-      <div class="figure-card hero-total locked">
-        <h2>{{ reportCopy.totalLabel }}</h2>
-        <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-lg"></span></p>
-        <p class="locked-note">{{ reportCopy.lockedNote }}</p>
-      </div>
-      <div class="figure-card locked">
-        <h2>{{ reportCopy.buildLabel }}</h2>
-        <p class="blur-value" aria-hidden="true"><span class="blur-bar blur-bar-sm"></span></p>
-        <p class="locked-note">{{ reportCopy.lockedNote }}</p>
-      </div>
-    </section>
+    <!-- Blurred pre-gate figures: the REAL computed ranges, rendered with
+         CSS blur (aria-hidden, unselectable, no pointer interaction) until
+         the lead gate unlocks. -->
+    @if (previewFigures(); as figures) {
+      <section class="figures" aria-label="Locked estimate figures">
+        <div class="figure-card hero-total locked">
+          <h2>{{ reportCopy.totalLabel }}</h2>
+          <p class="locked-value" aria-hidden="true">{{ previewRange(figures.total) }}</p>
+          <p class="locked-note">{{ reportCopy.lockedNote }}</p>
+        </div>
+        <div class="figure-card locked">
+          <h2>{{ reportCopy.buildLabel }}</h2>
+          <p class="locked-value" aria-hidden="true">{{ previewRange(figures.build) }}</p>
+          <p class="locked-note">{{ reportCopy.lockedNote }}</p>
+        </div>
+      </section>
+    }
 
     <p class="tier-hint">{{ reportCopy.tierLockedNote }}</p>
     <a class="cta unlock" routerLink="/estimate/gate">{{ reportCopy.unlockCta }}</a>

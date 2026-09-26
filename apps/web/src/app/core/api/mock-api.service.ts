@@ -161,9 +161,22 @@ export class MockApiService implements ApiService {
     if (request.projectType === 'comparison') {
       throw new Error('Comparison not supported in mock');
     }
-    // Reno previews use the same blurred shape — the type guarantees no leaks.
     const inputs = this.toInputs(request);
-    const response = mockPreviewEstimate(request.addressKey, inputs);
+    // Mirror the real backend: land is the property's City assessed value.
+    // The mock property fixtures are synchronous; use the fixture's assessed
+    // value when available. Falls back to the canned default for addresses
+    // not in the fixtures (e.g. live City API data) — the preview never
+    // blocks on this.
+    const assessedLandValue =
+      mockPropertyFor(request.addressKey)?.assessedValue ??
+      this.propertyAssessedValues.get(request.addressKey);
+    // Pre-gate preview carries the real computed figures — the UI renders
+    // them blurred until the lead gate unlocks (2026-09-26).
+    const response = mockPreviewEstimate(request.addressKey, inputs, {
+      assessedLandValue,
+      referenceSqft: this.referenceSqft(),
+      renoRequest: request.projectType === 'renovation' ? request : undefined,
+    });
     this.estimateInputs.set(response.estimateId, inputs);
     if (request.projectType === 'renovation') {
       // Recorded so getReport() resolves a reno snapshot for reno leads.
@@ -178,14 +191,6 @@ export class MockApiService implements ApiService {
       };
       this.renoEstimateInputs.set(response.estimateId, renoInputs);
     }
-    // Mirror the real backend: land is the property's City assessed value.
-    // The mock property fixtures are synchronous; use the fixture's assessed
-    // value when available. Falls back to the canned default for addresses
-    // not in the fixtures (e.g. live City API data) — the preview never
-    // blocks on this.
-    const assessedLandValue =
-      mockPropertyFor(request.addressKey)?.assessedValue ??
-      this.propertyAssessedValues.get(request.addressKey);
     if (assessedLandValue !== undefined) {
       this.estimateLandValues.set(response.estimateId, assessedLandValue);
     }

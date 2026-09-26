@@ -47,8 +47,9 @@
                 @if (unlocked()) {
                   <span data-testid="build-range">{{ formatRange(rowSet.build) }}</span>
                 } @else {
+                  <!-- Locked: the REAL build range, blurred until unlock. -->
                   <span class="locked-slot">
-                    <span class="locked-slot__skeleton" aria-hidden="true"></span>
+                    <span class="locked-slot__value" aria-hidden="true">{{ formatRange(rowSet.build) }}</span>
                     <span class="locked-slot__note">{{ copy.lockedNote }}</span>
                   </span>
                 }
@@ -60,8 +61,9 @@
                 @if (unlocked()) {
                   <span data-testid="total-range">{{ formatRange(rowSet.total) }}</span>
                 } @else {
+                  <!-- Locked: the REAL total range, blurred until unlock. -->
                   <span class="locked-slot">
-                    <span class="locked-slot__skeleton" aria-hidden="true"></span>
+                    <span class="locked-slot__value" aria-hidden="true">{{ formatRange(rowSet.total) }}</span>
                     <span class="locked-slot__note">{{ copy.lockedNote }}</span>
                   </span>
                 }
@@ -87,7 +89,13 @@
                   [attr.data-slug]="rowSet.slug"
                 ></div>
               } @else {
-                <div class="compare-chart__bar compare-chart__bar--skeleton" aria-hidden="true"></div>
+                <!-- Locked: the REAL bar geometry, blurred until unlock. -->
+                <div
+                  class="compare-chart__bar compare-chart__bar--locked"
+                  [ngStyle]="barStyle(rowSet)"
+                  [attr.data-slug]="rowSet.slug"
+                  aria-hidden="true"
+                ></div>
               }
             </div>
           </div>

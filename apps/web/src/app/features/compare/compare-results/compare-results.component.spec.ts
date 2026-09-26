@@ -115,7 +115,7 @@ describe('CompareResultsComponent', () => {
     expect(flaggedCard).toBeTruthy();
   });
 
-  it('pre-gate: land ranges visible, build/total hidden with no DOM numeric leak', async () => {
+  it('pre-gate: land ranges visible, build/total blurred real digits', async () => {
     const { fixture, store } = await setup();
     const el: HTMLElement = fixture.nativeElement;
     const result = store.selectSnapshot(ComparisonState.result);
@@ -124,8 +124,8 @@ describe('CompareResultsComponent', () => {
     // Land ranges are visible pre-gate.
     expect(el.querySelectorAll('[data-testid="land-range"]')).toHaveLength(2);
 
-    // Build/total are NOT in the DOM — only skeleton placeholders + the
-    // accessible locked note.
+    // Build/total render the REAL computed digits — blurred (aria-hidden),
+    // never as readable numbers, with the accessible locked note.
     expect(el.querySelector('[data-testid="build-range"]')).toBeNull();
     expect(el.querySelector('[data-testid="total-range"]')).toBeNull();
     const lockedNotes = el.querySelectorAll('.locked-slot__note');
@@ -133,37 +133,28 @@ describe('CompareResultsComponent', () => {
     for (const note of lockedNotes) {
       expect(note.textContent).toContain('Available after email verification');
     }
-    // Skeleton placeholders are aria-hidden.
-    for (const skeleton of el.querySelectorAll('.locked-slot__skeleton')) {
-      expect(skeleton.getAttribute('aria-hidden')).toBe('true');
-    }
-
-    // No numeric leak: none of the real build/total figures appear anywhere
-    // in the rendered HTML (ranges, bases, or standalone).
-    const html = el.innerHTML;
-    for (const rowSet of result?.rowSets ?? []) {
-      for (const range of [rowSet.build, rowSet.total]) {
-        for (const value of [range.low, range.base, range.high]) {
-          const formatted = `$${value.toLocaleString('en-CA')}`;
-          expect(html).not.toContain(formatted);
-          expect(html).not.toContain(String(value));
-        }
-      }
+    // Locked slots are aria-hidden, hold real digit text, and are blurred.
+    const lockedValues = el.querySelectorAll('.locked-slot__value');
+    expect(lockedValues.length).toBeGreaterThan(0);
+    for (const value of lockedValues) {
+      expect(value.getAttribute('aria-hidden')).toBe('true');
+      expect(value.textContent).toMatch(/\$\d/);
+      expect(getComputedStyle(value as HTMLElement).filter).toContain('blur');
+      expect(getComputedStyle(value as HTMLElement).userSelect).toBe('none');
     }
   });
 
-  it('pre-gate: chart renders skeleton bars, never data-driven geometry', async () => {
+  it('pre-gate: chart renders blurred real-geometry bars, never readable', async () => {
     const { fixture } = await setup();
     const el: HTMLElement = fixture.nativeElement;
-    // No real bars pre-gate.
-    expect(el.querySelector('.compare-chart__bar:not(.compare-chart__bar--skeleton)')).toBeNull();
-    // Skeleton bars are aria-hidden and carry no inline geometry.
-    const skeletons = el.querySelectorAll('.compare-chart__bar--skeleton');
-    expect(skeletons.length).toBe(2);
-    for (const skeleton of skeletons) {
-      expect(skeleton.getAttribute('aria-hidden')).toBe('true');
-      expect((skeleton as HTMLElement).style.left).toBe('');
-      expect((skeleton as HTMLElement).style.width).toBe('');
+    // Locked bars use the REAL bar geometry (left/width set) — blurred.
+    const lockedBars = el.querySelectorAll('.compare-chart__bar--locked');
+    expect(lockedBars.length).toBe(2);
+    for (const bar of lockedBars) {
+      expect(bar.getAttribute('aria-hidden')).toBe('true');
+      expect((bar as HTMLElement).style.left).not.toBe('');
+      expect((bar as HTMLElement).style.width).not.toBe('');
+      expect(getComputedStyle(bar as HTMLElement).filter).toContain('blur');
     }
     // No $/sqft or margin labels anywhere in the chart.
     const chartText = el.querySelector('.compare-chart')?.textContent ?? '';
@@ -193,7 +184,7 @@ describe('CompareResultsComponent', () => {
     // The badge survives the unlock.
     expect(el.querySelectorAll('.community-card__badge')).toHaveLength(1);
     // Real chart bars render post-gate with data-driven geometry.
-    const bars = el.querySelectorAll('.compare-chart__bar:not(.compare-chart__bar--skeleton)');
+    const bars = el.querySelectorAll('.compare-chart__bar:not(.compare-chart__bar--locked)');
     expect(bars).toHaveLength(2);
     for (const bar of bars) {
       expect((bar as HTMLElement).style.left).not.toBe('');

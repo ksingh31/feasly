@@ -98,9 +98,18 @@ describe('PreviewPageComponent', () => {
     await setup();
   });
 
-  it('dispatches LoadPreview on init and renders the blurred preview', () => {
+  it('dispatches LoadPreview on init and renders the blurred real figures', () => {
     expect(store.selectSnapshot(ReportState.preview)).not.toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('.blur-bar').length).toBe(2);
+    // Locked numbers: real computed digits behind CSS blur (no shimmer bars).
+    const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
+    expect(lockedValues.length).toBe(2);
+    lockedValues.forEach((el: HTMLElement) => {
+      expect(el.getAttribute('aria-hidden')).toBe('true');
+      // Real digits present in the DOM — the blur hides them visually.
+      expect(el.textContent).toMatch(/\$\d/);
+      // Blurred via CSS (8px), not an animated placeholder.
+      expect(getComputedStyle(el).filter).toContain('blur');
+    });
     expect(text()).toContain('Your numbers are ready.');
   });
 
@@ -113,15 +122,20 @@ describe('PreviewPageComponent', () => {
     expect(getComputedStyle(tierDd).textTransform).toBe('capitalize');
   });
 
-  it('blurs the build/total figures with no real dollar figures in the figures section', () => {
+  it('blurs the real computed build/total figures pre-gate', () => {
     const figures = fixture.nativeElement.querySelector('.figures') as HTMLElement;
     expect(figures).toBeTruthy();
-    // CSS-only placeholders: no fake figures in markup, no real ones either.
-    expect(figures.querySelectorAll('.blur-value').length).toBe(2);
-    expect(figures.textContent).not.toContain('$');
-    // Every real estimate figure is >= 100000, so no 6+ digit run may
-    // appear inside the figures section (assessed value lives outside it).
-    expect(figures.textContent).not.toMatch(/\d{6}/);
+    // The real computed digits ARE in the DOM — blurred via CSS (8px),
+    // aria-hidden, and unselectable. No animated placeholder bars remain.
+    const lockedValues = figures.querySelectorAll('.locked-value');
+    expect(lockedValues.length).toBe(2);
+    lockedValues.forEach((el) => {
+      expect(el.getAttribute('aria-hidden')).toBe('true');
+      expect(el.textContent).toMatch(/\$\d/);
+      expect(getComputedStyle(el).filter).toContain('blur');
+      expect(getComputedStyle(el).userSelect).toBe('none');
+    });
+    expect(figures.querySelectorAll('.blur-bar').length).toBe(0);
   });
 
   it('renders the single "Unlock" CTA toward the gate', () => {
@@ -276,12 +290,20 @@ describe('PreviewPageComponent loading state', () => {
       TestBed.resetTestingModule();
     });
 
-    it('has no $+digits in blurred regions pre-gate (DOM-leak test)', async () => {
+    it('shows the real computed digits blurred in locked regions pre-gate', async () => {
       const fixture = await setupReno();
       const figures = fixture.nativeElement.querySelector('.figures') as HTMLElement;
       expect(figures).toBeTruthy();
-      // RENO-04 AC2: no real numbers in the DOM pre-gate — check for $ followed by digits
-      expect(figures.textContent).not.toMatch(/\$\d/);
+      // RENO-04 AC2 (updated 2026-09-26): the real computed digits ARE in
+      // the DOM pre-gate — blurred via CSS, aria-hidden, and unselectable.
+      const lockedValues = figures.querySelectorAll('.locked-value');
+      expect(lockedValues.length).toBe(2);
+      lockedValues.forEach((el) => {
+        expect(el.getAttribute('aria-hidden')).toBe('true');
+        expect(el.textContent).toMatch(/\$\d/);
+        expect(getComputedStyle(el).filter).toContain('blur');
+        expect(getComputedStyle(el).userSelect).toBe('none');
+      });
       TestBed.resetTestingModule();
     });
 

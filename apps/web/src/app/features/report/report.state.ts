@@ -10,7 +10,8 @@ import { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } 
 export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface ReportStateModel {
-  /** Pre-gate blurred preview. Never carries real figures (by contract type). */
+  /** Pre-gate preview with the real computed figures (the UI renders them
+   * blurred until the lead gate unlocks). Carries no PII. */
   preview: PreviewEstimateResponse | null;
   /** Bearer token from magic-link verification. Memory-only — stripped before storage persistence. */
   reportToken: string | null;
@@ -32,7 +33,8 @@ const defaults: ReportStateModel = {
 /**
  * Report state: the single source of truth for the estimate report page.
  *
- * Pre-gate the model holds the blurred preview; post-gate it holds the
+ * Pre-gate the model holds the real-figures preview (rendered blurred);
+ * post-gate it holds the
  * verified snapshot. The component never calls the API directly — it
  * dispatches actions and renders selectors. The wizard slice supplies the
  * property + inputs the estimate is based on.

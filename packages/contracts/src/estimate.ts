@@ -1,13 +1,15 @@
 /**
- * Estimate contracts. The deterministic cost engine lives server-side; the client
- * only ever receives ranges (post-gate) or blurred placeholders (pre-gate).
+ * Estimate contracts. The deterministic cost engine lives server-side; the
+ * client receives real computed ranges both pre-gate and post-gate.
  *
  * Pre-gate and post-gate are separate types on purpose: `PreviewEstimateResponse`
- * cannot carry a single real dollar amount — not in `figures`, not in `rows` —
- * so a route typed to return it cannot leak figures even by accident.
- * (Backend: BE2-002 pre-gate blur guarantee, BE3-002 preview endpoint.)
+ * carries the real computed figures but no cost breakdown (`rows` is empty),
+ * so a route typed to return it cannot leak the itemized breakdown even by
+ * accident. The UI renders pre-gate figures blurred (CSS) until the lead
+ * gate unlocks — the blur is a lead-capture nudge, not a security boundary
+ * (figures are readable in the API response by design, 2026-09-26).
  */
-import type { BlurredFigure, CostRange, FixedFigure } from './common';
+import type { CostRange, FixedFigure } from './common';
 
 export type FinishTier = 'standard' | 'premium' | 'luxury';
 export type GarageOption = 'none' | 'double' | 'triple';
@@ -117,17 +119,19 @@ export interface CostRow {
 }
 
 /**
- * Pre-gate preview. Every figure is `{ blurred: true }` and rows is empty —
- * assigning a real CostRange anywhere in here is a compile error.
+ * Pre-gate preview. Figures are the REAL computed ranges — the UI renders
+ * them blurred (CSS `filter: blur()`) until the lead gate unlocks. Land is
+ * the fixed City assessed value (`{ value: 0 }` for renovations), never a
+ * range. Rows stay empty pre-gate — enforced by the type, not by convention.
  */
 export interface PreviewEstimateResponse {
   readonly estimateId: string;
   readonly addressKey: string;
   readonly inputs: EstimateInputs;
   readonly figures: {
-    readonly build: BlurredFigure;
-    readonly total: BlurredFigure;
-    readonly land: BlurredFigure;
+    readonly build: CostRange;
+    readonly total: CostRange;
+    readonly land: FixedFigure;
   };
   /** Always empty pre-gate — enforced by the type, not by convention. */
   readonly rows: readonly [];
@@ -136,10 +140,11 @@ export interface PreviewEstimateResponse {
 }
 
 /**
- * Post-gate estimate. Build and total are real ranges — a blurred placeholder
- * there is a compile error. Land is a FIXED figure (the City assessed value),
- * never a range — assigning a CostRange to it is a compile error. Snapshots
- * and report figures only exist after verification.
+ * Post-gate estimate. Build and total are real ranges; land is a FIXED
+ * figure (the City assessed value), never a range — assigning a CostRange
+ * to it is a compile error. Adds the itemized cost breakdown (`rows`) that
+ * the pre-gate preview omits. Snapshots and report figures only exist after
+ * verification.
  */
 export interface EstimateResponse {
   readonly estimateId: string;

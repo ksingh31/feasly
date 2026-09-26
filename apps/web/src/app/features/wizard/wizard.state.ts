@@ -65,9 +65,9 @@ export interface WizardStateModel {
   /** Current wizard step (1 address → 2 scope → 3 details). */
   step: WizardStep;
   /**
-   * Blurred pre-gate preview from the analyzing screen. Null until the
-   * pipeline runs. Carries no PII and no real dollar figures, so persisting
-   * it via the storage plugin is safe.
+   * Real-figures pre-gate preview from the analyzing screen (rendered
+   * blurred until the lead gate unlocks). Null until the pipeline runs.
+   * Carries no PII, so persisting it via the storage plugin is safe.
    */
   preview: PreviewEstimateResponse | null;
 }

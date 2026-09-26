@@ -27,7 +27,8 @@ interface PipelineStage {
  * config bounds, fetching the City property record over the API, then
  * running the estimate over the API. There is no timed or fake progress:
  * a stage flips to done only when its underlying work resolves. On success
- * the blurred pre-gate preview is stored in NGXS, the report token is
+ * the real-figures pre-gate preview is stored in NGXS (rendered blurred
+ * until the lead gate unlocks), the report token is
  * established for the same-session lead (dev/mock unlock — see
  * ApiService.devTokenForLead), and the user moves to the report; on failure
  * an honest error with retry is shown.

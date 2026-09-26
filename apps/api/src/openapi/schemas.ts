@@ -33,12 +33,6 @@ export const FixedFigureSchema = z
   })
   .openapi('FixedFigure');
 
-export const BlurredFigureSchema = z
-  .object({
-    blurred: z.literal(true).describe('Pre-gate placeholder — no real figures'),
-  })
-  .openapi('BlurredFigure');
-
 export const ApiErrorSchema = z
   .object({
     code: z.string().describe('Machine-readable error code'),
@@ -100,9 +94,9 @@ export const PreviewEstimateResponseSchema = z
     addressKey: z.string(),
     inputs: EstimateInputsSchema,
     figures: z.object({
-      build: BlurredFigureSchema,
-      total: BlurredFigureSchema,
-      land: BlurredFigureSchema,
+      build: CostRangeSchema.describe('Real computed build range — UI renders blurred pre-gate'),
+      total: CostRangeSchema.describe('Real computed total range — UI renders blurred pre-gate'),
+      land: FixedFigureSchema.describe('Fixed City assessed land value — UI renders blurred pre-gate'),
     }),
     rows: z
       .array(z.unknown())
