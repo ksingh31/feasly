@@ -358,6 +358,9 @@
     "renovationWaitlist": false,
     "sampleReport": false
   },
+  "admin": {
+    "defaultRateLimit": 60
+  },
   "limits": {
     "communityPageLimit": 24,
     "autocompleteSuggestionLimit": 6

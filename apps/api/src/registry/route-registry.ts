@@ -410,6 +410,16 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'Revoke a key immediately. Audit-logged.',
   },
   {
+    method: 'PATCH',
+    path: '/api/v1/admin/api-keys/{id}',
+    auth: 'admin',
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Update a key\u2019s scopes and/or rate limit (api-mcp/02). Takes effect ' +
+      'on the next request. Audit-logged.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/leads',
     auth: 'admin',

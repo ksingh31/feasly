@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { lazyProvider } from '@ngxs/store';
 import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
 import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { DevelopersPageComponent } from './features/developers';
@@ -251,6 +252,51 @@ export const routes: Routes = [
     children: [
       { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
     ],
+  },
+  // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
+  // pipeline. All builder routes are noindexed and excluded from
+  // prerendering (not in prerender-routes.txt). No public-page links point
+  // here.
+  {
+    path: 'builder/login',
+    component: BuilderLoginComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'builder/verify',
+    component: BuilderVerifyComponent,
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'builder',
+    component: BuilderShellComponent,
+    canActivate: [robotsGuard, builderGuard],
+    data: { noindex: true },
+    children: [
+      { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
+    ],
+  },
+  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
+  // never in sitemap or prerender. ApiKeysState is lazy-loaded at this route
+  // via lazyProvider (dynamic import): the state + its actions stay in the
+  // api-keys chunk, out of the initial bundle (790kB production budget).
+  {
+    path: 'admin/api-keys',
+    loadComponent: () =>
+      import('./features/admin/api-keys-page.component').then(
+        (m) => m.ApiKeysPageComponent,
+      ),
+    canActivate: [
+      robotsGuard,
+      adminGuard,
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/api-keys.state')).apiKeysStateProvider,
+      ),
+    ],
+    data: { noindex: true },
   },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
   // before the admin routes above would swallow /admin/login etc. (P0 fix).

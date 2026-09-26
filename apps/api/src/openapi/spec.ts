@@ -23,6 +23,7 @@ import {
   ApiKeyListResponseSchema,
   AdminEstimateDetailSchema,
   AdminEstimateSnapshotRefSchema,
+  ApiKeyRecordResponseSchema,
   ApiKeyScopeSchema,
   AutocompleteResponseSchema,
   CallbackRequestSchema,
@@ -157,11 +158,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   });
   registry.registerComponent('securitySchemes', 'AdminKey', {
     type: 'apiKey',
-    in: 'header',
-    name: 'X-Admin-Key',
+    in: 'cookie',
+    name: 'feasly_admin_session',
     description:
-      'Interim admin guard (pre-shared key). ' +
-      'Being replaced by session auth (admin/01).',
+      'Admin session auth (admin/01): the opaque session token is set as an ' +
+      'httpOnly cookie by the admin magic-link flow. The legacy X-Admin-Key ' +
+      'header was removed — do not send it.',
   });
 
   // ── Public v1 endpoints ───────────────────────────────────────────
@@ -684,6 +686,52 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
+
+  // PATCH /v1/admin/api-keys/{id} (api-mcp/02)
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/api-keys/{id}',
+    summary: 'Update an API key\u2019s scopes / rate limit',
+    description:
+      'Updates a key\u2019s scopes and/or per-minute rate limit. Changes take ' +
+      'effect on the next request. At least one field is required.',
+    security: adminSecurity,
+    request: {
+      params: z.object({
+        id: z.string().describe('Key ID (UUID)'),
+      }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              scopes: z
+                .array(z.string())
+                .optional()
+                .describe('API scopes (property:read, estimate, ...)'),
+              rate_limit_per_min: z
+                .number()
+                .int()
+                .min(1)
+                .max(10_000)
+                .optional()
+                .describe('Per-minute rate limit'),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Updated key record (masked)',
+        content: {
+          'application/json': {
+            schema: ApiKeyRecordResponseSchema,
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
 
   // GET /v1/admin/usage (api-mcp/07)
   registry.registerPath({

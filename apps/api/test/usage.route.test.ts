@@ -81,6 +81,9 @@ function createFakeApiKeys(ownerId: string): ApiKeyService {
     async list() {
       return [];
     },
+    async update() {
+      throw new Error('not implemented');
+    },
     async authenticate(token: string) {
       if (token === 'owner-token') {
         return {
