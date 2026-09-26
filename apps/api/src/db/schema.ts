@@ -814,6 +814,65 @@ export const adminAuditLog = pgTable(
 
 /**
 /**
+ * Callback requests (phase-2 wiring).
+ *
+ * A "call me back" ask attached to a report. The reportToken resolves to
+ * the lead at request time — only the leadId is persisted (the token itself
+ * is a bearer credential and is never stored).
+ */
+export const callbackRequests = pgTable(
+  'callback_requests',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    name: text('name').notNull(),
+    /** Required at the callback step (optional at the lead gate). */
+    phone: text('phone').notNull(),
+    /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
+    window: text('window').notNull(),
+    /** 'pending' → 'done' — worked by the team inbox flow (future). */
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('callback_requests_lead_id_idx').on(t.leadId)],
+);
+
+/**
+ * Partner shares (phase-2 wiring).
+ *
+ * Audit record for each email-to-partner share. The partner's credential is
+ * a fresh magic-link row (purpose 'partner-share', lead_id → the owner's
+ * lead — never the owner's token); this table records who it went to and
+ * whether the email provider accepted the message. The partner email is PII
+ * and gets the same handling as lead emails.
+ */
+export const partnerShares = pgTable(
+  'partner_shares',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    magicLinkId: uuid('magic_link_id').references(() => magicLinks.id, {
+      onDelete: 'set null',
+    }),
+    partnerEmail: text('partner_email').notNull(),
+    /** True when the email provider accepted the message. */
+    sent: boolean('sent').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('partner_shares_lead_id_idx').on(t.leadId)],
+);
+
+/**
  * Report snapshots (phase-2 wiring).
  *
  * Immutable per-version copies of an estimate's report figures. Snapshots
@@ -905,5 +964,4 @@ export const sheetsSyncRuns = pgTable(
     errorMessage: text('error_message'),
   },
   (t) => [index('sheets_sync_runs_started_at_idx').on(t.startedAt)],
-);
 );
