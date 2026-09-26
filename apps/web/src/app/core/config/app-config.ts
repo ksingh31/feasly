@@ -29,17 +29,6 @@ export interface AppConfig {
     /** HTTP timeout for API calls. */
     timeoutMs: number;
   };
-  /**
-   * Admin dashboard wiring (admin/07).
-   *
-   * Admin routes authenticate via the admin/01 session cookie. `adminKey`
-   * is vestigial from the interim X-Admin-Key setup (the backend no longer
-   * honors that header). Deploy config only — never commit a real key.
-   */
-  admin: {
-    /** Vestigial interim admin key (X-Admin-Key header no longer honored). */
-    adminKey: string;
-  };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
     /**

@@ -167,12 +167,10 @@ export class HttpApiService implements ApiService {
   /**
    * Admin funnel report (admin/07).
    *
-   * Admin session auth (admin/01) is the real gate: the browser sends the
-   * HttpOnly session cookie automatically (same-origin). The `X-Admin-Key`
-   * header below is vestigial — kept for parity with the interim setup, the
-   * backend no longer honors it. The key comes from `admin.adminKey` deploy
-   * config — never from the page URL or localStorage, so it can't leak into
-   * shared links.
+   * Admin session auth (admin/01) is the gate: `withCredentials: true` sends
+   * the `feasly_admin_session` HttpOnly cookie automatically (same-origin) —
+   * the same pattern as AdminOpsApiService. The interim `X-Admin-Key` header
+   * is gone: the backend no longer honors it.
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     let params = new HttpParams();
@@ -187,9 +185,11 @@ export class HttpApiService implements ApiService {
     if (query.tenant !== 'all') {
       params = params.set('tenant_key', query.tenant);
     }
-    const headers = { 'X-Admin-Key': this.config.get('admin').adminKey };
     return this.call(
-      this.http.get<FunnelReport>(`${this.base}/admin/funnels`, { params, headers }),
+      this.http.get<FunnelReport>(`${this.base}/admin/funnels`, {
+        params,
+        withCredentials: true,
+      }),
     );
   }
 }

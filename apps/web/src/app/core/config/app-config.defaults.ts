@@ -28,11 +28,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     useMockApi: true,
     timeoutMs: 15000,
   },
-  // INTERIM (admin/07): empty adminKey locks /admin/* until a deploy config
-  // sets the key or admin/01 lands with session auth.
-  admin: {
-    adminKey: '',
-  },
   propertyData: {
     source: 'live',
     baseUrl: 'https://data.calgary.ca',
@@ -689,7 +684,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         reset: 'Reset',
         loading: 'Loading funnel…',
         empty: 'No visits in this range yet. Widen the dates or check the traffic filter.',
-        loadError: 'Couldn’t load the funnel. Check the admin key configuration and try again.',
+        loadError: 'Couldn’t load the funnel. Check your admin session and try again.',
         invalidRange: 'The start date must be on or before the end date.',
         entryStep: 'Entry step',
         conversionPrefix: 'Converted from previous step:',
