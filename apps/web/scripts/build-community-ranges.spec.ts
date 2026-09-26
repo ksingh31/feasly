@@ -185,4 +185,16 @@ describe('refreshPrerenderRoutes', () => {
     expect(content).toContain('/communities/beltline/\n');
     expect(content).toContain('/communities/panorama-hills/\n');
   });
+
+  it('preserves the /communities/ index route (SEO-05)', () => {
+    const routesPath = join(workdir, 'prerender-routes.txt');
+    writeFileSync(routesPath, '/\n/communities/\n/communities/stale-slug/\n');
+    refreshPrerenderRoutes(['beltline'], routesPath);
+    const content = readFileSync(routesPath, 'utf8');
+    expect(content).toContain('/communities/\n');
+    expect(content).not.toContain('stale-slug');
+    expect(content).toContain('/communities/beltline/\n');
+    // Index route appears exactly once (not duplicated on re-runs).
+    expect(content.match(/^\/communities\/$/gm)?.length).toBe(1);
+  });
 });
