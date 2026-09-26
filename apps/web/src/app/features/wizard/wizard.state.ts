@@ -111,19 +111,47 @@ export class WizardState implements NgxsOnInit {
 
   /**
    * Seeds the square-footage defaults from deploy config for first-time
-   * visitors. The storage plugin rehydrates persisted state during the
-   * InitState action — which runs before this hook — so a stored value
-   * always wins: we only seed when nothing was persisted yet.
+   * visitors, and migrates stale persisted state. The storage plugin
+   * rehydrates persisted state during the InitState action — which runs
+   * before this hook — so a stored value always wins for fields that exist.
+   *
+   * Migration: `renoInputs` (added RENO-03) and `comparison` (added NBH-04)
+   * may be missing from localStorage written by older versions. Without
+   * this, selectors return undefined and components crash (global error
+   * handler redirects to /error). We backfill missing sub-states with
+   * defaults instead of wiping the user's stored property/selections.
    */
   ngxsOnInit(ctx: StateContext<WizardStateModel>): void {
+    const wizard = this.config.get('wizard');
+    const state = ctx.getState();
     const stored = this.storage?.getItem(WizardStateName);
+
+    // Backfill sub-states that may be missing from stale persisted data.
+    // Uses the same defaults as the @State decorator so behavior is
+    // identical for first-time visitors and migrated users.
+    const renoInputs: RenoInputs = state.renoInputs ?? {
+      renoType: null,
+      renoSqft: wizard.renoSqftDefault,
+      tier: 'standard',
+      underpinning: false,
+    };
+    const comparison: ComparisonInputs = state.comparison ?? {
+      slugs: [],
+      sqft: wizard.sqftDefault,
+      tier: 'standard',
+    };
+
     if (stored == null) {
-      const wizard = this.config.get('wizard');
+      // First-time visitor: seed sqft defaults from deploy config.
       ctx.patchState({
-        inputs: { ...ctx.getState().inputs, sqft: wizard.sqftDefault },
-        renoInputs: { ...ctx.getState().renoInputs, renoSqft: wizard.renoSqftDefault },
-        comparison: { ...ctx.getState().comparison, sqft: wizard.sqftDefault },
+        inputs: { ...state.inputs, sqft: wizard.sqftDefault },
+        renoInputs: { ...renoInputs, renoSqft: wizard.renoSqftDefault },
+        comparison: { ...comparison, sqft: wizard.sqftDefault },
       });
+    } else if (state.renoInputs == null || state.comparison == null) {
+      // Stale persisted state: backfill missing sub-states, preserving
+      // everything the user already had (property, projectType, etc.).
+      ctx.patchState({ renoInputs, comparison });
     }
   }
 
