@@ -141,13 +141,6 @@
       "when": 1790372394184,
       "tag": "0021_narrative_columns",
       "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1790346000000,
-      "tag": "0028_embed_attribution",
-      "breakpoints": true
     }
   ]
 }
