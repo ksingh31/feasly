@@ -33,3 +33,7 @@ apps/api/*/index.js
 # prebuild; served same-origin as the embed app).
 apps/web/public/embed/
 worktrees/
+
+# Symlinked nested node_modules (worktree-local dev setup) — the trailing-slash
+# pattern above does not match symlinks, so this must be listed explicitly.
+apps/web/node_modules
