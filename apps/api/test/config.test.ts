@@ -89,6 +89,17 @@ describe('loadConfig', () => {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
       },
+      backupCheck: {
+        enabled: false,
+        subscriptionId: '',
+        resourceGroup: 'rg-feasly-dev',
+        serverName: 'feasly-dev-pg-4fhkep',
+        minRetentionDays: 7,
+        maxStaleHours: 48,
+        imdsTokenUrl:
+          'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F',
+        armBaseUrl: 'https://management.azure.com',
+      },
       sheets: {
         sheetId: '',
         serviceAccountEmail: '',

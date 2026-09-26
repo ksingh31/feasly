@@ -146,11 +146,12 @@ describe('ops alerts (admin/06)', () => {
       { type: 'community_stats_failed', path: '/admin/ops/community-stats' },
       { type: 'stripe_webhook_failed', path: '/admin/ops/billing' },
       { type: 'narrative_worker_failed', path: '/admin/ops/narrative' },
+      { type: 'backup_missed', path: '/admin/ops/backup' },
     ];
     for (const { type, path } of cases) {
       await service.notifyFailure(type, FAILURE_CTX);
     }
-    expect(sent).toHaveLength(4);
+    expect(sent).toHaveLength(5);
     for (const [i, { path }] of cases.entries()) {
       const input = sent[i];
       expect(input?.detailsUrl).toBe(`${APP_URL}${path}`);

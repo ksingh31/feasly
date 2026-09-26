@@ -168,7 +168,7 @@ module functionApp 'modules/function-app.bicep' = {
     postgresDatabase: postgres.outputs.databaseName
     postgresUser: postgresAdminLogin
     postgresPasswordSecretUri: postgresPasswordSecretUri
-    // Dev uses the provisioned ACS (module above); other environments use
+// Dev uses the provisioned ACS (module above); other environments use
     // the deploy-time emailProvider param (default 'log', fail-closed).
     emailProvider: environment == 'dev' ? 'acs' : emailProvider
     acsConnectionStringSecretUri: (environment == 'dev' || !empty(acsConnectionString)) ? acsConnectionStringSecretUri : ''
@@ -193,6 +193,13 @@ module functionApp 'modules/function-app.bicep' = {
     sheetsSheetId: sheetsSheetId
     sheetsServiceAccountEmail: sheetsServiceAccountEmail
     sheetsServiceAccountPrivateKeySecretUri: empty(sheetsServiceAccountPrivateKey) ? '' : sheetsPrivateKeySecretUri
+    // admin/06 — daily Postgres backup freshness probe (backup_missed).
+    // Enabled per environment; the Function App's managed identity gets
+    // Reader on the resource group (see function-app.bicep).
+    backupCheckEnabled: true
+    backupCheckSubscriptionId: subscription().subscriptionId
+    backupCheckResourceGroup: resourceGroup().name
+    backupCheckServerName: postgres.outputs.serverName
   }
   // The dev ACS secret (below) must exist before the app first resolves its
   // Key Vault references at startup. Skipped automatically when the
@@ -293,6 +300,7 @@ var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //
 var storageBlobDataOwnerRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b' // Storage Blob Data Owner (host secrets store)
 var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88' // Storage Queue Data Contributor (trigger coordination)
 var storageTableDataContributorRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3' // Storage Table Data Contributor (host state)
+var readerRoleId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader (admin/06 backup freshness ARM query)
 
 // Deployer (CI OIDC identity or manual deployer) can write/read secrets in the vault.
 // principalType is intentionally omitted so ARM infers it — manual deploys run
@@ -368,6 +376,22 @@ resource funcAppHostStorageTableContributor 'Microsoft.Authorization/roleAssignm
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageTableDataContributorRoleId)
+    principalId: functionApp.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Function App system-assigned identity reads the Postgres server's backup
+// config through ARM for the admin/06 `backup_missed` daily timer. Reader
+// is the least-privilege built-in role that exposes
+// Microsoft.DBforPostgreSQL/flexibleServers/read. Scoped at the resource
+// group following the same pattern as the storage assignments above
+// (module outputs cannot be used in roleAssignment scope).
+resource funcAppPostgresReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, functionAppName, readerRoleId, 'postgres-backup-check')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', readerRoleId)
     principalId: functionApp.outputs.principalId
     principalType: 'ServicePrincipal'
   }

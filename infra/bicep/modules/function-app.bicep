@@ -61,6 +61,18 @@ param sheetsServiceAccountEmail string = ''
 @description('Key Vault secret URI (versionless) for the Sheets service-account private key. Empty = not configured; the app fails closed on sync.')
 param sheetsServiceAccountPrivateKeySecretUri string = ''
 
+@description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
+param backupCheckEnabled bool = false
+
+@description('Azure subscription ID for the backup freshness ARM query')
+param backupCheckSubscriptionId string = ''
+
+@description('Resource group of the Postgres server for the backup freshness ARM query')
+param backupCheckResourceGroup string = ''
+
+@description('Postgres server name for the backup freshness ARM query')
+param backupCheckServerName string = ''
+
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: planName
   location: location
@@ -114,6 +126,26 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           {
             name: 'EMAIL_PROVIDER'
             value: emailProvider
+          }
+          {
+            // admin/06 backup_missed: daily Postgres backup freshness timer.
+            // Queries ARM with the app's system-assigned managed identity
+            // (Reader role granted in main.bicep). Disabled by default; the
+            // timer adapter fails closed when unconfigured.
+            name: 'BACKUP_CHECK_ENABLED'
+            value: backupCheckEnabled ? 'true' : 'false'
+          }
+          {
+            name: 'BACKUP_CHECK_SUBSCRIPTION_ID'
+            value: backupCheckSubscriptionId
+          }
+          {
+            name: 'BACKUP_CHECK_RESOURCE_GROUP'
+            value: backupCheckResourceGroup
+          }
+          {
+            name: 'BACKUP_CHECK_SERVER_NAME'
+            value: backupCheckServerName
           }
           {
             // Cap the Node.js worker heap at 1536MB: the default

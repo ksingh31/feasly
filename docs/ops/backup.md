@@ -21,16 +21,13 @@ backups twice a day, and transaction-log backups **every ~5 minutes**.
 Point-in-time restore (PITR) can target any second inside the 7-day retention
 window, which is what gives the RPO below.
 
-**Continuous verification:** CI runs `infra/health/check-postgres-backup.sh`
-on every push to main (workflow job `backup-config`). It fails if retention
-drops below 7 days, the earliest restore point is missing, or the restore
-point falls outside the retention window (+48h grace) — the last being the
-"scheduled backup missed" signal until the ops-alert service
-(`admin/06`) wires a dedicated alert class. (A young server's fixed
-creation-time restore point is healthy, not stale — the check is
-window-relative, not a flat 48h.) The script's failure branches are unit-tested with a
-mocked `az` in `infra/health/test/test-checks.sh` (§8), so a regression in the
-check itself fails the `build` job before it ever runs against Azure.
+**Continuous verification:** the daily `backup-check-timer` Function (06:00 UTC)
+queries this server's backup config through ARM with the Function App's
+managed identity and fires the `backup_missed` ops alert (one email per 24h,
+all-clear on recovery) when retention drops below 7 days or the earliest
+restore point goes stale (> 48h old). CI's `backup-config` job
+(`infra/health/check-postgres-backup.sh`, same thresholds) remains as a
+push-time backstop.
 
 ## 2. RTO / RPO
 
