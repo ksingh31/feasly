@@ -9,8 +9,8 @@
  */
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminEstimateDetail } from '@feasly/contracts';
 import { AdminEstimateLookupComponent } from './admin-estimate-lookup.component';
@@ -61,11 +61,12 @@ async function setup(options: {
         : vi.fn().mockReturnValue(of(options.detail ?? DETAIL)),
   };
   const seo = { setPage: vi.fn() };
-  const paramMap = {
-    get: (key: string): string | null =>
-      key === 'id' ? (options.id ?? null) : null,
-  };
-  const route = { snapshot: { paramMap } };
+  // paramMap as a BehaviorSubject so tests can simulate param-only
+  // navigation (component reuse) the way the real router does.
+  const paramMap$ = new BehaviorSubject(
+    convertToParamMap(options.id ? { id: options.id } : {}),
+  );
+  const route = { paramMap: paramMap$.asObservable() };
 
   TestBed.configureTestingModule({
     imports: [AdminEstimateLookupComponent, BlankComponent],
@@ -80,7 +81,7 @@ async function setup(options: {
     TestBed.createComponent(AdminEstimateLookupComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, api };
+  return { fixture, api, paramMap$ };
 }
 
 function textOf(fixture: ComponentFixture<AdminEstimateLookupComponent>): string {
@@ -165,6 +166,28 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       '.card input, .card textarea, .card select, .card [contenteditable="true"]',
     );
     expect(detailInputs.length).toBe(0);
+  });
+
+  it('reloads the estimate when the :id param changes (component reuse)', async () => {
+    const second: AdminEstimateDetail = {
+      ...DETAIL,
+      id: 'estimate-2',
+      costDataVersion: '2026.09.21',
+    };
+    const { fixture, api, paramMap$ } = await setup({ id: 'estimate-1' });
+    expect(api.getEstimate).toHaveBeenLastCalledWith('estimate-1');
+
+    // Swap the mock to return the second estimate, then simulate a
+    // param-only navigation (router reuses the component instance).
+    api.getEstimate.mockImplementation((id: string) =>
+      of(id === 'estimate-2' ? second : DETAIL),
+    );
+    paramMap$.next(convertToParamMap({ id: 'estimate-2' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.getEstimate).toHaveBeenLastCalledWith('estimate-2');
+    expect(textOf(fixture)).toContain('2026.09.21');
   });
 
   it('renders reno inputs with reno wording', async () => {
