@@ -108,6 +108,8 @@ export interface ShareTemplateInput {
   /** Fresh single-use bearer share URL — NEVER the owner's magic link. */
   readonly shareUrl: string;
   readonly note?: string;
+  /** Days until the share link expires — rendered from config, never hardcoded. */
+  readonly expiresInDays: number;
 }
 
 /**
@@ -128,11 +130,11 @@ export function renderShareEmail(
   const body = `<p>${greeting}</p>
 ${fromLine}
 ${note}
-<p>You can view the full estimate — cost breakdown, what-if tiers, and next steps — with this private link. It expires in 7 days.</p>
+<p>You can view the full estimate — cost breakdown, what-if tiers, and next steps — with this private link. It expires in ${input.expiresInDays} days.</p>
 ${ctaButton(input.shareUrl, 'View the shared estimate')}
 ${fallbackLink(input.shareUrl)}
 <p style="font-size:13px;color:#8a8378;">This link is personal to you. Please don't forward it — ask the sender for a fresh one if someone else needs access.</p>`;
-  const text = `${input.partnerName ? `Hi ${input.partnerName},` : 'Hi there,'}\n\n${input.ownerName ? `${input.ownerName} shared` : 'Someone shared'} their ${ctx.brandName} build estimate with you.\n${input.note ? `\n"${input.note}"\n` : ''}\nView the shared estimate (private link, expires in 7 days): ${input.shareUrl}\n\nThis link is personal to you — please don't forward it.\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  const text = `${input.partnerName ? `Hi ${input.partnerName},` : 'Hi there,'}\n\n${input.ownerName ? `${input.ownerName} shared` : 'Someone shared'} their ${ctx.brandName} build estimate with you.\n${input.note ? `\n"${input.note}"\n` : ''}\nView the shared estimate (private link, expires in ${input.expiresInDays} days): ${input.shareUrl}\n\nThis link is personal to you — please don't forward it.\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'An estimate was shared with you', body), text };
 }
 

@@ -136,6 +136,7 @@ describe('partner-share template', () => {
       partnerName: 'Priya',
       shareUrl: SHARE_URL,
       note: 'Thought you might like this.',
+      expiresInDays: 7,
     });
     expect(rendered.html).not.toContain(OWNER_MAGIC);
     expect(rendered.text).not.toContain(OWNER_MAGIC);
@@ -144,8 +145,16 @@ describe('partner-share template', () => {
   });
 
   it('warns against forwarding the personal link', () => {
-    const rendered = renderShareEmail(CTX, { shareUrl: SHARE_URL });
+    const rendered = renderShareEmail(CTX, { shareUrl: SHARE_URL, expiresInDays: 7 });
     expect(rendered.html.toLowerCase()).toContain("don't forward");
+  });
+
+  it('renders the configured expiry, never a hardcoded value', () => {
+    const rendered = renderShareEmail(CTX, { shareUrl: SHARE_URL, expiresInDays: 14 });
+    expect(rendered.html).toContain('expires in 14 days');
+    expect(rendered.text).toContain('expires in 14 days');
+    expect(rendered.html).not.toContain('expires in 7 days');
+    expect(rendered.text).not.toContain('expires in 7 days');
   });
 });
 
@@ -225,7 +234,7 @@ describe('banned copy patterns (rendered output)', () => {
         expiresInDays: 7,
         audience: 'consumer',
       }),
-      renderShareEmail(CTX, { shareUrl: SHARE_URL, note: 'Nice place.' }),
+      renderShareEmail(CTX, { shareUrl: SHARE_URL, note: 'Nice place.', expiresInDays: 7 }),
       renderNudgeEmail(CTX, {
         resumeUrl: `${CTX.appBaseUrl}/resume/abc`,
         unsubscribeUrl: `${CTX.unsubscribeBaseUrl}?token=x`,
@@ -245,7 +254,7 @@ describe('banned copy patterns (rendered output)', () => {
         expiresInDays: 7,
         audience: 'consumer',
       }),
-      renderShareEmail(CTX, { shareUrl: SHARE_URL }),
+      renderShareEmail(CTX, { shareUrl: SHARE_URL, expiresInDays: 7 }),
     ].flatMap((r) => [r.html, r.text]);
     for (const body of bodies) {
       expect(body).not.toMatch(/\$\s?\d/);
