@@ -10,8 +10,8 @@
  * - `tenant_key`: omitted = all traffic; `direct` = Feasly-direct only
  *   (events with no tenant attribution); otherwise one embed tenant's key.
  *
- * Auth: admin only (via `AdminGuard`; interim X-Admin-Key until admin/01
- * lands). Numbers only — no PII in the response by construction.
+ * Auth: admin only (via `AdminGuard`, session-cookie auth — admin/01).
+ * Numbers only — no PII in the response by construction.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/

@@ -169,8 +169,8 @@ export class HttpApiService implements ApiService {
    *
    * Admin session auth (admin/01) is the gate: `withCredentials: true` sends
    * the `feasly_admin_session` HttpOnly cookie automatically (same-origin) —
-   * the same pattern as AdminOpsApiService. The interim `X-Admin-Key` header
-   * is gone: the backend no longer honors it.
+   * the same pattern as AdminOpsApiService. Session-cookie auth is the only
+   * gate: the backend no longer honors any pre-shared-key header.
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     let params = new HttpParams();
