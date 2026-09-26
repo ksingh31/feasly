@@ -94,11 +94,13 @@ export function renderMagicLinkEmail(
     input.audience === 'admin'
       ? `Your ${ctx.brandName} admin sign-in link`
       : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
+  const isAdmin = input.audience === 'admin';
+  const ctaLabel = isAdmin ? `Sign in to ${ctx.brandName} admin` : 'View my estimate';
   const body = `<p>${greeting}</p>
 <p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
-${ctaButton(input.magicLinkUrl, 'View my estimate')}
+${ctaButton(input.magicLinkUrl, ctaLabel)}
 ${fallbackLink(input.magicLinkUrl)}`;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\nView my estimate: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Your secure sign-in link', body), text };
 }
 
