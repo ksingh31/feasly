@@ -103,6 +103,10 @@ const targets = [
     out: 'api-keys-revoke/index.js',
   },
   {
+    entry: 'src/functions/api-keys-update.ts',
+    out: 'api-keys-update/index.js',
+  },
+  {
     entry: 'src/functions/embed-config.ts',
     out: 'embed-config/index.js',
   },

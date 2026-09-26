@@ -83,6 +83,35 @@ export function createDrizzleApiKeyStore(
       return row ? toRecord(row) : null;
     },
 
+    async update(
+      id: string,
+      patch: {
+        readonly scopes?: readonly string[];
+        readonly rateLimitPerMin?: number;
+      },
+    ): Promise<ApiKeyRecord | null> {
+      const set: { scopes?: readonly string[]; rateLimitPerMin?: number } = {};
+      if (patch.scopes !== undefined) set.scopes = [...patch.scopes];
+      if (patch.rateLimitPerMin !== undefined)
+        set.rateLimitPerMin = patch.rateLimitPerMin;
+      if (Object.keys(set).length === 0) {
+        const rows = await db
+          .select()
+          .from(apiKeys)
+          .where(eq(apiKeys.id, id))
+          .limit(1);
+        const row = rows[0];
+        return row ? toRecord(row) : null;
+      }
+      const rows = await db
+        .update(apiKeys)
+        .set(set)
+        .where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)))
+        .returning();
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
     async touchLastUsed(id: string, at: Date): Promise<void> {
       await db
         .update(apiKeys)

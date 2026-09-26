@@ -84,6 +84,13 @@ export interface ApiKeyStore {
   listActive(): Promise<ApiKeyRecord[]>;
   revoke(id: string, revokedAt: Date): Promise<ApiKeyRecord | null>;
   touchLastUsed(id: string, at: Date): Promise<void>;
+  update(
+    id: string,
+    patch: {
+      readonly scopes?: readonly string[];
+      readonly rateLimitPerMin?: number;
+    },
+  ): Promise<ApiKeyRecord | null>;
 }
 
 export interface ApiKeyAuditStore {
@@ -130,6 +137,13 @@ export interface ApiKeyService {
   rotate(keyId: string): Promise<IssuedApiKey>;
   revoke(keyId: string): Promise<void>;
   list(): Promise<readonly ApiKeyRecord[]>;
+  update(
+    keyId: string,
+    patch: {
+      readonly scopes?: readonly string[];
+      readonly rateLimitPerMin?: number;
+    },
+  ): Promise<ApiKeyRecord>;
   /**
    * Authenticate a Bearer token for the public API middleware. Returns the
    * key record on success; throws 401 INVALID_API_KEY on any failure
@@ -242,6 +256,50 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
       }
       await keys.revoke(keyId, clock());
       await audit.log({ apiKeyId: keyId, action: 'revoked', detail: 'manual' });
+    },
+
+    async update(
+      keyId: string,
+      patch: {
+        readonly scopes?: readonly string[];
+        readonly rateLimitPerMin?: number;
+      },
+    ): Promise<ApiKeyRecord> {
+      const existing = await keys.findById(keyId);
+      if (!existing || existing.revokedAt) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'API key not found.', false);
+      }
+      // Validate scopes and rate limit using the same rules as issuance.
+      const scopes =
+        patch.scopes !== undefined ? validateScopes(patch.scopes) : undefined;
+      let rateLimitPerMin: number | undefined;
+      if (patch.rateLimitPerMin !== undefined) {
+        if (
+          !Number.isInteger(patch.rateLimitPerMin) ||
+          patch.rateLimitPerMin < 1 ||
+          patch.rateLimitPerMin > 10_000
+        ) {
+          throw new HttpError(
+            400,
+            ErrorCodes.VALIDATION_FAILED,
+            'Invalid rate limit.',
+            false,
+          );
+        }
+        rateLimitPerMin = patch.rateLimitPerMin;
+      }
+      const updated = await keys.update(keyId, { scopes, rateLimitPerMin });
+      if (!updated) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'API key not found.', false);
+      }
+      // Takes effect on the next request — the auth middleware reads the
+      // row fresh from the DB on every call (no caching).
+      await audit.log({
+        apiKeyId: keyId,
+        action: 'scope_changed',
+        detail: `scopes=${scopes?.join(',') ?? 'unchanged'} rateLimit=${rateLimitPerMin ?? 'unchanged'}`,
+      });
+      return updated;
     },
 
     async list(): Promise<readonly ApiKeyRecord[]> {

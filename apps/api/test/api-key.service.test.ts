@@ -84,6 +84,19 @@ function makeService(world: World) {
       return rest;
     },
     touchLastUsed: async () => {},
+    update: async (id, patch) => {
+      const r = world.records.get(id);
+      if (!r || r.revokedAt) return null;
+      const updated = {
+        ...r,
+        scopes: patch.scopes ? [...patch.scopes] : r.scopes,
+        rateLimitPerMin: patch.rateLimitPerMin ?? r.rateLimitPerMin,
+      };
+      world.records.set(id, updated);
+      const { keyHash: _h, ...rest } = updated;
+      void _h;
+      return rest;
+    },
   };
   const audit: ApiKeyAuditStore = {
     log: async (entry) => {
@@ -195,6 +208,67 @@ describe('api-key service (api-mcp/01)', () => {
     const result = await service.authenticate(plaintext).catch((e) => e);
     expect(result).toBeInstanceOf(HttpError);
     expect(result.status).toBe(401);
+  });
+
+  it('update changes scopes and rate limit — takes effect on next auth', async () => {
+    const world = makeWorld();
+    const service = makeService(world);
+
+    const { key, plaintext } = await service.issue({
+      name: 'Updatable',
+      scopes: ['estimate'],
+      rate_limit: 60,
+    });
+    expect(key.scopes).toEqual(['estimate']);
+
+    const updated = await service.update(key.id, {
+      scopes: ['estimate', 'property:read'],
+      rateLimitPerMin: 120,
+    });
+    expect(updated.scopes).toEqual(['estimate', 'property:read']);
+    expect(updated.rateLimitPerMin).toBe(120);
+
+    // The next authenticate sees the updated record.
+    const authed = await service.authenticate(plaintext);
+    expect(authed.scopes).toEqual(['estimate', 'property:read']);
+    expect(authed.rateLimitPerMin).toBe(120);
+
+    // Audit-logged as scope_changed.
+    expect(
+      world.audits.some((a) => a.action === 'scope_changed'),
+    ).toBe(true);
+  });
+
+  it('update rejects invalid scopes and out-of-range rate limits', async () => {
+    const world = makeWorld();
+    const service = makeService(world);
+
+    const { key } = await service.issue({ name: 'Strict' });
+
+    await expect(
+      service.update(key.id, { scopes: ['nope'] }),
+    ).rejects.toMatchObject({ status: 422 });
+    await expect(
+      service.update(key.id, { rateLimitPerMin: 0 }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.update(key.id, { rateLimitPerMin: 10_001 }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('update 404s on unknown or revoked keys', async () => {
+    const world = makeWorld();
+    const service = makeService(world);
+
+    await expect(
+      service.update('missing', { rateLimitPerMin: 10 }),
+    ).rejects.toMatchObject({ status: 404 });
+
+    const { key } = await service.issue({ name: 'Gone' });
+    await service.revoke(key.id);
+    await expect(
+      service.update(key.id, { rateLimitPerMin: 10 }),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it('AC6: feasly_test_ keys set sandbox=true', async () => {

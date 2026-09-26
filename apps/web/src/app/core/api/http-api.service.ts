@@ -6,6 +6,10 @@ import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
   AnyEstimateRequest,
+  ApiKeyIssueRequest,
+  ApiKeyIssuedResponse,
+  ApiKeyListResponse,
+  ApiKeyRecordResponse,
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
@@ -28,7 +32,7 @@ import type {
   TierRevisionResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
-import type { ApiService, CommunityStats } from './api.service';
+import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
 import { toApiError } from './api-error';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -52,6 +56,10 @@ export class HttpApiService implements ApiService {
 
   private get base(): string {
     return `${this.config.get('api').baseUrl}/api/v1`;
+  }
+
+  private get adminBase(): string {
+    return `${this.base}/admin/api-keys`;
   }
 
   private call<T>(request: Observable<T>): Observable<T> {
@@ -161,5 +169,47 @@ export class HttpApiService implements ApiService {
 
   trackEvent(event: AnalyticsEvent): Observable<void> {
     return this.call(this.http.post<void>(`${this.base}/events`, event));
+  }
+
+  /**
+   * Admin session auth (admin/01): the `feasly_admin_session` httpOnly cookie
+   * rides on every API request via `credentialsInterceptor` — no per-call
+   * header is needed or sent.
+   */
+  listApiKeys(): Observable<ApiKeyListResponse> {
+    return this.call(this.http.get<ApiKeyListResponse>(this.adminBase));
+  }
+
+  issueApiKey(request: ApiKeyIssueRequest): Observable<ApiKeyIssuedResponse> {
+    return this.call(
+      this.http.post<ApiKeyIssuedResponse>(this.adminBase, request),
+    );
+  }
+
+  rotateApiKey(id: string): Observable<ApiKeyIssuedResponse> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(
+      this.http.post<ApiKeyIssuedResponse>(`${path}/rotate`, {}),
+    );
+  }
+
+  revokeApiKey(id: string): Observable<{ readonly revoked: boolean }> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(
+      this.http.post<{ readonly revoked: boolean }>(`${path}/revoke`, {}),
+    );
+  }
+
+  updateApiKey(id: string, patch: ApiKeyUpdatePatch): Observable<ApiKeyRecordResponse> {
+    const path = `${this.adminBase}/${encodeURIComponent(id)}`;
+    return this.call(this.http.patch<ApiKeyRecordResponse>(path, patch));
+  }
+
+  getApiKeyUsage(keyId: string): Observable<readonly ApiKeyUsageAggregate[]> {
+    return this.call(
+      this.http.get<readonly ApiKeyUsageAggregate[]>(`${this.base}/admin/usage`, {
+        params: { key_id: keyId },
+      }),
+    );
   }
 }

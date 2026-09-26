@@ -100,6 +100,10 @@ export interface AppConfig {
     optInWording: string;
   };
   /** User-facing copy, namespaced by area. Extended by FE1-001. */
+  admin: {
+    /** Default per-minute rate limit prefilled in the issue form. */
+    defaultRateLimit: number;
+  };
   copy: {
     /** Short brand tagline used in the shell footer / meta fallbacks. */
     tagline: string;
@@ -710,6 +714,49 @@ export interface AppConfig {
       leadStatusUpdatedLabel: string;
       /** Status action group label (screen reader). */
       actionsLabel: string;
+    };
+    admin: {
+      apiKeys: {
+        title: string;
+        subtitle: string;
+        issueButton: string;
+        issueTitle: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        tenantLabel: string;
+        tenantPlaceholder: string;
+        scopesLabel: string;
+        rateLimitLabel: string;
+        sandboxLabel: string;
+        sandboxHint: string;
+        createButton: string;
+        cancelButton: string;
+        copyButton: string;
+        copiedButton: string;
+        plaintextWarning: string;
+        rotateButton: string;
+        revokeButton: string;
+        rotateConfirm: string;
+        revokeConfirm: string;
+        confirmYes: string;
+        confirmNo: string;
+        editButton: string;
+        saveButton: string;
+        usageTitle: string;
+        usageLoading: string;
+        usageEmpty: string;
+        usageDateHeader: string;
+        usageEndpointHeader: string;
+        usageRequestsHeader: string;
+        usageEstimatesHeader: string;
+        loading: string;
+        empty: string;
+        loadError: string;
+        revokedLabel: string;
+        activeLabel: string;
+        lastUsedLabel: string;
+        createdLabel: string;
+      };
     };
   };
 }

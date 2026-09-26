@@ -1,0 +1,285 @@
+<app-site-nav />
+<main class="api-keys">
+  <header class="api-keys__header">
+    <div>
+      <h1>{{ copy.title }}</h1>
+      <p class="api-keys__subtitle">{{ copy.subtitle }}</p>
+    </div>
+    <button
+      type="button"
+      class="button button--primary"
+      (click)="showIssueForm.set(true)"
+    >
+      {{ copy.issueButton }}
+    </button>
+  </header>
+
+  @if (plaintext(); as pt) {
+    <section
+      class="api-keys__plaintext"
+      role="alert"
+      aria-live="assertive"
+      data-testid="plaintext-banner"
+    >
+      <p class="api-keys__plaintext-warning">{{ copy.plaintextWarning }}</p>
+      <div class="api-keys__plaintext-row">
+        <code class="api-keys__plaintext-code">{{ pt }}</code>
+        <button
+          type="button"
+          class="button button--secondary"
+          (click)="copyPlaintext()"
+        >
+          {{ copied() ? copy.copiedButton : copy.copyButton }}
+        </button>
+        <button
+          type="button"
+          class="button button--ghost"
+          (click)="dismissPlaintext()"
+        >
+          {{ copy.confirmNo }}
+        </button>
+      </div>
+    </section>
+  }
+
+  @if (showIssueForm()) {
+    <section class="api-keys__panel" data-testid="issue-form">
+      <h2>{{ copy.issueTitle }}</h2>
+      <label class="field">
+        <span>{{ copy.nameLabel }}</span>
+        <input
+          type="text"
+          [ngModel]="issueName()"
+          (ngModelChange)="issueName.set($event)"
+          [placeholder]="copy.namePlaceholder"
+        />
+      </label>
+      <label class="field">
+        <span>{{ copy.tenantLabel }}</span>
+        <input
+          type="text"
+          [ngModel]="issueTenant()"
+          (ngModelChange)="issueTenant.set($event)"
+          [placeholder]="copy.tenantPlaceholder"
+        />
+      </label>
+      <fieldset class="field">
+        <legend>{{ copy.scopesLabel }}</legend>
+        @for (scope of scopes; track scope) {
+          <label class="check">
+            <input
+              type="checkbox"
+              [checked]="issueScopes().includes(scope)"
+              (change)="toggleScope('issue', scope)"
+            />
+            {{ scope }}
+          </label>
+        }
+      </fieldset>
+      <label class="field">
+        <span>{{ copy.rateLimitLabel }}</span>
+        <input
+          type="number"
+          min="1"
+          max="10000"
+          [ngModel]="issueRateLimit()"
+          (ngModelChange)="issueRateLimit.set($event)"
+        />
+      </label>
+      <label class="check">
+        <input
+          type="checkbox"
+          [checked]="issueSandbox()"
+          (change)="issueSandbox.set(!issueSandbox())"
+        />
+        {{ copy.sandboxLabel }}
+        <small>{{ copy.sandboxHint }}</small>
+      </label>
+      <div class="api-keys__actions">
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!issueName().trim() || issueScopes().length === 0"
+          (click)="issue()"
+        >
+          {{ copy.createButton }}
+        </button>
+        <button
+          type="button"
+          class="button button--ghost"
+          (click)="showIssueForm.set(false)"
+        >
+          {{ copy.cancelButton }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <div class="api-keys__layout">
+    <section class="api-keys__list" aria-label="API keys">
+      @if (loading()) {
+        <p class="api-keys__empty">{{ copy.loading }}</p>
+      } @else if (loadFailed()) {
+        <p class="api-keys__error" role="alert">{{ copy.loadError }}</p>
+      } @else {
+        @for (key of keys(); track key.id) {
+        <article
+          class="api-keys__card"
+          [class.api-keys__card--selected]="selected()?.id === key.id"
+          [class.api-keys__card--revoked]="key.revoked_at"
+        >
+          <button
+            type="button"
+            class="api-keys__card-main"
+            (click)="selectKey(selected()?.id === key.id ? null : key.id)"
+            [attr.aria-expanded]="selected()?.id === key.id"
+          >
+            <span class="api-keys__card-name">{{ key.name }}</span>
+            <code class="api-keys__card-prefix">{{ key.key_prefix }}</code>
+            <span
+              class="api-keys__badge"
+              [class.api-keys__badge--revoked]="key.revoked_at"
+            >
+              {{ key.revoked_at ? copy.revokedLabel : copy.activeLabel }}
+            </span>
+          </button>
+        </article>
+      } @empty {
+        <p class="api-keys__empty">{{ copy.empty }}</p>
+      }
+      }
+    </section>
+
+    @if (selected(); as key) {
+      <section class="api-keys__detail" data-testid="key-detail">
+        <h2>{{ key.name }}</h2>
+        <dl class="api-keys__meta">
+          <div>
+            <dt>{{ copy.createdLabel }}</dt>
+            <dd>{{ key.created_at }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.lastUsedLabel }}</dt>
+            <dd>{{ key.last_used_at ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.scopesLabel }}</dt>
+            <dd>{{ key.scopes.join(', ') }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.rateLimitLabel }}</dt>
+            <dd>{{ key.rate_limit_per_min }}</dd>
+          </div>
+        </dl>
+
+        @if (!key.revoked_at) {
+          @if (editing()) {
+            <div class="api-keys__edit" data-testid="edit-form">
+              <fieldset class="field">
+                <legend>{{ copy.scopesLabel }}</legend>
+                @for (scope of scopes; track scope) {
+                  <label class="check">
+                    <input
+                      type="checkbox"
+                      [checked]="editScopes().includes(scope)"
+                      (change)="toggleScope('edit', scope)"
+                    />
+                    {{ scope }}
+                  </label>
+                }
+              </fieldset>
+              <label class="field">
+                <span>{{ copy.rateLimitLabel }}</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  [ngModel]="editRateLimit()"
+                  (ngModelChange)="editRateLimit.set($event)"
+                />
+              </label>
+              <div class="api-keys__actions">
+                <button
+                  type="button"
+                  class="button button--primary"
+                  [disabled]="editScopes().length === 0"
+                  (click)="saveEdit()"
+                >
+                  {{ copy.saveButton }}
+                </button>
+                <button
+                  type="button"
+                  class="button button--ghost"
+                  (click)="cancelEdit()"
+                >
+                  {{ copy.cancelButton }}
+                </button>
+              </div>
+            </div>
+          } @else {
+            <div class="api-keys__actions">
+              <button
+                type="button"
+                class="button button--secondary"
+                (click)="startEdit()"
+              >
+                {{ copy.editButton }}
+              </button>
+              <button
+                type="button"
+                class="button button--secondary"
+                (click)="requestRotate()"
+              >
+                {{ copy.rotateButton }}
+              </button>
+              <button
+                type="button"
+                class="button button--danger"
+                (click)="requestRevoke()"
+              >
+                {{ copy.revokeButton }}
+              </button>
+            </div>
+          }
+        }
+
+        <h3>{{ copy.usageTitle }}</h3>
+        <app-api-key-usage [keyId]="key.id" />
+      </section>
+    }
+  </div>
+
+  @if (confirmAction(); as action) {
+    <div
+      class="api-keys__dialog-backdrop"
+      role="dialog"
+      aria-modal="true"
+      data-testid="confirm-dialog"
+    >
+      <div class="api-keys__dialog">
+        <p>
+          {{
+            action === 'rotate' ? copy.rotateConfirm : copy.revokeConfirm
+          }}
+        </p>
+        <div class="api-keys__actions">
+          <button
+            type="button"
+            class="button button--danger"
+            (click)="confirmDialog()"
+          >
+            {{ copy.confirmYes }}
+          </button>
+          <button
+            type="button"
+            class="button button--ghost"
+            (click)="cancelDialog()"
+          >
+            {{ copy.confirmNo }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</main>
+<app-site-footer />

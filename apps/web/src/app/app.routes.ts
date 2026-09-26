@@ -218,6 +218,17 @@ export const routes: Routes = [
       { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
     ],
   },
+  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
+  // never in sitemap or prerender.
+  {
+    path: 'admin/api-keys',
+    loadComponent: () =>
+      import('./features/admin/api-keys-page.component').then(
+        (m) => m.ApiKeysPageComponent,
+      ),
+    canActivate: [robotsGuard, adminGuard],
+    data: { noindex: true },
+  },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
   // before the admin routes above would swallow /admin/login etc. (P0 fix).
   { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },

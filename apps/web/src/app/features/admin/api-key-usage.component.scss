@@ -1,0 +1,22 @@
+.usage__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.usage__table th,
+.usage__table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border, #e5e5e5);
+}
+
+.usage__table th {
+  font-weight: 600;
+}
+
+.usage__empty,
+.usage__loading {
+  color: var(--color-text-muted, #666);
+  font-size: 0.875rem;
+}
