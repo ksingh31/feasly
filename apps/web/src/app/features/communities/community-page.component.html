@@ -30,20 +30,26 @@
       @for (tier of community.tiers; track tier.key) {
         <article class="tier-card">
           <h3>{{ tier.label }}</h3>
-          <dl>
-            <div>
-              <dt>Build cost</dt>
-              <dd>{{ formatCad(tier.buildLow) }} – {{ formatCad(tier.buildHigh) }}</dd>
-            </div>
-            <div>
-              <dt>Land (assessed)</dt>
-              <dd>{{ formatCad(tier.landValue) }}</dd>
-            </div>
-            <div class="total">
-              <dt>Total investment</dt>
-              <dd>{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</dd>
-            </div>
-          </dl>
+          <p class="total-hero">
+            <span class="total-hero-label">{{ copy.totalLabel }}</span>
+            <span class="total-hero-value"
+              >{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</span
+            >
+          </p>
+          <div class="split-bar" role="img" [attr.aria-label]="splitBarLabel(tier)">
+            <span class="split-segment split-land" [style.width.%]="landSharePct(tier)"></span>
+            <span class="split-segment split-build" [style.width.%]="buildSharePct(tier)"></span>
+          </div>
+          <p class="split-caption">
+            <span class="legend-swatch land" aria-hidden="true"></span>
+            <span>{{ copy.landSplitLabel }} ~{{ formatCad(tier.landValue) }}</span>
+            <span class="legend-sep" aria-hidden="true">·</span>
+            <span class="legend-swatch build" aria-hidden="true"></span>
+            <span
+              >{{ copy.buildSplitLabel }} {{ formatCad(tier.buildLow) }} –
+              {{ formatCad(tier.buildHigh) }}</span
+            >
+          </p>
         </article>
       }
       <p class="basis-note">{{ copy.basisNote }}</p>

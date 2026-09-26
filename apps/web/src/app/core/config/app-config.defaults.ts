@@ -581,6 +581,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'City-assessed basis: land is the community average City-assessed value (a fixed fact, not a range). Build ranges assume 2,400 sqft of above-grade living area.',
       tierSectionTitle: 'What it costs to build in {name}',
       tierSectionSub: 'Planning ranges for a typical new build, by finish tier.',
+      totalLabel: 'Total investment',
+      landSplitLabel: 'Land',
+      buildSplitLabel: 'Build',
+      splitBarLabelTemplate:
+        'Cost split: land {land} is about {landPct}% of the total; build {build} makes up about {buildPct}%.',
       faqTitle: 'Common questions',
       faqItems: [
         {
