@@ -18,6 +18,7 @@ import type {
   AdminLeadListItem,
   AdminLeadListResponse,
   AdminLeadMagicLinkStatus,
+  AdminLeadMutationResponse,
   AdminLeadStatus,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
@@ -53,6 +54,7 @@ export const AdminLeadListQuerySchema = z.object({
   search: z.string().trim().min(1).max(200).optional(),
   includeQuarantined: z.coerce.boolean().optional(),
   includeSandbox: z.coerce.boolean().optional(),
+  includeDiscarded: z.coerce.boolean().optional(),
   cursor: z.string().min(1).max(500).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -100,6 +102,26 @@ export interface AdminLeadsService {
     adminEmail: string,
   ): Promise<{ readonly ok: true }>;
   /**
+   * Approve a quarantined lead: clears the honeypot/quarantine flag (and
+   * any discard flag) so the lead returns to the normal pipeline.
+   * Audit-logged. Throws 404 when the lead doesn't exist, 422 when the
+   * lead is not quarantined.
+   */
+  approveQuarantine(
+    id: string,
+    adminEmail: string,
+  ): Promise<AdminLeadMutationResponse>;
+  /**
+   * Discard a quarantined lead: kept for audit, excluded from every
+   * listing and count. Audit-logged. Throws 404 when the lead doesn't
+   * exist, 422 when the lead is not quarantined. Idempotent — discarding
+   * an already-discarded lead is a no-op success.
+   */
+  discardQuarantine(
+    id: string,
+    adminEmail: string,
+  ): Promise<AdminLeadMutationResponse>;
+  /**
    * Export the filtered set as CSV. Returns the CSV text and filename.
    * Writes an audit row (AC6).
    */
@@ -131,6 +153,7 @@ function toListItem(row: AdminLeadRow): AdminLeadListItem {
     tenantKey: row.tenantKey,
     timeline: row.timeline,
     sandbox: row.sandbox,
+    discarded: row.discarded,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -175,7 +198,31 @@ function toStoreFilters(q: AdminLeadListQuery): AdminLeadFilters {
     search: q.search,
     includeQuarantined: q.includeQuarantined,
     includeSandbox: q.includeSandbox,
+    includeDiscarded: q.includeDiscarded,
   };
+}
+
+/**
+ * Load a lead for a quarantine review action.
+ * Throws 404 when the lead doesn't exist, 422 when it isn't quarantined.
+ */
+async function requireQuarantined(
+  store: AdminLeadsStore,
+  id: string,
+): Promise<AdminLeadRow> {
+  const row = await store.findByIdWithEstimate(id);
+  if (!row) {
+    throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
+  }
+  if (!row.quarantined) {
+    throw new HttpError(
+      422,
+      ErrorCodes.VALIDATION_FAILED,
+      'Lead is not quarantined.',
+      false,
+    );
+  }
+  return row;
 }
 
 export function createAdminLeadsService(
@@ -356,6 +403,57 @@ export function createAdminLeadsService(
         action: 'admin_leads_status_changed',
         detail: `leadId=${id} oldStatus=${oldStatus} newStatus=${newStatus}`,
       });
+
+      return { ok: true as const };
+    },
+
+    async approveQuarantine(
+      id,
+      adminEmail,
+    ): Promise<AdminLeadMutationResponse> {
+      const row = await requireQuarantined(store, id);
+
+      // Approve clears both flags — the lead returns to the normal
+      // pipeline (and can never be "discarded" while unquarantined).
+      await store.updateQuarantine({
+        id,
+        quarantined: false,
+        discarded: false,
+      });
+
+      await audit.log({
+        actorEmail: adminEmail,
+        action: 'admin_leads_quarantine_approved',
+        detail: `leadId=${id}`,
+      });
+
+      return { ok: true as const };
+    },
+
+    async discardQuarantine(
+      id,
+      adminEmail,
+    ): Promise<AdminLeadMutationResponse> {
+      const row = await requireQuarantined(store, id);
+
+      // Idempotent: discarding an already-discarded lead is a no-op.
+      if (!row.discarded) {
+        // `quarantined` stays true so every existing quarantine exclusion
+        // (consumer lists, sheets sync, counts) keeps working; `discarded`
+        // marks the review outcome and drops the row from the quarantine
+        // tab as well.
+        await store.updateQuarantine({
+          id,
+          quarantined: true,
+          discarded: true,
+        });
+
+        await audit.log({
+          actorEmail: adminEmail,
+          action: 'admin_leads_quarantine_discarded',
+          detail: `leadId=${id}`,
+        });
+      }
 
       return { ok: true as const };
     },

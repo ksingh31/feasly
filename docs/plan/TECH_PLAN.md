@@ -1285,6 +1285,8 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/leads/{id}` | admin | 300/min per session | planned | Lead detail: estimate summary, timeline, consent, attribution. |
 | POST | `/api/v1/admin/leads/{id}/notes` | admin | 60/min per session | planned | Append-only lead notes. |
 | PATCH | `/api/v1/admin/leads/{id}/status` | admin | 60/min per session | planned | Lead status (new/contacted/quoting/won/lost). Writes lead_status_history; audit-logged. |
+| POST | `/api/v1/admin/leads/{id}/quarantine/approve` | admin | 60/min per session | live | Approve a quarantined lead: clears the honeypot/quarantine flag (and any discard flag); the lead returns to the normal pipeline. 422 when the lead is not quarantined; audit-logged. |
+| POST | `/api/v1/admin/leads/{id}/quarantine/discard` | admin | 60/min per session | live | Discard a quarantined lead: kept for audit, excluded from every listing and count. 422 when the lead is not quarantined; idempotent; audit-logged. |
 | GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |

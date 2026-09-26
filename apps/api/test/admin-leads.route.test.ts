@@ -22,6 +22,8 @@ function makeDeps(): AdminLeadsRouteDeps {
     getLead: vi.fn(),
     addNote: vi.fn().mockResolvedValue({ ok: true as const }),
     updateStatus: vi.fn().mockResolvedValue({ ok: true as const }),
+    approveQuarantine: vi.fn().mockResolvedValue({ ok: true as const }),
+    discardQuarantine: vi.fn().mockResolvedValue({ ok: true as const }),
     exportCsv: vi.fn().mockResolvedValue({ csv: 'id\n', filename: 'test.csv' }),
   };
   return {
@@ -141,5 +143,75 @@ describe('admin-leads route (admin/02)', () => {
       { status: 'won' },
       ADMIN_EMAIL,
     );
+  });
+
+  it('approveQuarantine: passes through to service', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+    const id = '123e4567-e89b-12d3-a456-426614174000';
+
+    const result = await route.approveQuarantine(ADMIN_HEADERS, id);
+
+    expect(result.ok).toBe(true);
+    expect(deps.adminLeads.approveQuarantine).toHaveBeenCalledWith(
+      id,
+      ADMIN_EMAIL,
+    );
+  });
+
+  it('approveQuarantine: validates UUID param', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+
+    await expect(
+      route.approveQuarantine(ADMIN_HEADERS, 'not-a-uuid'),
+    ).rejects.toThrow(expect.objectContaining({ status: 400 }));
+    expect(deps.adminLeads.approveQuarantine).not.toHaveBeenCalled();
+  });
+
+  it('approveQuarantine: unauthenticated → 401', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+    const id = '123e4567-e89b-12d3-a456-426614174000';
+
+    await expect(route.approveQuarantine({}, id)).rejects.toThrow(
+      expect.objectContaining({ status: 401 }),
+    );
+    expect(deps.adminLeads.approveQuarantine).not.toHaveBeenCalled();
+  });
+
+  it('discardQuarantine: passes through to service', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+    const id = '123e4567-e89b-12d3-a456-426614174000';
+
+    const result = await route.discardQuarantine(ADMIN_HEADERS, id);
+
+    expect(result.ok).toBe(true);
+    expect(deps.adminLeads.discardQuarantine).toHaveBeenCalledWith(
+      id,
+      ADMIN_EMAIL,
+    );
+  });
+
+  it('discardQuarantine: validates UUID param', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+
+    await expect(
+      route.discardQuarantine(ADMIN_HEADERS, 'not-a-uuid'),
+    ).rejects.toThrow(expect.objectContaining({ status: 400 }));
+    expect(deps.adminLeads.discardQuarantine).not.toHaveBeenCalled();
+  });
+
+  it('discardQuarantine: unauthenticated → 401', async () => {
+    const deps = makeDeps();
+    const route = createAdminLeadsRoute(deps);
+    const id = '123e4567-e89b-12d3-a456-426614174000';
+
+    await expect(route.discardQuarantine({}, id)).rejects.toThrow(
+      expect.objectContaining({ status: 401 }),
+    );
+    expect(deps.adminLeads.discardQuarantine).not.toHaveBeenCalled();
   });
 });

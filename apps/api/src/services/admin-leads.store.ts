@@ -26,6 +26,9 @@ export interface AdminLeadFilters {
   readonly search?: string;
   readonly includeQuarantined?: boolean;
   readonly includeSandbox?: boolean;
+  /** Include admin-discarded rows. Default false — discarded rows are kept
+   * for audit but excluded from every listing and count. */
+  readonly includeDiscarded?: boolean;
 }
 
 export interface AdminLeadListArgs {
@@ -48,6 +51,9 @@ export interface AdminLeadRow {
   readonly tenantKey: string | null;
   readonly source: string;
   readonly quarantined: boolean;
+  /** Admin-discarded via the quarantine review (kept for audit, excluded
+   * from listings/counts). */
+  readonly discarded: boolean;
   readonly sandbox: boolean;
   readonly leadScore: number;
   readonly status: string;
@@ -80,6 +86,16 @@ export interface AdminLeadsStore {
   updateStatus(args: {
     readonly id: string;
     readonly status: string;
+  }): Promise<AdminLeadRow | null>;
+  /**
+   * Quarantine review outcome. Sets the `quarantined` / `discarded` flags
+   * (approve → both false; discard → quarantined stays true, discarded
+   * true). Returns the updated row, or null when the lead doesn't exist.
+   */
+  updateQuarantine(args: {
+    readonly id: string;
+    readonly quarantined: boolean;
+    readonly discarded: boolean;
   }): Promise<AdminLeadRow | null>;
   /**
    * Magic-link status for a lead: 'sent' (live link exists), 'used'
@@ -165,6 +181,11 @@ function buildFilterConditions(filters: AdminLeadFilters) {
   if (!filters.includeSandbox) {
     conditions.push(eq(leads.sandbox, false));
   }
+  // Discarded rows are kept for audit but excluded from every listing and
+  // count unless explicitly included.
+  if (!filters.includeDiscarded) {
+    conditions.push(eq(leads.discarded, false));
+  }
 
   return conditions;
 }
@@ -186,6 +207,7 @@ function toRow(
     tenantKey: lead.tenantKey,
     source: lead.source,
     quarantined: lead.quarantined,
+    discarded: lead.discarded,
     sandbox: lead.sandbox,
     leadScore: lead.leadScore,
     status: lead.status,
@@ -279,6 +301,26 @@ export function createDrizzleAdminLeadsStore(
       const rows = await db
         .update(leads)
         .set({ status: args.status })
+        .where(eq(leads.id, args.id))
+        .returning();
+
+      const lead = rows[0];
+      if (!lead) return null;
+
+      // Fetch project type for the response.
+      const estRows = await db
+        .select({ projectType: estimates.projectType })
+        .from(estimates)
+        .where(eq(estimates.id, lead.estimateId))
+        .limit(1);
+
+      return toRow(lead, estRows[0]?.projectType ?? null);
+    },
+
+    async updateQuarantine(args): Promise<AdminLeadRow | null> {
+      const rows = await db
+        .update(leads)
+        .set({ quarantined: args.quarantined, discarded: args.discarded })
         .where(eq(leads.id, args.id))
         .returning();
 

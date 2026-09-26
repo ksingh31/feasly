@@ -37,6 +37,7 @@ function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
     tenantKey: null,
     source: 'web',
     quarantined: false,
+    discarded: false,
     sandbox: false,
     leadScore: 75,
     status: 'new',
@@ -53,6 +54,7 @@ function makeDeps(overrides?: Partial<AdminLeadsServiceDeps>): AdminLeadsService
     listLeads: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, totalCount: 0 }),
     findByIdWithEstimate: vi.fn().mockResolvedValue(null),
     updateStatus: vi.fn(),
+    updateQuarantine: vi.fn(),
     getMagicLinkStatus: vi.fn().mockResolvedValue('none'),
   };
   const leadStore = {
@@ -285,6 +287,128 @@ describe('admin-leads service (admin/02)', () => {
       await expect(
         service.updateStatus('lead-1', { status: 'invalid' }, ADMIN_EMAIL),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('approveQuarantine', () => {
+    it('clears quarantine + discard flags and writes an audit row', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({ quarantined: true, discarded: true }),
+      );
+      vi.mocked(deps.store.updateQuarantine).mockResolvedValue(
+        makeLeadRow({ quarantined: false, discarded: false }),
+      );
+
+      const result = await service.approveQuarantine('lead-1', ADMIN_EMAIL);
+
+      expect(result.ok).toBe(true);
+      expect(deps.store.updateQuarantine).toHaveBeenCalledWith({
+        id: 'lead-1',
+        quarantined: false,
+        discarded: false,
+      });
+      expect(deps.audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorEmail: ADMIN_EMAIL,
+          action: 'admin_leads_quarantine_approved',
+          detail: expect.stringContaining('leadId=lead-1'),
+        }),
+      );
+    });
+
+    it('throws 404 for unknown lead', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(null);
+
+      await expect(
+        service.approveQuarantine('lead-1', ADMIN_EMAIL),
+      ).rejects.toThrow(expect.objectContaining({ status: 404 }));
+      expect(deps.store.updateQuarantine).not.toHaveBeenCalled();
+    });
+
+    it('throws 422 when the lead is not quarantined', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({ quarantined: false }),
+      );
+
+      await expect(
+        service.approveQuarantine('lead-1', ADMIN_EMAIL),
+      ).rejects.toThrow(expect.objectContaining({ status: 422 }));
+      expect(deps.store.updateQuarantine).not.toHaveBeenCalled();
+      expect(deps.audit.log).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('discardQuarantine', () => {
+    it('marks discarded (quarantined stays true) and writes an audit row', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({ quarantined: true, discarded: false }),
+      );
+      vi.mocked(deps.store.updateQuarantine).mockResolvedValue(
+        makeLeadRow({ quarantined: true, discarded: true }),
+      );
+
+      const result = await service.discardQuarantine('lead-1', ADMIN_EMAIL);
+
+      expect(result.ok).toBe(true);
+      expect(deps.store.updateQuarantine).toHaveBeenCalledWith({
+        id: 'lead-1',
+        quarantined: true,
+        discarded: true,
+      });
+      expect(deps.audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorEmail: ADMIN_EMAIL,
+          action: 'admin_leads_quarantine_discarded',
+          detail: expect.stringContaining('leadId=lead-1'),
+        }),
+      );
+    });
+
+    it('is idempotent: already-discarded is a no-op success', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({ quarantined: true, discarded: true }),
+      );
+
+      const result = await service.discardQuarantine('lead-1', ADMIN_EMAIL);
+
+      expect(result.ok).toBe(true);
+      expect(deps.store.updateQuarantine).not.toHaveBeenCalled();
+      expect(deps.audit.log).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 for unknown lead', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(null);
+
+      await expect(
+        service.discardQuarantine('lead-1', ADMIN_EMAIL),
+      ).rejects.toThrow(expect.objectContaining({ status: 404 }));
+      expect(deps.store.updateQuarantine).not.toHaveBeenCalled();
+    });
+
+    it('throws 422 when the lead is not quarantined', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({ quarantined: false }),
+      );
+
+      await expect(
+        service.discardQuarantine('lead-1', ADMIN_EMAIL),
+      ).rejects.toThrow(expect.objectContaining({ status: 422 }));
+      expect(deps.store.updateQuarantine).not.toHaveBeenCalled();
+      expect(deps.audit.log).not.toHaveBeenCalled();
     });
   });
 

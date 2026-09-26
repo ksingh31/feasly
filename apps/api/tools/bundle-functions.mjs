@@ -175,6 +175,14 @@ const targets = [
     out: 'admin-leads-export/index.js',
   },
   {
+    entry: 'src/functions/admin-leads-quarantine-approve.ts',
+    out: 'admin-leads-quarantine-approve/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-quarantine-discard.ts',
+    out: 'admin-leads-quarantine-discard/index.js',
+  },
+  {
     entry: 'src/functions/admin-estimates-get.ts',
     out: 'admin-estimates-get/index.js',
   },

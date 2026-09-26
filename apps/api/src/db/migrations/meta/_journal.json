@@ -148,6 +148,13 @@
       "when": 1790392718998,
       "tag": "0022_sheets_sync_state",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790397000000,
+      "tag": "0023_quarantine_discard",
+      "breakpoints": true
     }
   ]
 }
