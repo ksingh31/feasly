@@ -43,10 +43,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   // INTERIM (api-mcp/02): empty adminKey locks /admin/* until a deploy config
   // sets the key or admin/01 lands with session auth.
-  admin: {
-    adminKey: '',
-    defaultRateLimit: 60,
-  },
   wizard: {
     sqftDefault: 2200,
     sqftMin: 1200,
@@ -74,6 +70,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   analytics: {
     enabled: false,
     optInWording: 'Allow anonymous usage analytics to help improve Feasly.',
+  },
+  admin: {
+    adminKey: '',
+    defaultRateLimit: 60,
   },
   copy: {
     tagline: 'Know what your infill build will cost — before you commit.',
@@ -669,7 +669,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadCreatedLabel: 'Created',
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
-admin: {
+    },
+    admin: {
       apiKeys: {
         title: 'API keys',
         subtitle: 'Issue, rotate, and revoke keys for the public API. Plaintext is shown once — never again.',
