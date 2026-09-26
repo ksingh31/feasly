@@ -66,7 +66,8 @@ export class AdminEstimateLookupComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Estimate ID being looked up (from the `:id` route param). */
-  protected readonly lookupId = signal<string | null>(null);  /** Paste-an-ID search box value. */
+  protected readonly lookupId = signal<string | null>(null);
+  /** Paste-an-ID search box value. */
   protected readonly searchId = signal('');
   /** Latest fetched detail. Null before the first load. */
   protected readonly detail = signal<AdminEstimateDetail | null>(null);
