@@ -1,11 +1,16 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
+import { provideRouter, Router } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../config/config.service';
 import { noindexPatterns } from './seo-routes';
 import { SeoService } from './seo.service';
+
+@Component({ standalone: true, template: '' })
+class BlankComponent {}
 
 /**
  * SEO-01: per-page SEO tags are set idempotently, route-driven via
@@ -41,7 +46,11 @@ describe('SeoService', () => {
   beforeEach(async () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '**', component: BlankComponent }]),
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(ConfigService);
@@ -230,10 +239,74 @@ describe('SeoService', () => {
     ).toBeNull();
   });
 
+  it('removes injected JSON-LD on router navigation (FAQ -> other page)', async () => {
+    const router = TestBed.inject(Router);
+    // Simulate the FAQ page injecting its schema in ngOnInit.
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+    expect(document.querySelector('script[type="application/ld+json"]')).not.toBeNull();
+
+    // Navigating away must drop the FAQ script — stale FAQPage schema on
+    // /privacy (or any other page) confuses crawlers.
+    await router.navigateByUrl('/privacy');
+    expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
+  });
+
+  it('adds the page schema when arriving after a navigation cleared it', async () => {
+    const router = TestBed.inject(Router);
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+    await router.navigateByUrl('/privacy');
+    expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
+
+    // Arriving at /faq re-injects exactly one FAQPage block.
+    await router.navigateByUrl('/faq');
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(1);
+    expect(scripts[0].textContent).toContain('FAQPage');
+  });
+
+  it('never duplicates JSON-LD after repeated back/forward navigation', async () => {
+    const router = TestBed.inject(Router);
+    for (const url of ['/faq', '/privacy', '/faq', '/terms', '/faq']) {
+      await router.navigateByUrl(url);
+      service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+      expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
+    }
+  });
+
+  it('clears keyed scripts (community FAQPage + LocalBusiness) on navigation', async () => {
+    const router = TestBed.inject(Router);
+    service.setJsonLdScript('faq', { '@type': 'FAQPage' });
+    service.setJsonLdScript('business', { '@type': 'LocalBusiness' });
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(2);
+
+    await router.navigateByUrl('/privacy');
+    expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0);
+  });
+
+  it('does not remove third-party JSON-LD it did not inject', async () => {
+    const router = TestBed.inject(Router);
+    const thirdParty = document.createElement('script');
+    thirdParty.type = 'application/ld+json';
+    thirdParty.textContent = JSON.stringify({ '@type': 'WebSite' });
+    document.head.appendChild(thirdParty);
+
+    service.setJsonLd({ '@context': 'https://schema.org', '@type': 'FAQPage' });
+    await router.navigateByUrl('/privacy');
+
+    const remaining = document.querySelectorAll('script[type="application/ld+json"]');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].textContent).toContain('WebSite');
+    thirdParty.remove();
+  });
   it('falls back to the request origin when site.url is empty (staging)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '**', component: BlankComponent }]),
+      ],
     });
     const http = TestBed.inject(HttpTestingController);
     const pending = TestBed.inject(ConfigService).load();

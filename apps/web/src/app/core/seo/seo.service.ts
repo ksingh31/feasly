@@ -1,6 +1,9 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { inject, Injectable, PLATFORM_ID } from '@angular/core';
+import { DestroyRef, inject, Injectable, PLATFORM_ID } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Meta, Title } from '@angular/platform-browser';
+import { NavigationStart, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { DEFAULT_APP_CONFIG } from '../config/app-config.defaults';
 import { ConfigService } from '../config/config.service';
 import { findSeoRoute } from './seo-routes';
@@ -39,6 +42,31 @@ export class SeoService {
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly config = inject(ConfigService);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /**
+   * Every JSON-LD `<script>` this service injected into `<head>`.
+   * Cleared on each router navigation (see constructor) so a page's
+   * structured data never leaks onto the next page — e.g. the FAQ page's
+   * FAQPage schema must not survive navigation to /privacy.
+   */
+  private readonly injectedJsonLd = new Set<HTMLScriptElement>();
+
+  constructor() {
+    // NavigationStart fires before the incoming route's component runs its
+    // ngOnInit (where pages inject their own schema), so clearing here
+    // removes stale scripts exactly once per navigation — no duplicates
+    // after back/forward, and the arriving page re-injects its own.
+    // Root-provided: DestroyRef never fires, the subscription lives with
+    // the app — takeUntilDestroyed keeps the no-bare-subscribe rule green.
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationStart => event instanceof NavigationStart),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.clearInjectedJsonLd());
+  }
 
   /** Route-driven tags for a router path (e.g. 'estimate/scope' or '/privacy'). */
   setForRoute(path: string): void {
@@ -89,6 +117,10 @@ export class SeoService {
    * SSR-safe: renders into the prerendered HTML via DOCUMENT. Passing
    * `null` removes the tag (for routes that must not carry structured data).
    *
+   * Injected scripts are tracked and removed automatically on the next
+   * router navigation, so stale schema (e.g. FAQPage after leaving /faq)
+   * never leaks onto other pages.
+   *
    * This manages the default (unkeyed) script. For pages needing multiple
    * scripts (SEO-06: community pages need FAQPage + LocalBusiness), use
    * `setJsonLdScript(id, data)` instead.
@@ -111,9 +143,12 @@ export class SeoService {
     const selector = id
       ? `script[type="application/ld+json"][data-jsonld-id="${id}"]`
       : 'script[type="application/ld+json"]:not([data-jsonld-id])';
-    const existing = head.querySelector(selector);
+    const existing = head.querySelector<HTMLScriptElement>(selector);
     if (data === null) {
-      existing?.remove();
+      if (existing) {
+        this.injectedJsonLd.delete(existing);
+        existing.remove();
+      }
       return;
     }
     const script = this.document.createElement('script');
@@ -123,10 +158,24 @@ export class SeoService {
     }
     script.textContent = JSON.stringify(data);
     if (existing) {
+      this.injectedJsonLd.delete(existing);
       existing.replaceWith(script);
     } else {
       head.appendChild(script);
     }
+    this.injectedJsonLd.add(script);
+  }
+
+  /**
+   * Removes every JSON-LD script this service injected, e.g. on route
+   * change. Scripts the service did not inject (third-party tags) are left
+   * alone.
+   */
+  private clearInjectedJsonLd(): void {
+    for (const script of this.injectedJsonLd) {
+      script.remove();
+    }
+    this.injectedJsonLd.clear();
   }
 
   /**
