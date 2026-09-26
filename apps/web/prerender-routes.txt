@@ -4,6 +4,7 @@
 /how-it-works
 /faq
 /developers
+/communities/
 /404
 /sample-report
 /communities/beltline/
