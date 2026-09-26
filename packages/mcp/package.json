@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "MCP server \u2014 thin wrapper over @feasly/cost-engine + @feasly/contracts (epic 07).",
-  "main": "./dist/server.js",
-  "types": "./dist/server.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "feasly-mcp": "./dist/stdio.js"
   },
