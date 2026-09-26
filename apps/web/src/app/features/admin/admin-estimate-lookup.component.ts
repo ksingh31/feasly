@@ -156,13 +156,26 @@ export class AdminEstimateLookupComponent {
       description: 'Read-only admin estimate lookup.',
       path: '/admin/estimates',
     });
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id && id.trim().length > 0) {
-      const trimmed = id.trim();
-      this.lookupId.set(trimmed);
-      this.searchId.set(trimmed);
-      this.load(trimmed);
-    }
+    // Subscribe to paramMap (not the constructor-time snapshot): both
+    // /admin/estimates and /admin/estimates/:id render this component, so
+    // navigating between IDs reuses the instance and the constructor never
+    // re-runs. The subscription reloads the estimate on every param change.
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const raw = params.get('id');
+        if (raw && raw.trim().length > 0) {
+          const id = raw.trim();
+          this.lookupId.set(id);
+          this.searchId.set(id);
+          this.load(id);
+        } else {
+          // Back at the search entry: clear any previously loaded detail.
+          this.lookupId.set(null);
+          this.detail.set(null);
+          this.status.set('idle');
+        }
+      });
   }
 
   /** Search-box submit: route to the detail view for the pasted ID. */
