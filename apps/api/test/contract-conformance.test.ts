@@ -12,8 +12,8 @@
  *      handler the web UI exercises via POST /api/v1/estimate;
  *  (b) REST handler — the estimate service (`createEstimateService`) called
  *      directly, the same code the versioned public API serves;
- *  (c) MCP tool — SKIPPED until APIMCP-06 lands `packages/mcp`
- *      (see the skipped test below).
+ *  (c) MCP tool — `estimate_project` (`executeTool` from `@feasly/mcp`),
+ *      wired to the same estimate service.
  *
  * The fixture's `expected` outputs are generated from the engine by
  *   npm run contract:regen --workspace @feasly/api
@@ -47,7 +47,10 @@ import type {
   RenoInput,
 } from '@feasly/cost-engine';
 import type { EstimateResponse } from '@feasly/contracts';
+import type { ComparisonEstimateResponse } from '@feasly/contracts';
 import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
+import { executeTool } from '@feasly/mcp';
+import type { McpServerDeps } from '@feasly/mcp';
 import { createEstimateRoute } from '../src/routes/estimate.route';
 import { createEstimateService } from '../src/services/estimate.service';
 import { expectEstimateResponse, mockCommunityStatsService } from './helpers/mock-community-stats';
@@ -310,6 +313,25 @@ if (REGEN) {
       allowDraftCostData: true,
     communityStats: mockCommunityStatsService(),});
     const route = createEstimateRoute({ estimate: service });
+    // Leg (c) — MCP `estimate_project` tool (api-mcp/06 landed): wired to the
+    // same estimate service, so the tool must produce byte-identical outputs
+    // via the shared services (never its own cost math).
+    const mcpDeps: McpServerDeps = {
+      property: {
+        getProperty: () => {
+          throw new Error('not used by estimate_project');
+        },
+        autocomplete: () => {
+          throw new Error('not used by estimate_project');
+        },
+      },
+      estimate: service,
+      leads: {
+        submitLead: () => {
+          throw new Error('not used by estimate_project');
+        },
+      },
+    };
 
     it('rejects hand-edited fixtures (SHA-256 checksum)', () => {
       const recorded = readFileSync(CHECKSUM_PATH, 'utf8').trim();
@@ -359,12 +381,21 @@ if (REGEN) {
           expectConformance('(b) REST', stripVolatile(response), fixtureCase);
         });
 
-        // APIMCP-06: the MCP server does not exist yet (packages/mcp holds
-        // only a package.json on main). When `estimate_project` lands, add
-        // leg (c) here asserting deep-equal outputs against the same fixture
-        // cases — the tool must call the shared engine/services, never its
-        // own cost math.
-        it.skip('leg (c) — MCP tool matches the fixture (pending APIMCP-06)', () => {});
+        // Leg (c) — MCP `estimate_project` tool: the tool is a thin adapter
+        // over the shared estimate service (api-mcp/06), so it must produce
+        // byte-identical outputs against the same fixture cases.
+        it('leg (c) — MCP estimate_project matches the fixture', async () => {
+          // executeTool returns unknown; the tool delegates to the estimate
+          // service, so the result has the service's response type.
+          const raw = (await executeTool(
+            mcpDeps,
+            undefined,
+            'estimate_project',
+            fixtureCase.request,
+          )) as EstimateResponse | ComparisonEstimateResponse;
+          const response = expectEstimateResponse(raw);
+          expectConformance('(c) MCP', stripVolatile(response), fixtureCase);
+        });
       });
     }
   });
