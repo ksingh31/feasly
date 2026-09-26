@@ -36,7 +36,7 @@
     "prebuild": "npm run build --workspace @feasly/contracts && npm run build --workspace @feasly/cost-engine && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts && tsx scripts/build-community-ranges.ts && node snippet/build.mjs",
     "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts",
     "start": "ng serve",
-    "test": "ng test && npm run test:snippet && npm run test:tools",
+    "test": "ng test && npm run test:snippet && npm run test:scripts && npm run test:tools",
     "test:snippet": "vitest run snippet/",
     "test:scripts": "vitest run scripts/",
     "verify:seo": "ng build --configuration=production && node tools/check-prerender-seo.mjs",
