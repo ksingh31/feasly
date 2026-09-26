@@ -164,7 +164,9 @@ export function refreshPrerenderRoutes(slugs: readonly string[], routesPath: str
   const kept = existing
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('/communities/'));
+    // Drop stale per-community slug routes, but keep the `/communities/`
+    // index route (SEO-05) — it is hand-maintained, not a slug route.
+    .filter((l) => l.length > 0 && (l === '/communities/' || !l.startsWith('/communities/')));
   for (const slug of slugs) {
     kept.push(`/communities/${slug}/`);
   }
