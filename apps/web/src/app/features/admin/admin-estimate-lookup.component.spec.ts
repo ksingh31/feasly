@@ -10,7 +10,7 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminEstimateDetail } from '@feasly/contracts';
 import { AdminEstimateLookupComponent } from './admin-estimate-lookup.component';
@@ -188,6 +188,63 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
 
     expect(api.getEstimate).toHaveBeenLastCalledWith('estimate-2');
     expect(textOf(fixture)).toContain('2026.09.21');
+  });
+
+  it('discards a stale in-flight response when the :id param changes again', async () => {
+    const second$ = new Subject<AdminEstimateDetail>();
+    const third$ = new Subject<AdminEstimateDetail>();
+    const second: AdminEstimateDetail = {
+      ...DETAIL,
+      id: 'estimate-2',
+      costDataVersion: '2026.09.21',
+    };
+    const third: AdminEstimateDetail = {
+      ...DETAIL,
+      id: 'estimate-3',
+      costDataVersion: '2026.09.22',
+    };
+    const { fixture, api, paramMap$ } = await setup({ id: 'estimate-1' });
+
+    // Two rapid param-only navigations; neither response has arrived yet.
+    api.getEstimate.mockImplementation((id: string) =>
+      id === 'estimate-2' ? second$ : third$,
+    );
+    paramMap$.next(convertToParamMap({ id: 'estimate-2' }));
+    paramMap$.next(convertToParamMap({ id: 'estimate-3' }));
+
+    // The superseded lookup's late response must not overwrite the view.
+    second$.next(second);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(textOf(fixture)).not.toContain('2026.09.21');
+
+    // The current lookup's response renders.
+    third$.next(third);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(textOf(fixture)).toContain('2026.09.22');
+  });
+
+  it('does not re-populate the view after navigating back to the search entry', async () => {
+    const pending$ = new Subject<AdminEstimateDetail>();
+    const { fixture, api, paramMap$ } = await setup({ id: 'estimate-1' });
+
+    api.getEstimate.mockReturnValue(pending$);
+    paramMap$.next(convertToParamMap({ id: 'estimate-2' }));
+    // Back to the search entry while the lookup is still in flight.
+    paramMap$.next(convertToParamMap({}));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(textOf(fixture)).not.toContain('Ops');
+
+    // The stale response arrives late and must be discarded.
+    pending$.next({ ...DETAIL, id: 'estimate-2' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(textOf(fixture)).not.toContain('Ops');
+    expect(textOf(fixture)).toContain(
+      'Paste an estimate ID to see exactly what the homeowner saw',
+    );
   });
 
   it('renders reno inputs with reno wording', async () => {

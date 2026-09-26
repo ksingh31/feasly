@@ -66,13 +66,21 @@ export class AdminEstimateLookupComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Estimate ID being looked up (from the `:id` route param). */
-  protected readonly lookupId = signal<string | null>(null);
-  /** Paste-an-ID search box value. */
+  protected readonly lookupId = signal<string | null>(null);  /** Paste-an-ID search box value. */
   protected readonly searchId = signal('');
   /** Latest fetched detail. Null before the first load. */
   protected readonly detail = signal<AdminEstimateDetail | null>(null);
   /** Lookup lifecycle. */
   protected readonly status = signal<LookupStatus>('idle');
+
+  /**
+   * Monotonic lookup token. Navigating between IDs reuses this component
+   * instance, so an earlier lookup can still be in flight when a newer one
+   * starts (or when the user navigates back to the search entry). Every
+   * new lookup/clear bumps the token; handlers from a superseded token
+   * are discarded so a stale response can never overwrite newer state.
+   */
+  private requestSeq = 0;
 
   /** True when the route carries an `:id` (detail view, not the search entry). */
   protected readonly isDetailView = computed(() => this.lookupId() !== null);
@@ -170,7 +178,10 @@ export class AdminEstimateLookupComponent {
           this.searchId.set(id);
           this.load(id);
         } else {
-          // Back at the search entry: clear any previously loaded detail.
+          // Back at the search entry: clear any previously loaded detail and
+          // invalidate any in-flight lookup so its response cannot
+          // re-populate the view after the clear.
+          this.requestSeq++;
           this.lookupId.set(null);
           this.detail.set(null);
           this.status.set('idle');
@@ -187,6 +198,7 @@ export class AdminEstimateLookupComponent {
 
   /** Fetch one estimate's read-only detail (AC2: 404 → not-found state). */
   private load(id: string): void {
+    const token = ++this.requestSeq;
     this.status.set('loading');
     this.detail.set(null);
     this.api
@@ -194,10 +206,12 @@ export class AdminEstimateLookupComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (detail) => {
+          if (token !== this.requestSeq) return; // superseded lookup
           this.detail.set(detail);
           this.status.set('ready');
         },
         error: (error: unknown) => {
+          if (token !== this.requestSeq) return; // superseded lookup
           const code =
             typeof error === 'object' && error !== null && 'code' in error
               ? (error as ApiError).code
