@@ -442,6 +442,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'planned',
     summary: 'Attributed lead detail (tenant-scoped).',
   },
+  {
+    method: 'PATCH',
+    path: '/api/v1/builder/leads/{id}',
+    auth: 'builder-session',
+    rateLimit: '60/min per session',
+    status: 'planned',
+    summary:
+      'Builder lead status updates: contacted/quoted/won/lost with ' +
+      'timestamps (embed/09). Tenant-scoped; won/lost feeds attribution. ' +
+      'Audit-logged.',
+  },
 
   // ── MCP server (agent API) ──────────────────────────────────────────
   {
