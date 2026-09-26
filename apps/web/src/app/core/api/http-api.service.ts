@@ -132,9 +132,10 @@ export class HttpApiService implements ApiService {
    */
   getNarrative(estimateId: string, reportToken: string): Observable<NarrativeResponse> {
     const headers = new HttpHeaders().set('Authorization', `Bearer ${reportToken}`);
+    const encoded = encodeURIComponent(estimateId);
     return this.call(
       this.http.post<NarrativeResponse>(
-        `${this.base}/estimates/${encodeURIComponent(estimateId)}/narrative`,
+        `${this.base}/estimates/${encoded}/narrative`,
         {},
         { headers },
       ),
