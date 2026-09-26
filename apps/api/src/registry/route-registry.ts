@@ -259,8 +259,8 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '10/min per IP',
     status: 'planned',
     summary:
-      'Consume the admin magic link (?token=…) → httpOnly Secure SameSite=Lax ' +
-      'session cookie, 7-day expiry. Single-use (replay-safe).',
+      'Consume the admin magic link (?token=…) → httpOnly Secure SameSite=None ' +
+      'session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe).',
   },
   {
     method: 'GET',

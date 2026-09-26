@@ -4,7 +4,7 @@
     "optInWording": "Allow anonymous usage analytics to help improve Feasly."
   },
   "api": {
-    "baseUrl": "",
+    "baseUrl": "https://feasly-dev-api-4fhkep.azurewebsites.net",
     "timeoutMs": 15000,
     "useMockApi": true
   },

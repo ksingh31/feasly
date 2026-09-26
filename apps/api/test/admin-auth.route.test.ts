@@ -58,7 +58,7 @@ describe('admin auth route (admin/01)', () => {
     expect(result.sessionToken).toBe('raw-session-token');
     expect(result.setCookie).toContain(`${ADMIN_SESSION_COOKIE}=`);
     expect(result.setCookie).toContain('HttpOnly');
-    expect(result.setCookie).toContain('SameSite=Lax');
+    expect(result.setCookie).toContain('SameSite=None');
     expect(result.setCookie).toContain(`Max-Age=${SESSION_TTL}`);
     expect(adminAuth.verifyMagicLink).toHaveBeenCalledWith('tok');
   });
@@ -126,7 +126,7 @@ describe('cookie builders', () => {
   it('buildSessionCookie sets secure attributes', () => {
     const value = buildSessionCookie('tok', 604800);
     expect(value).toBe(
-      `${ADMIN_SESSION_COOKIE}=tok; HttpOnly; Secure; SameSite=Lax; Max-Age=604800; Path=/`,
+      `${ADMIN_SESSION_COOKIE}=tok; HttpOnly; Secure; SameSite=None; Max-Age=604800; Path=/`,
     );
   });
 

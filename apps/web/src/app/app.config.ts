@@ -12,6 +12,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
+import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
 import { EmbedState } from './features/embed';
 import { ComparisonState } from './features/compare';
@@ -31,8 +32,10 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideRouter(routes),
     // The connectivity interceptor (HRD-02) re-verifies reachability via the
-    // health probe whenever a request fails at the network layer.
-    provideHttpClient(withFetch(), withInterceptors([connectivityInterceptor])),
+    // health probe whenever a request fails at the network layer. The
+    // credentials interceptor (ADM-10) attaches withCredentials to API-base
+    // requests so the admin session cookie flows cross-origin.
+    provideHttpClient(withFetch(), withInterceptors([credentialsInterceptor, connectivityInterceptor])),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
     provideAppInitializer(() => inject(ConfigService).load()),

@@ -64,7 +64,10 @@ const verifyQuerySchema = z.object({
 /**
  * Build the `Set-Cookie` value for the admin session. `Secure` is safe:
  * browsers treat http://localhost as a secure context, and production is
- * HTTPS-only.
+ * HTTPS-only. `SameSite=None` is required because the web app calls the API
+ * cross-origin (ADM-10: SWA Free SKU rejects linked backends, so the Angular
+ * app talks to the Function App URL directly with CORS + credentials) —
+ * `SameSite=Lax` would never send the cookie cross-site.
  */
 export function buildSessionCookie(
   sessionToken: string,
@@ -73,13 +76,13 @@ export function buildSessionCookie(
   const encoded = encodeURIComponent(sessionToken);
   return (
     `${ADMIN_SESSION_COOKIE}=${encoded}; ` +
-    `HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}; Path=/`
+    `HttpOnly; Secure; SameSite=None; Max-Age=${maxAgeSeconds}; Path=/`
   );
 }
 
 /** Expired cookie value that clears the session. */
 export function buildClearSessionCookie(): string {
-  return `${ADMIN_SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/`;
+  return `${ADMIN_SESSION_COOKIE}=; HttpOnly; Secure; SameSite=None; Max-Age=0; Path=/`;
 }
 
 export function createAdminAuthRoute(
