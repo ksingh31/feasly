@@ -107,6 +107,14 @@ import {
   type AdminLeadsRoute,
 } from './routes/admin-leads.route';
 import {
+  createAdminCalibrationRoute,
+  type AdminCalibrationRoute,
+} from './routes/admin-calibration.route';
+import {
+  createAdminCalibrationService,
+  type AdminCalibrationService,
+} from './services/admin-calibration.service';
+import {
   createAdminLeadsService,
   type AdminLeadsService,
 } from './services/admin-leads.service';
@@ -384,6 +392,9 @@ export interface AppComposition {
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
   readonly adminLeadsStore: AdminLeadsStore;
+  /** admin/09: calibration console (read-only version + report + history). */
+  readonly adminCalibrationService: AdminCalibrationService;
+  readonly adminCalibrationRoute: AdminCalibrationRoute;
   /** admin/03: read-only estimate lookup by ID. */
   readonly adminEstimatesService: AdminEstimatesService;
   readonly adminEstimatesRoute: AdminEstimatesRoute;
@@ -798,6 +809,17 @@ export function createComposition(
     adminEstimates: adminEstimatesService,
     adminGuard,
   });
+  // admin/09 — calibration console. Read-only: the cost-data table the
+  // engine serves is injected; no params are written here.
+  const adminCalibrationService: AdminCalibrationService =
+    createAdminCalibrationService({
+      costData: PLACEHOLDER_COST_DATA,
+    });
+  const adminCalibrationRoute: AdminCalibrationRoute =
+    createAdminCalibrationRoute({
+      adminCalibration: adminCalibrationService,
+      adminGuard,
+    });
   const apiKeyService: ApiKeyService = createApiKeyService({
     keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
     audit:
@@ -1115,6 +1137,8 @@ export function createComposition(
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,
+    adminCalibrationService,
+    adminCalibrationRoute,
     adminEstimatesService,
     adminEstimatesRoute,
     privacyStore,
