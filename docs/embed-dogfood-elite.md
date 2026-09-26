@@ -1,7 +1,9 @@
 # EMB-05 — Elite Craft Builders dogfood (customer #1)
 
-**Status:** Config complete and validated. Staging walk **pending** — blocked on
-PR #81 (EMB-03) and PR #85 (admin/02) merging, plus browser QA.
+**Status (2026-09-26):** Config complete and validated. Former code blockers
+**cleared** — PR #81 (EMB-03 lead attribution) and PR #85 (admin/02 leads
+explorer) are both merged to main. The staging walk is **ready for browser QA**
+— this lane cannot operate a browser, so the walk is delegated (see Blockers).
 
 ## Tenant config
 
@@ -70,17 +72,20 @@ For each step, capture a screenshot and record the evidence in the table.
 
 ### Walk result
 
-*Not run yet — blocked (see below).*
+*Not run yet — code blockers cleared 2026-09-26; awaiting browser-task
+delegation (see Blockers §3).*
 
 ## Blockers
 
-1. **PR #81 (EMB-03, embed lead attribution) not merged.** The walk's steps 4–6
-   (tenant-named gate copy, `tenant_id` attribution, `source='embed'`) depend on
-   it. GitHub Actions is not triggering on the branch (known infra issue).
-2. **PR #85 (admin/02, leads explorer) not merged.** Step 6 (verify attribution
-   in the admin view) needs the admin leads UI/backend. Same CI issue.
-3. **Browser QA.** This agent cannot operate a browser. The walk, screenshots,
-   and 375px/Safari checks need a browser-task delegation once 1–2 are resolved.
+1. ~~PR #81 (EMB-03, embed lead attribution) not merged~~ — **cleared 2026-09-26**
+   (merged as `dd0d1c4`).
+2. ~~PR #85 (admin/02, leads explorer) not merged~~ — **cleared 2026-09-26**
+   (merged).
+3. **Browser QA (still open).** This lane cannot operate a browser. The staging
+   walk checklist above, screenshots, and 375px/Safari checks need a
+   browser-task delegation against the staging site with the
+   `elite-craft-builders` tenant key. Until the walk runs, this story stays
+   open — the walk is the test.
 
 ## Issues found during config review
 

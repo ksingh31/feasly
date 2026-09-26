@@ -20,7 +20,7 @@
  *   opaque-origin reason, so sender identity is validated with
  *   event.source === iframe.contentWindow -- strictly stronger than an origin
  *   string, since only our iframe holds that window reference. Spoofed
- *   messages from any other window are ignored.
+ *   messages from any other window are ignored and logged.
  */
 (function () {
   'use strict';
@@ -42,6 +42,12 @@
   function logError(message) {
     if (typeof console !== 'undefined' && console.error) {
       console.error('[feasly] ' + message);
+    }
+  }
+
+  function logWarn(message) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[feasly] ' + message);
     }
   }
 
@@ -240,9 +246,25 @@
   }
 
   function onMessage(ev, ctx) {
+    if (ctx.dead) return;
     // Identity gate: opaque-origin sandbox => event.origin is "null" for every
     // legitimate iframe message. The window reference is the real credential.
-    if (ctx.dead || ev.source !== ctx.iframe.contentWindow) return;
+    // Spoofed bridge-shaped messages are ignored AND logged (embed/08 AC3);
+    // unrelated page traffic (analytics, etc.) is ignored silently to avoid
+    // log spam.
+    if (ev.source !== ctx.iframe.contentWindow) {
+      var maybe = ev.data;
+      if (
+        maybe &&
+        typeof maybe.type === 'string' &&
+        /^feasly:|^FEASLY_/.test(maybe.type)
+      ) {
+        logWarn(
+          'embed loader: ignored spoofed "' + maybe.type + '" message from unexpected source.',
+        );
+      }
+      return;
+    }
     var data = ev.data;
     if (!data || typeof data.type !== 'string') return;
     switch (data.type) {
