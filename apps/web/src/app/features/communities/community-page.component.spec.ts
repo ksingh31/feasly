@@ -3,6 +3,7 @@ import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent, toDisplayName } from './community-page.component';
 
@@ -53,7 +54,9 @@ describe('CommunityPageComponent', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => slug } } },
         },
-        { provide: Router, useValue: { navigate } },
+        // SeoService subscribes to router.events in its constructor — the stub
+        // must expose an events observable (empty here; no navigation in these tests).
+        { provide: Router, useValue: { navigate, events: of() } },
       ],
     });
     // Router is injected via `inject(Router)` — override the token used above.
