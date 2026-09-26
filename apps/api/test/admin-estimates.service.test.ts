@@ -105,6 +105,8 @@ function makeService(world: World) {
       findSheetsSyncCandidates: async () => [],
       setSheetsSyncedAt: async (_args: { readonly id: string; readonly at: Date }) => null,
       countNeverSynced: async () => 0,
+      listByTenantKey: async () => [],
+      updateStatus: async () => null,
     },
   });
 }

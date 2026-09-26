@@ -214,6 +214,8 @@ function fakeLeadStore(): FakeLeadStore {
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
+      listByTenantKey: async () => [],
+      updateStatus: async () => null,
     insert: async (lead: NewLead) => {
       inserted.push(lead);
       return toFakeRecord(lead);

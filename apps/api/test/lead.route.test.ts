@@ -77,6 +77,8 @@ describe('lead route', () => {
       findSheetsSyncCandidates: async () => [],
       setSheetsSyncedAt: async () => null,
       countNeverSynced: async () => 0,
+      listByTenantKey: async () => [],
+      updateStatus: async () => null,
     };
     const service = createLeadService({
       store: leadStore,

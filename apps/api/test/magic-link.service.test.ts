@@ -140,6 +140,8 @@ function fakeLeads(opts?: {
     findSheetsSyncCandidates: async () => [],
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
+      listByTenantKey: async () => [],
+      updateStatus: async () => null,
     appendNote: noop,
     getNotes: async () => [],
     appendStatusHistory: noop,

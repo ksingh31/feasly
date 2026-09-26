@@ -190,6 +190,31 @@ const targets = [
     entry: 'src/functions/admin-estimates-get.ts',
     out: 'admin-estimates-get/index.js',
   },
+  // embed/09 — builder portal auth + tenant-scoped leads.
+  {
+    entry: 'src/functions/builder-auth-request.ts',
+    out: 'builder-auth-request/index.js',
+  },
+  {
+    entry: 'src/functions/builder-auth-verify.ts',
+    out: 'builder-auth-verify/index.js',
+  },
+  {
+    entry: 'src/functions/builder-auth-logout.ts',
+    out: 'builder-auth-logout/index.js',
+  },
+  {
+    entry: 'src/functions/builder-auth-me.ts',
+    out: 'builder-auth-me/index.js',
+  },
+  {
+    entry: 'src/functions/builder-leads.ts',
+    out: 'builder-leads/index.js',
+  },
+  {
+    entry: 'src/functions/builder-leads-status.ts',
+    out: 'builder-leads-status/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

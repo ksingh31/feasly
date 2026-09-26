@@ -89,6 +89,8 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     findSheetsSyncCandidates: vi.fn().mockResolvedValue([]),
     setSheetsSyncedAt: vi.fn(),
     countNeverSynced: vi.fn().mockResolvedValue(0),
+    listByTenantKey: vi.fn().mockResolvedValue([]),
+    updateStatus: vi.fn().mockResolvedValue(null),
   };
   const estimates: EstimateStore = {
     save: vi.fn(),
