@@ -5,7 +5,7 @@ import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
-import { buildFaqPageSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
+import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
 import { ClearLead, GoToStep, SelectProperty } from '../wizard';
 import { ClearReport } from '../report/report.actions';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
@@ -62,16 +62,17 @@ export class LandingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('');
-    // SEO-06: Landing page gets WebSite + FAQPage JSON-LD (single @graph script).
-    // FAQ copy comes from ConfigService — the same source as the rendered FAQ,
-    // so the drift test can assert byte-equality.
+    // SEO-06: Landing page gets WebSite + FAQPage + LocalBusiness JSON-LD
+    // (single @graph script). FAQ copy comes from ConfigService — the same
+    // source as the rendered FAQ, so the drift test can assert byte-equality.
     const faqItems = this.config.get('copy').marketing.faq.items;
     const siteUrl = this.seo.getSiteUrl();
     const webSite = buildWebSiteSchema(siteUrl, this.copy.seoDescription);
     const faqPage = buildFaqPageSchema(faqItems);
+    const localBusiness = buildLocalBusinessSchema(siteUrl, `${siteUrl}/`);
     this.seo.setJsonLd({
       '@context': 'https://schema.org',
-      '@graph': [webSite, faqPage].map((s) => {
+      '@graph': [webSite, faqPage, localBusiness].map((s) => {
         const { '@context': _ctx, ...rest } = s;
         return rest;
       }),

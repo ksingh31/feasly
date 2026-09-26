@@ -3,6 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Meta } from '@angular/platform-browser';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
+import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
 import ranges from '../../../content/data/community-ranges.json';
@@ -91,7 +92,13 @@ export class CommunityPageComponent implements OnInit {
       path: `/communities/${view.slug}/`,
     });
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
-    this.seo.setJsonLd(null);
+    // SEO-06: FAQPage + LocalBusiness JSON-LD for rich results.
+    const pagePath = `/communities/${view.slug}/`;
+    this.seo.setJsonLdScript('faq', buildFaqPageSchema(this.copy.faqItems));
+    this.seo.setJsonLdScript(
+      'business',
+      buildLocalBusinessSchema(this.seo.getSiteUrl(), `${this.seo.getSiteUrl()}${pagePath}`),
+    );
   }
 
   /** Interpolates the community name into a copy template. */
