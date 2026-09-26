@@ -34,11 +34,14 @@ export async function sheetsSyncTimerHandler(
   const app = getApp();
   const result = await app.sheetsSyncService.runSyncCycle();
   // Aggregates only — never lead emails, ids, or tokens.
+  // The `lagging` flag is the `sheets_sync.lagging` metric (AC4): a
+  // structured log line lets Azure Monitor pick it up, and admin/05's
+  // status view reads the same flag from `sheets_sync_state`.
   if (result.disabled) {
     context.log('sheets-sync-timer: Sheets not configured (fail-closed, no sync)');
   } else {
     context.log(
-      `sheets-sync-timer: cycle complete (synced=${result.synced} skipped=${result.skipped})`,
+      `sheets-sync-timer: cycle complete (synced=${result.synced} skipped=${result.skipped} consecutiveFailures=${result.consecutiveFailures} lagging=${result.lagging})`,
     );
   }
 }
