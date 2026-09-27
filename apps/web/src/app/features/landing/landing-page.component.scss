@@ -222,6 +222,57 @@
   border-top: 1px solid var(--border);
 }
 
+/* ── SEO content sections (pass 4): keyword-bearing substance, buyer-grade ── */
+.seo-section {
+  border-top: 1px solid var(--border);
+}
+
+.seo-section--alt {
+  background: var(--cream-2);
+}
+
+.seo-section-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(40px, 6vw, 72px) clamp(18px, 5vw, 60px);
+}
+
+.seo-section h2 {
+  font-family: var(--font-headline);
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.seo-section p {
+  color: var(--muted);
+  font-size: var(--type-section-body);
+  line-height: 1.7;
+  margin: 0 0 8px;
+}
+
+.seo-links {
+  margin-top: 12px !important;
+}
+
+.seo-links a {
+  color: var(--brass, #b08d3e);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.seo-links a:hover {
+  text-decoration: underline;
+}
+
+.seo-links span {
+  margin: 0 8px;
+  color: var(--muted);
+}
+
 .how-grid {
   max-width: 1080px;
   margin: 0 auto;
