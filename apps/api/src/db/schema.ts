@@ -155,6 +155,16 @@ export const leads = pgTable(
     /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
     nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
     /**
+     * Admin assignment to a builder (builders table). Nullable — null is
+     * the normal state and the lead flow never depends on it. Set via the
+     * admin UI ("Assign to builder"); the builder portal scopes its lead
+     * list to this column. ON DELETE SET NULL: deleting a builder
+     * unassigns their leads instead of destroying them.
+     */
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    /**
      * api-mcp/09: true when created via a `feasly_test_` API key.
      * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
      */
@@ -186,6 +196,8 @@ export const leads = pgTable(
       t.email,
       t.createdAt,
     ),
+    // Builder portal scoping: the portal lists leads by builder_id.
+    index('leads_builder_id_idx').on(t.builderId),
   ],
 );
 
@@ -397,6 +409,65 @@ export const tenants = pgTable('tenants', {
   plan: text('plan'),
   /** Stripe customer id (`cus_…`) — set when card-on-file is captured. */
   stripeCustomerId: text('stripe_customer_id'),
+});
+
+/**
+ * Builders (embed/02 admin-UI migration). The runtime source of truth for
+ * builder config — replaces the hardcoded repo-JSON files
+ * (`config/builders/*.json`), which remain as the seed source and offline
+ * fallback.
+ *
+ * `tenant_key` is the builder ID used everywhere: it stays the join key
+ * for billing/attribution (which key on the `tenants` table's tenant_key),
+ * for builder sessions, and for the embed config lookup. `plan` carries
+ * the billing model (null = undecided); `status` gates active billing;
+ * invoicing and disputes will join on `tenant_key`.
+ *
+ * Only admin users manage these rows. Builder-contact email/phone are
+ * business contact info — never written to log messages (no PII in logs).
+ */
+export const builders = pgTable('builders', {
+  /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+  id: uuid('id').primaryKey(),
+  /** The builder ID used everywhere (embed config, sessions, billing). */
+  tenantKey: text('tenant_key').notNull().unique(),
+  businessName: text('business_name').notNull(),
+  displayName: text('display_name').notNull(),
+  /** Builder business contact email — nullable. */
+  email: text('email'),
+  /** Builder business contact phone — nullable. */
+  phone: text('phone'),
+  /**
+   * Builder logo URL (their hosted link). Our own file storage is a later
+   * story — this is just the URL field for now. Null/empty = Feasly
+   * wordmark fallback in the embed shell.
+   */
+  logoUrl: text('logo_url'),
+  /** #rrggbb hex accent color — nullable. */
+  accentColor: text('accent_color'),
+  /** PostMessage origin allowlist — https origins (http localhost dev only). */
+  allowedOrigins: jsonb('allowed_origins')
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /** 'flat' | 'commission' | null (undecided). */
+  plan: text('plan'),
+  /** 'active' | 'inactive' — inactive builders can't bill or embed. */
+  status: text('status').notNull().default('active'),
+  /**
+   * Escape hatch for future per-builder config (per-plan fields, feature
+   * flags) without new migrations. Always an object.
+   */
+  settings: jsonb('settings')
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /**
