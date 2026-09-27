@@ -58,7 +58,6 @@ describe('detectCoverageSignal', () => {
   });
 });
 
-import { describe, expect, it } from 'vitest';
 import { pricingCoverageIssue, type PricingCoverageBounds } from './coverage';
 
 /**

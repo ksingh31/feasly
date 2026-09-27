@@ -184,7 +184,7 @@ export class EmbedShellComponent {
   }
 
   /** A new pick clears any previous coverage block. */
-  protected onPropertySelected(property: PropertyRecord): void {
+  onPropertySelected(property: PropertyRecord): void {
     this.property.set(property);
     this.coverageIssue.set(null);
   }

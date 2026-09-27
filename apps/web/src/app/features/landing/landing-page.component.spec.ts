@@ -160,6 +160,65 @@ describe('LandingPageComponent', () => {
     expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
   });
 
+  describe('early lot-coverage guard', () => {
+    const bigLotProperty = {
+      ...fakeProperty,
+      addressKey: 'calgary-999-big-lot-rd-sw',
+      address: '999 Big Lot Rd SW, Calgary, AB',
+      lotSqft: 643811,
+      assessedValue: 61586000,
+    } as PropertyRecord;
+
+    it('stops the funnel at the address step for an out-of-range lot (no scope, no state)', () => {
+      const navigate = vi.spyOn(router, 'navigate');
+      component.onSelected(bigLotProperty);
+      fixture.detectChanges();
+      // The wizard never starts: no property selected, no navigation.
+      const state = store.selectSnapshot<WizardStateModel>((s) => s.wizard);
+      expect(state.property).toBeNull();
+      expect(navigate).not.toHaveBeenCalled();
+      // The honest can't-price card renders inline with the same wording as preview.
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.textContent).toContain('We can’t price this property yet');
+      expect(card.textContent).toContain('643,811 sq ft');
+      expect(card.textContent).toContain('1,200–20,000 sq ft');
+    });
+
+    it('shows the generic copy when the assessed value (not the lot) is out of range', () => {
+      component.onSelected({ ...fakeProperty, assessedValue: 0 });
+      fixture.detectChanges();
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.textContent).toContain('We can’t price this property yet');
+      expect(card.textContent).not.toContain('sq ft');
+    });
+
+    it('a priceable lot still flows to scope and clears a previous block', () => {
+      const navigate = vi.spyOn(router, 'navigate');
+      component.onSelected(bigLotProperty);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).not.toBeNull();
+      component.onSelected(fakeProperty);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/estimate/scope']);
+    });
+
+    it('“try a different address” dismisses the card and resets the search box', () => {
+      component.onSelected(bigLotProperty);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).not.toBeNull();
+      const button = fixture.nativeElement.querySelector('.coverage-cta') as HTMLButtonElement;
+      expect(button.textContent).toContain('Try a different address');
+      button.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).toBeNull();
+      // Wizard state untouched — the blocked property was never selected.
+      expect(store.selectSnapshot<WizardStateModel>((s) => s.wizard.property)).toBeNull();
+    });
+  });
+
   it('submit with an empty query shows the hint (no dead end)', () => {
     component.onSubmit();
     fixture.detectChanges();

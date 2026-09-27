@@ -189,11 +189,47 @@ describe('EmbedShellComponent', () => {
     const picked = {
       addressKey: '123-test-st-nw',
       address: '123 Test St NW, Calgary, AB',
+      lotSqft: 5000,
+      assessedValue: 729000,
     } as PropertyRecord;
     component.property.set(picked);
     fixture.nativeElement.querySelector('.embed-cta')?.dispatchEvent(new Event('click'));
     fixture.detectChanges();
     expect(store.selectSnapshot((s) => s.wizard.property)).toEqual(picked);
     expect(routerNavigate).toHaveBeenCalledWith(['/estimate/scope']);
+  });
+
+  it('blocks the CTA for an out-of-range lot and shows the honest note (early coverage guard)', () => {
+    const fixture = setup('elite-craft');
+    flushConfig(fixture);
+    const component = fixture.componentInstance;
+    const picked = {
+      addressKey: '999-big-lot-rd-sw',
+      address: '999 Big Lot Rd SW, Calgary, AB',
+      lotSqft: 643811,
+      assessedValue: 61586000,
+    } as PropertyRecord;
+    component.onPropertySelected(picked);
+    fixture.nativeElement.querySelector('.embed-cta')?.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
+    // The funnel never starts: no wizard state, no navigation, no estimate-start.
+    expect(store.selectSnapshot((s) => s.wizard.property)).toBeNull();
+    expect(routerNavigate).not.toHaveBeenCalled();
+    const note = fixture.nativeElement.querySelector('.embed-coverage-note')?.textContent ?? '';
+    expect(note).toContain('643,811 sq ft');
+    expect(note).toContain('1,200–20,000 sq ft');
+  });
+
+  it('clears the coverage note when a new address is picked', () => {
+    const fixture = setup('elite-craft');
+    flushConfig(fixture);
+    const component = fixture.componentInstance;
+    component.onPropertySelected({ lotSqft: 643811, assessedValue: 1 } as PropertyRecord);
+    fixture.nativeElement.querySelector('.embed-cta')?.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.embed-coverage-note')).not.toBeNull();
+    component.onPropertySelected({ lotSqft: 5000, assessedValue: 729000 } as PropertyRecord);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.embed-coverage-note')).toBeNull();
   });
 });
