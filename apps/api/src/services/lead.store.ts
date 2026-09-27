@@ -73,11 +73,18 @@ export interface LeadStore {
   /**
    * The most recent lead for this email + property address created at or
    * after `since`, or null. Email must already be normalized by the caller.
+   *
+   * SECURITY: the lookup is tenant-scoped — pass the resolved embed tenant
+   * key, or `null` for the direct site. The parameter is required so no
+   * caller can accidentally run an unscoped lookup: without it, one
+   * tenant's repeat submission could rewrite another tenant's lead and
+   * mint an owner token for it.
    */
   findRecentByEmailAndAddress(args: {
     readonly email: string;
     readonly addressKey: string;
     readonly since: Date;
+    readonly tenantKey: string | null;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
   /**
@@ -297,8 +304,15 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             eq(leads.addressKey, args.addressKey),
             eq(leads.email, args.email),
             gte(leads.createdAt, args.since),
+            // Tenant isolation: an embed repeat only matches the same
+            // tenant's leads; a direct-site repeat only matches direct
+            // (tenant-less) leads. Never match across the boundary.
+            args.tenantKey === null
+              ? isNull(leads.tenantKey)
+              : eq(leads.tenantKey, args.tenantKey),
           ),
         )
+        .orderBy(desc(leads.createdAt))
         .limit(1);
       const row = rows[0];
       return row ? toRecord(row) : null;

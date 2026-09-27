@@ -140,6 +140,7 @@ describe('drizzle stores', () => {
       email: 'sam@example.com',
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: null,
     });
     expect(hitOther?.id).toBe(inserted.id);
 
@@ -148,6 +149,7 @@ describe('drizzle stores', () => {
       email: 'sam@example.com',
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: null,
     });
     expect(hit?.id).toBe(inserted.id);
 
@@ -158,6 +160,7 @@ describe('drizzle stores', () => {
       email: 'sam@example.com',
       addressKey,
       since: new Date(Date.now() + 60_000),
+      tenantKey: null,
     });
     expect(miss).toBeNull();
 
@@ -166,8 +169,45 @@ describe('drizzle stores', () => {
       email: 'sam@example.com',
       addressKey: 'calgary-000-other-st-nw',
       since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: null,
     });
     expect(other).toBeNull();
+
+    // Tenant isolation: the same email + address captured by an embed
+    // tenant is invisible to the direct-site lookup and vice versa.
+    const tenantLead = await leads.insert({
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      estimateId,
+      addressKey,
+      email: 'sam@example.com',
+      name: 'Sam Tenant',
+      timeline: 'exploring',
+      marketingConsent: false,
+      consentTs: new Date('2026-09-24T12:00:00Z'),
+      tenantKey: 'elite-craft',
+      source: 'embed',
+    });
+    const crossFromDirect = await leads.findRecentByEmailAndAddress({
+      email: 'sam@example.com',
+      addressKey,
+      since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: null,
+    });
+    expect(crossFromDirect?.id).toBe(inserted.id);
+    const tenantHit = await leads.findRecentByEmailAndAddress({
+      email: 'sam@example.com',
+      addressKey,
+      since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: 'elite-craft',
+    });
+    expect(tenantHit?.id).toBe(tenantLead.id);
+    const unknownTenant = await leads.findRecentByEmailAndAddress({
+      email: 'sam@example.com',
+      addressKey,
+      since: new Date('2026-09-01T00:00:00Z'),
+      tenantKey: 'someone-else',
+    });
+    expect(unknownTenant).toBeNull();
   });
 });
 
