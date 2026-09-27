@@ -234,6 +234,31 @@ describe('CalgaryAssessmentService', () => {
       expect((await pending).suggestions).toEqual([]);
     });
 
+    it('an explicit out-of-coverage query with zero rows throws OUT_OF_COVERAGE', async () => {
+      const pending = firstValueFrom(service.autocomplete('100 Queen St W, Toronto'));
+      expectSearch('100 QUEEN ST W, TORONTO').flush([]);
+      await expect(pending).rejects.toMatchObject({ code: 'OUT_OF_COVERAGE' });
+    });
+
+    it('an out-of-coverage postal code with zero rows throws OUT_OF_COVERAGE', async () => {
+      const pending = firstValueFrom(service.autocomplete('M5V 3A8'));
+      expectSearch('M5V 3A8').flush([]);
+      await expect(pending).rejects.toMatchObject({ code: 'OUT_OF_COVERAGE' });
+    });
+
+    it('a Calgary street mentioning another city still returns Socrata hits', async () => {
+      // "Edmonton Trail NE" is a real Calgary road — the out-of-coverage
+      // verdict only fires after a Socrata miss, so real matches are never
+      // blocked by the city-name heuristic.
+      const pending = firstValueFrom(service.autocomplete('edmonton tr'));
+      expectSearch('EDMONTON TR').flush([
+        { address: '123 EDMONTON TR NE', comm_name: 'Bridgeland' },
+      ]);
+      const res = await pending;
+      expect(res.suggestions).toHaveLength(1);
+      expect(res.suggestions[0]?.addressKey).toBe('123 EDMONTON TR NE');
+    });
+
     it('escapes single quotes in the SoQL predicate', async () => {
       const pending = firstValueFrom(service.autocomplete("o'brien"));
       const req = expectSearch("O''BRIEN");
@@ -332,6 +357,12 @@ describe('CalgaryAssessmentService', () => {
         code: 'not_found',
         retryable: false,
       });
+    });
+
+    it('errors OUT_OF_COVERAGE for an explicit non-Calgary address key', async () => {
+      const pending = firstValueFrom(service.getProperty('100 QUEEN ST W TORONTO'));
+      expectDetail('100 QUEEN ST W TORONTO').flush([]);
+      await expect(pending).rejects.toMatchObject({ code: 'OUT_OF_COVERAGE' });
     });
 
     it('treats a row with no usable assessed value as not found', async () => {
