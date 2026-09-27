@@ -154,6 +154,11 @@ export interface AppConfig {
       submitLabel: string;
       /** Shown when submitting with fewer than 3 characters typed. */
       emptyHint: string;
+      /**
+       * Shown when submitting with 3+ characters typed but no suggestion
+       * selected: the CTA must never proceed with an unresolved address.
+       */
+      selectHint: string;
       /** Shown when a 3+ char query returns zero suggestions. */
       noResults: string;
       /**

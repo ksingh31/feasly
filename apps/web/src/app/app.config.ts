@@ -122,10 +122,14 @@ export const appConfig: ApplicationConfig = {
           BuilderState,
         ],
         beforeSerialize: (obj, key) =>
-          // The report token and the comparison unlock are session-scoped:
-          // strip them so a refresh re-gates instead of silently unlocking.
+          // The report token, partner view, and loaded report data are
+          // session-scoped: strip them so a refresh re-gates instead of
+          // silently unlocking, and a persisted partnerView:true can never
+          // paint the "shared with you" banner on the owner's own report
+          // in a later session. The report page re-dispatches LoadPreview
+          // on init, so nothing the UI needs is lost.
           key === 'report'
-            ? { ...obj, reportToken: null }
+            ? { ...obj, reportToken: null, partnerView: false, preview: null, snapshot: null }
             : key === 'comparison'
               ? { ...obj, leadId: null }
               : // The relay code is a single-use secret: memory-only, never

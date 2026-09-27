@@ -213,12 +213,22 @@ export class CalgaryAssessmentService implements PropertyDataService {
   }
 
   /**
-   * Normalizes for SoQL prefix search: uppercase, single-spaced, and natural
-   * street-type spellings ("AVE", "STREET") rewritten to the abbreviations the
-   * City dataset stores ("AV", "ST") — see STREET_TYPE_ABBREVIATIONS.
+   * Normalizes for SoQL prefix search: uppercase, single-spaced, natural
+   * street-type spellings ("AVE", "STREET") rewritten to the abbreviations
+   * the City dataset stores ("AV", "ST") — see STREET_TYPE_ABBREVIATIONS —
+   * and a trailing city/province tail ("…, Calgary, AB") dropped. A full
+   * address never prefix-matches the stored street address otherwise, so
+   * typing one surfaced zero suggestions while shorter prefixes worked.
    */
   private normalizeQuery(query: string): string {
-    const tokens = query.trim().replace(/\s+/g, ' ').toUpperCase().split(' ');
+    const cleaned = query
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase()
+      .replace(/,?\s*CALGARY\s*,?\s*AB\s*$/, '')
+      .replace(/,?\s*CALGARY\s*$/, '')
+      .replace(/,\s*AB\s*$/, '');
+    const tokens = cleaned.split(' ');
     // The street-type token sits immediately before a trailing quadrant;
     // without a quadrant it is the last token.
     const typeIndex =

@@ -89,13 +89,15 @@ export class LandingPageComponent implements OnInit {
 
   /**
    * Submit button / Enter with no highlighted suggestion: take the top
-   * suggestion if there is one, otherwise nudge for a longer query.
-   * Never a dead end — something always happens.
+   * suggestion if there is one, otherwise nudge for a longer query or a
+   * pick from the suggestions. Never a dead end — something always
+   * happens — and never a proceed: without a resolved address the funnel
+   * cannot continue.
    */
   onSubmit(): void {
     const ac = this.autocomplete;
     if (!ac) return;
     if (ac.pickTop()) return;
-    ac.nudgeIfEmpty();
+    ac.nudgeOnSubmit();
   }
 }

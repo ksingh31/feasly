@@ -121,6 +121,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       placeholder: 'Start typing your street address…',
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
+      selectHint: 'Please choose your address from the suggestions above.',
       noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:

@@ -241,6 +241,76 @@ describe('AddressAutocompleteComponent', () => {
     );
   });
 
+  it('nudgeOnSubmit shows the empty hint for queries under 3 chars', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    component.nudgeOnSubmit();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.form-error')?.textContent).toContain(
+      'Enter your Calgary address',
+    );
+  });
+
+  it('nudgeOnSubmit prompts picking from suggestions when 3+ chars have results', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    await type(fixture, '14 st');
+    expect(component.suggestions().length).toBeGreaterThan(0);
+    // Submit without picking: inline validation, never a silent no-op.
+    component.nudgeOnSubmit();
+    fixture.detectChanges();
+    expect(component.selectionHint()).toContain('suggestions');
+    expect(fixture.nativeElement.querySelector('.form-error')?.textContent).toContain(
+      'suggestions',
+    );
+  });
+
+  it('nudgeOnSubmit stays silent when 3+ chars match nothing (no-results UI covers it)', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    await type(fixture, 'zzz no such street');
+    expect(component.suggestions()).toEqual([]);
+    component.nudgeOnSubmit();
+    fixture.detectChanges();
+    expect(component.selectionHint()).toBeNull();
+  });
+
+  it('typing again clears the selection hint', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    await type(fixture, '14 st');
+    component.nudgeOnSubmit();
+    expect(component.selectionHint()).not.toBeNull();
+    await type(fixture, '14 st n');
+    expect(component.selectionHint()).toBeNull();
+  });
+
+  it('onRawInput pushes a DOM value the control missed into the search pipeline', async () => {
+    // iOS Safari swallows input events mid-composition/autocorrect, so the
+    // FormControl never sees the keystrokes and the debounced search never
+    // runs. The raw input handler closes that gap.
+    const fixture = create();
+    const component = fixture.componentInstance;
+    const input = inputEl(fixture);
+    input.value = '14 st';
+    expect(component.query.value).toBe('');
+    component.onRawInput({ target: input } as unknown as Event);
+    expect(component.query.value).toBe('14 st');
+    await awaitSearchSettled(fixture);
+    expect(component.suggestions().length).toBeGreaterThan(0);
+  });
+
+  it('onRawInput does not re-emit when the control is already in sync', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    await type(fixture, '14 st');
+    let emissions = 0;
+    const sub = component.query.valueChanges.subscribe(() => emissions++);
+    component.onRawInput({ target: inputEl(fixture) } as unknown as Event);
+    sub.unsubscribe();
+    expect(emissions).toBe(0);
+  });
+
   it('Enter with no highlight emits submitted (parent decides)', async () => {
     const fixture = create();
     const component = fixture.componentInstance;
