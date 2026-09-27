@@ -31,6 +31,7 @@
  * test/boundaries.test.ts. This service never touches db directly.
  */
 import type { BillingConfig } from '../../config';
+import { HttpError } from '../../middleware/errors';
 import type { AttributionService } from './attribution.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { CommissionService } from './commission.service';
@@ -185,9 +186,62 @@ export function createEmbedBillingHookService(
       reportedAt: now(),
     });
     const invoice = await commission.createDraftInvoice(attributed.id);
+    if (invoice.status !== 'draft') {
+      // Lost the won-event race: the concurrent call created the invoice
+      // and already advanced it past draft (createDraftInvoice is
+      // idempotent and returned the winner). Re-entering review would 409 —
+      // report the existing invoice as an idempotent success instead.
+      const reason =
+        invoice.status === 'disputed' ? 'existing_disputed' : 'existing_invoice';
+      await auditEvent(
+        tenantKey,
+        'billing.won_duplicate',
+        'commission_invoice',
+        invoice.id,
+        {
+          leadId: detail.leadId,
+          attributionId: invoice.attributionId,
+          reason: `${reason}_race`,
+        },
+      );
+      return {
+        billed: true,
+        reason,
+        invoiceId: invoice.id,
+        invoiceStatus: invoice.status,
+      };
+    }
     // Auto-enter the review window: the invoice-reviewer timer charges when
     // the window passes (unless disputed — disputes freeze the clock).
-    const inReview = await commission.submitForReview(invoice.id);
+    // A 409 here means a concurrent won event advanced the invoice first
+    // (draft → in_review, or onward): reuse the current invoice instead of
+    // failing the retried event.
+    let inReview: typeof invoice;
+    try {
+      inReview = await commission.submitForReview(invoice.id);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 409) throw error;
+      const current = await commission.getById(invoice.id);
+      const reason =
+        current.status === 'disputed' ? 'existing_disputed' : 'existing_invoice';
+      await auditEvent(
+        tenantKey,
+        'billing.won_duplicate',
+        'commission_invoice',
+        current.id,
+        {
+          leadId: detail.leadId,
+          attributionId: current.attributionId,
+          reason: `${reason}_race`,
+        },
+      );
+      return {
+        billed: true,
+        reason,
+        invoiceId: current.id,
+        invoiceStatus: current.status,
+      };
+    }
     await auditEvent(
       tenantKey,
       'billing.won_invoiced',
