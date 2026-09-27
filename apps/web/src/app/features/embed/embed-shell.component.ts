@@ -21,6 +21,11 @@ import type {
   PropertyRecord,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
+import {
+  formatLotSizeBody,
+  pricingCoverageIssue,
+  type PricingCoverageIssue,
+} from '../../core/utils/coverage';
 import { AddressAutocompleteComponent } from '../../shared/components/address-autocomplete';
 import {
   EmbedConfigFailed,
@@ -106,6 +111,15 @@ export class EmbedShellComponent {
   /** Property picked in the autocomplete; null until the user picks one. */
   readonly property = signal<PropertyRecord | null>(null);
 
+  /**
+   * Early coverage guard verdict for the picked property (lot size or
+   * assessed value outside the cost-data range). Non-null blocks the CTA
+   * and shows the honest can't-price note instead of starting the funnel.
+   */
+  protected readonly coverageIssue = signal<PricingCoverageIssue | null>(null);
+  /** Preview-step validation copy, reused for the embed coverage note (same honest wording). */
+  protected readonly previewCopy = this.config.get('copy').preview;
+
   protected readonly phone = computed(() => this.builderConfig()?.fallback_phone?.trim() ?? '');
   protected readonly email = computed(() => this.builderConfig()?.fallback_email?.trim() ?? '');
   protected readonly hasContact = computed(() => this.phone() !== '' || this.email() !== '');
@@ -169,13 +183,26 @@ export class EmbedShellComponent {
     }
   }
 
+  /** A new pick clears any previous coverage block. */
+  protected onPropertySelected(property: PropertyRecord): void {
+    this.property.set(property);
+    this.coverageIssue.set(null);
+  }
+
   /** CTA: hand the picked address to the parent and start the estimate. */
-  protected onCta(addressBox: AddressAutocompleteComponent): void {
-    const picked = this.property();
+  protected onCta(addressBox: AddressAutocompleteComponent): void {    const picked = this.property();
     if (picked === null) {
       addressBox.nudgeOnSubmit();
       return;
     }
+    // Early coverage guard (same condition as the preview-time backstop):
+    // never start the funnel for a lot the cost data can't price.
+    const issue = pricingCoverageIssue(picked, this.config.get('limits'));
+    if (issue !== null) {
+      this.coverageIssue.set(issue);
+      return;
+    }
+    this.coverageIssue.set(null);
     this.store.dispatch([new SelectProperty(picked), new GoToStep(2)]);
     this.bridge.notifyEstimateStart(picked.addressKey, picked.address);
     // Direct visits continue into the estimate flow. Inside a builder iframe
@@ -184,6 +211,21 @@ export class EmbedShellComponent {
     if (this.isBrowser && window.self === window.top) {
       void this.router.navigate(['/estimate/scope']);
     }
+  }
+
+  /** Buyer-grade explanation for the embed coverage note (preview copy, same wording). */
+  protected coverageMessage(): string {
+    const picked = this.property();
+    if (this.coverageIssue() === 'lot-size' && picked !== null) {
+      const limits = this.config.get('limits');
+      return formatLotSizeBody(
+        this.previewCopy.validationLotSizeBody,
+        picked.lotSqft,
+        limits.minLotSizeSqft,
+        limits.maxLotSizeSqft,
+      );
+    }
+    return this.previewCopy.validationGenericBody;
   }
 
   /**
