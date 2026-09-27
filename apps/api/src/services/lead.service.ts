@@ -46,8 +46,11 @@ import type { MagicLinkStore } from './magic-link.store';
 
 /**
  * Contract-shaped validation. `timeline` defaults to 'exploring' and
- * `marketingConsent` is required-but-possibly-false — the UI sends false when
- * the CASL checkbox is unchecked, and the service must honor that.
+ * `marketingConsent` is required-but-possibly-false — historically the UI
+ * sent false when the (then-optional) CASL checkbox was unchecked, and the
+ * service must honor that. Since 2026-09-27 the frontend requires the
+ * contact-consent checkbox to submit, so new leads always arrive with it
+ * true; the schema still accepts false for back-compat.
  *
  * `website` is the HRD-03 honeypot: the UI renders it as a visually-hidden
  * input no real user fills. A non-empty value does NOT fail validation —

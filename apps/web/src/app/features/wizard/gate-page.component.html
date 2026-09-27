@@ -101,10 +101,20 @@
           />
         </div>
 
-        <label class="casl">
-          <input type="checkbox" formControlName="casl" />
-          <span>{{ copy.caslLabel }}</span>
+        <!-- Contact consent (Karan 2026-09-27): REQUIRED to submit. Wording is -->
+        <!-- a DRAFT pending legal review — see copy.gate.consentLabel.      -->
+        <label class="consent">
+          <input
+            type="checkbox"
+            formControlName="consent"
+            [attr.aria-invalid]="showError('consent')"
+            aria-describedby="gate-consent-error"
+          />
+          <span>{{ copy.consentLabel }}</span>
         </label>
+        @if (showError('consent')) {
+          <p class="field-error" id="gate-consent-error" role="alert">{{ copy.consentRequired }}</p>
+        }
 
         @if (status === 'error') {
           <div class="form-error" role="alert">

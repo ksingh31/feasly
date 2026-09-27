@@ -96,7 +96,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'AI cost breakdown',
       ],
       howItWorksTitle: 'Estimate in 2 minutes',
-      howItWorksSub: 'No account to create. No phone calls. No salesperson involved.',
+      howItWorksSub: 'No spam. We may reach out about your estimate — opt out anytime.',
       steps: [
         {
           n: '01',
@@ -405,19 +405,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       aiSummaryLocked: 'Unlock your report to read the AI summary of your estimate.',
       aiSummaryUnavailable:
         'The AI summary is not available for this report right now — the figures above are the complete estimate.',
-      stepsTitle: 'Your next 3 steps',
+      stepsTitle: 'Your next steps',
       steps: [
         {
-          title: 'Meet your matched builders',
-          body: 'We’ll connect you with 2–3 Calgary infill builders matched to your project — compare their detailed quotes against the same scope.',
+          title: 'Meet your matched builder',
+          body: 'When you’re ready, we can connect you with builders associated with us in Calgary, matched to your project and area. We’ll only reach out with your permission — opt out anytime.',
         },
         {
           title: 'Refine your project brief',
           body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
-        },
-        {
-          title: 'Meet the right builder',
-          body: 'When you are ready, we will introduce you to Calgary infill builders matched to your project. No cold calls, no pressure — an intro only when it helps.',
         },
       ],
       shareTitle: 'Share with a partner',
@@ -464,7 +460,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     gate: {
       heading: 'Where should we send your estimate?',
-      sub: 'One quick step and your personalized cost report is on its way. We only email what you ask for — no spam, no sales calls.',
+      sub: 'One quick step and your personalized cost report is on its way. No spam — we may reach out about your estimate, and you can opt out anytime.',
       nameLabel: 'Full name',
       namePlaceholder: 'Jane Doe',
       nameRequired: 'Please enter your name.',
@@ -487,9 +483,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         { id: '12+mo', label: '12+ months' },
         { id: 'exploring', label: 'Just exploring' },
       ],
-      caslLabel:
-        'It’s okay to email me occasional updates about Feasly and Calgary infill costs. I can unsubscribe anytime.',
-      privacyNote: 'We only use your details to deliver your estimate — never sold, never shared. See our',
+      // DRAFT — pending legal review: final CASL consent wording needs lawyer
+      // blessing before launch. Do not present this copy as legally approved.
+      // Contact model (Karan 2026-09-27): Feasly and builders associated with
+      // us MAY proactively contact the lead about their estimate; the lead can
+      // opt out anytime. The checkbox is REQUIRED to submit the gate.
+      consentLabel:
+        'I agree to the Terms and Privacy Policy, and that Feasly and builders associated with us may contact me about my estimate. I can opt out anytime.',
+      consentRequired: 'Please agree to the contact consent above to continue.',
+      privacyNote:
+        'We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our',
       privacyLinkLabel: 'Privacy Policy',
       submitLabel: 'Unlock My Preview →',
       submittingLabel: 'Sending…',
@@ -577,7 +580,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       howItWorks: {
         eyebrow: 'How it works',
         title: 'From address to estimate in about 2 minutes',
-        sub: 'No account, no phone calls, no salesperson. Just your address and a few project details.',
+        sub: 'Just your address and a few project details. We may reach out about your estimate — opt out anytime.',
         steps: [
           {
             n: '01',
@@ -625,7 +628,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Who sees my information?',
-            a: 'Only you, until you ask us to share it. Your email is how we send you a link to reopen your report; we never sell your information. See our Privacy Policy for the full details.',
+            a: 'Feasly and builders associated with us may see your information so we can contact you about your estimate. Your email is also how we send you a link to reopen your report; we never sell your information, and you can opt out anytime. See our Privacy Policy for the full details.',
           },
           {
             q: 'Do you support addresses outside Calgary?',
@@ -696,7 +699,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is the next step?',
-          a: 'Run your address-specific estimate — it takes about 2 minutes and uses your actual City property record. You will get a full report with a three-bucket cost breakdown and your next three steps.',
+          a: 'Run your address-specific estimate — it takes about 2 minutes and uses your actual City property record. You will get a full report with a three-bucket cost breakdown and your next steps.',
         },
       ],
       ctaTitle: 'Building in {name}?',

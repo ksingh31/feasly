@@ -462,12 +462,13 @@ describe('ReportPageComponent', () => {
       expect(text()).not.toContain('coming soon');
     });
 
-    it('renders the three next steps (matched-builders intro, no builder-sharing language)', () => {
+    it('renders the merged next steps (single builder step, matched-to-project framing)', () => {
       const steps = [...fixture.nativeElement.querySelectorAll('.steps li strong')].map((el: Element) =>
         el.textContent?.trim(),
       );
-      expect(steps).toEqual(['Meet your matched builders', 'Refine your project brief', 'Meet the right builder']);
+      expect(steps).toEqual(['Meet your matched builder', 'Refine your project brief']);
       expect(text()).not.toContain('Share this report with');
+      expect(text()).not.toContain('2–3');
     });
 
     it('stepper tap updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {

@@ -2,8 +2,8 @@
 /**
  * CASL copy diff test (HRD-05, acceptance criterion 2).
  *
- * Byte-matches the lead-gate CASL opt-in wording in the app
- * (`caslLabel` in apps/web/src/app/core/config/app-config.defaults.ts)
+ * Byte-matches the lead-gate contact-consent wording in the app
+ * (`consentLabel` in apps/web/src/app/core/config/app-config.defaults.ts)
  * against the approved wording in docs/legal/approved-copy.md
  * (the ```text block under "### CASL consent wording").
  *
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(TOOLS_DIR, '..', '..', '..'); // repo root
 
-/** Extract the caslLabel string literal from app-config.defaults.ts. */
+/** Extract the consentLabel string literal from app-config.defaults.ts. */
 export function extractAppWording(root = ROOT) {
   const p = join(
     root,
@@ -38,8 +38,8 @@ export function extractAppWording(root = ROOT) {
     'app-config.defaults.ts',
   );
   const src = readFileSync(p, 'utf8');
-  const m = src.match(/caslLabel:\s*\n?\s*'([^']*)'/);
-  if (!m) throw new Error(`caslLabel not found in ${p}`);
+  const m = src.match(/consentLabel:\s*\n?\s*'([^']*)'/);
+  if (!m) throw new Error(`consentLabel not found in ${p}`);
   return m[1];
 }
 
@@ -77,7 +77,7 @@ if (isCli) {
     console.error('');
     console.error('Approved (docs/legal/approved-copy.md):');
     console.error(`  ${JSON.stringify(drift.approvedWording)}`);
-    console.error('App (app-config.defaults.ts caslLabel):');
+    console.error('App (app-config.defaults.ts consentLabel):');
     console.error(`  ${JSON.stringify(drift.appWording)}`);
     console.error('');
     console.error(

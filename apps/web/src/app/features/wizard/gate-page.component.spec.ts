@@ -79,6 +79,9 @@ describe('GatePageComponent', () => {
     setInput('#gate-email', 'jane@example.com');
     setInput('#gate-phone', '');
     setSelect('');
+    // Contact consent is REQUIRED to submit (Karan 2026-09-27).
+    (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+    fixture.detectChanges();
   }
 
   async function setup(apiProvider: unknown = provideApi()): Promise<void> {
@@ -121,20 +124,32 @@ describe('GatePageComponent', () => {
   describe('form', () => {
     beforeEach(() => setup());
 
-    it('renders name, email, phone, timeline, and CASL fields', () => {
+    it('renders name, email, phone, timeline, and consent fields', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('#gate-name')).not.toBeNull();
       expect(el.querySelector('#gate-email')).not.toBeNull();
       expect(el.querySelector('#gate-phone')).not.toBeNull();
       expect(el.querySelector('#gate-timeline')).not.toBeNull();
-      expect(el.querySelector('.casl input[type="checkbox"]')).not.toBeNull();
+      expect(el.querySelector('.consent input[type="checkbox"]')).not.toBeNull();
     });
 
-    it('leaves the CASL opt-in unchecked by default', () => {
+    it('leaves the consent checkbox unchecked by default and blocks submit until it is checked', async () => {
       const box = fixture.nativeElement.querySelector(
-        '.casl input[type="checkbox"]',
+        '.consent input[type="checkbox"]',
       ) as HTMLInputElement;
       expect(box.checked).toBe(false);
+      // Required (Karan 2026-09-27): name + email alone cannot submit.
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      submit();
+      expect(fixture.nativeElement.querySelector('#gate-consent-error')).not.toBeNull();
+      expect(router.url).not.toBe('/estimate/analyzing');
+      // Checking it clears the error and unblocks the submit.
+      box.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#gate-consent-error')).toBeNull();
+      submit();
+      await pollUrl('/estimate/analyzing');
     });
 
     it('blocks an empty submit with inline errors and no navigation', async () => {
@@ -195,7 +210,7 @@ describe('GatePageComponent', () => {
       setInput('#gate-email', 'jane@example.com');
       setInput('#gate-phone', '');
       setSelect('3-6mo');
-      (fixture.nativeElement.querySelector('.casl input') as HTMLInputElement).click();
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
       fixture.detectChanges();
       submit();
       await pollUrl('/estimate/analyzing');
@@ -352,7 +367,7 @@ describe('GatePageComponent', () => {
       expect(timelineLabelText()).toContain(gate.timelineLabelReno);
     });
 
-    it('keeps the headline, CASL default, and single timeline question unchanged', async () => {
+    it('keeps the headline, consent default, and single timeline question unchanged', async () => {
       await setup();
       await firstValueFrom(store.dispatch(new ChooseProjectType('renovation')));
       fixture.detectChanges();
@@ -360,7 +375,7 @@ describe('GatePageComponent', () => {
       expect(el.querySelector('.gate-heading')?.textContent).toContain(
         'Where should we send your estimate?',
       );
-      const box = el.querySelector('.casl input[type="checkbox"]') as HTMLInputElement;
+      const box = el.querySelector('.consent input[type="checkbox"]') as HTMLInputElement;
       expect(box.checked).toBe(false);
       // Exactly one timeline question on the page.
       expect(el.querySelectorAll('#gate-timeline').length).toBe(1);
