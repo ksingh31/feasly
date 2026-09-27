@@ -444,6 +444,87 @@ describe('openai-compatible narrative provider', () => {
     ]);
     expect(result.text).toBe('A fine neighbourhood summary.');
   });
+
+  it('surfaces the upstream error message on HTTP failure (2026-09-27 Gemini 400)', async () => {
+    // Regression: a bare "HTTP 400" told nobody whether the key or the
+    // request was bad. The provider now carries the upstream message.
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://example.com/v1/chat/completions',
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify([
+            {
+              error: {
+                code: 400,
+                message: 'Please pass a valid API key',
+                status: 'INVALID_ARGUMENT',
+              },
+            },
+          ]),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        )) as typeof fetch,
+    });
+    const error = await provider
+      .generate({ system: 'System', user: 'User' })
+      .catch((e) => e);
+    expect(error.message).toContain('HTTP 400');
+    expect(error.message).toContain('Please pass a valid API key');
+    expect(error.message).not.toContain('test-key');
+  });
+
+  it('falls back to the status-only message when the error body is unusable', async () => {
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: 'test-key',
+      model: 'test-model',
+      endpoint: 'https://example.com/v1/chat/completions',
+      fetchImpl: (async () =>
+        new Response('not json', {
+          status: 503,
+          headers: { 'content-type': 'text/plain' },
+        })) as typeof fetch,
+    });
+    const error = await provider
+      .generate({ system: 'System', user: 'User' })
+      .catch((e) => e);
+    expect(error.message).toBe(
+      'LLM API returned HTTP 503 for model test-model',
+    );
+  });
+
+  it('trims whitespace pasted around the API key', async () => {
+    const seen: string[] = [];
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: '  test-key\n',
+      model: 'test-model',
+      endpoint: 'https://example.com/v1/chat/completions',
+      fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
+        seen.push(
+          (init?.headers as Record<string, string>)?.['authorization'] ?? '',
+        );
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'ok' } }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+    await provider.generate({ system: 'System', user: 'User' });
+    expect(seen).toEqual(['Bearer test-key']);
+  });
+
+  it('fails closed on a whitespace-only API key', async () => {
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: '   \n ',
+      model: 'test-model',
+      endpoint: 'https://example.com/v1/chat/completions',
+    });
+    await expect(
+      provider.generate({ system: 'System', user: 'User' }),
+    ).rejects.toThrow(/API key/);
+  });
 });
 
 describe('chatCompletionsUrl', () => {
