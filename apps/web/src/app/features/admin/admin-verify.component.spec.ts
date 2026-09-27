@@ -8,6 +8,12 @@
  * "Verifying sign in / Checking your sign-in link…" forever — past the
  * 15s rxjs timeout, never the error state.
  *
+ * Gesture gate (goal_169560defa2b, 2026-09-27): the token is single-use
+ * server-side, so the component must NOT dispatch VerifyAdminToken on
+ * init — email link-scanners would burn the token before the human taps
+ * it. It renders a one-tap interstitial ("Sign me in →") and verifies
+ * only on that click.
+ *
  * The component dispatches `VerifyAdminToken` through the NGXS store and
  * navigates on `AdminAuthState.authenticated` (ADM-10 bearer flow).
  */
@@ -66,6 +72,21 @@ async function setup(opts: { token?: string; verifyOk: boolean }) {
   return { fixture, dispatch, store };
 }
 
+/** Clicks the "Sign me in →" interstitial button. */
+async function clickSignIn(
+  fixture: ComponentFixture<AdminVerifyComponent>,
+): Promise<void> {
+  fixture.detectChanges();
+  await fixture.whenStable();
+  const button = fixture.nativeElement.querySelector(
+    'button.admin-login__submit',
+  ) as HTMLButtonElement | null;
+  expect(button).not.toBeNull();
+  button!.click();
+  fixture.detectChanges();
+  await fixture.whenStable();
+}
+
 describe('AdminVerifyComponent (admin/01)', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -80,18 +101,45 @@ describe('AdminVerifyComponent (admin/01)', () => {
     // hung because a plain-field write in the error callback never
     // re-rendered the template.
     expect(typeof component.status).toBe('function');
-    fixture.detectChanges();
-    await fixture.whenStable();
+    await clickSignIn(fixture);
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('This sign-in link is invalid or has expired.');
   });
 
-  it('dispatches VerifyAdminToken with the token from the URL', async () => {
+  it('renders the one-tap interstitial instead of verifying on load', async () => {
+    const { fixture } = await setup({ token: 'tok123', verifyOk: true });
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain("You're signing in as");
+    expect(text).toContain('Sign me in');
+    expect(text).not.toContain('Checking your sign-in link');
+  });
+
+  it('does NOT dispatch VerifyAdminToken on init (gesture gate)', async () => {
     const { dispatch } = await setup({ token: 'tok123', verifyOk: true });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('dispatches VerifyAdminToken with the token from the URL on "Sign me in" click', async () => {
+    const { fixture, dispatch } = await setup({
+      token: 'tok123',
+      verifyOk: true,
+    });
+    await clickSignIn(fixture);
     expect(dispatch).toHaveBeenCalledTimes(1);
     const action = dispatch.mock.calls[0][0];
     expect(action).toBeInstanceOf(VerifyAdminToken);
     expect(action.token).toBe('tok123');
+  });
+
+  it('ignores repeated clicks on "Sign me in" (single dispatch)', async () => {
+    const { fixture, dispatch } = await setup({
+      token: 'tok123',
+      verifyOk: true,
+    });
+    await clickSignIn(fixture);
+    // A second click must not re-fire the single-use token request.
+    fixture.componentInstance['signIn']();
+    expect(dispatch).toHaveBeenCalledTimes(1);
   });
 
   it('navigates to /admin/leads on successful verify', async () => {
@@ -100,16 +148,14 @@ describe('AdminVerifyComponent (admin/01)', () => {
     const navigate = vi
       .spyOn(router, 'navigate')
       .mockResolvedValue(true as never);
-    // Re-run ngOnInit with the spy in place.
-    fixture.componentInstance.ngOnInit();
+    await clickSignIn(fixture);
     expect(navigate).toHaveBeenCalledWith(['/admin/leads']);
     navigate.mockRestore();
   });
 
   it('shows the error state when verification fails', async () => {
     const { fixture } = await setup({ token: 'tok123', verifyOk: false });
-    fixture.detectChanges();
-    await fixture.whenStable();
+    await clickSignIn(fixture);
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('This sign-in link is invalid or has expired.');
   });
@@ -123,7 +169,11 @@ describe('AdminVerifyComponent (admin/01)', () => {
   });
 
   it('reads the authenticated flag from AdminAuthState', async () => {
-    const { store } = await setup({ token: 'tok123', verifyOk: true });
+    const { fixture, store } = await setup({
+      token: 'tok123',
+      verifyOk: true,
+    });
+    await clickSignIn(fixture);
     expect(store.selectSnapshot).toHaveBeenCalledWith(
       AdminAuthState.authenticated,
     );
