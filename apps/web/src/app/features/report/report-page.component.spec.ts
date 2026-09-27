@@ -81,7 +81,14 @@ describe('ReportPageComponent', () => {
     }
   }
 
-  async function setup(): Promise<void> {
+  async function setup(options?: {
+    /** When true, a lead is submitted BEFORE the component is created, so
+     * ngOnInit takes the LoadLeadEstimate path (Karan directive 2026-09-27:
+     * the report unlocks immediately after gate submit). */
+    leadSubmitted?: boolean;
+    /** magicLinkSent flag on the submitted lead — picks the confirmation-line variant. */
+    magicLinkSent?: boolean;
+  }): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ReportPageComponent, BlankComponent],
@@ -109,9 +116,23 @@ describe('ReportPageComponent', () => {
     store = TestBed.inject(Store);
     api = TestBed.inject(API_SERVICE) as MockApiService;
     store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+    if (options?.leadSubmitted) {
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-unlock-1',
+          email: 'buyer@example.com',
+          magicLinkSent: options.magicLinkSent ?? true,
+          expiresInDays: 7,
+        }),
+      );
+    }
     fixture = TestBed.createComponent(ReportPageComponent);
     fixture.detectChanges();
-    await pollFor(() => store.selectSnapshot(ReportState.status) === 'ready', 'preview load');
+    if (options?.leadSubmitted) {
+      await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'lead unlock');
+    } else {
+      await pollFor(() => store.selectSnapshot(ReportState.status) === 'ready', 'preview load');
+    }
   }
 
   /** Drives the mock lead flow and unlocks the report on the live fixture. */
@@ -201,54 +222,54 @@ describe('ReportPageComponent', () => {
       expect(dump.toLowerCase()).not.toContain('accura');
     });
 
-    it('shows the pending "check your email" state (no unlock CTA) when a lead was submitted but the report is still locked', () => {
-      // Real-backend shape: lead submitted, magic link on its way, no token.
-      store.dispatch(
-        new StoreLeadResult({
-          leadId: 'lead-pending-1',
-          email: 'buyer@example.com',
-          magicLinkSent: true,
-          expiresInDays: 7,
-        }),
-      );
-      fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('a.unlock')).toBeNull();
-      const pending = fixture.nativeElement.querySelector('.pending-note');
-      expect(pending).not.toBeNull();
-      expect(pending.textContent).toContain('magic link');
-      // Still blurred — no figures leak while locked.
-      expect(text()).not.toMatch(/\d{6}/);
-    });
-
-    describe('pending-lead sub copy', () => {
-      const subCopy = (): string =>
-        fixture.nativeElement.querySelector('.report-sub')?.textContent ?? '';
-
-      it('shows the "on its way" copy when the gate POST sent a fresh magic link', () => {
-        store.dispatch(
-          new StoreLeadResult({
-            leadId: 'lead-pending-1',
-            email: 'buyer@example.com',
-            magicLinkSent: true,
-            expiresInDays: 7,
-          }),
-        );
-        fixture.detectChanges();
-        expect(subCopy()).toContain('Your magic link is on its way.');
+    describe('post-gate lead unlock (Karan directive 2026-09-27)', () => {
+      beforeEach(async () => {
+        await setup({ leadSubmitted: true, magicLinkSent: true });
       });
 
-      it('shows the "already in your inbox" copy on a duplicate submit (no new email sent)', () => {
-        store.dispatch(
-          new StoreLeadResult({
-            leadId: 'lead-pending-1',
-            email: 'buyer@example.com',
-            magicLinkSent: false,
-            expiresInDays: 7,
-          }),
+      it('unlocks IMMEDIATELY after gate submit: real figures, no blur, no locked copy, no gate CTA', () => {
+        expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
+        // No blur anywhere, no locked overlay, no unlock CTA.
+        expect(fixture.nativeElement.querySelector('.locked')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.unlock')).toBeNull();
+        expect(text()).not.toContain('magic link is on its way');
+        // Real figures: the hero shows a concrete dollar total.
+        const heroValue = fixture.nativeElement.querySelector('.hero-total .hero-value');
+        expect(heroValue?.textContent?.trim()).toMatch(/^\$[\d,]+$/);
+        // The cost breakdown renders real rows.
+        expect(fixture.nativeElement.querySelectorAll('.bucket-legend li').length).toBeGreaterThan(0);
+        // The uncalibrated disclaimer stays visible.
+        expect(text()).toContain('Uncalibrated planning figures');
+      });
+
+      it('size stepper is active immediately (enabled buttons)', () => {
+        const buttons = [...fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')];
+        expect(buttons.length).toBeGreaterThan(0);
+        for (const btn of buttons) {
+          expect((btn as HTMLButtonElement).disabled).toBe(false);
+        }
+      });
+
+      it('shows the persistent "Report saved" confirmation below the disclaimer (fresh email)', () => {
+        const note = fixture.nativeElement.querySelector('.lead-link-note');
+        expect(note).not.toBeNull();
+        expect(note.textContent).toContain(
+          'Report saved — we emailed you a link to reopen it anytime.',
         );
-        fixture.detectChanges();
-        expect(subCopy()).toContain('Your link is already in your inbox');
-        expect(subCopy()).not.toContain('on its way');
+      });
+    });
+
+    describe('post-gate lead unlock — duplicate submit', () => {
+      beforeEach(async () => {
+        await setup({ leadSubmitted: true, magicLinkSent: false });
+      });
+
+      it('shows the "already in your inbox" variant when no new email was sent', () => {
+        expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
+        const note = fixture.nativeElement.querySelector('.lead-link-note');
+        expect(note).not.toBeNull();
+        expect(note.textContent).toContain('Report saved — your link is already in your inbox.');
+        expect(note.textContent).not.toContain('emailed you a link');
       });
     });
   });
@@ -343,11 +364,11 @@ describe('ReportPageComponent', () => {
       expect(text()).not.toContain('coming soon');
     });
 
-    it('renders the three mockup next steps (generic builder intro, no builder-sharing language)', () => {
+    it('renders the three next steps (matched-builders intro, no builder-sharing language)', () => {
       const steps = [...fixture.nativeElement.querySelectorAll('.steps li strong')].map((el: Element) =>
         el.textContent?.trim(),
       );
-      expect(steps).toEqual(['Confirm site feasibility', 'Refine your project brief', 'Meet the right builder']);
+      expect(steps).toEqual(['Meet your matched builders', 'Refine your project brief', 'Meet the right builder']);
       expect(text()).not.toContain('Share this report with');
     });
 

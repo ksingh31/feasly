@@ -25,9 +25,15 @@
         <button type="button" class="link-btn" (click)="retry()">{{ copy.retryLabel }}</button>
       </p>
     }
-    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? pendingSubCopy() : copy.subPreGate }}</p>
+    <p class="report-sub">{{ unlocked() ? copy.subPostGate : copy.subPreGate }}</p>
     @if (unlocked()) {
       <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
+      @if (showLeadLinkNote()) {
+        <!-- Karan directive 2026-09-27: persistent (not a toast) confirmation
+             that the emailed link is return-access for other devices — the
+             report is already unlocked. -->
+        <p class="lead-link-note" role="note">{{ leadLinkNote() }}</p>
+      }
     }
 
     <!-- HERO: one prominent total + planning range; blurred pre-gate. -->
@@ -141,11 +147,13 @@
             <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
           </div>
         </div>
-        @if (pendingLead()) {
-          <p class="pending-note" role="status">{{ copy.pendingNote }}</p>
-        } @else {
+        @if (!leadSubmitted()) {
           <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
         }
+        <!-- Post-gate the report unlocks immediately (LoadLeadEstimate) — no
+             "check your email" dead-end; the lead-link note above covers the
+             email. When the lead was submitted but the unlock failed, the
+             inline error + retry above is the honest path (no empty gate loop). -->
       }
     </section>
 
@@ -280,7 +288,7 @@
       </section>
       }
 
-      <button class="cta ghost no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
+      <button class="cta pdf no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
 
       <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
       @if (isReno()) {
@@ -288,7 +296,7 @@
       }
 
       <!-- RENO-04: estimate another address works from a reno report -->
-      <a class="cta ghost no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
+      <a class="cta secondary no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
     }
   }
 </main>

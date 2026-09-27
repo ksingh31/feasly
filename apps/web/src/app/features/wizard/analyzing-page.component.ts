@@ -32,7 +32,10 @@ interface PipelineStage {
  * until the lead gate unlocks), the report token is
  * established for the same-session lead (dev/mock unlock — see
  * ApiService.devTokenForLead), and the user moves to the report; on failure
- * an honest error with retry is shown.
+ * an honest error with retry is shown. In production (no dev token) the
+ * report page unlocks immediately from the submitted lead instead
+ * (Karan directive 2026-09-27) — the magic-link email is return-access for
+ * other devices, not the unlock key for this session.
  */
 @Component({
   selector: 'app-analyzing-page',
@@ -229,9 +232,10 @@ export class AnalyzingPageComponent implements OnInit {
           // session. In dev/mock the token the "email" carried is available via
           // the optional devTokenForLead hook, so the report token is
           // established here and the report lands unlocked. Against the real
-          // backend the hook is undefined and the report stays locked until the
-          // user clicks the magic link in their email (the report page shows
-          // the pending "check your email" state instead).
+          // backend the hook is undefined — the report page then unlocks
+          // immediately from the submitted lead itself (Karan directive
+          // 2026-09-27; the magic-link email becomes return-access for other
+          // devices, and the token-gated extras still need it).
           const leadId = this.store.selectSnapshot(LeadState.leadId);
           const devToken = leadId ? this.api.devTokenForLead?.(leadId) : undefined;
           const actions: Array<StorePreviewEstimate | SetReportToken> = [

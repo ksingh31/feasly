@@ -5,7 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
-import { CommunityPageComponent, toDisplayName } from './community-page.component';
+import { CommunityPageComponent } from './community-page.component';
+import { toDisplayName } from './community-names';
 
 /**
  * SEO-04: /communities/:slug renders the H1, stat block, 3 tier ranges,
@@ -18,7 +19,7 @@ describe('CommunityPageComponent', () => {
   const communitiesCopy = {
     illustrativeBanner: 'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
     titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
-    descriptionTemplate: 'Planning cost ranges for building a home in {name}, Calgary.',
+    descriptionTemplate: 'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}.',
     statLabel: 'Average City-assessed value (not market value)',
     statNote: 'Stat note.',
     basisNote: 'Basis note.',
@@ -84,6 +85,16 @@ describe('CommunityPageComponent', () => {
     await setup('beltline');
     const title = TestBed.inject(Title);
     expect(title.getTitle()).toBe('Cost to Build a Home in Beltline, Calgary | Feasly');
+  });
+
+  it('sets a unique meta description carrying the real assessed value', async () => {
+    await setup('beltline');
+    const meta = TestBed.inject(Meta);
+    const description = meta.getTag('name="description"')?.content ?? '';
+    // Beltline's average from the aggregates fixture data — the description
+    // must carry the real figure so all 40 community pages are unique.
+    expect(description).toContain('Beltline');
+    expect(description).toContain('$607,351');
   });
 
   it('shows the real average assessed value with the fixed-value label', async () => {

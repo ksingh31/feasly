@@ -6,9 +6,11 @@ import type {
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
+import { buildItemListSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
 import ranges from '../../../content/data/community-ranges.json';
+import { toDisplayName } from './community-names';
 
 /** Minimal shape of SEO-04's community-ranges.json (only what the index needs). */
 interface CommunityRangesFile {
@@ -58,7 +60,18 @@ export class CommunitiesIndexPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('communities');
-    this.seo.setJsonLd(null);
+    // SEO: ItemList of every community cost guide — crawlers discover all
+    // 40 guides from the hub's structured data, not just the anchor links.
+    const siteUrl = this.seo.getSiteUrl();
+    this.seo.setJsonLd(
+      buildItemListSchema(
+        `${siteUrl}/communities/`,
+        this.communities.map((c) => ({
+          name: `${toDisplayName(c.name)}, Calgary`,
+          url: `${siteUrl}/communities/${c.slug}/`,
+        })),
+      ),
+    );
   }
 
   /** "from $X" teaser, or null when the ranges file lacks the community. */

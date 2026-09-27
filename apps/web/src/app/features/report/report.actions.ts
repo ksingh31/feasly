@@ -1,10 +1,14 @@
 /**
  * Report NGXS actions (M1).
  *
- * Integration contract for the lead-gate / analyzing flow: after magic-link
- * verification, dispatch `SetReportToken` with the report token and navigate
- * to `/estimate/report`. The page then fetches the verified snapshot itself.
- * Pre-gate, the page dispatches `LoadPreview` and renders blurred figures.
+ * Integration contract for the lead-gate / analyzing flow:
+ * - magic-link verification: dispatch `SetReportToken` with the report
+ *   token and navigate to `/estimate/report` — the page fetches the
+ *   verified snapshot itself (`UnlockReport`);
+ * - same-session post-gate (Karan directive 2026-09-27): the page dispatches
+ *   `LoadLeadEstimate` and renders the full report immediately from the
+ *   public estimate endpoint — no magic-link round-trip;
+ * - pre-gate: the page dispatches `LoadPreview` and renders blurred figures.
  */
 export class LoadPreview {
   static readonly type = '[Report] Load preview';
@@ -28,6 +32,20 @@ export class SetPartnerView {
 
 export class UnlockReport {
   static readonly type = '[Report] Unlock report';
+}
+
+/**
+ * Immediate post-gate unlock (Karan directive 2026-09-27): after the lead
+ * gate is submitted, the report unlocks WITHOUT the magic-link round-trip.
+ * The handler runs the PUBLIC estimate endpoint (auth:none — no API change,
+ * no new data exposure; the pre-gate blur was a nudge, not a boundary) and
+ * maps the full response (figures + rows) onto the report snapshot the page
+ * renders. The token-gated extras (AI narrative, token revise, share,
+ * callback) stay behind the magic-link email, whose role is now
+ * return-access on other devices.
+ */
+export class LoadLeadEstimate {
+  static readonly type = '[Report] Load lead estimate';
 }
 
 export class ReviseReport {

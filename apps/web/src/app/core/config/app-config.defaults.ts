@@ -368,12 +368,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.',
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my full report →',
-      pendingSub: 'Your magic link is on its way.',
-      // Shown instead of pendingSub when the gate POST was a duplicate and
+      // Post-gate confirmation line (Karan directive 2026-09-27): the
+      // magic-link email is return-access for other devices now, not the
+      // unlock key — the report is already unlocked. Persistent, subtle.
+      leadLinkNote: 'Report saved — we emailed you a link to reopen it anytime.',
+      // Shown instead of leadLinkNote when the gate POST was a duplicate and
       // the backend sent no new email (magicLinkSent === false).
-      pendingSubDuplicate: 'Your link is already in your inbox — check your email.',
-      pendingNote:
-        'We emailed your magic link — click the link in the email to unlock your full numbers.',
+      leadLinkNoteDuplicate: 'Report saved — your link is already in your inbox.',
       breakdownTitle: 'Where the build budget goes',
       breakdownLocked: 'The breakdown unlocks with your full report.',
       finishLevelLabel: 'Selected finish level',
@@ -404,8 +405,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       stepsTitle: 'Your next 3 steps',
       steps: [
         {
-          title: 'Confirm site feasibility',
-          body: 'Walk the lot with a builder or designer and confirm setbacks, servicing, and access before you spend on drawings. Surprises live in the site, not the spreadsheet.',
+          title: 'Meet your matched builders',
+          body: 'We’ll connect you with 2–3 Calgary infill builders matched to your project — compare their detailed quotes against the same scope.',
         },
         {
           title: 'Refine your project brief',
@@ -649,7 +650,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
       titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
       descriptionTemplate:
-        'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value, Standard/Premium/Luxury build ranges, and FAQs.',
+        'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}, Standard/Premium/Luxury build ranges, and FAQs.',
       statLabel: 'Average City-assessed value (not market value)',
       statNote:
         'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and can differ from actual sale prices.',
