@@ -39,14 +39,16 @@ anonymized aggregates retained.)_
 
 ### CASL consent wording
 
-_(lawyer: the exact opt-in wording; must byte-match the consent line on
-`/privacy` and in the lead-gate UI once approved.)_
+_(lawyer: the exact consent wording; must byte-match the required consent
+checkbox in the lead-gate UI once approved.)_
 
 > **Status: draft-pending-lawyer.** The wording in the block below is the
-> current draft. When counsel approves (or rewrites) it, update this block —
-> the HRD-05 CASL diff test (`apps/web/tools/check-casl-copy.mjs`) keeps the
-> app's `caslLabel` byte-identical to it.
+> current draft (contact model decided 2026-09-27: Feasly and builders
+> associated with us may contact the lead about their estimate; the lead can
+> opt out anytime). When counsel approves (or rewrites) it, update this
+> block — the HRD-05 CASL diff test (`apps/web/tools/check-casl-copy.mjs`)
+> keeps the app's `consentLabel` byte-identical to it.
 
 ```text
-It’s okay to email me occasional updates about Feasly and Calgary infill costs. I can unsubscribe anytime.
+I agree to the Terms and Privacy Policy, and that Feasly and builders associated with us may contact me about my estimate. I can opt out anytime.
 ```

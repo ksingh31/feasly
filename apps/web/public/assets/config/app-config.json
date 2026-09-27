@@ -29,7 +29,7 @@
         "AI cost breakdown"
       ],
       "howItWorksTitle": "Estimate in 2 minutes",
-      "howItWorksSub": "No registration required. No phone calls. No salesperson involved.",
+      "howItWorksSub": "No spam. We may reach out about your estimate — opt out anytime.",
       "steps": [
         {
           "n": "01",
@@ -118,7 +118,7 @@
     },
     "gate": {
       "heading": "Where should we send your estimate?",
-      "sub": "One quick step and your personalized cost report is on its way. We only email what you ask for — no spam, no sales calls.",
+      "sub": "One quick step and your personalized cost report is on its way. No spam — we may reach out about your estimate, and you can opt out anytime.",
       "nameLabel": "Full name",
       "namePlaceholder": "Jane Doe",
       "nameRequired": "Please enter your name.",
@@ -131,7 +131,7 @@
       "optionalMarker": "(optional)",
       "phoneInvalid": "That phone number doesn’t look right — digits and basic punctuation only.",
       "phonePattern": "^[+()\\-.\\s\\d]{7,20}$",
-      "timelineLabel": "When are you looking to build?",
+      "timelineLabel": "When are you hoping to build?",
       "timelinePlaceholder": "Choose one…",
       "timelineOptions": [
         {
@@ -155,8 +155,9 @@
           "label": "Just exploring"
         }
       ],
-      "caslLabel": "It’s okay to email me occasional updates about Feasly and Calgary infill costs. I can unsubscribe anytime.",
-      "privacyNote": "We only use your details to deliver your estimate — never sold, never shared. See our",
+      "consentLabel": "I agree to the Terms and Privacy Policy, and that Feasly and builders associated with us may contact me about my estimate. I can opt out anytime.",
+      "consentRequired": "Please agree to the contact consent above to continue.",
+      "privacyNote": "We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our",
       "privacyLinkLabel": "Privacy Policy",
       "submitLabel": "Unlock My Preview →",
       "submittingLabel": "Sending…",
@@ -207,7 +208,7 @@
     "report": {
       "heading": "Your build estimate",
       "subPreGate": "Your preview is ready — unlock it to see the full numbers.",
-      "subPostGate": "Full range-based estimate for your Calgary infill build.",
+      "subPostGate": "Your personalized build estimate for this Calgary property.",
       "totalLabel": "Total investment",
       "buildLabel": "Build cost",
       "landLabel": "Land (assessed value)",
@@ -217,35 +218,31 @@
       "uncalibratedNote": "Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.",
       "lockedNote": "Locked — unlock to reveal the figures.",
       "unlockCta": "Unlock my full report →",
-      "breakdownTitle": "Cost breakdown",
-      "breakdownLocked": "The itemized breakdown unlocks with your full report.",
+      "breakdownTitle": "Where the build budget goes",
+      "breakdownLocked": "The breakdown unlocks with your full report.",
       "landRowLabel": "Land (assessed value)",
       "tierTitle": "What if you change the finish tier?",
       "tierHint": "Switch tiers to re-run the estimate. The range moves because the finishes change — that is where the variance lives.",
-      "tierLockedNote": "Unlock your report to explore finish tiers.",
+      "tierLockedNote": "Unlock your report to see the full cost breakdown and next steps.",
       "adjustTitle": "Adjust the size",
       "decreaseLabel": "Decrease square footage",
       "increaseLabel": "Increase square footage",
-      "adjustHint": "Change the living area and re-run the estimate with the new size.",
+      "adjustHint": "Tap to change the living area — every figure on this page updates automatically.",
       "adjustUnit": "sq ft",
       "adjustCta": "Re-run estimate",
       "adjustLockedNote": "Unlock your report to adjust the size.",
       "rerunningLabel": "Re-running estimate…",
       "narrativeTitle": "AI summary",
       "narrativeComingSoon": "An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.",
-      "stepsTitle": "Your next 3 steps",
+      "stepsTitle": "Your next steps",
       "steps": [
         {
-          "title": "Meet your matched builders",
-          "body": "We’ll connect you with 2–3 Calgary infill builders matched to your project — compare their detailed quotes against the same scope."
+          "title": "Meet your matched builder",
+          "body": "When you’re ready, we can connect you with builders associated with us in Calgary, matched to your project and area. We’ll only reach out with your permission — opt out anytime."
         },
         {
-          "title": "Confirm financing",
-          "body": "Take the total range to your mortgage broker to confirm what you can carry before you commit to land or a builder."
-        },
-        {
-          "title": "Verify zoning and permits",
-          "body": "Confirm the lot zoning and permit requirements with the City of Calgary before you buy or demolish."
+          "title": "Refine your project brief",
+          "body": "Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare."
         }
       ],
       "shareTitle": "Share with a partner",
@@ -253,7 +250,7 @@
       "shareEmailLabel": "Partner email",
       "shareCta": "Send report",
       "shareSuccess": "Report sent — your partner now has their own secure link.",
-      "shareError": "We could not send the report. Please try again in a moment.",
+      "shareError": "Couldn’t send the report. Check your connection and try again.",
       "shareInvalid": "Enter a valid email address.",
       "callbackTitle": "Prefer to talk it through?",
       "callbackHint": "Request a callback and we will walk through the numbers with you.",
@@ -288,7 +285,7 @@
       "howItWorks": {
         "eyebrow": "How it works",
         "title": "From address to estimate in about 2 minutes",
-        "sub": "No account, no phone calls, no salesperson. Just your address and a few project details.",
+        "sub": "Just your address and a few project details. We may reach out about your estimate — opt out anytime.",
         "steps": [
           {
             "n": "01",
@@ -308,7 +305,7 @@
           {
             "n": "04",
             "title": "Unlock your full report",
-            "body": "Enter your email and we send a magic link that unlocks the complete report: total investment, cost breakdown, and next steps. The link is valid for 7 days."
+            "body": "Enter your email and your full report unlocks immediately: total investment, cost breakdown, and next steps. We also email you a link to reopen it anytime — valid for 7 days."
           }
         ],
         "mathNoteTitle": "Real math, not guesses",
@@ -335,7 +332,7 @@
           },
           {
             "q": "Who sees my information?",
-            "a": "Only you, until you ask us to share it. Your email unlocks your report via a magic link; we never sell your information. See our Privacy Policy for the full details."
+            "a": "Feasly and builders associated with us may see your information so we can contact you about your estimate. Your email is also how we send you a link to reopen your report; we never sell your information, and you can opt out anytime. See our Privacy Policy for the full details."
           },
           {
             "q": "Do you support addresses outside Calgary?",
@@ -343,7 +340,7 @@
           },
           {
             "q": "How does the magic link work?",
-            "a": "After you enter your email at the gate, we send a link that unlocks your full report — no password to remember. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one."
+            "a": "Your report unlocks the moment you enter your email — no password to remember. We also email you a magic link so you can reopen it on another device anytime. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one."
           }
         ]
       }

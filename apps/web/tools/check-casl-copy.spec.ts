@@ -1,7 +1,7 @@
 /**
  * HRD-05 spec: CASL diff test (check-casl-copy.mjs).
  *
- * Proves the check bites: it reports drift when the app's caslLabel differs
+ * Proves the check bites: it reports drift when the app's consentLabel differs
  * from the approved wording, and passes when they byte-match.
  */
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ function writeTree(appWording: string, approvedWording: string) {
     'app-config.defaults.ts',
   );
   mkdirSync(join(defaultsPath, '..'), { recursive: true });
-  writeFileSync(defaultsPath, `export const x = {\n  caslLabel:\n    '${appWording}',\n};\n`);
+  writeFileSync(defaultsPath, `export const x = {\n  consentLabel:\n    '${appWording}',\n};\n`);
 
   const mdPath = join(root, 'docs', 'legal', 'approved-copy.md');
   mkdirSync(join(mdPath, '..'), { recursive: true });
@@ -63,7 +63,7 @@ describe('checkCaslCopy', () => {
     expect(drift!.approvedWording).toBe(WORDING_A);
   });
 
-  it('extracts the exact caslLabel literal', () => {
+  it('extracts the exact consentLabel literal', () => {
     writeTree(WORDING_A, WORDING_A);
     expect(extractAppWording(root)).toBe(WORDING_A);
   });

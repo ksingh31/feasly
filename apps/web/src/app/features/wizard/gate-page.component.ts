@@ -23,8 +23,13 @@ type GateStatus = 'idle' | 'sending' | 'error';
 /**
  * Lead gate (FE-004): the single gate in the flow.
  *
- * Name + email required, phone + timeline optional, CASL opt-in unchecked by
- * default. On submit the component first runs the preview estimate — the lead
+ * Name + email required, phone + timeline optional. The contact-consent
+ * checkbox is REQUIRED to submit (Karan 2026-09-27): Feasly and builders
+ * associated with us may proactively contact the lead about their estimate;
+ * the lead can opt out anytime. Consent wording is a DRAFT pending legal
+ * review — see copy.gate.consentLabel.
+ *
+ * On submit the component first runs the preview estimate — the lead
  * contract requires an `estimateId`, so this real call mints it — then POSTs
  * the lead and routes to the analyzing screen. Loading and honest error
  * states included; the error banner retries the whole submit.
@@ -90,8 +95,10 @@ export class GatePageComponent implements OnInit {
       return value === '' || this.phonePattern.test(value) ? null : { phoneInvalid: true };
     }],
     timeline: ['' as TimelineOption | ''],
-    // CASL opt-in: unchecked by default, always the user's explicit choice.
-    casl: [false],
+    // Contact consent (Karan 2026-09-27): REQUIRED to submit. Feasly and
+    // builders associated with us may contact the lead about their estimate;
+    // the lead can opt out anytime. Wording is a DRAFT pending legal review.
+    consent: [false, Validators.requiredTrue],
     // HRD-03 honeypot: visually hidden; humans never fill it, bots do.
     // A filled value quarantines the lead server-side (still 201).
     website: [''],
@@ -135,7 +142,7 @@ export class GatePageComponent implements OnInit {
   }
 
   /** True when the control is invalid and the user has interacted or submitted. */
-  showError(controlName: 'name' | 'email' | 'phone'): boolean {
+  showError(controlName: 'name' | 'email' | 'phone' | 'consent'): boolean {
     const control = this.form.get(controlName);
     return !!control && control.invalid && (control.touched || control.dirty);
   }
@@ -190,7 +197,7 @@ export class GatePageComponent implements OnInit {
               email: values.email.trim(),
               phone: values.phone.trim() === '' ? undefined : values.phone.trim(),
               timeline: values.timeline === '' ? 'exploring' : values.timeline,
-              marketingConsent: values.casl,
+              marketingConsent: values.consent,
               // HRD-03 honeypot — empty for humans, filled by bots.
               website: values.website,
               tenantKey,
@@ -255,7 +262,7 @@ export class GatePageComponent implements OnInit {
         email: values.email.trim(),
         phone: values.phone.trim() === '' ? undefined : values.phone.trim(),
         timeline: values.timeline === '' ? 'exploring' : values.timeline,
-        marketingConsent: values.casl,
+        marketingConsent: values.consent,
         // HRD-03 honeypot — empty for humans, filled by bots.
         website: values.website,
       })

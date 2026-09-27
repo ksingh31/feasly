@@ -513,7 +513,7 @@ export interface AppConfig {
     },
     /**
      * Lead-gate step (FE-004) copy. The single gate in the flow: name/email
-     * required, phone/timeline optional, CASL opt-in unchecked by default.
+     * required, phone/timeline optional, contact-consent checkbox required.
      */
     gate: {
       heading: string;
@@ -538,8 +538,15 @@ export interface AppConfig {
       timelinePlaceholder: string;
       /** `id`s must match the TimelineOption contract union. */
       timelineOptions: { id: TimelineOption; label: string }[];
-      /** Plain-language CASL opt-in; the box starts unchecked. */
-      caslLabel: string;
+      /**
+       * Required contact-consent checkbox (Karan 2026-09-27): Feasly and
+       * builders associated with us may contact the lead about their
+       * estimate; the lead can opt out anytime. Wording is a DRAFT pending
+       * legal review — do not present as lawyer-approved.
+       */
+      consentLabel: string;
+      /** Inline error when the required consent checkbox is unchecked. */
+      consentRequired: string;
       privacyNote: string;
       privacyLinkLabel: string;
       submitLabel: string;
