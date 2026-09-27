@@ -45,11 +45,22 @@ import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import type { PropertyService } from './property.service';
 import { requireOwnerLink, resolveReportToken } from './report-context';
+import { isSyntheticNarrative } from './narrative/narrative.types';
 import type {
   NewReportSnapshot,
   ReportSnapshotRecord,
   ReportSnapshotStore,
 } from './report-snapshot.store';
+
+/**
+ * Narrative safe for user-facing responses. Log-provider placeholder text
+ * persisted before the synthetic guard (bug goal_aec0b247775d) is stripped
+ * — the report page renders its "summary unavailable" state instead of
+ * dev-speak. Real narratives pass through untouched.
+ */
+function userNarrative(raw: string | null | undefined): string {
+  return raw && !isSyntheticNarrative(raw) ? raw : '';
+}
 
 export interface ReportService {
   /**
@@ -182,7 +193,9 @@ function toContract(record: ReportSnapshotRecord): ReportSnapshot {
     },
     landValue: { value: landValue.data.value },
     rows: contractRows(record.rows),
-    narrative: record.narrative,
+    // Placeholder rows persisted before the synthetic guard never reach
+    // the response (bug goal_aec0b247775d).
+    narrative: userNarrative(record.narrative),
     preparedAt: record.preparedAt.toISOString(),
     version: record.version,
     updatedAt: record.updatedAt ? record.updatedAt.toISOString() : undefined,
@@ -298,7 +311,7 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
       totalRange: figures.totalRange,
       landValue: figures.landValue,
       rows: figures.rows,
-      narrative: estimate.narrative ?? '',
+      narrative: userNarrative(estimate.narrative),
       assumptions: estimate.assumptions,
       projectType,
       renoInputs: null,
@@ -311,7 +324,7 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
     async getReport(reportToken: string): Promise<ReportSnapshot> {
       const { estimate, latest, leadId } = await resolveEstimate(reportToken);
       if (latest) {
-        const estimateNarrative = estimate.narrative ?? '';
+        const estimateNarrative = userNarrative(estimate.narrative);
         if (latest.narrative === '' && estimateNarrative !== '') {
           // The async narrative worker landed after v1 was snapshotted:
           // append a new version carrying it (never edit v1 in place).
@@ -441,7 +454,7 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
         rows: figures.rows,
         // Narrative describes the project, not the what-if tier/sqft — the
         // estimate row stays the source of truth.
-        narrative: estimate.narrative ?? latest?.narrative ?? '',
+        narrative: userNarrative(estimate.narrative ?? latest?.narrative),
         assumptions,
         projectType,
         renoInputs: null,

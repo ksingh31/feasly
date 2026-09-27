@@ -90,6 +90,13 @@ var sheetsPrivateKeySecretName = 'feasly-${environment}-sheets-service-account-k
 var sheetsPrivateKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${sheetsPrivateKeySecretName}'
 var unsubscribeSecretName = 'feasly-${environment}-unsubscribe-token-secret'
 var unsubscribeTokenSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${unsubscribeSecretName}'
+// AI summary (narrative worker): Karan provisions the Gemini API key in Key
+// Vault himself (this secret is NOT deployed by Bicep — a Bicep-deployed
+// secret would overwrite his value). The URI below only references it; the
+// secret must exist in the vault before the app first resolves the
+// Key Vault reference at startup.
+var narrativeSecretName = 'feasly-${environment}-narrative-api-key'
+var narrativeApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${narrativeSecretName}'
 
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
@@ -201,6 +208,13 @@ module functionApp 'modules/function-app.bicep' = {
     // Key Vault below; the app fails closed (503) on
     // /api/v1/unsubscribe/{token} without it.
     unsubscribeTokenSecretUri: unsubscribeTokenSecretUri
+    // AI summary (narrative worker): dev-only until Karan provisions the key
+    // in the other vaults. Elsewhere the settings stay empty and the app
+    // keeps its log-provider default.
+    narrativeProvider: environment == 'dev' ? 'openai-compatible' : 'log'
+    narrativeApiKeySecretUri: environment == 'dev' ? narrativeApiKeySecretUri : ''
+    narrativeEndpoint: environment == 'dev' ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : ''
+    narrativeModel: environment == 'dev' ? 'gemini-2.5-flash' : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).
@@ -212,7 +226,11 @@ module functionApp 'modules/function-app.bicep' = {
   // The dev ACS secret (below) must exist before the app first resolves its
   // Key Vault references at startup. Skipped automatically when the
   // conditional secret is not deployed (non-dev). The unsubscribe HMAC
-  // secret (email/03) likewise must exist before startup resolves it.
+  // secret (email/03) likewise must exist before startup resolves it. The
+  // narrative API key secret (feasly-<env>-narrative-api-key) is provisioned
+  // by Karan in the portal, not by Bicep — it must exist in the vault before
+  // this deployment goes live, otherwise the dev app fails to resolve the
+  // Key Vault reference at startup.
   dependsOn: [
     acsDevConnectionStringSecret
     unsubscribeTokenSecret

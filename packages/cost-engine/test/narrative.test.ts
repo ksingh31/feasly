@@ -21,6 +21,7 @@ import {
   buildNarrativePrompt,
   NARRATIVE_FOOTER,
   validateNarrative,
+  type CommunityFacts,
   type EstimateOutput,
   type NarrativePromptInput,
 } from '../src/narrative';
@@ -227,5 +228,100 @@ describe('type-level guarantee: no CostParams in prompts (AC3)', () => {
       validateNarrative('narrative', costData);
     }
     expect(true).toBe(true);
+  });
+});
+
+describe('neighbourhood section (communityFacts)', () => {
+  const FACTS: CommunityFacts = {
+    community: 'Beltline',
+    avgSingleFamilyAssessedValue: 750000,
+    assessedHomeCount: 1234,
+    avgLotSqft: 5000,
+    dataVintage: 'September 2026',
+  };
+  const input: NarrativePromptInput = {
+    projectType: 'new_build',
+    estimate: NEW_BUILD,
+    cityFacts: CITY,
+    communityFacts: FACTS,
+  };
+
+  it('adds the neighbourhood stats section to the user prompt', () => {
+    const prompt = buildNarrativePrompt(input);
+    expect(prompt.user).toContain(
+      'Neighbourhood: Beltline (City of Calgary assessment data, refreshed September 2026)',
+    );
+    expect(prompt.user).toContain(
+      '- Average single-family home assessed value: $750,000 (City-assessed value, not market value)',
+    );
+    expect(prompt.user).toContain('- Homes assessed: 1,234');
+    expect(prompt.user).toContain('- Average lot size: 5,000 sqft');
+    expect(prompt.user).toContain(
+      'Engine figures — the ONLY dollar figures you may reference, plus the community average above:',
+    );
+  });
+
+  it('instructs the LLM to cover schools, transit, and area character — hedged', () => {
+    const prompt = buildNarrativePrompt(input);
+    expect(prompt.system).toContain('Neighbourhood — write for a homebuyer');
+    expect(prompt.system).toContain('nearby schools and how they rate');
+    expect(prompt.system).toContain("the area's character and how it ranks within Calgary");
+    expect(prompt.system).toContain('public transport access');
+    expect(prompt.system).toContain('hedge explicitly');
+    expect(prompt.system).toContain('Never invent school names or ratings.');
+    expect(prompt.system).toContain('copy the figure exactly or leave it out');
+  });
+
+  it('omits the neighbourhood section when communityFacts are absent', () => {
+    const prompt = buildNarrativePrompt({
+      projectType: 'new_build',
+      estimate: NEW_BUILD,
+      cityFacts: CITY,
+    });
+    expect(prompt.user).not.toContain('Neighbourhood:');
+    expect(prompt.user).toContain(
+      'Engine figures — the ONLY dollar figures you may reference:',
+    );
+    expect(prompt.system).not.toContain('Neighbourhood — write for a homebuyer');
+  });
+
+  it('omits the price line and exact-copy rule when the average is null', () => {
+    const facts: CommunityFacts = { ...FACTS, avgSingleFamilyAssessedValue: null };
+    const prompt = buildNarrativePrompt({
+      projectType: 'new_build',
+      estimate: NEW_BUILD,
+      cityFacts: CITY,
+      communityFacts: facts,
+    });
+    expect(prompt.user).toContain('Neighbourhood: Beltline');
+    expect(prompt.user).not.toContain('Average single-family home assessed value');
+    expect(prompt.system).toContain('Neighbourhood — write for a homebuyer');
+    expect(prompt.system).not.toContain('copy the figure exactly');
+  });
+
+  it('validator allows the community average figure when provided', () => {
+    const narrative = [
+      'Beltline averages $750,000 for a single-family home (City-assessed value, not market value).',
+      NARRATIVE_FOOTER,
+    ].join(' ');
+    expect(validateNarrative(narrative, NEW_BUILD, FACTS)).toEqual({
+      ok: true,
+      violations: [],
+    });
+  });
+
+  it('validator still rejects other invented figures when communityFacts are present', () => {
+    const narrative = `Beltline averages $750,000. Expect to pay $999,999. ${NARRATIVE_FOOTER}`;
+    const result = validateNarrative(narrative, NEW_BUILD, FACTS);
+    expect(result.ok).toBe(false);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toContain('$999,999');
+  });
+
+  it('validator rejects the community average when communityFacts are absent', () => {
+    const narrative = `Beltline averages $750,000. ${NARRATIVE_FOOTER}`;
+    const result = validateNarrative(narrative, NEW_BUILD);
+    expect(result.ok).toBe(false);
+    expect(result.violations[0]).toContain('$750,000');
   });
 });

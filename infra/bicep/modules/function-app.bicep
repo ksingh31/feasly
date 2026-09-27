@@ -64,6 +64,18 @@ param sheetsServiceAccountPrivateKeySecretUri string = ''
 @description('Key Vault secret URI (versionless) for the unsubscribe token HMAC secret (email/03). Empty = not configured; the app fails closed (503) on /api/v1/unsubscribe/{token}.')
 param unsubscribeTokenSecretUri string = ''
 
+@description('AI summary (narrative worker) provider: log = dev/test console transport (refuses production); openai-compatible = any OpenAI-protocol chat-completions endpoint (Gemini).')
+param narrativeProvider string = 'log'
+
+@description('Key Vault secret URI (versionless) for the narrative LLM API key (Gemini). Empty = not configured; the provider fails closed naming the env var. Karan provisions the key in Key Vault himself — Bicep only references it, never writes it.')
+param narrativeApiKeySecretUri string = ''
+
+@description('Base URL of the OpenAI-compatible endpoint for the narrative provider. Empty = the app config default.')
+param narrativeEndpoint string = ''
+
+@description('Model slug for the narrative provider (e.g. gemini-2.5-flash). Empty = the app config default.')
+param narrativeModel string = ''
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -237,6 +249,44 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 // Key Vault reference — the HMAC secret value never lands in app settings.
                 name: 'UNSUBSCRIBE_TOKEN_SECRET'
                 value: '@Microsoft.KeyVault(SecretUri=${unsubscribeTokenSecretUri})'
+              }
+            ],
+        // AI summary (narrative worker): the real LLM provider. Values are
+        // set per environment in main.bicep; empty = the app setting is
+        // omitted and the app falls back to its config default (log
+        // provider, dev/test console transport). The API key is a Key Vault
+        // reference — the value never lands in app settings. Karan
+        // provisions the key in Key Vault himself; Bicep only references it.
+        empty(narrativeProvider)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_PROVIDER'
+                value: narrativeProvider
+              }
+            ],
+        empty(narrativeApiKeySecretUri)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_API_KEY'
+                value: '@Microsoft.KeyVault(SecretUri=${narrativeApiKeySecretUri})'
+              }
+            ],
+        empty(narrativeEndpoint)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_ENDPOINT'
+                value: narrativeEndpoint
+              }
+            ],
+        empty(narrativeModel)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_MODEL'
+                value: narrativeModel
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls

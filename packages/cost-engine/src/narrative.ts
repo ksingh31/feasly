@@ -7,11 +7,17 @@
  *
  * - `buildNarrativePrompt()` assembles the prompt the narrative worker sends
  *   to the LLM. It interpolates ONLY the engine output (figures +
- *   assumptions) and CityFacts. Calibration numbers (CostData / CostParams)
- *   can never reach the prompt: the parameter type makes passing them a
- *   compile error, asserted by narrative.test.ts.
+ *   assumptions), CityFacts, and CommunityFacts. Calibration numbers
+ *   (CostData / CostParams) can never reach the prompt: the parameter type
+ *   makes passing them a compile error, asserted by narrative.test.ts.
  * - `validateNarrative()` rejects any narrative containing a $-figure that
- *   did not come from the engine output, or missing the verbatim footer.
+ *   did not come from the engine output (or the community average below),
+ *   or missing the verbatim footer.
+ *
+ * CommunityFacts carries published City of Calgary assessment aggregates —
+ * the one sanctioned $-figure the LLM may echo (copied exactly, labeled as
+ * City-assessed rather than market value). It is a published stat, not an
+ * engine computation, and never a calibration number.
  *
  * Pure string building: no I/O, no clock, no env (covered by the
  * engine-purity scan).
@@ -42,6 +48,30 @@ export interface CityFacts {
 }
 
 /**
+ * Community facts from City of Calgary assessment aggregates (Socrata).
+ *
+ * Everything here is a published stat, safe for the LLM to echo — the ONLY
+ * $-figure the narrative may repeat is `avgSingleFamilyAssessedValue`,
+ * copied exactly and labeled City-assessed (never market value). No engine
+ * calibration numbers may ever be added to this type.
+ */
+export interface CommunityFacts {
+  /** e.g. "Beltline". */
+  readonly community: string;
+  /**
+   * Average single-family (R110) City-assessed value, whole CAD dollars.
+   * Null when the stats row is missing — the prompt then omits the price.
+   */
+  readonly avgSingleFamilyAssessedValue: number | null;
+  /** Number of assessed homes behind the average. Null when unavailable. */
+  readonly assessedHomeCount: number | null;
+  /** Average lot size in sqft. Null when unavailable. */
+  readonly avgLotSqft: number | null;
+  /** Aggregate vintage for hedging, e.g. "September 2026". Null when unknown. */
+  readonly dataVintage: string | null;
+}
+
+/**
  * The ONLY input `buildNarrativePrompt` accepts. CostData / CostParams is
  * not assignable to this type, so calibration numbers cannot be
  * interpolated into a prompt — a type-level guarantee (AC3).
@@ -50,6 +80,8 @@ export interface NarrativePromptInput {
   readonly projectType: NarrativeProjectType;
   readonly estimate: EstimateOutput;
   readonly cityFacts: CityFacts;
+  /** Optional — omitted when the community (or its stats) is unknown. */
+  readonly communityFacts?: CommunityFacts;
 }
 
 /** The assembled prompt: system framing + user context. */
@@ -67,8 +99,13 @@ export const NARRATIVE_FOOTER =
 
 /** Format a whole-dollar CAD amount: 1050000 -> "$1,050,000". */
 function formatCadWhole(dollars: number): string {
-  const rounded = Math.round(dollars);
-  return '$' + rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return '$' + formatWhole(dollars);
+}
+
+/** Format a plain whole number with thousands separators (non-dollar stats). */
+function formatWhole(n: number): string {
+  const rounded = Math.round(n);
+  return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /** Format a closed range the same way everywhere (prompt and validator). */
@@ -153,7 +190,11 @@ function renderRules(rules: readonly string[]): string {
   return rules.map((rule) => `- ${rule}`).join('\n');
 }
 
-function buildSystemPrompt(projectType: NarrativeProjectType, cityFacts: CityFacts): string {
+function buildSystemPrompt(
+  projectType: NarrativeProjectType,
+  cityFacts: CityFacts,
+  communityFacts?: CommunityFacts,
+): string {
   const place = `${cityFacts.city}, ${cityFacts.province}`;
   const project =
     projectType === 'renovation'
@@ -163,27 +204,86 @@ function buildSystemPrompt(projectType: NarrativeProjectType, cityFacts: CityFac
     projectType === 'renovation'
       ? [...SHARED_RULES.slice(0, 4), ...RENO_RULES, SHARED_RULES[4]]
       : SHARED_RULES;
-  return [
+  const sections = [
     `You are Feasly's estimate narrator. You write the plain-language summary of ${project} for a homeowner in ${place}.`,
     '',
     'Rules — do not break these:',
     renderRules(rules),
+  ];
+  if (communityFacts) {
+    sections.push(
+      '',
+      `Neighbourhood — write for a homebuyer choosing this area (${communityFacts.community}):`,
+      renderRules(neighbourhoodRules(communityFacts)),
+    );
+  }
+  sections.push(
     '',
     `End every narrative with exactly this sentence: "${NARRATIVE_FOOTER}"`,
-  ].join('\n');
+  );
+  return sections.join('\n');
+}
+
+/**
+ * Neighbourhood instruction block. The LLM covers schools and their
+ * ratings, area character and how the community ranks within Calgary,
+ * public transport access, and the average single-family home price —
+ * hedged wherever its knowledge may be stale. No fake precision: never a
+ * precise rating, score, or schedule stated as fact.
+ */
+function neighbourhoodRules(facts: CommunityFacts): string[] {
+  const rules = [
+    'Cover the neighbourhood for a homebuyer: nearby schools and how they rate, the area\'s character and how it ranks within Calgary, public transport access, and the average single-family home price.',
+    'Where your knowledge may be stale — school ratings, transit routes, new developments — hedge explicitly ("as of my last update", "worth confirming with the school board") and never state a precise rating, score, or schedule as fact. Never invent school names or ratings.',
+  ];
+  if (facts.avgSingleFamilyAssessedValue != null) {
+    rules.push(
+      'The average single-family home price below is a City-assessed value, not a market value — say so. Never restate it approximately: copy the figure exactly or leave it out.',
+    );
+  }
+  return rules;
+}
+
+/** Neighbourhood stats section for the user prompt; empty when unknown. */
+function neighbourhoodLines(facts: CommunityFacts | undefined): string[] {
+  if (!facts) return [];
+  const vintage = facts.dataVintage ? `, refreshed ${facts.dataVintage}` : '';
+  const lines = [
+    '',
+    `Neighbourhood: ${facts.community} (City of Calgary assessment data${vintage})`,
+  ];
+  if (facts.avgSingleFamilyAssessedValue != null) {
+    lines.push(
+      `- Average single-family home assessed value: ${formatCadWhole(facts.avgSingleFamilyAssessedValue)} (City-assessed value, not market value)`,
+    );
+  }
+  if (facts.assessedHomeCount != null) {
+    lines.push(`- Homes assessed: ${formatWhole(facts.assessedHomeCount)}`);
+  }
+  if (facts.avgLotSqft != null) {
+    lines.push(`- Average lot size: ${formatWhole(facts.avgLotSqft)} sqft`);
+  }
+  return lines;
 }
 
 function buildUserPrompt(input: NarrativePromptInput): string {
-  const { projectType, estimate, cityFacts } = input;
+  const { projectType, estimate, cityFacts, communityFacts } = input;
   const community = cityFacts.community
     ? `${cityFacts.community}, ${cityFacts.city}`
     : cityFacts.city;
   const project =
     projectType === 'renovation' ? 'Home renovation' : 'New home build';
+  // When the neighbourhood section carries the published community average,
+  // the figure header names it explicitly — otherwise it stays byte-identical.
+  const figureHeader =
+    communityFacts?.avgSingleFamilyAssessedValue != null
+      ? 'Engine figures — the ONLY dollar figures you may reference, plus the community average above:'
+      : 'Engine figures — the ONLY dollar figures you may reference:';
   const lines = [
     `Project: ${project} in ${community}`,
+    ...neighbourhoodLines(communityFacts),
     '',
-    'Engine figures — the ONLY dollar figures you may reference:',
+    figureHeader,
     ...figureLines(estimate),
   ];
   const assumptions = assumptionsOf(estimate);
@@ -195,12 +295,13 @@ function buildUserPrompt(input: NarrativePromptInput): string {
 
 /**
  * Build the LLM prompt for an estimate narrative. Interpolates ONLY the
- * engine output (figures + assumptions) and CityFacts — never CostData /
- * CostParams (compile-time enforced by the parameter type).
+ * engine output (figures + assumptions), CityFacts, and CommunityFacts —
+ * never CostData / CostParams (compile-time enforced by the parameter
+ * type).
  */
 export function buildNarrativePrompt(input: NarrativePromptInput): NarrativePrompt {
   return {
-    system: buildSystemPrompt(input.projectType, input.cityFacts),
+    system: buildSystemPrompt(input.projectType, input.cityFacts, input.communityFacts),
     user: buildUserPrompt(input),
   };
 }
@@ -214,14 +315,19 @@ export interface NarrativeValidation {
 
 /**
  * Validate a generated narrative: every $-figure must be one the engine
- * produced, and the verbatim footer must be present.
+ * produced (or the published community average, when `communityFacts` was
+ * part of the prompt), and the verbatim footer must be present.
  */
 export function validateNarrative(
   narrative: string,
   estimate: EstimateOutput,
+  communityFacts?: CommunityFacts,
 ): NarrativeValidation {
   const violations: string[] = [];
   const allowed = new Set(allowedNarrativeFigures(estimate));
+  if (communityFacts?.avgSingleFamilyAssessedValue != null) {
+    allowed.add(formatCadWhole(communityFacts.avgSingleFamilyAssessedValue));
+  }
   const figures = narrative.match(FIGURE_PATTERN) ?? [];
   for (const figure of figures) {
     if (!allowed.has(figure)) {

@@ -13,7 +13,7 @@ import {
 } from '@feasly/cost-engine';
 import { createNarrativeService } from '../src/services/narrative.service';
 import { createLogNarrativeProvider } from '../src/services/narrative/providers/log.provider';
-import { createMetaNarrativeProvider } from '../src/services/narrative/providers/meta.provider';
+import { createOpenAiCompatibleNarrativeProvider, chatCompletionsUrl } from '../src/services/narrative/providers/openai-compatible.provider';
 import type {
   NarrativeProvider,
   NarrativeProviderResult,
@@ -123,12 +123,33 @@ function makeStores(estimateOverrides: Partial<EstimateRecord> = {}) {
     notifyFailure: vi.fn(async () => {}),
   };
 
-  return { estimates, magicLinks, leads, opsAlerts, records };
+  // Community context fakes (prompt enrichment): Beltline with stats.
+  const properties = {
+    getProperty: vi.fn(async () => ({ community: 'Beltline' })),
+  } as unknown as import('../src/services/property.service').PropertyService;
+
+  const communityStats = {
+    getBySlug: vi.fn(async (slug: string) =>
+      slug === 'beltline'
+        ? {
+            slug: 'beltline',
+            name: 'Beltline',
+            avgAssessedValue: 750000,
+            assessmentCount: 1234,
+            avgLotSqft: 5000,
+            refreshedAt: new Date('2026-09-01T00:00:00Z'),
+          }
+        : null,
+    ),
+  } as unknown as import('../src/services/community-stats.service').CommunityStatsService;
+
+  return { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats };
 }
 
 function makeProvider(text: string): NarrativeProvider & { calls: number } {
   const p = {
     calls: 0,
+    synthetic: false,
     async generate(_prompt: NarrativePrompt): Promise<NarrativeProviderResult> {
       p.calls++;
       return { text, model: 'test-model' };
@@ -146,7 +167,7 @@ describe('narrative service', () => {
   });
 
   it('generates and persists narrative on happy path', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
     const service = createNarrativeService({
       magicLinks,
@@ -154,6 +175,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
@@ -171,7 +194,7 @@ describe('narrative service', () => {
 
   it('returns cached narrative without calling provider', async () => {
     const cachedText = `Cached narrative text. ${NARRATIVE_FOOTER}`;
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores({
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores({
       narrative: cachedText,
       narrativeGeneratedAt: NOW,
     });
@@ -182,6 +205,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
@@ -192,7 +217,7 @@ describe('narrative service', () => {
   });
 
   it('rejects narrative with invented dollar amounts', async () => {
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     // Provider returns text with a dollar amount not in the figures
     const provider = makeProvider(
       `This will cost $999,999 which is invented. ${NARRATIVE_FOOTER}`,
@@ -203,6 +228,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     await expect(service.generateNarrative(TOKEN, ESTIMATE_ID)).rejects.toThrow();
@@ -210,9 +237,10 @@ describe('narrative service', () => {
   });
 
   it('retries once after invalid output then succeeds', async () => {
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     let calls = 0;
     const provider: NarrativeProvider = {
+      synthetic: false,
       generate: async (_prompt: NarrativePrompt) => {
         calls++;
         if (calls === 1) return { text: 'Bad $123 output.', model: 'test' };
@@ -225,6 +253,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
@@ -234,7 +264,7 @@ describe('narrative service', () => {
   });
 
   it('rejects cross-user access with 403', async () => {
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
     const service = createNarrativeService({
       magicLinks,
@@ -242,6 +272,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     // OTHER_TOKEN belongs to OTHER_LEAD_ID which owns a different estimate
@@ -253,7 +285,7 @@ describe('narrative service', () => {
   });
 
   it('rejects invalid bearer token with 401', async () => {
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
     const service = createNarrativeService({
       magicLinks,
@@ -261,6 +293,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     const error = await service
@@ -271,7 +305,7 @@ describe('narrative service', () => {
   });
 
   it('enforces 5/day rate limit per estimate', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
     const service = createNarrativeService({
       magicLinks,
@@ -279,6 +313,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     // First 5 should succeed (clear narrative each time to avoid cache)
@@ -310,7 +346,7 @@ describe('narrative service', () => {
   });
 
   it('returns 404 for unknown estimate', async () => {
-    const { estimates, magicLinks, leads, opsAlerts } = makeStores();
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
     const service = createNarrativeService({
       magicLinks,
@@ -318,6 +354,8 @@ describe('narrative service', () => {
       estimates,
       provider,
       opsAlerts,
+      properties,
+      communityStats,
     });
 
     const error = await service
@@ -341,9 +379,9 @@ describe('log narrative provider', () => {
   });
 });
 
-describe('meta narrative provider', () => {
+describe('openai-compatible narrative provider', () => {
   it('fails closed without API key', async () => {
-    const provider = createMetaNarrativeProvider({
+    const provider = createOpenAiCompatibleNarrativeProvider({
       model: 'test-model',
       endpoint: 'https://example.com/v1/chat/completions',
     });
@@ -355,7 +393,7 @@ describe('meta narrative provider', () => {
   });
 
   it('does not leak API key in error messages', async () => {
-    const provider = createMetaNarrativeProvider({
+    const provider = createOpenAiCompatibleNarrativeProvider({
       apiKey: 'secret-key-12345',
       model: 'test-model',
       endpoint: 'https://example.com/v1/chat/completions',
@@ -372,6 +410,234 @@ describe('meta narrative provider', () => {
 
     // The provider uses a generic message, never including the key
     expect(error.message).not.toContain('secret-key-12345');
-    expect(error.message).toBe('Meta API request failed');
+    expect(error.message).toBe('LLM API request failed');
+  });
+
+  it('fails closed naming NARRATIVE_ENDPOINT when no endpoint is configured', () => {
+    expect(() =>
+      createOpenAiCompatibleNarrativeProvider({ model: 'test-model' }),
+    ).toThrow(/NARRATIVE_ENDPOINT is not configured/);
+  });
+
+  it('appends /chat/completions to a bare base URL', async () => {
+    const seen: string[] = [];
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      fetchImpl: (async (url: string | URL | Request) => {
+        seen.push(String(url));
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'A fine neighbourhood summary.' } }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+    const result = await provider.generate({
+      system: 'System',
+      user: 'User',
+    });
+    expect(seen).toEqual([
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    ]);
+    expect(result.text).toBe('A fine neighbourhood summary.');
+  });
+});
+
+describe('chatCompletionsUrl', () => {
+  it('leaves a full chat-completions URL unchanged', () => {
+    expect(chatCompletionsUrl('https://example.com/v1/chat/completions')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
+  });
+
+  it('appends /chat/completions to a bare base, tolerating trailing slashes', () => {
+    expect(chatCompletionsUrl('https://example.com/v1/')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
+    expect(chatCompletionsUrl('https://example.com/v1')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
+  });
+});
+
+describe('synthetic placeholder guard (goal_aec0b247775d)', () => {
+  it('never returns the log provider placeholder — empty narrative instead', async () => {
+    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } =
+      makeStores();
+    const provider = createLogNarrativeProvider();
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.estimateId).toBe(ESTIMATE_ID);
+    expect(result.narrative).toBe('');
+    expect(result.narrative).not.toContain('synthetic narrative placeholder');
+    expect(result.cached).toBe(false);
+    // Never persisted: the next read regenerates (or stays empty), it
+    // never serves dev-speak from the row.
+    expect(records.get(ESTIMATE_ID)?.narrative).toBeNull();
+    expect(opsAlerts.notifyFailure).not.toHaveBeenCalled();
+  });
+
+  it('does not serve a pre-guard placeholder from cache', async () => {
+    // Simulate a row persisted before the guard existed: the literal text
+    // the log provider produces (built by the real provider, so the test
+    // breaks if the placeholder wording ever changes).
+    const placeholder = await createLogNarrativeProvider().generate({
+      system: 's',
+      user: 'u',
+    });
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
+      makeStores({
+        narrative: placeholder.text,
+        narrativeGeneratedAt: NOW,
+      });
+    const provider = createLogNarrativeProvider();
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe('');
+    expect(result.narrative).not.toContain('synthetic narrative placeholder');
+  });
+
+  it('still serves a real cached narrative (no over-filtering)', async () => {
+    const realText = `A genuine AI summary of the estimate. ${NARRATIVE_FOOTER}`;
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
+      makeStores({
+        narrative: realText,
+        narrativeGeneratedAt: NOW,
+      });
+    const provider = createLogNarrativeProvider();
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe(realText);
+    expect(result.cached).toBe(true);
+  });
+
+  it('filters synthetic text even when the provider flag is missing (backstop)', async () => {
+    // A provider that forgot `synthetic: true` but emits the marker text
+    // must still have its output dropped. (`synthetic` is required by the
+    // type, so the omission is forced through a cast — a JS caller could
+    // still do this at runtime.)
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
+      makeStores();
+    const provider = {
+      generate: async () => ({
+        text: `Oops, a synthetic narrative placeholder leaked. ${NARRATIVE_FOOTER}`,
+        model: 'forgetful-provider',
+      }),
+    } as unknown as NarrativeProvider;
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe('');
+  });
+});
+
+describe('narrative prompt community enrichment', () => {
+  it('includes the neighbourhood section in the prompt', async () => {
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
+      makeStores();
+    let seen: NarrativePrompt | undefined;
+    const provider: NarrativeProvider = {
+      synthetic: false,
+      generate: async (prompt: NarrativePrompt) => {
+        seen = prompt;
+        return { text: VALID_TEXT, model: 'test-model' };
+      },
+    };
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(seen?.user).toContain('Project: New home build in Beltline, Calgary');
+    expect(seen?.user).toContain(
+      'Neighbourhood: Beltline (City of Calgary assessment data, refreshed September 2026)',
+    );
+    expect(seen?.user).toContain(
+      'Average single-family home assessed value: $750,000 (City-assessed value, not market value)',
+    );
+    expect(seen?.system).toContain('Neighbourhood — write for a homebuyer');
+    expect(seen?.system).toContain('Never invent school names or ratings.');
+  });
+
+  it('degrades to city-only facts when community lookups fail', async () => {
+    const { estimates, magicLinks, leads, opsAlerts, communityStats } =
+      makeStores();
+    const failingProperties = {
+      getProperty: async () => {
+        throw new Error('city API down');
+      },
+    } as unknown as import('../src/services/property.service').PropertyService;
+    let seen: NarrativePrompt | undefined;
+    const provider: NarrativeProvider = {
+      synthetic: false,
+      generate: async (prompt: NarrativePrompt) => {
+        seen = prompt;
+        return { text: VALID_TEXT, model: 'test-model' };
+      },
+    };
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties: failingProperties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe(VALID_TEXT);
+    expect(seen?.user).toContain('Project: New home build in Calgary');
+    expect(seen?.user).not.toContain('Neighbourhood:');
   });
 });

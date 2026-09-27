@@ -242,7 +242,7 @@ import {
   type NarrativeService,
 } from './services/narrative.service';
 import { createLogNarrativeProvider } from './services/narrative/providers/log.provider';
-import { createMetaNarrativeProvider } from './services/narrative/providers/meta.provider';
+import { createOpenAiCompatibleNarrativeProvider } from './services/narrative/providers/openai-compatible.provider';
 import type { NarrativeProvider } from './services/narrative/narrative.types';
 import {
   createCommunityStatsRoute,
@@ -1076,32 +1076,25 @@ export function createComposition(
     privacy: privacyService,
   });
   // Narrative worker (consumer/06): provider selected by config.
-  // 'log' is the dev/test default (refuses production); 'meta' is the
-  // Meta Llama API (Karan's pick) — fails closed until the API key is
-  // configured in Key Vault.
+  // 'log' is the dev/test default (refuses production);
+  // 'openai-compatible' is the remote OpenAI-protocol LLM (Gemini,
+  // Karan's pick) — fails closed until the API key is in Key Vault.
   const narrativeProvider: NarrativeProvider =
-    config.narrative.provider === 'meta'
-      ? createMetaNarrativeProvider({
-          apiKey: config.narrative.metaApiKey || undefined,
+    config.narrative.provider === 'openai-compatible'
+      ? createOpenAiCompatibleNarrativeProvider({
+          apiKey: config.narrative.apiKey || undefined,
           model: config.narrative.model,
-          endpoint: config.narrative.metaEndpoint,
+          endpoint: config.narrative.endpoint,
         })
       : createLogNarrativeProvider();
   if (config.env === 'production' && config.narrative.provider === 'log') {
     throw new Error(
-      'NARRATIVE_PROVIDER=log refuses production — configure the Meta API provider.',
+      'NARRATIVE_PROVIDER=log refuses production — configure the OpenAI-compatible provider.',
     );
   }
-  const narrativeService: NarrativeService = createNarrativeService({
-    magicLinks: magicLinkStore,
-    leads: leadStore,
-    estimates: estimateStore,
-    provider: narrativeProvider,
-    opsAlerts: opsAlertsService,
-  });
-  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
-    narrative: narrativeService,
-  });
+  // (Narrative service is created after propertyService below — it needs
+  // property + community-stats lookups for the prompt's neighbourhood
+  // section.)
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -1201,6 +1194,21 @@ export function createComposition(
     allowDraftCostData: config.costEngine.allowDraftCostData,
   });
   const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
+  // Narrative worker (consumer/06): created here (after propertyService)
+  // because it resolves community context for the prompt's neighbourhood
+  // section via property + community-stats lookups.
+  const narrativeService: NarrativeService = createNarrativeService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    estimates: estimateStore,
+    provider: narrativeProvider,
+    opsAlerts: opsAlertsService,
+    properties: propertyService,
+    communityStats: communityStatsService,
+  });
+  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
+    narrative: narrativeService,
+  });
   const callbackService: CallbackService = createCallbackService({
     magicLinks: magicLinkStore,
     leads: leadStore,

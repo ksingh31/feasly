@@ -114,9 +114,9 @@ describe('loadConfig', () => {
       },
       narrative: {
         provider: 'log',
-        metaApiKey: '',
-        model: 'llama-3.3-70b-versatile',
-        metaEndpoint: 'https://api.llama.com/v1/chat/completions',
+        apiKey: '',
+        model: 'gemini-2.5-flash',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       },
       embed: {
         relayCodeTtlSeconds: 600,

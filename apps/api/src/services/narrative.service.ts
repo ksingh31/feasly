@@ -12,10 +12,17 @@
  *    from the engine output, or missing the verbatim footer.
  *
  * Flow: authenticate (magic-link bearer) → load estimate → verify
- * ownership → return cached if present → rate-limit check → build prompt
- * → provider.generate → validate → (one repair retry) → persist →
+ * ownership → return cached if present → rate-limit check → resolve
+ * community context (property + community stats, best-effort) → build
+ * prompt → provider.generate → validate → (one repair retry) → persist →
  * return. Validation failures fire the `narrative_worker_failed` ops
  * alert (defined in admin/06).
+ *
+ * Synthetic-output guard (bug goal_aec0b247775d): when the provider is the
+ * log provider (no LLM key configured), its placeholder output is dropped
+ * before validation/persistence — the response carries an empty narrative
+ * and the report page renders its "summary unavailable" state. Placeholder
+ * rows persisted before the guard are likewise never served from cache.
  *
  * The estimate record is reconstructed into an `EstimateOutput` from the
  * persisted figures/rows — the engine is NEVER re-run (the narrative
@@ -24,6 +31,7 @@
 import {
   buildNarrativePrompt,
   validateNarrative,
+  type CommunityFacts,
   type CostRow,
   type EstimateOutput,
   type NarrativePromptInput,
@@ -31,14 +39,18 @@ import {
 } from '@feasly/cost-engine';
 import type { NarrativeResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { toSlug } from './community-stats/socrata-aggregates';
+import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateRecord, EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
+import { isSyntheticNarrative } from './narrative/narrative.types';
 import type {
   NarrativeProvider,
   NarrativeProviderResult,
 } from './narrative/narrative.types';
 import type { OpsAlertsService } from './ops-alerts.service';
+import type { PropertyService } from './property.service';
 
 export interface NarrativeService {
   /**
@@ -58,6 +70,10 @@ export interface NarrativeServiceDeps {
   readonly estimates: EstimateStore;
   readonly provider: NarrativeProvider;
   readonly opsAlerts: Pick<OpsAlertsService, 'notifyFailure'>;
+  /** Property lookup for prompt community resolution (best-effort). */
+  readonly properties: Pick<PropertyService, 'getProperty'>;
+  /** Community stats for the prompt's neighbourhood section (best-effort). */
+  readonly communityStats: Pick<CommunityStatsService, 'getBySlug'>;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
   /** Injected rate-limit store for tests; defaults to in-memory. */
@@ -132,11 +148,67 @@ function cityFactsFor(record: EstimateRecord): NarrativePromptInput['cityFacts']
   return { city: 'Calgary', province: 'Alberta' };
 }
 
+/** Aggregate vintage label for the prompt, e.g. "September 2026". */
+function vintageLabel(d: Date): string {
+  const month = d.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+  return `${month} ${d.getUTCFullYear()}`;
+}
+
 export function createNarrativeService(
   deps: NarrativeServiceDeps,
 ): NarrativeService {
   const clock = deps.clock ?? (() => new Date());
   const rateLimits = deps.rateLimitStore ?? createMemoryRateLimitStore();
+
+  /**
+   * Resolve community context for the narrative prompt. Best-effort: any
+   * failure (City API down, unknown community, missing stats row) degrades
+   * to city-only facts — narrative generation must never fail for this.
+   */
+  async function communityContextFor(record: EstimateRecord): Promise<{
+    cityFacts: NarrativePromptInput['cityFacts'];
+    communityFacts: CommunityFacts | undefined;
+  }> {
+    let community: string | undefined;
+    try {
+      const property = await deps.properties.getProperty(record.addressKey);
+      const name = property?.community?.trim();
+      // PropertyService falls back to 'Calgary' when the City row has no
+      // community — that means "unknown", not a community name.
+      if (name && name.toLowerCase() !== 'calgary') community = name;
+    } catch {
+      // City data unavailable — degrade to city-only facts.
+    }
+    let communityFacts: CommunityFacts | undefined;
+    if (community) {
+      try {
+        const stats = await deps.communityStats.getBySlug(toSlug(community));
+        communityFacts = {
+          community: stats?.name ?? community,
+          avgSingleFamilyAssessedValue: stats?.avgAssessedValue ?? null,
+          assessedHomeCount: stats?.assessmentCount ?? null,
+          avgLotSqft: stats?.avgLotSqft ?? null,
+          dataVintage: stats ? vintageLabel(stats.refreshedAt) : null,
+        };
+      } catch {
+        // Stats unavailable — the prompt still gets the community name so
+        // the LLM covers the neighbourhood from its (hedged) knowledge.
+        communityFacts = {
+          community,
+          avgSingleFamilyAssessedValue: null,
+          assessedHomeCount: null,
+          avgLotSqft: null,
+          dataVintage: null,
+        };
+      }
+    }
+    return {
+      cityFacts: community
+        ? { city: 'Calgary', province: 'Alberta', community }
+        : cityFactsFor(record),
+      communityFacts,
+    };
+  }
 
   async function authenticate(bearerToken: string | undefined): Promise<{
     leadId: string;
@@ -173,15 +245,45 @@ export function createNarrativeService(
   async function generateOnce(
     output: EstimateOutput,
     record: EstimateRecord,
-  ): Promise<NarrativeProviderResult> {
+  ): Promise<{
+    result: NarrativeProviderResult;
+    communityFacts: CommunityFacts | undefined;
+  }> {
+    const { cityFacts, communityFacts } = await communityContextFor(record);
     const input: NarrativePromptInput = {
       projectType:
         record.projectType === 'renovation' ? 'renovation' : 'new_build',
       estimate: output,
-      cityFacts: cityFactsFor(record),
+      cityFacts,
+      communityFacts,
     };
     const prompt = buildNarrativePrompt(input);
-    return deps.provider.generate(prompt);
+    return {
+      result: await deps.provider.generate(prompt),
+      communityFacts,
+    };
+  }
+
+  /**
+   * Generate once; null when the provider emitted synthetic dev output.
+   * Synthetic output (log provider — bug goal_aec0b247775d) is never
+   * validated or persisted: callers return the empty-narrative response
+   * instead, and the report page renders its "summary unavailable" state.
+   * The marker-string check is a backstop in case a provider ever forgets
+   * to set `synthetic: true`.
+   */
+  async function generateReal(
+    output: EstimateOutput,
+    record: EstimateRecord,
+  ): Promise<{
+    result: NarrativeProviderResult;
+    communityFacts: CommunityFacts | undefined;
+  } | null> {
+    const generation = await generateOnce(output, record);
+    if (deps.provider.synthetic || isSyntheticNarrative(generation.result.text)) {
+      return null;
+    }
+    return generation;
   }
 
   return {
@@ -222,8 +324,13 @@ export function createNarrativeService(
           false,
         );
       }
-      // Cached: no LLM call, no cost.
-      if (record.narrative && record.narrativeGeneratedAt) {
+      // Cached: no LLM call, no cost. Placeholder rows persisted before the
+      // synthetic guard (bug goal_aec0b247775d) are never served from cache.
+      if (
+        record.narrative &&
+        record.narrativeGeneratedAt &&
+        !isSyntheticNarrative(record.narrative)
+      ) {
         return {
           estimateId: record.id,
           narrative: record.narrative,
@@ -265,25 +372,40 @@ export function createNarrativeService(
         );
       };
       let result: NarrativeProviderResult;
+      let communityFacts: CommunityFacts | undefined;
+      // Synthetic dev output (log provider) never reaches users: the
+      // report renders its "summary unavailable" state instead.
+      const emptyForSynthetic = (): NarrativeResponse => ({
+        estimateId: record.id,
+        narrative: '',
+        narrativeGeneratedAt: now.toISOString(),
+        cached: false,
+      });
       try {
-        result = await generateOnce(output, record);
+        const generation = await generateReal(output, record);
+        if (!generation) return emptyForSynthetic();
+        result = generation.result;
+        communityFacts = generation.communityFacts;
       } catch (error) {
         return fail(
           error instanceof Error ? error.message : 'provider error',
         );
       }
-      let validation = validateNarrative(result.text, output);
+      let validation = validateNarrative(result.text, output, communityFacts);
       if (!validation.ok) {
         // One repair retry: ask the provider again (the prompt already
         // constrains the output; a second sample often fixes it).
         try {
-          result = await generateOnce(output, record);
+          const retry = await generateReal(output, record);
+          if (!retry) return emptyForSynthetic();
+          result = retry.result;
+          communityFacts = retry.communityFacts;
         } catch (error) {
           return fail(
             error instanceof Error ? error.message : 'provider error',
           );
         }
-        validation = validateNarrative(result.text, output);
+        validation = validateNarrative(result.text, output, communityFacts);
       }
       if (!validation.ok) {
         return fail(
@@ -300,10 +422,16 @@ export function createNarrativeService(
       } catch (error) {
         throw new Error('narrative persistence failed', { cause: error });
       }
-      // If a racing worker won, return the winner's narrative.
+      // If a racing worker won, return the winner's narrative — unless it is
+      // a pre-guard placeholder row, in which case this worker's (real,
+      // already validated) result stands.
       if (!persisted) {
         const fresh = await deps.estimates.findById(record.id);
-        if (fresh?.narrative && fresh.narrativeGeneratedAt) {
+        if (
+          fresh?.narrative &&
+          fresh.narrativeGeneratedAt &&
+          !isSyntheticNarrative(fresh.narrative)
+        ) {
           return {
             estimateId: fresh.id,
             narrative: fresh.narrative,

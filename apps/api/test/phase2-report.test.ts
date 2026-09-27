@@ -10,7 +10,10 @@
  *   immutable version; empty body → 400.
  */
 import { describe, expect, it } from 'vitest';
-import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
+import {
+  NARRATIVE_FOOTER,
+  PLACEHOLDER_COST_DATA,
+} from '@feasly/cost-engine';
 import { ErrorCodes } from '../src/middleware/errors';
 import { ReportSnapshotSchema } from '../src/openapi/schemas';
 import { createReportRoute } from '../src/routes/report.route';
@@ -18,6 +21,7 @@ import {
   createReportService,
   type ReportService,
 } from '../src/services/report.service';
+import { NARRATIVE_SYNTHETIC_MARKER } from '../src/services/narrative/narrative.types';
 import type { EstimateRecord, EstimateStore } from '../src/services/estimate.store';
 import type { LeadRecord, LeadStore } from '../src/services/lead.store';
 import type { MagicLinkRecord, MagicLinkStore } from '../src/services/magic-link.store';
@@ -112,6 +116,7 @@ interface Fakes {
 function fakes(opts?: {
   link?: MagicLinkRecord | null;
   latest?: ReportSnapshotRecord | null;
+  estimateNarrative?: string | null;
 }): Fakes {
   const inserted: NewReportSnapshot[] = [];
   const snapshots: ReportSnapshotStore = {
@@ -136,7 +141,10 @@ function fakes(opts?: {
   } as unknown as LeadStore;
   const estimates: EstimateStore = {
     save: async () => {},
-    findById: async (id: string) => (id === ESTIMATE_ID ? estimateRecord() : null),
+    findById: async (id: string) =>
+      id === ESTIMATE_ID
+        ? { ...estimateRecord(), narrative: opts?.estimateNarrative ?? null }
+        : null,
   } as unknown as EstimateStore;
   const properties = {
     getProperty: async () => propertyRecord(),
@@ -314,5 +322,56 @@ describe('report contract conformance', () => {
       const parsed = ReportSnapshotSchema.safeParse(JSON.parse(JSON.stringify(result)));
       expect(parsed.success).toBe(true);
     }
+  });
+});
+
+describe('report service — synthetic placeholder guard (goal_aec0b247775d)', () => {
+  // A pre-guard log-provider placeholder, built from the real marker so
+  // the fixture can never drift from the filter.
+  const placeholder =
+    `This is a ${NARRATIVE_SYNTHETIC_MARKER} (log provider — no LLM was called). ` +
+    `The estimate figures above were calculated deterministically from our cost model. ` +
+    `Configure the OpenAI-compatible provider for a real AI-generated summary. ${NARRATIVE_FOOTER}`;
+
+  it('strips a placeholder from the estimate row on v1 materialization', async () => {
+    const { service, inserted } = fakes({ estimateNarrative: placeholder });
+    const result = await service.getReport(TOKEN);
+    expect(result.narrative).toBe('');
+    // The stored snapshot is clean too — the placeholder is not re-persisted.
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0].narrative).toBe('');
+  });
+
+  it('strips a placeholder stored on a snapshot row', async () => {
+    const record: ReportSnapshotRecord = {
+      id: 'ssssssss-ssss-4sss-8sss-ssssssssssss',
+      estimateId: ESTIMATE_ID,
+      leadId: LEAD_ID,
+      inputs: { sqft: 2200, tier: 'standard', garage: 'double', basement: 'unfinished' },
+      buildRange: RANGE,
+      totalRange: { low: 700000, base: 780000, high: 860000 },
+      landValue: { value: 330000 },
+      rows: [],
+      narrative: placeholder,
+      assumptions: null,
+      projectType: 'new_build',
+      renoInputs: null,
+      version: 1,
+      preparedAt: new Date('2026-09-26T05:00:00Z'),
+      updatedAt: null,
+      createdAt: new Date('2026-09-26T05:00:00Z'),
+    };
+    const { service, inserted } = fakes({ latest: record });
+    const result = await service.getReport(TOKEN);
+    expect(inserted).toHaveLength(0);
+    expect(result.narrative).toBe('');
+    expect(result.narrative).not.toContain(NARRATIVE_SYNTHETIC_MARKER);
+  });
+
+  it('passes a real narrative through untouched (no over-filtering)', async () => {
+    const real = `Your build is estimated at $450,000. ${NARRATIVE_FOOTER}`;
+    const { service } = fakes({ estimateNarrative: real });
+    const result = await service.getReport(TOKEN);
+    expect(result.narrative).toBe(real);
   });
 });
