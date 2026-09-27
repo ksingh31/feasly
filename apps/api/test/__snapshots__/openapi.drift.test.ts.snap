@@ -1833,15 +1833,19 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                   "properties": {
                     "from": {
                       "format": "date-time",
-                      "nullable": true,
-                      "type": "string",
+                      "type": [
+                        "string",
+                        "null",
+                      ],
                     },
                     "steps": {
                       "items": {
                         "properties": {
                           "conversionFromPrevious": {
-                            "nullable": true,
-                            "type": "number",
+                            "type": [
+                              "number",
+                              "null",
+                            ],
                           },
                           "count": {
                             "type": "integer",
@@ -1868,8 +1872,10 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                     },
                     "to": {
                       "format": "date-time",
-                      "nullable": true,
-                      "type": "string",
+                      "type": [
+                        "string",
+                        "null",
+                      ],
                     },
                   },
                   "required": [
@@ -2168,6 +2174,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Request a callback",
       },
     },
@@ -2254,6 +2261,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Get community statistics",
       },
     },
@@ -2340,6 +2348,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Get public embed config",
       },
     },
@@ -2610,6 +2619,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Ingest analytics events",
       },
     },
@@ -2806,6 +2816,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "City data source unavailable (retryable)",
           },
         },
+        "security": [],
         "summary": "Autocomplete a Calgary address",
       },
     },
@@ -2914,6 +2925,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "City data source unavailable (retryable)",
           },
         },
+        "security": [],
         "summary": "Look up a property record",
       },
     },
@@ -3000,6 +3012,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Resolve a report snapshot",
       },
     },
@@ -3095,6 +3108,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Append a tier/sqft what-if revision",
       },
     },
@@ -3178,6 +3192,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Internal server error",
           },
         },
+        "security": [],
         "summary": "Share a report with a partner",
       },
     },
@@ -3242,12 +3257,12 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
   },
   "servers": [
     {
-      "description": "Production",
-      "url": "https://feasly.dev",
+      "description": "Production (includes the Azure Functions /api route prefix)",
+      "url": "https://feasly.dev/api",
     },
     {
       "description": "Sandbox (test keys only, no real emails)",
-      "url": "https://api.sandbox.feasly.dev",
+      "url": "https://api.sandbox.feasly.dev/api",
     },
   ],
   "webhooks": {},
