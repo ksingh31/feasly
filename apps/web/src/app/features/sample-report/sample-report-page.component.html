@@ -13,86 +13,80 @@
   <p class="report-sub">{{ copy.subPostGate }}</p>
   <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
 
-  <!-- HERO: full fictional ranges, as the unlocked report shows them. -->
+  <!-- HERO: one prominent total + planning range (post-consumer/04 layout).
+       No Low / Base / High triple — the redesign removed those labels. -->
   <section class="hero" [attr.aria-label]="copy.heading">
     <div class="figure-card hero-total">
       <h2>{{ copy.totalLabel }}</h2>
-      <div class="range-grid">
-        <div>
-          <span class="range-label">{{ copy.lowLabel }}</span>
-          <span class="range-value">{{ formatCad(data.total.low) }}</span>
-        </div>
-        <div>
-          <span class="range-label">{{ copy.baseLabel }}</span>
-          <span class="range-value hero-mid">{{ formatCad(data.total.base) }}</span>
-        </div>
-        <div>
-          <span class="range-label">{{ copy.highLabel }}</span>
-          <span class="range-value">{{ formatCad(data.total.high) }}</span>
-        </div>
-      </div>
+      <p class="hero-value">{{ formatCad(data.total.base) }}</p>
+      <p class="planning-range">
+        {{ copy.planningRangeLabel }}
+        <strong>{{ formatCad(data.total.low) }}–{{ formatCad(data.total.high) }}</strong>
+      </p>
       <p class="version">Sample figures — not a real estimate</p>
     </div>
-    <div class="hero-sub">
-      <div class="figure-card">
-        <h2>{{ copy.buildLabel }}</h2>
-        <p class="figure-range">
-          {{ formatCad(data.build.low) }} – {{ formatCad(data.build.high) }}
-        </p>
+
+    <!-- Living-area stepper: always visible, inert on the sample.
+         The real report has no re-run button — neither does the sample. -->
+    <div class="stepper-card no-print">
+      <div class="stepper-head">
+        <h2>{{ copy.adjustTitle }}</h2>
       </div>
-      <div class="figure-card">
+      <p class="hint">{{ adjustNote }}</p>
+      <div class="stepper" aria-disabled="true">
+        <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
+        <span class="stepper-value">{{ formatSqft(data.sqft) }}</span>
+        <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
+      </div>
+    </div>
+
+    <div class="hero-sub">
+      <div class="figure-card build-highlight">
+        <h2>{{ copy.buildLabel }}</h2>
+        <p class="figure-single">{{ formatCad(data.build.base) }}</p>
+        <p class="build-note">{{ copy.buildCostNote }}</p>
+        <p class="per-sqft">{{ formatCad(perSqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(data.sqft) }}</p>
+        <!-- Finish tier is display-only on the real report (no toggle) — same here. -->
+        <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierName }}</p>
+        <p class="hint">{{ tierNote }}</p>
+      </div>
+      <!-- Land: ONE fixed figure, never a range (post-consumer/04). -->
+      <div class="figure-card land-card">
         <h2>{{ copy.landLabel }}</h2>
-        <p class="figure-range">
-          {{ formatCad(data.land.low) }} – {{ formatCad(data.land.high) }}
-        </p>
+        <p class="figure-single">{{ formatCad(data.landValue) }}</p>
+        <p class="land-note">{{ copy.landFixedNote }}</p>
       </div>
     </div>
   </section>
 
-  <!-- COST BREAKDOWN -->
+  <!-- COST BREAKDOWN: exactly three buckets, land excluded — same shared
+       helper as the real report. -->
   <section class="card" [attr.aria-label]="copy.breakdownTitle">
     <h2>{{ copy.breakdownTitle }}</h2>
-    <ul class="rows">
-      @for (row of data.rows; track row.key) {
-        <li class="row">
-          <span class="row-label">{{ row.label }}</span>
-          <span class="row-range">{{ formatCad(row.range.low) }} – <strong>{{ formatCad(row.range.base) }}</strong> – {{ formatCad(row.range.high) }}<span class="sr-only"> ({{ copy.lowLabel }} / {{ copy.baseLabel }} / {{ copy.highLabel }})</span></span>
+    <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
+      @for (b of buckets; track b.key) {
+        <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
+      }
+    </div>
+    <ul class="bucket-legend">
+      @for (b of buckets; track b.key) {
+        <li>
+          <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
+          <span class="bucket-label">{{ b.label }}</span>
+          <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
         </li>
       }
     </ul>
   </section>
 
-  <!-- TIER WHAT-IF (inert on the sample — shows the control, changes nothing) -->
-  <section class="card no-print" [attr.aria-label]="copy.tierTitle">
-    <div class="section-head">
-      <h2>{{ copy.tierTitle }}</h2>
-    </div>
-    <p class="hint">{{ tierNote }}</p>
-    <div class="tier-toggle" role="group" [attr.aria-label]="copy.tierTitle">
-      @for (t of tierOptions; track t.id) {
-        <button type="button" class="tier-btn" [class.selected]="data.tier === t.id" disabled>
-          {{ t.name }}
-        </button>
-      }
-    </div>
-  </section>
-
-  <!-- INLINE ADJUST (inert on the sample) -->
-  <section class="card no-print" [attr.aria-label]="copy.adjustTitle">
-    <h2>{{ copy.adjustTitle }}</h2>
-    <p class="hint">{{ adjustNote }}</p>
-    <div class="stepper">
-      <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
-      <span class="stepper-value">{{ formatSqft(data.sqft) }}</span>
-      <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
-    </div>
-    <button class="cta secondary" type="button" disabled>{{ copy.adjustCta }}</button>
-  </section>
-
-  <!-- AI NARRATIVE (placeholder — never renders mock narrative text) -->
+  <!-- AI SUMMARY: fictional prose, explicitly labelled as sample text.
+       Contains no dollar figures and no neighbourhood claims. -->
   <section class="card" [attr.aria-label]="copy.narrativeTitle">
     <h2>{{ copy.narrativeTitle }}</h2>
-    <p class="hint">{{ copy.narrativeComingSoon }}</p>
+    <p class="hint sample-text-label" role="note">Sample text — illustrative only, not a real AI summary.</p>
+    @for (para of narrativeParas; track $index) {
+      <p class="narrative">{{ para }}</p>
+    }
     <p class="disclaimer">{{ narrativeDisclaimer }}</p>
   </section>
 
@@ -108,5 +102,26 @@
       }
     </ol>
   </section>
+
+  <!-- PARTNER SHARE (inert on the sample — never emails). No form, no inputs:
+       the "never emailed" guarantee stays structural. -->
+  <section class="card no-print" [attr.aria-label]="copy.shareTitle">
+    <h2>{{ copy.shareTitle }}</h2>
+    <p class="hint">{{ copy.shareHint }}</p>
+    <button class="cta" type="button" disabled>{{ copy.shareCta }}</button>
+    <p class="hint" role="note">{{ shareNote }}</p>
+  </section>
+
+  <!-- CALLBACK (inert on the sample). -->
+  <section class="card no-print" [attr.aria-label]="copy.callbackTitle">
+    <h2>{{ copy.callbackTitle }}</h2>
+    <p class="hint">{{ copy.callbackHint }}</p>
+    <button class="cta" type="button" disabled>{{ copy.callbackCta }}</button>
+    <p class="hint" role="note">{{ callbackNote }}</p>
+  </section>
+
+  <!-- PDF (inert on the sample). -->
+  <button class="cta pdf no-print" type="button" disabled>{{ copy.pdfCta }}</button>
+  <p class="hint no-print" role="note">{{ pdfNote }}</p>
 </main>
 <app-site-footer />

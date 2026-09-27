@@ -9,6 +9,7 @@ import { ConfigService } from '../../core/config';
 import {
   SAMPLE_REPORT_ADDRESS,
   SAMPLE_REPORT_DATA,
+  SAMPLE_REPORT_NARRATIVE,
   SampleReportPageComponent,
 } from './sample-report-page.component';
 
@@ -25,6 +26,9 @@ const REAL_ADDRESS_DENYLIST = [
 /**
  * Story seo/09: the labelled sample report page. Fictional data, unmissable
  * SAMPLE watermark, never gated/emailed/persisted, no conversion events.
+ * Layout mirrors the post-consumer/04 report: one hero total + planning range,
+ * fixed land figure, exactly three cost buckets, display-only finish tier,
+ * always-visible stepper, AI-summary section, next steps, inert share/callback/PDF.
  */
 describe('SampleReportPageComponent', () => {
   let fixture: ComponentFixture<SampleReportPageComponent>;
@@ -74,21 +78,102 @@ describe('SampleReportPageComponent', () => {
     expect(rendered).toContain('Fictional address');
   });
 
-  it('renders the full unlocked report layout with fictional ranges', () => {
+  it('renders one hero total with a planning range — no Low/Base/High labels', () => {
     const text: string = fixture.nativeElement.textContent;
-    // Hero Low / Base / High.
-    expect(text).toContain('Low');
-    expect(text).toContain('Base');
-    expect(text).toContain('High');
-    expect(text).toContain('$585,000');
-    // Breakdown rows.
+    expect(text).toContain('$635,000');
+    expect(text).toContain('Likely planning range');
+    expect(text).toContain('$561,000');
+    expect(text).toContain('$727,000');
+    // The consumer/04 redesign removed the Low / Base / High triple.
+    const hero = fixture.nativeElement.querySelector('.hero-total');
+    expect(hero.textContent).not.toMatch(/\bLow\b/);
+    expect(hero.textContent).not.toMatch(/\bBase\b/);
+    expect(hero.textContent).not.toMatch(/\bHigh\b/);
+  });
+
+  it('shows land as one fixed figure, not a range', () => {
+    const landCard = fixture.nativeElement.querySelector('.land-card');
+    expect(landCard).not.toBeNull();
+    expect(landCard.textContent).toContain('$165,000');
+    expect(landCard.textContent).toContain('not a cost range');
+    // No range dash in the land figure.
+    const figure = landCard.querySelector('.figure-single');
+    expect(figure.textContent.trim()).toBe('$165,000');
+  });
+
+  it('renders exactly three cost buckets, not trade-level rows', () => {
+    const text: string = fixture.nativeElement.textContent;
     expect(text).toContain('Where the build budget goes');
-    expect(text).toContain('Foundation & concrete');
-    // Tier what-if, adjust, narrative placeholder, next steps.
-    expect(text).toContain('What if you change the finish tier?');
-    expect(text).toContain('Adjust the size');
+    expect(text).toContain('Structure & exterior');
+    expect(text).toContain('Interior & home systems');
+    expect(text).toContain('Design, permits & contingency');
+    // Old trade-level rows are gone.
+    expect(text).not.toContain('Foundation & concrete');
+    expect(text).not.toContain('Framing & structure');
+    expect(text).not.toContain('Mechanical & electrical');
+    const segments = fixture.nativeElement.querySelectorAll('.bucket-seg');
+    expect(segments.length).toBe(3);
+  });
+
+  it('shows the finish tier display-only — no tier toggle', () => {
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('Selected finish level');
+    expect(text).toContain('Standard');
+    // The consumer/04 redesign removed the tier switcher from the report.
+    expect(fixture.nativeElement.querySelector('.tier-toggle')).toBeNull();
+    expect(text).not.toContain('What if you change the finish tier?');
+  });
+
+  it('shows an always-visible stepper with no re-run button', () => {
+    const stepperCard = fixture.nativeElement.querySelector('.stepper-card');
+    expect(stepperCard).not.toBeNull();
+    expect(stepperCard.textContent).toContain('Adjust the size');
+    // All stepper buttons are disabled (inert on the sample).
+    const buttons = stepperCard.querySelectorAll('.step-btn');
+    expect(buttons.length).toBe(2);
+    buttons.forEach((b: HTMLButtonElement) => expect(b.disabled).toBe(true));
+    // No re-run CTA anywhere.
+    expect(fixture.nativeElement.textContent).not.toContain('Re-run estimate');
+  });
+
+  it('renders the AI-summary section with clearly labelled sample prose', () => {
+    const text: string = fixture.nativeElement.textContent;
     expect(text).toContain('AI summary');
-    expect(text).toContain('Uncalibrated planning figures');
+    expect(text).toContain('Sample text — illustrative only');
+    for (const para of SAMPLE_REPORT_NARRATIVE) {
+      expect(text).toContain(para.slice(0, 40));
+    }
+    // The old "coming soon" placeholder is gone.
+    expect(text).not.toContain('coming soon');
+  });
+
+  it('renders next steps plus inert share/callback/PDF sections', () => {
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('Your next steps');
+    expect(text).toContain('Share with a partner');
+    expect(text).toContain('Prefer to talk it through?');
+    expect(text).toContain('Download PDF');
+    // Inert: every CTA on the page is disabled.
+    const ctas = fixture.nativeElement.querySelectorAll('.cta');
+    expect(ctas.length).toBeGreaterThan(0);
+    ctas.forEach((b: HTMLButtonElement) => expect(b.disabled).toBe(true));
+  });
+
+  it('keeps fictional figures internally consistent (rows sum to build, total = build + land)', () => {
+    const sum = (pick: (r: { low: number; base: number; high: number }) => number) =>
+      SAMPLE_REPORT_DATA.rows.reduce((acc, row) => acc + pick(row.range), 0);
+    expect(sum((r) => r.base)).toBe(SAMPLE_REPORT_DATA.build.base);
+    expect(sum((r) => r.low)).toBe(SAMPLE_REPORT_DATA.build.low);
+    expect(sum((r) => r.high)).toBe(SAMPLE_REPORT_DATA.build.high);
+    expect(SAMPLE_REPORT_DATA.build.base + SAMPLE_REPORT_DATA.landValue).toBe(
+      SAMPLE_REPORT_DATA.total.base,
+    );
+    expect(SAMPLE_REPORT_DATA.build.low + SAMPLE_REPORT_DATA.landValue).toBe(
+      SAMPLE_REPORT_DATA.total.low,
+    );
+    expect(SAMPLE_REPORT_DATA.build.high + SAMPLE_REPORT_DATA.landValue).toBe(
+      SAMPLE_REPORT_DATA.total.high,
+    );
   });
 
   it('never gates: no unlock CTA, no lead-capture forms, no email inputs', () => {
