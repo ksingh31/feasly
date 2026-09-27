@@ -13,12 +13,11 @@
     } @else {
       @if (errorKind() === 'used') {
         <p class="admin-login__error" role="alert">
-          This link was already used. Sign-in links work only once — get a
-          fresh one below.
+          This link was already used. Each sign-in link works once.
         </p>
       } @else if (errorKind() === 'transient') {
         <p class="admin-login__error" role="alert">
-          Something went wrong while checking your link. Please try again.
+          Something went wrong while checking your link.
         </p>
         <button type="button" class="admin-login__submit" (click)="retry()">
           Try again
@@ -58,7 +57,7 @@
             }
             @if (resendStatus() === 'error') {
               <p class="admin-login__error" role="alert">
-                We couldn't send the link. Check your connection and try again.
+                We couldn't send the link. Please try again.
               </p>
             }
             <button
