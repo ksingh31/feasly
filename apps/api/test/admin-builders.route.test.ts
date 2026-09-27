@@ -15,6 +15,7 @@ import {
   createAdminBuildersRoute,
   type AdminBuildersRouteDeps,
 } from '../src/routes/admin-builders.route';
+import { createAdminLeadsRoute } from '../src/routes/admin-leads.route';
 import type { BuilderService } from '../src/services/builder.service';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
@@ -194,7 +195,7 @@ describe('admin-leads assign-builder route', () => {
 
   it('assignBuilder validates builderId as uuid or null', async () => {
     const { builders, adminGuard } = makeAssignDeps();
-    const { createAdminLeadsRoute } = await import('../src/routes/admin-leads.route');
+    // createAdminLeadsRoute is imported statically at the top of this file.
     const route = createAdminLeadsRoute({
       adminLeads: {} as never,
       builders: builders as unknown as BuilderService,
@@ -224,7 +225,7 @@ describe('admin-leads assign-builder route', () => {
 
   it('assignBuilder requires admin auth', async () => {
     const { builders, adminGuard } = makeAssignDeps();
-    const { createAdminLeadsRoute } = await import('../src/routes/admin-leads.route');
+    // createAdminLeadsRoute is imported statically at the top of this file.
     const route = createAdminLeadsRoute({
       adminLeads: {} as never,
       builders: builders as unknown as BuilderService,
