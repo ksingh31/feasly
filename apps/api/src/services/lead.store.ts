@@ -317,6 +317,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           timeline: lead.timeline,
           marketingConsent: lead.marketingConsent,
           consentTs: lead.consentTs,
+          // The gate consent timestamp is the consent-change timestamp for a
+          // new lead — set explicitly, never rely on the DB default.
+          consentUpdatedAt: lead.consentTs,
           tenantKey: lead.tenantKey ?? null,
           source: lead.source,
           quarantined: lead.quarantined ?? false,
@@ -443,6 +446,10 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             gte(leads.createdAt, args.createdAfter),
             lt(leads.createdAt, args.createdBefore),
             isNull(leads.nudgeSentAt),
+            // Proactive outreach respects opt-outs: neither email-unsubscribed
+            // nor calls/messages-opted-out leads are nudge candidates.
+            isNull(leads.unsubscribedAt),
+            isNull(leads.contactOptOutAt),
           ),
         )
         .orderBy(leads.createdAt)
