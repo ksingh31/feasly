@@ -12,7 +12,6 @@ import { LandingPageComponent } from './features/landing/landing-page.component'
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { PreviewPageComponent } from './features/wizard/preview-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
-import { RenoComingSoonPageComponent } from './features/wizard/reno-coming-soon-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
@@ -67,10 +66,14 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   // Reno coming-soon (Karan 2026-09-27): a designed holding page instead of
-  // the analyzing pipeline. Private funnel route: noindex.
+  // the analyzing pipeline. Private funnel route: noindex. Lazy-loaded so
+  // it stays out of the initial bundle (budget).
   {
     path: 'estimate/reno-coming-soon',
-    component: RenoComingSoonPageComponent,
+    loadComponent: () =>
+      import('./features/wizard/reno-coming-soon-page.component').then(
+        (m) => m.RenoComingSoonPageComponent,
+      ),
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
