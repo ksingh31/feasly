@@ -52,6 +52,46 @@ export function chatCompletionsUrl(endpoint: string): string {
   return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
 }
 
+/**
+ * Pull `error.message` from an OpenAI-style (`{error: {message}}`) or
+ * Google-style (`[{error: {message}}]`) error envelope. Returns null when
+ * the body carries no usable message.
+ */
+function extractErrorMessage(json: unknown): string | null {
+  const envelope = Array.isArray(json) ? json[0] : json;
+  if (typeof envelope !== 'object' || envelope === null) return null;
+  const error = (envelope as { error?: unknown }).error;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a safe one-line reason from an error response. Only the
+ * provider's own `error.message` string is used — never the raw body —
+ * single-lined and capped for safe logging. Any accidental echo of the
+ * API key is redacted.
+ */
+async function errorDetail(res: Response, apiKey: string): Promise<string> {
+  try {
+    const message = extractErrorMessage(await res.json());
+    if (!message) return '';
+    let detail = message.replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (detail.includes(apiKey)) {
+      detail = detail.split(apiKey).join('[redacted]');
+    }
+    return detail ? `: ${detail}` : '';
+  } catch {
+    // Non-JSON error body — fall back to the status-only message.
+    return '';
+  }
+}
+
 export function createOpenAiCompatibleNarrativeProvider(
   deps: OpenAiCompatibleProviderDeps,
 ): NarrativeProvider {
@@ -65,13 +105,17 @@ export function createOpenAiCompatibleNarrativeProvider(
     );
   }
   const endpoint = chatCompletionsUrl(configured);
+  // Pasted secrets sometimes carry stray whitespace/newlines (console
+  // paste into Key Vault) — a padded key is never valid, so trim before
+  // use. A whitespace-only value fails closed like a missing one.
+  const apiKey = deps.apiKey?.trim();
   return {
     // Real provider — output is validated and may be persisted/returned.
     synthetic: false,
     async generate(
       prompt: NarrativePrompt,
     ): Promise<NarrativeProviderResult> {
-      if (!deps.apiKey) {
+      if (!apiKey) {
         throw new NarrativeProviderError(
           'NARRATIVE_API_KEY is not configured — narrative generation is disabled until Karan provides the Gemini API key.',
         );
@@ -82,7 +126,7 @@ export function createOpenAiCompatibleNarrativeProvider(
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            authorization: `Bearer ${deps.apiKey}`,
+            authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
             model: deps.model,
@@ -103,10 +147,11 @@ export function createOpenAiCompatibleNarrativeProvider(
         });
       }
       if (!res.ok) {
-        // Never include the response body verbatim — it could contain
-        // fragments of the prompt (user data). Status + model only.
+        // Include the provider's own error message (sanitized) — a bare
+        // status is undiagnosable, as the 2026-09-27 Gemini HTTP 400
+        // outage proved: nobody could tell a bad key from a bad request.
         throw new NarrativeProviderError(
-          `LLM API returned HTTP ${res.status} for model ${deps.model}`,
+          `LLM API returned HTTP ${res.status} for model ${deps.model}${await errorDetail(res, apiKey)}`,
         );
       }
       let json: unknown;
