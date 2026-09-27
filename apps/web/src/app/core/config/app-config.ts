@@ -185,6 +185,10 @@ export interface AppConfig {
       unavailableHeading: string;
       /** Exact fallback body (story-pinned). */
       unavailableBody: string;
+      /** Intentional heading for a keyless /embed visit (not an outage). */
+      missingKeyHeading: string;
+      /** Intentional body for a keyless /embed visit (not an outage). */
+      missingKeyBody: string;
       /** CTA label on the widget. */
       ctaLabel: string;
       /** Contact-line prefix; the builder's phone/email follow. */

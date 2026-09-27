@@ -3,8 +3,15 @@
     <p class="embed-loading" role="status">{{ copy.loadingLabel }}</p>
   } @else if (status() === 'error') {
     <div class="embed-fallback" role="alert">
-      <h1 class="embed-fallback-title">{{ copy.unavailableHeading }}</h1>
-      <p class="embed-fallback-body">{{ copy.unavailableBody }}</p>
+      <!-- A keyless /embed visit is expected (the widget only works from a
+           builder's site), not a temporary outage — say so plainly. -->
+      @if (errorReason() === 'missing_key') {
+        <h1 class="embed-fallback-title">{{ copy.missingKeyHeading }}</h1>
+        <p class="embed-fallback-body">{{ copy.missingKeyBody }}</p>
+      } @else {
+        <h1 class="embed-fallback-title">{{ copy.unavailableHeading }}</h1>
+        <p class="embed-fallback-body">{{ copy.unavailableBody }}</p>
+      }
     </div>
   } @else if (relayStatus() === 'failed') {
     <div class="embed-fallback" role="alert">

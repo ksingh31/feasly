@@ -10,6 +10,7 @@ import type {
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { PropertyDataService } from './property-data.service';
+import { detectCoverageSignal } from '../utils/coverage';
 
 /**
  * Raw Socrata row from the City of Calgary "Current Year Property
@@ -268,7 +269,16 @@ export class CalgaryAssessmentService implements PropertyDataService {
     return this.http.get<unknown>(this.resourceUrl, { params }).pipe(
       timeout(this.config.get('api').timeoutMs),
       map((body) => this.toSuggestions(body)),
-      map((suggestions) => ({ suggestions })),
+      map((suggestions) => {
+        // An explicit out-of-coverage query that Socrata can't answer gets
+        // the Calgary-only message (same contract as the backend's
+        // OUT_OF_COVERAGE). Only after a Socrata miss — never pre-empt a
+        // real Calgary street that merely mentions another city.
+        if (suggestions.length === 0 && detectCoverageSignal(query) === 'out-of-coverage') {
+          throw outOfCoverage();
+        }
+        return { suggestions };
+      }),
       map((response) => {
         this.store(this.searchCache, q, response);
         return response;
@@ -336,7 +346,12 @@ export class CalgaryAssessmentService implements PropertyDataService {
         bestValue = value;
       }
     }
-    if (!best || bestValue < 0) throw notFound();
+    if (!best || bestValue < 0) {
+      // Coverage-aware miss, mirroring the backend contract: an explicit
+      // out-of-coverage key surfaces OUT_OF_COVERAGE so the UI shows the
+      // Calgary-only message instead of the generic not-found copy.
+      throw detectCoverageSignal(key) === 'out-of-coverage' ? outOfCoverage() : notFound();
+    }
     return toPropertyRecord(best);
   }
 }
@@ -344,6 +359,19 @@ export class CalgaryAssessmentService implements PropertyDataService {
 /** `not_found` for an unknown address key — same shape as the mock harness. */
 function notFound(): ApiError {
   return { code: 'not_found', message: 'No City record for that address yet.', retryable: false };
+}
+
+/**
+ * `OUT_OF_COVERAGE` for an explicit non-Calgary query — same code as the
+ * backend contract (`ErrorCodes.OUT_OF_COVERAGE`), which the autocomplete
+ * component renders as the Calgary-only message.
+ */
+function outOfCoverage(): ApiError {
+  return {
+    code: 'OUT_OF_COVERAGE',
+    message: 'We only support Calgary right now.',
+    retryable: false,
+  };
 }
 
 /** Maps one verified Socrata row onto the FE0-001 PropertyRecord contract. */

@@ -84,11 +84,14 @@ describe('EmbedShellComponent', () => {
     );
   });
 
-  it('shows the exact fallback copy when no tenant key is given', () => {
+  it('shows the intentional missing-key copy when no tenant key is given', () => {
     const fixture = setup(null);
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain(fallbackCopy());
-    expect(text).toContain(config.get('copy').embed.unavailableHeading);
+    // A keyless /embed visit is expected (the widget only works from a
+    // builder's site) — it must NOT claim a temporary outage.
+    expect(text).toContain(config.get('copy').embed.missingKeyHeading);
+    expect(text).toContain(config.get('copy').embed.missingKeyBody);
+    expect(text).not.toContain(fallbackCopy());
     // The attribution badge is always present, even in fallback.
     expect(text).toContain(config.get('copy').embed.poweredBy);
     httpMock.expectNone((r) => r.url.endsWith('/api/v1/embed/config'));

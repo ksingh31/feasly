@@ -159,8 +159,11 @@ describe('PreviewPageComponent', () => {
     expect(back?.getAttribute('href')).toBe('/estimate/details');
   });
 
-  it('shows the tier what-if as locked behind the gate', () => {
-    expect(text()).toContain('Unlock your report to explore finish tiers.');
+  it('prompts the gate without promising finish-tier exploration', () => {
+    // consumer/04 removed the tier what-if toggle from the report — the
+    // preview must not promise it.
+    expect(text()).toContain('Unlock your report to see the full cost breakdown and next steps.');
+    expect(text()).not.toContain('explore finish tiers');
   });
 
   it('preview copy carries no ±, %, or accuracy claim (copy-lint)', () => {

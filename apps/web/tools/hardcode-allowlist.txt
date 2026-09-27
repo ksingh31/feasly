@@ -159,3 +159,11 @@ apps/web/src/app/features/admin/funnels-page.component.ts
 # criterion (no charge/refund/void actions) — it changes by product
 # decision, not by deploy tuning. Copy-pinned by admin-billing.component.spec.ts.
 apps/web/src/app/features/admin/admin-billing.component.html
+
+# Calgary coverage heuristic (core/utils/coverage.ts, port of
+# apps/api/src/lib/coverage.ts): the T2/T3 FSA prefixes and non-Calgary city
+# tokens are domain constants that DEFINE what "Calgary coverage" means —
+# they change by product decision (new city launch), not by deploy tuning.
+# Moving them into app-config.json would let a config edit silently redefine
+# the coverage gate. Pinned by coverage.spec.ts.
+apps/web/src/app/core/utils/coverage.ts

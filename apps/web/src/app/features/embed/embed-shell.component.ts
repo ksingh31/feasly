@@ -99,6 +99,7 @@ export class EmbedShellComponent {
   protected readonly relayStatus = this.store.selectSignal(EmbedState.relayStatus);
   protected readonly resending = this.store.selectSignal(EmbedState.resending);
   protected readonly resendError = this.store.selectSignal(EmbedState.resendError);
+  protected readonly errorReason = this.store.selectSignal(EmbedState.errorReason);
   /** Accepted once per boot — a second relay is ignored (AC1 single-use). */
   private relayAccepted = false;
 

@@ -135,6 +135,17 @@ export class EmbedState {
     return state.resendError;
   }
 
+  /**
+   * Machine-readable config-load failure reason ('missing_key',
+   * 'tenant_not_found', …). Lets the shell render an intentional message
+   * for a keyless /embed visit instead of the generic "temporarily
+   * unavailable" copy.
+   */
+  @Selector()
+  static errorReason(state: EmbedStateModel): string | null {
+    return state.error;
+  }
+
   @Action(LoadEmbedConfig)
   load(ctx: StateContext<EmbedStateModel>, action: LoadEmbedConfig) {
     ctx.patchState({ tenantKey: action.tenantKey, config: null, status: 'loading', error: null });

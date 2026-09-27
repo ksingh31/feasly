@@ -96,7 +96,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'AI cost breakdown',
       ],
       howItWorksTitle: 'Estimate in 2 minutes',
-      howItWorksSub: 'No registration required. No phone calls. No salesperson involved.',
+      howItWorksSub: 'No account to create. No phone calls. No salesperson involved.',
       steps: [
         {
           n: '01',
@@ -136,6 +136,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       unavailableHeading: 'Estimator unavailable',
       unavailableBody:
         'This estimator is temporarily unavailable — please contact the builder directly.',
+      missingKeyHeading: 'This estimator needs a builder link',
+      missingKeyBody:
+        'This embed link is missing its builder key. Please open the estimator from your builder’s website instead of visiting this page directly.',
       ctaLabel: 'Get my estimate →',
       contactPrefix: 'Questions?',
       poweredBy: 'Powered by Feasly',
@@ -379,7 +382,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       breakdownLocked: 'The breakdown unlocks with your full report.',
       finishLevelLabel: 'Selected finish level',
       tierTitle: 'What if you change the finish tier?',
-      tierLockedNote: 'Unlock your report to explore finish tiers.',
+      tierLockedNote: 'Unlock your report to see the full cost breakdown and next steps.',
       adjustTitle: 'Adjust the size',
       decreaseLabel: 'Decrease square footage',
       increaseLabel: 'Increase square footage',
@@ -589,7 +592,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           {
             n: '04',
             title: 'Unlock your full report',
-            body: 'Enter your email and we send a magic link that unlocks the complete report: total investment, cost breakdown, and next steps. The link is valid for 7 days.',
+            body: 'Enter your email and your full report unlocks immediately: total investment, cost breakdown, and next steps. We also email you a link to reopen it anytime — valid for 7 days.',
           },
         ],
         mathNoteTitle: 'Real math, not guesses',
@@ -617,7 +620,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Who sees my information?',
-            a: 'Only you, until you ask us to share it. Your email unlocks your report via a magic link; we never sell your information. See our Privacy Policy for the full details.',
+            a: 'Only you, until you ask us to share it. Your email is how we send you a link to reopen your report; we never sell your information. See our Privacy Policy for the full details.',
           },
           {
             q: 'Do you support addresses outside Calgary?',
@@ -625,7 +628,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'How does the magic link work?',
-            a: 'After you enter your email at the gate, we send a link that unlocks your full report — no password to remember. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one.',
+            a: 'Your report unlocks the moment you enter your email — no password to remember. We also email you a magic link so you can reopen it on another device anytime. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one.',
           },
         ],
       },
