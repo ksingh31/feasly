@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { ConfigService } from '../../../core/config/config.service';
+import { BrandMarkComponent } from '../brand-mark';
 
 /**
  * Site nav (FE1-001): slim dark bar with the brand mark. The prototype's
@@ -10,6 +11,7 @@ import { ConfigService } from '../../../core/config/config.service';
 @Component({
   selector: 'app-site-nav',
   standalone: true,
+  imports: [BrandMarkComponent],
   templateUrl: './site-nav.component.html',
   styleUrl: './site-nav.component.scss',
 })

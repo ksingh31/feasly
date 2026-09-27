@@ -1,13 +1,26 @@
 <div class="admin-shell">
   <header class="admin-shell__header">
-    <span class="admin-shell__brand">Feasly Admin</span>
-    <nav class="admin-shell__nav">
-      <a routerLink="/admin/leads" routerLinkActive="active">Leads</a>
-      <a routerLink="/admin/disputes" routerLinkActive="active">Disputes</a>
-      <a routerLink="/admin/billing" routerLinkActive="active">Billing</a>
-      <a routerLink="/admin/calibration" routerLinkActive="active">Calibration</a>
-      <a routerLink="/admin/ops/sheets" routerLinkActive="active">Sheets sync</a>
-      <a routerLink="/admin/estimates" routerLinkActive="active">Estimates</a>
+    <a class="admin-shell__brand" routerLink="/admin/leads" aria-label="Feasly Admin home">
+      <app-brand-mark [size]="28" />
+      <span class="admin-shell__wordmark">Feasly&nbsp;Admin</span>
+    </a>
+    <button
+      type="button"
+      class="admin-shell__menu-toggle"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="admin-nav"
+      (click)="toggleMenu()"
+    >
+      <span class="admin-shell__menu-icon" aria-hidden="true"></span>
+      <span class="admin-shell__menu-label">{{ menuOpen() ? 'Close menu' : 'Open menu' }}</span>
+    </button>
+    <nav class="admin-shell__nav" id="admin-nav" aria-label="Admin" [class.admin-shell__nav--open]="menuOpen()">
+      <a routerLink="/admin/leads" routerLinkActive="active" (click)="closeMenu()">Leads</a>
+      <a routerLink="/admin/disputes" routerLinkActive="active" (click)="closeMenu()">Disputes</a>
+      <a routerLink="/admin/billing" routerLinkActive="active" (click)="closeMenu()">Billing</a>
+      <a routerLink="/admin/calibration" routerLinkActive="active" (click)="closeMenu()">Calibration</a>
+      <a routerLink="/admin/ops/sheets" routerLinkActive="active" (click)="closeMenu()">Sheets sync</a>
+      <a routerLink="/admin/estimates" routerLinkActive="active" (click)="closeMenu()">Estimates</a>
       <button type="button" (click)="signOut()">Sign out</button>
     </nav>
   </header>
