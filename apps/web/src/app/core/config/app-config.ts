@@ -102,6 +102,18 @@ export interface AppConfig {
     communityPageLimit: number;
     /** Max address suggestions shown in autocomplete. */
     autocompleteSuggestionLimit: number;
+    /**
+     * Estimate input bounds, mirrored from the cost-data file the API
+     * enforces (packages/cost-engine/cost-data inputBounds). The property
+     * record arrives direct from Socrata (propertyData.source 'live'), so
+     * the client needs these for the early coverage guard — before the
+     * estimate API ever sees the lot. estimate-input-bounds-drift.spec.ts
+     * fails CI if they diverge from the cost data.
+     */
+    minLotSizeSqft: number;
+    maxLotSizeSqft: number;
+    minAssessedLandValue: number;
+    maxAssessedLandValue: number;
   };
   /** Analytics consent. */
   analytics: {

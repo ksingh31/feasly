@@ -393,4 +393,20 @@ describe('AddressAutocompleteComponent with a slow backend', () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(emitted).toEqual([]);
   });
+
+  it('clearSearch resets the query, results, and error state for a fresh search', async () => {
+    const fixture = TestBed.createComponent(AddressAutocompleteComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.query.setValue('14 st');
+    await awaitSearchSettled(fixture);
+    expect(component.suggestions().length).toBeGreaterThan(0);
+    component.clearSearch();
+    expect(component.query.value).toBe('');
+    expect(component.suggestions()).toEqual([]);
+    expect(component.open()).toBe(false);
+    expect(component.searched()).toBe(false);
+    expect(component.status()).toBe('idle');
+    expect(component.errorCode()).toBeNull();
+  });
 });

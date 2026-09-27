@@ -56,8 +56,7 @@ const NON_CALGARY_CITY_PATTERN =
  * out-of-coverage token (e.g. "Calgary, formerly Edmonton" is nonsense
  * input — treat as Calgarian and let the Socrata miss decide).
  */
-export function detectCoverageSignal(input: string): CoverageSignal {
-  const text = input.trim();
+export function detectCoverageSignal(input: string): CoverageSignal {  const text = input.trim();
   if (!text) return 'ambiguous';
   const lowered = text.toLowerCase();
 
@@ -69,4 +68,69 @@ export function detectCoverageSignal(input: string): CoverageSignal {
   if (/\bcalgary\b/i.test(lowered)) return 'calgary';
   if (NON_CALGARY_CITY_PATTERN.test(lowered)) return 'out-of-coverage';
   return 'ambiguous';
+}
+
+/* ── Property pricing coverage (early guard) ────────────────────────── */
+
+/**
+ * Estimate input bounds the pricing engine enforces, mirrored from the
+ * cost-data file (see `limits` in AppConfig). Kept as a parameter — never a
+ * literal — so the cost-data file stays the single source of truth.
+ */
+export interface PricingCoverageBounds {
+  readonly minLotSizeSqft: number;
+  readonly maxLotSizeSqft: number;
+  readonly minAssessedLandValue: number;
+  readonly maxAssessedLandValue: number;
+}
+
+/** Property facts a pricing-coverage check needs (subset of PropertyRecord). */
+export interface PricingCoverageFacts {
+  readonly lotSqft: number;
+  readonly assessedValue: number;
+}
+
+/**
+ * Which property fact breaks pricing coverage, or null when the property
+ * is priceable. Mirrors the engine's check order (lot size before assessed
+ * value) and its whole-dollar rounding, so the early guard fires on exactly
+ * the same condition as the late preview-time guard.
+ */
+export type PricingCoverageIssue = 'lot-size' | 'assessed-value';
+
+export function pricingCoverageIssue(
+  facts: PricingCoverageFacts,
+  bounds: PricingCoverageBounds,
+): PricingCoverageIssue | null {
+  const lot = Math.round(facts.lotSqft);
+  if (!Number.isFinite(lot) || lot < bounds.minLotSizeSqft || lot > bounds.maxLotSizeSqft) {
+    return 'lot-size';
+  }
+  const assessed = Math.round(facts.assessedValue);
+  if (
+    !Number.isFinite(assessed) ||
+    assessed < bounds.minAssessedLandValue ||
+    assessed > bounds.maxAssessedLandValue
+  ) {
+    return 'assessed-value';
+  }
+  return null;
+}
+
+/**
+ * Fills the {lot}/{min}/{max} placeholders of the can't-price lot-size copy
+ * (en-CA grouping, e.g. 643,811). Shared by the early guard (landing) and
+ * the late guard (preview) so the wording stays identical.
+ */
+export function formatLotSizeBody(
+  template: string,
+  lotSqft: number,
+  minLotSizeSqft: number,
+  maxLotSizeSqft: number,
+): string {
+  const fmt = (n: number): string => n.toLocaleString('en-CA');
+  return template
+    .replace('{lot}', fmt(lotSqft))
+    .replace('{min}', fmt(minLotSizeSqft))
+    .replace('{max}', fmt(maxLotSizeSqft));
 }

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import type { CostRange } from '@feasly/contracts';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
+import { formatLotSizeBody } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo/seo.service';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { LoadPreview } from '../report/report.actions';
@@ -114,11 +115,7 @@ export class PreviewPageComponent implements OnInit {
     const lotMatch = detail.match(/lotSizeSqft\s+(\d+)\s+outside\s*\[(\d+)\s*,\s*(\d+)\]/);
     if (lotMatch) {
       const [, lot, min, max] = lotMatch;
-      const fmt = (n: string): string => Number(n).toLocaleString('en-CA');
-      return this.copy.validationLotSizeBody
-        .replace('{lot}', fmt(lot))
-        .replace('{min}', fmt(min))
-        .replace('{max}', fmt(max));
+      return formatLotSizeBody(this.copy.validationLotSizeBody, Number(lot), Number(min), Number(max));
     }
     return this.copy.validationGenericBody;
   }

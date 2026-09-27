@@ -20,6 +20,18 @@
       />
       <button class="hero-cta" type="submit">{{ searchCopy.submitLabel }}</button>
     </form>
+    @if (coverageBlock(); as block) {
+      <!-- Early coverage guard: the picked lot can't be priced (lot size or
+           assessed value outside the cost-data range). The funnel stops here,
+           before scope/details — the preview page keeps its guard as a backstop. -->
+      <div class="coverage-block" role="alert">
+        <p class="coverage-heading">{{ previewCopy.validationHeading }}</p>
+        <p>{{ coverageMessage(block) }}</p>
+        <button class="coverage-cta" type="button" (click)="tryDifferentAddress()">
+          {{ previewCopy.validationBackLabel }}
+        </button>
+      </div>
+    }
     <!-- Sample report: behind features.sampleReport; entry point lands with the report story (FE2-x). -->
   </section>
 
