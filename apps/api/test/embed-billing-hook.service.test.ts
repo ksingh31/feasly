@@ -42,6 +42,7 @@ import {
   tenants,
   billingEvents,
   commissionInvoices,
+  attributionEvents,
 } from '../src/db/schema';
 import { eq } from 'drizzle-orm';
 import type { BillingConfig } from '../src/config';
@@ -339,6 +340,45 @@ describe('embed billing hook — first charge path', () => {
       .from(commissionInvoices)
       .where(eq(commissionInvoices.tenantKey, tenantKey));
     expect(invoices).toHaveLength(1);
+  });
+
+  it('concurrent won events: one attribution, one invoice, no double billing', async () => {
+    const tenantKey = 'hook-won-race';
+    await seedTenant(testDb, tenantKey);
+    const { hook } = newFixtures(testDb, COMMISSION_BILLING);
+    const leadId = await seedLead(testDb);
+    const detail = {
+      leadId,
+      introducedAt: new Date('2026-03-01T10:00:00.000Z'),
+      contractValueCents: 50_000_000,
+      contractSignedAt: new Date('2026-09-20T10:00:00.000Z'),
+    };
+
+    // Two won events racing through the whole hook flow: both pass the
+    // per-lead find before either writes. The UNIQUE backstops (0033 on
+    // invoices, 0034 on open introductions) serialize them; the loser
+    // reuses the winner's records instead of 409/500ing.
+    const [a, b] = await Promise.all([
+      hook.recordBillableEvent(tenantKey, 'lead_won', detail),
+      hook.recordBillableEvent(tenantKey, 'lead_won', detail),
+    ]);
+
+    expect(a.billed).toBe(true);
+    expect(b.billed).toBe(true);
+    if (!a.billed || !b.billed) throw new Error('expected billed results');
+    expect(a.invoiceId).toBe(b.invoiceId);
+
+    const invoices = await testDb.db
+      .select()
+      .from(commissionInvoices)
+      .where(eq(commissionInvoices.tenantKey, tenantKey));
+    expect(invoices).toHaveLength(1);
+
+    const intros = await testDb.db
+      .select()
+      .from(attributionEvents)
+      .where(eq(attributionEvents.leadId, leadId));
+    expect(intros).toHaveLength(1);
   });
 
   it('flat model: won is covered by the subscription, no invoice', async () => {

@@ -157,11 +157,24 @@ async function seedInvoice(
   parents: { attributionId: string; leadId: string },
   seed: SeedInvoice,
 ): Promise<string> {
+  // One invoice per attribution (migration 0033 unique backstop): every
+  // seeded invoice gets its own won attribution, mirroring production where
+  // an invoice only exists for an attributed (contract-reported)
+  // introduction. Status 'attributed' also keeps the 0034 open-introduction
+  // partial unique index out of the way.
+  const attributionId = randomUUID();
+  await testDb.db.insert(attributionEvents).values({
+    id: attributionId,
+    leadId: parents.leadId,
+    tenantKey: 'test-builder',
+    introducedAt: hoursAgo(200),
+    status: 'attributed',
+  });
   const id = randomUUID();
   await testDb.db.insert(commissionInvoices).values({
     id,
     tenantKey: 'test-builder',
-    attributionId: parents.attributionId,
+    attributionId,
     leadId: parents.leadId,
     contractValueCents: seed.commissionCents * 100,
     commissionCents: seed.commissionCents,
