@@ -43,12 +43,28 @@
             (valueChange)="onSqftInput($event)"
           />
 
-          <app-tier-selector
+          <app-option-selector
             [selected]="inputs().tier"
             [options]="tierOptions"
             [label]="copy.scopeTierLabel"
             [hint]="copy.scopeTierHint"
             (selectedChange)="chooseTier($event)"
+          />
+
+          <app-option-selector
+            [selected]="inputs().garage"
+            [options]="garageOptions"
+            [label]="copy.scopeGarageLabel"
+            [hint]="copy.scopeGarageHint"
+            (selectedChange)="chooseGarage($event)"
+          />
+
+          <app-option-selector
+            [selected]="inputs().basement"
+            [options]="basementOptions"
+            [label]="copy.scopeBasementLabel"
+            [hint]="copy.scopeBasementHint"
+            (selectedChange)="chooseBasement($event)"
           />
         }
 

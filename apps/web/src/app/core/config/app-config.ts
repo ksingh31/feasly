@@ -8,7 +8,7 @@
  *
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
-import type { CallbackWindow, FinishTier, TimelineOption } from '@feasly/contracts';
+import type { BasementOption, CallbackWindow, FinishTier, GarageOption, TimelineOption } from '@feasly/contracts';
 
 export interface AppConfig {
   /** Public site facts. */
@@ -215,6 +215,20 @@ export interface AppConfig {
       scopeTierLabel: string;
       scopeTierHint: string;
       scopeTiers: { id: FinishTier; name: string; blurb: string }[];
+      /**
+       * Garage selector (consumer/05): `id`s must match the GarageOption
+       * contract union; blurbs carry no prices, ever.
+       */
+      scopeGarageLabel: string;
+      scopeGarageHint: string;
+      scopeGarages: { id: GarageOption; name: string; blurb: string }[];
+      /**
+       * Basement selector (consumer/05): `id`s must match the BasementOption
+       * contract union; blurbs carry no prices, ever.
+       */
+      scopeBasementLabel: string;
+      scopeBasementHint: string;
+      scopeBasements: { id: BasementOption; name: string; blurb: string }[];
       scopeBackLabel: string;
       scopeCta: string;
       scopeEmpty: string;
@@ -359,6 +373,17 @@ export interface AppConfig {
       /** RENO-04: reno-specific visible fact labels. */
       renoTypeLabel: string;
       renoSqftLabel: string;
+      /**
+       * Validation-failure explainer (consumer/06): shown when the preview
+       * API rejects the request (e.g. lot size out of range). Retry cannot
+       * succeed, so no retry button — just a plain-English explanation and
+       * a way back. `{lot}`, `{min}`, `{max}` are interpolated from the
+       * API's error detail when it matches the lot-size shape.
+       */
+      validationHeading: string;
+      validationLotSizeBody: string;
+      validationGenericBody: string;
+      validationBackLabel: string;
     };
     /** Property card (shared) copy. */
     propertyCard: {

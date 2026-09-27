@@ -6,7 +6,7 @@ import type { ComparisonRowSet, CostRange, FinishTier } from '@feasly/contracts'
 import { ConfigService } from '../../../core/config/config.service';
 import { CommunityService } from '../../../core/community/community.service';
 import type { CommunityStats } from '../../../core/api/api.service';
-import { TierSelectorComponent } from '../../../shared/components';
+import { OptionSelectorComponent } from '../../../shared/components';
 import type { TierOption } from '../../../shared/components';
 import { ComparisonState } from '../comparison.state';
 import { ReviseComparisonTier } from '../comparison.actions';
@@ -38,7 +38,7 @@ import { WizardState } from '../../wizard/wizard.state';
 @Component({
   selector: 'app-compare-results',
   standalone: true,
-  imports: [NgStyle, TierSelectorComponent],
+  imports: [NgStyle, OptionSelectorComponent],
   templateUrl: './compare-results.component.html',
   styleUrl: './compare-results.component.scss',
 })

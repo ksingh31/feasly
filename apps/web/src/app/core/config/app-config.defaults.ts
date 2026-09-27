@@ -178,6 +178,46 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             'Top shelf throughout: custom millwork, natural stone, premium appliances, spa-style bathrooms, and smart-home rough-ins.',
         },
       ],
+      scopeGarageLabel: 'Garage',
+      scopeGarageHint:
+        'The garage shapes the foundation and framing cost — pick the one that matches your plan.',
+      scopeGarages: [
+        {
+          id: 'none',
+          name: 'No garage',
+          blurb:
+            'No built-in garage. Keeps the build simpler and leaves more of the lot untouched.',
+        },
+        {
+          id: 'double',
+          name: 'Double garage',
+          blurb:
+            'The Calgary standard — room for two vehicles plus storage along the walls.',
+        },
+        {
+          id: 'triple',
+          name: 'Triple garage',
+          blurb:
+            'Three bays for extra vehicles, a workshop, or generous storage.',
+        },
+      ],
+      scopeBasementLabel: 'Basement',
+      scopeBasementHint:
+        'Unfinished costs less today; finished adds living space from day one. Either way the foundation is the same.',
+      scopeBasements: [
+        {
+          id: 'unfinished',
+          name: 'Unfinished',
+          blurb:
+            'Basic foundation walls with rough-ins. Finish it later whenever you are ready.',
+        },
+        {
+          id: 'finished',
+          name: 'Finished',
+          blurb:
+            'Fully developed living space — bedrooms, bath, and family room from move-in day.',
+        },
+      ],
       scopeBackLabel: '← Back to address',
       scopeCta: 'See My Preview →',
       scopeEmpty: 'No address selected yet.',
@@ -300,6 +340,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // RENO-04: reno-specific visible fact labels
       renoTypeLabel: 'Renovation type',
       renoSqftLabel: 'Affected area',
+      validationHeading: 'We can’t price this property yet',
+      validationLotSizeBody:
+        'The lot for this address is {lot} sq ft, which is outside the {min}–{max} sq ft range our cost data covers right now. Try a different address — we’re expanding coverage over time.',
+      validationGenericBody:
+        'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
+      validationBackLabel: '← Try a different address',
     },
     propertyCard: {
       freshnessMock: 'Sample data for illustration — live City records coming soon',

@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { EMPTY, catchError, map, of, switchMap, tap } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
-import type { PreviewEstimateResponse, ReportSnapshot } from '@feasly/contracts';
+import type { ApiError, PreviewEstimateResponse, ReportSnapshot } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { WizardState } from '../wizard/wizard.state';
@@ -22,6 +22,12 @@ export interface ReportStateModel {
   status: ReportStatus;
   /** Load/re-run failure flag. The raw error never reaches the UI. */
   error: string | null;
+  /**
+   * API error detail for diagnostics-friendly UI (e.g. the validation
+   * message when a 400 explains itself). The UI translates it to
+   * buyer-grade copy — never rendered verbatim.
+   */
+  errorDetail: string | null;
 }
 
 const defaults: ReportStateModel = {
@@ -30,6 +36,7 @@ const defaults: ReportStateModel = {
   snapshot: null,
   status: 'idle',
   error: null,
+  errorDetail: null,
 };
 
 /**
@@ -79,6 +86,11 @@ export class ReportState {
     return state.error;
   }
 
+  @Selector()
+  static errorDetail(state: ReportStateModel): string | null {
+    return state.errorDetail;
+  }
+
   /** True once a verified snapshot exists — the post-gate view. */
   @Selector()
   static unlocked(state: ReportStateModel): boolean {
@@ -86,11 +98,25 @@ export class ReportState {
   }
 
   private beginLoad(ctx: StateContext<ReportStateModel>): void {
-    ctx.patchState({ status: 'loading', error: null });
+    ctx.patchState({ status: 'loading', error: null, errorDetail: null });
   }
 
-  private fail(ctx: StateContext<ReportStateModel>): void {
-    ctx.patchState({ status: 'error', error: 'load' });
+  /**
+   * Marks the load as failed. When the API error is available and flagged
+   * non-retryable (e.g. a 400 validation failure), the failure is classified
+   * as 'validation' so the UI can explain the actual problem instead of
+   * offering a retry that cannot succeed. The raw message is kept as
+   * errorDetail for buyer-grade translation — never rendered verbatim.
+   */
+  private fail(ctx: StateContext<ReportStateModel>, err?: unknown): void {
+    const apiError = err as Partial<ApiError> | undefined;
+    const message = typeof apiError?.message === 'string' ? apiError.message : null;
+    const validation = apiError?.retryable === false;
+    ctx.patchState({
+      status: 'error',
+      error: validation ? 'validation' : 'load',
+      errorDetail: message,
+    });
   }
 
   @Action(LoadPreview)
@@ -131,8 +157,8 @@ export class ReportState {
     this.beginLoad(ctx);
     return this.api.getPreviewEstimate(request).pipe(
       tap((preview) => ctx.patchState({ preview, status: 'ready' })),
-      catchError(() => {
-        this.fail(ctx);
+      catchError((err: unknown) => {
+        this.fail(ctx, err);
         return EMPTY;
       }),
     );

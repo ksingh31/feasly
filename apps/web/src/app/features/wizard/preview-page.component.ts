@@ -54,6 +54,10 @@ export class PreviewPageComponent implements OnInit {
   protected readonly renoInputs = this.store.selectSignal(WizardState.renoInputs);
   protected readonly preview = this.store.selectSignal(ReportState.preview);
   protected readonly status = this.store.selectSignal(ReportState.status);
+  /** Failure classification: 'validation' when the API rejected the request. */
+  protected readonly reportError = this.store.selectSignal(ReportState.error);
+  /** API error detail (e.g. the validation message) — translated, never verbatim. */
+  protected readonly errorDetail = this.store.selectSignal(ReportState.errorDetail);
 
   /** True when this is a renovation preview (vs new-build). */
   protected readonly isReno = computed(() => this.projectType() === 'renovation');
@@ -79,8 +83,45 @@ export class PreviewPageComponent implements OnInit {
   protected formatCad(value: number): string {
     return `$${Math.round(value).toLocaleString('en-CA')}`;
   }
+  /** Display name for the chosen garage (config-owned; falls back to the id). */
+  protected garageName(): string {
+    const garage = this.inputs().garage;
+    return this.wizardCopy.scopeGarages.find((g) => g.id === garage)?.name ?? garage;
+  }
+
+  /** Display name for the chosen basement (config-owned; falls back to the id). */
+  protected basementName(): string {
+    const basement = this.inputs().basement;
+    return this.wizardCopy.scopeBasements.find((b) => b.id === basement)?.name ?? basement;
+  }
+
   /** Full-page error card only when nothing loaded yet. */
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);
+
+  /**
+   * True when the API rejected the request (e.g. lot size out of range).
+   * Retry cannot succeed — the UI explains the problem instead.
+   */
+  protected readonly isValidationError = computed(() => this.loadFailed() && this.reportError() === 'validation');
+
+  /**
+   * Buyer-grade explanation of a validation failure. Uses the API's error
+   * detail when it matches the known lot-size shape; falls back to the
+   * generic message otherwise. Never renders the raw API text.
+   */
+  protected validationMessage(): string {
+    const detail = this.errorDetail() ?? '';
+    const lotMatch = detail.match(/lotSizeSqft\s+(\d+)\s+outside\s*\[(\d+)\s*,\s*(\d+)\]/);
+    if (lotMatch) {
+      const [, lot, min, max] = lotMatch;
+      const fmt = (n: string): string => Number(n).toLocaleString('en-CA');
+      return this.copy.validationLotSizeBody
+        .replace('{lot}', fmt(lot))
+        .replace('{min}', fmt(min))
+        .replace('{max}', fmt(max));
+    }
+    return this.copy.validationGenericBody;
+  }
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/preview');
@@ -91,6 +132,15 @@ export class PreviewPageComponent implements OnInit {
 
   protected retry(): void {
     this.store.dispatch(new LoadPreview());
+  }
+
+  /**
+   * Back to the address step after a validation failure: the user needs a
+   * different property, so the wizard-step bookkeeping resets to step 1
+   * (the routerLink on the template anchor performs the navigation).
+   */
+  protected backToAddress(): void {
+    this.store.dispatch(new GoToStep(1));
   }
 
   /** Back to the details step: the routerLink navigates; this keeps the

@@ -19,7 +19,7 @@ import {
   SiteFooterComponent,
   SiteNavComponent,
   SqftSliderComponent,
-  TierSelectorComponent,
+  OptionSelectorComponent,
   type TierOption,
 } from '../../shared/components';
 import { CompareResultsComponent } from './compare-results/compare-results.component';
@@ -45,7 +45,7 @@ type ComparePhase = 'picker' | 'analyzing' | 'results';
     SiteFooterComponent,
     SiteNavComponent,
     SqftSliderComponent,
-    TierSelectorComponent,
+    OptionSelectorComponent,
     CompareResultsComponent,
   ],
   templateUrl: './compare-picker-page.component.html',
