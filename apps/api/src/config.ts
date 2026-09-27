@@ -241,6 +241,12 @@ const EnvSchema = z.object({
     .url()
     .default('https://api.postmarkapp.com/email'),
   EMAIL_ACS_CONNECTION_STRING: z.string().min(1).optional(),
+  // Bound on the ACS delivery poll (beginSend + pollUntilDone): the send is
+  // synchronous in the HTTP request path, so an unbounded poll stalls the
+  // response (2026-09-27: lead-gate "Sending..." hang). Past the deadline
+  // the poll is aborted and the send fails LOUD — the lead row and token
+  // are already committed, so a retry is safe (dedupe live-link path).
+  EMAIL_ACS_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
   // Base URL the web app lives at — magic-link / resume links are built
   // from this. Placeholder until the production domain is confirmed.
   APP_BASE_URL: z.string().url().default('https://feasly.example'),
@@ -371,6 +377,12 @@ export interface EmailConfig {
   readonly postmarkServerToken?: string;
   readonly postmarkEndpoint: string;
   readonly acsConnectionString?: string;
+  /**
+   * Deadline for the ACS delivery poll, in milliseconds. The send runs
+   * inline in the HTTP request path, so this bounds how long a stalled
+   * delivery poll can hold the response open before it fails loud.
+   */
+  readonly acsPollTimeoutMs: number;
   /** Web-app base URL that magic-link / resume links are built from. */
   readonly appBaseUrl: string;
   /** One-click unsubscribe links are built from this (email/03). */
@@ -783,6 +795,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       postmarkServerToken: e.EMAIL_POSTMARK_SERVER_TOKEN,
       postmarkEndpoint: e.EMAIL_POSTMARK_ENDPOINT,
       acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
+      acsPollTimeoutMs: e.EMAIL_ACS_POLL_TIMEOUT_MS,
       appBaseUrl: e.APP_BASE_URL,
       unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,
       unsubscribeTokenSecret: e.UNSUBSCRIBE_TOKEN_SECRET,

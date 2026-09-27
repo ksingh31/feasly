@@ -38,6 +38,15 @@ function provider() {
   });
 }
 
+/** Provider with a short poll deadline for timeout tests. */
+function providerWithTimeout(deliveryPollTimeoutMs: number) {
+  return createAcsEmailProvider({
+    connectionString: 'endpoint=https://example.com;accesskey=fake',
+    fromAddress: 'noreply@feasly.example',
+    deliveryPollTimeoutMs,
+  });
+}
+
 beforeEach(() => {
   mockBeginSend.mockReset();
 });
@@ -105,5 +114,46 @@ describe('acs provider', () => {
       pollUntilDone: vi.fn().mockRejectedValue(new Error('polling timed out')),
     });
     await expect(provider().send(MESSAGE)).rejects.toThrow(EmailProviderError);
+  });
+
+  it('passes an abortSignal to the delivery poll so the SDK can cancel', async () => {
+    const pollUntilDone = vi.fn().mockResolvedValue({
+      id: 'acs-msg-123',
+      status: 'Succeeded',
+    });
+    mockBeginSend.mockResolvedValue({ pollUntilDone });
+    await provider().send(MESSAGE);
+    const pollOptions = pollUntilDone.mock.calls[0][0] as
+      | { abortSignal?: AbortSignal }
+      | undefined;
+    expect(pollOptions?.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('fails loud when the delivery poll stalls past the deadline', async () => {
+    // 2026-09-27: a stalled ACS poll held the lead-submit HTTP response
+    // open (gate "Sending..." hang). The deadline must bound the send even
+    // when the poller ignores the abortSignal (never-resolving mock).
+    mockBeginSend.mockResolvedValue({
+      pollUntilDone: vi.fn(() => new Promise(() => {})),
+    });
+    const started = Date.now();
+    const error = await providerWithTimeout(50).send(MESSAGE).catch((e) => e);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.message).toContain('delivery polling timed out after 50ms');
+    // Bounded, not forever: comfortably under 5s.
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it('does not fire the timeout when the poll completes first', async () => {
+    mockBeginSend.mockResolvedValue({
+      pollUntilDone: vi.fn().mockResolvedValue({
+        id: 'acs-msg-789',
+        status: 'Succeeded',
+      }),
+    });
+    const result = await providerWithTimeout(50).send(MESSAGE);
+    expect(result).toEqual({ provider: 'acs', messageId: 'acs-msg-789' });
+    // Let the 50ms timer elapse: no late send-failure should surface.
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 });
