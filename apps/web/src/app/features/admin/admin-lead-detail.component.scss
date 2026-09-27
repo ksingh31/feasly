@@ -22,6 +22,14 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+  /* Sticky so the close control stays visible while the sheet scrolls
+     (FE9-002 mobile: close always visible). Header and card share the cream
+     background, so the pinned header reads as seamless. */
+  position: sticky;
+  top: 0;
+  background: var(--cream);
+  z-index: 1;
+  padding: 0.25rem 0 0.75rem;
 }
 
 .lead-modal-card__avatar {

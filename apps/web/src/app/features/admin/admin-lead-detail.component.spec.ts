@@ -193,8 +193,37 @@ describe('AdminLeadDetailComponent', () => {
     expect(assign.value).toBe('Unassigned');
   });
 
-  it('closes on Escape and returns focus handling to the store', async () => {
+  it('traps Tab focus inside the modal', async () => {
     await setup();
+    await openLead();
+
+    const card = fixture.debugElement.query(By.css('.lead-modal-card')).nativeElement;
+    // jsdom has no layout (offsetParent is always null); mark the modal's
+    // focusable elements as visible the way the trap's filter expects.
+    const focusable = Array.from(
+      card.querySelectorAll('button:not([disabled]), select:not([disabled]), textarea'),
+    ) as HTMLElement[];
+    expect(focusable.length).toBeGreaterThan(1);
+    for (const el of focusable) {
+      Object.defineProperty(el, 'offsetParent', { value: card, configurable: true });
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    // Tab on the last element wraps to the first.
+    last.focus();
+    card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(first);
+
+    // Shift+Tab on the first element wraps to the last.
+    first.focus();
+    card.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }),
+    );
+    expect(document.activeElement).toBe(last);
+  });
+
+  it('closes on Escape and returns focus handling to the store', async () => {    await setup();
     await openLead();
 
     const card = fixture.debugElement.query(By.css('.lead-modal-card')).nativeElement;
