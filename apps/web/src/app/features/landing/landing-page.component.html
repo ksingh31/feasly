@@ -35,27 +35,28 @@
     <!-- Sample report: behind features.sampleReport; entry point lands with the report story (FE2-x). -->
   </section>
 
-  <!-- ── Compare neighbourhoods entry (NBH-04) ── -->
-  <section class="compare-entry" aria-labelledby="compare-entry-title">
-    <a class="compare-card" routerLink="/estimate/compare">
-      <div>
-        <h2 id="compare-entry-title">{{ compareCopy.landingTitle }}</h2>
-        <p>{{ compareCopy.landingBody }}</p>
-      </div>
-      <span class="compare-arrow" aria-hidden="true">→</span>
-    </a>
-  </section>
+  <!-- ── Entry cards (NBH-04 / SEO-05): side-by-side on tablet/desktop, stacked on mobile ── -->
+  <div class="entry-pair">
+    <section class="compare-entry" aria-labelledby="compare-entry-title">
+      <a class="compare-card" routerLink="/estimate/compare">
+        <div>
+          <h2 id="compare-entry-title">{{ compareCopy.landingTitle }}</h2>
+          <p>{{ compareCopy.landingBody }}</p>
+        </div>
+        <span class="compare-arrow" aria-hidden="true">→</span>
+      </a>
+    </section>
 
-  <!-- ── Browse community guides (SEO-05) ─────── -->
-  <section class="compare-entry compare-entry--last" aria-labelledby="guides-entry-title">
-    <a class="compare-card" routerLink="/communities">
-      <div>
-        <h2 id="guides-entry-title">{{ guidesCopy.landingTitle }}</h2>
-        <p>{{ guidesCopy.landingBody }}</p>
-      </div>
-      <span class="compare-arrow" aria-hidden="true">→</span>
-    </a>
-  </section>
+    <section class="compare-entry" aria-labelledby="guides-entry-title">
+      <a class="compare-card" routerLink="/communities">
+        <div>
+          <h2 id="guides-entry-title">{{ guidesCopy.landingTitle }}</h2>
+          <p>{{ guidesCopy.landingBody }}</p>
+        </div>
+        <span class="compare-arrow" aria-hidden="true">→</span>
+      </a>
+    </section>
+  </div>
 
   <!-- ── Trust strip (never ±, %, or accuracy claims — copy-linted) ── -->
   <section class="trust" aria-label="Why Feasly">
