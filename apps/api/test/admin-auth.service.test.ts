@@ -318,6 +318,7 @@ describe('admin auth service (admin/01)', () => {
       await svc.verifyMagicLink('admin-token-1');
       await expect(svc.verifyMagicLink('admin-token-1')).rejects.toMatchObject({
         status: 401,
+        code: ErrorCodes.MAGIC_LINK_USED,
       });
     });
 

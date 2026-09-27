@@ -193,10 +193,31 @@ export function createAdminAuthService(
       const record = await magicLinks.findByToken(token);
       const now = clock();
       if (
+        record !== null &&
+        record.purpose === 'admin' &&
+        record.email !== null &&
+        record.usedAt !== null
+      ) {
+        // Single-use token already consumed. Distinct code (still 401) so
+        // the verify page can show "already used" copy instead of the
+        // generic invalid/expired message — the re-click case was Karan's
+        // actual confusion on 2026-09-27.
+        await audit.log({
+          actorEmail: null,
+          action: 'auth_failed',
+          detail: 'admin_verify_replay',
+        });
+        throw new HttpError(
+          401,
+          ErrorCodes.MAGIC_LINK_USED,
+          'This sign-in link has already been used. Request a fresh one.',
+          false,
+        );
+      }
+      if (
         !record ||
         record.purpose !== 'admin' ||
         record.email === null ||
-        record.usedAt !== null ||
         record.revokedAt !== null ||
         record.expiresAt.getTime() <= now.getTime()
       ) {
@@ -224,7 +245,7 @@ export function createAdminAuthService(
         });
         throw new HttpError(
           401,
-          ErrorCodes.UNAUTHENTICATED,
+          ErrorCodes.MAGIC_LINK_USED,
           'This sign-in link has already been used. Request a fresh one.',
           false,
         );
