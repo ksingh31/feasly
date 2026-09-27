@@ -63,6 +63,14 @@ export interface AdminLeadListItem {
   /** True when created via a sandbox API key — UI badges "Sandbox". */
   readonly sandbox: boolean;
   /**
+   * Contact consent: 'in' = no opt-outs recorded (gate consent stands);
+   * 'out' = opted out of estimate emails and/or calls/messages. Drives the
+   * admin "Contact consent" column — proactive outreach must exclude 'out'.
+   */
+  readonly contactConsent: 'in' | 'out';
+  /** ISO timestamp of the last consent change (any flag). */
+  readonly consentUpdatedAt: string;
+  /**
    * True when an admin discarded this honeypot-flagged lead
    * (`POST /api/v1/admin/leads/{id}/quarantine/discard`). Discarded rows
    * are kept for audit but excluded from every listing and count.

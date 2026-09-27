@@ -29,8 +29,10 @@ import type {
 } from '@feasly/contracts';
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
+import type { UnsubscribeService } from './unsubscribe.service';
 import {
   hashMagicToken,
   OWNER_LINK_PURPOSE,
@@ -49,6 +51,8 @@ export interface MagicLinkServiceDeps {
   readonly magicLinks: MagicLinkStore;
   readonly leads: LeadStore;
   readonly email: EmailService;
+  /** Mints the tokenized preference-page URL for the email footer. */
+  readonly unsubscribe: UnsubscribeService;
   /** e.g. https://feasly.ca — from config, never hardcoded. */
   readonly appBaseUrl: string;
   readonly magicLinkTtlSeconds: number;
@@ -89,6 +93,8 @@ export function isMagicLinkLive(
 export interface IssueAndSendMagicLinkArgs {
   readonly magicLinks: MagicLinkStore;
   readonly email: EmailService;
+  /** Mints the tokenized preference-page URL for the email footer. */
+  readonly unsubscribe: UnsubscribeService;
   readonly leadId: string;
   readonly to: string;
   readonly name?: string;
@@ -106,12 +112,24 @@ export async function issueAndSendMagicLink(
     ttlSeconds: args.magicLinkTtlSeconds,
     clock: args.clock,
   });
+  // The footer URL is best-effort: if minting fails (e.g. the unsubscribe
+  // secret is unconfigured), the magic link must still send — a missing
+  // footer is better than a missing estimate link.
+  let unsubscribeUrl: string | undefined;
+  try {
+    unsubscribeUrl = args.unsubscribe.buildUnsubscribeUrl(args.leadId);
+  } catch (error) {
+    console.error(
+      `magic-link: unsubscribe URL mint failed (${sanitizeErrorMessage(error)})`,
+    );
+  }
   await args.email.sendMagicLink({
     to: args.to,
     name: args.name,
     magicLinkUrl: `${args.appBaseUrl}/r/${issued.token}`,
     expiresInDays: Math.max(1, Math.ceil(args.magicLinkTtlSeconds / 86_400)),
     audience: 'consumer',
+    unsubscribeUrl,
   });
   // Returned so the lead-submit path can hand the same-session client the
   // owner token directly (Karan directive 2026-09-27: immediate unlock —
@@ -127,6 +145,7 @@ export function createMagicLinkService(
     magicLinks,
     leads,
     email,
+    unsubscribe,
     appBaseUrl,
     magicLinkTtlSeconds,
     magicLinkReissueCooldownMs,
@@ -222,6 +241,7 @@ export function createMagicLinkService(
       await issueAndSendMagicLink({
         magicLinks,
         email,
+        unsubscribe,
         leadId: lead.id,
         to: lead.email,
         name: lead.name,

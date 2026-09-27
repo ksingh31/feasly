@@ -24,6 +24,12 @@ export interface SheetLeadRow {
   readonly rangeHigh: number | null;
   readonly consentTs: string;
   readonly marketingConsent: boolean;
+  /**
+   * 'in' = no opt-outs recorded; 'out' = opted out of estimate emails
+   * and/or calls/messages. Karan's outreach list must exclude 'out'.
+   */
+  readonly contactConsent: 'in' | 'out';
+  readonly consentUpdatedAt: string;
   readonly tenant: string;
   readonly source: string;
   readonly createdAt: string;

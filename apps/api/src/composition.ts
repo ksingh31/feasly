@@ -803,11 +803,23 @@ export function createComposition(
     unsubscribeBaseUrl: config.email.unsubscribeUrlBase,
     opsInbox: config.email.opsInbox,
   });
+  // email/03 — one-click unsubscribe center. The HMAC secret arrives via
+  // config (Key Vault in staging/production); the service fails closed
+  // naming UNSUBSCRIBE_TOKEN_SECRET when it is absent. Created before the
+  // lead/magic-link services so the magic-link email footer can mint
+  // tokenized preference-page URLs.
+  const unsubscribeService: UnsubscribeService = createUnsubscribeService({
+    leads: leadStore,
+    unsubscribeUrlBase: config.email.unsubscribeUrlBase,
+    tokenSecret: config.email.unsubscribeTokenSecret,
+    tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
+  });
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
     magicLinks: magicLinkStore,
     email: emailService,
+    unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
@@ -818,21 +830,13 @@ export function createComposition(
     magicLinks: magicLinkStore,
     leads: leadStore,
     email: emailService,
+    unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
   });
   const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
     magicLinks: magicLinkService,
-  });
-  // email/03 — one-click unsubscribe center. The HMAC secret arrives via
-  // config (Key Vault in staging/production); the service fails closed
-  // naming UNSUBSCRIBE_TOKEN_SECRET when it is absent.
-  const unsubscribeService: UnsubscribeService = createUnsubscribeService({
-    leads: leadStore,
-    unsubscribeUrlBase: config.email.unsubscribeUrlBase,
-    tokenSecret: config.email.unsubscribeTokenSecret,
-    tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
   });
   // email/02 — hourly 24h nudge for unverified leads. Reuses the magic-link
   // store's issue/revoke path and the unsubscribe service's opt-out check.

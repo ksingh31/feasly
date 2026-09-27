@@ -282,6 +282,11 @@ export function createSheetsSyncService(
       rangeHigh,
       consentTs: lead.consentTs.toISOString(),
       marketingConsent: lead.marketingConsent,
+      contactConsent:
+        lead.unsubscribedAt !== null || lead.contactOptOutAt !== null
+          ? 'out'
+          : 'in',
+      consentUpdatedAt: lead.consentUpdatedAt.toISOString(),
       tenant: lead.tenantKey ?? '',
       source: lead.source,
       createdAt: lead.createdAt.toISOString(),

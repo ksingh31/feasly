@@ -41,6 +41,8 @@ export const AdminLeadStatusSchema = z.enum([
 
 export const AdminLeadSourceSchema = z.enum(['web', 'embed', 'api', 'mcp']);
 
+export const AdminLeadConsentSchema = z.enum(['in', 'out']);
+
 /** Query params for `GET /api/v1/admin/leads`. */
 export const AdminLeadListQuerySchema = z.object({
   minScore: z.coerce.number().int().min(0).max(100).optional(),
@@ -49,6 +51,8 @@ export const AdminLeadListQuerySchema = z.object({
   source: AdminLeadSourceSchema.optional(),
   projectType: z.string().trim().min(1).max(50).optional(),
   tenantId: z.string().trim().min(1).max(120).optional(),
+  /** Contact-consent filter. Absent = show every lead (the admin default). */
+  consent: AdminLeadConsentSchema.optional(),
   createdAfter: z.string().datetime({ offset: true }).optional(),
   createdBefore: z.string().datetime({ offset: true }).optional(),
   search: z.string().trim().min(1).max(200).optional(),
@@ -154,6 +158,11 @@ function toListItem(row: AdminLeadRow): AdminLeadListItem {
     timeline: row.timeline,
     sandbox: row.sandbox,
     discarded: row.discarded,
+    contactConsent:
+      row.unsubscribedAt !== null || row.contactOptOutAt !== null
+        ? 'out'
+        : 'in',
+    consentUpdatedAt: row.consentUpdatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -199,6 +208,7 @@ function toStoreFilters(q: AdminLeadListQuery): AdminLeadFilters {
     includeQuarantined: q.includeQuarantined,
     includeSandbox: q.includeSandbox,
     includeDiscarded: q.includeDiscarded,
+    consent: q.consent,
   };
 }
 
@@ -493,6 +503,10 @@ export function createAdminLeadsService(
         'quarantined',
         'marketing_consent',
         'consent_ts',
+        'contact_consent',
+        'consent_updated_at',
+        'unsubscribed_at',
+        'contact_opt_out_at',
         'created_at',
       ];
 
@@ -524,6 +538,14 @@ export function createAdminLeadsService(
             escapeCsv(row.quarantined),
             escapeCsv(row.marketingConsent),
             escapeCsv(row.consentTs.toISOString()),
+            escapeCsv(
+              row.unsubscribedAt !== null || row.contactOptOutAt !== null
+                ? 'out'
+                : 'in',
+            ),
+            escapeCsv(row.consentUpdatedAt.toISOString()),
+            escapeCsv(row.unsubscribedAt?.toISOString() ?? null),
+            escapeCsv(row.contactOptOutAt?.toISOString() ?? null),
             escapeCsv(row.createdAt.toISOString()),
           ].join(','),
         );

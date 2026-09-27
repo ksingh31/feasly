@@ -10,7 +10,7 @@
  * because new rows sort after the cursor position. The cursor is an opaque
  * base64-encoded JSON `{ createdAt, id }`.
  */
-import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leads, magicLinks } from '../db/schema';
 
@@ -29,6 +29,12 @@ export interface AdminLeadFilters {
   /** Include admin-discarded rows. Default false — discarded rows are kept
    * for audit but excluded from every listing and count. */
   readonly includeDiscarded?: boolean;
+  /**
+   * Contact-consent filter: 'in' = no opt-outs recorded; 'out' = opted out
+   * of estimate emails and/or calls/messages. Absent = no consent
+   * filtering — the default admin view always shows every lead.
+   */
+  readonly consent?: 'in' | 'out';
 }
 
 export interface AdminLeadListArgs {
@@ -58,6 +64,10 @@ export interface AdminLeadRow {
   readonly leadScore: number;
   readonly status: string;
   readonly unsubscribedAt: Date | null;
+  /** Calls/messages opt-out; null = gate consent still stands. */
+  readonly contactOptOutAt: Date | null;
+  /** Last change to any consent flag. */
+  readonly consentUpdatedAt: Date;
   readonly nudgeSentAt: Date | null;
   readonly createdAt: Date;
   /** Project type from the joined estimate (null when estimate missing). */
@@ -186,6 +196,17 @@ function buildFilterConditions(filters: AdminLeadFilters) {
   if (!filters.includeDiscarded) {
     conditions.push(eq(leads.discarded, false));
   }
+  // Contact-consent filter. Absent = show everything (the admin default
+  // never filters by consent — Karan selects the filter himself).
+  if (filters.consent === 'out') {
+    conditions.push(
+      or(isNotNull(leads.unsubscribedAt), isNotNull(leads.contactOptOutAt)),
+    );
+  } else if (filters.consent === 'in') {
+    conditions.push(
+      and(isNull(leads.unsubscribedAt), isNull(leads.contactOptOutAt)),
+    );
+  }
 
   return conditions;
 }
@@ -212,6 +233,8 @@ function toRow(
     leadScore: lead.leadScore,
     status: lead.status,
     unsubscribedAt: lead.unsubscribedAt,
+    contactOptOutAt: lead.contactOptOutAt,
+    consentUpdatedAt: lead.consentUpdatedAt,
     nudgeSentAt: lead.nudgeSentAt,
     createdAt: lead.createdAt,
     projectType,

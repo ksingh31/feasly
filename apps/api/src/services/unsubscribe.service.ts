@@ -1,26 +1,34 @@
 /**
- * One-click unsubscribe center — backend (email/03).
+ * Unsubscribe preference center — backend (email/03 + contact opt-out).
  *
- * Two public endpoints (token-authenticated, no login):
+ * Token-authenticated endpoints (no login):
  *
  * - `getState(token)` — GET /api/v1/unsubscribe/{token}. Read-only:
- *   describes what the token would do so the frontend can render the
- *   confirmation page ("You'll stop receiving Feasly updates" vs the
- *   friendly expired/invalid error with the "request a new link" path).
- * - `unsubscribe(token)` — POST /api/v1/unsubscribe/{token}. Records the
- *   opt-out (`leads.unsubscribed_at`, the CASL audit timestamp) and is
- *   idempotent — re-clicking keeps the FIRST timestamp.
+ *   describes the lead's current consent (email + calls/messages) so the
+ *   frontend can render the preference page.
+ * - `unsubscribe(token)` — POST /api/v1/unsubscribe/{token} with no body.
+ *   Legacy one-click: opts out of emails only (idempotent).
+ * - `savePreferences(token, prefs)` — POST with
+ *   `{ emailOptOut, contactOptOut }`. Granular save from the preference
+ *   page; opting back in clears the timestamp.
+ *
+ * Consent columns on `leads`: `unsubscribed_at` (email opt-out),
+ * `contact_opt_out_at` (calls/messages), `consent_updated_at` (last change
+ * to any flag).
  *
  * Suppression semantics (shared with email/02's nudge timer):
  * - `isUnsubscribed(leadId)` — the single check every non-transactional
- *   sender calls. Transactional magic-link emails are NOT gated by this
- *   (they are requested content, not marketing).
+ *   EMAIL sender calls. Transactional magic-link emails are NOT gated by
+ *   this (they are requested content, not marketing).
+ * - `isContactOptedOut(leadId)` — the check every proactive OUTREACH
+ *   surface (calls/messages) calls.
  * - `buildUnsubscribeUrl(leadId)` — mints the tokenized URL for templates.
  *
  * PII discipline: tokens are never logged; `getState` returns the leadId
  * (needed by the frontend to render) but never the email address.
  */
 import type {
+  UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -40,10 +48,25 @@ export interface UnsubscribeService {
   /** POST /api/v1/unsubscribe/{token} — record the opt-out (idempotent). */
   unsubscribe(token: string): Promise<UnsubscribeResultResponse>;
   /**
+   * POST /api/v1/unsubscribe/{token} with a preferences body — granular
+   * save from the preference page. Each flag is explicit (true = opt out);
+   * opting back in clears the timestamp. Idempotent per flag.
+   */
+  savePreferences(
+    token: string,
+    prefs: UnsubscribePreferencesInput,
+  ): Promise<UnsubscribeResultResponse>;
+  /**
    * Suppression check for non-transactional senders (email/02 nudge timer,
    * marketing). True when the lead opted out.
    */
   isUnsubscribed(leadId: string): Promise<boolean>;
+  /**
+   * Calls/messages suppression check for proactive outreach surfaces.
+   * True when the lead opted out of contact from Feasly and associated
+   * builders.
+   */
+  isContactOptedOut(leadId: string): Promise<boolean>;
 }
 
 export interface UnsubscribeServiceDeps {
@@ -134,6 +157,9 @@ export function createUnsubscribeService(
       return {
         valid: true,
         leadId: lead.id,
+        emailOptedOut: lead.unsubscribedAt !== null,
+        contactOptedOut: lead.contactOptOutAt !== null,
+        consentUpdatedAt: lead.consentUpdatedAt.toISOString(),
         alreadyUnsubscribed: lead.unsubscribedAt !== null,
       };
     },
@@ -157,16 +183,66 @@ export function createUnsubscribeService(
           'This unsubscribe link is not valid.',
         );
       }
-      if (lead.unsubscribedAt !== null) {
-        return { unsubscribed: true, alreadyUnsubscribed: true };
+      const already = lead.unsubscribedAt !== null;
+      const saved = await deps.leads.updateConsentPreferences({
+        id: lead.id,
+        emailOptOut: true,
+        at: now(),
+      });
+      return {
+        unsubscribed: true,
+        alreadyUnsubscribed: already,
+        emailOptedOut: true,
+        contactOptedOut: (saved ?? lead).contactOptOutAt !== null,
+      };
+    },
+
+    async savePreferences(
+      token: string,
+      prefs: UnsubscribePreferencesInput,
+    ): Promise<UnsubscribeResultResponse> {
+      const resolved = await resolveLead(token);
+      if (!resolved.ok) {
+        throw new HttpError(
+          403,
+          ErrorCodes.FORBIDDEN,
+          resolved.reason === 'expired'
+            ? 'This unsubscribe link has expired. Request a fresh link from any Feasly email.'
+            : 'This unsubscribe link is not valid.',
+        );
       }
-      await deps.leads.setUnsubscribedAt({ id: lead.id, at: now() });
-      return { unsubscribed: true, alreadyUnsubscribed: false };
+      const lead = await deps.leads.findById(resolved.leadId);
+      if (!lead) {
+        throw new HttpError(
+          403,
+          ErrorCodes.FORBIDDEN,
+          'This unsubscribe link is not valid.',
+        );
+      }
+      const already = lead.unsubscribedAt !== null;
+      const saved = await deps.leads.updateConsentPreferences({
+        id: lead.id,
+        emailOptOut: prefs.emailOptOut,
+        contactOptOut: prefs.contactOptOut,
+        at: now(),
+      });
+      const final = saved ?? lead;
+      return {
+        unsubscribed: final.unsubscribedAt !== null,
+        alreadyUnsubscribed: already,
+        emailOptedOut: final.unsubscribedAt !== null,
+        contactOptedOut: final.contactOptOutAt !== null,
+      };
     },
 
     async isUnsubscribed(leadId: string): Promise<boolean> {
       const lead = await deps.leads.findById(leadId);
       return lead?.unsubscribedAt != null;
+    },
+
+    async isContactOptedOut(leadId: string): Promise<boolean> {
+      const lead = await deps.leads.findById(leadId);
+      return lead?.contactOptOutAt != null;
     },
   };
 }
