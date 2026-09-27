@@ -420,6 +420,8 @@ export interface AppConfig {
       lockedNote: string;
       unlockCta: string;
       pendingSub: string;
+      /** Duplicate-submit variant of the pending-lead sub heading: no new email was sent. */
+      pendingSubDuplicate: string;
       pendingNote: string;
       breakdownTitle: string;
       breakdownLocked: string;

@@ -368,6 +368,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my full report →',
       pendingSub: 'Your magic link is on its way.',
+      // Shown instead of pendingSub when the gate POST was a duplicate and
+      // the backend sent no new email (magicLinkSent === false).
+      pendingSubDuplicate: 'Your link is already in your inbox — check your email.',
       pendingNote:
         'We emailed your magic link — click the link in the email to unlock your full numbers.',
       breakdownTitle: 'Where the build budget goes',
