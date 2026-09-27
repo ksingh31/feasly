@@ -28,17 +28,22 @@
       </li>
       <li>
         <strong>Look up an address.</strong> Autocomplete is free and needs no key:
-        <pre><code>curl "{{ sandboxBase }}/properties/autocomplete?q=1234+17+Ave+SW"</code></pre>
+        <pre><code>curl "{{ sandboxBase }}/api/v1/properties/autocomplete?q=1234+17+Ave+SW"</code></pre>
       </li>
       <li>
         <strong>Run an estimate.</strong> Estimates are deterministic — the same inputs always
         return the same figures:
-        <pre><code>curl -X POST "{{ sandboxBase }}/estimate" \
-  -H "Authorization: Bearer feasly_test_YOUR_KEY" \
+        <pre><code>curl -X POST "{{ sandboxBase }}/api/v1/estimate" \
+  -H "Authorization: Bearer $FEASLY_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{{'{'}}"address": "1234 17 Ave SW, Calgary, AB",
-      "livingAreaSqft": 2200,
-      "finishTier": "standard"{{'}'}}'</code></pre>
+  -d '{{'{'}}"property": {{'{'}}"addressKey": "1234 17 AVE SW",
+      "assessedLandValue": 936500,
+      "lotSizeSqft": 3002,
+      "zoning": "R-CG"{{'}'}},
+    "scope": {{'{'}}"buildSqft": 2200,
+      "tier": "standard",
+      "garage": "double",
+      "basement": "unfinished"{{'}'}}{{'}'}}'</code></pre>
       </li>
       <li>
         <strong>Handle the response.</strong> Success returns your estimate; failures return an
@@ -149,7 +154,9 @@
     <h2 id="reference-h">API reference</h2>
     <p>
       The OpenAPI 3.1 spec is generated from the same Zod schemas as the code, so it can never
-      drift. A CI drift test fails the build if the spec and the implementation disagree.
+      drift. CI validates every generated spec with Redocly (zero errors), and a contract
+      test replays the curl samples on this page against the spec — a stale sample fails
+      the build.
     </p>
     <ul>
       <li>
