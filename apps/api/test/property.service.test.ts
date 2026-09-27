@@ -136,7 +136,7 @@ describe('property service', () => {
         expect(res.suggestions).toHaveLength(1);
         expect(res.suggestions[0]).toMatchObject({
           addressKey: '2631 63 AV SW',
-          address: '2631 63 Av Sw, Calgary, AB',
+          address: '2631 63 Av SW, Calgary, AB',
         });
         const url = String(vi.mocked(fetch).mock.calls[0][0]);
         // The SoQL predicate prefix-matches the street address, not the city tail.
