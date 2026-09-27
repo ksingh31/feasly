@@ -5,8 +5,10 @@
  * Calgary signal, an explicit out-of-coverage signal, or neither. This is a
  * port of `apps/api/src/lib/coverage.ts` for the `live` property-data path
  * (`CalgaryAssessmentService`), which queries the City Socrata API directly
- * and never sees the backend's OUT_OF_COVERAGE contract. Keep the two in
- * sync — same constants, same precedence.
+ * and never sees the backend's OUT_OF_COVERAGE contract. Same verdicts and
+ * precedence as the backend; the city list uses a compact regex encoding
+ * (see NON_CALGARY_CITY_PATTERN) to stay small in the main bundle. Keep the
+ * token sets in sync.
  *
  * The heuristic is deliberately conservative — ambiguous input returns
  * 'ambiguous' so callers fall back to the generic not-found copy rather than
@@ -37,40 +39,15 @@ const POSTAL_CODE =
 const CALGARY_FSA = /^T[23]/i;
 
 /**
- * Explicit non-Calgary city tokens. These are the municipalities whose
- * residents might plausibly try Feasly; matching is on word boundaries so
- * "victoria" doesn't fire inside "victorian".
+ * Explicit non-Calgary city tokens — the municipalities whose residents might
+ * plausibly try Feasly. Single regex alternation (compact encoding of the
+ * backend's NON_CALGARY_CITIES list in apps/api/src/lib/coverage.ts — same
+ * tokens, same word-boundary semantics). Word boundaries keep "victoria"
+ * from firing inside "victorian"; the multi-word entries ("red deer",
+ * "st. albert") match across whitespace.
  */
-const NON_CALGARY_CITIES = [
-  'edmonton',
-  'toronto',
-  'vancouver',
-  'ottawa',
-  'montreal',
-  'winnipeg',
-  'halifax',
-  'victoria',
-  'regina',
-  'saskatoon',
-  'kelowna',
-  'red deer',
-  'lethbridge',
-  'st. albert',
-  'mississauga',
-  'brampton',
-  'surrey',
-  'burnaby',
-  'richmond',
-  'coquitlam',
-] as const;
-
-function containsCityToken(lowered: string, cities: readonly string[]): boolean {
-  return cities.some((city) => {
-    // Word-boundary match so "victoria" doesn't fire inside "victorian".
-    const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`\\b${escaped}\\b`, 'i').test(lowered);
-  });
-}
+const NON_CALGARY_CITY_PATTERN =
+  /\b(edmonton|toronto|vancouver|ottawa|montreal|winnipeg|halifax|victoria|regina|saskatoon|kelowna|red\s+deer|lethbridge|st\.\s+albert|mississauga|brampton|surrey|burnaby|richmond|coquitlam)\b/i;
 
 /**
  * Classifies a free-text address query by coverage signal.
@@ -90,6 +67,6 @@ export function detectCoverageSignal(input: string): CoverageSignal {
   }
 
   if (/\bcalgary\b/i.test(lowered)) return 'calgary';
-  if (containsCityToken(lowered, NON_CALGARY_CITIES)) return 'out-of-coverage';
+  if (NON_CALGARY_CITY_PATTERN.test(lowered)) return 'out-of-coverage';
   return 'ambiguous';
 }
