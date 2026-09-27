@@ -510,6 +510,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       retryLabel: 'Try again',
       backLabel: '← Back to your project details',
     },
+    // Renovation is out of launch scope (Karan 2026-09-27): reno users land
+    // on a designed coming-soon page instead of the analyzing pipeline.
+    renoComingSoon: {
+      heading: 'Renovations are coming soon',
+      body: 'Renovation estimates aren’t quite ready yet — we’re building them the same honest way as our new-build estimates, with real City data and deterministic math. In the meantime, you can run a new-build estimate right now.',
+      newBuildCta: 'Start a new-build estimate',
+      backLabel: '← Back to your project details',
+    },
     seo: {
       landingTitle: 'Feasly — What will it really cost to build your home in Calgary?',
       landing:
@@ -533,6 +541,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
+      renoComingSoonTitle: 'Feasly — Renovations are coming soon',
+      renoComingSoon:
+        'Renovation estimates are on the way — start a free new-build estimate for your Calgary infill project in the meantime.',
       compareTitle: 'Compare neighbourhoods | Feasly',
       compare: 'Compare side-by-side build costs for 2–3 Calgary communities.',
       privacyTitle: 'Feasly — Privacy Policy',

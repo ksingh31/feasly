@@ -57,6 +57,7 @@ describe('RenoScopePageComponent', () => {
           { path: 'estimate/scope', component: BlankComponent },
           { path: 'estimate/reno-scope', component: RenoScopePageComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
+          { path: 'estimate/reno-coming-soon', component: BlankComponent },
         ]),
         provideStore([WizardState]),
       ],
@@ -245,5 +246,20 @@ describe('RenoScopePageComponent', () => {
   it('back link returns to the scope step', async () => {
     const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
     expect(back.getAttribute('routerLink')).toBe('/estimate/scope');
+  });
+
+  it('continuing lands on the reno coming-soon page (reno out of launch scope)', async () => {
+    // Valid inputs: reno type set (sqft + tier default) → CTA enabled.
+    renoCard('extensive').click();
+    fixture.detectChanges();
+    expect(cta().disabled).toBe(false);
+    cta().click();
+    const deadline = Date.now() + 5000;
+    for (;;) {
+      if (router.url === '/estimate/reno-coming-soon') break;
+      if (Date.now() > deadline) throw new Error('timed out waiting for /estimate/reno-coming-soon');
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(router.url).toBe('/estimate/reno-coming-soon');
   });
 });

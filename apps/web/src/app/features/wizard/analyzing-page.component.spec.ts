@@ -5,7 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Subject, firstValueFrom, of, throwError } from 'rxjs';
+import { Subject, firstValueFrom, of } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
@@ -94,6 +94,7 @@ describe('AnalyzingPageComponent', () => {
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/report', component: BlankComponent },
+          { path: 'estimate/reno-coming-soon', component: BlankComponent },
         ]),
         // LeadState + ReportState: the pipeline reads the lead receipt and
         // dispatches SetReportToken for the same-session unlock.
@@ -439,73 +440,31 @@ describe('AnalyzingPageComponent', () => {
     });
   });
 
-  describe('reno estimate failure (backend 503)', () => {
-    let estimateAttempts: number;
-
-    function renoStageState(key: string): string | null {
-      const stages = fixture.nativeElement.querySelectorAll('.stage');
-      // Reno order: fetch (0), scope (1), estimate (2), preview (3)
-      const labels: Record<string, number> = { fetch: 0, scope: 1, estimate: 2, preview: 3 };
-      return stages[labels[key]]?.getAttribute('data-state') ?? null;
-    }
+  describe('renovation coming soon (reno out of launch scope)', () => {
+    let apiSpy: { getProperty: ReturnType<typeof vi.fn>; getPreviewEstimate: ReturnType<typeof vi.fn> };
 
     beforeEach(async () => {
-      estimateAttempts = 0;
-      await setup({
-        provide: API_SERVICE,
-        useValue: {
-          // Fresh observables per call — like the real HttpClient — so retry
-          // re-runs the whole pipeline.
-          getProperty: () => of(fakeProperty),
-          getPreviewEstimate: () => {
-            estimateAttempts++;
-            // First attempt 503s like the live backend's draft-data gate
-            // (reno rates uncalibrated, dev phase 2); retry succeeds.
-            return estimateAttempts === 1
-              ? throwError(() => new Error('503 DEPENDENCY_UNAVAILABLE'))
-              : of(fakePreview);
-          },
-        },
-      });
-      const { ChooseProjectType, UpdateRenoInputs } = await import('./wizard.actions');
-      store.dispatch([
-        new SelectProperty(fakeProperty),
-        new ChooseProjectType('renovation'),
-        new UpdateRenoInputs({
-          renoType: 'basement',
-          renoSqft: 800,
-          tier: 'premium',
-          underpinning: false,
-        }),
-        new GoToStep(3),
-      ]);
+      apiSpy = {
+        getProperty: vi.fn(() => of(fakeProperty)),
+        getPreviewEstimate: vi.fn(() => of(fakePreview)),
+      };
+      await setup({ provide: API_SERVICE, useValue: apiSpy });
+      const { ChooseProjectType } = await import('./wizard.actions');
+      store.dispatch([new SelectProperty(fakeProperty), new ChooseProjectType('renovation')]);
       fixture = TestBed.createComponent(AnalyzingPageComponent);
       fixture.detectChanges();
     });
 
-    it('fails honestly on a reno estimate 503 and retry recovers — never a spinner', async () => {
-      // The estimate call fails: no hang, an honest error state instead.
-      await vi.waitFor(() => {
-        refresh();
-        expect(fixture.nativeElement.querySelector('.error-card')).not.toBeNull();
-      });
-      expect(estimateAttempts).toBe(1);
-      expect(renoStageState('fetch')).toBe('done');
-      expect(renoStageState('scope')).toBe('done');
-      expect(renoStageState('estimate')).toBe('error');
-      expect(router.url).not.toBe('/estimate/report');
+    it('redirects reno to the coming-soon page — never a spinner, never a 503 error card', async () => {
+      // Renovation is out of launch scope (Karan 2026-09-27): the pipeline
+      // must never run for reno, so no API call may fire.
+      await pollUrl('/estimate/reno-coming-soon');
+      expect(apiSpy.getProperty).not.toHaveBeenCalled();
+      expect(apiSpy.getPreviewEstimate).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelectorAll('.stage').length).toBe(0);
+      expect(fixture.nativeElement.querySelector('.error-card')).toBeNull();
       expect(store.selectSnapshot(WizardState.preview)).toBeNull();
-      // Reno users go back to the reno scope step, not the new-build one.
-      const back = fixture.nativeElement.querySelector(
-        '.error-card .back',
-      ) as HTMLAnchorElement;
-      expect(back.getAttribute('href')).toBe('/estimate/reno-scope');
-
-      // Retry re-attempts the estimate call and this time lands the report.
-      (fixture.nativeElement.querySelector('.error-card .cta') as HTMLButtonElement).click();
-      await pollUrl('/estimate/report');
-      expect(estimateAttempts).toBe(2);
-      expect(store.selectSnapshot(WizardState.preview)).not.toBeNull();
+      expect(router.url).toBe('/estimate/reno-coming-soon');
     });
   });
 });

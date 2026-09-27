@@ -12,6 +12,7 @@ import { LandingPageComponent } from './features/landing/landing-page.component'
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { PreviewPageComponent } from './features/wizard/preview-page.component';
 import { PrivacyPageComponent } from './features/legal/privacy-page.component';
+import { RenoComingSoonPageComponent } from './features/wizard/reno-coming-soon-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
@@ -57,10 +58,20 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   // Analyzing (FE-004): runs the real estimate pipeline, then the report.
+  // Renovation never reaches it — reno users get the coming-soon page
+  // (Karan 2026-09-27: reno out of launch scope).
   {
     path: 'estimate/analyzing',
     component: AnalyzingPageComponent,
     canActivate: [robotsGuard, wizardScopeGuard],
+    data: { noindex: true },
+  },
+  // Reno coming-soon (Karan 2026-09-27): a designed holding page instead of
+  // the analyzing pipeline. Private funnel route: noindex.
+  {
+    path: 'estimate/reno-coming-soon',
+    component: RenoComingSoonPageComponent,
+    canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
   // Neighbourhood comparison picker (NBH-04): no wizard property needed —

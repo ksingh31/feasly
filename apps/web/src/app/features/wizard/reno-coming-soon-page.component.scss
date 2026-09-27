@@ -1,0 +1,68 @@
+/* Renovation coming-soon page (Karan 2026-09-27): a designed holding page,
+   never a spinner or a generic error. Mobile-first, on the locked palette:
+   warm cream background, charcoal text, brass accents. */
+
+.reno-coming-soon {
+  max-width: 560px;
+}
+
+.soon-card {
+  margin-top: 24px;
+  padding: 40px 28px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  text-align: center;
+}
+
+/* Brass roofline mark — echoes the logo without the wordmark. */
+.soon-badge {
+  display: block;
+  width: 56px;
+  height: 34px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #d9a441 0%, #c08a24 55%, #a8761a 100%);
+  clip-path: polygon(0 100%, 0 45%, 50% 0, 100% 45%, 100% 100%, 78% 100%, 78% 52%, 50% 28%, 22% 52%, 22% 100%);
+}
+
+.soon-heading {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.soon-body {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 28px;
+}
+
+.soon-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.soon-actions .cta {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .soon-card {
+    padding: 48px 48px;
+  }
+
+  .soon-heading {
+    font-size: 32px;
+  }
+
+  .soon-actions .cta {
+    width: auto;
+    min-width: 260px;
+  }
+}

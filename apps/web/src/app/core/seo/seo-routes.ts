@@ -83,6 +83,13 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'analyzing',
     noindex: true,
   },
+  // Reno coming-soon (Karan 2026-09-27): private funnel route — noindex.
+  {
+    pattern: 'estimate/reno-coming-soon',
+    titleKey: 'renoComingSoonTitle',
+    descriptionKey: 'renoComingSoon',
+    noindex: true,
+  },
   // Preview (S5): private funnel route — noindex.
   {
     pattern: 'estimate/preview',

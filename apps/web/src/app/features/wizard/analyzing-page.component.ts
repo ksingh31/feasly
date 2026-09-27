@@ -60,6 +60,14 @@ export class AnalyzingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/analyzing');
+    // Renovation is out of launch scope (Karan 2026-09-27): reno users get
+    // the designed coming-soon page, never the analyzing pipeline — no
+    // spinner, no 503 error card. This redirect also covers deep links and
+    // back-button landings; reno-scope navigates to coming-soon directly.
+    if (this.store.selectSnapshot(WizardState.projectType) === 'renovation') {
+      void this.router.navigate(['/estimate/reno-coming-soon']);
+      return;
+    }
     // Belt and braces behind wizardScopeGuard: with no property there is no
     // pipeline to run — bounce to the wizard instead of a stuck loader.
     if (!this.store.selectSnapshot(WizardState.property)) {

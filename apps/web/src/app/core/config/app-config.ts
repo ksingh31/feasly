@@ -564,6 +564,14 @@ export interface AppConfig {
       /** Back link out of the analyzing screen (the pipeline must never trap the user). */
       backLabel: string;
     };
+    /** Renovation coming-soon page (reno out of launch scope, Karan 2026-09-27). */
+    renoComingSoon: {
+      heading: string;
+      body: string;
+      newBuildCta: string;
+      /** Back link to the reno scope step. */
+      backLabel: string;
+    };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
     seo: {
       landingTitle: string;
@@ -584,6 +592,8 @@ export interface AppConfig {
       gate: string;
       analyzingTitle: string;
       analyzing: string;
+      renoComingSoonTitle: string;
+      renoComingSoon: string;
       compareTitle: string;
       compare: string;
       privacyTitle: string;

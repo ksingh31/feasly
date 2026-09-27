@@ -206,9 +206,10 @@ export class RenoScopePageComponent implements OnInit {
     if (!this.canContinue()) {
       return;
     }
-    // Reno estimates skip the new-build details step — the analyzing screen
-    // reads renoInputs from NGXS when projectType is 'renovation'.
+    // Reno estimates skip the new-build details step. Renovation is out of
+    // launch scope (Karan 2026-09-27), so reno users land on the designed
+    // coming-soon page instead of the analyzing pipeline.
     this.store.dispatch([new ChooseProjectType('renovation'), new GoToStep(3)]);
-    void this.router.navigate(['/estimate/analyzing']);
+    void this.router.navigate(['/estimate/reno-coming-soon']);
   }
 }

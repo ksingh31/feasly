@@ -191,7 +191,7 @@ describe('SeoService', () => {
       expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
     }
     // the estimate funnel routes added in SEO-01 completion
-    for (const path of ['estimate/gate', 'estimate/analyzing', 'estimate/preview']) {
+    for (const path of ['estimate/gate', 'estimate/analyzing', 'estimate/preview', 'estimate/reno-coming-soon']) {
       service.setForRoute(path);
       expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
     }
