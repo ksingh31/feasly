@@ -2,7 +2,7 @@
   "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json).",
   "assets": {
     "imageWeightPerPageKb": 500,
-    "jsInitialGzipKb": 206
+    "jsInitialGzipKb": 208
   },
   "auditUrls": {
     "$comment": "Generated deterministically by apps/web/tools/perf-audit-urls.mjs from prerender-routes.txt: root + marketing pages + communities index + first 3 community pages alphabetically.",

@@ -35,6 +35,17 @@ export interface LeadResponse {
   /** Rendered in the UI from this value — never hardcoded. */
   readonly expiresInDays: number;
   /**
+   * Owner report token minted at submit time (Karan directive 2026-09-27:
+   * the submitted lead unlocks the report immediately — the magic-link
+   * email is return-access for other devices, not the unlock key for this
+   * session). Lets the same-session report use the token-gated extras
+   * (partner share, callback, narrative, token revise) without waiting for
+   * the email round-trip. Omitted for quarantined (suspected-bot) captures
+   * and by backends that predate this field — the UI falls back to the
+   * honest token-error state in those cases.
+   */
+  readonly reportToken?: string;
+  /**
    * 0–100 lead score computed server-side (embed/08). Optional: backends
    * that predate the embed bridge omit it; the bridge posts the
    * lead-created event regardless.

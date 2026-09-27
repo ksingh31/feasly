@@ -189,10 +189,31 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       .filter((l) => l.purpose === 'lead')
       .some((l) => isMagicLinkLive(l, now));
     if (live) {
-      return { leadId: updated.id, magicLinkSent: false, expiresInDays };
+      // AC4: no new email — but the in-tab client still needs a working
+      // owner token for the token-gated extras (share, callback, narrative,
+      // revise). The live link's raw token is unrecoverable (only its hash
+      // is stored), so mint a fresh one WITHOUT emailing: the "already in
+      // your inbox" copy stays honest and the tab is fully functional.
+      let issued;
+      try {
+        issued = await deps.magicLinks.issue({
+          leadId: existing.id,
+          ttlSeconds: deps.magicLinkTtlSeconds,
+          clock,
+        });
+      } catch (error) {
+        throw new Error('magic link issuance failed', { cause: error });
+      }
+      return {
+        leadId: updated.id,
+        magicLinkSent: false,
+        expiresInDays,
+        reportToken: issued.token,
+      };
     }
+    let issued;
     try {
-      await issueAndSendMagicLink({
+      issued = await issueAndSendMagicLink({
         magicLinks: deps.magicLinks,
         email: deps.email,
         leadId: existing.id,
@@ -205,7 +226,12 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     } catch (error) {
       throw new Error('magic link reissue failed', { cause: error });
     }
-    return { leadId: updated.id, magicLinkSent: true, expiresInDays };
+    return {
+      leadId: updated.id,
+      magicLinkSent: true,
+      expiresInDays,
+      reportToken: issued.token,
+    };
   }
 
   return {
@@ -301,7 +327,15 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // credential for the PIPEDA self-service endpoints. consumer/02 wires
       // the BE-5/email seam: the link is emailed immediately (log provider
       // until ACS is provisioned). Quarantined rows are issued a token but
-      // never emailed — no mail for suspected bots.
+      // never emailed — no mail for suspected bots, and the token is never
+      // returned to the caller either.
+      //
+      // Karan directive 2026-09-27 (immediate unlock): the raw owner token
+      // is also returned in the response so the same-session report can use
+      // the token-gated extras (share, callback, narrative, token revise)
+      // without the email round-trip. The email remains return-access for
+      // other devices.
+      let reportToken: string | undefined;
       try {
         if (quarantined) {
           await deps.magicLinks.issue({
@@ -310,7 +344,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             clock,
           });
         } else {
-          await issueAndSendMagicLink({
+          const issued = await issueAndSendMagicLink({
             magicLinks: deps.magicLinks,
             email: deps.email,
             leadId: inserted.id,
@@ -320,6 +354,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
             clock,
           });
+          reportToken = issued.token;
         }
       } catch (error) {
         throw new Error('magic link issuance failed', { cause: error });
@@ -328,6 +363,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         leadId: inserted.id,
         magicLinkSent: !quarantined,
         expiresInDays,
+        ...(reportToken !== undefined ? { reportToken } : {}),
       };
     },
   };

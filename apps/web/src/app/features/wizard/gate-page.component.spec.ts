@@ -13,6 +13,7 @@ import { providePropertyData } from '../../core/api/property-data.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { GoToStep, ChooseProjectType, LeadState, SelectProperty, WizardState } from '../wizard';
+import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent';
 import { EmbedState } from '../embed/embed.state';
 import { EmbedConfigLoaded, EmbedConfigFailed, LoadEmbedConfig } from '../embed/embed.actions';
@@ -94,7 +95,7 @@ describe('GatePageComponent', () => {
           { path: 'estimate/scope', component: BlankComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
-        provideStore([WizardState, LeadState, EmbedState]),
+        provideStore([WizardState, LeadState, EmbedState, ReportState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
         { provide: AnalyticsService, useValue: { track: vi.fn() } },
@@ -244,6 +245,24 @@ describe('GatePageComponent', () => {
       await pollUrl('/estimate/analyzing');
       expect(submitSpy).toHaveBeenCalledOnce();
       expect(submitSpy.mock.calls[0][0].website).toBe('https://spam.example');
+    });
+
+    it('stores the owner report token returned with the lead response (immediate-unlock extras)', async () => {
+      // Karan directive 2026-09-27: the report unlocks immediately after gate
+      // submit, so the gate stores the owner token the backend returns with
+      // the lead response — partner share and callback then work in the same
+      // tab without the magic-link round-trip.
+      const mockApi = TestBed.inject(MockApiService);
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      const leadId = store.selectSnapshot(LeadState.leadId);
+      expect(leadId).toMatch(/^lead-mock-/);
+      const stored = store.selectSnapshot(ReportState.reportToken);
+      expect(stored).toBeTruthy();
+      // The stored token is the mock's minted token for THIS lead — it must
+      // resolve through the mock's token-gated endpoints.
+      expect(stored).toBe(mockApi.devTokenForLead(leadId!));
     });
   });
 

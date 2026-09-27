@@ -284,7 +284,7 @@ export class MockApiService implements ApiService {
     const leadId = `lead-mock-${crypto.randomUUID()}`;
     const token = `mock-${crypto.randomUUID()}`;
     this.issuedTokens.set(token, { estimateId: request.estimateId, leadId });
-    return this.roundTrip(mockLeadResponse(leadId));
+    return this.roundTrip(mockLeadResponse(leadId, token));
   }
 
   /**

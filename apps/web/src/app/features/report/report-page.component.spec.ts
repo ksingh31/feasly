@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, throwError } from 'rxjs';
@@ -20,6 +20,7 @@ import { AnalyticsService } from '../consent';
 import { SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
+import { ReportPdfService } from './report-pdf.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
 /** Blank route target for navigation assertions. */
@@ -83,8 +84,9 @@ describe('ReportPageComponent', () => {
 
   async function setup(options?: {
     /** When true, a lead is submitted BEFORE the component is created, so
-     * ngOnInit takes the LoadLeadEstimate path (Karan directive 2026-09-27:
-     * the report unlocks immediately after gate submit). */
+     * ngOnInit takes the token path (Karan directive 2026-09-27: the report
+     * unlocks immediately after gate submit, and the gate stores the owner
+     * token the backend returns with the lead response). */
     leadSubmitted?: boolean;
     /** magicLinkSent flag on the submitted lead — picks the confirmation-line variant. */
     magicLinkSent?: boolean;
@@ -117,14 +119,44 @@ describe('ReportPageComponent', () => {
     api = TestBed.inject(API_SERVICE) as MockApiService;
     store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
     if (options?.leadSubmitted) {
+      // Drive the mock lead flow for a mock-valid owner token — exactly what
+      // the gate page leaves behind (StoreLeadResult carrying the backend's
+      // reportToken, then SetReportToken).
+      const preview = await firstValueFrom(
+        api.getPreviewEstimate({
+          projectType: 'new_build',
+          property: {
+            addressKey: fakeProperty.addressKey,
+            assessedLandValue: fakeProperty.assessedValue,
+            lotSizeSqft: fakeProperty.lotSqft,
+            zoning: fakeProperty.zoning,
+          },
+          scope: { buildSqft: 2200, tier: 'premium', garage: 'double', basement: 'unfinished' },
+        }),
+      );
+      const lead = await firstValueFrom(
+        api.submitLead({
+          email: 'buyer@example.com',
+          name: 'Test Buyer',
+          timeline: '6-12mo',
+          marketingConsent: false,
+          estimateId: preview.estimateId,
+        }),
+      );
+      const leadToken = api.devTokenForLead(lead.leadId);
+      expect(leadToken).toBeTruthy();
       store.dispatch(
         new StoreLeadResult({
-          leadId: 'lead-unlock-1',
+          leadId: lead.leadId,
           email: 'buyer@example.com',
           magicLinkSent: options.magicLinkSent ?? true,
           expiresInDays: 7,
         }),
       );
+      // The gate stores the owner token from the lead response in a separate
+      // dispatch — the token lives in ReportState memory only, never in the
+      // persisted lead receipt.
+      store.dispatch(new SetReportToken(leadToken!));
     }
     fixture = TestBed.createComponent(ReportPageComponent);
     fixture.detectChanges();
@@ -256,6 +288,72 @@ describe('ReportPageComponent', () => {
         expect(note.textContent).toContain(
           'Report saved — we emailed you a link to reopen it anytime.',
         );
+      });
+
+      it('partner share works from the immediately-unlocked report (gate-stored token)', async () => {
+        // The QA bug: share failed from immediately-unlocked reports because
+        // no owner token existed until the magic link was clicked. The gate
+        // now stores the token from the lead response, so share must work
+        // in the same tab.
+        expect(store.selectSnapshot(ReportState.reportToken)).toBeTruthy();
+        const shareSpy = vi.spyOn(api, 'shareWithPartner');
+        const email = fixture.nativeElement.querySelector(
+          'section[aria-label="Share with a partner"] input[type="email"]',
+        ) as HTMLInputElement;
+        email.value = 'partner@example.com';
+        email.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+        const shareButton = fixture.nativeElement.querySelector(
+          'section[aria-label="Share with a partner"] button[type="submit"]',
+        ) as HTMLButtonElement;
+        shareButton.click();
+        await pollFor(() => text().includes('will receive their own secure link'), 'share success');
+        expect(shareSpy).toHaveBeenCalledWith({
+          reportToken: store.selectSnapshot(ReportState.reportToken),
+          partnerEmail: 'partner@example.com',
+        });
+        expect(text()).not.toContain('no longer available in this tab');
+      });
+
+      it('callback request works from the immediately-unlocked report (gate-stored token)', async () => {
+        // Same QA bug as share: the callback form failed without a token.
+        expect(store.selectSnapshot(ReportState.reportToken)).toBeTruthy();
+        const callbackSpy = vi.spyOn(api, 'requestCallback');
+        const request = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
+          b.textContent?.trim() === 'Request callback',
+        ) as HTMLButtonElement;
+        request.click();
+        fixture.detectChanges();
+        await pollFor(() => text().includes('Enter your name and a phone number'), 'callback validation');
+        const name = fixture.nativeElement.querySelector('input[formControlName="name"]') as HTMLInputElement;
+        const phone = fixture.nativeElement.querySelector('input[formControlName="phone"]') as HTMLInputElement;
+        name.value = 'Test Buyer';
+        name.dispatchEvent(new Event('input'));
+        phone.value = '4035551234';
+        phone.dispatchEvent(new Event('input'));
+        request.click();
+        await pollFor(() => text().includes('Callback requested'), 'callback sent');
+        expect(callbackSpy).toHaveBeenCalled();
+        expect(text()).not.toContain('no longer available in this tab');
+      });
+
+      it('"estimate another address" clears state and navigates to the landing page', async () => {
+        const router = TestBed.inject(Router);
+        const navigateSpy = vi.spyOn(router, 'navigate');
+        const dispatchSpy = vi.spyOn(store, 'dispatch');
+        const link = fixture.nativeElement.querySelector('a.another-address') as HTMLAnchorElement;
+        expect(link).not.toBeNull();
+        link.click();
+        fixture.detectChanges();
+        // A genuinely fresh estimate: no stale report, lead, or wizard state
+        // leaks into the next run.
+        expect(dispatchSpy).toHaveBeenCalled();
+        const actions = dispatchSpy.mock.calls.flat().flat() as { constructor: { type?: string } }[];
+        const types = actions.map((a) => a?.constructor?.type);
+        expect(types).toContain('[Report] Clear');
+        expect(types).toContain('[Lead] Clear');
+        expect(types).toContain('[Wizard] Reset');
+        expect(navigateSpy).toHaveBeenCalledWith(['/']);
       });
     });
 
@@ -494,6 +592,80 @@ describe('ReportPageComponent', () => {
       // The callback request is reported to analytics (consent-gated inside
       // the real service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');
+    });
+
+    it('Download PDF triggers a real file download (QA: the old print() appeared inert)', async () => {
+      // jsdom has no URL.createObjectURL — stub the download plumbing and
+      // assert the component drives it with a PDF blob and a .pdf filename.
+      const created: string[] = [];
+      const createSpy = vi.spyOn(URL, 'createObjectURL').mockImplementation((() => {
+        const url = 'blob:mock-pdf-url';
+        created.push(url);
+        return url;
+      }) as typeof URL.createObjectURL);
+      const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      let clickedAnchor: HTMLAnchorElement | null = null;
+      const clickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(function (this: HTMLAnchorElement) {
+          clickedAnchor = this;
+        });
+      try {
+        const button = fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement;
+        expect(button).not.toBeNull();
+        button.click();
+        // Generating state shows while jsPDF lazy-loads and renders.
+        await pollFor(() => created.length > 0, 'pdf blob created');
+        await pollFor(
+          () => (fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement)?.disabled === false,
+          'pdf button idle again',
+        );
+        expect(clickedAnchor).not.toBeNull();
+        expect(clickedAnchor!.href).toBe('blob:mock-pdf-url');
+        expect(clickedAnchor!.download).toMatch(/\.pdf$/);
+        // No error surfaced.
+        expect(text()).not.toContain('could not generate the PDF');
+        // The download is reported to analytics (consent-gated; mocked here).
+        expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('pdf_download');
+      } finally {
+        createSpy.mockRestore();
+        revokeSpy.mockRestore();
+        clickSpy.mockRestore();
+      }
+    });
+
+    it('Download PDF shows an honest error with retry when generation fails', async () => {
+      const pdfService = TestBed.inject(ReportPdfService);
+      const generateSpy = vi.spyOn(pdfService, 'generate').mockRejectedValue(new Error('pdf down'));
+      try {
+        const button = fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement;
+        button.click();
+        await pollFor(() => text().includes('could not generate the PDF'), 'pdf error');
+        // Retry: the button recovers and the error clears on success.
+        generateSpy.mockRestore();
+        const retry = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
+          b.textContent?.trim() === 'Try again',
+        ) as HTMLButtonElement;
+        expect(retry).toBeTruthy();
+        const createSpy = vi
+          .spyOn(URL, 'createObjectURL')
+          .mockReturnValue('blob:mock-pdf-url' as unknown as string);
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+        try {
+          retry.click();
+          await pollFor(
+            () => !text().includes('could not generate the PDF'),
+            'pdf error cleared after retry',
+          );
+        } finally {
+          createSpy.mockRestore();
+          clickSpy.mockRestore();
+        }
+      } finally {
+        if (generateSpy.mock.calls.length > 0) {
+          generateSpy.mockRestore();
+        }
+      }
     });
   });
 

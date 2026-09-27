@@ -32,3 +32,12 @@ export function formatCentsToCad(cents: number): string {
 export function formatCentsRangeToCad(range: readonly [number, number]): string {
   return `${formatCentsToCad(range[0])} – ${formatCentsToCad(range[1])}`;
 }
+
+/**
+ * Formats whole CAD dollars (no cents) — the unit the web report snapshots
+ * carry. 1480000 -> "$1,480,000". Non-finite input renders as "$0".
+ */
+export function formatWholeCad(value: number): string {
+  const normalized = Number.isFinite(value) ? Math.round(value) : 0;
+  return `$${normalized.toLocaleString('en-CA')}`;
+}

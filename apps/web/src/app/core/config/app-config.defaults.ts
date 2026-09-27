@@ -448,6 +448,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       callbackError: 'We could not request the callback. Please try again in a moment.',
       callbackInvalid: 'Enter your name and a phone number.',
       pdfCta: 'Download PDF',
+      pdfGenerating: 'Preparing your PDF…',
+      pdfError: 'We could not generate the PDF. Please try again in a moment.',
+      pdfNarrativeFallback:
+        'A written summary is not available for this report — the figures above are the complete estimate.',
+      pdfInputsLine: '{sqft} sq ft · {tier} tier',
       loadingLabel: 'Loading your report…',
       loadError: 'We could not load your report. Please try again in a moment.',
       retryLabel: 'Try again',

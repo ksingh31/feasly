@@ -1,5 +1,5 @@
 <app-site-nav />
-<main class="wrap report">
+<main class="wrap report" id="main-content" tabindex="-1">
   <h1 class="report-heading">{{ copy.heading }}</h1>
   @if (property(); as p) {
     <p class="report-address">{{ p.address }}</p>
@@ -288,7 +288,20 @@
       </section>
       }
 
-      <button class="cta pdf no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
+      <button
+        class="cta pdf no-print"
+        type="button"
+        (click)="downloadPdf()"
+        [disabled]="pdfState() === 'generating'"
+      >
+        {{ pdfState() === 'generating' ? copy.pdfGenerating : copy.pdfCta }}
+      </button>
+      @if (pdfState() === 'error') {
+        <p class="field-error" role="alert">
+          {{ copy.pdfError }}
+          <button type="button" class="link-btn" (click)="downloadPdf()">{{ copy.retryLabel }}</button>
+        </p>
+      }
 
       <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
       @if (isReno()) {
@@ -296,7 +309,12 @@
       }
 
       <!-- RENO-04: estimate another address works from a reno report -->
-      <a class="cta secondary no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
+      <a
+        class="cta secondary no-print another-address"
+        href="/"
+        (click)="startNewEstimate($event)"
+        >{{ copy.estimateAnotherLabel }}</a
+      >
     }
   }
 </main>

@@ -31,6 +31,15 @@ export interface ReportStateModel {
   partnerView: boolean;
   /** Post-gate verified snapshot. Null until unlocked. */
   snapshot: ReportSnapshot | null;
+  /**
+   * Highest report revision number reached this browser, persisted across
+   * reloads (the snapshot itself is session-scoped and stripped before
+   * persistence). After a reload the report is rebuilt from the persisted
+   * wizard inputs — the version label keeps counting from here instead of
+   * restarting at 1, so "Report version 3" still reads "version 3" with the
+   * v3 figures. Reset by ClearReport (a new property starts a new count).
+   */
+  savedVersion: number;
   status: ReportStatus;
   /** Load/re-run failure flag. The raw error never reaches the UI. */
   error: string | null;
@@ -47,6 +56,7 @@ const defaults: ReportStateModel = {
   reportToken: null,
   partnerView: false,
   snapshot: null,
+  savedVersion: 0,
   status: 'idle',
   error: null,
   errorDetail: null,
@@ -139,6 +149,25 @@ export class ReportState {
       error: validation ? 'validation' : 'load',
       errorDetail: message,
     });
+  }
+
+  /**
+   * Single place that lands a new snapshot: the revision counter travels
+   * with it, so a reload (which strips the snapshot but keeps
+   * `savedVersion`) rebuilds the same version instead of restarting at 1.
+   */
+  private setSnapshot(ctx: StateContext<ReportStateModel>, snapshot: ReportSnapshot): void {
+    ctx.patchState({ snapshot, savedVersion: snapshot.version, status: 'ready' });
+  }
+
+  /**
+   * Next revision number for a locally-built (lead-path) snapshot. The max
+   * of the in-memory snapshot and the persisted counter wins, so a revise
+   * after a reload continues the count instead of restarting it.
+   */
+  private nextLocalVersion(ctx: StateContext<ReportStateModel>): number {
+    const state = ctx.getState();
+    return Math.max(state.snapshot?.version ?? 0, state.savedVersion) + 1;
   }
 
   /**
@@ -260,12 +289,16 @@ export class ReportState {
 
     this.beginLoad(ctx);
     return this.api.getEstimate(request).pipe(
-      tap((estimate) =>
-        ctx.patchState({
-            snapshot: this.toLeadSnapshot(estimate, leadId, (ctx.getState().snapshot?.version ?? 0) + 1),
-            status: 'ready',
-          }),
-      ),
+      tap((estimate) => {
+        // This action never starts a new revision — it (re)builds the
+        // CURRENT one: fresh unlocks start at 1, reloads keep the persisted
+        // counter (the snapshot is session-scoped, the wizard inputs are
+        // not), and retries of a failed load keep the last good version.
+        const state = ctx.getState();
+        const version =
+          state.snapshot?.version ?? (state.savedVersion > 0 ? state.savedVersion : 1);
+        this.setSnapshot(ctx, this.toLeadSnapshot(estimate, leadId, version));
+      }),
       catchError((err: unknown) => {
         this.fail(ctx, err);
         return EMPTY;
@@ -318,7 +351,8 @@ export class ReportState {
     this.beginLoad(ctx);
     return this.api.getReport(token).pipe(
       switchMap((snapshot) => this.withNarrative(token, snapshot)),
-      tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
+      // The backend owns the version here (append-only snapshot versions).
+      tap((snapshot) => this.setSnapshot(ctx, snapshot)),
       catchError(() => {
         this.fail(ctx);
         return EMPTY;
@@ -346,7 +380,8 @@ export class ReportState {
       this.beginLoad(ctx);
       return this.api.reviseTier(token, { tier: action.tier, sqft: action.sqft }).pipe(
         switchMap((snapshot) => this.withNarrative(token, snapshot)),
-        tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
+        // The backend owns the version here (append-only snapshot versions).
+        tap((snapshot) => this.setSnapshot(ctx, snapshot)),
         catchError(() => {
           this.fail(ctx);
           return EMPTY;
@@ -368,10 +403,13 @@ export class ReportState {
     this.beginLoad(ctx);
     return this.api.getEstimate(request).pipe(
       tap((estimate) =>
-        ctx.patchState({
-            snapshot: this.toLeadSnapshot(estimate, leadId, (ctx.getState().snapshot?.version ?? 0) + 1),
-            status: 'ready',
-          }),
+        // A stepper/tier change IS a new revision — keep counting from the
+        // persisted counter so a revise after a reload continues the
+        // sequence instead of restarting at 1.
+        this.setSnapshot(
+          ctx,
+          this.toLeadSnapshot(estimate, leadId, this.nextLocalVersion(ctx)),
+        ),
       ),
       catchError((err: unknown) => {
         this.fail(ctx, err);

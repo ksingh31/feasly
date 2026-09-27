@@ -496,6 +496,12 @@ export interface AppConfig {
       callbackError: string;
       callbackInvalid: string;
       pdfCta: string;
+      pdfGenerating: string;
+      pdfError: string;
+      /** Inside the PDF: honest line when the AI narrative is empty. */
+      pdfNarrativeFallback: string;
+      /** Inside the PDF: '{sqft}' and '{tier}' template for the size/finishes row. */
+      pdfInputsLine: string;
       loadingLabel: string;
       loadError: string;
       retryLabel: string;
