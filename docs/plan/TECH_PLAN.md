@@ -1301,6 +1301,11 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/admin/leads/{id}/quarantine/approve` | admin | 60/min per session | live | Approve a quarantined lead: clears the honeypot/quarantine flag (and any discard flag); the lead returns to the normal pipeline. 422 when the lead is not quarantined; audit-logged. |
 | POST | `/api/v1/admin/leads/{id}/quarantine/discard` | admin | 60/min per session | live | Discard a quarantined lead: kept for audit, excluded from every listing and count. 422 when the lead is not quarantined; idempotent; audit-logged. |
 | GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
+| POST | `/api/v1/admin/leads/{id}/assign-builder` | admin | 60/min per session | live | Assign a lead to a builder (builders table) by builder id, or unassign with builderId null. Null is the default and never affects the lead flow. 404 for unknown lead or builder; audit-logged with ids only, no contact PII. |
+| GET | `/api/v1/admin/builders` | admin | 300/min per session | live | List all builders (builders table): id, tenant_key, names, contact, plan, status, settings. |
+| POST | `/api/v1/admin/builders` | admin | 60/min per session | live | Create a builder. tenant_key is unique (409 on conflict); audit-logged with ids only, no contact PII. |
+| GET | `/api/v1/admin/builders/{id}` | admin | 300/min per session | live | Get one builder by id. 404 when unknown. |
+| PATCH | `/api/v1/admin/builders/{id}` | admin | 60/min per session | live | Update a builder. tenant_key is immutable; 404 when unknown; audit-logged with ids only, no contact PII. |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
 | GET | `/api/v1/admin/billing` | admin | 300/min per session | live | Billing-health dashboard (billing/03): MRR (flat model; null under the 1% commission model), trailing-30d commission collections, in-review invoice aging buckets (<48h / <7d / overdue), disputed totals, the dunning queue with past_due_since, and Stripe webhook health. Read-only — no charge/refund/void actions. |
