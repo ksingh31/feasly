@@ -21,10 +21,11 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminVerifyComponent } from './admin-verify.component';
-import { AdminAuthState } from './admin-auth.state';
+import { AdminAuthApiService } from './admin-auth-api.service';
+import { AdminAuthState, type VerifyErrorKind } from './admin-auth.state';
 import { VerifyAdminToken } from './admin-auth.actions';
 import { SeoService } from '../../core/seo/seo.service';
 
@@ -32,7 +33,12 @@ import { SeoService } from '../../core/seo/seo.service';
 @Component({ standalone: true, template: '' })
 class BlankComponent {}
 
-async function setup(opts: { token?: string; verifyOk: boolean }) {
+async function setup(opts: {
+  token?: string;
+  verifyOk: boolean;
+  lastVerifyError?: VerifyErrorKind;
+  resendOk?: boolean;
+}) {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn() };
   const paramMap = {
@@ -40,12 +46,24 @@ async function setup(opts: { token?: string; verifyOk: boolean }) {
       key === 'token' ? (opts.token ?? null) : null,
   };
   // The real VerifyAdminToken handler catches failures and returns of(null);
-  // the outcome surfaces via selectSnapshot(authenticated).
+  // the outcome surfaces via selectSnapshot(authenticated), and the failure
+  // kind via selectSnapshot(lastVerifyError).
   const dispatch = vi.fn().mockReturnValue(of(null));
   const store = {
     dispatch,
-    selectSnapshot: vi.fn().mockReturnValue(opts.verifyOk),
+    selectSnapshot: vi.fn().mockImplementation((selector: unknown) => {
+      if (selector === AdminAuthState.lastVerifyError)
+        return opts.lastVerifyError ?? 'invalid';
+      if (selector === AdminAuthState.email) return 'admin@example.com';
+      return opts.verifyOk;
+    }),
   };
+  const requestMagicLink = vi.fn().mockReturnValue(
+    opts.resendOk === false
+      ? throwError(() => ({ code: 'timeout', retryable: true }))
+      : of({ sent: true }),
+  );
+  const api = { requestMagicLink };
 
   TestBed.configureTestingModule({
     imports: [AdminVerifyComponent, BlankComponent],
@@ -56,6 +74,7 @@ async function setup(opts: { token?: string; verifyOk: boolean }) {
       ]),
       provideStore([AdminAuthState]),
       { provide: SeoService, useValue: seo },
+      { provide: AdminAuthApiService, useValue: api },
       {
         provide: ActivatedRoute,
         useValue: { snapshot: { queryParamMap: paramMap } },
@@ -69,7 +88,7 @@ async function setup(opts: { token?: string; verifyOk: boolean }) {
     TestBed.createComponent(AdminVerifyComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, dispatch, store };
+  return { fixture, dispatch, store, api };
 }
 
 /** Clicks the "Sign me in →" interstitial button. */
@@ -177,5 +196,87 @@ describe('AdminVerifyComponent (admin/01)', () => {
     expect(store.selectSnapshot).toHaveBeenCalledWith(
       AdminAuthState.authenticated,
     );
+  });
+
+  it('shows the already-used copy (not generic expired copy) for consumed tokens', async () => {
+    const { fixture } = await setup({
+      token: 'tok123',
+      verifyOk: false,
+      lastVerifyError: 'used',
+    });
+    await clickSignIn(fixture);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('This link was already used');
+    expect(text).toContain('Send me a fresh link');
+  });
+
+  it('shows the transient copy with Try again, which re-fires verify', async () => {
+    const { fixture, dispatch } = await setup({
+      token: 'tok123',
+      verifyOk: false,
+      lastVerifyError: 'transient',
+    });
+    await clickSignIn(fixture);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Something went wrong while checking your link');
+    expect(text).not.toContain('Send me a fresh link');
+
+    const retry = fixture.nativeElement.querySelector(
+      'button.admin-login__submit',
+    ) as HTMLButtonElement;
+    expect(retry.textContent).toContain('Try again');
+    retry.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(dispatch.mock.calls[1][0]).toBeInstanceOf(VerifyAdminToken);
+  });
+
+  it('resend form requests a fresh link and shows the sent confirmation', async () => {
+    const { fixture, api } = await setup({
+      token: 'tok123',
+      verifyOk: false,
+      lastVerifyError: 'invalid',
+    });
+    await clickSignIn(fixture);
+
+    const component = fixture.componentInstance as unknown as {
+      resendForm: { controls: { email: { setValue: (v: string) => void } } };
+      resend: () => void;
+    };
+    component.resendForm.controls.email.setValue('admin@example.com');
+    fixture.detectChanges();
+    component.resend();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(api.requestMagicLink).toHaveBeenCalledWith({
+      email: 'admin@example.com',
+    });
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Check your email for a fresh sign-in link.');
+  });
+
+  it('resend shows an inline error when the request fails', async () => {
+    const { fixture } = await setup({
+      token: 'tok123',
+      verifyOk: false,
+      lastVerifyError: 'used',
+      resendOk: false,
+    });
+    await clickSignIn(fixture);
+
+    const component = fixture.componentInstance as unknown as {
+      resendForm: { controls: { email: { setValue: (v: string) => void } } };
+      resend: () => void;
+    };
+    component.resendForm.controls.email.setValue('admin@example.com');
+    component.resend();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain("We couldn't send the link");
   });
 });
