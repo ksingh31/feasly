@@ -73,3 +73,9 @@
 .cta:disabled {
   cursor: not-allowed;
 }
+
+/* Label marking the fictional AI-summary prose as sample text. */
+.sample-text-label {
+  font-weight: 700;
+  color: var(--text);
+}
