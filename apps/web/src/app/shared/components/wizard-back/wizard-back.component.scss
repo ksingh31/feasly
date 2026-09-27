@@ -1,0 +1,36 @@
+/* Wizard back bar (FE-10): consistent top-of-step back control. Stronger visual
+   weight than a plain text link — pill with border, visible hover/focus. */
+.wizard-backbar {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 0 1rem;
+}
+
+.wizard-backbar-btn {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.wizard-backbar-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.wizard-backbar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

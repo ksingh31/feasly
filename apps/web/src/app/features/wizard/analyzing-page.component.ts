@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { switchMap, tap, timeout } from 'rxjs';
 import type { EstimateInputs, PropertyRecord } from '@feasly/contracts';
@@ -8,7 +8,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
 import { SetReportToken } from '../report/report.actions';
 import { LeadState, StorePreviewEstimate, WizardState } from '../wizard';
 
@@ -40,7 +40,7 @@ interface PipelineStage {
 @Component({
   selector: 'app-analyzing-page',
   standalone: true,
-  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [SiteFooterComponent, SiteNavComponent, WizardBackComponent],
   templateUrl: './analyzing-page.component.html',
   styleUrls: ['./wizard-shell.scss', './analyzing-page.component.scss'],
 })

@@ -1,5 +1,6 @@
     <app-site-nav />
     <main class="wrap" id="main-content" tabindex="-1">
+      <app-wizard-back [label]="copy.scopeBackLabel" [link]="'/'" [step]="1" />
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
         <app-property-card [property]="p" />
@@ -73,7 +74,6 @@
         }
 
         <div class="actions">
-          <a class="back" routerLink="/" (click)="goBack()">{{ copy.scopeBackLabel }}</a>
           <button class="cta" type="button" [disabled]="projectType() == null" (click)="seePreview()">{{ copy.scopeCta }}</button>
         </div>
       } @else {

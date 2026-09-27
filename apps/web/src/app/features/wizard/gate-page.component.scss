@@ -146,25 +146,6 @@
   width: 100%;
 }
 
-.back {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent);
-  background: transparent;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 10px 16px;
-  cursor: pointer;
-}
-
-.back:hover {
-  text-decoration: underline;
-}
-
 .privacy-note {
   font-size: 13px;
   line-height: 1.55;
@@ -188,10 +169,6 @@
   .actions .cta {
     width: auto;
     flex: 0 1 320px;
-  }
-
-  .back {
-    justify-content: flex-start;
   }
 }
 

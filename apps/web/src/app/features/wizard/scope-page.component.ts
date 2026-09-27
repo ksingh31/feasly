@@ -11,6 +11,7 @@ import {
   SiteNavComponent,
   SqftSliderComponent,
   OptionSelectorComponent,
+  WizardBackComponent,
   WizardStepsComponent,
   type OptionCard,
   type TierOption,
@@ -38,6 +39,7 @@ import {
     SiteNavComponent,
     SqftSliderComponent,
     OptionSelectorComponent,
+    WizardBackComponent,
     WizardStepsComponent,
   ],
   templateUrl: './scope-page.component.html',
@@ -124,11 +126,6 @@ export class ScopePageComponent implements OnInit {
       name: b.name,
       blurb: b.blurb,
     }));
-  }
-
-  goBack(): void {
-    this.store.dispatch(new GoToStep(1));
-    void this.router.navigate(['/']);
   }
 
   seePreview(): void {
