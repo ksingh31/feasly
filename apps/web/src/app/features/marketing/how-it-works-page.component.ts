@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
+import { buildHowToSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
 
@@ -33,7 +34,17 @@ export class HowItWorksPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('how-it-works');
-    this.seo.setJsonLd(null);
+    // SEO: HowTo schema mirrors the rendered 4 steps (same config copy —
+    // schema and visible copy can't drift).
+    const siteUrl = this.seo.getSiteUrl();
+    this.seo.setJsonLd(
+      buildHowToSchema(
+        `${siteUrl}/how-it-works/`,
+        this.copy.title,
+        this.copy.sub,
+        this.copy.steps,
+      ),
+    );
   }
 
   /**

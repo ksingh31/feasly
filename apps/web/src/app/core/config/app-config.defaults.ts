@@ -650,7 +650,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
       titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
       descriptionTemplate:
-        'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value, Standard/Premium/Luxury build ranges, and FAQs.',
+        'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}, Standard/Premium/Luxury build ranges, and FAQs.',
       statLabel: 'Average City-assessed value (not market value)',
       statNote:
         'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and can differ from actual sale prices.',
