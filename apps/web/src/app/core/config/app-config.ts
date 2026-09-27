@@ -496,6 +496,8 @@ export interface AppConfig {
       callbackError: string;
       callbackInvalid: string;
       pdfCta: string;
+      pdfGenerating: string;
+      pdfError: string;
       loadingLabel: string;
       loadError: string;
       retryLabel: string;

@@ -20,6 +20,7 @@ import { AnalyticsService } from '../consent';
 import { SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
+import { ReportPdfService } from './report-pdf.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
 /** Blank route target for navigation assertions. */
@@ -582,6 +583,80 @@ describe('ReportPageComponent', () => {
       // The callback request is reported to analytics (consent-gated inside
       // the real service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');
+    });
+
+    it('Download PDF triggers a real file download (QA: the old print() appeared inert)', async () => {
+      // jsdom has no URL.createObjectURL — stub the download plumbing and
+      // assert the component drives it with a PDF blob and a .pdf filename.
+      const created: string[] = [];
+      const createSpy = vi.spyOn(URL, 'createObjectURL').mockImplementation((() => {
+        const url = 'blob:mock-pdf-url';
+        created.push(url);
+        return url;
+      }) as typeof URL.createObjectURL);
+      const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      let clickedAnchor: HTMLAnchorElement | null = null;
+      const clickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(function (this: HTMLAnchorElement) {
+          clickedAnchor = this;
+        });
+      try {
+        const button = fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement;
+        expect(button).not.toBeNull();
+        button.click();
+        // Generating state shows while jsPDF lazy-loads and renders.
+        await pollFor(() => created.length > 0, 'pdf blob created');
+        await pollFor(
+          () => (fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement)?.disabled === false,
+          'pdf button idle again',
+        );
+        expect(clickedAnchor).not.toBeNull();
+        expect(clickedAnchor!.href).toBe('blob:mock-pdf-url');
+        expect(clickedAnchor!.download).toMatch(/\.pdf$/);
+        // No error surfaced.
+        expect(text()).not.toContain('could not generate the PDF');
+        // The download is reported to analytics (consent-gated; mocked here).
+        expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('pdf_download');
+      } finally {
+        createSpy.mockRestore();
+        revokeSpy.mockRestore();
+        clickSpy.mockRestore();
+      }
+    });
+
+    it('Download PDF shows an honest error with retry when generation fails', async () => {
+      const pdfService = TestBed.inject(ReportPdfService);
+      const generateSpy = vi.spyOn(pdfService, 'generate').mockRejectedValue(new Error('pdf down'));
+      try {
+        const button = fixture.nativeElement.querySelector('button.pdf') as HTMLButtonElement;
+        button.click();
+        await pollFor(() => text().includes('could not generate the PDF'), 'pdf error');
+        // Retry: the button recovers and the error clears on success.
+        generateSpy.mockRestore();
+        const retry = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
+          b.textContent?.trim() === 'Try again',
+        ) as HTMLButtonElement;
+        expect(retry).toBeTruthy();
+        const createSpy = vi
+          .spyOn(URL, 'createObjectURL')
+          .mockReturnValue('blob:mock-pdf-url' as unknown as string);
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+        try {
+          retry.click();
+          await pollFor(
+            () => !text().includes('could not generate the PDF'),
+            'pdf error cleared after retry',
+          );
+        } finally {
+          createSpy.mockRestore();
+          clickSpy.mockRestore();
+        }
+      } finally {
+        if (generateSpy.mock.calls.length > 0) {
+          generateSpy.mockRestore();
+        }
+      }
     });
   });
 

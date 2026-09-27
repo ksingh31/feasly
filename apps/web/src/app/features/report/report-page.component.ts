@@ -10,10 +10,12 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
+import { formatWholeCad } from '../../shared/utils/money';
 import { UpdateInputs, WizardState, LeadState } from '../wizard';
 import { AnalyticsService } from '../consent';
 import { LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
+import { ReportPdfService } from './report-pdf.service';
 
 /**
  * Fills a `{token}` config template (FE0-002: user-facing copy lives in
@@ -72,6 +74,7 @@ export class ReportPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly analytics = inject(AnalyticsService);
   private readonly router = inject(Router);
+  private readonly pdfService = inject(ReportPdfService);
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
@@ -279,6 +282,14 @@ export class ReportPageComponent implements OnInit {
         }
       }
     });
+    // A downloaded PDF's object URL outlives the click that created it —
+    // revoke it when the page goes away so blob memory is never leaked.
+    this.destroyRef.onDestroy(() => {
+      if (this.lastPdfUrl) {
+        URL.revokeObjectURL(this.lastPdfUrl);
+        this.lastPdfUrl = null;
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -316,7 +327,7 @@ export class ReportPageComponent implements OnInit {
   }
 
   protected formatCad(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-CA')}`;
+    return formatWholeCad(value);
   }
 
   /** Blurred pre-gate range, e.g. "$608,000 – $735,000". */
@@ -480,6 +491,62 @@ export class ReportPageComponent implements OnInit {
     // this is a silent no-op.
     this.analytics.track('pdf_download');
     window.print();
+  }
+
+  /** Download-PDF button state: idle → generating → idle, or error with retry. */
+  protected readonly pdfState = signal<'idle' | 'generating' | 'error'>('idle');
+  /** Last created object URL — revoked before the next download and on destroy. */
+  private lastPdfUrl: string | null = null;
+
+  /**
+   * Real client-side PDF download (QA finding: the old window.print() call
+   * appeared inert — no download, no feedback). Generates the PDF from the
+   * verified snapshot, triggers a real file download, and surfaces
+   * generating/error states on the button. jsPDF is lazy-loaded by the
+   * service so the public bundle never pays for it until clicked.
+   */
+  async downloadPdf(): Promise<void> {
+    const snapshot = this.snapshot();
+    const property = this.property();
+    if (!snapshot || !property || this.pdfState() === 'generating') {
+      return;
+    }
+    // Consent-gated inside AnalyticsService: declined/pending banner means
+    // this is a silent no-op.
+    this.analytics.track('pdf_download');
+    this.pdfState.set('generating');
+    try {
+      const preparedDate = new Date(snapshot.preparedAt).toLocaleDateString('en-CA', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      const blob = await this.pdfService.generate({
+        snapshot,
+        address: property.address,
+        title: this.isReno() ? 'Renovation estimate' : 'New-build cost report',
+        preparedLine: `Prepared ${preparedDate}`,
+        versionLine: `${this.copy.versionLabel} ${snapshot.version}`,
+        steps: this.copy.steps,
+        disclaimer: this.config.get('copy').narrativeDisclaimer,
+        uncalibratedNote: this.copy.uncalibratedNote,
+      });
+      // Revoke the previous download URL before minting a new one.
+      if (this.lastPdfUrl) {
+        URL.revokeObjectURL(this.lastPdfUrl);
+      }
+      const url = URL.createObjectURL(blob);
+      this.lastPdfUrl = url;
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `feasly-estimate-${snapshot.version}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      this.pdfState.set('idle');
+    } catch {
+      this.pdfState.set('error');
+    }
   }
 
   /**

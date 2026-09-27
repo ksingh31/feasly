@@ -288,7 +288,20 @@
       </section>
       }
 
-      <button class="cta pdf no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
+      <button
+        class="cta pdf no-print"
+        type="button"
+        (click)="downloadPdf()"
+        [disabled]="pdfState() === 'generating'"
+      >
+        {{ pdfState() === 'generating' ? copy.pdfGenerating : copy.pdfCta }}
+      </button>
+      @if (pdfState() === 'error') {
+        <p class="field-error" role="alert">
+          {{ copy.pdfError }}
+          <button type="button" class="link-btn" (click)="downloadPdf()">{{ copy.retryLabel }}</button>
+        </p>
+      }
 
       <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
       @if (isReno()) {
