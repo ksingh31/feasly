@@ -7,6 +7,7 @@ import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
   DismissAdminLeadStatusError,
+  DismissExportError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -389,5 +390,39 @@ describe('AdminLeadsState', () => {
     expect(revokeObjectURL).toHaveBeenCalled();
     expect(store.selectSnapshot(AdminLeadsState.exporting)).toBe(false);
     vi.restoreAllMocks();
+  });
+
+  it('records export errors inline without crashing to the /error page', async () => {
+    // Regression: the tap({ error }) handler did not swallow the ApiError, so
+    // it propagated through the NGXS dispatch stream as an unhandled error
+    // and the global handler routed the admin to /error (2026-09-27).
+    const done = store.dispatch(new ExportAdminLeadsCsv());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/export.csv'))
+      .error(new ProgressEvent('error'), { status: 500 });
+    // Must RESOLVE (not reject): the error is swallowed into exportError state.
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminLeadsState.exporting)).toBe(false);
+    expect(store.selectSnapshot(AdminLeadsState.exportError)).toBeTruthy();
+  });
+
+  it('clears the export error on dismiss and on retry', async () => {
+    const done = store.dispatch(new ExportAdminLeadsCsv());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/export.csv'))
+      .error(new ProgressEvent('error'), { status: 500 });
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminLeadsState.exportError)).toBeTruthy();
+
+    store.dispatch(new DismissExportError());
+    expect(store.selectSnapshot(AdminLeadsState.exportError)).toBeNull();
+
+    // A retry clears the stale error before the request fires.
+    const retry = store.dispatch(new ExportAdminLeadsCsv());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/export.csv'))
+      .error(new ProgressEvent('error'), { status: 500 });
+    await retry.toPromise();
+    expect(store.selectSnapshot(AdminLeadsState.exportError)).toBeTruthy();
   });
 });
