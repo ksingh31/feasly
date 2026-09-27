@@ -548,11 +548,6 @@ export interface AppConfig {
       stageValidate: string;
       stageFetch: string;
       stageEstimate: string;
-      /** RENO-04: reno-specific step labels (each maps 1:1 to a real awaited call). */
-      stageFetchReno: string;
-      stageScopeReno: string;
-      stageEstimateReno: string;
-      stagePreviewReno: string;
       /** Screen-reader status words for each stage. */
       statusPending: string;
       statusActive: string;

@@ -495,12 +495,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       stageValidate: 'Checking your inputs',
       stageFetch: 'Fetching your City property record',
       stageEstimate: 'Running your cost estimate',
-      // RENO-04: reno-specific analyzing step labels (each maps 1:1 to a real awaited call)
-      // Order: fetch (property lookup) → scope (reno validation) → estimate (cost calc) → preview (dispatch)
-      stageFetchReno: 'Looking up property record…',
-      stageScopeReno: 'Measuring the project scope…',
-      stageEstimateReno: 'Calculating renovation cost…',
-      stagePreviewReno: 'Generating your preview…',
       statusPending: 'Waiting',
       statusActive: 'In progress',
       statusDone: 'Done',
