@@ -1,8 +1,9 @@
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
-import { AdminAuthApiService } from './admin-auth-api.service';
+import { LogoutAdmin } from './admin-auth.actions';
 
 /**
  * Admin shell (admin/01): layout for the guarded `/admin` route group.
@@ -19,7 +20,7 @@ import { AdminAuthApiService } from './admin-auth-api.service';
   styleUrls: ['./admin-shell.component.scss'],
 })
 export class AdminShellComponent {
-  private readonly api = inject(AdminAuthApiService);
+  private readonly store = inject(Store);
   private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
@@ -33,8 +34,8 @@ export class AdminShellComponent {
   }
 
   protected signOut(): void {
-    this.api
-      .logout()
+    this.store
+      .dispatch(new LogoutAdmin())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => void this.router.navigate(['/admin/login']),

@@ -9,9 +9,9 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Admin calibration-console API client (admin/09).
  *
- * Speaks `GET /api/v1/admin/calibration`. All calls use
- * `withCredentials: true` so the `feasly_admin_session` HttpOnly cookie is
- * sent on same-origin admin requests.
+ * Speaks `GET /api/v1/admin/calibration`. All calls carry
+ * `Authorization: Bearer <token>` (via the credentials interceptor) so the
+ * admin session authenticates cross-origin.
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).

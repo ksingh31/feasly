@@ -5,7 +5,9 @@
  * - `POST /api/v1/admin/auth/request` — email → magic link (or identical
  *   no-op for non-allowlisted). No auth required (public by design).
  * - `GET /api/v1/admin/auth/verify?token=…` — consumes the magic link,
- *   creates the session. Returns the `Set-Cookie` value for the adapter.
+ *   creates the session. Returns the session token in the JSON body (the
+ *   SPA bearer flow — the cross-origin cookie never sticks) plus the
+ *   `Set-Cookie` value for the adapter (kept for a same-origin future).
  * - `POST /api/v1/admin/auth/logout` — revokes the session cookie.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
@@ -20,10 +22,8 @@ import type {
   AdminAuthRequestResponse,
   AdminAuthVerifyResponse,
 } from '@feasly/contracts';
-import {
-  ADMIN_SESSION_COOKIE,
-  parseSessionCookie,
-} from '../middleware/admin-guard';
+import { ADMIN_SESSION_COOKIE } from '../middleware/admin-guard';
+import { extractSessionToken } from '../middleware/session-token';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuthService } from '../services/admin-auth.service';
 
@@ -37,8 +37,9 @@ export interface AdminAuthRoute {
   /** POST /api/v1/admin/auth/request */
   request(body: unknown): Promise<AdminAuthRequestResponse>;
   /**
-   * GET /api/v1/admin/auth/verify?token=… — returns the response plus the
-   * `Set-Cookie` header value for the adapter to set.
+   * GET /api/v1/admin/auth/verify?token=… — returns the response (including
+   * the raw session token for the SPA bearer flow) plus the `Set-Cookie`
+   * header value for the adapter to set.
    */
   verify(query: unknown): Promise<AdminAuthVerifyResponse>;
   /**
@@ -68,6 +69,10 @@ const verifyQuerySchema = z.object({
  * cross-origin (ADM-10: SWA Free SKU rejects linked backends, so the Angular
  * app talks to the Function App URL directly with CORS + credentials) —
  * `SameSite=Lax` would never send the cookie cross-site.
+ *
+ * Kept as a same-origin fallback: modern browsers block this third-party
+ * cookie cross-origin, so the SPA primarily authenticates with the bearer
+ * token returned in the verify JSON body.
  */
 export function buildSessionCookie(
   sessionToken: string,
@@ -110,7 +115,7 @@ export function createAdminAuthRoute(
     },
 
     async me(headers): Promise<AdminAuthMeResponse> {
-      const token = parseSessionCookie(headers);
+      const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
       const email = await adminAuth.validateSession(token);
       if (email === null) {
         // Distinguish expired from invalid so the frontend can show the
@@ -127,7 +132,7 @@ export function createAdminAuthRoute(
     },
 
     async logout(headers): Promise<AdminAuthLogoutResponse> {
-      const token = parseSessionCookie(headers);
+      const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
       const { loggedOut } = await adminAuth.logout(token);
       return { loggedOut, setCookie: buildClearSessionCookie() };
     },

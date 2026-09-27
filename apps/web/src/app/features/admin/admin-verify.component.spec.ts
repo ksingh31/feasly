@@ -7,30 +7,38 @@
  * scheduled change detection, leaving `/admin/verify` stuck on
  * "Verifying sign in / Checking your sign-in link…" forever — past the
  * 15s rxjs timeout, never the error state.
+ *
+ * The component dispatches `VerifyAdminToken` through the NGXS store and
+ * navigates on `AdminAuthState.authenticated` (ADM-10 bearer flow).
  */
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { provideStore, Store } from '@ngxs/store';
+import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminVerifyComponent } from './admin-verify.component';
-import { AdminAuthApiService } from './admin-auth-api.service';
+import { AdminAuthState } from './admin-auth.state';
+import { VerifyAdminToken } from './admin-auth.actions';
 import { SeoService } from '../../core/seo/seo.service';
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
 class BlankComponent {}
 
-async function setup(opts: {
-  token?: string;
-  verify: () => Observable<unknown>;
-}) {
+async function setup(opts: { token?: string; verifyOk: boolean }) {
   TestBed.resetTestingModule();
-  const api = { verifyMagicLink: vi.fn().mockImplementation(opts.verify) };
   const seo = { setPage: vi.fn() };
   const paramMap = {
     get: (key: string): string | null =>
       key === 'token' ? (opts.token ?? null) : null,
+  };
+  // The real VerifyAdminToken handler catches failures and returns of(null);
+  // the outcome surfaces via selectSnapshot(authenticated).
+  const dispatch = vi.fn().mockReturnValue(of(null));
+  const store = {
+    dispatch,
+    selectSnapshot: vi.fn().mockReturnValue(opts.verifyOk),
   };
 
   TestBed.configureTestingModule({
@@ -40,7 +48,7 @@ async function setup(opts: {
         { path: 'admin/login', component: BlankComponent },
         { path: 'admin/leads', component: BlankComponent },
       ]),
-      { provide: AdminAuthApiService, useValue: api },
+      provideStore([AdminAuthState]),
       { provide: SeoService, useValue: seo },
       {
         provide: ActivatedRoute,
@@ -48,11 +56,14 @@ async function setup(opts: {
       },
     ],
   });
+  // Override the real store with the mock for dispatch/selectSnapshot.
+  const { Store: StoreToken } = await import('@ngxs/store');
+  TestBed.overrideProvider(StoreToken, { useValue: store });
   const fixture: ComponentFixture<AdminVerifyComponent> =
     TestBed.createComponent(AdminVerifyComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, api };
+  return { fixture, dispatch, store };
 }
 
 describe('AdminVerifyComponent (admin/01)', () => {
@@ -61,10 +72,7 @@ describe('AdminVerifyComponent (admin/01)', () => {
   });
 
   it('P0: status is a signal so the error state renders under zoneless change detection', async () => {
-    const { fixture } = await setup({
-      token: 'tok123',
-      verify: () => throwError(() => new Error('denied')),
-    });
+    const { fixture } = await setup({ token: 'tok123', verifyOk: false });
     const component = fixture.componentInstance as unknown as {
       status: unknown;
     };
@@ -78,21 +86,16 @@ describe('AdminVerifyComponent (admin/01)', () => {
     expect(text).toContain('This sign-in link is invalid or has expired.');
   });
 
-  it('shows the verifying state while the request is in flight', async () => {
-    const { fixture } = await setup({
-      token: 'tok123',
-      // Never emits: the request is still pending.
-      verify: () => new Observable<never>(() => {}),
-    });
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Checking your sign-in link');
+  it('dispatches VerifyAdminToken with the token from the URL', async () => {
+    const { dispatch } = await setup({ token: 'tok123', verifyOk: true });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const action = dispatch.mock.calls[0][0];
+    expect(action).toBeInstanceOf(VerifyAdminToken);
+    expect(action.token).toBe('tok123');
   });
 
   it('navigates to /admin/leads on successful verify', async () => {
-    const { fixture } = await setup({
-      token: 'tok123',
-      verify: () => of({ authenticated: true, email: 'admin@example.com' }),
-    });
+    const { fixture } = await setup({ token: 'tok123', verifyOk: true });
     const router = TestBed.inject(Router);
     const navigate = vi
       .spyOn(router, 'navigate')
@@ -103,13 +106,26 @@ describe('AdminVerifyComponent (admin/01)', () => {
     navigate.mockRestore();
   });
 
+  it('shows the error state when verification fails', async () => {
+    const { fixture } = await setup({ token: 'tok123', verifyOk: false });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('This sign-in link is invalid or has expired.');
+  });
+
   it('redirects to /admin/login when no token is present', async () => {
-    const { fixture } = await setup({
-      verify: () => of({ authenticated: true, email: 'admin@example.com' }),
-    });
+    const { dispatch } = await setup({ verifyOk: true });
     // ngOnInit already ran during setup and navigated to /admin/login.
     const router = TestBed.inject(Router);
     expect(router.url).toBe('/admin/login');
-    expect(fixture.componentInstance).toBeTruthy();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('reads the authenticated flag from AdminAuthState', async () => {
+    const { store } = await setup({ token: 'tok123', verifyOk: true });
+    expect(store.selectSnapshot).toHaveBeenCalledWith(
+      AdminAuthState.authenticated,
+    );
   });
 });

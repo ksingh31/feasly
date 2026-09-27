@@ -15,10 +15,11 @@ import { toApiError } from '../../core/api/api-error';
  * Admin auth API client (admin/01).
  *
  * Speaks the versioned `/api/v1/admin/auth/*` routes. Credential flow is
- * handled centrally by `credentialsInterceptor` (ADM-10): every request to
- * the API base URL carries `withCredentials`, so the `feasly_admin_session`
- * HttpOnly cookie (`SameSite=None; Secure`) is sent on cross-origin admin
- * requests.
+ * handled centrally by `credentialsInterceptor` (ADM-10): every admin API
+ * request carries `Authorization: Bearer <token>` from AdminAuthState (plus
+ * `withCredentials` for the same-origin cookie fallback) — the
+ * cross-origin session cookie never sticks on modern browsers, so the
+ * bearer token is the primary session credential.
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).
@@ -48,7 +49,7 @@ export class AdminAuthApiService {
     );
   }
 
-  /** Verify a magic-link token from the email. Sets the session cookie. */
+  /** Verify a magic-link token from the email. Returns the session token. */
   verifyMagicLink(token: string): Observable<AdminAuthVerifyResponse> {
     return this.call(
       this.http.get<AdminAuthVerifyResponse>(`${this.authBase}/verify`, {
@@ -57,7 +58,7 @@ export class AdminAuthApiService {
     );
   }
 
-  /** Log out: revoke the session and clear the cookie. */
+  /** Log out: revoke the session server-side. */
   logout(): Observable<AdminAuthLogoutResponse> {
     return this.call(
       this.http.post<AdminAuthLogoutResponse>(`${this.authBase}/logout`, {}),

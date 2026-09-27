@@ -12,9 +12,9 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Admin ops API client (admin/05).
  *
- * Speaks the versioned `/api/v1/admin/ops/sheets-*` routes. All calls use
- * `withCredentials: true` so the `feasly_admin_session` HttpOnly cookie is
- * sent on same-origin admin requests — the same pattern as
+ * Speaks the versioned `/api/v1/admin/ops/sheets-*` routes. All calls
+ * carry `Authorization: Bearer <token>` (via the credentials interceptor)
+ * so the admin session authenticates cross-origin — the same pattern as
  * AdminAuthApiService.
  *
  * The admin area is NOT wired to the mock API — it always talks to the

@@ -5,7 +5,9 @@
  * - `POST /api/v1/builder/auth/request` — email → magic link (or identical
  *   no-op for non-allowlisted). No auth required (public by design).
  * - `GET /api/v1/builder/auth/verify?token=…` — consumes the magic link,
- *   creates the session. Returns the `Set-Cookie` value for the adapter.
+ *   creates the session. Returns the session token in the JSON body (the
+ *   SPA bearer flow — the cross-origin cookie never sticks) plus the
+ *   `Set-Cookie` value for the adapter (kept for a same-origin future).
  * - `GET /api/v1/builder/auth/me` — returns the session identity.
  *   Requires a valid session (guarded by the adapter).
  * - `POST /api/v1/builder/auth/logout` — revokes the session cookie.
@@ -22,10 +24,8 @@ import type {
   BuilderAuthRequestResponse,
   BuilderAuthVerifyResponse,
 } from '@feasly/contracts';
-import {
-  BUILDER_SESSION_COOKIE,
-  parseBuilderSessionCookie,
-} from '../middleware/builder-guard';
+import { BUILDER_SESSION_COOKIE } from '../middleware/builder-guard';
+import { extractSessionToken } from '../middleware/session-token';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderAuthService } from '../services/builder-auth.service';
 
@@ -39,8 +39,9 @@ export interface BuilderAuthRoute {
   /** POST /api/v1/builder/auth/request */
   request(body: unknown): Promise<BuilderAuthRequestResponse>;
   /**
-   * GET /api/v1/builder/auth/verify?token=… — returns the response plus the
-   * `Set-Cookie` header value for the adapter to set.
+   * GET /api/v1/builder/auth/verify?token=… — returns the response (including
+   * the raw session token for the SPA bearer flow) plus the `Set-Cookie`
+   * header value for the adapter to set.
    */
   verify(query: unknown): Promise<BuilderAuthVerifyResponse>;
   /**
@@ -70,6 +71,10 @@ const verifyQuerySchema = z.object({
  * cross-origin (SWA Free SKU rejects linked backends, so the Angular app
  * talks to the Function App URL directly with CORS + credentials) —
  * `SameSite=Lax` would never send the cookie cross-site.
+ *
+ * Kept as a same-origin fallback: modern browsers block this third-party
+ * cookie cross-origin, so the SPA primarily authenticates with the bearer
+ * token returned in the verify JSON body.
  */
 export function buildBuilderSessionCookie(
   sessionToken: string,
@@ -116,7 +121,7 @@ export function createBuilderAuthRoute(
     },
 
     async me(headers): Promise<BuilderAuthMeResponse> {
-      const token = parseBuilderSessionCookie(headers);
+      const token = extractSessionToken(headers, BUILDER_SESSION_COOKIE);
       const session = await builderAuth.validateSession(token);
       if (session === null) {
         // Distinguish expired from invalid so the frontend can show the
@@ -137,7 +142,7 @@ export function createBuilderAuthRoute(
     },
 
     async logout(headers): Promise<BuilderAuthLogoutResponse> {
-      const token = parseBuilderSessionCookie(headers);
+      const token = extractSessionToken(headers, BUILDER_SESSION_COOKIE);
       const { loggedOut } = await builderAuth.logout(token);
       return { loggedOut, setCookie: buildClearBuilderSessionCookie() };
     },

@@ -11,7 +11,7 @@ import { LoadBuilderSession } from './builder.actions';
  * Builder route guard (embed/09). Mirrors the admin/01 guard.
  *
  * Dispatches `LoadBuilderSession` (probes `GET /api/v1/builder/auth/me`
- * against the HttpOnly session cookie) and maps the result:
+ * with the bearer token from BuilderState) and maps the result:
  * - Authenticated → allow.
  * - No/invalid session → redirect to `/builder/login`.
  * - Expired session → `/builder/login?expired=1` (expiry copy).

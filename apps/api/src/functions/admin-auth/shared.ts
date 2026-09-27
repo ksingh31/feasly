@@ -113,9 +113,10 @@ export async function dispatchAdminAuth(
     return;
   }
 
-  // The verify/logout routes return `setCookie` for the session cookie.
-  // `sessionToken` (verify) is stripped from the JSON body — it travels
-  // only in the Set-Cookie header, never as JSON.
+  // The verify/logout routes return `setCookie` for the session cookie
+  // (kept as a same-origin fallback — the SPA bearer flow reads the
+  // `sessionToken` from the JSON body instead, because modern browsers
+  // block the third-party Set-Cookie cross-origin).
   const record =
     typeof result === 'object' && result !== null
       ? (result as Record<string, unknown>)
@@ -125,8 +126,8 @@ export async function dispatchAdminAuth(
       ? (record['setCookie'] as string)
       : undefined;
   const body =
-    record !== null && (setCookie !== undefined || 'sessionToken' in record)
-      ? (({ setCookie: _s, sessionToken: _t, ...rest }) => rest)(record)
+    record !== null && setCookie !== undefined
+      ? (({ setCookie: _s, ...rest }) => rest)(record)
       : result;
 
   context.res = {
