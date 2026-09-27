@@ -160,11 +160,11 @@ describe('ComparePickerPageComponent', () => {
     expect(comp2['comparison']().sqft).toBe(2500);
   });
 
-  it('reuses the shared sqft slider and tier selector (no duplicated controls)', async () => {
+  it('reuses the shared sqft slider and option selector (no duplicated controls)', async () => {
     const { fixture } = await setup();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('app-sqft-slider')).toBeTruthy();
-    expect(el.querySelector('app-tier-selector')).toBeTruthy();
+    expect(el.querySelector('app-option-selector')).toBeTruthy();
   });
 
   it('filters the community list by search text', async () => {

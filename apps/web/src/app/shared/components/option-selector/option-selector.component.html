@@ -1,0 +1,27 @@
+<section class="option-section" [attr.aria-labelledby]="controlId + '-label'">
+  <h2 [id]="controlId + '-label'">{{ label() }}</h2>
+  @if (hint()) {
+    <p class="hint">{{ hint() }}</p>
+  }
+  <div
+    class="options"
+    role="radiogroup"
+    [attr.aria-label]="label()"
+    (keydown)="onKeydown($event)"
+  >
+    @for (option of options(); track option.id) {
+      <button
+        class="option-card"
+        type="button"
+        role="radio"
+        [attr.data-option]="option.id"
+        [attr.aria-checked]="selected() === option.id"
+        [class.selected]="selected() === option.id"
+        (click)="choose(option.id)"
+      >
+        <span class="option-name">{{ option.name }}</span>
+        <span class="option-blurb">{{ option.blurb }}</span>
+      </button>
+    }
+  </div>
+</section>

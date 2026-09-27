@@ -133,4 +133,16 @@ describe('DetailsPageComponent', () => {
     expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
     expect(store.selectSnapshot(WizardState.property)?.addressKey).toBe('calgary-918-16-ave-nw');
   });
+
+  it('shows the chosen garage/basement names (not raw ids or stuck defaults)', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Double garage');
+    expect(text).toContain('Unfinished');
+
+    store.dispatch(new UpdateInputs({ garage: 'none', basement: 'finished' }));
+    fixture.detectChanges();
+    const updated = fixture.nativeElement.textContent as string;
+    expect(updated).toContain('No garage');
+    expect(updated).toContain('Finished');
+  });
 });

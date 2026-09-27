@@ -98,7 +98,29 @@ describe('ScopePageComponent', () => {
   }
 
   function tierButton(id: string): HTMLButtonElement {
-    return fixture.nativeElement.querySelector(`.tier-card[data-tier="${id}"]`);
+    return fixture.nativeElement.querySelector(`.option-card[data-option="${id}"]`);
+  }
+
+  /**
+   * Option button within one of the three new-build selectors, by DOM order:
+   * 0 = finish tier, 1 = garage, 2 = basement. (All three render the same
+   * shared markup; the order is fixed in the template.)
+   */
+  function sectionButton(sectionIndex: number, id: string): HTMLButtonElement {
+    const sections = fixture.nativeElement.querySelectorAll('app-option-selector');
+    const button = sections[sectionIndex]?.querySelector(`[data-option="${id}"]`);
+    if (!button) {
+      throw new Error(`no [data-option="${id}"] in option selector #${sectionIndex}`);
+    }
+    return button as HTMLButtonElement;
+  }
+
+  function garageButton(id: string): HTMLButtonElement {
+    return sectionButton(1, id);
+  }
+
+  function basementButton(id: string): HTMLButtonElement {
+    return sectionButton(2, id);
   }
 
   /** Selects a project type the way a user would. */
@@ -193,7 +215,7 @@ describe('ScopePageComponent', () => {
 
     chooseCard('renovation');
     expect(fixture.nativeElement.querySelector('input.sqft-slider')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.tier-card')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.option-card')).toBeNull();
     expect(fixture.nativeElement.querySelector('.reno-note')).not.toBeNull();
   });
 
@@ -238,6 +260,64 @@ describe('ScopePageComponent', () => {
     expect(store.selectSnapshot(WizardState.inputs).tier).toBe('premium');
     expect(tierButton('premium').getAttribute('aria-checked')).toBe('true');
     expect(tierButton('standard').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('renders garage and basement selectors with the contract options (new build)', () => {
+    chooseCard('new-build');
+    // Garage: none / double / triple (GarageOption union).
+    for (const id of ['none', 'double', 'triple']) {
+      expect(garageButton(id)).not.toBeNull();
+    }
+    // Basement: unfinished / finished (BasementOption union).
+    for (const id of ['unfinished', 'finished']) {
+      expect(basementButton(id)).not.toBeNull();
+    }
+    // Defaults from the wizard state: double garage, unfinished basement.
+    expect(garageButton('double').getAttribute('aria-checked')).toBe('true');
+    expect(basementButton('unfinished').getAttribute('aria-checked')).toBe('true');
+    expect(store.selectSnapshot(WizardState.inputs).garage).toBe('double');
+    expect(store.selectSnapshot(WizardState.inputs).basement).toBe('unfinished');
+  });
+
+  it('garage selection updates the store and the selected card', () => {
+    chooseCard('new-build');
+    garageButton('none').click();
+    fixture.detectChanges();
+    expect(store.selectSnapshot(WizardState.inputs).garage).toBe('none');
+    expect(garageButton('none').getAttribute('aria-checked')).toBe('true');
+    expect(garageButton('none').classList.contains('selected')).toBe(true);
+    expect(garageButton('double').getAttribute('aria-checked')).toBe('false');
+
+    garageButton('triple').click();
+    fixture.detectChanges();
+    expect(store.selectSnapshot(WizardState.inputs).garage).toBe('triple');
+  });
+
+  it('basement selection updates the store and the selected card', () => {
+    chooseCard('new-build');
+    basementButton('finished').click();
+    fixture.detectChanges();
+    expect(store.selectSnapshot(WizardState.inputs).basement).toBe('finished');
+    expect(basementButton('finished').getAttribute('aria-checked')).toBe('true');
+    expect(basementButton('unfinished').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('garage/basement selections survive a component recreate (persisted state)', () => {
+    chooseCard('new-build');
+    garageButton('triple').click();
+    basementButton('finished').click();
+    fixture.detectChanges();
+
+    const fresh = TestBed.createComponent(ScopePageComponent);
+    fresh.detectChanges();
+    const sections = fresh.nativeElement.querySelectorAll('app-option-selector');
+    expect(
+      sections[1].querySelector('[data-option="triple"]').getAttribute('aria-checked'),
+    ).toBe('true');
+    expect(
+      sections[2].querySelector('[data-option="finished"]').getAttribute('aria-checked'),
+    ).toBe('true');
+    fresh.destroy();
   });
 
   it('shows no dollar figures in the scope inputs (copy-lint)', () => {

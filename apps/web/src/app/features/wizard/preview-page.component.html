@@ -33,6 +33,14 @@
           <dt>{{ wizardCopy.detailsFinishTier }}</dt>
           <dd class="cap">{{ inputs().tier }}</dd>
         </div>
+        <div>
+          <dt>{{ wizardCopy.detailsGarage }}</dt>
+          <dd>{{ garageName() }}</dd>
+        </div>
+        <div>
+          <dt>{{ wizardCopy.detailsBasement }}</dt>
+          <dd>{{ basementName() }}</dd>
+        </div>
       }
     </dl>
   }
@@ -40,10 +48,20 @@
   @if (loading()) {
     <p class="loading" role="status">{{ reportCopy.loadingLabel }}</p>
   } @else if (loadFailed()) {
-    <div class="error-card" role="alert">
-      <p>{{ reportCopy.loadError }}</p>
-      <button class="cta" type="button" (click)="retry()">{{ reportCopy.retryLabel }}</button>
-    </div>
+    @if (isValidationError()) {
+      <!-- The API rejected the request (e.g. lot size out of range): retry
+           cannot succeed, so explain the actual problem instead. -->
+      <div class="error-card" role="alert">
+        <p class="error-heading">{{ copy.validationHeading }}</p>
+        <p>{{ validationMessage() }}</p>
+        <a class="cta" routerLink="/" (click)="backToAddress()">{{ copy.validationBackLabel }}</a>
+      </div>
+    } @else {
+      <div class="error-card" role="alert">
+        <p>{{ reportCopy.loadError }}</p>
+        <button class="cta" type="button" (click)="retry()">{{ reportCopy.retryLabel }}</button>
+      </div>
+    }
   } @else if (ready()) {
     <p class="ready-note">{{ copy.readyNote }}</p>
 
