@@ -87,9 +87,15 @@ export class CommunityPageComponent implements OnInit {
     }
     this.community = view;
     const title = this.copy.titleTemplate.replace('{name}', view.displayName);
+    // The meta description carries the real per-community assessed value so
+    // all 40 community pages have unique descriptions in search results
+    // (template-only copy would be near-duplicate across pages).
+    const description = this.copy.descriptionTemplate
+      .replace('{name}', view.displayName)
+      .replace('{avgAssessed}', this.formatCad(view.avgAssessedValue));
     this.seo.setPage({
       title,
-      description: this.copy.descriptionTemplate.replace('{name}', view.displayName),
+      description,
       path: `/communities/${view.slug}/`,
     });
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
