@@ -5,7 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
-import { CommunityPageComponent, toDisplayName } from './community-page.component';
+import { CommunityPageComponent } from './community-page.component';
+import { toDisplayName } from './community-names';
 
 /**
  * SEO-04: /communities/:slug renders the H1, stat block, 3 tier ranges,
