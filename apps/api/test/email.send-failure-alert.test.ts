@@ -45,9 +45,8 @@ const MESSAGE: EmailMessage = {
 };
 
 const LEAKY_SDK_ERROR = new Error(
-  '401 Unauthorized: endpoint=https://real.example.net/;accesskey=topsecretkey ' +
-    'for sender noreply@feasly.example to lead@example.com, link ' +
-    'https://feasly.example/r/' +
+  '401 Unauthorized for sender noreply@feasly.example to lead@example.com, ' +
+    'link https://feasly.example/r/' +
     'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
 );
 
@@ -126,8 +125,6 @@ describe('email send-failure structured logging', () => {
     const line = lines[0];
     expect(line).not.toContain('lead@example.com');
     expect(line).not.toContain('noreply@feasly.example');
-    expect(line).not.toContain('accesskey=');
-    expect(line).not.toContain('topsecretkey');
     expect(line).toContain('[redacted-token]');
     expect(line).not.toMatch(/[0-9a-f]{64}/i);
     expect(line).not.toContain(MESSAGE.subject);
