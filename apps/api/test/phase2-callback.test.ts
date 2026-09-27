@@ -26,25 +26,42 @@ import type { MagicLinkStore } from '../src/services/magic-link.store';
 
 const LEAD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const TOKEN = 'raw-report-token';
+const PARTNER_TOKEN = 'raw-partner-token';
 
 function fakeStores(opts?: { live?: boolean }) {
   const live = opts?.live ?? true;
   const persisted: NewCallbackRequest[] = [];
   const magicLinks = {
-    findByToken: async (token: string) =>
-      token === TOKEN && live
-        ? {
-            id: 'mmmmmmmm-mmmm-4mmm-8mmm-mmmmmmmmmmmm',
-            leadId: LEAD_ID,
-            purpose: 'lead',
-            tokenHash: 'hash',
-            email: null,
-            expiresAt: new Date('2026-10-03T00:00:00Z'),
-            usedAt: null,
-            revokedAt: null,
-            createdAt: new Date('2026-09-26T04:00:00Z'),
-          }
-        : null,
+    findByToken: async (token: string) => {
+      if (!live) return null;
+      if (token === TOKEN) {
+        return {
+          id: 'mmmmmmmm-mmmm-4mmm-8mmm-mmmmmmmmmmmm',
+          leadId: LEAD_ID,
+          purpose: 'lead',
+          tokenHash: 'hash',
+          email: null,
+          expiresAt: new Date('2026-10-03T00:00:00Z'),
+          usedAt: null,
+          revokedAt: null,
+          createdAt: new Date('2026-09-26T04:00:00Z'),
+        };
+      }
+      if (token === PARTNER_TOKEN) {
+        return {
+          id: 'pppppppp-pppp-4ppp-8ppp-pppppppppppp',
+          leadId: LEAD_ID,
+          purpose: 'partner-share',
+          tokenHash: 'hash',
+          email: null,
+          expiresAt: new Date('2026-10-03T00:00:00Z'),
+          usedAt: null,
+          revokedAt: null,
+          createdAt: new Date('2026-09-26T04:00:00Z'),
+        };
+      }
+      return null;
+    },
   } as unknown as MagicLinkStore;
   const leads = {
     findById: async (id: string) =>
@@ -131,6 +148,14 @@ describe('callback service', () => {
       status: 404,
       code: ErrorCodes.NOT_FOUND,
     });
+  });
+
+  it('answers 403 for a partner token — callbacks are the owner flow', async () => {
+    const { service, persisted } = fakeStores();
+    await expect(
+      service.requestCallback({ ...VALID_BODY, reportToken: PARTNER_TOKEN }),
+    ).rejects.toMatchObject({ status: 403, code: ErrorCodes.FORBIDDEN });
+    expect(persisted).toHaveLength(0);
   });
 });
 

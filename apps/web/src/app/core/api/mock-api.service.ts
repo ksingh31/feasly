@@ -25,6 +25,7 @@ import type {
   NewBuildEstimateRequest,
   PartnerShareRequest,
   PartnerShareResponse,
+  PartnerShareVerifyResponse,
   PreviewEstimateResponse,
   EstimateResponse,
   PropertyRecord,
@@ -429,6 +430,15 @@ export class MockApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.roundTrip(mockShareOk(request.partnerEmail));
+  }
+
+  /**
+   * The mock never mints partner links, so every partner token is invalid.
+   * Real partner-share redemption is exercised against the backend.
+   */
+  verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse> {
+    void token;
+    return this.roundTrip({ valid: false, reason: 'invalid' });
   }
 
   /**

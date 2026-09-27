@@ -286,6 +286,10 @@ const targets = [
     entry: 'src/functions/shares.ts',
     out: 'shares/index.js',
   },
+  {
+    entry: 'src/functions/shares-verify.ts',
+    out: 'shares-verify/index.js',
+  },
   // embed/06: token relay inside the iframe.
   {
     entry: 'src/functions/embed-session.ts',
