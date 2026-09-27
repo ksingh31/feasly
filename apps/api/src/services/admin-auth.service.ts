@@ -174,7 +174,11 @@ export function createAdminAuthService(
             expiresInDays: Math.max(1, Math.ceil(magicLinkTtlSeconds / 86_400)),
             audience: 'admin',
           })
-          .catch(onEmailError);
+          .then((delivery) => {
+            // The email service never throws on send failure — a failed
+            // delivery arrives here as { sent: false }.
+            if (!delivery.sent) onEmailError(new Error(delivery.failureReason));
+          }, onEmailError);
         await audit.log({
           actorEmail: null,
           action: 'magic_link_requested',

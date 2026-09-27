@@ -101,23 +101,23 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
   const service = {
     sendMagicLink: async (input: unknown) => {
       sent.push({ op: 'sendMagicLink', input });
-      return { sent: true };
+      return { sent: true, provider: 'log' as const };
     },
     sendPartnerShare: async (input: unknown) => {
       sent.push({ op: 'sendPartnerShare', input });
-      return { sent: true };
+      return { sent: true, provider: 'log' as const };
     },
     sendCallbackConfirmation: async (input: unknown) => {
       sent.push({ op: 'sendCallbackConfirmation', input });
-      return { sent: true };
+      return { sent: true, provider: 'log' as const };
     },
     sendNudge: async (input: unknown) => {
       sent.push({ op: 'sendNudge', input });
-      return { sent: true };
+      return { sent: true, provider: 'log' as const };
     },
     sendOpsAlert: async (input: unknown) => {
       sent.push({ op: 'sendOpsAlert', input });
-      return { sent: true };
+      return { sent: true, provider: 'log' as const };
     },
   };
   return Object.assign(service as unknown as EmailService, { sent });

@@ -30,7 +30,7 @@ import type {
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
-import type { EmailService } from './email/email.service';
+import type { EmailDelivery, EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 import {
@@ -103,15 +103,52 @@ export interface IssueAndSendMagicLinkArgs {
   readonly clock?: () => Date;
 }
 
-export async function issueAndSendMagicLink(
-  args: IssueAndSendMagicLinkArgs,
-): Promise<IssuedMagicLink> {
-  const issued = await args.magicLinks.issue({
+/**
+ * Issue-only half of the consumer/02 issue + email step.
+ *
+ * Split out so the lead-submit path can degrade gracefully on send
+ * failure (Karan directive 2026-09-27): the token is minted before the
+ * send, so a failed send must not lose the token — the request can still
+ * return 200 with the report unlocked and `magicLinkSent: false`.
+ */
+export async function issueOwnerMagicLinkToken(args: {
+  readonly magicLinks: MagicLinkStore;
+  readonly leadId: string;
+  readonly magicLinkTtlSeconds: number;
+  readonly clock?: () => Date;
+}): Promise<IssuedMagicLink> {
+  return args.magicLinks.issue({
     leadId: args.leadId,
     purpose: OWNER_LINK_PURPOSE,
     ttlSeconds: args.magicLinkTtlSeconds,
     clock: args.clock,
   });
+}
+
+export interface SendOwnerMagicLinkEmailArgs {
+  readonly email: EmailService;
+  /** Mints the tokenized preference-page URL for the email footer. */
+  readonly unsubscribe: UnsubscribeService;
+  readonly leadId: string;
+  readonly to: string;
+  readonly name?: string;
+  readonly appBaseUrl: string;
+  readonly magicLinkTtlSeconds: number;
+  readonly token: string;
+}
+
+/**
+ * Send-only half of the consumer/02 issue + email step.
+ *
+ * Never throws on send failure — returns the EmailDelivery (the email
+ * service retries retryable failures in-code; exhaustion yields
+ * `{ sent: false, ... }`). Callers that must not fail the request map
+ * `sent: false` to their degraded UX (lead submit: 200 +
+ * `magicLinkSent: false` + `emailError` reason code).
+ */
+export async function sendOwnerMagicLinkEmail(
+  args: SendOwnerMagicLinkEmailArgs,
+): Promise<EmailDelivery> {
   // The footer URL is best-effort: if minting fails (e.g. the unsubscribe
   // secret is unconfigured), the magic link must still send — a missing
   // footer is better than a missing estimate link.
@@ -123,19 +160,21 @@ export async function issueAndSendMagicLink(
       `magic-link: unsubscribe URL mint failed (${sanitizeErrorMessage(error)})`,
     );
   }
-  await args.email.sendMagicLink({
+  return args.email.sendMagicLink({
     to: args.to,
     name: args.name,
-    magicLinkUrl: `${args.appBaseUrl}/r/${issued.token}`,
+    magicLinkUrl: `${args.appBaseUrl}/r/${args.token}`,
     expiresInDays: Math.max(1, Math.ceil(args.magicLinkTtlSeconds / 86_400)),
     audience: 'consumer',
     unsubscribeUrl,
   });
-  // Returned so the lead-submit path can hand the same-session client the
-  // owner token directly (Karan directive 2026-09-27: immediate unlock —
-  // the email is return-access for other devices). Callers that don't need
-  // the token ignore the return value.
-  return issued;
+}
+
+export async function issueAndSendMagicLink(
+  args: IssueAndSendMagicLinkArgs,
+): Promise<EmailDelivery> {
+  const issued = await issueOwnerMagicLinkToken(args);
+  return sendOwnerMagicLinkEmail({ ...args, token: issued.token });
 }
 
 export function createMagicLinkService(
@@ -238,7 +277,7 @@ export function createMagicLinkService(
       if (lastSent !== undefined && nowMs - lastSent < magicLinkReissueCooldownMs) {
         return { sent: false };
       }
-      await issueAndSendMagicLink({
+      const delivery = await issueAndSendMagicLink({
         magicLinks,
         email,
         unsubscribe,
@@ -249,8 +288,10 @@ export function createMagicLinkService(
         magicLinkTtlSeconds,
         clock,
       });
-      lastResendAtMs.set(lead.email, nowMs);
-      return { sent: true };
+      // Only a delivered resend starts the cooldown — a failed send leaves
+      // the window open so the user can retry immediately.
+      if (delivery.sent) lastResendAtMs.set(lead.email, nowMs);
+      return { sent: delivery.sent };
     },
   };
 }

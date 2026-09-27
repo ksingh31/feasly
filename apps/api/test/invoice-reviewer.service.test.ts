@@ -80,7 +80,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
 }
 
 function fakeEmail(): EmailService {
-  const noop = async () => ({ sent: true });
+  const noop = async () => ({ sent: true, provider: 'log' as const });
   return {
     sendMagicLink: noop,
     sendPartnerShare: noop,

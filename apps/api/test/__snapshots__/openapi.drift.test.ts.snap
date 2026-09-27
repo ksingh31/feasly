@@ -784,6 +784,14 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "LeadResponse": {
         "properties": {
+          "emailError": {
+            "description": "Why the magic-link email failed — present only when magicLinkSent is false",
+            "enum": [
+              "invalid-recipient",
+              "delivery-failed",
+            ],
+            "type": "string",
+          },
           "expiresInDays": {
             "type": "integer",
           },

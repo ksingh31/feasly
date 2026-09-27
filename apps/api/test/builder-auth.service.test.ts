@@ -60,12 +60,19 @@ function makeDeps(overrides?: {
   const email: EmailService =
     overrides?.emailSendFails === true
       ? ({
-          sendMagicLink: vi.fn(async () => {
-            throw new Error('ACS provider down');
-          }),
+          sendMagicLink: vi.fn(async () => ({
+            sent: false as const,
+            provider: 'log' as const,
+            failureReason: 'ACS provider down',
+            emailError: 'delivery-failed' as const,
+          })),
         } as unknown as EmailService)
       : ({
-          sendMagicLink: vi.fn(async () => ({ messageId: 'msg-1' })),
+          sendMagicLink: vi.fn(async () => ({
+            sent: true as const,
+            provider: 'log' as const,
+            messageId: 'msg-1',
+          })),
         } as unknown as EmailService);
 
   const service = createBuilderAuthService({

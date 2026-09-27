@@ -27,6 +27,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     baseUrl: '',
     useMockApi: true,
     timeoutMs: 15000,
+    // The gate submit waits on the synchronous email send (worst case ~20s
+    // with in-code retries) — 25s gives it headroom without raising the
+    // timeout for every other API call.
+    gateTimeoutMs: 25000,
   },
   propertyData: {
     source: 'live',
@@ -401,6 +405,18 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // Shown instead of leadLinkNote when the gate POST was a duplicate and
       // the backend sent no new email (magicLinkSent === false).
       leadLinkNoteDuplicate: 'Report saved — your link is already in your inbox.',
+      // Shown instead of leadLinkNote when the gate POST saved the lead and
+      // unlocked the report but the magic-link email failed to send
+      // (magicLinkSent === false with a reportToken present). Karan
+      // directive 2026-09-27: never a dead end — the user can check their
+      // inbox or simply resubmit to retry the send.
+      leadLinkNoteFailed:
+        "Your estimate is saved, but we couldn't send the email link. Check your inbox — or try again later.",
+      // Shown instead of leadLinkNoteFailed when the email failed because
+      // the address itself was rejected (emailError === 'invalid-recipient',
+      // Karan 2026-09-27): no "check your inbox" — it will never arrive.
+      leadLinkNoteInvalidRecipient:
+        "We couldn't send to that email address — please check it for typos and try again.",
       breakdownTitle: 'Where the build budget goes',
       breakdownLocked: 'The breakdown unlocks with your full report.',
       finishLevelLabel: 'Selected finish level',

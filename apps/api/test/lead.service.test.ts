@@ -24,7 +24,7 @@ import type {
   EmailService,
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import { HttpError } from '../src/middleware/errors';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -91,7 +91,7 @@ function fakeEmailService(): EmailService & {
   magicLinkSends: MagicLinkEmailInput[];
 } {
   const magicLinkSends: MagicLinkEmailInput[] = [];
-  const ok: EmailSendResult = { provider: 'log', messageId: 'test-msg' };
+  const ok: EmailDelivery = { sent: true, provider: 'log', messageId: 'test-msg' };
   return {
     magicLinkSends,
     sendMagicLink: async (input: MagicLinkEmailInput) => {
@@ -518,43 +518,90 @@ describe('lead service', () => {
     expect(store.inserted).toHaveLength(0);
   });
 
-  it('a send failure on the repeat path rejects loudly — never swallowed, never reported as sent', async () => {
+  it('a send failure on the repeat path degrades gracefully — 200, lead saved, token returned, magicLinkSent false', async () => {
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
     const magicLinks = fakeMagicLinkStore();
     magicLinks.seededLinks.push(liveLink('existing-lead-id'));
     const email = fakeEmailService();
-    email.sendMagicLink = async () => {
-      throw new Error('simulated ACS outage');
-    };
+    email.sendMagicLink = async () => ({
+      sent: false as const,
+      provider: 'log' as const,
+      failureReason: 'simulated ACS outage',
+      emailError: 'delivery-failed' as const,
+    });
     const service = createLeadService({ ...DEPS, store, magicLinks, email });
 
-    const error = await service.submitLead(VALID_BODY).catch((e) => e);
-    expect(error).toBeInstanceOf(Error);
-    expect(String(error.message)).toContain('magic link reissue failed');
-    expect(String(error.message)).not.toContain('simulated ACS outage');
+    // No throw: the lead row is updated, a fresh token is minted and
+    // returned (the report still unlocks), and magicLinkSent: false tells
+    // the client to show the "check your inbox or try again later" note.
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.leadId).toBe('existing-lead-id');
+    expect(result.magicLinkSent).toBe(false);
+    expect(result.emailError).toBe('delivery-failed');
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
+    expect(magicLinks.issued).toHaveLength(1);
+    expect(store.updated).toHaveLength(1);
+    // The failure is never reported as sent.
+    expect(result.magicLinkSent).not.toBe(true);
   });
 
-  it('a send failure on the new-capture path rejects loudly — the caller retries and the retry resends', async () => {
+  it('an invalid-recipient send failure propagates emailError so the UI says "check for typos"', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const magicLinks = fakeMagicLinkStore();
+    magicLinks.seededLinks.push(liveLink('existing-lead-id'));
+    const email = fakeEmailService();
+    // Wrong email address: the provider classifies it non-retryable, so
+    // deliver() returns the failure immediately (no retries).
+    email.sendMagicLink = async () => ({
+      sent: false as const,
+      provider: 'log' as const,
+      failureReason: 'invalid recipient',
+      emailError: 'invalid-recipient' as const,
+    });
+    const service = createLeadService({ ...DEPS, store, magicLinks, email });
+
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.magicLinkSent).toBe(false);
+    expect(result.emailError).toBe('invalid-recipient');
+    // The lead is still saved and the report still unlocks.
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
+  });
+
+  it('a send failure on the new-capture path degrades gracefully — the resubmission retries the send', async () => {
     const store = fakeLeadStore();
     const magicLinks = fakeMagicLinkStore();
     const email = fakeEmailService();
     let attempts = 0;
     email.sendMagicLink = async (input: MagicLinkEmailInput) => {
       attempts += 1;
-      if (attempts === 1) throw new Error('simulated ACS outage');
-      return { provider: 'log', messageId: 'recovered' };
+      if (attempts === 1)
+        return {
+          sent: false as const,
+          provider: 'log' as const,
+          failureReason: 'simulated ACS outage',
+          emailError: 'delivery-failed' as const,
+        };
+      return { sent: true as const, provider: 'log' as const, messageId: 'recovered' };
     };
     const service = createLeadService({ ...DEPS, store, magicLinks, email });
 
-    // First attempt: the lead is captured but the send fails loudly.
-    const error = await service.submitLead(VALID_BODY).catch((e) => e);
-    expect(error).toBeInstanceOf(Error);
-    expect(String(error.message)).toContain('magic link issuance failed');
+    // First attempt: the lead is captured, the token is issued and
+    // returned, but the send failed — 200 with magicLinkSent: false, NOT
+    // a 500. The report unlocks via reportToken.
+    const first = await service.submitLead(VALID_BODY);
+    expect(first.magicLinkSent).toBe(false);
+    expect(first.emailError).toBe('delivery-failed');
+    expect(typeof first.reportToken).toBe('string');
+    expect(first.reportToken!.length).toBeGreaterThan(0);
     expect(store.inserted).toHaveLength(1);
 
-    // The retry hits the dedupe path (same email + address) — and with the
-    // resend fix it actually retries the email instead of suppressing it.
+    // The resubmission hits the dedupe path (same email + address) — and
+    // with the resend fix it actually retries the email instead of
+    // suppressing it.
     store.recent = existingLeadFixture({ id: store.inserted[0]!.id });
     const retry = await service.submitLead(VALID_BODY);
     expect(retry.magicLinkSent).toBe(true);

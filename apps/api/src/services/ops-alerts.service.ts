@@ -13,6 +13,7 @@
  */
 
 import type { EmailService } from './email/email.service';
+import { EmailProviderError } from './email';
 import type { OpsAlertStore } from './ops-alerts.store';
 
 export const OPS_ALERT_TYPES = [
@@ -118,7 +119,7 @@ export function createOpsAlertsService(
       ) {
         return; // deduped: already alerted inside the window
       }
-      await email.sendOpsAlert({
+      const failureDelivery = await email.sendOpsAlert({
         to: opsAlertEmail,
         title: `${copy.name} is failing`,
         summary:
@@ -129,6 +130,14 @@ export function createOpsAlertsService(
         detailsUrl: `${appBaseUrl}${copy.detailsPath}`,
         firedAt: now,
       });
+      if (!failureDelivery.sent) {
+        // Don't record the alert as fired — the email never went out, so
+        // the next check must try again instead of being deduped away.
+        throw new EmailProviderError(
+          `Ops alert email failed: ${failureDelivery.failureReason}`,
+          { retryable: false, failureCode: failureDelivery.emailError },
+        );
+      }
       await store.upsert({ type, lastFiredAt: now });
     },
 
@@ -139,7 +148,7 @@ export function createOpsAlertsService(
       if (!state?.lastFiredAt) {
         return; // nothing to clear: no alert was fired for this class
       }
-      await email.sendOpsAlert({
+      const recoveredDelivery = await email.sendOpsAlert({
         to: opsAlertEmail,
         title: `${copy.name} recovered`,
         summary:
@@ -148,6 +157,12 @@ export function createOpsAlertsService(
         detailsUrl: `${appBaseUrl}${copy.detailsPath}`,
         firedAt: now,
       });
+      if (!recoveredDelivery.sent) {
+        throw new EmailProviderError(
+          `Ops alert email failed: ${recoveredDelivery.failureReason}`,
+          { retryable: false, failureCode: recoveredDelivery.emailError },
+        );
+      }
       await store.upsert({
         type,
         lastFiredAt: null,

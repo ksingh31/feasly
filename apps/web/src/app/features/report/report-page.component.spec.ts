@@ -17,7 +17,7 @@ import {
   UpdateRenoInputs,
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
-import { SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { LoadLeadEstimate, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
 import { ReportPdfService } from './report-pdf.service';
@@ -90,6 +90,14 @@ describe('ReportPageComponent', () => {
     leadSubmitted?: boolean;
     /** magicLinkSent flag on the submitted lead — picks the confirmation-line variant. */
     magicLinkSent?: boolean;
+    /** Why the magic-link email failed — picks the invalid-recipient copy variant. */
+    emailError?: 'invalid-recipient' | 'delivery-failed';
+    /**
+     * When false, the gate response carried no reportToken (quarantine
+     * path): the report unlocks via LoadLeadEstimate (public estimate
+     * endpoint) instead of the token. Defaults to true.
+     */
+    withReportToken?: boolean;
   }): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -151,12 +159,18 @@ describe('ReportPageComponent', () => {
           email: 'buyer@example.com',
           magicLinkSent: options.magicLinkSent ?? true,
           expiresInDays: 7,
+          emailError: options.emailError,
         }),
       );
       // The gate stores the owner token from the lead response in a separate
       // dispatch — the token lives in ReportState memory only, never in the
-      // persisted lead receipt.
-      store.dispatch(new SetReportToken(leadToken!));
+      // persisted lead receipt. Quarantined responses carry no token: the
+      // report loads from the public estimate endpoint instead.
+      if (options?.withReportToken === false) {
+        store.dispatch(new LoadLeadEstimate());
+      } else {
+        store.dispatch(new SetReportToken(leadToken!));
+      }
     }
     fixture = TestBed.createComponent(ReportPageComponent);
     fixture.detectChanges();
@@ -357,9 +371,47 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    describe('post-gate lead unlock — duplicate submit', () => {
+    describe('post-gate lead unlock — email send failed', () => {
       beforeEach(async () => {
+        // Token present (report unlocked) but the magic-link email never
+        // went out: the note must say so and offer the retry.
         await setup({ leadSubmitted: true, magicLinkSent: false });
+      });
+
+      it('shows the "couldn\'t send the email link" variant and keeps the report unlocked', () => {
+        expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
+        const note = fixture.nativeElement.querySelector('.lead-link-note');
+        expect(note).not.toBeNull();
+        expect(note.textContent).toContain("couldn't send the email link");
+        expect(note.textContent).toContain('Check your inbox — or try again later');
+        expect(note.textContent).not.toContain('already in your inbox');
+      });
+    });
+
+    describe('post-gate lead unlock — invalid recipient', () => {
+      beforeEach(async () => {
+        // The address itself was rejected: the note must say "check for
+        // typos" — never "check your inbox", which would never arrive.
+        await setup({
+          leadSubmitted: true,
+          magicLinkSent: false,
+          emailError: 'invalid-recipient',
+        });
+      });
+
+      it('shows the "check for typos" variant and keeps the report unlocked', () => {
+        expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
+        const note = fixture.nativeElement.querySelector('.lead-link-note');
+        expect(note).not.toBeNull();
+        expect(note.textContent).toContain('check it for typos');
+        expect(note.textContent).not.toContain('Check your inbox');
+        expect(note.textContent).not.toContain('already in your inbox');
+      });
+    });
+
+    describe('post-gate lead unlock — no token (quarantine)', () => {
+      beforeEach(async () => {
+        await setup({ leadSubmitted: true, magicLinkSent: false, withReportToken: false });
       });
 
       it('shows the "already in your inbox" variant when no new email was sent', () => {

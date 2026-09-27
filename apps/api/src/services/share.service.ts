@@ -22,6 +22,7 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email';
+import { EmailProviderError } from './email';
 import type { LeadStore } from './lead.store';
 import { isMagicLinkLive } from './magic-link.service';
 import {
@@ -99,9 +100,10 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         clock,
       });
       const shareUrl = `${deps.appBaseUrl}/r/${issued.token}`;
-      // The provider either accepts the message (resolves) or throws. Until
-      // the ACS sender is provisioned the log channel accepts everything.
-      await deps.email.sendPartnerShare({
+      // The email service never throws on send failure — a failed delivery
+      // arrives as { sent: false }. Partner share stays fail-loud: a share
+      // recorded as sent when the email never went out would be a lie.
+      const delivery = await deps.email.sendPartnerShare({
         to: partnerEmail,
         ownerName: lead.name,
         shareUrl,
@@ -109,6 +111,12 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         // same derivation as the magic-link callers.
         expiresInDays: Math.max(1, Math.ceil(deps.magicLinkTtlSeconds / 86_400)),
       });
+      if (!delivery.sent) {
+        throw new EmailProviderError(
+          `Partner share email failed: ${delivery.failureReason}`,
+          { retryable: false, failureCode: delivery.emailError },
+        );
+      }
 
       await deps.shares.insert({
         id: randomUUID(),

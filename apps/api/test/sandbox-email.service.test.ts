@@ -33,7 +33,10 @@ describe('sandbox-suppressing email service (api-mcp/01)', () => {
       expect(fn).not.toHaveBeenCalled();
     }
     for (const result of results) {
-      expect(result.messageId).toBe('sandbox-suppressed');
+      expect(result.sent).toBe(true);
+      if (result.sent) {
+        expect(result.messageId).toBe('sandbox-suppressed');
+      }
     }
     expect(log).toHaveBeenCalledTimes(5);
     // No PII in suppression logs.

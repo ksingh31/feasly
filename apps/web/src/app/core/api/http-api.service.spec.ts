@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import type { Observable } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../config/config.service';
 import { HttpApiService } from './http-api.service';
 import { providePropertyData } from './property-data.service';
@@ -212,5 +212,47 @@ describe('HttpApiService', () => {
       .expectOne((r) => r.url === `${BASE}/properties/lookup`)
       .flush({}, { status: 404, statusText: 'Not Found' });
     await expect(pending).rejects.toMatchObject({ code: 'http_404', retryable: false });
+  });
+
+  it('submitLead uses the gate-specific timeout (25s); other calls keep the global 15s', async () => {
+    // The gate POST waits on the synchronous email send (worst case ~20s
+    // with in-code retries), so it gets headroom — every other call keeps
+    // the tight global timeout. Config flush above sets timeoutMs: 15000;
+    // gateTimeoutMs comes from the compiled default (25000).
+    vi.useFakeTimers();
+    try {
+      const leadPromise = firstValueFrom(
+        service.submitLead({
+          email: 'buyer@example.com',
+          name: 'Test Buyer',
+          timeline: '6-12mo',
+          marketingConsent: false,
+          estimateId: 'est-mock-1',
+        }),
+      );
+      const estimatePromise = firstValueFrom(service.getEstimate(estimateRequest));
+      // Attach settlement handlers before advancing timers (no unhandled rejections).
+      const leadSettled = leadPromise.then(
+        () => 'resolved',
+        () => 'rejected',
+      );
+      const estimateSettled = estimatePromise.then(
+        () => 'resolved',
+        () => 'rejected',
+      );
+      httpMock.expectOne(`${BASE}/leads`);
+      httpMock.expectOne(`${BASE}/estimate`);
+
+      // 15s: the global timeout fires for getEstimate; the gate submit survives.
+      await vi.advanceTimersByTimeAsync(15_001);
+      expect(await estimateSettled).toBe('rejected');
+      expect(await Promise.race([leadSettled, Promise.resolve('pending')])).toBe('pending');
+
+      // 25s total: the gate timeout fires for submitLead.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await leadSettled).toBe('rejected');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

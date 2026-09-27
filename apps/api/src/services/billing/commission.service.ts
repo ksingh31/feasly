@@ -42,6 +42,7 @@ import type {
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
+import { EmailProviderError } from '../email';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -289,12 +290,18 @@ export function createCommissionService(
   }
 
   async function alertOps(title: string, summary: string): Promise<void> {
-    await email.sendOpsAlert({
+    const delivery = await email.sendOpsAlert({
       to: deps.opsInbox,
       title,
       summary,
       firedAt: now(),
     });
+    if (!delivery.sent) {
+      throw new EmailProviderError(`Ops alert email failed: ${delivery.failureReason}`, {
+        retryable: false,
+        failureCode: delivery.emailError,
+      });
+    }
   }
 
   /**

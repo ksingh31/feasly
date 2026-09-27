@@ -145,7 +145,7 @@ function makeEmail(): EmailService & { sends: unknown[] } {
     sends,
     sendMagicLink: async (input: unknown) => {
       sends.push(input);
-      return { messageId: 'test-id' };
+      return { sent: true as const, provider: 'log' as const, messageId: 'test-id' };
     },
   } as unknown as EmailService & { sends: unknown[] };
 }
@@ -162,9 +162,12 @@ function makeService(overrides?: {
   const audit = makeAudit();
   const email = makeEmail();
   if (overrides?.emailSendFails === true) {
-    email.sendMagicLink = async () => {
-      throw new Error('ACS provider down');
-    };
+    email.sendMagicLink = async () => ({
+      sent: false as const,
+      provider: 'log' as const,
+      failureReason: 'ACS provider down',
+      emailError: 'delivery-failed' as const,
+    });
   }
   const service = createAdminAuthService({
     allowlist,

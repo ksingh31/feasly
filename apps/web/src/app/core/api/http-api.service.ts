@@ -67,9 +67,9 @@ export class HttpApiService implements ApiService {
     return `${this.base}/admin/api-keys`;
   }
 
-  private call<T>(request: Observable<T>): Observable<T> {
-    const timeoutMs = this.config.get('api').timeoutMs;
-    return request.pipe(timeout(timeoutMs), catchError(toApiError));
+  private call<T>(request: Observable<T>, timeoutMs?: number): Observable<T> {
+    const effectiveTimeoutMs = timeoutMs ?? this.config.get('api').timeoutMs;
+    return request.pipe(timeout(effectiveTimeoutMs), catchError(toApiError));
   }
 
   autocomplete(query: string): Observable<AutocompleteResponse> {
@@ -115,7 +115,13 @@ export class HttpApiService implements ApiService {
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
-    return this.call(this.http.post<LeadResponse>(`${this.base}/leads`, request));
+    // The gate submit waits on the synchronous email send (worst case ~20s
+    // with in-code retries), so it uses the gate-specific timeout — the
+    // global api.timeoutMs stays tight for every other call.
+    return this.call(
+      this.http.post<LeadResponse>(`${this.base}/leads`, request),
+      this.config.get('api').gateTimeoutMs,
+    );
   }
 
   verifyMagicLink(token: string): Observable<MagicLinkVerifyResponse> {

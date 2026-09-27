@@ -11,6 +11,7 @@
  * unclicked link(s) are revoked first so only the nudge link is live.
  */
 import type { EmailService } from './email/email.service';
+import { EmailProviderError } from './email';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import type { UnsubscribeService } from './unsubscribe.service';
@@ -146,12 +147,20 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
       clock,
     });
 
-    await email.sendNudge({
+    const delivery = await email.sendNudge({
       to: lead.email,
       name: lead.name,
       resumeUrl: `${appBaseUrl}/r/${issued.token}`,
       unsubscribeUrl,
     });
+    if (!delivery.sent) {
+      // Don't stamp nudge_sent_at: the caller counts the throw as
+      // skipped-without-stamping so the next run retries the nudge.
+      throw new EmailProviderError(`Nudge email failed: ${delivery.failureReason}`, {
+        retryable: false,
+        failureCode: delivery.emailError,
+      });
+    }
 
     await leads.setNudgeSentAt({ id: lead.id, at: now });
     return true;
