@@ -280,6 +280,12 @@ const EnvSchema = z.object({
     .default(
       'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F',
     ),
+  // Platform-injected managed-identity endpoint/header (App Service /
+  // Functions). Present only on Azure; absent locally and in CI. The
+  // backup probe prefers these over the IMDS link-local endpoint. The
+  // header is a secret — parsed here, never logged.
+  IDENTITY_ENDPOINT: z.string().url().optional(),
+  IDENTITY_HEADER: z.string().min(1).optional(),
   BACKUP_CHECK_ARM_BASE_URL: z.string().url().default('https://management.azure.com'),
   // Same thresholds as CI's check-postgres-backup.sh.
   BACKUP_CHECK_MIN_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
@@ -504,6 +510,16 @@ export interface BackupCheckConfig {
   readonly maxStaleHours: number;
   /** IMDS token endpoint (config holds the URL literal, not the service). */
   readonly imdsTokenUrl: string;
+  /**
+   * Platform-injected managed-identity endpoint (`IDENTITY_ENDPOINT`).
+   * Preferred over IMDS on Azure Functions / App Service.
+   */
+  readonly identityEndpoint?: string;
+  /**
+   * Platform-injected managed-identity header (`IDENTITY_HEADER`). Secret —
+   * sent as the `X-IDENTITY-HEADER` header, never logged.
+   */
+  readonly identityHeader?: string;
   /** ARM base URL (config holds the URL literal, not the service). */
   readonly armBaseUrl: string;
 }
@@ -716,6 +732,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       minRetentionDays: e.BACKUP_CHECK_MIN_RETENTION_DAYS,
       maxStaleHours: e.BACKUP_CHECK_MAX_STALE_HOURS,
       imdsTokenUrl: e.BACKUP_CHECK_IMDS_TOKEN_URL,
+      identityEndpoint: e.IDENTITY_ENDPOINT,
+      identityHeader: e.IDENTITY_HEADER,
       armBaseUrl: e.BACKUP_CHECK_ARM_BASE_URL,
     },
     estimate: {
