@@ -115,7 +115,7 @@ describe('loadConfig', () => {
       narrative: {
         provider: 'log',
         apiKey: '',
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       },
       embed: {
