@@ -160,7 +160,9 @@ export class MagicLinkPageComponent implements OnInit {
           ]);
           void this.router.navigate(['/estimate/report']);
         },
-        error: () => this.view.set('invalid'),
+        // Transport/5xx here: the retry card re-runs the whole chain
+        // (owner verify → partner fallback), not the invalid card.
+        error: () => this.view.set('error'),
       });
   }
 }

@@ -150,6 +150,27 @@ describe('MagicLinkPageComponent', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
+  it('partner-verify transport failure shows the error card with retry', async () => {
+    await setup('tok-partner', { valid: false, reason: 'invalid', reissueAllowed: true });
+    api.verifyMagicLink.mockClear();
+    api.verifyPartnerShare.mockClear();
+    api.verifyPartnerShare.mockReturnValue(throwError(() => ({ code: 'NETWORK_ERROR' })));
+    fixture = TestBed.createComponent(MagicLinkPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(text()).toContain('Something went wrong');
+    // Retry re-runs the whole chain: owner verify, then the partner path.
+    api.verifyMagicLink.mockReturnValue(of({ valid: false, reason: 'invalid', reissueAllowed: true }));
+    api.verifyPartnerShare.mockReturnValue(
+      of({ valid: true, reportToken: 'tok-partner', estimateId: 'est-1', partnerEmail: 'p@x.com' }),
+    );
+    (fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(api.verifyMagicLink).toHaveBeenCalledTimes(2);
+    expect(api.verifyPartnerShare).toHaveBeenCalledTimes(2);
+    expect(navigateSpy).toHaveBeenCalledWith(['/estimate/report']);
+  });
+
   it('empty token shows the invalid card without calling the API', async () => {
     await setup(null, { valid: false, reason: 'invalid', reissueAllowed: true });
     expect(api.verifyMagicLink).not.toHaveBeenCalled();
