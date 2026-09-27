@@ -135,6 +135,32 @@ export type EmbedRelayFailureReason =
   | 'tenant_mismatch';
 
 /**
+ * POST /api/v1/embed/relay/resend request (embed/06 AC3).
+ *
+ * Re-issues a fresh single-use relay code for an expired or already-used
+ * code. The presenter proves prior possession by presenting the old code —
+ * the same trust channel the code arrived on (the builder page URL /
+ * magic-link email). No PII is needed or accepted: the shell never sees
+ * the homeowner's email address.
+ */
+export interface EmbedRelayResendRequest {
+  /** The expired or already-used relay code being replaced. */
+  readonly code: string;
+  readonly tenant_key: string;
+}
+
+/**
+ * POST /api/v1/embed/relay/resend response (embed/06 AC3).
+ *
+ * The fresh code replaces the old one (10-minute life, single-use). The
+ * response carries no PII — just the new opaque code and its TTL.
+ */
+export interface EmbedRelayResendResponse {
+  readonly code: string;
+  readonly expiresInSeconds: number;
+}
+
+/**
  * Public builder config served by GET /api/v1/embed/config (EMB-02).
  *
  * Snake_case: this is the wire shape. `logo_url` may be '' — the embed

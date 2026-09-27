@@ -22,7 +22,10 @@
  * to load the report. No Set-Cookie is ever emitted.
  */
 import { randomBytes } from 'node:crypto';
-import type { EmbedSessionResponse } from '@feasly/contracts';
+import type {
+  EmbedRelayResendResponse,
+  EmbedSessionResponse,
+} from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { hashIp, type EmbedRelayStore } from './embed-relay.store';
 import type { LeadStore } from './lead.store';
@@ -34,6 +37,13 @@ export interface EmbedRelayService {
    * tenant.
    */
   exchange(request: unknown, clientIp: string | undefined): Promise<EmbedSessionResponse>;
+  /**
+   * Re-issue a fresh relay code for an expired or already-used code.
+   * Throws HttpError(410) when the presented code is unknown, still valid,
+   * or bound to a different tenant; HttpError(429) when a resend went out
+   * for this code inside the cooldown window.
+   */
+  resend(request: unknown, clientIp: string | undefined): Promise<EmbedRelayResendResponse>;
   /**
    * Validate a session token issued by `exchange`. Returns the bound
    * estimate/lead context, or null when the token is unknown or expired.
@@ -56,6 +66,11 @@ export interface EmbedRelayServiceDeps {
   readonly relayCodeTtlSeconds: number;
   /** Seconds a session token stays valid — from config, never hardcoded. */
   readonly sessionTtlSeconds: number;
+  /**
+   * Seconds between resends for the same code (embed/06 AC3). From config,
+   * never hardcoded.
+   */
+  readonly relayResendCooldownSeconds: number;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -207,6 +222,96 @@ export function createEmbedRelayService(deps: EmbedRelayServiceDeps): EmbedRelay
 
     async resolveSession(sessionToken: string): Promise<EmbedSessionContext | null> {
       return registry.resolve(sessionToken, clock().getTime());
+    },
+
+    /**
+     * Re-issue a fresh relay code for an expired or already-used code
+     * (embed/06 AC3 — the "session expired" re-issue affordance).
+     *
+     * The presenter proves prior possession by presenting the old code —
+     * the same trust channel the code arrived on — so no PII is needed or
+     * accepted. Denials are uniform 410s (no oracle beyond the contract);
+     * the 60s-per-code cooldown is a 429. Every attempt is audit-logged.
+     */
+    async resend(
+      request: unknown,
+      clientIp: string | undefined,
+    ): Promise<EmbedRelayResendResponse> {
+      const { code, tenant_key } = exchangeRequestSchema.parse(request);
+      const ipHash = hashIp(clientIp ?? 'unknown');
+      const now = clock();
+
+      const deny = async (
+        codeId: string | null,
+        detail: string,
+        message: string,
+      ): Promise<never> => {
+        await relayCodes.audit({
+          codeId,
+          tenantKey: tenant_key,
+          ipHash,
+          action: 'relay.resend_denied',
+          detail,
+        });
+        throw gone(message);
+      };
+
+      const record = await relayCodes.findByHash(code);
+      if (record === null) {
+        return deny(null, 'not_found', 'This link is invalid. Start a new estimate to get a fresh link.');
+      }
+      if (record.tenantKey !== tenant_key) {
+        return deny(record.id, 'tenant_mismatch', 'This link is not valid for this builder. Start a new estimate to get a fresh link.');
+      }
+
+      const expired = record.expiresAt.getTime() <= now.getTime();
+      const used = record.usedAt !== null;
+      if (!expired && !used) {
+        return deny(
+          record.id,
+          'still_valid',
+          'This link is still valid — open it to view the report.',
+        );
+      }
+
+      const cooldownStart = new Date(
+        now.getTime() - deps.relayResendCooldownSeconds * 1000,
+      );
+      const recentResends = await relayCodes.countRecentResends(record.id, cooldownStart);
+      if (recentResends > 0) {
+        await relayCodes.audit({
+          codeId: record.id,
+          tenantKey: record.tenantKey,
+          ipHash,
+          action: 'relay.resend_denied',
+          detail: 'cooldown',
+        });
+        throw new HttpError(
+          429,
+          ErrorCodes.RATE_LIMITED,
+          'A fresh link was just issued. Please wait a minute and try again.',
+        );
+      }
+
+      const issued = await relayCodes.issue({
+        tenantKey: record.tenantKey,
+        userId: record.userId ?? undefined,
+        estimateId: record.estimateId ?? undefined,
+        leadId: record.leadId ?? undefined,
+        ttlSeconds: deps.relayCodeTtlSeconds,
+        clock,
+      });
+      // Audit against the superseded code's id so the per-code cooldown
+      // (countRecentResends(record.id, …)) actually sees this resend.
+      await relayCodes.audit({
+        codeId: record.id,
+        tenantKey: record.tenantKey,
+        ipHash,
+        action: 'relay.resent',
+        detail: `issued=${issued.id}`,
+      });
+
+      return { code: issued.code, expiresInSeconds: deps.relayCodeTtlSeconds };
     },
   };
 }

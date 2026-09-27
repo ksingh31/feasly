@@ -248,6 +248,10 @@ import {
   type EmbedSessionRoute,
 } from './routes/embed-session.route';
 import {
+  createEmbedRelayResendRoute,
+  type EmbedRelayResendRoute,
+} from './routes/embed-relay-resend.route';
+import {
   createDrizzleEmbedRelayStore,
   type EmbedRelayStore,
 } from './services/embed-relay.store';
@@ -501,6 +505,8 @@ export interface AppComposition {
   readonly embedRelayStore: EmbedRelayStore;
   readonly embedRelayService: EmbedRelayService;
   readonly embedSessionRoute: EmbedSessionRoute;
+  /** Embed relay-code re-issue (embed/06 AC3): expired/used codes → fresh code. */
+  readonly embedRelayResendRoute: EmbedRelayResendRoute;
   /** Property lookup (api-mcp/02): City of Calgary Socrata, cache-first. */
   readonly propertyService: PropertyService;
   readonly propertyRoute: PropertyRoute;
@@ -1102,8 +1108,14 @@ export function createComposition(
     leads: leadStore,
     relayCodeTtlSeconds: config.embed.relayCodeTtlSeconds,
     sessionTtlSeconds: config.embed.sessionTtlSeconds,
+    relayResendCooldownSeconds: config.embed.relayResendCooldownSeconds,
   });
   const embedSessionRoute: EmbedSessionRoute = createEmbedSessionRoute({
+    relayService: embedRelayService,
+  });
+  // Embed relay-code re-issue (embed/06 AC3): the "session expired" state
+  // re-issues a fresh code for an expired/used one (60s per-code cooldown).
+  const embedRelayResendRoute: EmbedRelayResendRoute = createEmbedRelayResendRoute({
     relayService: embedRelayService,
   });
   // Property lookup (api-mcp/02): Socrata-backed address autocomplete +
@@ -1375,6 +1387,7 @@ export function createComposition(
     embedRelayStore,
     embedRelayService,
     embedSessionRoute,
+    embedRelayResendRoute,
     propertyService,
     propertyRoute,
     openApiRoute,

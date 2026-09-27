@@ -10,6 +10,7 @@ import {
   LoadEmbedConfig,
   RelaySessionEstablished,
   RelaySessionFailed,
+  ResendRelayCode,
 } from './embed.actions';
 import { EmbedConfigService } from './embed-config.service';
 
@@ -41,6 +42,19 @@ export interface EmbedStateModel {
   sessionLeadScore: number | null;
   /** Machine-readable relay failure code. Never user-facing. */
   relayError: string | null;
+  /**
+   * The relay code presented for exchange (embed/06 AC3). Memory-only —
+   * kept so the "session expired" state can re-issue a fresh code for it
+   * without ever touching storage. Cleared once a session is active.
+   */
+  relayCode: string | null;
+  /** A resend request is in flight (the fresh-link button shows busy). */
+  resending: boolean;
+  /**
+   * Machine-readable resend failure ('cooldown' | 'failed'). Never
+   * user-facing; the shell maps it to plain copy.
+   */
+  resendError: string | null;
 }
 
 /**
@@ -67,6 +81,9 @@ export interface EmbedStateModel {
     sessionEstimateId: null,
     sessionLeadScore: null,
     relayError: null,
+    relayCode: null,
+    resending: false,
+    resendError: null,
   },
 })
 @Injectable()
@@ -108,6 +125,16 @@ export class EmbedState {
     return state.sessionLeadScore;
   }
 
+  @Selector()
+  static resending(state: EmbedStateModel): boolean {
+    return state.resending;
+  }
+
+  @Selector()
+  static resendError(state: EmbedStateModel): string | null {
+    return state.resendError;
+  }
+
   @Action(LoadEmbedConfig)
   load(ctx: StateContext<EmbedStateModel>, action: LoadEmbedConfig) {
     ctx.patchState({ tenantKey: action.tenantKey, config: null, status: 'loading', error: null });
@@ -147,7 +174,7 @@ export class EmbedState {
     if (tenantKey === null) {
       return ctx.dispatch(new RelaySessionFailed('no_tenant'));
     }
-    ctx.patchState({ relayStatus: 'exchanging', relayError: null });
+    ctx.patchState({ relayStatus: 'exchanging', relayError: null, relayCode: action.code });
     return this.configs
       .exchangeRelayCode({ code: action.code, tenant_key: tenantKey })
       .pipe(
@@ -174,6 +201,9 @@ export class EmbedState {
       sessionEstimateId: action.estimateId,
       sessionLeadScore: action.leadScore,
       relayError: null,
+      relayCode: null,
+      resending: false,
+      resendError: null,
     });
   }
 
@@ -185,6 +215,38 @@ export class EmbedState {
       sessionEstimateId: null,
       sessionLeadScore: null,
       relayError: action.reason,
+      resending: false,
     });
+  }
+
+  /**
+   * Re-issue a fresh relay code for the expired/used one (embed/06 AC3).
+   * The state calls `POST /api/v1/embed/relay/resend` with the presented
+   * code and immediately exchanges the fresh code it returns. A 429
+   * (RATE_LIMITED — the 60s per-code cooldown) surfaces as
+   * `resendError: 'cooldown'` so the shell can say "wait a minute";
+   * anything else is `'failed'`.
+   */
+  @Action(ResendRelayCode)
+  resendRelay(ctx: StateContext<EmbedStateModel>) {
+    const state = ctx.getState();
+    if (state.resending) return EMPTY;
+    const tenantKey = state.tenantKey;
+    const code = state.relayCode;
+    if (tenantKey === null || code === null) {
+      return ctx.dispatch(new RelaySessionFailed('no_resend_context'));
+    }
+    ctx.patchState({ resending: true, resendError: null });
+    return this.configs.resendRelayCode({ code, tenant_key: tenantKey }).pipe(
+      map((res) => ctx.dispatch(new ExchangeRelayCode(res.code))),
+      catchError((err: unknown) => {
+        const apiCode = (err as ApiError)?.code;
+        ctx.patchState({
+          resending: false,
+          resendError: apiCode === 'RATE_LIMITED' ? 'cooldown' : 'failed',
+        });
+        return EMPTY;
+      }),
+    );
   }
 }

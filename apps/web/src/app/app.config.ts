@@ -88,7 +88,12 @@ export const appConfig: ApplicationConfig = {
             ? { ...obj, reportToken: null }
             : key === 'comparison'
               ? { ...obj, leadId: null }
-              : obj,
+              : // The relay code is a single-use secret: memory-only, never
+                // persisted. Transient resend UI state is reset too — the
+                // shell re-boots and re-posts the stashed code on reload.
+                key === 'embed'
+                ? { ...obj, relayCode: null, resending: false, resendError: null }
+                : obj,
       }),
     ),
   ],

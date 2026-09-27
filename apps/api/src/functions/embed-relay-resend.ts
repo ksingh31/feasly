@@ -1,0 +1,105 @@
+/**
+ * Azure Functions v3 trigger adapter — POST /api/v1/embed/relay/resend.
+ *
+ * Thin by design: build the pipeline request from the Functions `req`,
+ * run it through the BE0-003 pipeline (correlation + rate limiting +
+ * RFC 7807 errors), and translate the outcome to `context.res`.
+ *
+ * - Public endpoint: the iframe's "session expired" state calls this
+ *   unauthenticated to re-issue a fresh relay code for an expired or
+ *   already-used one (embed/06 AC3). The presenter proves prior
+ *   possession with the old code; no PII is needed or accepted.
+ * - Abuse resistance comes from the standard public rate limiter on the
+ *   request pipeline plus the service's own 60s-per-code cooldown (429).
+ * - Imports only from the package public surface (`../index`), never deep
+ *   paths — see src/index.ts.
+ * - The composition (config, pool, engine) is built once per instance and
+ *   cached module-level; the pg pool stays warm across invocations.
+ * - Bundled by `npm run bundle:functions` into `embed-relay-resend/index.js`
+ *   (self-contained — the Function App has no node_modules).
+ */
+import { randomUUID } from 'node:crypto';
+import {
+  createComposition,
+  loadConfig,
+  middleware,
+  type AppComposition,
+} from '../index';
+import type {
+  FunctionContext,
+  FunctionRequest,
+} from './communities-stats';
+
+const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
+
+let cached: AppComposition | undefined;
+
+function getApp(): AppComposition {
+  if (!cached) cached = createComposition();
+  return cached;
+}
+
+function clientIpFrom(req: FunctionRequest): string | undefined {
+  const forwarded = req.headers?.['x-forwarded-for'];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const ip = first?.split(',')[0]?.trim();
+  return ip ? ip : undefined;
+}
+
+export async function embedRelayResendHandler(
+  context: FunctionContext,
+  req: FunctionRequest,
+): Promise<void> {
+  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
+  // config alone — the full composition (DB pool, rate limiters) is never
+  // loaded for an OPTIONS request. Non-allowlisted origins get no
+  // Access-Control-Allow-Origin (fail-closed).
+  const origin = req.headers?.['origin'];
+  const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
+  if (middleware.isPreflight(req.method, origin)) {
+    context.res = {
+      status: 204,
+      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+    };
+    return;
+  }
+
+  const app = getApp();
+  const headers: Record<string, string | string[] | undefined> = {
+    ...(req.headers ?? {}),
+  };
+  if (!headers[CORRELATION_RESPONSE_HEADER]) {
+    headers[CORRELATION_RESPONSE_HEADER] = randomUUID();
+  }
+  const correlationId = middleware.ensureCorrelationId(headers);
+
+  const result = await app.requestPipeline.run(
+    { headers, clientIp: clientIpFrom(req) },
+    () => app.embedRelayResendRoute.handle(req.body, clientIpFrom(req)),
+  );
+
+  if (middleware.isProblemDetails(result)) {
+    context.res = {
+      status: result.status,
+      headers: {
+        ...middleware.problemResponseHeaders(result),
+        [CORRELATION_RESPONSE_HEADER]: result.correlationId,
+        ...corsHeaders,
+      },
+      body: result,
+    };
+    return;
+  }
+  context.res = {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      [CORRELATION_RESPONSE_HEADER]: correlationId,
+      ...corsHeaders,
+    },
+    body: result,
+  };
+}
+
+// Azure Functions v3 programming model entry point (bundled as CJS).
+module.exports = embedRelayResendHandler;

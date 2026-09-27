@@ -123,6 +123,16 @@ single-use code: `https://builder.com/estimate?feasly_rt={code}`. The loader:
 5. If the page reloads before the exchange, the stashed code is re-posted.
 6. On `FEASLY_AUTH_OK` the code is cleared from storage.
 
+### Expired codes
+
+Relay codes are single-use and expire after 10 minutes. When the iframe's
+exchange fails, it shows a "This link has expired" state with a one-tap
+**Get a fresh link** button. The iframe calls
+`POST /api/v1/embed/relay/resend` with the old code (proving prior
+possession — no PII involved) and immediately exchanges the fresh code it
+gets back. Resends are limited to one per code per 60 seconds (429 beyond
+that); the UI then shows "please wait a minute and try again".
+
 ## Fallback
 
 If the iframe fails to load (network error, blocked by an extension, embed app

@@ -27,6 +27,7 @@ import {
   ExchangeRelayCode,
   LoadEmbedConfig,
   RelaySessionEstablished,
+  ResendRelayCode,
 } from './embed.actions';
 import { EmbedState } from './embed.state';
 import { EmbedBridgeService } from './embed-bridge.service';
@@ -46,11 +47,7 @@ interface RelayInbound {
 
 /** Shell → parent: lifecycle announcements and the lead handoff. */
 interface ShellOutbound {
-  readonly type:
-    | 'feasly:ready'
-    | 'feasly:resize'
-    | 'feasly:estimate-start'
-    | 'feasly:relay-resend';
+  readonly type: 'feasly:ready' | 'feasly:resize' | 'feasly:estimate-start';
   readonly height?: number;
   readonly addressKey?: string;
   readonly address?: string;
@@ -100,6 +97,8 @@ export class EmbedShellComponent {
   protected readonly status = this.store.selectSignal(EmbedState.status);
   protected readonly builderConfig = this.store.selectSignal(EmbedState.config);
   protected readonly relayStatus = this.store.selectSignal(EmbedState.relayStatus);
+  protected readonly resending = this.store.selectSignal(EmbedState.resending);
+  protected readonly resendError = this.store.selectSignal(EmbedState.resendError);
   /** Accepted once per boot — a second relay is ignored (AC1 single-use). */
   private relayAccepted = false;
 
@@ -187,13 +186,14 @@ export class EmbedShellComponent {
   }
 
   /**
-   * "Email me a fresh link" (AC3 re-issue affordance). The parent owns the
-   * re-issue flow — the shell asks for it via postMessage and the snippet
-   * (or builder page) triggers a fresh magic-link email. The shell itself
-   * never sees the homeowner's email address (no PII in the iframe).
+   * "Get a fresh link" (AC3 re-issue affordance). The state calls
+   * `POST /api/v1/embed/relay/resend` with the presented (old) code and
+   * immediately exchanges the fresh code it returns — no PII involved,
+   * the shell never sees the homeowner's email address. A 429 (the 60s
+   * per-code cooldown) shows the "wait a minute" note via resendError.
    */
   protected onResendLink(): void {
-    this.postToParent({ type: 'feasly:relay-resend' } as unknown as ShellOutbound);
+    this.store.dispatch(new ResendRelayCode());
   }
 
   /**

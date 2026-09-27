@@ -194,6 +194,10 @@ export interface AppConfig {
       sessionExpiredHeading: string;
       sessionExpiredBody: string;
       resendLinkLabel: string;
+      /** Busy label on the fresh-link button while the re-issue is in flight. */
+      resendLinkBusyLabel: string;
+      /** Shown when the 60s per-code resend cooldown fires (embed/06 AC3). */
+      resendCooldownBody: string;
     };
     /**
      * Wizard scope-step copy (S2 — FE-2). Step labels are structural;
