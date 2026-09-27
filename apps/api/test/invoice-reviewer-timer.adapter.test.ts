@@ -95,6 +95,10 @@ function fakeStripe(failOnAmount?: number): StripeService {
     },
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
+    refundPaymentIntent: async (paymentIntentId) => ({
+      id: 're_test',
+      status: 'succeeded',
+    }),
     verifyWebhook: () => {
       throw new Error('not used');
     },
