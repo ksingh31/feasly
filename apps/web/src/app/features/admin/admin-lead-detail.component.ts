@@ -264,8 +264,12 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
     this.store
       .dispatch(new AssignLeadBuilder(detail.id, next))
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.store.dispatch(new SelectAdminLead(detail.id));
+      .subscribe({
+        // Refetch so the modal reflects the server-side assignment. On a
+        // failed assign this also rolls the dropdown back to the stored
+        // value; the failure itself lives in state (assignError).
+        next: () => this.store.dispatch(new SelectAdminLead(detail.id)),
+        error: () => this.store.dispatch(new SelectAdminLead(detail.id)),
       });
   }
 

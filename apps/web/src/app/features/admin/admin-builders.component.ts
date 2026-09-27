@@ -265,11 +265,16 @@ export class AdminBuildersComponent implements OnInit {
       this.store
         .dispatch(new UpdateBuilder(editing.id, body))
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => {
-          if (this.store.selectSnapshot(AdminBuildersState.saved)) {
-            this.showForm.set(false);
-            this.editing.set(null);
-          }
+        .subscribe({
+          next: () => {
+            if (this.store.selectSnapshot(AdminBuildersState.saved)) {
+              this.showForm.set(false);
+              this.editing.set(null);
+            }
+          },
+          // The failure already lives in state (saveError) — the banner
+          // renders it. Nothing more to do here.
+          error: () => undefined,
         });
     } else {
       const body: BuilderCreateBody = {
@@ -289,11 +294,16 @@ export class AdminBuildersComponent implements OnInit {
       this.store
         .dispatch(new CreateBuilder(body))
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => {
-          if (this.store.selectSnapshot(AdminBuildersState.saved)) {
-            this.showForm.set(false);
-            this.editing.set(null);
-          }
+        .subscribe({
+          next: () => {
+            if (this.store.selectSnapshot(AdminBuildersState.saved)) {
+              this.showForm.set(false);
+              this.editing.set(null);
+            }
+          },
+          // The failure already lives in state (saveError) — the banner
+          // renders it. Nothing more to do here.
+          error: () => undefined,
         });
     }
   }
