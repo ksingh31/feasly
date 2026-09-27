@@ -11,9 +11,9 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
-import { UpdateInputs, WizardState, LeadState } from '../wizard';
+import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
-import { LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPdfService } from './report-pdf.service';
 
@@ -550,14 +550,17 @@ export class ReportPageComponent implements OnInit {
   }
 
   /**
-   * "Estimate another address": restart the funnel on the landing page.
-   * Programmatic navigation (not anchor interception) — the same
-   * `router.navigate` path the landing page's own property-select uses, so
-   * the restart can never depend on click-interception quirks. The href
-   * keeps it a real link (keyboard, open-in-new-tab, crawlers).
+   * "Estimate another address": restart the funnel on the landing page with a
+   * genuinely fresh estimate — clear the report, lead, and wizard state so no
+   * stale figures, tokens, or property leak into the next run. Programmatic
+   * navigation (not anchor interception) — the same `router.navigate` path
+   * the landing page's own property-select uses, so the restart can never
+   * depend on click-interception quirks. The href keeps it a real link
+   * (keyboard, open-in-new-tab, crawlers).
    */
   startNewEstimate(event: Event): void {
     event.preventDefault();
+    this.store.dispatch([new ClearReport(), new ClearLead(), new ResetWizard()]);
     void this.router.navigate(['/']);
   }
 }

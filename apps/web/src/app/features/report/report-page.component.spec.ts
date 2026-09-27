@@ -337,13 +337,22 @@ describe('ReportPageComponent', () => {
         expect(text()).not.toContain('no longer available in this tab');
       });
 
-      it('"estimate another address" navigates to the landing page', async () => {
+      it('"estimate another address" clears state and navigates to the landing page', async () => {
         const router = TestBed.inject(Router);
         const navigateSpy = vi.spyOn(router, 'navigate');
+        const dispatchSpy = vi.spyOn(store, 'dispatch');
         const link = fixture.nativeElement.querySelector('a.another-address') as HTMLAnchorElement;
         expect(link).not.toBeNull();
         link.click();
         fixture.detectChanges();
+        // A genuinely fresh estimate: no stale report, lead, or wizard state
+        // leaks into the next run.
+        expect(dispatchSpy).toHaveBeenCalled();
+        const actions = dispatchSpy.mock.calls.flat().flat() as { constructor: { type?: string } }[];
+        const types = actions.map((a) => a?.constructor?.type);
+        expect(types).toContain('[Report] Clear');
+        expect(types).toContain('[Lead] Clear');
+        expect(types).toContain('[Wizard] Reset');
         expect(navigateSpy).toHaveBeenCalledWith(['/']);
       });
     });
