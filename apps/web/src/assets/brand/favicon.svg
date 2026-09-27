@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Feasly mark">
+  <defs>
+    <linearGradient id="feasly-brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D9A441"/>
+      <stop offset="0.55" stop-color="#C08A24"/>
+      <stop offset="1" stop-color="#A8761A"/>
+    </linearGradient>
+  </defs>
+  <!-- Extracted from logo.svg: brass-gradient roofline chevron + foundation bar
+       (wordmark removed; bar cropped to the mark width so the mark fills the
+       square without redesigning the geometry). -->
+  <g transform="translate(-161.41 7.75) scale(1.8848)">
+    <path d="M118 30 L144 10 L170 30" fill="none" stroke="url(#feasly-brass)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="114" y="96" width="60" height="6" rx="3" fill="url(#feasly-brass)"/>
+  </g>
+</svg>
