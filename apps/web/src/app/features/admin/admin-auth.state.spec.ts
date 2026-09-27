@@ -177,4 +177,70 @@ describe('AdminAuthState (admin/01)', () => {
     expect(s.authStatus).toBe('unknown');
     httpMock.verify();
   });
+
+  it("VerifyAdminToken classifies a consumed token as 'used'", async () => {
+    const done = store.dispatch(new VerifyAdminToken('used-token'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
+      .flush(
+        { code: 'MAGIC_LINK_USED', message: 'already been used' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await done;
+
+    const s = snapshot();
+    expect(s.authStatus).toBe('unauthenticated');
+    expect(s.lastVerifyError).toBe('used');
+    expect(store.selectSnapshot(AdminAuthState.lastVerifyError)).toBe('used');
+    httpMock.verify();
+  });
+
+  it("VerifyAdminToken classifies a 5xx as 'transient' (retryable)", async () => {
+    const done = store.dispatch(new VerifyAdminToken('tok'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
+      .flush(
+        { code: 'INTERNAL_ERROR', message: 'boom' },
+        { status: 500, statusText: 'Server Error' },
+      );
+    await done;
+
+    expect(snapshot().lastVerifyError).toBe('transient');
+    httpMock.verify();
+  });
+
+  it("VerifyAdminToken classifies an unknown/expired token as 'invalid'", async () => {
+    const done = store.dispatch(new VerifyAdminToken('bad-token'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
+      .flush(
+        { code: 'UNAUTHENTICATED', message: 'invalid or expired' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await done;
+
+    expect(snapshot().lastVerifyError).toBe('invalid');
+    httpMock.verify();
+  });
+
+  it('VerifyAdminToken success resets lastVerifyError to null', async () => {
+    const fail = store.dispatch(new VerifyAdminToken('bad-token'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
+      .flush({ code: 'UNAUTHENTICATED' }, { status: 401, statusText: 'x' });
+    await fail;
+    expect(snapshot().lastVerifyError).toBe('invalid');
+
+    const ok = store.dispatch(new VerifyAdminToken('magic-tok'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
+      .flush({
+        authenticated: true,
+        email: 'admin@example.com',
+        sessionToken: 'sess-abc',
+      });
+    await ok;
+    expect(snapshot().lastVerifyError).toBeNull();
+    httpMock.verify();
+  });
 });

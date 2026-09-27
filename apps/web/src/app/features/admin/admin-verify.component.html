@@ -11,10 +11,70 @@
     } @else if (status() === 'verifying') {
       <p role="status">Checking your sign-in link…</p>
     } @else {
-      <p class="admin-login__error" role="alert">
-        This sign-in link is invalid or has expired.
-      </p>
-      <button type="button" class="admin-login__submit" (click)="toLogin()">
+      @if (errorKind() === 'used') {
+        <p class="admin-login__error" role="alert">
+          This link was already used. Each sign-in link works once.
+        </p>
+      } @else if (errorKind() === 'transient') {
+        <p class="admin-login__error" role="alert">
+          Something went wrong while checking your link.
+        </p>
+        <button type="button" class="admin-login__submit" (click)="retry()">
+          Try again
+        </button>
+      } @else {
+        <p class="admin-login__error" role="alert">
+          This sign-in link is invalid or has expired.
+        </p>
+      }
+      @if (errorKind() !== 'transient') {
+        @if (resendStatus() === 'sent') {
+          <p class="admin-login__sent" role="status">
+            Check your email for a fresh sign-in link.
+          </p>
+        } @else {
+          <form
+            [formGroup]="resendForm"
+            (ngSubmit)="resend()"
+            novalidate
+            class="admin-login__resend"
+          >
+            <label class="admin-login__field">
+              <span>Email</span>
+              <input
+                type="email"
+                formControlName="email"
+                autocomplete="email"
+                inputmode="email"
+                [attr.aria-invalid]="resendEmailInvalid"
+                placeholder="you@example.com"
+              />
+            </label>
+            @if (resendEmailInvalid) {
+              <p class="admin-login__error" role="alert">
+                Enter a valid email address.
+              </p>
+            }
+            @if (resendStatus() === 'error') {
+              <p class="admin-login__error" role="alert">
+                We couldn't send the link. Please try again.
+              </p>
+            }
+            <button
+              type="submit"
+              class="admin-login__submit"
+              [disabled]="resendForm.invalid || resendStatus() === 'sending'"
+            >
+              @if (resendStatus() === 'sending') {
+                Sending…
+              } @else {
+                Send me a fresh link
+              }
+            </button>
+          </form>
+        }
+      }
+      <button type="button" class="admin-login__back" (click)="toLogin()">
         Back to sign in
       </button>
     }

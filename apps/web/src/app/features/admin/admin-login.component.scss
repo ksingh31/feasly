@@ -76,3 +76,22 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Verify page: resend form sits under the error copy. */
+.admin-login__resend {
+  margin-top: 1rem;
+}
+
+/* Verify page: secondary "Back to sign in" under the primary actions. */
+.admin-login__back {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  font-size: 0.9375rem;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
