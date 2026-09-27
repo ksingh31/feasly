@@ -21,6 +21,15 @@
     </div>
   </div>
 
+  @if (exportError(); as err) {
+    <p class="leads-page__export-error" role="alert">
+      {{ err }}
+      <button type="button" (click)="dismissExportError()" aria-label="Dismiss export error">
+        Dismiss
+      </button>
+    </p>
+  }
+
   <div class="leads-page__tabs" role="tablist" aria-label="Lead lists">
     <button
       type="button"

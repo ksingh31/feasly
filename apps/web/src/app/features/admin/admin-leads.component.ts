@@ -12,6 +12,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import {
   ClearSelectedAdminLead,
+  DismissExportError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -83,6 +84,7 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly listError = this.store.selectSignal(AdminLeadsState.listError);
   protected readonly selectedLeadId = this.store.selectSignal(AdminLeadsState.selectedLeadId);
   protected readonly exporting = this.store.selectSignal(AdminLeadsState.exporting);
+  protected readonly exportError = this.store.selectSignal(AdminLeadsState.exportError);
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pipelineStatuses = PIPELINE_STATUSES;
@@ -189,6 +191,10 @@ export class AdminLeadsComponent implements OnInit {
 
   protected exportCsv(): void {
     this.store.dispatch(new ExportAdminLeadsCsv());
+  }
+
+  protected dismissExportError(): void {
+    this.store.dispatch(new DismissExportError());
   }
 
   protected onKeydown(event: KeyboardEvent): void {
