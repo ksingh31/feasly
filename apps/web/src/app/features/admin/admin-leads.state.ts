@@ -14,6 +14,7 @@ import { AdminLeadsApiService } from './admin-leads-api.service';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
+  DismissAdminLeadStatusError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -271,6 +272,7 @@ export class AdminLeadsState {
       detail: null,
       detailStatus: 'loading',
       detailError: null,
+      statusUpdateError: null,
     });
     return this.api.getLead(action.id).pipe(
       tap({
@@ -301,6 +303,7 @@ export class AdminLeadsState {
       detail: null,
       detailStatus: 'idle',
       detailError: null,
+      statusUpdateError: null,
     });
   }
 
@@ -389,6 +392,11 @@ export class AdminLeadsState {
         },
       }),
     );
+  }
+
+  @Action(DismissAdminLeadStatusError)
+  dismissStatusError(ctx: StateContext<AdminLeadsStateModel>): void {
+    ctx.patchState({ statusUpdateError: null });
   }
 
   @Action(ExportAdminLeadsCsv)

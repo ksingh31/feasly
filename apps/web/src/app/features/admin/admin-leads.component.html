@@ -50,7 +50,40 @@
     </p>
   }
 
-  <form class="leads-page__filters" [formGroup]="filtersForm" aria-label="Lead filters">
+  <div
+    class="leads-page__totals"
+    role="group"
+    aria-label="Pipeline totals — select a status to filter"
+  >
+    @for (s of pipelineStatuses; track s) {
+      <button
+        type="button"
+        class="leads-page__total"
+        [class.leads-page__total--active]="filtersForm.controls.status.value === s"
+        [attr.aria-pressed]="filtersForm.controls.status.value === s"
+        (click)="filterByStatus(s)"
+      >
+        <span class="leads-page__total-count">{{ statusCounts()[s] }}</span>
+        <span class="leads-page__total-label">{{ statusLabel(s) }}</span>
+      </button>
+    }
+  </div>
+
+  <button
+    type="button"
+    class="leads-page__filters-toggle"
+    [attr.aria-expanded]="filtersOpen()"
+    (click)="toggleFilters()"
+  >
+    {{ filtersOpen() ? 'Hide filters' : 'Show filters' }}
+  </button>
+
+  <form
+    class="leads-page__filters"
+    [class.leads-page__filters--open]="filtersOpen()"
+    [formGroup]="filtersForm"
+    aria-label="Lead filters"
+  >
     <label class="leads-page__filter leads-page__filter--search">
       <span>Search</span>
       <input
@@ -64,72 +97,16 @@
       <span>Status</span>
       <select formControlName="status" (change)="applyFilters()">
         @for (s of statusOptions; track s) {
-          <option [value]="s">{{ s === '' ? 'All statuses' : s }}</option>
+          <option [value]="s">{{ s === '' ? 'All statuses' : statusLabel(s) }}</option>
         }
       </select>
     </label>
     <label class="leads-page__filter">
-      <span>Source</span>
-      <select formControlName="source" (change)="applyFilters()">
-        @for (s of sourceOptions; track s) {
-          <option [value]="s">{{ s === '' ? 'All sources' : s }}</option>
+      <span>Assigned</span>
+      <select formControlName="assigned" (change)="applyFilters()">
+        @for (a of assignedOptions; track a) {
+          <option [value]="a">{{ a === '' ? 'All' : 'Unassigned' }}</option>
         }
-      </select>
-    </label>
-    <label class="leads-page__filter">
-      <span>Project type</span>
-      <select formControlName="projectType" (change)="applyFilters()">
-        @for (p of projectTypeOptions; track p) {
-          <option [value]="p">{{ p === '' ? 'All types' : projectTypeLabel(p) }}</option>
-        }
-      </select>
-    </label>
-    <label class="leads-page__filter">
-      <span>Min score</span>
-      <input
-        type="number"
-        formControlName="minScore"
-        min="0"
-        max="100"
-        placeholder="0"
-        (change)="applyFilters()"
-      />
-    </label>
-    <label class="leads-page__filter">
-      <span>Max score</span>
-      <input
-        type="number"
-        formControlName="maxScore"
-        min="0"
-        max="100"
-        placeholder="100"
-        (change)="applyFilters()"
-      />
-    </label>
-    <label class="leads-page__filter">
-      <span>From</span>
-      <input type="date" formControlName="createdAfter" (change)="applyFilters()" />
-    </label>
-    <label class="leads-page__filter">
-      <span>To</span>
-      <input type="date" formControlName="createdBefore" (change)="applyFilters()" />
-    </label>
-    <label class="leads-page__filter">
-      <span>Tenant</span>
-      <input
-        type="text"
-        formControlName="tenantId"
-        placeholder="tenant key…"
-        autocomplete="off"
-        (change)="applyFilters()"
-      />
-    </label>
-    <label class="leads-page__filter">
-      <span>Contact consent</span>
-      <select formControlName="consent" (change)="applyFilters()">
-        <option value="">All</option>
-        <option value="in">In</option>
-        <option value="out">Out</option>
       </select>
     </label>
     <button type="button" class="leads-page__clear" (click)="clearFilters()">
@@ -154,70 +131,63 @@
       <button type="button" (click)="retry()">Try again</button>
     </div>
   } @else {
-    <div class="leads-page__table-wrap">
-      <table class="leads-page__table">
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Email</th>
-            <th scope="col">Address</th>
-            <th scope="col">Score</th>
-            <th scope="col">Status</th>
-            <th scope="col">Source</th>
-            <th scope="col">Type</th>
-            <th scope="col">Tenant</th>
-            <th scope="col">Contact consent</th>
-            <th scope="col">Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (lead of leads(); track lead.id) {
-            <tr
-              class="leads-page__row"
-              [class.leads-page__row--selected]="selectedLeadId() === lead.id"
-              (click)="selectLead(lead.id)"
-              (keydown.enter)="selectLead(lead.id)"
-              tabindex="0"
-              [attr.aria-label]="'Open lead ' + lead.name"
-            >
-              <td>
+    <div class="leads-page__cards">
+      @for (lead of leads(); track lead.id) {
+        <article
+          class="lead-card"
+          [class.lead-card--selected]="selectedLeadId() === lead.id"
+          (click)="selectLead(lead.id)"
+          (keydown.enter)="selectLead(lead.id)"
+          tabindex="0"
+          role="button"
+          [attr.aria-label]="'Open lead ' + lead.name"
+        >
+          <div class="lead-card__avatar" aria-hidden="true">{{ initials(lead.name) }}</div>
+          <div class="lead-card__main">
+            <div class="lead-card__top">
+              <h2 class="lead-card__name">
                 {{ lead.name }}
                 @if (lead.sandbox) {
                   <span class="badge badge--sandbox">Sandbox</span>
                 }
-              </td>
-              <td>{{ lead.email }}</td>
-              <td>{{ lead.addressKey }}</td>
-              <td>{{ lead.leadScore }}</td>
-              <td><span class="badge badge--status-{{ lead.status }}">{{ lead.status }}</span></td>
-              <td>{{ lead.source }}</td>
-              <td>{{ projectTypeLabel(lead.projectType) }}</td>
-              <td>{{ lead.tenantKey ?? '—' }}</td>
-              <td>
-                <span
-                  class="badge"
-                  [class.badge--consent-in]="lead.contactConsent === 'in'"
-                  [class.badge--consent-out]="lead.contactConsent === 'out'"
-                >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
-                <span class="leads-page__consent-date">{{
-                  formatDate(lead.consentUpdatedAt)
-                }}</span>
-              </td>
-              <td>{{ formatDate(lead.createdAt) }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="10" class="leads-page__empty">
-                @if (listStatus() === 'loading') {
-                  Loading…
-                } @else {
-                  No leads match these filters.
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+              </h2>
+              <span class="badge badge--status-{{ lead.status }}">{{
+                statusLabel(lead.status)
+              }}</span>
+            </div>
+            <p class="lead-card__contact">{{ lead.email }} · {{ lead.addressKey }}</p>
+            <p class="lead-card__meta">
+              <span>Score {{ lead.leadScore }}</span>
+              <span>{{ lead.source }}</span>
+              <span>{{ projectTypeLabel(lead.projectType) }}</span>
+              @if (lead.tenantKey) {
+                <span>{{ lead.tenantKey }}</span>
+              }
+              @if (lead.timeline) {
+                <span>{{ lead.timeline }}</span>
+              }
+              <span>{{ formatDate(lead.createdAt) }}</span>
+            </p>
+          </div>
+          <div class="lead-card__side">
+            <span
+              class="badge"
+              [class.badge--consent-in]="lead.contactConsent === 'in'"
+              [class.badge--consent-out]="lead.contactConsent === 'out'"
+              [attr.aria-label]="'Contact consent: ' + lead.contactConsent"
+            >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
+            <span class="lead-card__consent-date">{{ formatDate(lead.consentUpdatedAt) }}</span>
+          </div>
+        </article>
+      } @empty {
+        @if (listStatus() !== 'loading') {
+          <div class="leads-page__empty">
+            <h2>No leads match these filters</h2>
+            <p>Try widening your search, or clear the filters to see every lead.</p>
+            <button type="button" (click)="clearFilters()">Clear filters</button>
+          </div>
+        }
+      }
     </div>
 
     @if (hasMore()) {
@@ -233,7 +203,9 @@
   }
 
   @if (selectedLeadId()) {
-    <div class="leads-page__drawer-backdrop" (click)="closeDetail()"></div>
-    <app-admin-lead-detail class="leads-page__drawer" />
+    <div class="lead-modal">
+      <div class="lead-modal__backdrop" (click)="closeDetail()"></div>
+      <app-admin-lead-detail class="lead-modal__dialog" />
+    </div>
   }
 </div>
