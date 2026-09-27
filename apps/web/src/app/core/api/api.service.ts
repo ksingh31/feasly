@@ -22,6 +22,7 @@ import type {
   NarrativeResponse,
   PartnerShareRequest,
   PartnerShareResponse,
+  PartnerShareVerifyResponse,
   PreviewEstimateResponse,
   EstimateResponse,
   ComparisonEstimateRequest,
@@ -127,6 +128,12 @@ export interface ApiService {
   shareWithPartner(
     request: PartnerShareRequest,
   ): Observable<PartnerShareResponse>;
+  /**
+   * Verifies a partner-share link token (GET /api/v1/shares/verify).
+   * Partner tokens are a DIFFERENT token type from owner magic links —
+   * they verify here, never on verifyMagicLink.
+   */
+  verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse>;
   /**
    * Unsubscribe center (email/03): read-only state for an unsubscribe token.
    * The token IS the credential — it is never logged and the email is never
@@ -268,6 +275,10 @@ class LazyApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.resolve().shareWithPartner(request);
+  }
+
+  verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse> {
+    return this.resolve().verifyPartnerShare(token);
   }
 
   getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {

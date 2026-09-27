@@ -148,6 +148,16 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Email a report to a partner: mints a fresh partner-share magic link ' +
       '(never the owner token) and records the audit row. Token IS the credential.',
   },
+  {
+    method: 'GET',
+    path: '/api/v1/shares/verify',
+    auth: 'magic-token',
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Verify a partner-share link token (?token=). Partner-share tokens ' +
+      'only — owner tokens answer invalid here. Token IS the credential.',
+  },
 
   // ── Public v1: property data ──────────────────────────────────────
   {

@@ -12,7 +12,7 @@ import { mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SelectProperty, UpdateInputs, WizardState } from '../wizard';
-import { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } from './report.actions';
+import { ClearReport, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 
 /**
@@ -176,6 +176,17 @@ describe('ReportState', () => {
     store.dispatch(new UnlockReport());
     await pollStatus('error');
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
+  });
+
+  it('SetPartnerView marks the session read-only; a fresh SetReportToken resets it', () => {
+    // Default is owner view.
+    expect(store.selectSnapshot(ReportState.partnerView)).toBe(false);
+    store.dispatch(new SetPartnerView());
+    expect(store.selectSnapshot(ReportState.partnerView)).toBe(true);
+    // A fresh owner link (from the owner verify path) resets partner mode.
+    store.dispatch(new SetReportToken('owner-tok'));
+    expect(store.selectSnapshot(ReportState.partnerView)).toBe(false);
+    expect(store.selectSnapshot(ReportState.reportToken)).toBe('owner-tok');
   });
 
   it('top-ups an empty snapshot narrative via getNarrative', async () => {

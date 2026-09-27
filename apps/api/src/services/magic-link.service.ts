@@ -4,15 +4,17 @@
  * Two public operations:
  *
  * - `verify(token)` — `GET /api/v1/magic-link/verify`. Resolves a bearer
- *   token to the report it unlocks. The critical consumer/02 semantic: an
- *   OLD token (issued for an earlier estimate on the same email + property)
- *   resolves to the NEWEST estimate, not the one the token was minted for.
- *   `reportToken` is the presented magic token itself — the future
- *   `GET /api/v1/reports/{reportToken}` endpoint will resolve it the same
- *   way (same join), so frontend code can treat the token as the stable
- *   report handle. `usedAt` is NOT set here: it is reserved for the
- *   future verify→reportToken redemption flow and is ignored by bearer
- *   checks (see the magic-link store docs).
+ *   token to the report it unlocks. OWNER links only: a token minted for any
+ *   other purpose (e.g. 'partner-share') is answered invalid — partner links
+ *   redeem on the dedicated `GET /api/v1/shares/verify` path. The critical
+ *   consumer/02 semantic: an OLD token (issued for an earlier estimate on
+ *   the same email + property) resolves to the NEWEST estimate, not the one
+ *   the token was minted for. `reportToken` is the presented magic token
+ *   itself — the future `GET /api/v1/reports/{reportToken}` endpoint will
+ *   resolve it the same way (same join), so frontend code can treat the
+ *   token as the stable report handle. `usedAt` is NOT set here: it is
+ *   reserved for the future verify→reportToken redemption flow and is
+ *   ignored by bearer checks (see the magic-link store docs).
  *
  * - `reissue({ email })` — `POST /api/v1/magic-link/reissue`. Idempotent
  *   "resend my link". A live link is never re-sent (no duplicate emails);
@@ -29,7 +31,11 @@ import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
-import { hashMagicToken, type MagicLinkStore } from './magic-link.store';
+import {
+  hashMagicToken,
+  OWNER_LINK_PURPOSE,
+  type MagicLinkStore,
+} from './magic-link.store';
 
 export interface MagicLinkService {
   /** Resolve a bearer token to the report it unlocks. */
@@ -95,7 +101,7 @@ export async function issueAndSendMagicLink(
 ): Promise<void> {
   const issued = await args.magicLinks.issue({
     leadId: args.leadId,
-    purpose: 'lead',
+    purpose: OWNER_LINK_PURPOSE,
     ttlSeconds: args.magicLinkTtlSeconds,
     clock: args.clock,
   });
@@ -137,6 +143,12 @@ export function createMagicLinkService(
     async verify(token: string): Promise<MagicLinkVerifyResponse> {
       const record = await magicLinks.findByToken(token);
       if (!record || record.leadId === null) {
+        return { valid: false, reason: 'invalid', reissueAllowed: true };
+      }
+      if (record.purpose !== OWNER_LINK_PURPOSE) {
+        // Partner-share (and any future non-owner) tokens are a DIFFERENT
+        // token type: they never verify as owner links. Same denial shape
+        // as an invalid token — no purpose oracle.
         return { valid: false, reason: 'invalid', reissueAllowed: true };
       }
       const lead = await leads.findById(record.leadId);
@@ -188,7 +200,7 @@ export function createMagicLinkService(
       const now = clock();
       const links = await magicLinks.findByLeadIds([lead.id]);
       const live = links
-        .filter((l) => l.purpose === 'lead')
+        .filter((l) => l.purpose === OWNER_LINK_PURPOSE)
         .some((l) => isMagicLinkLive(l, now));
       if (live) {
         // AC4: a repeat/reissue with a live link sends nothing.

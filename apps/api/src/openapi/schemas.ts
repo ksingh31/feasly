@@ -511,3 +511,13 @@ export const PartnerShareResponseSchema = z
     sharedTo: z.string().email(),
   })
   .openapi('PartnerShareResponse');
+
+export const PartnerShareVerifyResponseSchema = z
+  .object({
+    valid: z.boolean(),
+    reportToken: z.string().optional(),
+    estimateId: z.string().optional(),
+    partnerEmail: z.string().email().optional(),
+    reason: z.enum(['expired', 'invalid']).optional(),
+  })
+  .openapi('PartnerShareVerifyResponse');

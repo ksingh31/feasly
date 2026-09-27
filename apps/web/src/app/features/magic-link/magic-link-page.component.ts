@@ -9,7 +9,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent } from '../../shared/components/site-footer/site-footer.component';
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
-import { SetReportToken } from '../report/report.actions';
+import { SetPartnerView, SetReportToken } from '../report/report.actions';
 
 /**
  * Magic-link redemption (consumer/02): `/r/:token`.
@@ -20,9 +20,12 @@ import { SetReportToken } from '../report/report.actions';
  * itself. Expired/invalid links get an error card with a resend form
  * (`POST /api/v1/magic-link/reissue`).
  *
- * Partner-share links use the same `/r/` URL shape but there is no
- * partner-verify endpoint yet, so they land on the invalid-link card —
- * a deliberate follow-up, not silent breakage.
+ * Partner-share links use the same `/r/` URL shape: the owner's verify
+ * endpoint deliberately answers invalid for them (partner tokens are a
+ * different token type), so an invalid answer falls through to
+ * `GET /api/v1/shares/verify`. A verified partner token lands on
+ * `/estimate/report` in read-only partner view (the report state marks the
+ * session via SetPartnerView).
  *
  * `view` is a signal, not a plain field: the app runs zoneless change
  * detection (no zone.js), so a plain-field write inside the HTTP callbacks
@@ -113,7 +116,14 @@ export class MagicLinkPageComponent implements OnInit {
           // strictNullChecks, TS does not narrow the negated boolean
           // discriminant.
           if (res.valid === false) {
-            this.view.set(res.reason === 'expired' ? 'expired' : 'invalid');
+            if (res.reason === 'expired') {
+              this.view.set('expired');
+              return;
+            }
+            // The owner verify endpoint answers invalid for partner-share
+            // tokens too (no purpose oracle) — try the partner redemption
+            // path before giving up.
+            this.verifyPartnerShare();
             return;
           }
           // Valid: hand the report token to the report state and land on the
@@ -124,6 +134,33 @@ export class MagicLinkPageComponent implements OnInit {
         error: (err: ApiError) => {
           this.view.set(err?.code === 'FORBIDDEN' ? 'invalid' : 'error');
         },
+      });
+  }
+
+  /**
+   * Partner-share redemption for `/r/:token`. A verified partner token
+   * unlocks the same report page in read-only partner view: the report
+   * state marks the session via SetPartnerView, which hides the sqft
+   * stepper, share form, and callback form (the backend rejects those
+   * actions for partner tokens with 403 anyway).
+   */
+  private verifyPartnerShare(): void {
+    this.api
+      .verifyPartnerShare(this.token)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (res.valid === false) {
+            this.view.set(res.reason === 'expired' ? 'expired' : 'invalid');
+            return;
+          }
+          this.store.dispatch([
+            new SetReportToken(res.reportToken),
+            new SetPartnerView(),
+          ]);
+          void this.router.navigate(['/estimate/report']);
+        },
+        error: () => this.view.set('invalid'),
       });
   }
 }
