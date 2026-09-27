@@ -51,9 +51,17 @@ function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
   };
 }
 
+/** Empty pipeline totals for listLeads mocks that don't care about counts. */
+const STATUS_COUNTS = { new: 0, contacted: 0, quoting: 0, won: 0, lost: 0 };
+
 function makeDeps(overrides?: Partial<AdminLeadsServiceDeps>): AdminLeadsServiceDeps {
   const store: AdminLeadsStore = {
-    listLeads: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, totalCount: 0 }),
+    listLeads: vi.fn().mockResolvedValue({
+      rows: [],
+      nextCursor: null,
+      totalCount: 0,
+      statusCounts: STATUS_COUNTS,
+    }),
     findByIdWithEstimate: vi.fn().mockResolvedValue(null),
     updateStatus: vi.fn(),
     updateQuarantine: vi.fn(),
@@ -109,6 +117,7 @@ describe('admin-leads service (admin/02)', () => {
         rows: [row],
         nextCursor: 'cursor-123',
         totalCount: 1,
+        statusCounts: STATUS_COUNTS,
       });
 
       const result = await service.listLeads(
@@ -120,6 +129,7 @@ describe('admin-leads service (admin/02)', () => {
       expect(result.leads[0].id).toBe('lead-1');
       expect(result.nextCursor).toBe('cursor-123');
       expect(result.totalCount).toBe(1);
+      expect(result.statusCounts).toEqual(STATUS_COUNTS);
       expect(deps.store.listLeads).toHaveBeenCalledWith({
         filters: expect.objectContaining({
           status: 'new',
@@ -166,6 +176,7 @@ describe('admin-leads service (admin/02)', () => {
         rows: [outEmail, outContact, inRow],
         nextCursor: null,
         totalCount: 3,
+        statusCounts: STATUS_COUNTS,
       });
 
       const result = await service.listLeads({}, ADMIN_EMAIL);
@@ -186,6 +197,7 @@ describe('admin-leads service (admin/02)', () => {
         rows: [],
         nextCursor: null,
         totalCount: 0,
+        statusCounts: STATUS_COUNTS,
       });
 
       // Default: consent is undefined — the admin view never filters by
@@ -478,6 +490,7 @@ describe('admin-leads service (admin/02)', () => {
         rows,
         nextCursor: null,
         totalCount: 2,
+        statusCounts: STATUS_COUNTS,
       });
 
       const result = await service.exportCsv({ status: 'new' }, ADMIN_EMAIL);
@@ -506,6 +519,7 @@ describe('admin-leads service (admin/02)', () => {
         rows: [makeLeadRow({ name: 'Doe, "John"' })],
         nextCursor: null,
         totalCount: 1,
+        statusCounts: STATUS_COUNTS,
       });
 
       const result = await service.exportCsv({}, ADMIN_EMAIL);
@@ -522,6 +536,7 @@ describe('admin-leads service (admin/02)', () => {
         ],
         nextCursor: null,
         totalCount: 1,
+        statusCounts: STATUS_COUNTS,
       });
 
       const result = await service.exportCsv({}, ADMIN_EMAIL);

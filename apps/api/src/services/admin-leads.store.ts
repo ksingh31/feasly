@@ -79,6 +79,11 @@ export interface AdminLeadListResult {
   /** Opaque cursor for the next page; null when this is the last page. */
   readonly nextCursor: string | null;
   readonly totalCount: number;
+  /**
+   * Per-status counts across the full filtered set, computed with every
+   * active filter EXCEPT `status` (pipeline totals row).
+   */
+  readonly statusCounts: Record<string, number>;
 }
 
 export interface AdminLeadsStore {
@@ -276,6 +281,32 @@ export function createDrizzleAdminLeadsStore(
         .where(where);
       const totalCount = countRows[0]?.count ?? 0;
 
+      // Pipeline totals: per-status counts across the full filtered set,
+      // computed with every active filter EXCEPT `status` so the totals
+      // row stays stable while the admin switches status filters. The
+      // cursor is pagination-only and excluded as well.
+      const countsConditions = buildFilterConditions({ ...filters, status: undefined });
+      const countsWhere =
+        countsConditions.length > 0 ? and(...countsConditions) : undefined;
+      const statusRows = await db
+        .select({ status: leads.status, count: sql<number>`count(*)::int` })
+        .from(leads)
+        .leftJoin(estimates, eq(leads.estimateId, estimates.id))
+        .where(countsWhere)
+        .groupBy(leads.status);
+      const statusCounts: Record<string, number> = {
+        new: 0,
+        contacted: 0,
+        quoting: 0,
+        won: 0,
+        lost: 0,
+      };
+      for (const row of statusRows) {
+        if (row.status in statusCounts) {
+          statusCounts[row.status] = row.count;
+        }
+      }
+
       // Page query: newest first, id as tiebreaker.
       const rows = await db
         .select({
@@ -301,7 +332,7 @@ export function createDrizzleAdminLeadsStore(
         nextCursor = encodeCursor(last.createdAt, last.id);
       }
 
-      return { rows: result, nextCursor, totalCount };
+      return { rows: result, nextCursor, totalCount, statusCounts };
     },
 
     async findByIdWithEstimate(id): Promise<AdminLeadRow | null> {
