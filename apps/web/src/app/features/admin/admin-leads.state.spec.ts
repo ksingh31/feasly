@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
+  DismissAdminLeadStatusError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -70,8 +71,19 @@ const DETAIL_A: AdminLeadDetail = {
   statusHistory: [],
 };
 
-function listResponse(leads: AdminLeadListItem[], nextCursor: string | null, totalCount: number) {
-  return { leads, nextCursor, totalCount };
+function listResponse(
+  leads: AdminLeadListItem[],
+  nextCursor: string | null,
+  totalCount: number,
+  statusCounts: Record<string, number> = {
+    new: totalCount,
+    contacted: 0,
+    quoting: 0,
+    won: 0,
+    lost: 0,
+  },
+) {
+  return { leads, nextCursor, totalCount, statusCounts };
 }
 
 /**
@@ -221,6 +233,121 @@ describe('AdminLeadsState', () => {
     expect(store.selectSnapshot(AdminLeadsState.leads)[0]?.status).toBe('won');
     expect(store.selectSnapshot(AdminLeadsState.detail)?.status).toBe('won');
     expect(store.selectSnapshot(AdminLeadsState.statusUpdating)).toBe(false);
+  });
+
+  it('stores pipeline totals from the list response', async () => {
+    const done = store.dispatch(new LoadAdminLeads());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+      .flush(
+        listResponse([LEAD_A], null, 3, {
+          new: 1,
+          contacted: 2,
+          quoting: 0,
+          won: 0,
+          lost: 0,
+        }),
+      );
+    await done.toPromise();
+
+    expect(store.selectSnapshot(AdminLeadsState.statusCounts)).toEqual({
+      new: 1,
+      contacted: 2,
+      quoting: 0,
+      won: 0,
+      lost: 0,
+    });
+  });
+
+  it('applies the status change optimistically before the API responds', async () => {
+    let done = store.dispatch(new LoadAdminLeads());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+      .flush(listResponse([LEAD_A], null, 1, { new: 1, contacted: 0, quoting: 0, won: 0, lost: 0 }));
+    await done.toPromise();
+
+    done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush(DETAIL_A);
+    await done.toPromise();
+
+    done = store.dispatch(new UpdateAdminLeadStatus('a1', 'contacted'));
+    // Optimistic: row, modal badge, and totals move before the PATCH lands.
+    expect(store.selectSnapshot(AdminLeadsState.leads)[0]?.status).toBe('contacted');
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.status).toBe('contacted');
+    expect(store.selectSnapshot(AdminLeadsState.statusCounts)).toEqual({
+      new: 0,
+      contacted: 1,
+      quoting: 0,
+      won: 0,
+      lost: 0,
+    });
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdating)).toBe(true);
+
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status')).flush({ ok: true });
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush({ ...DETAIL_A, status: 'contacted' });
+    await done.toPromise();
+
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdating)).toBe(false);
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateError)).toBeNull();
+  });
+
+  it('rolls back the optimistic update and surfaces an error on failure', async () => {
+    let done = store.dispatch(new LoadAdminLeads());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+      .flush(listResponse([LEAD_A], null, 1, { new: 1, contacted: 0, quoting: 0, won: 0, lost: 0 }));
+    await done.toPromise();
+
+    done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush(DETAIL_A);
+    await done.toPromise();
+
+    done = store.dispatch(new UpdateAdminLeadStatus('a1', 'won'));
+    expect(store.selectSnapshot(AdminLeadsState.leads)[0]?.status).toBe('won');
+
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status'))
+      .error(new ProgressEvent('error'));
+    await done.toPromise().catch(() => undefined);
+
+    // Rolled back everywhere, error surfaced for the modal's inline message.
+    expect(store.selectSnapshot(AdminLeadsState.leads)[0]?.status).toBe('new');
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.status).toBe('new');
+    expect(store.selectSnapshot(AdminLeadsState.statusCounts)).toEqual({
+      new: 1,
+      contacted: 0,
+      quoting: 0,
+      won: 0,
+      lost: 0,
+    });
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdating)).toBe(false);
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateError)).toBeTruthy();
+    // No detail refetch on failure — nothing changed server-side.
+    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET');
+  });
+
+  it('dismisses the status error when the admin picks a new status', async () => {
+    let done = store.dispatch(new LoadAdminLeads());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+      .flush(listResponse([LEAD_A], null, 1));
+    await done.toPromise();
+
+    done = store.dispatch(new UpdateAdminLeadStatus('a1', 'won'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status'))
+      .error(new ProgressEvent('error'));
+    await done.toPromise().catch(() => undefined);
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateError)).toBeTruthy();
+
+    store.dispatch(new DismissAdminLeadStatusError());
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateError)).toBeNull();
   });
 
   it('records list errors without crashing', async () => {

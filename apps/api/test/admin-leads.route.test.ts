@@ -18,7 +18,12 @@ const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
 
 function makeDeps(): AdminLeadsRouteDeps {
   const service: AdminLeadsService = {
-    listLeads: vi.fn().mockResolvedValue({ leads: [], nextCursor: null, totalCount: 0 }),
+    listLeads: vi.fn().mockResolvedValue({
+      leads: [],
+      nextCursor: null,
+      totalCount: 0,
+      statusCounts: { new: 0, contacted: 0, quoting: 0, won: 0, lost: 0 },
+    }),
     getLead: vi.fn(),
     addNote: vi.fn().mockResolvedValue({ ok: true as const }),
     updateStatus: vi.fn().mockResolvedValue({ ok: true as const }),

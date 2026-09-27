@@ -271,6 +271,7 @@ export function createAdminLeadsService(
         leads: result.rows.map(toListItem),
         nextCursor: result.nextCursor,
         totalCount: result.totalCount,
+        statusCounts: result.statusCounts,
       };
     },
 

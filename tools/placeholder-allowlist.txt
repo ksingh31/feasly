@@ -47,3 +47,10 @@ apps/web/src/app/features/admin/admin-calibration.component.html :: PLACEHOLDER 
 # Unblock: Karan's sender-domain decision → wire the ACS send in
 # callback.service.ts and remove both the placeholder comment and this entry.
 apps/api/src/services/callback.service.ts :: PLACEHOLDER :: outbound email/SMS not wired; callback requests persisted only, blocked on Karan's ACS sender-domain decision
+
+# Admin leads redesign (FE-9): assign-to-builder is visual-only — no backend
+# endpoint exists (Karan's call). Renders "Unassigned", disabled, wired to
+# nothing. Unblock: backend assign-to-builder endpoint story → wire the
+# dropdown and remove both placeholder markers and these entries.
+apps/web/src/app/features/admin/admin-lead-detail.component.html :: PLACEHOLDER :: assign-to-builder visual-only placeholder, blocked on backend assign-to-builder endpoint story
+apps/web/src/app/features/admin/admin-lead-detail.component.ts :: PLACEHOLDER :: assign-to-builder visual-only placeholder comment, blocked on backend assign-to-builder endpoint story

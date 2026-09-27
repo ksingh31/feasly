@@ -1,78 +1,115 @@
-<aside class="lead-detail" role="dialog" aria-modal="false" aria-label="Lead detail">
-  <div class="lead-detail__header">
-    <h2>Lead detail</h2>
-    <button type="button" class="lead-detail__close" (click)="close()" aria-label="Close detail">
-      ✕
-    </button>
-  </div>
-
+<div class="lead-modal-card" role="dialog" aria-modal="true" aria-label="Lead detail">
   @if (detailStatus() === 'loading') {
-    <p class="lead-detail__state">Loading lead…</p>
+    <p class="lead-modal-card__state">Loading lead…</p>
   } @else if (detailStatus() === 'error') {
-    <div class="lead-detail__state lead-detail__state--error">
+    <div class="lead-modal-card__state lead-modal-card__state--error">
       <p>{{ detailError() }}</p>
       <button type="button" (click)="retry()">Try again</button>
     </div>
   } @else if (detail(); as lead) {
-    <section class="lead-detail__section" aria-label="Contact">
-      <h3>{{ lead.name }}</h3>
-      <dl class="lead-detail__grid">
+    <header class="lead-modal-card__header">
+      <div class="lead-modal-card__avatar" aria-hidden="true">{{ initials(lead.name) }}</div>
+      <div class="lead-modal-card__identity">
+        <h2>
+          {{ lead.name }}
+          @if (lead.sandbox) {
+            <span class="badge badge--sandbox">Sandbox</span>
+          }
+          @if (lead.quarantined) {
+            <span class="badge badge--quarantine">Honeypot-flagged</span>
+          }
+        </h2>
+        <p>{{ lead.email }}@if (lead.phone) { · {{ lead.phone }} }</p>
+      </div>
+      <button
+        type="button"
+        class="lead-modal-card__close"
+        (click)="close()"
+        aria-label="Close lead detail"
+      >
+        ✕
+      </button>
+    </header>
+
+    <section class="lead-modal-card__pipeline" aria-label="Pipeline">
+      <div class="lead-modal-card__pipeline-head">
+        <h3>Pipeline</h3>
+        <span class="lead-modal-card__eyebrow">Next actions</span>
+      </div>
+
+      <label class="lead-modal-card__status">
+        <span class="lead-modal-card__field-label">Change status</span>
+        <span class="lead-modal-card__status-row">
+          <select
+            [formControl]="statusControl"
+            [disabled]="statusUpdating()"
+            aria-label="Change status"
+          >
+            @for (s of pipelineStatuses; track s) {
+              <option [value]="s">{{ statusLabel(s) }}</option>
+            }
+          </select>
+          <button
+            type="button"
+            class="lead-modal-card__apply"
+            (click)="applyStatus()"
+            [disabled]="!canApply()"
+          >
+            {{ statusUpdating() ? 'Applying…' : 'Apply Status' }}
+          </button>
+        </span>
+      </label>
+      @if (statusUpdateError(); as err) {
+        <p class="lead-modal-card__error" role="alert">{{ err }}</p>
+      }
+
+      <!-- PLACEHOLDER: assign-to-builder has no backend endpoint. Visual-only:
+           always "Unassigned", disabled, wired to nothing. -->
+      <label class="lead-modal-card__assign">
+        <span class="lead-modal-card__field-label">Assign to builder</span>
+        <select disabled aria-label="Assign to builder (not available yet)">
+          <option>Unassigned</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="lead-modal-card__section" aria-label="Contact">
+      <h3>Contact</h3>
+      <dl class="lead-modal-card__grid">
         <div><dt>Email</dt><dd>{{ lead.email }}</dd></div>
         <div><dt>Phone</dt><dd>{{ lead.phone ?? '—' }}</dd></div>
-        <div><dt>Address</dt><dd>{{ lead.addressKey }}</dd></div>
-        <div><dt>Lead score</dt><dd>{{ lead.leadScore }}</dd></div>
         <div><dt>Source</dt><dd>{{ lead.source }}</dd></div>
-        <div><dt>Project type</dt><dd>{{ lead.projectType }}</dd></div>
         <div><dt>Tenant</dt><dd>{{ lead.tenantKey ?? '—' }}</dd></div>
-        @if (lead.sandbox) {
-          <div><dt>Environment</dt><dd><span class="badge badge--sandbox">Sandbox</span></dd></div>
-        }
-        @if (lead.quarantined) {
-          <div><dt>Quarantine</dt><dd><span class="badge badge--quarantine">Honeypot-flagged</span></dd></div>
-        }
+        <div><dt>Magic link</dt><dd>{{ magicLinkLabel(lead.magicLinkStatus) }}</dd></div>
+        <div>
+          <dt>Contact consent</dt>
+          <dd>
+            <span
+              class="badge"
+              [class.badge--consent-in]="lead.contactConsent === 'in'"
+              [class.badge--consent-out]="lead.contactConsent === 'out'"
+              [attr.aria-label]="'Contact consent: ' + (lead.contactConsent === 'in' ? 'in' : 'out')"
+            >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Marketing consent</dt>
+          <dd>
+            <span
+              class="badge"
+              [class.badge--consent-in]="lead.marketingConsent"
+              [class.badge--consent-out]="!lead.marketingConsent"
+              [attr.aria-label]="'Marketing consent: ' + (lead.marketingConsent ? 'yes' : 'no')"
+            >{{ lead.marketingConsent ? 'Yes' : 'No' }}</span>
+          </dd>
+        </div>
       </dl>
     </section>
 
-    <section class="lead-detail__section" aria-label="Pipeline status">
-      <h3>Pipeline</h3>
-      <label class="lead-detail__status">
-        <span>Status</span>
-        <select
-          [formControl]="statusControl"
-          (change)="changeStatus()"
-          [disabled]="statusUpdating()"
-        >
-          @for (s of pipelineStatuses; track s) {
-            <option [value]="s">{{ s }}</option>
-          }
-        </select>
-      </label>
-      @if (statusUpdating()) {
-        <p class="lead-detail__hint">Updating…</p>
-      }
-      @if (lead.statusHistory.length > 0) {
-        <ol class="lead-detail__history">
-          @for (entry of lead.statusHistory; track entry.changedAt) {
-            <li>
-              {{ entry.oldStatus ?? '—' }} → <strong>{{ entry.newStatus }}</strong>
-              <span class="lead-detail__muted">
-                {{ formatDate(entry.changedAt) }}
-                @if (entry.changedBy) {
-                  · {{ entry.changedBy }}
-                }
-              </span>
-            </li>
-          }
-        </ol>
-      } @else {
-        <p class="lead-detail__hint">No status changes yet.</p>
-      }
-    </section>
-
     @if (lead.estimate; as estimate) {
-      <section class="lead-detail__section" aria-label="Estimate summary">
-        <h3>Estimate</h3>
-        <dl class="lead-detail__grid">
+      <section class="lead-modal-card__section" aria-label="Property and estimate">
+        <h3>Property &amp; estimate</h3>
+        <dl class="lead-modal-card__grid">
           <div><dt>Address</dt><dd>{{ estimate.addressKey }}</dd></div>
           <div><dt>Project type</dt><dd>{{ estimate.projectType }}</dd></div>
           <div><dt>Living area</dt><dd>{{ estimate.sqft !== null ? estimate.sqft + ' sq ft' : '—' }}</dd></div>
@@ -85,34 +122,43 @@
       </section>
     }
 
-    <section class="lead-detail__section" aria-label="Consent and access">
-      <h3>Consent &amp; access</h3>
-      <dl class="lead-detail__grid">
-        <div><dt>Marketing consent</dt><dd>{{ lead.marketingConsent ? 'Yes' : 'No' }}</dd></div>
-        <div><dt>Consented</dt><dd>{{ formatDate(lead.consentTs) }}</dd></div>
-        <div><dt>Magic link</dt><dd>{{ magicLinkLabel(lead.magicLinkStatus) }}</dd></div>
-        <div><dt>Sheets synced</dt><dd>{{ formatDate(lead.sheetsSyncedAt) }}</dd></div>
-        <div><dt>Report snapshots</dt><dd>{{ lead.snapshotCount }}</dd></div>
-        <div><dt>Unsubscribed</dt><dd>{{ formatDate(lead.unsubscribedAt) }}</dd></div>
-        <div><dt>Nudge sent</dt><dd>{{ formatDate(lead.nudgeSentAt) }}</dd></div>
-      </dl>
-    </section>
-
-    <section class="lead-detail__section" aria-label="Notes">
-      <h3>Notes</h3>
-      @if (lead.notes.length > 0) {
-        <ol class="lead-detail__notes">
-          @for (note of lead.notes; track note.id) {
+    <section class="lead-modal-card__section" aria-label="Activity">
+      <h3>Activity</h3>
+      @if (lead.statusHistory.length > 0) {
+        <ol class="lead-modal-card__history">
+          @for (entry of lead.statusHistory; track entry.changedAt) {
             <li>
-              <p>{{ note.note }}</p>
-              <span class="lead-detail__muted">{{ formatDate(note.createdAt) }}</span>
+              {{ entry.oldStatus ? statusLabel(entry.oldStatus) : '—' }} →
+              <strong>{{ statusLabel(entry.newStatus) }}</strong>
+              <span class="lead-modal-card__muted">
+                {{ formatDate(entry.changedAt) }}
+                @if (entry.changedBy) {
+                  · {{ entry.changedBy }}
+                }
+              </span>
             </li>
           }
         </ol>
       } @else {
-        <p class="lead-detail__hint">No notes yet.</p>
+        <p class="lead-modal-card__hint">No status changes yet.</p>
       }
-      <div class="lead-detail__note-form">
+    </section>
+
+    <section class="lead-modal-card__section" aria-label="Notes">
+      <h3>Notes</h3>
+      @if (lead.notes.length > 0) {
+        <ol class="lead-modal-card__notes">
+          @for (note of lead.notes; track note.id) {
+            <li>
+              <p>{{ note.note }}</p>
+              <span class="lead-modal-card__muted">{{ formatDate(note.createdAt) }}</span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="lead-modal-card__hint">No notes yet.</p>
+      }
+      <div class="lead-modal-card__note-form">
         <label>
           <span class="sr-only">Add a note</span>
           <textarea
@@ -130,7 +176,19 @@
           {{ notePosting() ? 'Adding…' : 'Add note' }}
         </button>
       </div>
-      <p class="lead-detail__hint">Notes are append-only — they can't be edited or deleted.</p>
+      <p class="lead-modal-card__hint">Notes are append-only — they can't be edited or deleted.</p>
+    </section>
+
+    <section class="lead-modal-card__section lead-modal-card__record" aria-label="Record">
+      <h3>Record</h3>
+      <dl class="lead-modal-card__grid">
+        <div><dt>Lead score</dt><dd>{{ lead.leadScore }}</dd></div>
+        <div><dt>Consented</dt><dd>{{ formatDate(lead.consentTs) }}</dd></div>
+        <div><dt>Sheets synced</dt><dd>{{ formatDate(lead.sheetsSyncedAt) }}</dd></div>
+        <div><dt>Report snapshots</dt><dd>{{ lead.snapshotCount }}</dd></div>
+        <div><dt>Unsubscribed</dt><dd>{{ formatDate(lead.unsubscribedAt) }}</dd></div>
+        <div><dt>Nudge sent</dt><dd>{{ formatDate(lead.nudgeSentAt) }}</dd></div>
+      </dl>
     </section>
   }
-</aside>
+</div>

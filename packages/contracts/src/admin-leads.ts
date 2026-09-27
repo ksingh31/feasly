@@ -92,6 +92,12 @@ export interface AdminLeadListResponse {
   readonly nextCursor: string | null;
   /** Total matching the filters (for the UI count display). */
   readonly totalCount: number;
+  /**
+   * Pipeline totals: per-status counts across the full filtered set.
+   * Computed with every active filter EXCEPT `status`, so the totals row
+   * stays stable while the admin switches status filters.
+   */
+  readonly statusCounts: Record<AdminLeadStatus, number>;
 }
 
 /** Estimate summary embedded in the lead detail. Amounts in integer cents. */

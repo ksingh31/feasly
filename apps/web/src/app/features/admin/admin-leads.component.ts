@@ -1,11 +1,10 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import type {
   AdminLeadFilters,
-  AdminLeadSource,
   AdminLeadStatus,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
@@ -32,18 +31,30 @@ const STATUS_OPTIONS: readonly ('' | AdminLeadStatus)[] = [
   'lost',
 ];
 
-const SOURCE_OPTIONS: readonly ('' | AdminLeadSource)[] = ['', 'web', 'embed', 'api', 'mcp'];
-
-const PROJECT_TYPE_OPTIONS: readonly string[] = ['', 'new_build', 'renovation'];
+/** Pipeline statuses in the order Karan works them (drives the totals row). */
+const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
+  'new',
+  'contacted',
+  'quoting',
+  'won',
+  'lost',
+];
 
 /**
- * Leads explorer (admin/02) — Karan's daily lead view.
+ * Assignment filter options. There is no assign-to-builder backend yet, so
+ * every lead is unassigned — both options show the full list. The control
+ * exists to match the approved mockup's three filters; it becomes a real
+ * filter when the backend lands.
+ */
+const ASSIGNED_OPTIONS: readonly ('' | 'unassigned')[] = ['', 'unassigned'];
+
+/**
+ * Leads explorer (admin/02) — Karan's daily lead view. FE-9 redesign:
+ * cream/charcoal/brass premium theme, pipeline totals row, exactly three
+ * filters (search, status, assigned), lead cards with avatar initials,
+ * and a centered lead-detail modal replacing the old side drawer.
  *
- * Table with filters (score, status, source, project type, date range,
- * free-text search, tenant), cursor pagination, a quarantine tab for
- * honeypot-flagged submissions, sandbox toggle, CSV export, and a detail
- * drawer with notes + pipeline status.
- *
+ * Tabs (all/quarantine), the sandbox toggle, and CSV export are unchanged.
  * Guarded by `adminGuard`; noindex via the robots guard; excluded from
  * prerendering. All state lives in `AdminLeadsState` — the component only
  * dispatches actions and reads signals.
@@ -64,6 +75,7 @@ export class AdminLeadsComponent implements OnInit {
 
   protected readonly leads = this.store.selectSignal(AdminLeadsState.leads);
   protected readonly totalCount = this.store.selectSignal(AdminLeadsState.totalCount);
+  protected readonly statusCounts = this.store.selectSignal(AdminLeadsState.statusCounts);
   protected readonly hasMore = this.store.selectSignal(AdminLeadsState.hasMore);
   protected readonly tab = this.store.selectSignal(AdminLeadsState.tab);
   protected readonly includeSandbox = this.store.selectSignal(AdminLeadsState.includeSandbox);
@@ -73,21 +85,17 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly exporting = this.store.selectSignal(AdminLeadsState.exporting);
 
   protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly sourceOptions = SOURCE_OPTIONS;
-  protected readonly projectTypeOptions = PROJECT_TYPE_OPTIONS;
+  protected readonly pipelineStatuses = PIPELINE_STATUSES;
+  protected readonly assignedOptions = ASSIGNED_OPTIONS;
+
+  /** Mobile filter disclosure (filters collapse behind a toggle at 390px). */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly filtersForm = this.fb.nonNullable.group({
     search: [''],
     status: ['' as '' | AdminLeadStatus],
-    source: ['' as '' | AdminLeadSource],
-    projectType: [''],
-    minScore: [''],
-    maxScore: [''],
-    createdAfter: [''],
-    createdBefore: [''],
-    tenantId: [''],
-    /** Contact-consent filter. '' = All (the admin default — never filtered). */
-    consent: ['' as '' | 'in' | 'out'],
+    /** Visual-only until the assign-to-builder backend exists (see ASSIGNED_OPTIONS). */
+    assigned: ['' as '' | 'unassigned'],
   });
 
   constructor() {
@@ -111,7 +119,7 @@ export class AdminLeadsComponent implements OnInit {
       )
       .subscribe(() => this.applyFilters());
 
-    // Clear any open drawer when leaving the page so a stale selection
+    // Clear any open modal when leaving the page so a stale selection
     // doesn't linger in memory-only state.
     this.destroyRef.onDestroy(() => {
       this.store.dispatch(new ClearSelectedAdminLead());
@@ -130,34 +138,8 @@ export class AdminLeadsComponent implements OnInit {
     if (raw.status) {
       filters.status = raw.status;
     }
-    if (raw.source) {
-      filters.source = raw.source;
-    }
-    if (raw.projectType) {
-      filters.projectType = raw.projectType;
-    }
-    const minScore = Number(raw.minScore);
-    if (raw.minScore !== '' && Number.isInteger(minScore) && minScore >= 0) {
-      filters.minScore = Math.min(minScore, 100);
-    }
-    const maxScore = Number(raw.maxScore);
-    if (raw.maxScore !== '' && Number.isInteger(maxScore) && maxScore >= 0) {
-      filters.maxScore = Math.min(maxScore, 100);
-    }
-    if (raw.createdAfter) {
-      filters.createdAfter = new Date(`${raw.createdAfter}T00:00:00`).toISOString();
-    }
-    if (raw.createdBefore) {
-      // End of the selected day, so the whole day is included.
-      filters.createdBefore = new Date(`${raw.createdBefore}T23:59:59.999`).toISOString();
-    }
-    const tenantId = raw.tenantId.trim();
-    if (tenantId) {
-      filters.tenantId = tenantId;
-    }
-    if (raw.consent) {
-      filters.consent = raw.consent;
-    }
+    // `assigned` is visual-only: no backend param exists. "Unassigned"
+    // matches every lead today, so it intentionally sends nothing.
     return filters;
   }
 
@@ -166,19 +148,19 @@ export class AdminLeadsComponent implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.filtersForm.reset({
-      search: '',
-      status: '',
-      source: '',
-      projectType: '',
-      minScore: '',
-      maxScore: '',
-      createdAfter: '',
-      createdBefore: '',
-      tenantId: '',
-      consent: '',
-    });
+    this.filtersForm.reset({ search: '', status: '', assigned: '' });
     this.applyFilters();
+  }
+
+  /** Pipeline totals row: clicking a status filters the list to it. */
+  protected filterByStatus(status: AdminLeadStatus): void {
+    const current = this.filtersForm.controls.status.value;
+    this.filtersForm.controls.status.setValue(current === status ? '' : status);
+    this.applyFilters();
+  }
+
+  protected toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
   }
 
   protected setTab(tab: AdminLeadsTab): void {
@@ -215,6 +197,17 @@ export class AdminLeadsComponent implements OnInit {
     }
   }
 
+  /** Avatar initials from the lead name (first letters of first/last word). */
+  protected initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+      return '•';
+    }
+    const first = parts[0][0] ?? '';
+    const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
+    return (first + last).toUpperCase();
+  }
+
   protected formatDate(iso: string): string {
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-CA');
@@ -222,5 +215,9 @@ export class AdminLeadsComponent implements OnInit {
 
   protected projectTypeLabel(value: string): string {
     return value === 'new_build' ? 'New build' : value === 'renovation' ? 'Renovation' : value;
+  }
+
+  protected statusLabel(status: AdminLeadStatus): string {
+    return status.charAt(0).toUpperCase() + status.slice(1);
   }
 }
