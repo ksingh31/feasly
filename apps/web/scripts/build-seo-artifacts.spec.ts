@@ -28,8 +28,9 @@ describe('build-seo-artifacts (SEO-02)', () => {
     // 40 community pages (the /communities/ index is matched separately above).
     expect(communityUrls.length).toBe(40);
 
-    // Total: 7 static + 40 community (+ sample-report if present in prerender routes).
-    expect(urlCount).toBeGreaterThanOrEqual(47);
+    // Total: 7 static + 40 community. /sample-report is deliberately
+    // excluded (noindex route — must never appear in the sitemap).
+    expect(urlCount).toBe(47);
 
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf-8')).toBe(sitemapXml);
   });
@@ -57,6 +58,15 @@ describe('build-seo-artifacts (SEO-02)', () => {
     }
     // No /r/{token} pattern URLs.
     expect(sitemapXml).not.toMatch(/\/r\/[a-zA-Z0-9_-]+/);
+  });
+
+  it('never includes the noindex /sample-report page', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'seo-'));
+    const { sitemapXml } = buildSeoArtifacts({ siteUrl: 'https://example.com', outputDir: dir });
+
+    // /sample-report is a noindex trust page (not a search landing page):
+    // emitting it in the sitemap would send conflicting signals to crawlers.
+    expect(sitemapXml).not.toContain('sample-report');
   });
 
   it('generates robots.txt with exact disallow list and Sitemap line', () => {
