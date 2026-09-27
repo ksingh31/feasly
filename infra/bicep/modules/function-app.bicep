@@ -214,6 +214,14 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 name: 'APP_BASE_URL'
                 value: appBaseUrl
               }
+              // Preference-center links in emails must open on the live site
+              // (same ADM-10 rule as magic links): derive from appBaseUrl so
+              // emailed unsubscribe/preference footers never point at the
+              // feasly.example config default.
+              {
+                name: 'UNSUBSCRIBE_URL_BASE'
+                value: '${appBaseUrl}/unsubscribe'
+              }
             ],
         // admin/04 — hourly Google Sheets sync. Sheet ID + service-account
         // email are plain config (not secrets); the private key is a Key

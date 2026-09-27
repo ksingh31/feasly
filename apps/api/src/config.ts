@@ -242,8 +242,10 @@ const EnvSchema = z.object({
   // Base URL the web app lives at — magic-link / resume links are built
   // from this. Placeholder until the production domain is confirmed.
   APP_BASE_URL: z.string().url().default('https://feasly.example'),
-  // Placeholder hook for the unsubscribe center (review-drafts/05, not built
-  // yet): templates render `${UNSUBSCRIBE_URL_BASE}?token=…`.
+  // Base URL for the emailed preference-center links (email/03, live since
+  // PR #243): templates render `${UNSUBSCRIBE_URL_BASE}/{token}`. Bicep sets
+  // this from the live site URL in every environment; the default below is a
+  // local-dev fallback only and must never appear in a sent email.
   UNSUBSCRIBE_URL_BASE: z.string().url().default('https://feasly.example/unsubscribe'),
   // --- Unsubscribe center (story email/03) ---
   // HMAC secret for one-click unsubscribe tokens. Key Vault reference in
