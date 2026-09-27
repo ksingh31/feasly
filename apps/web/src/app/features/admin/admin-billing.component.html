@@ -1,0 +1,226 @@
+<div class="billing-panel">
+  <header class="billing-panel__header">
+    <div>
+      <h1>Billing health</h1>
+      <p class="billing-panel__sub">
+        Read-only. MRR, review aging, dunning, and webhook health — no
+        charge, refund, or void actions here.
+      </p>
+    </div>
+    <div class="billing-panel__header-actions">
+      @if (health(); as h) {
+        <span class="billing-panel__badge" role="status">
+          <span aria-hidden="true">●</span> {{ modelLabel(h.model) }}
+        </span>
+        @if (!h.stripe.configured) {
+          <span
+            class="billing-panel__badge billing-panel__badge--attention"
+            role="status"
+          >
+            <span aria-hidden="true">●</span> Stripe not configured
+          </span>
+        } @else if (h.stripe.testMode) {
+          <span class="billing-panel__badge" role="status">
+            <span aria-hidden="true">●</span> Stripe test mode
+          </span>
+        } @else {
+          <span
+            class="billing-panel__badge billing-panel__badge--attention"
+            role="status"
+          >
+            <span aria-hidden="true">●</span> Stripe live
+          </span>
+        }
+      }
+      <button
+        type="button"
+        class="billing-panel__refresh"
+        (click)="refresh()"
+        [disabled]="loadStatus() === 'loading'"
+      >
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  @if (loadStatus() === 'loading' && !health()) {
+    <p class="billing-panel__loading">Loading billing health…</p>
+  }
+
+  @if (error(); as err) {
+    <div class="billing-panel__alert" role="alert">
+      <p>{{ err }}</p>
+      <button type="button" (click)="refresh()">Retry</button>
+    </div>
+  }
+
+  @if (health(); as h) {
+    <section aria-label="Revenue summary">
+      <dl class="billing-panel__stats">
+        <div class="billing-panel__stat">
+          <dt>MRR</dt>
+          <dd>{{ formatCents(h.mrr.cents) }}</dd>
+          <dd class="billing-panel__stat-note">
+            @if (h.mrr.source === 'stripe') {
+              From Stripe · {{ h.mrr.activeSubscriptions }} active
+              subscription{{ h.mrr.activeSubscriptions === 1 ? '' : 's' }}
+            } @else {
+              n/a under the commission model
+            }
+          </dd>
+        </div>
+        <div class="billing-panel__stat">
+          <dt>Collected · trailing 30d</dt>
+          <dd>{{ formatCents(h.collectedTrailing30d.commissionCents) }}</dd>
+          <dd class="billing-panel__stat-note">
+            {{ h.collectedTrailing30d.count }} invoice{{
+              h.collectedTrailing30d.count === 1 ? '' : 's'
+            }}
+            paid
+          </dd>
+        </div>
+        <div class="billing-panel__stat">
+          <dt>Disputed</dt>
+          <dd>{{ formatCents(h.disputed.commissionCents) }}</dd>
+          <dd class="billing-panel__stat-note">
+            {{ h.disputed.count }} open dispute{{
+              h.disputed.count === 1 ? '' : 's'
+            }}
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section aria-label="In-review aging">
+      <h2 class="billing-panel__section-title">In-review aging</h2>
+      <dl class="billing-panel__stats">
+        <div class="billing-panel__stat">
+          <dt>Fresh · under 48h</dt>
+          <dd>{{ h.inReview.under48h.count }}</dd>
+          <dd class="billing-panel__stat-note">
+            {{ formatCents(h.inReview.under48h.commissionCents) }}
+          </dd>
+        </div>
+        <div class="billing-panel__stat">
+          <dt>Aging · under 7d</dt>
+          <dd>{{ h.inReview.under7d.count }}</dd>
+          <dd class="billing-panel__stat-note">
+            {{ formatCents(h.inReview.under7d.commissionCents) }}
+          </dd>
+        </div>
+        <div
+          class="billing-panel__stat billing-panel__stat--attention"
+          [class.billing-panel__stat--ok]="h.inReview.overdue.count === 0"
+        >
+          <dt>Overdue · review window passed</dt>
+          <dd>
+            {{ h.inReview.overdue.count }}
+            @if (h.inReview.overdue.count > 0) {
+              <span class="billing-panel__flag">needs attention</span>
+            }
+          </dd>
+          <dd class="billing-panel__stat-note">
+            {{ formatCents(h.inReview.overdue.commissionCents) }}
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section aria-label="Dunning">
+      <h2 class="billing-panel__section-title">
+        Dunning
+        @if (hasDunning()) {
+          <span class="billing-panel__flag">needs attention</span>
+        }
+      </h2>
+      @if (h.dunning.length === 0) {
+        <p class="billing-panel__empty">
+          No failed charges. The dunning queue is clear.
+        </p>
+      } @else {
+        <table class="billing-panel__table">
+          <thead>
+            <tr>
+              <th scope="col">Tenant</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Past due since</th>
+              <th scope="col">Days overdue</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (invoice of h.dunning; track invoice.id) {
+              <tr>
+                <td>{{ invoice.tenantKey }}</td>
+                <td>{{ formatCents(invoice.commissionCents) }}</td>
+                <td>{{ invoice.pastDueSince | date: 'medium' }}</td>
+                <td>{{ daysOverdue(invoice.pastDueSince) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <section aria-label="Webhook health">
+      <h2 class="billing-panel__section-title">
+        Webhook health · trailing 24h
+        @if (hasWebhookIssues()) {
+          <span class="billing-panel__flag">needs attention</span>
+        }
+      </h2>
+      <dl class="billing-panel__stats">
+        <div class="billing-panel__stat">
+          <dt>Events received</dt>
+          <dd>{{ h.webhooks.received24h }}</dd>
+          <dd class="billing-panel__stat-note">
+            @if (h.webhooks.lastReceivedAt) {
+              Last: {{ h.webhooks.lastReceivedAt | date: 'medium' }}
+            } @else {
+              None in the last 24h
+            }
+          </dd>
+        </div>
+        <div
+          class="billing-panel__stat"
+          [class.billing-panel__stat--attention]="h.webhooks.unhandled24h > 0"
+        >
+          <dt>Unhandled event types</dt>
+          <dd>{{ h.webhooks.unhandled24h }}</dd>
+        </div>
+        <div
+          class="billing-panel__stat"
+          [class.billing-panel__stat--attention]="
+            h.webhooks.modelMismatch24h > 0
+          "
+        >
+          <dt>Model mismatches</dt>
+          <dd>{{ h.webhooks.modelMismatch24h }}</dd>
+        </div>
+      </dl>
+      @if (h.webhooks.byType24h.length > 0) {
+        <table class="billing-panel__table">
+          <thead>
+            <tr>
+              <th scope="col">Event type</th>
+              <th scope="col">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of h.webhooks.byType24h; track row.type) {
+              <tr>
+                <td>
+                  <code>{{ row.type }}</code>
+                </td>
+                <td>{{ row.count }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <p class="billing-panel__generated">
+      Generated {{ h.generatedAt | date: 'medium' }}
+    </p>
+  }
+</div>
