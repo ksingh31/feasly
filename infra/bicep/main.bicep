@@ -214,7 +214,7 @@ module functionApp 'modules/function-app.bicep' = {
     narrativeProvider: environment == 'dev' ? 'openai-compatible' : 'log'
     narrativeApiKeySecretUri: environment == 'dev' ? narrativeApiKeySecretUri : ''
     narrativeEndpoint: environment == 'dev' ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : ''
-    narrativeModel: environment == 'dev' ? 'gemini-2.5-flash' : ''
+    narrativeModel: environment == 'dev' ? 'gemini-3.8-flash' : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).

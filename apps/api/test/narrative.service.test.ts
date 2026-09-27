@@ -423,7 +423,7 @@ describe('openai-compatible narrative provider', () => {
     const seen: string[] = [];
     const provider = createOpenAiCompatibleNarrativeProvider({
       apiKey: 'test-key',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       fetchImpl: (async (url: string | URL | Request) => {
         seen.push(String(url));
@@ -450,7 +450,7 @@ describe('openai-compatible narrative provider', () => {
     // request was bad. The provider now carries the upstream message.
     const provider = createOpenAiCompatibleNarrativeProvider({
       apiKey: 'test-key',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       endpoint: 'https://example.com/v1/chat/completions',
       fetchImpl: (async () =>
         new Response(
