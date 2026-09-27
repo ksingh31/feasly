@@ -111,6 +111,9 @@ const EnvSchema = z.object({
   // and staging can shorten them without code changes.
   EMBED_RELAY_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
   EMBED_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
+  // EMB-06 AC3: per-code resend cooldown (60 seconds per story) so the
+  // "session expired" re-issue button can't be hammered into a code fountain.
+  EMBED_RELAY_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -421,6 +424,11 @@ export interface EmbedConfig {
    * memory after exchanging the relay code. Story pins 12 hours.
    */
   readonly sessionTtlSeconds: number;
+  /**
+   * Minimum seconds between relay-code resends for the same code
+   * (embed/06 AC3). Story pins 60 seconds.
+   */
+  readonly relayResendCooldownSeconds: number;
 }
 
 export interface BillingConfig {
@@ -813,6 +821,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,
       sessionTtlSeconds: e.EMBED_SESSION_TTL_SECONDS,
+      relayResendCooldownSeconds: e.EMBED_RELAY_RESEND_COOLDOWN_SECONDS,
     },
   };
 }

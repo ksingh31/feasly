@@ -1275,6 +1275,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live | Public embed config (?key=tenant). Logo, accent colour, contact fallback. Unknown keys → 404 UNKNOWN_TENANT. |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned | Exchange a single-use embed relay code for a 12h session token (embed/06). Replays/expired → 410. |
+| POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live | Re-issue a fresh relay code for an expired/used one (embed/06 AC3 — the "session expired" re-issue affordance). 410 on unknown/still-valid codes; 429 inside the 60s per-code cooldown. |
 | POST | `/api/v1/chat/ask` | none | 20/hr per IP | planned | Grounded chat assistant (consumer/05). Session-scoped, rate-limited, allowlisted. Deterministic engine owns all dollar figures. |
 | GET | `/api/v1/openapi.json` | none | 100/min per IP (1h cache) | live | Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design. |
 | POST | `/api/v1/admin/auth/request` | none | 5/hr per email+IP | planned | Request an admin magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |

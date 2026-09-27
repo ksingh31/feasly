@@ -140,8 +140,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       poweredBy: 'Powered by Feasly',
       sessionExpiredHeading: 'This link has expired',
       sessionExpiredBody:
-        'For your security, report links are single-use and expire after 10 minutes. Tap below and we’ll email you a fresh link.',
-      resendLinkLabel: 'Email me a fresh link',
+        'For your security, report links are single-use and expire after 10 minutes. Tap below to get a fresh link.',
+      resendLinkLabel: 'Get a fresh link',
+      resendLinkBusyLabel: 'Getting a fresh link…',
+      resendCooldownBody:
+        'A fresh link was just issued — please wait a minute and try again.',
     },
     wizard: {
       stepAddress: 'Address',

@@ -118,6 +118,7 @@ describe('loadConfig', () => {
       },
       embed: {
         relayCodeTtlSeconds: 600,
+        relayResendCooldownSeconds: 60,
         sessionTtlSeconds: 43_200,
       },
     });

@@ -4,6 +4,8 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   EmbedPublicConfig,
+  EmbedRelayResendRequest,
+  EmbedRelayResendResponse,
   EmbedSessionRequest,
   EmbedSessionResponse,
 } from '@feasly/contracts';
@@ -44,6 +46,20 @@ export class EmbedConfigService {
     const base = this.config.get('api').baseUrl;
     return this.http
       .post<EmbedSessionResponse>(`${base}/api/v1/embed/session`, request)
+      .pipe(timeout(this.config.get('api').timeoutMs), catchError(toApiError));
+  }
+
+  /**
+   * Re-issue a fresh relay code for an expired/used one (embed/06 AC3).
+   *
+   * Called from the shell's "session expired" state. The old code proves
+   * prior possession — no PII is sent or needed. The caller immediately
+   * exchanges the fresh code; a 429 means the 60s per-code cooldown fired.
+   */
+  resendRelayCode(request: EmbedRelayResendRequest): Observable<EmbedRelayResendResponse> {
+    const base = this.config.get('api').baseUrl;
+    return this.http
+      .post<EmbedRelayResendResponse>(`${base}/api/v1/embed/relay/resend`, request)
       .pipe(timeout(this.config.get('api').timeoutMs), catchError(toApiError));
   }
 }

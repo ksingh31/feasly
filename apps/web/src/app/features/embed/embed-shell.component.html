@@ -10,8 +10,16 @@
     <div class="embed-fallback" role="alert">
       <h1 class="embed-fallback-title">{{ copy.sessionExpiredHeading }}</h1>
       <p class="embed-fallback-body">{{ copy.sessionExpiredBody }}</p>
-      <button type="button" class="embed-cta" (click)="onResendLink()">
-        {{ copy.resendLinkLabel }}
+      @if (resendError() === 'cooldown') {
+        <p class="embed-fallback-body">{{ copy.resendCooldownBody }}</p>
+      }
+      <button
+        type="button"
+        class="embed-cta"
+        (click)="onResendLink()"
+        [disabled]="resending()"
+      >
+        {{ resending() ? copy.resendLinkBusyLabel : copy.resendLinkLabel }}
       </button>
     </div>
   } @else if (builderConfig(); as cfg) {

@@ -50,10 +50,24 @@ export class RelaySessionEstablished {
 /**
  * NGXS action: the relay exchange failed — expired/used/invalid code or
  * tenant mismatch. The shell shows the "session expired" state with a
- * one-tap "Email me a fresh link"; `reason` is a machine code for logs,
+ * one-tap fresh-link action; `reason` is a machine code for logs,
  * never user-facing copy.
  */
 export class RelaySessionFailed {
   static readonly type = '[Embed] Relay session failed';
   constructor(public readonly reason: string) {}
+}
+
+/**
+ * NGXS action: re-issue a fresh relay code for the expired/used one
+ * (embed/06 AC3).
+ *
+ * Dispatched from the shell's "session expired" state. The state calls
+ * `POST /api/v1/embed/relay/resend` with the presented (old) code — no
+ * PII involved — and on success immediately dispatches
+ * `ExchangeRelayCode` with the fresh code. A 429 (60s per-code cooldown)
+ * surfaces as `resendError: 'cooldown'`; other failures as `'failed'`.
+ */
+export class ResendRelayCode {
+  static readonly type = '[Embed] Resend relay code';
 }
