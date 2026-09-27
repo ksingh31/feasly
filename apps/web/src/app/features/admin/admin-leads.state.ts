@@ -35,6 +35,8 @@ export interface AdminLeadsStateModel {
   leads: AdminLeadListItem[];
   /** Total rows matching the filters (excludes sandbox unless toggled). */
   totalCount: number;
+  /** Pipeline totals: per-status counts for the filtered set (status filter excluded). */
+  statusCounts: Record<AdminLeadStatus, number>;
   /** Opaque cursor for the next page; null when this is the last page. */
   nextCursor: string | null;
   /** Active filter values (drives the filter form). */
@@ -49,12 +51,15 @@ export interface AdminLeadsStateModel {
   detailError: string | null;
   notePosting: boolean;
   statusUpdating: boolean;
+  /** Last failed status-update message; null when the last apply succeeded. */
+  statusUpdateError: string | null;
   exporting: boolean;
 }
 
 const defaults: AdminLeadsStateModel = {
   leads: [],
   totalCount: 0,
+  statusCounts: { new: 0, contacted: 0, quoting: 0, won: 0, lost: 0 },
   nextCursor: null,
   filters: {},
   tab: 'all',
@@ -67,6 +72,7 @@ const defaults: AdminLeadsStateModel = {
   detailError: null,
   notePosting: false,
   statusUpdating: false,
+  statusUpdateError: null,
   exporting: false,
 };
 
@@ -99,6 +105,11 @@ export class AdminLeadsState {
   @Selector()
   static totalCount(state: AdminLeadsStateModel): number {
     return state.totalCount;
+  }
+
+  @Selector()
+  static statusCounts(state: AdminLeadsStateModel): Record<AdminLeadStatus, number> {
+    return state.statusCounts;
   }
 
   @Selector()
@@ -162,6 +173,11 @@ export class AdminLeadsState {
   }
 
   @Selector()
+  static statusUpdateError(state: AdminLeadsStateModel): string | null {
+    return state.statusUpdateError;
+  }
+
+  @Selector()
   static exporting(state: AdminLeadsStateModel): boolean {
     return state.exporting;
   }
@@ -201,6 +217,7 @@ export class AdminLeadsState {
           ctx.patchState({
             leads: append ? [...ctx.getState().leads, ...res.leads] : [...res.leads],
             totalCount: res.totalCount,
+            statusCounts: res.statusCounts,
             nextCursor: res.nextCursor,
             listStatus: 'idle',
             listError: null,
@@ -317,24 +334,58 @@ export class AdminLeadsState {
     ctx: StateContext<AdminLeadsStateModel>,
     action: UpdateAdminLeadStatus,
   ): Observable<unknown> {
-    ctx.patchState({ statusUpdating: true });
+    const state = ctx.getState();
+    const row = state.leads.find((lead) => lead.id === action.id);
+    const previousDetail = state.detail;
+    const previousCounts = state.statusCounts;
+    // The modal's detail is the freshest status; fall back to the row.
+    const oldStatus: AdminLeadStatus =
+      previousDetail && previousDetail.id === action.id
+        ? previousDetail.status
+        : (row?.status ?? action.status);
+
+    // Optimistic update: the list row, modal badge, and pipeline totals
+    // move instantly; the API call confirms or rolls back.
+    const optimisticCounts: Record<AdminLeadStatus, number> = { ...previousCounts };
+    if (oldStatus !== action.status) {
+      optimisticCounts[oldStatus] = Math.max(0, optimisticCounts[oldStatus] - 1);
+      optimisticCounts[action.status] = optimisticCounts[action.status] + 1;
+    }
+    ctx.patchState({
+      statusUpdating: true,
+      statusUpdateError: null,
+      leads: state.leads.map((lead) =>
+        lead.id === action.id ? { ...lead, status: action.status } : lead,
+      ),
+      detail:
+        previousDetail && previousDetail.id === action.id
+          ? { ...previousDetail, status: action.status }
+          : previousDetail,
+      statusCounts: optimisticCounts,
+    });
+
     return this.api.updateStatus(action.id, action.status).pipe(
       tap({
         next: () => {
-          // Keep the table row in sync without a full refetch, then reload
-          // the detail for the fresh status history.
-          const state = ctx.getState();
-          const newStatus: AdminLeadStatus = action.status;
-          ctx.patchState({
-            leads: state.leads.map((lead) =>
-              lead.id === action.id ? { ...lead, status: newStatus } : lead,
-            ),
-            statusUpdating: false,
-          });
+          ctx.patchState({ statusUpdating: false });
+          // Refetch the detail for the fresh status history + audit trail.
           ctx.dispatch(new SelectAdminLead(action.id));
         },
-        error: () => {
-          ctx.patchState({ statusUpdating: false });
+        error: (err: { message?: string }) => {
+          // Roll back the optimistic update — the status never changed.
+          const failed = ctx.getState();
+          ctx.patchState({
+            statusUpdating: false,
+            statusUpdateError: err?.message ?? 'Could not update status. Please try again.',
+            leads: failed.leads.map((lead) =>
+              lead.id === action.id ? { ...lead, status: oldStatus } : lead,
+            ),
+            detail:
+              failed.detail && failed.detail.id === action.id
+                ? { ...failed.detail, status: oldStatus }
+                : failed.detail,
+            statusCounts: previousCounts,
+          });
         },
       }),
     );
