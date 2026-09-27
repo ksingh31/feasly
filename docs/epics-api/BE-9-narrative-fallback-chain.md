@@ -8,7 +8,7 @@ instead of the current "not available" dead-end.
 ## Problem
 
 The narrative worker (consumer/06) calls exactly one model
-(`NARRATIVE_MODEL`, default `gemini-3.8-flash`). When that model is saturated
+(`NARRATIVE_MODELS`, default `gemini-2.5-flash,gemini-2.5-flash-lite`). When those models are saturated
 (HTTP 503 "high demand" — observed 2026-09-27, four straight failures), the
 report page shows the honest-but-empty "AI summary is not available" state.
 One model = one point of failure, and the fallback is a dead end.

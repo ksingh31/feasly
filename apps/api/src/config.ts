@@ -146,10 +146,9 @@ const EnvSchema = z.object({
   // LLM API key (Gemini) — from Key Vault, never in repo/env files. Empty
   // with provider='openai-compatible' = fail-closed generation naming this var.
   NARRATIVE_API_KEY: z.string().default(''),
-  // LLM model for narratives. Default is Gemini 3.8 Flash (free tier);
-  // overridable without a code change. (2.5-flash was retired by Google
-  // for new API keys on 2026-09-27; their API names 3.8-flash as the
-  // replacement.)
+  // LLM model for narratives. Default is Gemini 2.5 Flash + 2.5 Flash-Lite
+  // (both free-tier eligible per ai.google.dev as of 2026-09-27);
+  // overridable without a code change.
   /**
    * Ordered narrative model list, primary first — config-owned so Karan
    * can reorder or swap models without a code change. The provider tries
