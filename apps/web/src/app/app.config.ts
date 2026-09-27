@@ -21,6 +21,7 @@ import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
+import { AdminDisputesState } from './features/admin/admin-disputes.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder';
@@ -97,6 +98,10 @@ export const appConfig: ApplicationConfig = {
         ConsentState,
         ComparisonState,
         AdminLeadsState,
+        // AdminDisputesState is memory-only (never persisted): dispute data
+        // is admin-internal and refetches cheaply on each visit, like
+        // CalibrationState below.
+        AdminDisputesState,
         CalibrationState,
         SheetsSyncState,
         BuilderState,

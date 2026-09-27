@@ -66,6 +66,10 @@ const fakeStripe: StripeService = {
     id: 'pi_test_123',
     status: 'requires_capture',
   }),
+  refundPaymentIntent: async (paymentIntentId) => ({
+    id: `re_test_${paymentIntentId}`,
+    status: 'succeeded',
+  }),
   createSubscription: async () => ({ id: 'sub_test_123', status: 'active' }),
   cancelSubscription: async (subscriptionId) => ({ id: subscriptionId }),
   verifyWebhook: () => ({

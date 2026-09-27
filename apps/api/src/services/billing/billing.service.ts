@@ -30,6 +30,7 @@ import type {
   CommissionInvoiceRecord,
   CommissionService,
 } from './commission.service';
+import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 
@@ -73,12 +74,18 @@ export interface BillingServiceDeps {
   readonly leadStore: LeadStore;
   readonly billingHook: EmbedBillingHookService;
   readonly commission: CommissionService;
+  /**
+   * Dispute console (billing/01 follow-on): records the dispute row +
+   * immutable evidence snapshot when an invoice is disputed. Optional so
+   * existing constructions keep working; composition always wires it.
+   */
+  readonly disputes?: DisputeService;
 }
 
 export function createBillingService(
   deps: BillingServiceDeps,
 ): BillingService {
-  const { leadStore, billingHook, commission } = deps;
+  const { leadStore, billingHook, commission, disputes } = deps;
 
   async function requireTenantInvoice(
     invoiceId: string,
@@ -140,7 +147,13 @@ export function createBillingService(
       reason: string,
     ): Promise<CommissionInvoiceRecord> {
       await requireTenantInvoice(invoiceId, tenantKey);
-      return commission.disputeInvoice(invoiceId, reason);
+      const invoice = await commission.disputeInvoice(invoiceId, reason);
+      // Dispute console: one dispute row per disputed invoice, with the
+      // immutable evidence snapshot + 5-business-day SLA.
+      if (disputes) {
+        await disputes.recordOpenedDispute(invoice);
+      }
+      return invoice;
     },
 
     async resolveDispute(

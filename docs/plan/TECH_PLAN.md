@@ -1317,3 +1317,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live | Read a commission invoice. Builders see only their own tenant's invoices; admins see all. |
 | POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | 100/min per session | live | Builder disputes their own invoice (reason required): the charge clock freezes and ops is alerted. 403 for another tenant's invoice. |
 | POST | `/api/v1/billing/invoices/{id}/resolve` | admin | 100/min per session | live | Admin resolves a billing dispute: "resume" returns the invoice to review with a fresh 7-day window, "void" cancels it. |
+| GET | `/api/v1/admin/disputes` | admin | 100/min per session | live | Dispute console: open disputes oldest-first with reason, immutable evidence snapshot reference, and the 5-business-day SLA countdown (America/Edmonton). Admin only. |
+| GET | `/api/v1/admin/disputes/{id}` | admin | 100/min per session | live | One dispute: immutable evidence snapshot, SLA state, and the billing audit trail. Admin only. |
+| POST | `/api/v1/admin/disputes/{id}/accept` | admin | 100/min per session | live | Accept a dispute: voids the invoice (Stripe refund first when it was already paid — the credit note). Audit-logged. Admin only. |
+| POST | `/api/v1/admin/disputes/{id}/reject` | admin | 100/min per session | live | Reject a dispute: the invoice returns to in_review with a fresh 7-day window. Audit-logged. Admin only. |

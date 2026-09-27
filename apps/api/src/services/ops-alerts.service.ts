@@ -21,6 +21,7 @@ export const OPS_ALERT_TYPES = [
   'stripe_webhook_failed',
   'narrative_worker_failed',
   'backup_missed',
+  'billing_dispute_sla_breached',
 ] as const;
 
 export type OpsAlertType = (typeof OPS_ALERT_TYPES)[number];
@@ -52,6 +53,10 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   backup_missed: {
     name: 'Postgres backup',
     detailsPath: '/admin/ops/backup',
+  },
+  billing_dispute_sla_breached: {
+    name: 'Billing dispute SLA',
+    detailsPath: '/admin/disputes',
   },
 };
 

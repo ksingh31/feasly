@@ -217,6 +217,16 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
       },
+      // Dispute console (billing/01 follow-on, was OPS-009): open disputes
+      // oldest-first with reason, immutable evidence snapshot, 5-business-day
+      // SLA countdown, and accept/reject resolution.
+      {
+        path: 'disputes',
+        loadComponent: () =>
+          import('./features/admin/admin-disputes.component').then(
+            (m) => m.AdminDisputesComponent,
+          ),
+      },
       {
         path: 'calibration',
         loadComponent: () =>
