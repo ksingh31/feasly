@@ -3,11 +3,24 @@
  *
  * Reads the flexible server's backup config through the Azure Resource
  * Manager API using the Function App's system-assigned managed identity
- * (IMDS token endpoint — no secrets, no az CLI). Applies the same
- * thresholds as CI's `infra/health/check-postgres-backup.sh`:
- * retention >= minRetentionDays and earliest restore point < maxStaleHours
- * old. A stale/missing backup chain is the "scheduled backup missed"
- * signal that HRD-04's runbook documents.
+ * (no secrets, no az CLI). Applies the same thresholds as CI's
+ * `infra/health/check-postgres-backup.sh`: retention >= minRetentionDays
+ * and earliest restore point < maxStaleHours old. A stale/missing backup
+ * chain is the "scheduled backup missed" signal that HRD-04's runbook
+ * documents.
+ *
+ * Token acquisition order: the platform-injected `IDENTITY_ENDPOINT` /
+ * `IDENTITY_HEADER` env vars (the documented managed-identity token path
+ * on Azure Functions / App Service — the IMDS link-local IP is the VM
+ * path and is not reachable from the Functions sandbox), falling back to
+ * the IMDS URL for non-Functions hosts.
+ *
+ * Probe failures (token acquisition, ARM query) are reported with
+ * `probeError: true` — they mean the check itself could not run, NOT that
+ * the backup chain is unhealthy. The timer logs and skips on probe
+ * errors (structured `PROBE FAILED` line for Azure Monitor) and never
+ * fires the `backup_missed` alert for them; CI's backup-config job is the
+ * backstop for a broken probe.
  *
  * Only services import from this module (layer boundary: routes and
  * middleware never touch the network directly). Logs aggregates only —
@@ -17,6 +30,12 @@
 export interface BackupFreshness {
   /** True when retention and restore-point freshness both pass. */
   readonly healthy: boolean;
+  /**
+   * True when the check itself could not run (managed-identity token or
+   * ARM query failed). Not a backup-health signal — the backup chain may
+   * be fine; the probe just couldn't verify it.
+   */
+  readonly probeError: boolean;
   /** Server the check ran against (for logs). */
   readonly server: string;
   /** Configured backup retention in days (null when ARM didn't return it). */
@@ -39,6 +58,17 @@ export interface BackupCheckServiceDeps {
   readonly maxStaleHours: number;
   /** IMDS token endpoint URL (from config — services never hardcode URLs). */
   readonly imdsTokenUrl: string;
+  /**
+   * Platform-injected managed-identity endpoint (App Service / Functions
+   * `IDENTITY_ENDPOINT`). Preferred over IMDS when present.
+   */
+  readonly identityEndpoint?: string;
+  /**
+   * Platform-injected managed-identity header (`IDENTITY_HEADER`). Secret —
+   * sent as the `X-IDENTITY-HEADER` header, never logged or interpolated
+   * into error messages.
+   */
+  readonly identityHeader?: string;
   /** ARM base URL (from config — services never hardcode URLs). */
   readonly armBaseUrl: string;
   readonly clock?: () => Date;
@@ -54,6 +84,10 @@ export interface BackupCheckService {
 }
 
 const ARM_API_VERSION = '2023-12-01-preview';
+/** Token API version for the platform identity endpoint (2019-08-01). */
+const IDENTITY_ENDPOINT_API_VERSION = '2019-08-01';
+/** ARM audience for the managed-identity token. */
+const ARM_RESOURCE = 'https://management.azure.com/';
 
 interface ArmBackupProperties {
   readonly backupRetentionDays?: number;
@@ -61,10 +95,40 @@ interface ArmBackupProperties {
   readonly geoRedundantBackup?: string;
 }
 
+/**
+ * Acquire an ARM token for the Function App's managed identity.
+ *
+ * Prefers the platform-injected identity endpoint (the documented token
+ * path on Azure Functions / App Service); falls back to the IMDS
+ * link-local endpoint for VM-style hosts. The identity header is a
+ * secret: it is only ever sent as a request header, never logged.
+ */
 async function getArmToken(
   fetchImpl: typeof fetch,
   imdsTokenUrl: string,
+  identityEndpoint?: string,
+  identityHeader?: string,
 ): Promise<string> {
+  if (identityEndpoint && identityHeader) {
+    const url =
+      `${identityEndpoint}?resource=${encodeURIComponent(ARM_RESOURCE)}` +
+      `&api-version=${IDENTITY_ENDPOINT_API_VERSION}`;
+    const res = await fetchImpl(url, {
+      headers: { 'X-IDENTITY-HEADER': identityHeader },
+    });
+    if (!res.ok) {
+      throw new Error(
+        `platform identity endpoint token request failed (status ${res.status})`,
+      );
+    }
+    const body = (await res.json()) as { access_token?: string };
+    if (!body.access_token) {
+      throw new Error(
+        'platform identity endpoint token response missing access_token',
+      );
+    }
+    return body.access_token;
+  }
   const res = await fetchImpl(imdsTokenUrl, {
     headers: { Metadata: 'true' },
   });
@@ -88,6 +152,8 @@ export function createBackupCheckService(
     minRetentionDays,
     maxStaleHours,
     imdsTokenUrl,
+    identityEndpoint,
+    identityHeader,
     armBaseUrl,
     clock = () => new Date(),
     fetchImpl = fetch,
@@ -99,8 +165,10 @@ export function createBackupCheckService(
       const fail = (
         reason: string,
         partial: Partial<BackupFreshness> = {},
+        probeError = false,
       ): BackupFreshness => ({
         healthy: false,
+        probeError,
         server: serverName,
         retentionDays: null,
         earliestRestore: null,
@@ -112,10 +180,20 @@ export function createBackupCheckService(
 
       let token: string;
       try {
-        token = await getArmToken(fetchImpl, imdsTokenUrl);
+        token = await getArmToken(
+          fetchImpl,
+          imdsTokenUrl,
+          identityEndpoint,
+          identityHeader,
+        );
       } catch (error) {
+        // Probe failure, not a backup-health signal: the check itself
+        // could not run. Reported with probeError so the timer skips the
+        // alert instead of paging as a backup failure.
         return fail(
           `could not acquire managed-identity token: ${(error as Error).message}`,
+          {},
+          true,
         );
       }
 
@@ -130,14 +208,14 @@ export function createBackupCheckService(
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
-          return fail(`ARM server query failed (status ${res.status})`);
+          return fail(`ARM server query failed (status ${res.status})`, {}, true);
         }
         const body = (await res.json()) as {
           properties?: { backup?: ArmBackupProperties };
         };
         backup = body.properties?.backup ?? {};
       } catch (error) {
-        return fail(`ARM server query failed: ${(error as Error).message}`);
+        return fail(`ARM server query failed: ${(error as Error).message}`, {}, true);
       }
 
       const retentionDays = backup.backupRetentionDays ?? null;
@@ -174,6 +252,7 @@ export function createBackupCheckService(
       }
       return {
         healthy: true,
+        probeError: false,
         server: serverName,
         retentionDays,
         earliestRestore,

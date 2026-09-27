@@ -917,6 +917,8 @@ export function createComposition(
           minRetentionDays: config.backupCheck.minRetentionDays,
           maxStaleHours: config.backupCheck.maxStaleHours,
           imdsTokenUrl: config.backupCheck.imdsTokenUrl,
+          identityEndpoint: config.backupCheck.identityEndpoint,
+          identityHeader: config.backupCheck.identityHeader,
           armBaseUrl: config.backupCheck.armBaseUrl,
         })
       : undefined;

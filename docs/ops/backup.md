@@ -29,6 +29,17 @@ restore point goes stale (> 48h old). CI's `backup-config` job
 (`infra/health/check-postgres-backup.sh`, same thresholds) remains as a
 push-time backstop.
 
+Token path: the probe acquires its ARM token from the platform-injected
+`IDENTITY_ENDPOINT` / `IDENTITY_HEADER` (the documented managed-identity
+path on Azure Functions), falling back to the IMDS link-local endpoint on
+VM-style hosts. A probe failure (token or ARM query) is **not** a backup
+failure: the timer logs a structured `backup-check-timer: PROBE FAILED`
+line and skips the ops email, and the `backup-check-probe` Azure Monitor
+rule pages ops on that line. (2026-09-27: the first probe run used the
+VM-only IMDS endpoint from the Functions sandbox, failed to get a token,
+and false-positived as "Postgres backup is failing" — fixed by the
+platform-endpoint switch plus the probe-error distinction.)
+
 ## 2. RTO / RPO
 
 | Metric | Target | Proven by drill |

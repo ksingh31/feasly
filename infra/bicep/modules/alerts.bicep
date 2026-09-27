@@ -11,6 +11,14 @@
 //   storage account, EVERY timer trigger (nudge, sheets sync, purges,
 //   …) silently stops firing — this alert pages ops before leads rot.
 //
+// - Backup-check probe health: a log-based scheduled query rule against
+//   `AppTraces` for the daily backup-check-timer's structured
+//   `PROBE FAILED` line. When the probe itself cannot run (managed-identity
+//   token or ARM query failure), the `backup_missed` ops email deliberately
+//   does NOT fire (a broken probe is not a backup failure) — this rule is
+//   the visibility backstop so a silently-dead probe still pages ops.
+//   CI's `backup-config` job remains the push-time backstop.
+//
 // (Poison queue metric alert removed: QueueMessageCount is not available
 // as a platform metric at the storage account level. To be re-added with
 // a correct metric/namespace when needed.)
@@ -137,3 +145,47 @@ resource timerScheduleMonitorAlert 'Microsoft.Insights/scheduledQueryRules@2021-
 
 @description('Resource ID of the ops action group')
 output actionGroupId string = actionGroup.id
+
+// Backup-check probe health (backup_missed false-positive, Sep 2026): the
+// daily backup-check-timer used the VM-only IMDS token endpoint, which the
+// Functions sandbox cannot reach, so the probe failed and the timer paged
+// as a backup failure. The probe now uses the platform identity endpoint
+// and reports probe failures with `probeError` — the timer logs
+// `backup-check-timer: PROBE FAILED` and skips the ops email. This rule
+// pages ops when the probe is broken so an unverifiable backup chain does
+// not go unnoticed. Fires on 1+ probe failures in 15 minutes (the timer
+// runs daily, so any hit is anomalous).
+resource backupCheckProbeAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
+  name: '${namePrefix}-backup-check-probe'
+  location: workspaceLocation
+  properties: {
+    description: 'Postgres backup freshness probe is failing — backup chain unverifiable (check timer PROBE FAILED)'
+    severity: 2
+    enabled: true
+    scopes: [
+      logAnalyticsWorkspaceId
+    ]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "backup-check-timer: PROBE FAILED" | summarize count()'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+    }
+  }
+}
