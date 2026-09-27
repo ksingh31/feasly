@@ -206,7 +206,8 @@
     </section>
 
     @if (unlocked()) {
-      <!-- EMAIL SHARE: opens a mailto: draft with the current size and exact numbers. -->
+      <!-- PARTNER SHARE: the backend sends the structured Feasly email and
+           mints the partner their own link (share/01) — no mailto: draft. -->
       <section class="card no-print" [attr.aria-label]="copy.shareTitle">
         <h2>{{ copy.shareTitle }}</h2>
         <p class="hint">{{ copy.shareHint }}</p>
@@ -218,10 +219,29 @@
           @if (shareEmailInvalid) {
             <p class="field-error" role="alert">{{ copy.shareInvalid }}</p>
           }
-          <button class="cta" type="submit">
-            {{ copy.shareCta }}
+          <button class="cta" type="submit" [disabled]="shareStatus() === 'sending'">
+            @switch (shareStatus()) {
+              @case ('sending') {
+                {{ copy.shareSending }}
+              }
+              @case ('send-error') {
+                {{ copy.shareRetry }}
+              }
+              @default {
+                {{ copy.shareCta }}
+              }
+            }
           </button>
         </form>
+        @if (shareStatus() === 'sent') {
+          <p class="form-success" role="status">{{ shareSentMessage() }}</p>
+        }
+        @if (shareStatus() === 'send-error') {
+          <p class="field-error" role="alert">{{ copy.shareError }}</p>
+        }
+        @if (shareStatus() === 'token-error') {
+          <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
+        }
       </section>
 
       <!-- CALLBACK -->

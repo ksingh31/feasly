@@ -357,21 +357,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           body: 'When you are ready, we will introduce you to Calgary infill builders matched to your project. No cold calls, no pressure — an intro only when it helps.',
         },
       ],
-      shareTitle: 'Share your estimate',
-      shareHint: 'Open an email draft with the current size and exact numbers — your mail app sends it.',
-      shareEmailLabel: 'Recipient email',
-      shareCta: 'Open email draft',
+      shareTitle: 'Share with a partner',
+      shareHint: 'Email this report to a partner — they receive their own secure link.',
+      shareEmailLabel: 'Partner email',
+      shareCta: 'Send report',
       shareInvalid: 'Enter a valid email address.',
-      shareSubject: 'My Feasly build estimate',
-      shareBodyTemplate:
-        'Feasly build estimate for {address}:\n\n' +
-        'Living area: {sqft} sq ft ({tierLabel} finishes)\n' +
-        'Total investment: {total}\n' +
-        '{planningRangeLabel}: {rangeLow}–{rangeHigh}\n' +
-        '{buildLabel}: {build}\n' +
-        '{landLabel}: {land} ({landFixedNote})\n\n' +
-        '{bodyClose}',
-      shareBodyClose: 'Planning figures only — not a quote.',
+      shareSending: 'Sending…',
+      shareSent: 'Sent — {email} will receive their own secure link.',
+      shareError: 'Couldn’t send the report. Check your connection and try again.',
+      shareTokenError:
+        'This report link is no longer available in this tab. Reopen it from the link in your email, then send again.',
+      shareRetry: 'Try again',
       callbackTitle: 'Prefer to talk it through?',
       callbackHint: 'Request a callback and we will walk through the numbers with you.',
       callbackNameLabel: 'Your name',

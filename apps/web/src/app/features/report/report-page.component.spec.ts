@@ -4,8 +4,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { firstValueFrom, throwError } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
@@ -19,53 +19,12 @@ import {
 import { AnalyticsService } from '../consent';
 import { SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
-import {
-  ReportPageComponent,
-  buildEstimateShareMailto,
-} from './report-page.component';
+import { ReportPageComponent } from './report-page.component';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
 /** Blank route target for navigation assertions. */
 @Component({ standalone: true, template: '' })
 class BlankComponent {}
-
-describe('buildEstimateShareMailto', () => {
-  const args = {
-    to: 'partner@example.com',
-    subject: 'My Feasly build estimate — 918 16 Ave NW, Calgary, AB',
-    body: [
-      'Feasly build estimate for 918 16 Ave NW, Calgary, AB:',
-      '',
-      'Living area: 2,250 sq ft (Premium finishes)',
-      'Total investment: $1,092,000',
-      'Likely planning range: $1,028,000–$1,155,000',
-      'Build cost: $672,000',
-      'Land (assessed value): $420,000 (City of Calgary assessment · not a cost range)',
-      '',
-      'Planning figures only — not a quote.',
-    ].join('\n'),
-  };
-
-  it('builds a mailto: draft with the supplied subject and body', () => {
-    const href = buildEstimateShareMailto(args);
-    expect(href.startsWith('mailto:partner%40example.com?')).toBe(true);
-    expect(href).toContain(`subject=${encodeURIComponent(args.subject)}`);
-    expect(href).toContain(`body=${encodeURIComponent(args.body)}`);
-    const body = decodeURIComponent(href.split('body=')[1]);
-    expect(body).toContain('Living area: 2,250 sq ft (Premium finishes)');
-    expect(body).toContain('Total investment: $1,092,000');
-    expect(body).toContain('Likely planning range: $1,028,000–$1,155,000');
-    expect(body).toContain('Build cost: $672,000');
-    expect(body).toContain('Land (assessed value): $420,000 (City of Calgary assessment · not a cost range)');
-    expect(body).toContain('Planning figures only — not a quote.');
-  });
-
-  it('URL-encodes the recipient, subject, and body', () => {
-    const href = buildEstimateShareMailto({ ...args, to: 'a+b@example.com' });
-    expect(href).toContain('mailto:a%2Bb%40example.com?');
-    expect(href).not.toContain('\n');
-  });
-});
 
 describe('revise debounce (D-02)', () => {
   it('defaults to a 400 ms trailing debounce (within the ≤ 500 ms story cap)', () => {
@@ -80,7 +39,7 @@ describe('revise debounce (D-02)', () => {
  * Redesigned report: one prominent total + likely planning range, fixed City
  * land value, 3-bucket breakdown, display-only finish tier, always-on sqft
  * stepper with debounced live revise, real AI narrative, mockup next steps,
- * and a mailto: email share.
+ * and a backend-powered partner share.
  */
 describe('ReportPageComponent', () => {
   let fixture: ComponentFixture<ReportPageComponent>;
@@ -107,24 +66,6 @@ describe('ReportPageComponent', () => {
   };
 
   const text = (): string => fixture.nativeElement.textContent ?? '';
-
-  /** Captures window.location.href assignments (mailto: share). */
-  let navigations: string[];
-  const originalLocation = window.location;
-  beforeEach(() => {
-    navigations = [];
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: {
-        set href(v: string) {
-          navigations.push(v);
-        },
-      },
-    });
-  });
-  afterEach(() => {
-    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: originalLocation });
-  });
 
   async function pollFor(predicate: () => boolean, what: string): Promise<void> {
     const deadline = Date.now() + 8000;
@@ -452,32 +393,77 @@ describe('ReportPageComponent', () => {
       expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(before.version + 1);
     });
 
-    it('share opens a mailto: draft with the current size and exact numbers', () => {
-      const email = fixture.nativeElement.querySelector('.card input[type="email"]') as HTMLInputElement;
-      const share = [...fixture.nativeElement.querySelectorAll('button')].find((b: Element) =>
-        b.textContent?.trim() === 'Open email draft',
+    /** Share form elements, inside the partner-share section. */
+    const shareEmailInput = (): HTMLInputElement =>
+      fixture.nativeElement.querySelector(
+        'section[aria-label="Share with a partner"] input[type="email"]',
+      ) as HTMLInputElement;
+    const shareButton = (): HTMLButtonElement =>
+      fixture.nativeElement.querySelector(
+        'section[aria-label="Share with a partner"] button[type="submit"]',
       ) as HTMLButtonElement;
-      expect(share).toBeTruthy();
-      // Invalid email → inline validation, no draft opened.
-      share.click();
-      fixture.detectChanges();
-      expect(text()).toContain('Enter a valid email address.');
-      expect(navigations.length).toBe(0);
-      // Valid email → the mailto: draft opens with the current figures.
+
+    it('share sends through the backend and names the recipient on success', async () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
       email.value = 'partner@example.com';
       email.dispatchEvent(new Event('input'));
       fixture.detectChanges();
-      share.click();
-      expect(navigations.length).toBe(1);
-      const href = navigations[0];
-      expect(href.startsWith('mailto:partner%40example.com?')).toBe(true);
-      const body = decodeURIComponent(href.split('body=')[1]);
-      expect(body).toContain('Living area: 2,200 sq ft (Premium finishes)');
-      expect(body).toContain('Total investment: $1,497,000');
-      expect(body).toContain('Likely planning range: $1,433,000–$1,558,000');
+      shareButton().click();
+      await pollFor(() => text().includes('will receive their own secure link'), 'share success');
+      // The backend mints the partner their OWN link: called with the
+      // memory-only report token, never the owner's magic link.
+      expect(shareSpy).toHaveBeenCalledWith({
+        reportToken: store.selectSnapshot(ReportState.reportToken),
+        partnerEmail: 'partner@example.com',
+      });
+      expect(text()).toContain('partner@example.com');
       // The share is reported to analytics (consent-gated inside the real
       // service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('partner_share');
+    });
+
+    it('share blocks an invalid email without calling the backend', () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      shareButton().click();
+      fixture.detectChanges();
+      expect(text()).toContain('Enter a valid email address.');
+      expect(shareSpy).not.toHaveBeenCalled();
+    });
+
+    it('share shows an error with retry when the backend send fails', async () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareSpy.mockReturnValueOnce(throwError(() => new Error('boom')));
+      shareButton().click();
+      await pollFor(() => text().includes('Couldn’t send'), 'share error');
+      // No dead end: the button offers a retry, and it succeeds.
+      const retry = shareButton();
+      expect(retry.textContent?.trim()).toBe('Try again');
+      retry.click();
+      await pollFor(() => text().includes('will receive their own secure link'), 'share retry success');
+    });
+
+    it('share fails honestly when the report token is gone (memory-only after reload)', () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      // Simulate the post-reload state: snapshot visible but the
+      // memory-only token is gone.
+      store.reset({
+        ...store.snapshot(),
+        report: { ...store.snapshot().report, reportToken: null },
+      });
+      fixture.detectChanges();
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareButton().click();
+      fixture.detectChanges();
+      expect(shareSpy).not.toHaveBeenCalled();
+      expect(text()).toContain('no longer available in this tab');
     });
 
     it('callback request validates and sends', async () => {
