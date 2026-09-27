@@ -69,4 +69,20 @@ error calling the endpoint).
 
 ## Summary
 
-_(filled after implementation)_
+**User view:** the report's AI-summary section no longer dies when Gemini is
+having a bad day. If the primary model is overloaded, Feasly silently tries
+the backup model; if every model fails, the section shows a short, honest
+"Building in Calgary" guide (winter foundations, permits, infill vs
+greenfield, soil/grading) with the note "Our AI summary is unavailable right
+now — here's a general guide." The guide is never presented as AI prose, and
+the next visit retries the real AI summary automatically.
+
+**Technical:** the OpenAI-compatible provider now walks a config-owned ordered
+model list (`NARRATIVE_MODELS`, default `gemini-2.5-flash,gemini-2.5-flash-lite`),
+chaining on 408/429/5xx/529, timeouts, and network errors, failing fast on
+other 4xx. A full chain counts as one of the 5/day generation budget. The
+static guide bypasses validation (no figures to validate) but keeps the
+verbatim footer; it is never persisted and the ops alert still fires.
+`NarrativeResponse.narrativeSource` (`'ai' | 'static-guide'`) flows through
+NGXS state to the report page and the PDF, which renders the guide under its
+own title.

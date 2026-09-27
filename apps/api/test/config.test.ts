@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { version as packageVersion } from '../package.json';
-import { loadConfig } from '../src/config';
+import { loadConfig, parseNarrativeModels } from '../src/config';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -346,21 +346,18 @@ describe('loadConfig', () => {
 });
 
 describe('parseNarrativeModels (BE-9)', () => {
-  it('parses a comma-separated list in order', async () => {
-    const { parseNarrativeModels } = await import('../src/config');
+  it('parses a comma-separated list in order', () => {
     expect(parseNarrativeModels('gemini-2.5-flash,gemini-2.5-flash-lite')).toEqual([
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
     ]);
   });
 
-  it('trims whitespace and drops empty entries', async () => {
-    const { parseNarrativeModels } = await import('../src/config');
+  it('trims whitespace and drops empty entries', () => {
     expect(parseNarrativeModels('  a ,, b ,')).toEqual(['a', 'b']);
   });
 
-  it('throws on an empty list so a misconfigured deployment fails fast', async () => {
-    const { parseNarrativeModels } = await import('../src/config');
+  it('throws on an empty list so a misconfigured deployment fails fast', () => {
     expect(() => parseNarrativeModels('')).toThrow(/NARRATIVE_MODELS/);
     expect(() => parseNarrativeModels(' , ')).toThrow(/NARRATIVE_MODELS/);
   });
