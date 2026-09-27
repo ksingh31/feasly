@@ -7,4 +7,5 @@ export { SiteNavComponent } from './site-nav';
 export { SqftSliderComponent } from './sqft-slider';
 export { OptionSelectorComponent } from './option-selector';
 export type { OptionCard, TierOption } from './option-selector';
+export { WizardBackComponent } from './wizard-back';
 export { WizardStepsComponent } from './wizard-steps';

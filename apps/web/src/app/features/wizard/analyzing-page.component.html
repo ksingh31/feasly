@@ -1,5 +1,6 @@
     <app-site-nav />
     <main class="wrap analyzing" id="main-content" tabindex="-1">
+      <app-wizard-back [label]="copy.backLabel" [link]="backLink()" />
       <h1 class="analyzing-heading">{{ copy.heading }}</h1>
       <p class="analyzing-sub">{{ copy.sub }}</p>
 
@@ -18,10 +19,7 @@
           <h2>{{ copy.errorHeading }}</h2>
           <p>{{ copy.errorBody }}</p>
           <button class="cta" type="button" (click)="retry()">{{ copy.retryLabel }}</button>
-          <a class="back" [routerLink]="backLink()">{{ copy.backLabel }}</a>
         </div>
-      } @else {
-        <a class="back" [routerLink]="backLink()">{{ copy.backLabel }}</a>
       }
     </main>
     <app-site-footer />

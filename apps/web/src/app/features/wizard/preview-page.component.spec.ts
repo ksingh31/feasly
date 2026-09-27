@@ -141,7 +141,7 @@ describe('PreviewPageComponent', () => {
 
   it('renders the single "Unlock" CTA toward the gate', () => {
     const unlock = fixture.nativeElement.querySelector('a.cta.unlock') as HTMLAnchorElement;
-    expect(unlock?.textContent).toContain('Unlock my full report');
+    expect(unlock?.textContent).toContain('Unlock my free report');
     expect(unlock?.getAttribute('href')).toBe('/estimate/gate');
   });
 
@@ -154,7 +154,7 @@ describe('PreviewPageComponent', () => {
   });
 
   it('links back to the details step', () => {
-    const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+    const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
     expect(back?.textContent).toContain('Back to details');
     expect(back?.getAttribute('href')).toBe('/estimate/details');
   });
@@ -313,14 +313,14 @@ describe('PreviewPageComponent loading state', () => {
 
     it('back link returns to reno scope step for reno', async () => {
       const fixture = await setupReno();
-      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
       expect(back?.getAttribute('href')).toBe('/estimate/reno-scope');
       TestBed.resetTestingModule();
     });
 
     it('back link says "Back to scope" (not "details") for reno', async () => {
       const fixture = await setupReno();
-      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
       expect(back?.textContent).toContain('Back to scope');
       expect(back?.textContent).not.toContain('Back to details');
       TestBed.resetTestingModule();

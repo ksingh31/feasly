@@ -5,7 +5,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { formatLotSizeBody } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo/seo.service';
-import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
 import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { GoToStep } from './wizard.actions';
@@ -29,7 +29,7 @@ import { WizardState } from './wizard.state';
 @Component({
   selector: 'app-preview-page',
   standalone: true,
-  imports: [PropertyCardComponent, RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [PropertyCardComponent, RouterLink, SiteFooterComponent, SiteNavComponent, WizardBackComponent],
   templateUrl: './preview-page.component.html',
   styleUrls: ['./wizard-shell.scss', './preview-page.component.scss'],
 })
@@ -138,11 +138,5 @@ export class PreviewPageComponent implements OnInit {
    */
   protected backToAddress(): void {
     this.store.dispatch(new GoToStep(1));
-  }
-
-  /** Back to the details step: the routerLink navigates; this keeps the
-   * wizard-step bookkeeping accurate (same pattern as the details page). */
-  protected goBack(): void {
-    this.store.dispatch(new GoToStep(3));
   }
 }
