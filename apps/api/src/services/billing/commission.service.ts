@@ -74,7 +74,10 @@ export interface CommissionInvoiceRecord {
 export interface CommissionService {
   /**
    * Won deal → draft invoice. Reads the reported contract from the
-   * attribution service; exactly one invoice per attribution (unique).
+   * attribution service; exactly one invoice per attribution (UNIQUE
+   * backstop, migration 0033). Idempotent: if an invoice already exists
+   * for the attribution (retried won event, or a lost insert race), the
+   * existing invoice is returned — never a duplicate, never a 409.
    * Flags + alerts when the report arrived after the 14-day SLA.
    */
   createDraftInvoice(attributionId: string): Promise<CommissionInvoiceRecord>;
@@ -93,9 +96,15 @@ export interface CommissionService {
     invoiceId: string,
     outcome: 'resume' | 'void',
   ): Promise<CommissionInvoiceRecord>;
-  /** Webhook: payment_intent.succeeded. */
+  /**
+   * Webhook: payment_intent.succeeded. No-op (audited) while the invoice is
+   * 'disputed' — the dispute freeze holds against webhooks.
+   */
   markPaidByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
-  /** Webhook: payment_intent.payment_failed → dunning. */
+  /**
+   * Webhook: payment_intent.payment_failed → dunning. No-op (audited) while
+   * the invoice is 'disputed'.
+   */
   markFailedByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
@@ -135,6 +144,52 @@ const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
   'failed',
   'void',
 ]);
+
+/**
+ * Legal invoice state transitions (P0, 2026-09-27: dispute-vs-charge race).
+ *
+ * The charge clock FREEZES while an invoice is 'disputed': only the
+ * dispute-resolution flow (resolveDispute, or dispute.service's post-refund
+ * paid→void) may move an invoice out of 'disputed'. In particular
+ * disputed→paid/finalized/failed is never legal — a Stripe webhook arriving
+ * mid-dispute must not silently un-freeze the charge.
+ *
+ * transition() enforces this map AND performs the UPDATE conditionally on
+ * the expected current status, so a lost check-then-act race surfaces as a
+ * 409 instead of silently overwriting a concurrent transition (e.g.
+ * disputeInvoice racing finalizeInvoice).
+ */
+const ALLOWED_TRANSITIONS: Record<
+  CommissionInvoiceStatus,
+  ReadonlySet<CommissionInvoiceStatus>
+> = {
+  draft: new Set(['in_review']),
+  in_review: new Set(['finalized', 'disputed']),
+  finalized: new Set(['paid', 'failed']),
+  paid: new Set([]),
+  failed: new Set([]),
+  disputed: new Set(['in_review', 'void']),
+  void: new Set([]),
+};
+
+/**
+ * True when the error is a Postgres unique-violation (SQLSTATE 23505).
+ * Used to turn a lost won-event race into an idempotent "return the
+ * existing invoice" instead of a 500 (see the UNIQUE backstop on
+ * commission_invoices.attribution_id, migration 0033).
+ *
+ * Walks the `cause` chain: drizzle surfaces driver errors wrapped
+ * ("Failed query: ..." with the pg error as `cause`).
+ */
+function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4; depth++) {
+    if (typeof current !== 'object' || current === null) return false;
+    if ((current as { code?: unknown }).code === '23505') return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
 
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
@@ -193,18 +248,48 @@ export function createCommissionService(
     return row;
   }
 
+  /**
+   * Move an invoice from one status to another, atomically.
+   *
+   * Two guards: (1) the transition must be in ALLOWED_TRANSITIONS —
+   * illegal moves (notably anything out of 'disputed' except via the
+   * dispute-resolution flow) throw 409; (2) the UPDATE is conditional on
+   * the expected current status, so a concurrent transition that landed
+   * first surfaces as 409 "changed concurrently" instead of silently
+   * overwriting it.
+   */
   async function transition(
     id: string,
-    status: CommissionInvoiceStatus,
+    from: CommissionInvoiceStatus,
+    to: CommissionInvoiceStatus,
     patch: Partial<typeof commissionInvoices.$inferInsert>,
     eventType: string,
     eventPayload?: Record<string, unknown>,
   ): Promise<CommissionInvoiceRecord> {
+    if (!ALLOWED_TRANSITIONS[from].has(to)) {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Invoice "${id}" cannot move '${from}' → '${to}' — illegal transition`,
+      );
+    }
     const [updated] = await db
       .update(commissionInvoices)
-      .set({ ...patch, status, updatedAt: now() })
-      .where(eq(commissionInvoices.id, id))
+      .set({ ...patch, status: to, updatedAt: now() })
+      .where(
+        and(
+          eq(commissionInvoices.id, id),
+          eq(commissionInvoices.status, from),
+        ),
+      )
       .returning();
+    if (updated === undefined) {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Invoice "${id}" changed concurrently — expected '${from}'`,
+      );
+    }
     const record = toRecord(updated);
     await audit.append({
       tenantKey: record.tenantKey,
@@ -212,7 +297,7 @@ export function createCommissionService(
       entityType: 'commission_invoice',
       entityId: record.id,
       payload: {
-        status,
+        status: to,
         commissionCents: record.commissionCents,
         ...eventPayload,
       },
@@ -227,6 +312,37 @@ export function createCommissionService(
       summary,
       firedAt: now(),
     });
+  }
+
+  /**
+   * Dispute freeze (P0, 2026-09-27): while an invoice is 'disputed', NO
+   * charge-path movement may touch it — not paid, not failed. A Stripe
+   * webhook arriving mid-dispute returns the unchanged invoice after
+   * writing an audit trail (audited, not silent: a charge attempt against
+   * a frozen invoice is an anomaly). Only the dispute-resolution flow
+   * (resolveDispute, or dispute.service's post-refund paid→void) may move
+   * an invoice out of 'disputed'.
+   *
+   * Returns the frozen record when frozen, null when the caller may proceed.
+   */
+  async function frozenDispute(
+    row: typeof commissionInvoices.$inferSelect,
+    paymentIntentId: string,
+    attempted: 'paid' | 'failed',
+  ): Promise<CommissionInvoiceRecord | null> {
+    if (row.status !== 'disputed') return null;
+    await audit.append({
+      tenantKey: row.tenantKey,
+      eventType: 'invoice.charge_blocked_disputed',
+      entityType: 'commission_invoice',
+      entityId: row.id,
+      payload: {
+        attempted,
+        paymentIntentId,
+        disputeReason: row.disputeReason,
+      },
+    });
+    return toRecord(row);
   }
 
   return {
@@ -257,11 +373,17 @@ export function createCommissionService(
         where: eq(commissionInvoices.attributionId, attributionId),
       });
       if (existing !== undefined) {
-        throw new HttpError(
-          409,
-          ErrorCodes.CONFLICT,
-          `Attribution "${attributionId}" already has invoice "${existing.id}"`,
-        );
+        // Idempotent: a retried won event (or a duplicate call) returns the
+        // existing invoice instead of 409 — the embed-billing-hook already
+        // treats this as "already billed". Audited so duplicates are visible.
+        await audit.append({
+          tenantKey: existing.tenantKey,
+          eventType: 'invoice.create_duplicate_suppressed',
+          entityType: 'commission_invoice',
+          entityId: existing.id,
+          payload: { attributionId },
+        });
+        return toRecord(existing);
       }
 
       const reportedAt = record.updatedAt;
@@ -286,7 +408,26 @@ export function createCommissionService(
           commissionCents,
           slaBreached: !onTime,
         })
-        .returning();
+        .returning()
+        .catch(async (error: unknown) => {
+          // Lost the won-event race: the UNIQUE backstop on attribution_id
+          // (migration 0033) rejected our insert because a concurrent call
+          // created the invoice first. Return the winner — never a 500,
+          // never a second invoice/charge.
+          if (!isUniqueViolation(error)) throw error;
+          const winner = await db.query.commissionInvoices.findFirst({
+            where: eq(commissionInvoices.attributionId, attributionId),
+          });
+          if (winner === undefined) throw error;
+          await audit.append({
+            tenantKey: winner.tenantKey,
+            eventType: 'invoice.create_race_suppressed',
+            entityType: 'commission_invoice',
+            entityId: winner.id,
+            payload: { attributionId },
+          });
+          return [winner];
+        });
       const invoice = toRecord(row);
       await audit.append({
         tenantKey: invoice.tenantKey,
@@ -344,6 +485,7 @@ export function createCommissionService(
       );
       return transition(
         invoiceId,
+        'draft',
         'in_review',
         { reviewDueAt },
         'invoice.status_changed',
@@ -385,6 +527,7 @@ export function createCommissionService(
       );
       return transition(
         invoiceId,
+        'in_review',
         'finalized',
         { stripePaymentIntentId: intent.id, finalizedAt: now() },
         'invoice.charge_attempted',
@@ -414,6 +557,7 @@ export function createCommissionService(
       }
       const invoice = await transition(
         invoiceId,
+        'in_review',
         'disputed',
         { disputeReason: reason.trim() },
         'invoice.disputed',
@@ -446,6 +590,7 @@ export function createCommissionService(
       if (outcome === 'void') {
         return transition(
           invoiceId,
+          'disputed',
           'void',
           { disputeReason: row.disputeReason },
           'invoice.status_changed',
@@ -458,6 +603,7 @@ export function createCommissionService(
       );
       return transition(
         invoiceId,
+        'disputed',
         'in_review',
         { reviewDueAt, disputeReason: null },
         'invoice.status_changed',
@@ -483,6 +629,8 @@ export function createCommissionService(
           `No invoice found for payment intent "${paymentIntentId}"`,
         );
       }
+      const frozen = await frozenDispute(row, paymentIntentId, 'paid');
+      if (frozen !== null) return frozen;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         // Webhook redelivery for an already-settled invoice: no-op, no
         // duplicate audit row.
@@ -490,6 +638,7 @@ export function createCommissionService(
       }
       return transition(
         row.id,
+        row.status as CommissionInvoiceStatus,
         'paid',
         { paidAt: now() },
         'invoice.charge_succeeded',
@@ -511,11 +660,14 @@ export function createCommissionService(
           `No invoice found for payment intent "${paymentIntentId}"`,
         );
       }
+      const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
+      if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         return toRecord(row);
       }
       const invoice = await transition(
         row.id,
+        row.status as CommissionInvoiceStatus,
         'failed',
         {},
         'invoice.charge_failed',

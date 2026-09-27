@@ -672,7 +672,13 @@ export const commissionInvoices = pgTable(
     /** The attribution whose reported contract this invoice bills. */
     attributionId: uuid('attribution_id')
       .notNull()
-      .references(() => attributionEvents.id),
+      .references(() => attributionEvents.id)
+      // UNIQUE — one invoice max per attribution. This is the database
+      // backstop for the won-event race: two concurrent chargeCommission
+      // calls for the same deal both pass the findFirst check, but only
+      // one insert wins; the loser gets 23505 and createDraftInvoice
+      // returns the winner's invoice (idempotent) instead of double-billing.
+      .unique(),
     /** Denormalized from the attribution for invoice queries. */
     leadId: uuid('lead_id')
       .notNull()
