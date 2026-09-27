@@ -29,6 +29,13 @@ export interface NudgeServiceDeps {
   readonly nudgeWindowHours?: number;
   /** Max candidates per run (backpressure). Default 500. */
   readonly maxCandidatesPerRun?: number;
+  /**
+   * Sink for per-lead failures (email/provider/DB). The batch catch counts
+   * them as skipped without stamping — the sink makes a dead provider
+   * visible before the hourly aggregate does. Sanitized at the composition
+   * root (never tokens, emails, or keys).
+   */
+  readonly onLeadError?: (error: unknown) => void;
   readonly clock?: () => Date;
 }
 
@@ -51,6 +58,7 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     nudgeDelayHours = 24,
     nudgeWindowHours = 1,
     maxCandidatesPerRun = 500,
+    onLeadError = () => {},
     clock = () => new Date(),
   } = deps;
 
@@ -78,9 +86,13 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
           const sent = await maybeNudgeLead(lead.id);
           if (sent) nudged++;
           else skipped++;
-        } catch {
+        } catch (error) {
           // One bad lead must not kill the batch; it stays un-nudged and
-          // will be retried on the next hourly run.
+          // will be retried on the next hourly run. A rising `skipped`
+          // count alone is not enough visibility when the provider is
+          // down — the failure detail goes to the sink (sanitized at the
+          // composition root).
+          onLeadError(error);
           skipped++;
         }
       }

@@ -19,6 +19,8 @@ import type { AdminAuditStore } from '../src/services/admin-audit.store';
 function makeDeps(overrides?: {
   readonly allowlisted?: boolean;
   readonly tenantKey?: string | null;
+  readonly emailSendFails?: boolean;
+  readonly onEmailError?: (error: unknown) => void;
 }) {
   const allowlisted = overrides?.allowlisted ?? true;
   const tenantKey = overrides?.tenantKey ?? 'elite-craft';
@@ -55,9 +57,16 @@ function makeDeps(overrides?: {
     revokeByEmail: vi.fn(async () => 0),
   } as unknown as MagicLinkStore;
 
-  const email: EmailService = {
-    sendMagicLink: vi.fn(async () => ({ messageId: 'msg-1' })),
-  } as unknown as EmailService;
+  const email: EmailService =
+    overrides?.emailSendFails === true
+      ? ({
+          sendMagicLink: vi.fn(async () => {
+            throw new Error('ACS provider down');
+          }),
+        } as unknown as EmailService)
+      : ({
+          sendMagicLink: vi.fn(async () => ({ messageId: 'msg-1' })),
+        } as unknown as EmailService);
 
   const service = createBuilderAuthService({
     allowlist,
@@ -68,6 +77,7 @@ function makeDeps(overrides?: {
     appBaseUrl: 'https://feasly.example.com',
     magicLinkTtlSeconds: 900,
     builderSessionTtlSeconds: 604800,
+    onEmailError: overrides?.onEmailError,
   });
 
   return { service, allowlist, sessions, audit, magicLinks, email };
@@ -96,6 +106,20 @@ describe('builder-auth service (embed/09)', () => {
     const { service, magicLinks } = makeDeps({ allowlisted: false });
     await service.requestMagicLink({ email: 'stranger@example.com' });
     expect(magicLinks.issue).not.toHaveBeenCalled();
+  });
+
+  it('a failed email send still returns sent:true but reports via onEmailError (P0 visibility guard)', async () => {
+    const errors: unknown[] = [];
+    const { service } = makeDeps({
+      emailSendFails: true,
+      onEmailError: (e) => void errors.push(e),
+    });
+    const result = await service.requestMagicLink({ email: 'builder@example.com' });
+    // Fire-and-forget: identical response, no timing oracle — but the
+    // failure must reach the sink, never be swallowed.
+    expect(result.sent).toBe(true);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(String((errors[0] as Error).message)).toContain('ACS provider down');
   });
 
   it('verifyMagicLink throws 401 for invalid token', async () => {
