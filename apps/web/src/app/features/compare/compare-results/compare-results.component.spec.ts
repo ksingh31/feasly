@@ -303,7 +303,7 @@ describe('CompareResultsComponent', () => {
     const before = store.selectSnapshot(ComparisonState.result)?.rowSets[0].build.base;
     const tierSelector: HTMLElement = fixture.nativeElement;
     const luxuryOption = Array.from(
-      tierSelector.querySelectorAll('app-tier-selector button'),
+      tierSelector.querySelectorAll('app-option-selector button'),
     ).find((b) => b.textContent?.includes('Luxury')) as HTMLButtonElement;
     // Fall back to dispatching when the shared selector's DOM differs.
     if (luxuryOption) {

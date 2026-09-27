@@ -5,8 +5,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { throwError } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
-import { API_SERVICE, provideApi } from '../../core/api/api.service';
+import { API_SERVICE, provideApi, type ApiService } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
@@ -321,5 +322,109 @@ describe('PreviewPageComponent loading state', () => {
       expect(back?.textContent).not.toContain('Back to details');
       TestBed.resetTestingModule();
     });
+  });
+});
+
+describe('PreviewPageComponent validation failure (consumer/06)', () => {
+  const oversizedProperty = {
+    addressKey: 'calgary-9999-40-st-se',
+    address: '9999 40 St SE, Calgary, AB',
+    community: 'Test Community',
+    lotSqft: 643811,
+    zoning: 'DC',
+    assessedValue: 61580000,
+    assessmentYear: 2025,
+    yearBuilt: 1960,
+    dataAsOf: '2025-07-01',
+    stale: false,
+  } as PropertyRecord;
+
+  /** API stub whose preview call fails with the given ApiError envelope. */
+  function failingApi(message: string, retryable: boolean): ApiService {
+    return {
+      getPreviewEstimate: () =>
+        throwError(() => ({ code: 'VALIDATION_FAILED', message, retryable })),
+    } as unknown as ApiService;
+  }
+
+  async function setupFailure(
+    message: string,
+    retryable: boolean,
+  ): Promise<{ fixture: ComponentFixture<PreviewPageComponent>; store: Store }> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [PreviewPageComponent, BlankComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '', component: BlankComponent }]),
+        provideStore([WizardState, ReportState]),
+        providePropertyData(),
+        { provide: API_SERVICE, useValue: failingApi(message, retryable) },
+      ],
+    });
+    const httpMock = TestBed.inject(HttpTestingController);
+    const config = TestBed.inject(ConfigService);
+    const pending = config.load();
+    httpMock.expectOne('/assets/config/app-config.json').flush({
+      api: { useMockApi: true },
+      wizard: { sqftDefault: 2200, sqftMin: 1200, sqftMax: 4000, sqftStep: 50 },
+    });
+    await pending;
+    const store = TestBed.inject(Store);
+    store.dispatch([new SelectProperty(oversizedProperty), new UpdateInputs({ sqft: 2200 })]);
+    const fixture = TestBed.createComponent(PreviewPageComponent);
+    fixture.detectChanges();
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      fixture.detectChanges();
+      if (store.selectSnapshot(ReportState.status) === 'error') {
+        break;
+      }
+      if (Date.now() > deadline) {
+        throw new Error('timed out waiting for the validation error');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return { fixture, store };
+  }
+
+  it('explains a lot-size rejection in plain English with no retry button', async () => {
+    const { fixture, store } = await setupFailure('lotSizeSqft 643811 outside [1200, 20000]', false);
+    expect(store.selectSnapshot(ReportState.error)).toBe('validation');
+    const card = fixture.nativeElement.querySelector('.error-card') as HTMLElement;
+    expect(card).toBeTruthy();
+    expect(card.textContent).toContain('We can’t price this property yet');
+    // The API detail is translated, never rendered verbatim.
+    expect(card.textContent).toContain('643,811 sq ft');
+    expect(card.textContent).toContain('1,200–20,000 sq ft');
+    expect(card.textContent).not.toContain('lotSizeSqft');
+    // No misleading retry — retry cannot succeed for a validation failure.
+    expect(card.querySelector('button')).toBeNull();
+    expect(card.textContent).not.toMatch(/try again/i);
+    const back = card.querySelector('a.cta') as HTMLAnchorElement;
+    expect(back?.textContent).toContain('Try a different address');
+    expect(back?.getAttribute('href')).toBe('/');
+    TestBed.resetTestingModule();
+  });
+
+  it('falls back to the generic explanation when the detail is unrecognized', async () => {
+    const { fixture } = await setupFailure('something the UI has never seen', false);
+    const card = fixture.nativeElement.querySelector('.error-card') as HTMLElement;
+    expect(card.textContent).toContain('We can’t price this property yet');
+    expect(card.textContent).toContain('outside the range our cost data covers');
+    expect(card.textContent).not.toContain('something the UI has never seen');
+    expect(card.querySelector('button')).toBeNull();
+    TestBed.resetTestingModule();
+  });
+
+  it('keeps the retry button for transient (retryable) failures', async () => {
+    const { fixture, store } = await setupFailure('Request failed. Please try again.', true);
+    expect(store.selectSnapshot(ReportState.error)).toBe('load');
+    const card = fixture.nativeElement.querySelector('.error-card') as HTMLElement;
+    expect(card.textContent).toContain('We could not load your report.');
+    const retry = card.querySelector('button.cta') as HTMLButtonElement;
+    expect(retry?.textContent).toContain('Try again');
+    TestBed.resetTestingModule();
   });
 });

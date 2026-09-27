@@ -1,7 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import type { FinishTier } from '@feasly/contracts';
+import type { BasementOption, FinishTier, GarageOption } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, UpdateInputs, WizardState, type ProjectType } from '../wizard';
@@ -10,8 +10,9 @@ import {
   SiteFooterComponent,
   SiteNavComponent,
   SqftSliderComponent,
-  TierSelectorComponent,
+  OptionSelectorComponent,
   WizardStepsComponent,
+  type OptionCard,
   type TierOption,
 } from '../../shared/components';
 
@@ -36,7 +37,7 @@ import {
     SiteFooterComponent,
     SiteNavComponent,
     SqftSliderComponent,
-    TierSelectorComponent,
+    OptionSelectorComponent,
     WizardStepsComponent,
   ],
   templateUrl: './scope-page.component.html',
@@ -92,9 +93,37 @@ export class ScopePageComponent implements OnInit {
     this.store.dispatch(new UpdateInputs({ tier }));
   }
 
+  /** Garage card: stores the selection in NGXS (persisted). */
+  chooseGarage(garage: GarageOption): void {
+    this.store.dispatch(new UpdateInputs({ garage }));
+  }
+
+  /** Basement card: stores the selection in NGXS (persisted). */
+  chooseBasement(basement: BasementOption): void {
+    this.store.dispatch(new UpdateInputs({ basement }));
+  }
+
   /** Tier options for the shared selector (config-owned copy). */
   protected get tierOptions(): TierOption[] {
     return this.copy.scopeTiers.map((t) => ({ id: t.id as FinishTier, name: t.name, blurb: t.blurb }));
+  }
+
+  /** Garage options for the shared selector (config-owned copy). */
+  protected get garageOptions(): OptionCard<GarageOption>[] {
+    return this.copy.scopeGarages.map((g) => ({
+      id: g.id as GarageOption,
+      name: g.name,
+      blurb: g.blurb,
+    }));
+  }
+
+  /** Basement options for the shared selector (config-owned copy). */
+  protected get basementOptions(): OptionCard<BasementOption>[] {
+    return this.copy.scopeBasements.map((b) => ({
+      id: b.id as BasementOption,
+      name: b.name,
+      blurb: b.blurb,
+    }));
   }
 
   goBack(): void {

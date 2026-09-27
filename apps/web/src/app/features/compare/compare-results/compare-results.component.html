@@ -7,7 +7,7 @@
 
     @if (unlocked()) {
       <section class="compare-results__whatif" aria-label="Finish tier what-if">
-        <app-tier-selector
+        <app-option-selector
           [selected]="comparison.inputs.tier"
           [options]="tierOptions"
           [label]="copy.whatIfLabel"

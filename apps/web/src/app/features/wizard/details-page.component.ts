@@ -34,6 +34,18 @@ export class DetailsPageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').wizard;
   protected readonly inputs = this.store.selectSignal(WizardState.inputs);
 
+  /** Display name for the chosen garage (config-owned; falls back to the id). */
+  protected garageName(): string {
+    const garage = this.inputs().garage;
+    return this.copy.scopeGarages.find((g) => g.id === garage)?.name ?? garage;
+  }
+
+  /** Display name for the chosen basement (config-owned; falls back to the id). */
+  protected basementName(): string {
+    const basement = this.inputs().basement;
+    return this.copy.scopeBasements.find((b) => b.id === basement)?.name ?? basement;
+  }
+
   ngOnInit(): void {
     this.seo.setForRoute('estimate/details');
   }
