@@ -5,7 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Subject, firstValueFrom, of } from 'rxjs';
+import { Subject, firstValueFrom, of, throwError } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
@@ -436,6 +436,76 @@ describe('AnalyzingPageComponent', () => {
       // If there were fake timers, this would take longer. The pipeline
       // should complete quickly (mock latency is 1-2ms in test config).
       expect(elapsed).toBeLessThan(2000);
+    });
+  });
+
+  describe('reno estimate failure (backend 503)', () => {
+    let estimateAttempts: number;
+
+    function renoStageState(key: string): string | null {
+      const stages = fixture.nativeElement.querySelectorAll('.stage');
+      // Reno order: fetch (0), scope (1), estimate (2), preview (3)
+      const labels: Record<string, number> = { fetch: 0, scope: 1, estimate: 2, preview: 3 };
+      return stages[labels[key]]?.getAttribute('data-state') ?? null;
+    }
+
+    beforeEach(async () => {
+      estimateAttempts = 0;
+      await setup({
+        provide: API_SERVICE,
+        useValue: {
+          // Fresh observables per call — like the real HttpClient — so retry
+          // re-runs the whole pipeline.
+          getProperty: () => of(fakeProperty),
+          getPreviewEstimate: () => {
+            estimateAttempts++;
+            // First attempt 503s like the live backend's draft-data gate
+            // (reno rates uncalibrated, dev phase 2); retry succeeds.
+            return estimateAttempts === 1
+              ? throwError(() => new Error('503 DEPENDENCY_UNAVAILABLE'))
+              : of(fakePreview);
+          },
+        },
+      });
+      const { ChooseProjectType, UpdateRenoInputs } = await import('./wizard.actions');
+      store.dispatch([
+        new SelectProperty(fakeProperty),
+        new ChooseProjectType('renovation'),
+        new UpdateRenoInputs({
+          renoType: 'basement',
+          renoSqft: 800,
+          tier: 'premium',
+          underpinning: false,
+        }),
+        new GoToStep(3),
+      ]);
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+    });
+
+    it('fails honestly on a reno estimate 503 and retry recovers — never a spinner', async () => {
+      // The estimate call fails: no hang, an honest error state instead.
+      await vi.waitFor(() => {
+        refresh();
+        expect(fixture.nativeElement.querySelector('.error-card')).not.toBeNull();
+      });
+      expect(estimateAttempts).toBe(1);
+      expect(renoStageState('fetch')).toBe('done');
+      expect(renoStageState('scope')).toBe('done');
+      expect(renoStageState('estimate')).toBe('error');
+      expect(router.url).not.toBe('/estimate/report');
+      expect(store.selectSnapshot(WizardState.preview)).toBeNull();
+      // Reno users go back to the reno scope step, not the new-build one.
+      const back = fixture.nativeElement.querySelector(
+        '.error-card .back',
+      ) as HTMLAnchorElement;
+      expect(back.getAttribute('href')).toBe('/estimate/reno-scope');
+
+      // Retry re-attempts the estimate call and this time lands the report.
+      (fixture.nativeElement.querySelector('.error-card .cta') as HTMLButtonElement).click();
+      await pollUrl('/estimate/report');
+      expect(estimateAttempts).toBe(2);
+      expect(store.selectSnapshot(WizardState.preview)).not.toBeNull();
     });
   });
 });
