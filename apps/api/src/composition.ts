@@ -1077,8 +1077,8 @@ export function createComposition(
   });
   // Narrative worker (consumer/06): provider selected by config.
   // 'log' is the dev/test default (refuses production); 'meta' is the
-  // Meta Llama API (Karan's pick) — fails closed until the API key is
-  // configured in Key Vault.
+  // OpenAI-compatible chat-completions endpoint (Gemini, Karan's pick) —
+  // fails closed until the API key is configured in Key Vault.
   const narrativeProvider: NarrativeProvider =
     config.narrative.provider === 'meta'
       ? createMetaNarrativeProvider({
@@ -1092,16 +1092,9 @@ export function createComposition(
       'NARRATIVE_PROVIDER=log refuses production — configure the Meta API provider.',
     );
   }
-  const narrativeService: NarrativeService = createNarrativeService({
-    magicLinks: magicLinkStore,
-    leads: leadStore,
-    estimates: estimateStore,
-    provider: narrativeProvider,
-    opsAlerts: opsAlertsService,
-  });
-  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
-    narrative: narrativeService,
-  });
+  // (Narrative service is created after propertyService below — it needs
+  // property + community-stats lookups for the prompt's neighbourhood
+  // section.)
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -1201,6 +1194,21 @@ export function createComposition(
     allowDraftCostData: config.costEngine.allowDraftCostData,
   });
   const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
+  // Narrative worker (consumer/06): created here (after propertyService)
+  // because it resolves community context for the prompt's neighbourhood
+  // section via property + community-stats lookups.
+  const narrativeService: NarrativeService = createNarrativeService({
+    magicLinks: magicLinkStore,
+    leads: leadStore,
+    estimates: estimateStore,
+    provider: narrativeProvider,
+    opsAlerts: opsAlertsService,
+    properties: propertyService,
+    communityStats: communityStatsService,
+  });
+  const narrativeRoute: NarrativeRoute = createNarrativeRoute({
+    narrative: narrativeService,
+  });
   const callbackService: CallbackService = createCallbackService({
     magicLinks: magicLinkStore,
     leads: leadStore,

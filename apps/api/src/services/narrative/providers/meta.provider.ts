@@ -1,17 +1,18 @@
 /**
  * Meta API narrative provider (story consumer/06).
  *
- * Real adapter over the Meta Llama API (Karan's pick, 2026-09-22) using
- * its OpenAI-compatible chat-completions endpoint. The provider receives
- * the already-assembled prompt — it never sees the estimate, cost data,
- * or PII beyond what `buildNarrativePrompt()` interpolated (figures +
- * city facts, no names/emails).
+ * Real adapter over an OpenAI-compatible chat-completions endpoint —
+ * currently Google's Gemini API (Karan's pick, 2026-09-27; Meta retired
+ * its hosted Llama API). The provider receives the already-assembled
+ * prompt — it never sees the estimate, cost data, or PII beyond what
+ * `buildNarrativePrompt()` interpolated (figures + city facts, no
+ * names/emails).
  *
  * Wiring: `NARRATIVE_META_API_KEY` (config, Key Vault reference in
  * staging/production — never committed; the secrets-hygiene tripwire
  * fails the build if a key literal ever lands in this module). A missing
  * key fails closed at generate time naming the exact env var. The model
- * (`NARRATIVE_MODEL`, default `llama-3.3-70b-versatile`) comes from config.
+ * (`NARRATIVE_MODEL`, default `gemini-2.5-flash`) comes from config.
  *
  * Timeouts: 30s per attempt (AbortSignal.timeout). The service owns
  * retry policy (one repair retry on validation failure).
@@ -30,7 +31,7 @@ export interface MetaNarrativeProviderDeps {
    * staging/production). Absent = fail-closed generation.
    */
   readonly apiKey?: string;
-  /** Model name, e.g. 'llama-3.3-70b-versatile'. */
+  /** Model name, e.g. 'gemini-2.5-flash'. */
   readonly model: string;
   /** API endpoint (from NARRATIVE_META_ENDPOINT config). */
   readonly endpoint?: string;
@@ -51,6 +52,8 @@ export function createMetaNarrativeProvider(
     );
   }
   return {
+    // Real provider — output is validated and may be persisted/returned.
+    synthetic: false,
     async generate(
       prompt: NarrativePrompt,
     ): Promise<NarrativeProviderResult> {

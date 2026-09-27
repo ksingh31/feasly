@@ -140,19 +140,20 @@ const EnvSchema = z.object({
   SHEETS_SHEET_ID: z.string().default(''),
   // --- AI narrative worker (consumer/06) ---
   // Narrative LLM provider: 'log' = dev/test console transport (default,
-  // refuses production); 'meta' = Meta Llama API (Karan's pick).
+  // refuses production); 'meta' = OpenAI-compatible chat-completions
+  // endpoint (Gemini, Karan's pick — Meta retired its hosted Llama API).
   NARRATIVE_PROVIDER: z.enum(['log', 'meta']).default('log'),
-  // Meta API key — from Key Vault, never in repo/env files. Empty with
-  // provider='meta' = fail-closed generation naming this var.
+  // LLM API key (Gemini) — from Key Vault, never in repo/env files. Empty
+  // with provider='meta' = fail-closed generation naming this var.
   NARRATIVE_META_API_KEY: z.string().default(''),
-  // LLM model for narratives. Default is the Meta Llama 3.3 70B instruct
-  // model; overridable without a code change.
-  NARRATIVE_MODEL: z.string().default('llama-3.3-70b-versatile'),
-  // Meta API endpoint (OpenAI-compatible chat completions). Overridable
-  // for tests; default is the Meta Llama API endpoint.
+  // LLM model for narratives. Default is Gemini 2.5 Flash (free tier);
+  // overridable without a code change.
+  NARRATIVE_MODEL: z.string().default('gemini-2.5-flash'),
+  // OpenAI-compatible chat-completions endpoint. Overridable for tests;
+  // default is Google's Gemini OpenAI-compatibility endpoint.
   NARRATIVE_META_ENDPOINT: z
     .string()
-    .default('https://api.llama.com/v1/chat/completions'),
+    .default('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
