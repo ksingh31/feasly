@@ -88,7 +88,7 @@ describe('DetailsPageComponent', () => {
   beforeEach(setup);
 
   function backLink(): HTMLAnchorElement {
-    return fixture.nativeElement.querySelector('a.back');
+    return fixture.nativeElement.querySelector('.wizard-backbar-btn');
   }
 
   it('renders a "← Back to scope" link on the details step', () => {
@@ -112,9 +112,9 @@ describe('DetailsPageComponent', () => {
     expect(store.selectSnapshot(WizardState.property)?.addressKey).toBe('calgary-918-16-ave-nw');
   });
 
-  it('goBack() dispatches GoToStep(2) even without the router', () => {
+  it('back bar dispatches GoToStep(2) on click', () => {
     store.dispatch(new GoToStep(3));
-    fixture.componentInstance.goBack();
+    backLink().click();
     expect(store.selectSnapshot(WizardState.step)).toBe(2);
   });
 

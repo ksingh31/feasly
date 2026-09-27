@@ -244,8 +244,8 @@ describe('RenoScopePageComponent', () => {
   });
 
   it('back link returns to the scope step', async () => {
-    const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
-    expect(back.getAttribute('routerLink')).toBe('/estimate/scope');
+    const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/estimate/scope');
   });
 
   it('continuing lands on the reno coming-soon page (reno out of launch scope)', async () => {

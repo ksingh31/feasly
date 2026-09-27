@@ -10,9 +10,9 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
-import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
+import { StoreLeadResult, WizardState } from '../wizard';
 import { SetReportToken } from '../report/report.actions';
 import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
 import { AnalyticsService } from '../consent';
@@ -53,6 +53,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
     RouterLink,
     SiteFooterComponent,
     SiteNavComponent,
+    WizardBackComponent,
     WizardStepsComponent,
   ],
   templateUrl: './gate-page.component.html',
@@ -147,13 +148,9 @@ export class GatePageComponent implements OnInit {
     return !!control && control.invalid && (control.touched || control.dirty);
   }
 
-  goBack(): void {
-    if (this.isComparisonFlow) {
-      void this.router.navigate(['/estimate/compare']);
-      return;
-    }
-    this.store.dispatch(new GoToStep(2));
-    void this.router.navigate(['/estimate/scope']);
+  /** Back-bar target: comparison leads return to compare, wizard leads to scope. */
+  protected backLink(): string {
+    return this.isComparisonFlow ? '/estimate/compare' : '/estimate/scope';
   }
 
   onSubmit(): void {

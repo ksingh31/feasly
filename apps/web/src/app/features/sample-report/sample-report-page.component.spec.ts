@@ -99,7 +99,7 @@ describe('SampleReportPageComponent', () => {
       (a.getAttribute('href') ?? '').includes('/estimate/gate'),
     );
     expect(gateLinks.length).toBe(0);
-    expect(el.textContent).not.toContain('Unlock my full report');
+    expect(el.textContent).not.toContain('Unlock my free report');
   });
 
   it('never persists: touches no browser storage', () => {

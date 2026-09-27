@@ -1,5 +1,6 @@
     <app-site-nav />
     <main class="wrap" id="main-content" tabindex="-1">
+      <app-wizard-back [label]="copy.renoScopeBackLabel" [link]="'/estimate/scope'" [step]="2" />
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
         <app-property-card [property]="p" />
@@ -114,7 +115,6 @@
         <p class="hint permit-note">{{ copy.renoPermitNote }}</p>
 
         <div class="actions">
-          <a class="back" routerLink="/estimate/scope" (click)="goBack()">{{ copy.renoScopeBackLabel }}</a>
           <button class="cta" type="button" [disabled]="!canContinue()" (click)="seePreview()">{{ copy.renoScopeCta }}</button>
         </div>
       } @else {

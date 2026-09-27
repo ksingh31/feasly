@@ -207,7 +207,7 @@ describe('CompareResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     const unlock = el.querySelector('[data-testid="unlock-cta"]') as HTMLButtonElement;
     expect(unlock).toBeTruthy();
-    expect(unlock.textContent).toContain('Unlock Full Numbers →');
+    expect(unlock.textContent).toContain('Unlock my free numbers →');
   });
 
   it('post-gate: all figures unblurred with the same badge, no locked notes', async () => {

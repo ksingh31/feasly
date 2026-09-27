@@ -282,13 +282,13 @@ describe('AnalyzingPageComponent', () => {
       expect(store.selectSnapshot(WizardState.preview)?.estimateId).toMatch(/^est-mock-/);
     });
 
-    it('offers a back link next to retry so the user is never trapped', async () => {
+    it('offers a back bar above the error card so the user is never trapped', async () => {
       await vi.waitFor(() => {
         refresh();
         expect(fixture.nativeElement.querySelector('.error-card')).not.toBeNull();
       });
       const back = fixture.nativeElement.querySelector(
-        '.error-card .back',
+        '.wizard-backbar-btn',
       ) as HTMLAnchorElement;
       expect(back).not.toBeNull();
       expect(back.getAttribute('href')).toBe('/estimate/scope');
@@ -348,7 +348,7 @@ describe('AnalyzingPageComponent', () => {
       store.dispatch([new SelectProperty(fakeProperty), new ChooseProjectType('renovation')]);
       fixture = TestBed.createComponent(AnalyzingPageComponent);
       fixture.detectChanges();
-      const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+      const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
       expect(back.getAttribute('href')).toBe('/estimate/reno-scope');
     });
   });

@@ -335,7 +335,7 @@ describe('ScopePageComponent', () => {
 
   it('back link returns to the address step', async () => {
     await router.navigate(['/estimate/scope']);
-    const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
+    const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
     back.click();
     await pollUrl('/');
     expect(store.selectSnapshot((s) => s.wizard.step)).toBe(1);
