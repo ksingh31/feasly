@@ -58,6 +58,49 @@ ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "created_at" timestamp with tim
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative" text;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative_generated_at" timestamp with time zone;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "assumptions" jsonb;
+-- sheets-sync-timer 500s on live dev (2026-09-27 00:00 UTC): insert into
+-- sheets_sync_runs failed with the same drift signature (missing column,
+-- exact name truncated in telemetry). Idempotent repair for every column
+-- the sheets sync worker writes. CREATE TABLE IF NOT EXISTS first covers
+-- the case where drizzle-kit skipped the table-creation migration entirely.
+CREATE TABLE IF NOT EXISTS "sheets_sync_runs" (
+  "id" uuid PRIMARY KEY NOT NULL,
+  "started_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "finished_at" timestamp with time zone,
+  "trigger" text NOT NULL,
+  "actor_email" text,
+  "status" text NOT NULL,
+  "synced_count" integer DEFAULT 0 NOT NULL,
+  "skipped_count" integer DEFAULT 0 NOT NULL,
+  "error_message" text
+);
+CREATE TABLE IF NOT EXISTS "sheets_sync_state" (
+  "id" text PRIMARY KEY NOT NULL,
+  "last_run_at" timestamp with time zone,
+  "last_success_at" timestamp with time zone,
+  "consecutive_failures" integer DEFAULT 0 NOT NULL,
+  "first_failure_at" timestamp with time zone,
+  "rows_synced_total" integer DEFAULT 0 NOT NULL,
+  "lagging" boolean DEFAULT false NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "id" uuid;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "started_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "finished_at" timestamp with time zone;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "trigger" text NOT NULL;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "actor_email" text;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "status" text NOT NULL;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "synced_count" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "skipped_count" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "sheets_sync_runs" ADD COLUMN IF NOT EXISTS "error_message" text;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "id" text;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "last_run_at" timestamp with time zone;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "last_success_at" timestamp with time zone;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "consecutive_failures" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "first_failure_at" timestamp with time zone;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "rows_synced_total" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "lagging" boolean DEFAULT false NOT NULL;
+ALTER TABLE "sheets_sync_state" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 `;
 
 async function runRepair() {
