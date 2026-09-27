@@ -106,7 +106,7 @@ describe('LandingPageComponent', () => {
     expect(items).toEqual([
       'Range-based estimates',
       'Sample property data — live City records coming soon',
-      'AI cost breakdown',
+      'Transparent cost breakdown',
     ]);
     for (const item of items) {
       expect(item).not.toMatch(/[±%]/);
@@ -119,7 +119,7 @@ describe('LandingPageComponent', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(items).toEqual(['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown']);
+    expect(items).toEqual(['Range-based estimates', 'Real City of Calgary data', 'Transparent cost breakdown']);
   });
 
   it('hides the sample-report slot while the flag is off', () => {
@@ -200,7 +200,7 @@ describe('LandingPageComponent', () => {
     const questions = (faqPage['mainEntity'] as Array<{ '@type': string; name: string }>) ?? [];
     expect(questions.length).toBeGreaterThanOrEqual(3);
     expect(questions[0]['@type']).toBe('Question');
-    expect(questions[0]['name']).toBe('Is Feasly free?');
+    expect(questions[0]['name']).toBe('How much does it cost to build a house in Calgary?');
   });
   afterEach(() => {
     // Remove JSON-LD scripts to prevent test pollution (SEO-06).

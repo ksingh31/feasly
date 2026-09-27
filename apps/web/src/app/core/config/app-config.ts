@@ -146,6 +146,21 @@ export interface AppConfig {
       steps: { n: string; title: string; body: string }[];
       /** Label for the optional sample-report entry (needs `features.sampleReport`). */
       sampleReportLabel: string;
+      /**
+       * Substantive SEO sections on the landing page (SEO pass 4): keyword-
+       * bearing, buyer-grade content for the target intents (cost to build,
+       * renovations, builders). Links are plain copy — anchors live in the
+       * template.
+       */
+      seoSections: {
+        costFactorsTitle: string;
+        costFactorsBody: string;
+        renoTitle: string;
+        renoBody: string;
+        buildersTitle: string;
+        buildersBody: string;
+        buildersCta: string;
+      };
     };
     /** Address-autocomplete strings, shared by landing (S0) and wizard (S1). */
     search: {

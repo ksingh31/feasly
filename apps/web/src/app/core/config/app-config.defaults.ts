@@ -89,11 +89,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
       seoDescription:
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
-      trustItems: ['Range-based estimates', 'Real City of Calgary data', 'AI cost breakdown'],
+      trustItems: ['Range-based estimates', 'Real City of Calgary data', 'Transparent cost breakdown'],
       trustItemsMock: [
         'Range-based estimates',
         'Sample property data — live City records coming soon',
-        'AI cost breakdown',
+        'Transparent cost breakdown',
       ],
       howItWorksTitle: 'Estimate in 2 minutes',
       howItWorksSub: 'No spam. We may reach out about your estimate — opt out anytime.',
@@ -115,6 +115,18 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
       ],
       sampleReportLabel: 'See a sample report →',
+      seoSections: {
+        costFactorsTitle: 'What drives the cost to build in Calgary',
+        costFactorsBody:
+          'Three things set your budget: the land (your community’s average City-assessed value), the build (square footage and Standard, Premium, or Luxury finishes), and the site (garage, basement, and lot conditions). Feasly prices all three from real data.',
+        renoTitle: 'Planning a renovation?',
+        renoBody:
+          'Renovation estimates are coming soon — built the same honest way as our new-build estimates, with real City data and deterministic math. New-build estimates are live today.',
+        buildersTitle: 'For Calgary home builders',
+        buildersBody:
+          'Embed Feasly’s estimator on your own site and turn visitors into qualified leads. White-label ready, with a versioned API and the same deterministic cost engine.',
+        buildersCta: 'Explore the developer docs →',
+      },
     },
     search: {
       label: 'Your Calgary address',
@@ -526,7 +538,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     seo: {
       landingTitle: 'Feasly — What will it really cost to build your home in Calgary?',
       landing:
-        'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
+        'Free range-based estimate of what it costs to build a home in Calgary — new builds today, renovations coming soon. Land, build, and total investment by Standard, Premium, or Luxury finish tier, from real City property data.',
       scopeTitle: 'Feasly — Configure your build scope',
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
@@ -560,7 +572,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       howItWorks:
         'How Feasly builds your Calgary infill estimate in 4 steps: address, scope, preview, unlock. Deterministic math, real City data.',
       faqTitle: 'Feasly — Frequently asked questions',
-      faq: 'Is Feasly free? What data do you use? How accurate are estimates? Answers about Calgary infill estimates, privacy, and magic links.',
+      faq: 'How much does it cost to build a house in Calgary? Are renovation estimates available? Answers about Calgary build costs, finish tiers, data, and privacy.',
       developersTitle: 'Feasly — API docs for developers',
       developers:
         'Build on the Feasly API: address-aware property data, deterministic build estimates, and lead capture. Quickstart, auth, scopes, rate limits, errors, sandbox, and the live OpenAPI spec.',
@@ -590,7 +602,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           {
             n: '02',
             title: 'Configure your scope',
-            body: 'Tell us about the project: new build or renovation, living area, finish tier, garage, and basement. Rough figures are fine — you can adjust them later.',
+            body: 'Tell us about the project: living area, finish tier, garage, and basement. Rough figures are fine — you can adjust them later. Renovation estimates are coming soon.',
           },
           {
             n: '03',
@@ -607,13 +619,33 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         mathNoteBody:
           'Every dollar figure in your estimate is produced by deterministic math from current cost data and your City property record. Our AI writes the narrative summary only — it never invents prices. Figures are planning ranges, not quotes or appraisals: your final cost depends on your builder, finishes, and market conditions.',
         ctaNewBuild: 'Start a new-build estimate →',
-        ctaReno: 'Start a renovation estimate →',
+        ctaReno: 'Renovation estimates — coming soon',
       },
       faq: {
         eyebrow: 'FAQ',
         title: 'Frequently asked questions',
         sub: 'The short answers about Feasly, your data, and your estimate.',
         items: [
+          {
+            q: 'How much does it cost to build a house in Calgary?',
+            a: 'It depends on three things: the land value in your community, the size of the home, and the finish tier you choose. That is why Feasly answers with a planning range, not a single number — run a free estimate with your address and project details to see the range for your lot, covering land, build, and total investment.',
+          },
+          {
+            q: 'What is the difference between Standard, Premium, and Luxury finishes?',
+            a: 'The tiers describe the level of materials and detailing in your build — from practical, durable Standard finishes, to upgraded Premium selections, to high-end Luxury specifications. Your estimate shows all three side by side so you can see what each level means for your budget.',
+          },
+          {
+            q: 'Can Feasly estimate my renovation?',
+            a: 'Not yet — renovation estimates are coming soon, built the same honest way as our new-build estimates, with real City data and deterministic math. New-build estimates are live today and take about two minutes.',
+          },
+          {
+            q: 'Is Feasly a home builder? Will you recommend one?',
+            a: 'No — Feasly is an independent estimator, not a builder, and we do not rank or recommend specific builders. With your permission, Feasly and builders associated with us may contact you about your estimate, and you can opt out anytime.',
+          },
+          {
+            q: 'How long does it take to build a home in Calgary?',
+            a: 'Feasly estimates cost, not timelines — build schedules depend on your builder, permits, and site conditions. Your report lays out the next steps so you can take the conversation to builders with real numbers in hand.',
+          },
           {
             q: 'Is Feasly free?',
             a: 'There is no charge to generate an estimate or unlock your full report.',
