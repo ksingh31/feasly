@@ -263,7 +263,7 @@ describe('ReportPageComponent', () => {
       // Karan 2026-09-25: the finish-tier what-if switcher is removed from
       // the report page entirely; the tier is shown, never switched here.
       expect(fixture.nativeElement.querySelector('.tier-card')).toBeNull();
-      expect(fixture.nativeElement.querySelector('app-tier-selector')).toBeNull();
+      expect(fixture.nativeElement.querySelector('app-option-selector')).toBeNull();
       // The chosen tier is still SHOWN (display-only) so the user knows
       // which finishes the numbers assume.
       expect(fixture.nativeElement.querySelector('.tier-display')?.textContent).toContain(

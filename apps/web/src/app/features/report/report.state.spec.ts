@@ -133,6 +133,35 @@ describe('ReportState', () => {
     expect(store.selectSnapshot(ReportState.error)).toBeTruthy();
   });
 
+  it('classifies a non-retryable API failure as a validation error with detail', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200 })]);
+    vi.spyOn(api, 'getPreviewEstimate').mockReturnValue(
+      throwError(() => ({
+        code: 'VALIDATION_FAILED',
+        message: 'lotSizeSqft 643811 outside [1200, 20000]',
+        retryable: false,
+      })),
+    );
+    store.dispatch(new LoadPreview());
+    await pollStatus('error');
+    expect(store.selectSnapshot(ReportState.error)).toBe('validation');
+    expect(store.selectSnapshot(ReportState.errorDetail)).toBe('lotSizeSqft 643811 outside [1200, 20000]');
+  });
+
+  it('classifies a retryable API failure as a generic load error', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200 })]);
+    vi.spyOn(api, 'getPreviewEstimate').mockReturnValue(
+      throwError(() => ({
+        code: 'http_500',
+        message: 'Request failed. Please try again.',
+        retryable: true,
+      })),
+    );
+    store.dispatch(new LoadPreview());
+    await pollStatus('error');
+    expect(store.selectSnapshot(ReportState.error)).toBe('load');
+  });
+
   it('unlocks the verified snapshot with a report token', async () => {
     await unlock();
     expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
