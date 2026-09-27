@@ -524,6 +524,14 @@ describe('ReportPageComponent', () => {
         expect(t).not.toContain('living area');
       });
 
+      it('never shows a per-sq-ft figure on a reno report', async () => {
+        await setupReno();
+        // The reno engine deliberately avoids per-sqft framing (reno/04):
+        // no per-sqft line in the DOM, and the unit copy never appears.
+        expect(fixture.nativeElement.querySelector('.per-sqft')).toBeNull();
+        expect(text()).not.toContain('per sq ft');
+      });
+
       it('keeps the stepper inside the reno bounds (addition cap 400)', async () => {
         await setupReno();
         // Reno lead flow: preview → lead → token → unlock, all on the reno estimate.
