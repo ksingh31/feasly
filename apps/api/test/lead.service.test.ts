@@ -356,6 +356,12 @@ describe('lead service', () => {
     // consumer/02: the BE-5/email seam is wired — the magic-link email goes
     // out on capture (log provider in dev/test).
     expect(result.magicLinkSent).toBe(true);
+    // Contact-optout: the consumer magic-link email carries the tokenized
+    // preference-page URL in its footer.
+    expect(email.magicLinkSends).toHaveLength(1);
+    expect(email.magicLinkSends[0]!.unsubscribeUrl).toBe(
+      `https://app.test/unsubscribe/tok-${result.leadId}`,
+    );
     // Karan directive 2026-09-27 (immediate unlock): the raw owner token is
     // returned with the response so the same-session report can use the
     // token-gated extras without the email round-trip.

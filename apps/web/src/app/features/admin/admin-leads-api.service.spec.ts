@@ -59,6 +59,17 @@ describe('AdminLeadsApiService', () => {
     expect(params.keys().length).toBe(0);
   });
 
+  it('passes the consent filter (in/out); omitting it leaves the backend unfiltered', () => {
+    const inParams = service.toQueryParams({ consent: 'in' });
+    expect(inParams.get('consent')).toBe('in');
+    const outParams = service.toQueryParams({ consent: 'out' });
+    expect(outParams.get('consent')).toBe('out');
+    // The admin "All" default: the component strips '' before calling, so
+    // the backend sees no consent param and applies no filtering.
+    const allParams = service.toQueryParams({});
+    expect(allParams.has('consent')).toBe(false);
+  });
+
   it('lists leads with credentials and the admin cookie', () => {
     service.listLeads({ status: 'new' }).subscribe();
     const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));

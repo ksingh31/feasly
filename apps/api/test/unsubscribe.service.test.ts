@@ -87,7 +87,41 @@ function fakeStore(world: World): LeadStore {
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
-      updateConsentPreferences: async () => null,
+      updateConsentPreferences: async (args: {
+        id: string;
+        emailOptOut?: boolean;
+        contactOptOut?: boolean;
+        at: Date;
+      }) => {
+        const record = world.records.get(args.id);
+        if (!record) return null;
+        // Mirror the real store: first opt-out timestamp wins; opting back
+        // in clears the timestamp; consentUpdatedAt moves only on change.
+        let { unsubscribedAt, contactOptOutAt } = record;
+        let changed = false;
+        if (args.emailOptOut !== undefined) {
+          const next = args.emailOptOut ? (unsubscribedAt ?? args.at) : null;
+          if (next !== unsubscribedAt) {
+            unsubscribedAt = next;
+            changed = true;
+          }
+        }
+        if (args.contactOptOut !== undefined) {
+          const next = args.contactOptOut ? (contactOptOutAt ?? args.at) : null;
+          if (next !== contactOptOutAt) {
+            contactOptOutAt = next;
+            changed = true;
+          }
+        }
+        const updated = {
+          ...record,
+          unsubscribedAt,
+          contactOptOutAt,
+          consentUpdatedAt: changed ? args.at : record.consentUpdatedAt,
+        };
+        world.records.set(args.id, updated);
+        return updated;
+      },
     appendNote: async () => {},
     getNotes: async () => [],
     appendStatusHistory: async () => {},
@@ -137,6 +171,9 @@ describe('UnsubscribeService', () => {
       expect(state).toEqual({
         valid: true,
         leadId: LEAD_ID,
+        emailOptedOut: false,
+        contactOptedOut: false,
+        consentUpdatedAt: expect.any(String),
         alreadyUnsubscribed: false,
       });
     });
@@ -149,6 +186,9 @@ describe('UnsubscribeService', () => {
       expect(state).toEqual({
         valid: true,
         leadId: LEAD_ID,
+        emailOptedOut: true,
+        contactOptedOut: false,
+        consentUpdatedAt: expect.any(String),
         alreadyUnsubscribed: true,
       });
     });
@@ -192,7 +232,12 @@ describe('UnsubscribeService', () => {
       const world = worldWithLead();
       const service = deps(world);
       const result = await service.unsubscribe(tokenFor(LEAD_ID));
-      expect(result).toEqual({ unsubscribed: true, alreadyUnsubscribed: false });
+      expect(result).toEqual({
+        unsubscribed: true,
+        alreadyUnsubscribed: false,
+        emailOptedOut: true,
+        contactOptedOut: false,
+      });
       expect(world.records.get(LEAD_ID)?.unsubscribedAt).toEqual(NOW);
     });
 
@@ -203,7 +248,12 @@ describe('UnsubscribeService', () => {
       const later = new Date(NOW.getTime() + 3600 * 1000);
       const second = deps(world, { clock: () => later });
       const result = await second.unsubscribe(tokenFor(LEAD_ID, SECRET, NOW));
-      expect(result).toEqual({ unsubscribed: true, alreadyUnsubscribed: true });
+      expect(result).toEqual({
+        unsubscribed: true,
+        alreadyUnsubscribed: true,
+        emailOptedOut: true,
+        contactOptedOut: false,
+      });
       expect(world.records.get(LEAD_ID)?.unsubscribedAt).toEqual(NOW);
     });
 
@@ -269,8 +319,90 @@ describe('UnsubscribeService', () => {
       expect(state).toEqual({
         valid: true,
         leadId: LEAD_ID,
+        emailOptedOut: false,
+        contactOptedOut: false,
+        consentUpdatedAt: expect.any(String),
         alreadyUnsubscribed: false,
       });
+    });
+  });
+
+  describe('savePreferences (granular consent)', () => {
+    it('saves email + contact opt-outs independently', async () => {
+      const world = worldWithLead();
+      const service = deps(world);
+      const result = await service.savePreferences(tokenFor(LEAD_ID), {
+        emailOptOut: false,
+        contactOptOut: true,
+      });
+      expect(result).toEqual({
+        unsubscribed: false,
+        alreadyUnsubscribed: false,
+        emailOptedOut: false,
+        contactOptedOut: true,
+      });
+      const state = await service.getState(tokenFor(LEAD_ID));
+      expect(state).toMatchObject({
+        valid: true,
+        emailOptedOut: false,
+        contactOptedOut: true,
+      });
+    });
+
+    it('opting back in clears the timestamp and restores consent', async () => {
+      const world = worldWithLead();
+      const service = deps(world);
+      await service.savePreferences(tokenFor(LEAD_ID), {
+        emailOptOut: true,
+        contactOptOut: true,
+      });
+      const result = await service.savePreferences(tokenFor(LEAD_ID), {
+        emailOptOut: false,
+        contactOptOut: false,
+      });
+      expect(result).toEqual({
+        unsubscribed: false,
+        // "already" is the pre-save state: the lead WAS opted out before
+        // this opt-back-in save.
+        alreadyUnsubscribed: true,
+        emailOptedOut: false,
+        contactOptedOut: false,
+      });
+      expect(await service.isUnsubscribed(LEAD_ID)).toBe(false);
+      expect(await service.isContactOptedOut(LEAD_ID)).toBe(false);
+    });
+
+    it('a forged token cannot change anyone’s preferences (403, no state change)', async () => {
+      const world = worldWithLead();
+      const service = deps(world);
+      await expectForbidden(
+        service.savePreferences(tokenFor(LEAD_ID, 'wrong-secret'), {
+          emailOptOut: true,
+          contactOptOut: true,
+        }),
+        'This unsubscribe link is not valid.',
+      );
+      expect(await service.isContactOptedOut(LEAD_ID)).toBe(false);
+    });
+  });
+
+  describe('isContactOptedOut', () => {
+    it('is false before opt-out, true after a contact opt-out', async () => {
+      const world = worldWithLead();
+      const service = deps(world);
+      expect(await service.isContactOptedOut(LEAD_ID)).toBe(false);
+      await service.savePreferences(tokenFor(LEAD_ID), {
+        emailOptOut: false,
+        contactOptOut: true,
+      });
+      expect(await service.isContactOptedOut(LEAD_ID)).toBe(true);
+      // Email-only opt-out does not flip the contact flag.
+      expect(await service.isUnsubscribed(LEAD_ID)).toBe(false);
+    });
+
+    it('is false for an unknown lead', async () => {
+      const service = deps(worldWithLead());
+      expect(await service.isContactOptedOut(OTHER_LEAD_ID)).toBe(false);
     });
   });
 

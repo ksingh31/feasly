@@ -31,6 +31,8 @@ const LEAD_A: AdminLeadListItem = {
   sandbox: false,
   discarded: false,
   createdAt: '2026-09-20T10:00:00.000Z',
+  contactConsent: 'in',
+  consentUpdatedAt: '2026-09-20T10:00:00.000Z',
 };
 
 const LEAD_B: AdminLeadListItem = {
