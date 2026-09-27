@@ -240,6 +240,11 @@ const targets = [
     entry: 'src/functions/billing-invoice-resolve.ts',
     out: 'billing-invoice-resolve/index.js',
   },
+  // billing/03 follow-on: read-only billing-health dashboard endpoint.
+  {
+    entry: 'src/functions/admin-billing.ts',
+    out: 'admin-billing/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

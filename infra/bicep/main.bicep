@@ -88,6 +88,8 @@ var acsSecretName = 'feasly-${environment}-acs-connection-string'
 var acsConnectionStringSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${acsSecretName}'
 var sheetsPrivateKeySecretName = 'feasly-${environment}-sheets-service-account-key'
 var sheetsPrivateKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${sheetsPrivateKeySecretName}'
+var unsubscribeSecretName = 'feasly-${environment}-unsubscribe-token-secret'
+var unsubscribeTokenSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${unsubscribeSecretName}'
 
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
@@ -195,6 +197,10 @@ module functionApp 'modules/function-app.bicep' = {
     sheetsSheetId: sheetsSheetId
     sheetsServiceAccountEmail: sheetsServiceAccountEmail
     sheetsServiceAccountPrivateKeySecretUri: empty(sheetsServiceAccountPrivateKey) ? '' : sheetsPrivateKeySecretUri
+    // email/03 — one-click unsubscribe token HMAC secret. Bootstrapped in
+    // Key Vault below; the app fails closed (503) on
+    // /api/v1/unsubscribe/{token} without it.
+    unsubscribeTokenSecretUri: unsubscribeTokenSecretUri
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).
@@ -205,9 +211,11 @@ module functionApp 'modules/function-app.bicep' = {
   }
   // The dev ACS secret (below) must exist before the app first resolves its
   // Key Vault references at startup. Skipped automatically when the
-  // conditional secret is not deployed (non-dev).
+  // conditional secret is not deployed (non-dev). The unsubscribe HMAC
+  // secret (email/03) likewise must exist before startup resolves it.
   dependsOn: [
     acsDevConnectionStringSecret
+    unsubscribeTokenSecret
   ]
 }
 
@@ -288,6 +296,26 @@ resource sheetsPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' =
   name: sheetsPrivateKeySecretName
   properties: {
     value: sheetsServiceAccountPrivateKey
+  }
+  dependsOn: [
+    keyVault
+  ]
+}
+
+// --- Key Vault secret: unsubscribe token HMAC secret (email/03) ---
+// Bootstrap: a deterministic uniqueString()-derived value, so it is stable
+// across deployments without being committed to the repo. Three concatenated
+// 13-char hashes give ~39 chars of entropy for the HMAC-SHA256 secret. The
+// value is written straight into Key Vault; it never appears in outputs,
+// logs, or app settings. The Function App reads it via a Key Vault
+// reference (see function-app.bicep). Without it, the unsubscribe service
+// fails closed with 503 on /api/v1/unsubscribe/{token} — CASL one-click
+// unsubscribe links in every magic-link email depend on this.
+resource unsubscribeTokenSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: kv
+  name: unsubscribeSecretName
+  properties: {
+    value: '${uniqueString(resourceGroup().id, 'feasly', 'unsubscribe-token-secret', 'v1-a')}${uniqueString(resourceGroup().id, 'feasly', 'unsubscribe-token-secret', 'v1-b')}${uniqueString(resourceGroup().id, 'feasly', 'unsubscribe-token-secret', 'v1-c')}'
   }
   dependsOn: [
     keyVault

@@ -61,6 +61,9 @@ param sheetsServiceAccountEmail string = ''
 @description('Key Vault secret URI (versionless) for the Sheets service-account private key. Empty = not configured; the app fails closed on sync.')
 param sheetsServiceAccountPrivateKeySecretUri string = ''
 
+@description('Key Vault secret URI (versionless) for the unsubscribe token HMAC secret (email/03). Empty = not configured; the app fails closed (503) on /api/v1/unsubscribe/{token}.')
+param unsubscribeTokenSecretUri string = ''
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -221,6 +224,19 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 // Key Vault reference — the PEM private key never lands in app settings.
                 name: 'SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY'
                 value: '@Microsoft.KeyVault(SecretUri=${sheetsServiceAccountPrivateKeySecretUri})'
+              }
+            ],
+        // email/03 — one-click unsubscribe token HMAC secret. Without it the
+        // unsubscribe service fails closed with 503 (CASL). Empty = the
+        // app setting is omitted entirely so the fail-closed behavior is
+        // obvious rather than an empty string slipping through.
+        empty(unsubscribeTokenSecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the HMAC secret value never lands in app settings.
+                name: 'UNSUBSCRIBE_TOKEN_SECRET'
+                value: '@Microsoft.KeyVault(SecretUri=${unsubscribeTokenSecretUri})'
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls

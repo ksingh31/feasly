@@ -1,0 +1,188 @@
+.billing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 56rem;
+}
+
+.billing-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.billing-panel__header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.billing-panel__sub {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-muted, #6b6459);
+}
+
+.billing-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.billing-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border, #e5e0d8);
+  background: #fff;
+  color: var(--color-text, #2b2620);
+}
+
+.billing-panel__badge--attention {
+  color: #8a5a00;
+  background: #fdf0d5;
+  border-color: #f0d48a;
+}
+
+.billing-panel__refresh {
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, #e5e0d8);
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.billing-panel__refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.billing-panel__section-title {
+  font-size: 1.125rem;
+  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.billing-panel__flag {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #a02323;
+  background: #fde8e8;
+  border: 1px solid #f3b4b4;
+}
+
+.billing-panel__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.billing-panel__stat {
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  margin: 0;
+}
+
+.billing-panel__stat dt {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #6b6459);
+}
+
+.billing-panel__stat dd {
+  margin: 0.375rem 0 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.billing-panel__stat-note {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-text-muted, #6b6459);
+}
+
+.billing-panel__stat--attention {
+  border-color: #f3b4b4;
+  background: #fff7f7;
+}
+
+.billing-panel__stat--ok {
+  border-color: var(--color-border, #e5e0d8);
+  background: #fff;
+}
+
+.billing-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.billing-panel__table th,
+.billing-panel__table td {
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+}
+
+.billing-panel__table tbody tr:last-child th,
+.billing-panel__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.billing-panel__table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #6b6459);
+}
+
+.billing-panel__table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+.billing-panel__empty {
+  color: var(--color-text-muted, #6b6459);
+  margin: 0;
+}
+
+.billing-panel__loading {
+  color: var(--color-text-muted, #6b6459);
+}
+
+.billing-panel__alert {
+  border: 1px solid #f3b4b4;
+  background: #fde8e8;
+  color: #a02323;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+}
+
+.billing-panel__alert p {
+  margin: 0 0 0.5rem;
+}
+
+.billing-panel__generated {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6b6459);
+  margin: 0;
+}
