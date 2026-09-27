@@ -167,3 +167,12 @@ apps/web/src/app/features/admin/admin-billing.component.html
 # Moving them into app-config.json would let a config edit silently redefine
 # the coverage gate. Pinned by coverage.spec.ts.
 apps/web/src/app/core/utils/coverage.ts
+
+# Report PDF renderer (QA 2026-09-27: "Download PDF" appeared inert): the
+# point-based layout constants (margins, font sizes, line heights, rule
+# weights) are renderer internals like SCSS values — not tunable copy and
+# not deploy-tunable thresholds. The no-hardcode tripwire's magic-number
+# rule cannot distinguish them from tunables. All user-visible PDF copy
+# (narrative fallback, inputs line, button/error states) lives in
+# ConfigService under copy.report.
+apps/web/src/app/features/report/report-pdf.service.ts

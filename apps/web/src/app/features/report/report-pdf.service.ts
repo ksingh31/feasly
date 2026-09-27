@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import type { ReportSnapshot } from '@feasly/contracts';
+import { ConfigService } from '../../core/config/config.service';
 import { formatWholeCad } from '../../shared/utils/money';
 
 export interface ReportPdfInput {
@@ -34,6 +35,19 @@ export interface ReportPdfInput {
  */
 @Injectable({ providedIn: 'root' })
 export class ReportPdfService {
+  private readonly config = inject(ConfigService);
+
+  /** Finish-tier display label from config (single source of truth, no duplication). */
+  private tierLabel(tier: string): string {
+    const tiers = this.config.get('copy').wizard.scopeTiers;
+    return tiers.find((t) => t.id === tier)?.name ?? tier;
+  }
+
+  /** Fills a `{token}` config template (same helper shape as the report page). */
+  private fill(template: string, vars: Record<string, string>): string {
+    return template.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? '');
+  }
+
   async generate(input: ReportPdfInput): Promise<Blob> {
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -78,6 +92,7 @@ export class ReportPdfService {
       `${formatWholeCad(low)} – ${formatWholeCad(high)}`;
 
     const snap = input.snapshot;
+    const reportCopy = this.config.get('copy').report;
 
     // Header.
     text('Feasly', { size: 22, bold: true, gap: 2, color: [26, 26, 26] });
@@ -96,7 +111,10 @@ export class ReportPdfService {
       ['Land (City assessed value)', formatWholeCad(snap.landValue.value)],
       [
         'Home size & finishes',
-        `${snap.inputs.sqft.toLocaleString('en-CA')} sq ft · ${snap.inputs.tier}`,
+        this.fill(reportCopy.pdfInputsLine, {
+          sqft: snap.inputs.sqft.toLocaleString('en-CA'),
+          tier: this.tierLabel(snap.inputs.tier),
+        }),
       ],
     ];
     for (const [label, value] of figures) {
@@ -141,7 +159,7 @@ export class ReportPdfService {
     text('Summary', { size: 13, bold: true, gap: 6 });
     const narrative = snap.narrative?.trim();
     text(
-      narrative || 'A written summary is not available for this report — the figures above are the complete estimate.',
+      narrative || reportCopy.pdfNarrativeFallback,
       { size: 10, gap: 10 },
     );
     rule();
