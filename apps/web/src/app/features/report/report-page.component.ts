@@ -12,7 +12,7 @@ import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { UpdateInputs, WizardState, LeadState } from '../wizard';
 import { AnalyticsService } from '../consent';
-import { LoadPreview, ReviseReport, UnlockReport } from './report.actions';
+import { LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 
 /**
@@ -39,11 +39,18 @@ type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
  *
  * Pre-gate it renders the real computed figures blurred (CSS `filter: blur()`,
  * `aria-hidden`, unselectable — the blur is a lead-capture nudge, not a
- * security boundary) with the single "Unlock" CTA toward the lead gate;
- * post-gate it renders the verified snapshot: ONE prominent
- * total with its likely planning range, the highlighted build cost, the fixed
- * City-assessed land figure, the always-on sqft stepper (debounced live
- * revise), the 3-bucket breakdown, the AI narrative, next steps, email share, and callback.
+ * security boundary) with the single "Unlock" CTA toward the lead gate.
+ * Post-gate — Karan directive 2026-09-27 — the submitted lead unlocks the
+ * report IMMEDIATELY: no magic-link round-trip, no "check your email"
+ * dead-end. The figures and cost rows come from the public estimate
+ * endpoint (no new data exposure); the token-gated extras (AI narrative,
+ * token revise, share, callback) still need the magic-link email, whose
+ * role is now return-access on other devices. The page renders the full
+ * unlocked report: ONE prominent total with its likely planning range, the
+ * highlighted build cost, the fixed City-assessed land figure, the always-on
+ * sqft stepper (debounced live revise), the 3-bucket breakdown, the AI
+ * narrative (honest empty state until the magic link is clicked), next
+ * steps, email share, callback, and the print/PDF button.
  *
  * Money rule: the component never computes dollar figures — it displays what
  * the API returned, including the deterministic base from each range. The one
@@ -88,6 +95,13 @@ export class ReportPageComponent implements OnInit {
   protected readonly leadEmail = this.store.selectSignal(LeadState.email);
   /** True when the last gate POST triggered a fresh magic-link email. */
   protected readonly magicLinkSent = this.store.selectSignal(LeadState.magicLinkSent);
+  /**
+   * True once the lead gate was submitted (name + email). Karan directive
+   * 2026-09-27: this alone unlocks the report — the magic-link email is
+   * return-access for other devices, not the unlock key for this session.
+   */
+  private readonly leadId = this.store.selectSignal(LeadState.leadId);
+  protected readonly leadSubmitted = computed(() => this.leadId() !== null);
 
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
@@ -147,21 +161,17 @@ export class ReportPageComponent implements OnInit {
   protected readonly assumptions = computed(() => this.snapshot()?.assumptions ?? []);
 
   /**
-   * A lead was submitted this session but the report is still locked: the
-   * magic-link email is on its way (real backend) — sending the user back to
-   * the gate here would loop them to an empty form, so the locked view shows
-   * the "check your email" state instead of the unlock CTA.
+   * Subtle post-gate note: the magic-link email is return-access for other
+   * devices now, not the unlock key — the report above is already unlocked.
+   * A duplicate gate POST sends no new email, so it gets the "already in
+   * your inbox" variant. Never shown in partner view (partners didn't
+   * submit the lead).
    */
-  protected readonly pendingLead = computed(
-    () => !this.unlocked() && this.leadEmail() !== null,
+  protected readonly showLeadLinkNote = computed(
+    () => this.leadSubmitted() && !this.partnerView(),
   );
-
-  /**
-   * Pending-lead sub copy: a duplicate gate POST sends no new email, so it
-   * gets the "already in your inbox" variant instead of the "on its way" one.
-   */
-  protected readonly pendingSubCopy = computed(() =>
-    this.magicLinkSent() ? this.copy.pendingSub : this.copy.pendingSubDuplicate,
+  protected readonly leadLinkNote = computed(() =>
+    this.magicLinkSent() ? this.copy.leadLinkNote : this.copy.leadLinkNoteDuplicate,
   );
 
   /**
@@ -295,6 +305,10 @@ export class ReportPageComponent implements OnInit {
       .subscribe((sqft) => this.dispatchSqftRevision(sqft));
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());
+    } else if (this.leadSubmitted()) {
+      // Karan directive 2026-09-27: the submitted lead unlocks the report
+      // immediately — no magic-link round-trip, no blurred dead-end.
+      this.store.dispatch(new LoadLeadEstimate());
     } else {
       this.store.dispatch(new LoadPreview());
     }
@@ -368,6 +382,8 @@ export class ReportPageComponent implements OnInit {
   retry(): void {
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());
+    } else if (this.leadSubmitted()) {
+      this.store.dispatch(new LoadLeadEstimate());
     } else {
       this.store.dispatch(new LoadPreview());
     }
