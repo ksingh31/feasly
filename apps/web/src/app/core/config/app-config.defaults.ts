@@ -41,6 +41,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     sampleReport: false,
     renovationWaitlist: false,
   },
+  // legal/01 AC3: draft until the lawyer reviews and approves the
+  // privacy/terms copy. Flip to false only together with removing every
+  // `draft-pending-lawyer` marker (the HRD-05 gate checks both).
+  legal: {
+    reviewPending: true,
+  },
   wizard: {
     sqftDefault: 2200,
     sqftMin: 1200,
@@ -573,6 +579,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       body: 'We measure which pages people visit so we can improve Feasly. First-party only — no cookies, no trackers, no selling data. Accept or decline; the site works the same either way.',
       accept: 'Accept analytics',
       decline: 'Decline',
+    },
+    // legal/01 AC3: staging banner copy while legal.reviewPending is true.
+    // Story-pinned wording — do not paraphrase.
+    legal: {
+      reviewBannerHeading: 'Draft — pending legal review',
+      reviewBannerBody:
+        'This legal copy is a draft awaiting review by our lawyer. It is shown for evaluation only and is not the final policy.',
     },
     communities: {
       illustrativeBanner:

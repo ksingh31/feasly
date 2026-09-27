@@ -1,0 +1,27 @@
+/* Legal review banner (legal/01 AC3). Brass "draft" treatment — visible but
+   clearly a staging notice, never an error. */
+
+.legal-review-banner {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 32px;
+}
+
+.legal-review-banner__heading {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin-bottom: 6px;
+}
+
+.legal-review-banner__body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0;
+}
