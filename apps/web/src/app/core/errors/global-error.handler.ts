@@ -23,10 +23,13 @@ export class GlobalErrorHandler implements ErrorHandler {
     if (this.router.url.startsWith('/error')) {
       return;
     }
+    // Remember where the failure happened so the error page's "Back to home"
+    // can return admins to the admin home instead of the public homepage.
+    const from = this.router.url;
     this.recovery.capture({
       description: 'Reload the current page',
       retry: () => window.location.reload(),
     });
-    void this.router.navigate(['/error']);
+    void this.router.navigate(['/error'], { state: { from } });
   }
 }
