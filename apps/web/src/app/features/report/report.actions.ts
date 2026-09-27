@@ -22,11 +22,13 @@ export class UnlockReport {
 export class ReviseReport {
   static readonly type = '[Report] Revise report';
   /**
-   * Live revision input. The report drives this from two controls: the sqft
-   * stepper and the tier what-if toggle (FE5-002) — each dispatches through a
-   * trailing debounce from config, so rapid changes coalesce into one backend
-   * revision. `cancelUncompleted` on the handler gives last-write-wins, so a
-   * stale in-flight response can never overwrite a newer snapshot.
+   * Live revision input. The report drives this from the sqft stepper, which
+   * dispatches through a trailing debounce from config, so rapid changes
+   * coalesce into one backend revision. `cancelUncompleted` on the handler
+   * gives last-write-wins, so a stale in-flight response can never overwrite
+   * a newer snapshot. (consumer/04 AC8: the tier what-if toggle was removed
+   * from the report page — the tier is display-only there. The optional tier
+   * parameter remains for other revise callers.)
    */
   constructor(
     public readonly tier?: 'standard' | 'premium' | 'luxury',
