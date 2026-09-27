@@ -118,13 +118,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       seoSections: {
         costFactorsTitle: 'What drives the cost to build in Calgary',
         costFactorsBody:
-          'Three things set your budget: the land (your community’s average City-assessed value), the build (square footage and Standard, Premium, or Luxury finishes), and the site (garage, basement, and lot conditions). Feasly prices all three from real data.',
+          'The new home construction cost in Calgary comes down to three things: the land (your community\u2019s average City-assessed value), the build (square footage and Standard, Premium, or Luxury finishes), and the site (garage, basement, and lot conditions). Feasly prices all three from real data \u2014 so your infill cost estimate reflects the lot you\u2019re actually looking at.',
         renoTitle: 'Planning a renovation?',
         renoBody:
-          'Renovation estimates are coming soon — built the same honest way as our new-build estimates, with real City data and deterministic math. New-build estimates are live today.',
+          'Renovation cost estimates are coming soon — built the same honest way as our new-build estimates, with real City data and deterministic math. New-build estimates are live today.',
         buildersTitle: 'For Calgary home builders',
         buildersBody:
-          'Embed Feasly’s estimator on your own site and turn visitors into qualified leads. White-label ready, with a versioned API and the same deterministic cost engine.',
+          'Whether you’re a luxury home builder or an infill specialist, embed Feasly’s estimator on your own site and turn visitors into qualified leads. White-label ready, with a versioned API and the same deterministic cost engine.',
         buildersCta: 'Explore the developer docs →',
       },
     },
