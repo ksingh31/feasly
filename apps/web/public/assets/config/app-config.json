@@ -6,7 +6,7 @@
   "api": {
     "baseUrl": "https://feasly-dev-api-4fhkep.azurewebsites.net",
     "timeoutMs": 15000,
-    "useMockApi": true
+    "useMockApi": false
   },
   "propertyData": {
     "source": "live",
