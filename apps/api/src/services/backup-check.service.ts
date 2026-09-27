@@ -86,8 +86,6 @@ export interface BackupCheckService {
 const ARM_API_VERSION = '2023-12-01-preview';
 /** Token API version for the platform identity endpoint (2019-08-01). */
 const IDENTITY_ENDPOINT_API_VERSION = '2019-08-01';
-/** ARM audience for the managed-identity token. */
-const ARM_RESOURCE = 'https://management.azure.com/';
 
 interface ArmBackupProperties {
   readonly backupRetentionDays?: number;
@@ -101,17 +99,21 @@ interface ArmBackupProperties {
  * Prefers the platform-injected identity endpoint (the documented token
  * path on Azure Functions / App Service); falls back to the IMDS
  * link-local endpoint for VM-style hosts. The identity header is a
- * secret: it is only ever sent as a request header, never logged.
+ * secret: it is only ever sent as a request header, never logged. The
+ * token audience is derived from the configured ARM base URL (config
+ * owns the URL literal — services never hardcode one).
  */
 async function getArmToken(
   fetchImpl: typeof fetch,
   imdsTokenUrl: string,
+  armBaseUrl: string,
   identityEndpoint?: string,
   identityHeader?: string,
 ): Promise<string> {
   if (identityEndpoint && identityHeader) {
+    const resource = armBaseUrl.endsWith('/') ? armBaseUrl : `${armBaseUrl}/`;
     const url =
-      `${identityEndpoint}?resource=${encodeURIComponent(ARM_RESOURCE)}` +
+      `${identityEndpoint}?resource=${encodeURIComponent(resource)}` +
       `&api-version=${IDENTITY_ENDPOINT_API_VERSION}`;
     const res = await fetchImpl(url, {
       headers: { 'X-IDENTITY-HEADER': identityHeader },
@@ -183,6 +185,7 @@ export function createBackupCheckService(
         token = await getArmToken(
           fetchImpl,
           imdsTokenUrl,
+          armBaseUrl,
           identityEndpoint,
           identityHeader,
         );
