@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QA magic-link redeem helper</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 48px 24px; max-width: 640px; margin: 0 auto; }
+  input { font-size: 18px; width: 100%; padding: 12px; margin: 16px 0; box-sizing: border-box; }
+  button { font-size: 18px; padding: 12px 28px; cursor: pointer; }
+  p { color: #555; }
+</style>
+</head>
+<body>
+  <h1>QA redeem helper</h1>
+  <p>Paste the magic-link token below, then press the button. This navigates to the Feasly dev site's <code>/r/&lt;token&gt;</code> route. Test tooling only.</p>
+  <input id="tok" type="text" autocomplete="off" placeholder="magic-link token">
+  <button id="go" type="button">Redeem magic link</button>
+  <script>
+    document.getElementById('go').addEventListener('click', function () {
+      var t = document.getElementById('tok').value.trim();
+      if (!t) return;
+      location.href = 'https://victorious-meadow-0b295cc1e.6.azurestaticapps.net/r/' + encodeURIComponent(t);
+    });
+  </script>
+</body>
+</html>
