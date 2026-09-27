@@ -14,6 +14,7 @@ import {
   type NarrativePrompt,
 } from '@feasly/cost-engine';
 import {
+  NARRATIVE_SYNTHETIC_MARKER,
   NarrativeProviderError,
   type NarrativeProvider,
   type NarrativeProviderResult,
@@ -21,6 +22,9 @@ import {
 
 export function createLogNarrativeProvider(): NarrativeProvider {
   return {
+    // Synthetic: the service drops this output before it can reach a user
+    // or the DB (bug goal_aec0b247775d).
+    synthetic: true,
     async generate(prompt: NarrativePrompt): Promise<NarrativeProviderResult> {
       // Log the prompt shape (never the full text — it contains the
       // estimate figures, which are the user's data).
@@ -29,9 +33,10 @@ export function createLogNarrativeProvider(): NarrativeProvider {
       );
       // Deterministic placeholder: references the figures already in the
       // prompt (no invented numbers) + the verbatim footer so it passes
-      // validateNarrative(). Marked synthetic.
+      // validateNarrative(). Marked synthetic via NARRATIVE_SYNTHETIC_MARKER
+      // so the service can filter it even if this text changes.
       const text =
-        `This is a synthetic narrative placeholder (log provider — no LLM was called). ` +
+        `This is a ${NARRATIVE_SYNTHETIC_MARKER} (log provider — no LLM was called). ` +
         `The estimate figures above were calculated deterministically from our cost model. ` +
         `Configure the Meta API provider for a real AI-generated summary. ${NARRATIVE_FOOTER}`;
       if (!text) {
