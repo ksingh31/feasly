@@ -189,6 +189,21 @@ function makeService(opts?: {
 }
 
 describe('magic-link verify', () => {
+  it('rejects a partner-share token — a different token type verifies on /v1/shares/verify', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set(
+      'partner-token',
+      linkRecord({ purpose: 'partner-share' }),
+    );
+    const { service } = makeService({ magicLinks });
+    // Live, well-formed, lead-backed — still invalid here: purpose gates it.
+    expect(await service.verify('partner-token')).toEqual({
+      valid: false,
+      reason: 'invalid',
+      reissueAllowed: true,
+    });
+  });
+
   it('resolves a live token to the NEWEST estimate, not the token-era one (AC2)', async () => {
     const magicLinks = fakeMagicLinks();
     magicLinks.byToken.set('old-token', linkRecord());

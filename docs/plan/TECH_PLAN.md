@@ -1263,6 +1263,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | 20/hr per IP | live | Tier/sqft what-if: recompute through the deterministic engine and append a new immutable report snapshot version. Token IS the credential. |
 | POST | `/api/v1/callbacks` | magic-token | 10/min per IP | live | Record a callback request (name/phone/preferred window) for a report lead. Token IS the credential. |
 | POST | `/api/v1/shares` | magic-token | 10/min per IP | live | Email a report to a partner: mints a fresh partner-share magic link (never the owner token) and records the audit row. Token IS the credential. |
+| GET | `/api/v1/shares/verify` | magic-token | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
 | GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
 | POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |

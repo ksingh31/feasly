@@ -23,6 +23,7 @@ import type {
   NarrativeResponse,
   PartnerShareRequest,
   PartnerShareResponse,
+  PartnerShareVerifyResponse,
   PreviewEstimateResponse,
   EstimateResponse,
   ComparisonEstimateRequest,
@@ -168,6 +169,13 @@ export class HttpApiService implements ApiService {
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {
     return this.call(this.http.post<PartnerShareResponse>(`${this.base}/shares`, request));
+  }
+
+  verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse> {
+    const params = new HttpParams().set('token', token);
+    return this.call(
+      this.http.get<PartnerShareVerifyResponse>(`${this.base}/shares/verify`, { params }),
+    );
   }
 
   /** Token travels in the path (never logged); encoded like the backend's buildUnsubscribeUrl. */

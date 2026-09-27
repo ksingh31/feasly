@@ -32,6 +32,12 @@ export interface PartnerShareStore {
   insert(share: NewPartnerShare): Promise<PartnerShareRecord>;
   /** Latest shares for a lead, newest first (admin views). */
   listByLeadId(leadId: string): Promise<readonly PartnerShareRecord[]>;
+  /**
+   * The audit row for the magic-link row that was emailed. Only links the
+   * share service actually emailed (insert happens after the provider
+   * accepts) are redeemable — a minted-but-never-sent link is invalid.
+   */
+  findByMagicLinkId(magicLinkId: string): Promise<PartnerShareRecord | null>;
 }
 
 type ShareRow = typeof partnerShares.$inferSelect;
@@ -79,6 +85,18 @@ export function createDrizzlePartnerShareStore(
         .where(eq(partnerShares.leadId, leadId))
         .orderBy(desc(partnerShares.createdAt));
       return rows.map(toRecord);
+    },
+
+    async findByMagicLinkId(
+      magicLinkId: string,
+    ): Promise<PartnerShareRecord | null> {
+      const rows = await db
+        .select()
+        .from(partnerShares)
+        .where(eq(partnerShares.magicLinkId, magicLinkId))
+        .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
     },
   };
 }

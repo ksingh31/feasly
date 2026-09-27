@@ -16,7 +16,7 @@ import type { CallbackRequest, CallbackResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
-import { resolveReportToken } from './report-context';
+import { requireOwnerLink, resolveReportToken } from './report-context';
 import type {
   CallbackRequestStore,
   NewCallbackRequest,
@@ -35,7 +35,8 @@ export const CallbackRequestSchema = z
 export interface CallbackService {
   /**
    * Record a callback request on an untrusted request body. Unknown or
-   * expired report tokens → HttpError(404).
+   * expired report tokens → HttpError(404); partner-share tokens →
+   * HttpError(403) — the callback is the owner's "call me back" flow.
    */
   requestCallback(requestBody: unknown): Promise<CallbackResponse>;
 }
@@ -62,10 +63,13 @@ export function createCallbackService(deps: CallbackServiceDeps): CallbackServic
         );
       }
       const request: CallbackRequest = parsed.data;
-      const { lead } = await resolveReportToken(
+      const { lead, linkPurpose } = await resolveReportToken(
         { magicLinks: deps.magicLinks, leads: deps.leads, clock },
         request.reportToken,
       );
+      // The callback is booked against the owner's lead — a partner link
+      // must not file one on the owner's behalf.
+      requireOwnerLink(linkPurpose);
       const stored: NewCallbackRequest = {
         id: randomUUID(),
         leadId: lead.id,
