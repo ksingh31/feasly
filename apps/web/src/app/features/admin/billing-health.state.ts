@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
 import { catchError, of, tap } from 'rxjs';
 import type { BillingHealthResponse } from '@feasly/contracts';
 import { AdminBillingApiService } from './admin-billing-api.service';
@@ -92,3 +92,13 @@ export class BillingHealthState {
     );
   }
 }
+
+/**
+ * Route-level provider for the lazy `admin/billing` route.
+ * Registered via `lazyProvider` in `app.routes.ts` with a dynamic import so
+ * the state + its actions stay in the billing lazy chunk, out of the initial
+ * bundle (790kB production budget). This is the fix for the 2026-09-27
+ * incident: the state was never registered anywhere, so `/admin/billing`
+ * crashed at init.
+ */
+export const billingHealthStateProvider = provideStates([BillingHealthState]);

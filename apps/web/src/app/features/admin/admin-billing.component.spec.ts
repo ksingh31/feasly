@@ -115,3 +115,48 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(text).toContain('Retry');
   });
 });
+
+/**
+ * Regression guard for the 2026-09-27 incident: the component's own spec
+ * provided BillingHealthState directly in its TestBed, masking the fact that
+ * the state was never registered in production — so /admin/billing crashed
+ * at init. These tests simulate the production route setup: the root store
+ * WITHOUT the state, plus the route-level billingHealthStateProvider that
+ * lazyProvider installs.
+ */
+describe('AdminBillingComponent route-level state registration', () => {
+  async function setup(withRouteProvider: boolean) {
+    TestBed.resetTestingModule();
+    const api = {
+      getBillingHealth: vi.fn().mockReturnValue(of(HEALTH)),
+    };
+    const { billingHealthStateProvider } = await import('./billing-health.state');
+    await TestBed.configureTestingModule({
+      imports: [AdminBillingComponent],
+      providers: [
+        provideRouter([]),
+        // Production root store: BillingHealthState is NOT here (it is
+        // lazy-loaded at the admin/billing route).
+        provideStore([]),
+        ...(withRouteProvider ? [billingHealthStateProvider] : []),
+        { provide: AdminBillingApiService, useValue: api },
+      ],
+    }).compileComponents();
+  }
+
+  it('reproduces the production crash when the route provider is missing', async () => {
+    await setup(false);
+    const fixture = TestBed.createComponent(AdminBillingComponent);
+    // selectSignal throws lazily when the template reads the signal during
+    // change detection — exactly the production crash path.
+    expect(() => fixture.detectChanges()).toThrow();
+  });
+
+  it('initializes cleanly with the route-level billingHealthStateProvider', async () => {
+    await setup(true);
+    const fixture = TestBed.createComponent(AdminBillingComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.textContent).toContain('Billing health');
+  });
+});

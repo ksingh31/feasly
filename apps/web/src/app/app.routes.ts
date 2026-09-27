@@ -281,12 +281,24 @@ export const routes: Routes = [
       },
       // billing/03 follow-on: read-only billing-health dashboard (was
       // OPS-007). MRR, review aging, dunning, webhook health.
+      // BillingHealthState is lazy-loaded at this route via lazyProvider
+      // (dynamic import): the state + its actions stay in the billing lazy
+      // chunk, out of the initial bundle (790kB production budget). This is
+      // the 2026-09-27 fix — the state was never registered anywhere, so the
+      // tab crashed at init.
       {
         path: 'billing',
         loadComponent: () =>
           import('./features/admin/admin-billing.component').then(
             (m) => m.AdminBillingComponent,
           ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+        ],
       },
       // admin/05: Sheets sync ops panel.
       {
