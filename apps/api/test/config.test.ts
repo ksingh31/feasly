@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { version as packageVersion } from '../package.json';
-import { loadConfig } from '../src/config';
+import { loadConfig, parseNarrativeModels } from '../src/config';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -116,7 +116,8 @@ describe('loadConfig', () => {
       narrative: {
         provider: 'log',
         apiKey: '',
-        model: 'gemini-3.8-flash',
+        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        timeoutMs: 20_000,
         endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       },
       embed: {
@@ -341,5 +342,33 @@ describe('loadConfig', () => {
   it('leaves billing dormant when no Stripe key is configured', () => {
     const config = loadConfig(VALID_ENV);
     expect(config.billing.stripeSecretKey).toBeUndefined();
+  });
+});
+
+describe('parseNarrativeModels (BE-9)', () => {
+  it('parses a comma-separated list in order', () => {
+    expect(parseNarrativeModels('gemini-2.5-flash,gemini-2.5-flash-lite')).toEqual([
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+    ]);
+  });
+
+  it('trims whitespace and drops empty entries', () => {
+    expect(parseNarrativeModels('  a ,, b ,')).toEqual(['a', 'b']);
+  });
+
+  it('throws on an empty list so a misconfigured deployment fails fast', () => {
+    expect(() => parseNarrativeModels('')).toThrow(/NARRATIVE_MODELS/);
+    expect(() => parseNarrativeModels(' , ')).toThrow(/NARRATIVE_MODELS/);
+  });
+
+  it('reads a custom NARRATIVE_MODELS and NARRATIVE_TIMEOUT_MS from env', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NARRATIVE_MODELS: 'm1, m2',
+      NARRATIVE_TIMEOUT_MS: '5000',
+    });
+    expect(config.narrative.models).toEqual(['m1', 'm2']);
+    expect(config.narrative.timeoutMs).toBe(5000);
   });
 });

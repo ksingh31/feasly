@@ -47,6 +47,7 @@ import type { EstimateRecord, EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import { isSyntheticNarrative } from './narrative/narrative.types';
+import { buildStaticGuideNarrative } from './narrative/static-guide';
 import type {
   NarrativeProvider,
   NarrativeProviderResult,
@@ -348,6 +349,9 @@ export function createNarrativeService(
           narrative: record.narrative,
           narrativeGeneratedAt: record.narrativeGeneratedAt.toISOString(),
           cached: true,
+          // Anything persisted is AI output — the static guide is never
+          // persisted (BE-9), so a cached row is always 'ai'.
+          narrativeSource: 'ai',
         };
       }
       // Cost guard.
@@ -367,40 +371,61 @@ export function createNarrativeService(
         );
       }
       const output = toEstimateOutput(record);
-      const fail = async (reason: string): Promise<never> => {
-        try {
-          await deps.opsAlerts.notifyFailure('narrative_worker_failed', {
-            consecutiveFailures: 1,
-            firstFailureAt: now,
-          });
-        } catch {
-          // Alert delivery must never mask the original failure.
+      /**
+       * Static-guide fallback (BE-9, final resilience tier). When the model
+       * chain is exhausted, the output fails validation after the repair
+       * retry, or the provider is synthetic (dev log mode), the user gets
+       * the hard-coded Calgary guide instead of a 502 dead-end. The guide
+       * is honest (labeled 'static-guide', never AI prose), carries the
+       * verbatim footer, and is NEVER persisted — the next visit retries
+       * the AI chain. The ops alert still fires so a real outage is
+       * visible (except for the synthetic dev path, which is not a
+       * failure).
+       */
+      const staticGuide = async (
+        reason: string,
+        alert: boolean,
+      ): Promise<NarrativeResponse> => {
+        if (alert) {
+          try {
+            await deps.opsAlerts.notifyFailure('narrative_worker_failed', {
+              consecutiveFailures: 1,
+              firstFailureAt: now,
+            });
+          } catch {
+            // Alert delivery must never mask the original failure.
+          }
+          console.error(
+            JSON.stringify({
+              event: 'narrative.static-guide-served',
+              estimateId: record.id,
+              reason,
+            }),
+          );
         }
-        throw new HttpError(
-          502,
-          ErrorCodes.NARRATIVE_FAILED,
-          `Narrative generation failed: ${reason}`,
-          true,
-        );
+        return {
+          estimateId: record.id,
+          narrative: buildStaticGuideNarrative(),
+          narrativeGeneratedAt: now.toISOString(),
+          cached: false,
+          narrativeSource: 'static-guide',
+        };
       };
       let result: NarrativeProviderResult;
       let communityFacts: CommunityFacts | undefined;
-      // Synthetic dev output (log provider) never reaches users: the
-      // report renders its "summary unavailable" state instead.
-      const emptyForSynthetic = (): NarrativeResponse => ({
-        estimateId: record.id,
-        narrative: '',
-        narrativeGeneratedAt: now.toISOString(),
-        cached: false,
-      });
+      // Synthetic dev output (log provider) never reaches users as AI
+      // prose: serve the static guide instead of the old empty state.
+      const emptyForSynthetic = (): Promise<NarrativeResponse> =>
+        staticGuide('synthetic provider output', false);
       try {
         const generation = await generateReal(output, record);
         if (!generation) return emptyForSynthetic();
         result = generation.result;
         communityFacts = generation.communityFacts;
       } catch (error) {
-        return fail(
+        return staticGuide(
           error instanceof Error ? error.message : 'provider error',
+          true,
         );
       }
       let validation = validateNarrative(result.text, output, communityFacts);
@@ -413,15 +438,17 @@ export function createNarrativeService(
           result = retry.result;
           communityFacts = retry.communityFacts;
         } catch (error) {
-          return fail(
+          return staticGuide(
             error instanceof Error ? error.message : 'provider error',
+            true,
           );
         }
         validation = validateNarrative(result.text, output, communityFacts);
       }
       if (!validation.ok) {
-        return fail(
+        return staticGuide(
           `LLM output failed validation: ${validation.violations.join('; ')}`,
+          true,
         );
       }
       let persisted: boolean;
@@ -449,14 +476,23 @@ export function createNarrativeService(
             narrative: fresh.narrative,
             narrativeGeneratedAt: fresh.narrativeGeneratedAt.toISOString(),
             cached: true,
+            narrativeSource: 'ai',
           };
         }
       }
+      console.info(
+        JSON.stringify({
+          event: 'narrative.generated',
+          estimateId: record.id,
+          model: result.model,
+        }),
+      );
       return {
         estimateId: record.id,
         narrative: result.text,
         narrativeGeneratedAt: now.toISOString(),
         cached: false,
+        narrativeSource: 'ai',
       };
     },
   };

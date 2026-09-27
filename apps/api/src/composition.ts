@@ -1087,7 +1087,8 @@ export function createComposition(
     config.narrative.provider === 'openai-compatible'
       ? createOpenAiCompatibleNarrativeProvider({
           apiKey: config.narrative.apiKey || undefined,
-          model: config.narrative.model,
+          models: config.narrative.models,
+          timeoutMs: config.narrative.timeoutMs,
           endpoint: config.narrative.endpoint,
         })
       : createLogNarrativeProvider();

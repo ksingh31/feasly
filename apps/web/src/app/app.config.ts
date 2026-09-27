@@ -20,7 +20,6 @@ import { SheetsSyncState } from './features/admin/sheets-sync.state';
 import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
-import { AdminLeadsState } from './features/admin/admin-leads.state';
 import { AdminDisputesState } from './features/admin/admin-disputes.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
@@ -76,10 +75,13 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
-    // AdminLeadsState, CalibrationState, and SheetsSyncState are memory-only
+    // CalibrationState and SheetsSyncState are memory-only
     // on purpose: admin/builder DATA is sensitive and must not persist in
     // localStorage — it refetches on mount. (All kept out of the storage
-    // plugin's keys below.) The AUTH slices are different: AdminAuthState
+    // plugin's keys below.) AdminLeadsState is likewise memory-only but is
+    // NOT in the root store: it lazy-loads at the `/admin` route via
+    // lazyProvider (app.routes.ts) so it stays out of the initial bundle.
+    // The AUTH slices are different: AdminAuthState
     // holds only the session token + the admin's own email, and BuilderState
     // persists ONLY its sessionToken (identity + homeowner-PII leads are
     // stripped in beforeSerialize below). The tokens must persist — the
@@ -98,7 +100,6 @@ export const appConfig: ApplicationConfig = {
         EmbedState,
         ConsentState,
         ComparisonState,
-        AdminLeadsState,
         // AdminDisputesState is memory-only (never persisted): dispute data
         // is admin-internal and refetches cheaply on each visit, like
         // CalibrationState below.

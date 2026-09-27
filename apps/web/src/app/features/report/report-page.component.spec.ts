@@ -462,6 +462,52 @@ describe('ReportPageComponent', () => {
       expect(text()).not.toContain('coming soon');
     });
 
+    describe('static Calgary guide (BE-9)', () => {
+      /** Patch the snapshot to carry the guide exactly as the backend serves it. */
+      function serveStaticGuide(): void {
+        const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+        const guideSnapshot = {
+          ...snapshot,
+          narrative: 'Guide paragraph one.\n\nGuide paragraph two.',
+          narrativeSource: 'static-guide' as const,
+        };
+        store.reset({
+          ...store.snapshot(),
+          report: { ...store.snapshot().report, snapshot: guideSnapshot },
+        });
+        fixture.detectChanges();
+      }
+
+      it('renders the guide under its honest title — never as AI prose', async () => {
+        serveStaticGuide();
+        await pollFor(
+          () => text().includes('Building in Calgary'),
+          'guide title',
+        );
+        const headings = [
+          ...fixture.nativeElement.querySelectorAll('section.card h2'),
+        ].map((h: Element) => h.textContent?.trim());
+        expect(headings).toContain('Building in Calgary');
+        expect(headings).not.toContain('AI summary');
+        expect(text()).toContain(
+          'Our AI summary is unavailable right now — here’s a general guide.',
+        );
+      });
+
+      it('renders one paragraph per guide block', async () => {
+        serveStaticGuide();
+        await pollFor(
+          () => text().includes('Guide paragraph two.'),
+          'guide paragraphs',
+        );
+        const paragraphs = [
+          ...fixture.nativeElement.querySelectorAll('p.narrative'),
+        ].map((p: Element) => p.textContent?.trim());
+        expect(paragraphs).toContain('Guide paragraph one.');
+        expect(paragraphs).toContain('Guide paragraph two.');
+      });
+    });
+
     it('renders the merged next steps (single builder step, matched-to-project framing)', () => {
       const steps = [...fixture.nativeElement.querySelectorAll('.steps li strong')].map((el: Element) =>
         el.textContent?.trim(),

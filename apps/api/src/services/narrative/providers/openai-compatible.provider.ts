@@ -1,5 +1,5 @@
 /**
- * OpenAI-compatible narrative provider (story consumer/06).
+ * OpenAI-compatible narrative provider (story consumer/06, chain BE-9).
  *
  * Real adapter over any OpenAI-protocol chat-completions endpoint —
  * currently Google's Gemini API (Karan's pick, 2026-09-27; Meta retired
@@ -11,16 +11,23 @@
  * Wiring: `NARRATIVE_API_KEY` (config, Key Vault reference in
  * staging/production — never committed; the secrets-hygiene tripwire
  * fails the build if a key literal ever lands in this module). A missing
- * key fails closed at generate time naming the exact env var. The model
- * (`NARRATIVE_MODEL`, default `gemini-3.8-flash`) comes from config.
+ * key fails closed at generate time naming the exact env var.
+ *
+ * Model chain (BE-9): `models` is the config-owned ordered list
+ * (`NARRATIVE_MODELS`, primary first). On transient failures — capacity
+ * errors (HTTP 408/429/5xx incl. 529), timeouts, or network errors — the
+ * provider tries the next model. It FAILS FAST (no chain) on other 4xx
+ * (bad request, bad key, forbidden, unknown model), a missing API key, or
+ * a missing endpoint. The result's `model` records which model served.
  *
  * Endpoint: `NARRATIVE_ENDPOINT` is the provider base URL (e.g. the
  * Gemini OpenAI-compatibility base). `chatCompletionsUrl()` appends
  * `/chat/completions` when the configured value does not already end
  * with it, so both the bare base and the full path work.
  *
- * Timeouts: 30s per attempt (AbortSignal.timeout). The service owns
- * retry policy (one repair retry on validation failure).
+ * Timeouts: `timeoutMs` per attempt (config `NARRATIVE_TIMEOUT_MS`,
+ * default 30s here, 20s in config). The service owns retry policy (one
+ * repair retry on validation failure).
  */
 import type { NarrativePrompt } from '@feasly/cost-engine';
 import {
@@ -35,12 +42,47 @@ export interface OpenAiCompatibleProviderDeps {
    * staging/production). Absent = fail-closed generation.
    */
   readonly apiKey?: string;
-  /** Model name, e.g. 'gemini-3.8-flash'. */
-  readonly model: string;
+  /**
+   * Ordered model list, primary first (from NARRATIVE_MODELS). At least
+   * one entry is required — construction throws otherwise.
+   */
+  readonly models: readonly string[];
   /** Endpoint base URL (from NARRATIVE_ENDPOINT config). */
   readonly endpoint?: string;
   /** Fetch implementation (injected for tests). */
   readonly fetchImpl?: typeof fetch;
+  /** Per-attempt timeout in ms (from NARRATIVE_TIMEOUT_MS). */
+  readonly timeoutMs?: number;
+}
+
+/** Default per-attempt timeout when the caller passes none. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
+ * HTTP statuses worth chaining to the next model: rate limiting, request
+ * timeout, and the server-side transient family (500/502/503/504, plus
+ * 529 — the "overloaded" code some providers use). Everything else 4xx
+ * fails fast: retrying another model won't fix a bad request or bad key.
+ */
+function isChainableStatus(status: number): boolean {
+  return (
+    status === 408 ||
+    status === 429 ||
+    status === 529 ||
+    (status >= 500 && status <= 599)
+  );
+}
+
+/** True when the error is an AbortSignal.timeout() expiry. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError';
+}
+
+function logChainEvent(
+  event: 'narrative.model-attempt' | 'narrative.model-chained' | 'narrative.model-served',
+  fields: Record<string, string>,
+): void {
+  console.info(JSON.stringify({ event, provider: 'openai-compatible', ...fields }));
 }
 
 /**
@@ -104,6 +146,13 @@ export function createOpenAiCompatibleNarrativeProvider(
       'NARRATIVE_ENDPOINT is not configured.',
     );
   }
+  if (deps.models.length === 0) {
+    throw new NarrativeProviderError(
+      'NARRATIVE_MODELS is empty — configure at least one narrative model.',
+    );
+  }
+  const models = [...deps.models];
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const endpoint = chatCompletionsUrl(configured);
   // Pasted secrets sometimes carry stray whitespace/newlines (console
   // paste into Key Vault) — a padded key is never valid, so trim before
@@ -120,58 +169,124 @@ export function createOpenAiCompatibleNarrativeProvider(
           'NARRATIVE_API_KEY is not configured — narrative generation is disabled until Karan provides the Gemini API key.',
         );
       }
-      let res: Response;
-      try {
-        res = await fetchImpl(endpoint, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: deps.model,
-            messages: [
-              { role: 'system', content: prompt.system },
-              { role: 'user', content: prompt.user },
-            ],
-            // Low temperature: the narrative must stay close to the
-            // engine figures, not get creative.
-            temperature: 0.3,
-            max_tokens: 800,
-          }),
-          signal: AbortSignal.timeout(30_000),
-        });
-      } catch (error) {
-        throw new NarrativeProviderError('LLM API request failed', {
-          cause: error,
-        });
+      let lastError: NarrativeProviderError | null = null;
+      for (let i = 0; i < models.length; i++) {
+        const model = models[i]!;
+        const isLast = i === models.length - 1;
+        logChainEvent('narrative.model-attempt', { model });
+        try {
+          const result = await attemptModel(
+            fetchImpl,
+            endpoint,
+            apiKey,
+            model,
+            prompt,
+            timeoutMs,
+          );
+          logChainEvent('narrative.model-served', { model });
+          return result;
+        } catch (error) {
+          const providerError =
+            error instanceof NarrativeProviderError
+              ? error
+              : new NarrativeProviderError('LLM API request failed', {
+                  cause: error,
+                });
+          lastError = providerError;
+          const chainable =
+            providerError.status !== undefined
+              ? isChainableStatus(providerError.status)
+              : true;
+          if (!chainable || isLast) throw providerError;
+          logChainEvent('narrative.model-chained', {
+            model,
+            reason: providerError.message,
+            next: models[i + 1]!,
+          });
+        }
       }
-      if (!res.ok) {
-        // Include the provider's own error message (sanitized) — a bare
-        // status is undiagnosable, as the 2026-09-27 Gemini HTTP 400
-        // outage proved: nobody could tell a bad key from a bad request.
-        throw new NarrativeProviderError(
-          `LLM API returned HTTP ${res.status} for model ${deps.model}${await errorDetail(res, apiKey)}`,
-        );
-      }
-      let json: unknown;
-      try {
-        json = await res.json();
-      } catch (error) {
-        throw new NarrativeProviderError(
-          'LLM API returned non-JSON response',
-          { cause: error },
-        );
-      }
-      const text = extractText(json);
-      if (!text) {
-        throw new NarrativeProviderError(
-          'LLM API returned no usable completion text',
-        );
-      }
-      return { text, model: deps.model };
+      // Unreachable — the loop always throws on the last model — but the
+      // type system needs a terminal throw.
+      throw (
+        lastError ??
+        new NarrativeProviderError('All narrative models failed.')
+      );
     },
   };
+}
+
+/**
+ * Single-model attempt. Throws NarrativeProviderError carrying the HTTP
+ * status when the response is an error status, so the chain can decide
+ * whether to advance. Transport failures (timeout, network) surface as a
+ * status-less NarrativeProviderError — the chain treats those as
+ * transient and advances.
+ */
+async function attemptModel(
+  fetchImpl: typeof fetch,
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  prompt: NarrativePrompt,
+  timeoutMs: number,
+): Promise<NarrativeProviderResult> {
+  let res: Response;
+  try {
+    res = await fetchImpl(endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
+        ],
+        // Low temperature: the narrative must stay close to the
+        // engine figures, not get creative.
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (isTimeoutError(error)) {
+      throw new NarrativeProviderError(
+        `LLM API request timed out after ${timeoutMs}ms for model ${model}`,
+        { cause: error },
+      );
+    }
+    throw new NarrativeProviderError('LLM API request failed', {
+      cause: error,
+    });
+  }
+  if (!res.ok) {
+    // Include the provider's own error message (sanitized) — a bare
+    // status is undiagnosable, as the 2026-09-27 Gemini HTTP 400
+    // outage proved: nobody could tell a bad key from a bad request.
+    throw new NarrativeProviderError(
+      `LLM API returned HTTP ${res.status} for model ${model}${await errorDetail(res, apiKey)}`,
+      { status: res.status },
+    );
+  }
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch (error) {
+    throw new NarrativeProviderError(
+      'LLM API returned non-JSON response',
+      { cause: error },
+    );
+  }
+  const text = extractText(json);
+  if (!text) {
+    throw new NarrativeProviderError(
+      'LLM API returned no usable completion text',
+    );
+  }
+  return { text, model };
 }
 
 /** Extract the assistant text from an OpenAI-compatible chat response. */

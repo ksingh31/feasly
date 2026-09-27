@@ -375,6 +375,7 @@ export class MockApiService implements ApiService {
         narrative: snapshot.narrative,
         narrativeGeneratedAt: snapshot.preparedAt,
         cached: true,
+        narrativeSource: snapshot.narrativeSource ?? 'ai',
       })),
     );
   }

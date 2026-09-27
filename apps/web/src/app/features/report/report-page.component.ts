@@ -220,7 +220,8 @@ export class ReportPageComponent implements OnInit {
    * only, no LLM-invented numbers, verbatim footer included). The state
    * top-ups an empty snapshot narrative via POST /v1/estimates/{id}/narrative
    * before the snapshot lands here. Empty when unavailable — the template
-   * shows the honest empty state, never mock text.
+   * shows the honest empty state, never mock text. When every model failed
+   * (BE-9), the narrative is the static Calgary guide instead.
    */
   protected readonly narrative = computed(() => {
     const snap = this.snapshot();
@@ -228,6 +229,31 @@ export class ReportPageComponent implements OnInit {
       return '';
     }
     return snap.narrative?.trim() ? snap.narrative : '';
+  });
+
+  /**
+   * Static-guide mode (BE-9): the backend could not reach any narrative
+   * model and returned the hard-coded Calgary guide, labeled
+   * `narrativeSource: 'static-guide'`. Rendered under its own honest
+   * title — never presented as AI prose.
+   */
+  protected readonly isStaticGuide = computed(
+    () => this.snapshot()?.narrativeSource === 'static-guide',
+  );
+
+  /**
+   * Static-guide paragraphs for rendering: the guide is stored as
+   * \n\n-joined prose; the template renders one paragraph per block so
+   * it reads as a guide, not a wall of text.
+   */
+  protected readonly guideParagraphs = computed(() => {
+    if (!this.isStaticGuide()) {
+      return [];
+    }
+    return this.narrative()
+      .split('\n\n')
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
   });
 
   /**

@@ -387,6 +387,7 @@ export const NarrativeResponseSchema = z
     narrative: z.string(),
     narrativeGeneratedAt: z.string().datetime(),
     cached: z.boolean(),
+    narrativeSource: z.enum(['ai', 'static-guide']),
   })
   .openapi('NarrativeResponse');
 // ── Admin estimate lookup (admin/03) ─────────────────────────────────────

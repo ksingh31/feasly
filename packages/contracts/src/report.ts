@@ -2,7 +2,7 @@
  * Report contracts. Snapshots are immutable — every re-run appends a new one.
  */
 import type { CostRange, FixedFigure } from './common';
-import type { CostRow, EstimateInputs, FinishTier, ProjectType, RenoEstimateInputs } from './estimate';
+import type { CostRow, EstimateInputs, FinishTier, NarrativeSource, ProjectType, RenoEstimateInputs } from './estimate';
 
 export interface ReportSnapshot {
   readonly snapshotId: string;
@@ -16,6 +16,12 @@ export interface ReportSnapshot {
   readonly landValue: FixedFigure;
   readonly rows: readonly CostRow[];
   readonly narrative: string;
+  /**
+   * Which tier of the narrative resilience chain produced `narrative`
+   * (BE-9). Absent = 'ai' (snapshots built before the field existed, and
+   * the mock harness, always carry AI/deterministic text).
+   */
+  readonly narrativeSource?: NarrativeSource;
   readonly preparedAt: string;
   /** Monotonic per estimateId. */
   readonly version: number;
