@@ -1,0 +1,219 @@
+<div class="disputes-page" (keydown)="onKeydown($event)">
+  <div class="disputes-page__header">
+    <div>
+      <h1>Disputes</h1>
+      <p class="disputes-page__subtitle">
+        Open billing disputes, oldest first. Each runs a 5-business-day
+        resolution SLA (America/Edmonton) — a breach escalates via ops
+        alerts and never auto-resolves.
+      </p>
+    </div>
+    <button
+      type="button"
+      class="disputes-page__retry"
+      (click)="reload()"
+      [disabled]="listStatus() === 'loading'"
+    >
+      {{ listStatus() === 'loading' ? 'Loading…' : 'Retry' }}
+    </button>
+  </div>
+
+  @if (lastResolution(); as resolution) {
+    <div class="disputes-page__banner" role="status">
+      <span>
+        Dispute {{ resolution.disputeId }} resolved:
+        <strong>{{ resolution.outcome === 'accepted' ? 'Accepted' : 'Rejected' }}</strong>
+        {{
+          resolution.outcome === 'accepted'
+            ? '— the invoice was voided (refunded first when it was already paid).'
+            : '— the invoice is back in review with a fresh 7-day window.'
+        }}
+      </span>
+      <button type="button" (click)="dismissResolution()">Dismiss</button>
+    </div>
+  }
+
+  @if (listStatus() === 'loading') {
+    <p class="disputes-page__state">Loading disputes…</p>
+  } @else if (listStatus() === 'error') {
+    <p class="disputes-page__state disputes-page__state--error" role="alert">
+      {{ listError() ?? 'Could not load disputes.' }}
+    </p>
+  } @else if (disputes().length === 0) {
+    <p class="disputes-page__state">No open disputes. The queue is clear.</p>
+  } @else {
+    <table class="disputes-page__table">
+      <caption class="disputes-page__caption">
+        {{ disputes().length }} open {{ disputes().length === 1 ? 'dispute' : 'disputes' }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Opened</th>
+          <th scope="col">Tenant</th>
+          <th scope="col">Commission</th>
+          <th scope="col">Reason</th>
+          <th scope="col">SLA</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (dispute of disputes(); track dispute.id) {
+          <tr
+            class="disputes-page__row"
+            [class.disputes-page__row--selected]="selectedDisputeId() === dispute.id"
+            [class.disputes-page__row--breached]="dispute.breached"
+            (click)="selectDispute(dispute.id)"
+            tabindex="0"
+            (keydown.enter)="selectDispute(dispute.id)"
+          >
+            <td>{{ formatEdmonton(dispute.openedAt) }}</td>
+            <td>{{ dispute.tenantKey }}</td>
+            <td>{{ formatMoney(dispute.commissionCents) }}</td>
+            <td class="disputes-page__reason">{{ dispute.reason }}</td>
+            <td>
+              <span
+                class="disputes-page__sla"
+                [class.disputes-page__sla--breached]="dispute.breached"
+              >
+                {{ slaLabel(dispute) }}
+              </span>
+              @if (dispute.breached) {
+                <span class="disputes-page__breach-badge">SLA breached</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  @if (selectedDisputeId() !== null) {
+    <section class="disputes-page__detail" aria-label="Dispute detail">
+      @if (detailStatus() === 'loading') {
+        <p class="disputes-page__state">Loading dispute detail…</p>
+      } @else if (detailStatus() === 'error') {
+        <p class="disputes-page__state disputes-page__state--error" role="alert">
+          {{ detailError() ?? 'Could not load dispute detail.' }}
+          <button type="button" (click)="closeDetail()">Close</button>
+        </p>
+      } @else if (detail(); as d) {
+        <div class="disputes-page__detail-header">
+          <div>
+            <h2>Dispute {{ d.id }}</h2>
+            <p class="disputes-page__detail-meta">
+              Opened {{ formatEdmonton(d.openedAt) }} ·
+              SLA due {{ formatEdmonton(d.slaDueAt) }} ({{ slaLabel(d) }})
+              @if (d.breached) {
+                <span class="disputes-page__breach-badge">SLA breached — escalated via ops alerts</span>
+              }
+            </p>
+          </div>
+          <button type="button" (click)="closeDetail()">Close</button>
+        </div>
+
+        <h3>Immutable evidence snapshot</h3>
+        <p class="disputes-page__snapshot-note">
+          Captured when the dispute opened — this is what the builder disputed.
+          It never changes, even if the invoice is later voided or refunded.
+        </p>
+        <dl class="disputes-page__snapshot">
+          @for (row of snapshotRows(); track row[0]) {
+            <div class="disputes-page__snapshot-row">
+              <dt>{{ row[0] }}</dt>
+              <dd>{{ row[1] }}</dd>
+            </div>
+          }
+        </dl>
+
+        <h3>Audit trail</h3>
+        @if (d.auditTrail.length === 0) {
+          <p class="disputes-page__state">No audit events yet.</p>
+        } @else {
+          <ol class="disputes-page__audit">
+            @for (event of d.auditTrail; track event.id) {
+              <li class="disputes-page__audit-event">
+                <div class="disputes-page__audit-head">
+                  <span class="disputes-page__audit-type">{{ event.eventType }}</span>
+                  <span class="disputes-page__audit-time">{{ formatEdmonton(event.createdAt) }}</span>
+                </div>
+                @if (event.payload !== null) {
+                  <pre class="disputes-page__audit-payload">{{ event.payload | json }}</pre>
+                }
+              </li>
+            }
+          </ol>
+        }
+
+        <h3>Resolve</h3>
+        <form [formGroup]="resolutionForm" aria-label="Dispute resolution">
+          <label class="disputes-page__note">
+            <span>Note (optional — recorded on the dispute and the audit trail)</span>
+            <textarea
+              formControlName="note"
+              rows="3"
+              maxlength="2000"
+              placeholder="Why this decision…"
+            ></textarea>
+          </label>
+        </form>
+        @if (resolveError() !== null) {
+          <p class="disputes-page__state disputes-page__state--error" role="alert">
+            {{ resolveError() }}
+          </p>
+        }
+        <div class="disputes-page__resolve-actions">
+          @if (confirmingAction === null) {
+            <button
+              type="button"
+              class="disputes-page__accept"
+              (click)="armConfirm('accept')"
+              [disabled]="resolving()"
+            >
+              Accept dispute
+            </button>
+            <button
+              type="button"
+              class="disputes-page__reject"
+              (click)="armConfirm('reject')"
+              [disabled]="resolving()"
+            >
+              Reject dispute
+            </button>
+          } @else if (confirmingAction === 'accept') {
+            <p class="disputes-page__confirm-text" role="alert">
+              Accepting <strong>voids the invoice</strong> — when it was already
+              paid, the charge is refunded first (credit note). This is
+              audit-logged.
+            </p>
+            <button
+              type="button"
+              class="disputes-page__accept"
+              (click)="acceptSelected()"
+              [disabled]="resolving()"
+            >
+              {{ resolving() ? 'Accepting…' : 'Confirm accept' }}
+            </button>
+            <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+              Cancel
+            </button>
+          } @else {
+            <p class="disputes-page__confirm-text" role="alert">
+              Rejecting sends the invoice <strong>back to review</strong> with a
+              fresh 7-day window. This is audit-logged.
+            </p>
+            <button
+              type="button"
+              class="disputes-page__reject"
+              (click)="rejectSelected()"
+              [disabled]="resolving()"
+            >
+              {{ resolving() ? 'Rejecting…' : 'Confirm reject' }}
+            </button>
+            <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+              Cancel
+            </button>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>

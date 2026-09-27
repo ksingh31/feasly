@@ -1,0 +1,314 @@
+/**
+ * Admin dispute console (billing/01 follow-on, was OPS-009).
+ *
+ * Desktop-first table of open disputes (oldest first) with a detail panel:
+ * immutable evidence snapshot, audit trail, and the accept/reject resolve
+ * actions. On mobile the table scrolls horizontally and the detail panel
+ * stacks below.
+ */
+
+.disputes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.disputes-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.disputes-page__header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.disputes-page__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #6b655c;
+  max-width: 46rem;
+}
+
+.disputes-page__retry {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.disputes-page__retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.disputes-page__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #c8e6c9;
+  border-radius: 0.375rem;
+  background: #eef7ee;
+  font-size: 0.9rem;
+}
+
+.disputes-page__state {
+  font-size: 0.9rem;
+  color: #6b655c;
+}
+
+.disputes-page__state--error {
+  color: #b3261e;
+}
+
+.disputes-page__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.disputes-page__caption {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.disputes-page__table th,
+.disputes-page__table td {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  border-top: 1px solid var(--color-border, #e5e0d8);
+}
+
+.disputes-page__table thead th {
+  border-top: none;
+  background: #faf8f4;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.disputes-page__row {
+  cursor: pointer;
+}
+
+.disputes-page__row:hover {
+  background: #faf8f4;
+}
+
+.disputes-page__row--selected {
+  background: #f3efe6;
+}
+
+.disputes-page__row--breached {
+  border-left: 3px solid #b3261e;
+}
+
+.disputes-page__reason {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disputes-page__sla--breached {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.disputes-page__breach-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #fdecea;
+  color: #b3261e;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.disputes-page__detail {
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.disputes-page__detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.disputes-page__detail-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+.disputes-page__detail-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #6b655c;
+}
+
+.disputes-page__detail h3 {
+  margin: 0.75rem 0 0;
+  font-size: 1rem;
+}
+
+.disputes-page__snapshot-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b655c;
+}
+
+.disputes-page__snapshot {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0.75rem;
+  background: #faf8f4;
+  border-radius: 0.375rem;
+}
+
+.disputes-page__snapshot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.disputes-page__snapshot-row dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b655c;
+}
+
+.disputes-page__snapshot-row dd {
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.disputes-page__audit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.disputes-page__audit-event {
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  padding: 0.625rem 0.75rem;
+}
+
+.disputes-page__audit-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.disputes-page__audit-type {
+  font-weight: 600;
+}
+
+.disputes-page__audit-time {
+  color: #6b655c;
+}
+
+.disputes-page__audit-payload {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: #faf8f4;
+  border-radius: 0.25rem;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.disputes-page__note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.85rem;
+}
+
+.disputes-page__note textarea {
+  padding: 0.625rem;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.disputes-page__resolve-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.disputes-page__confirm-text {
+  margin: 0;
+  font-size: 0.9rem;
+  flex-basis: 100%;
+}
+
+.disputes-page__accept,
+.disputes-page__reject {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.disputes-page__accept {
+  border: 1px solid #1b6b23;
+  background: #1b6b23;
+  color: #fff;
+}
+
+.disputes-page__reject {
+  border: 1px solid #b3261e;
+  background: #fff;
+  color: #b3261e;
+}
+
+.disputes-page__accept:disabled,
+.disputes-page__reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .disputes-page__table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .disputes-page__reason {
+    max-width: 14rem;
+  }
+}

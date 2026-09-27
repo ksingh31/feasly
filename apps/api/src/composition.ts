@@ -121,6 +121,10 @@ import {
   type BillingRoute,
 } from './routes/billing.route';
 import {
+  createAdminDisputesRoute,
+  type AdminDisputesRoute,
+} from './routes/admin-disputes.route';
+import {
   createAdminAuthService,
   type AdminAuthService,
   type AdminAllowlistStore,
@@ -377,6 +381,10 @@ import {
   type InvoiceReviewerService,
 } from './services/billing/invoice-reviewer.service';
 import {
+  createDisputeService,
+  type DisputeService,
+} from './services/billing/dispute.service';
+import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
 } from './routes/stripe-webhooks.route';
@@ -533,6 +541,10 @@ export interface AppComposition {
   readonly billingService: BillingService;
   /** billing/01: thin route for /api/v1/billing/*. */
   readonly billingRoute: BillingRoute;
+  /** billing/01 follow-on: dispute console backend (was OPS-009). */
+  readonly disputeService: DisputeService;
+  /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
+  readonly adminDisputesRoute: AdminDisputesRoute;
   /** billing/02: the only Stripe SDK touchpoint. */
   readonly stripeService: StripeService;
   /** billing/02: 1% commission engine (active when BILLING_MODEL=commission). */
@@ -1240,14 +1252,29 @@ export function createComposition(
     });
   // billing/01 API surface: POST /api/v1/billing/report-contract,
   // GET/POST /api/v1/billing/invoices/{id}[/dispute|/resolve].
+  // Dispute console (billing/01 follow-on): the dispute service owns the
+  // billing_disputes table; the facade records a dispute row whenever a
+  // builder disputes an invoice.
+  const disputeService: DisputeService = createDisputeService({
+    db: db.db,
+    audit: billingAuditService,
+    commission: commissionService,
+    stripe: stripeService,
+    opsAlerts: opsAlertsService,
+  });
   const billingService: BillingService = createBillingService({
     leadStore,
     billingHook: embedBillingHookService,
     commission: commissionService,
+    disputes: disputeService,
   });
   const billingRoute: BillingRoute = createBillingRoute({
     billing: billingService,
     builderGuard,
+    adminGuard,
+  });
+  const adminDisputesRoute: AdminDisputesRoute = createAdminDisputesRoute({
+    disputes: disputeService,
     adminGuard,
   });
   // embed/09 builder portal: won transitions run the billing charge path.
@@ -1401,6 +1428,8 @@ export function createComposition(
     embedBillingHookService,
     billingService,
     billingRoute,
+    disputeService,
+    adminDisputesRoute,
     stripeService,
     commissionService,
     flatPlanService,

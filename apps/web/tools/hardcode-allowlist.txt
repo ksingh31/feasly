@@ -122,6 +122,11 @@ apps/web/src/app/features/admin/admin-leads.component.html
 # logic — integer math only, no float division. Pinned by money.spec.ts.
 apps/web/src/app/shared/utils/money.ts
 
+# Dispute-console copy (billing/01 follow-on): subtitles, SLA explanations,
+# and accept/reject confirmations are pinned story copy describing the
+# dispute SLA + resolution semantics — not tunables.
+apps/web/src/app/features/admin/admin-disputes.component.html
+
 # Calibration console copy (admin/09): the subtitle, warning, and empty-state
 # strings are UI copy pinned by the story's acceptance criteria — they change
 # by product decision, not by deploy tuning. Copy-pinned by

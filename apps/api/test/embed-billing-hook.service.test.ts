@@ -96,6 +96,10 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
       calls.push({ op: 'cancelSubscription', subscriptionId });
       return { id: subscriptionId };
     },
+    refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
+      calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
+      return { id: 're_test_1', status: 'succeeded' };
+    },
     verifyWebhook: () => {
       throw new Error('not used in these tests');
     },

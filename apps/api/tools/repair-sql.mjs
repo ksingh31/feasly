@@ -414,6 +414,37 @@ CREATE TABLE IF NOT EXISTS "ops_alert_state" (
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "type" text PRIMARY KEY NOT NULL;
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "last_fired_at" timestamp with time zone;
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "last_recovered_at" timestamp with time zone;
+CREATE TABLE IF NOT EXISTS "billing_disputes" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"invoice_id" uuid NOT NULL,
+	"tenant_key" text NOT NULL,
+	"reason" text NOT NULL,
+	"evidence_snapshot" jsonb NOT NULL,
+	"status" text DEFAULT 'open' NOT NULL,
+	"opened_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"sla_due_at" timestamp with time zone NOT NULL,
+	"sla_breached_at" timestamp with time zone,
+	"resolved_at" timestamp with time zone,
+	"resolved_by" text,
+	"resolution_note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "invoice_id" uuid NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "reason" text NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "evidence_snapshot" jsonb NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'open' NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "opened_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "sla_due_at" timestamp with time zone NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "sla_breached_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_by" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolution_note" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "admin_allowlist" (
 
 	"email" text PRIMARY KEY NOT NULL,

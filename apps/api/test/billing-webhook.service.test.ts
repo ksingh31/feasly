@@ -75,6 +75,7 @@ function fakeStripe(): StripeService {
     }),
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
+    refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: (rawBody: Buffer, signature: string | undefined) => {
       if (!signature) {
         const error = new Error('Missing stripe signature') as Error & {
