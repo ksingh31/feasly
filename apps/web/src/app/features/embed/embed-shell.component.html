@@ -38,10 +38,15 @@
       }
     </header>
     <div class="embed-body">
-      <app-address-autocomplete #addressBox (selected)="property.set($event)" />
+      <app-address-autocomplete #addressBox (selected)="onPropertySelected($event)" />
       <button type="button" class="embed-cta" (click)="onCta(addressBox)">
         {{ copy.ctaLabel }}
       </button>
+      @if (coverageIssue() !== null) {
+        <!-- Early coverage guard: the picked lot can't be priced. The funnel
+             never starts; pick another address instead. -->
+        <p class="embed-coverage-note" role="alert">{{ coverageMessage() }}</p>
+      }
       @if (hasContact()) {
         <p class="embed-contact">
           <span>{{ copy.contactPrefix }}</span>

@@ -116,6 +116,50 @@
   opacity: 0.88;
 }
 
+/* Early coverage guard card: the picked lot can't be priced. Same visual
+   language as the preview page's validation card (cream card, centered). */
+.coverage-block {
+  width: 100%;
+  max-width: 640px;
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--text);
+}
+
+.coverage-heading {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.coverage-block p {
+  margin: 0 0 4px;
+  line-height: 1.6;
+}
+
+.coverage-cta {
+  margin-top: 12px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--on-dark);
+  background: var(--canvas);
+  border: none;
+  border-radius: 12px;
+  padding: 14px 28px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.coverage-cta:hover {
+  opacity: 0.88;
+}
+
 .sample-link {
   margin-top: 24px;
   font-size: 14px;

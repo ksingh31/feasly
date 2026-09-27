@@ -70,6 +70,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   limits: {
     communityPageLimit: 24,
     autocompleteSuggestionLimit: 6,
+    /**
+     * Mirror of the cost-data inputBounds the estimate API enforces
+     * (packages/cost-engine/cost-data/v0.3.0-unclibrated.json). The property
+     * record arrives direct from Socrata, so the client needs these for the
+     * early lot-coverage guard. estimate-input-bounds-drift.spec.ts fails CI
+     * if they diverge — update both together.
+     */
+    minLotSizeSqft: 1200,
+    maxLotSizeSqft: 20000,
+    minAssessedLandValue: 25000,
+    maxAssessedLandValue: 10000000,
   },
   analytics: {
     enabled: false,

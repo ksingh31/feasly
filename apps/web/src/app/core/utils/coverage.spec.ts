@@ -57,3 +57,61 @@ describe('detectCoverageSignal', () => {
     });
   });
 });
+
+import { pricingCoverageIssue, type PricingCoverageBounds } from './coverage';
+
+/**
+ * Early lot-coverage guard: must fire on exactly the same condition as the
+ * engine's late check (checkBounds in packages/cost-engine/src/engine.ts) —
+ * lot size first, then assessed value, whole-dollar rounding.
+ */
+describe('pricingCoverageIssue', () => {
+  const bounds: PricingCoverageBounds = {
+    minLotSizeSqft: 1200,
+    maxLotSizeSqft: 20000,
+    minAssessedLandValue: 25000,
+    maxAssessedLandValue: 10000000,
+  };
+
+  it('returns null for a lot inside the range (Karan regression: 643,811 sq ft must NOT pass)', () => {
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 729000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 1200, assessedValue: 25000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 20000, assessedValue: 10000000 }, bounds)).toBeNull();
+  });
+
+  it("flags Karan's 643,811 sq ft lot as 'lot-size'", () => {
+    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 61586000 }, bounds)).toBe(
+      'lot-size',
+    );
+  });
+
+  it("flags lots below the minimum as 'lot-size'", () => {
+    expect(pricingCoverageIssue({ lotSqft: 1199, assessedValue: 729000 }, bounds)).toBe('lot-size');
+    expect(pricingCoverageIssue({ lotSqft: 0, assessedValue: 729000 }, bounds)).toBe('lot-size');
+  });
+
+  it('treats non-finite lot sizes as out of coverage', () => {
+    expect(pricingCoverageIssue({ lotSqft: NaN, assessedValue: 729000 }, bounds)).toBe('lot-size');
+  });
+
+  it('rounds fractional lot sizes like the engine (whole dollars)', () => {
+    // 1199.6 rounds to 1200 → in range, same as the engine's wholeDollars.
+    expect(pricingCoverageIssue({ lotSqft: 1199.6, assessedValue: 729000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 1199.4, assessedValue: 729000 }, bounds)).toBe('lot-size');
+  });
+
+  it("flags missing/out-of-range assessed values as 'assessed-value'", () => {
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0 }, bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 24999 }, bounds)).toBe(
+      'assessed-value',
+    );
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 10000001 }, bounds)).toBe(
+      'assessed-value',
+    );
+  });
+
+  it('checks lot size before assessed value (engine order)', () => {
+    // Both out of range → the lot-size copy wins, matching the engine.
+    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 0 }, bounds)).toBe('lot-size');
+  });
+});

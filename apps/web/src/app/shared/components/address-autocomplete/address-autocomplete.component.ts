@@ -160,6 +160,28 @@ export class AddressAutocompleteComponent {
     return this.query.value;
   }
 
+  /**
+   * Clears the query and any results/errors so the user can start a fresh
+   * search (used by the early coverage guard's "try a different address").
+   */
+  clearSearch(): void {
+    this.pendingKey = null;
+    this.query.setValue('');
+    this.suggestions.set([]);
+    this.open.set(false);
+    this.activeIndex.set(-1);
+    this.searched.set(false);
+    this.status.set('idle');
+    this.errorCode.set(null);
+    this.hint.set(null);
+    this.selectionHint.set(null);
+  }
+
+  /** Moves keyboard focus back into the search input. */
+  focusInput(): void {
+    document.getElementById(this.inputId)?.focus();
+  }
+
   /** Picks the top suggestion if one exists. Returns whether it did. */
   pickTop(): boolean {
     const top = this.suggestions()[0];

@@ -368,7 +368,11 @@
   },
   "limits": {
     "communityPageLimit": 24,
-    "autocompleteSuggestionLimit": 6
+    "autocompleteSuggestionLimit": 6,
+    "minLotSizeSqft": 1200,
+    "maxLotSizeSqft": 20000,
+    "minAssessedLandValue": 25000,
+    "maxAssessedLandValue": 10000000
   },
   "site": {
     "name": "Feasly",

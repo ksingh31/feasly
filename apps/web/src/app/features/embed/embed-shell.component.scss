@@ -90,6 +90,19 @@
   text-align: center;
 }
 
+/* Early coverage guard note: honest can't-price message under the CTA. */
+.embed-coverage-note {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
 .embed-contact a {
   color: inherit;
 }
