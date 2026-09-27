@@ -272,6 +272,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
       },
+      // Builders management (builders table, story embed/11): the builders
+      // table is the runtime source of truth for builder config. Admin-only.
+      {
+        path: 'builders',
+        loadComponent: () =>
+          import('./features/admin/admin-builders.component').then(
+            (m) => m.AdminBuildersComponent,
+          ),
+      },
       // Builders management (embed/02 admin-UI migration): the builders
       // table — branding, sign-in keys, allowed embed origins, plans.
       {

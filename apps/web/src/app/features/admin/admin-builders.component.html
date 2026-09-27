@@ -15,7 +15,9 @@
   @if (saved()) {
     <div class="builders-page__banner builders-page__banner--success" role="status">
       <span>{{ savedMessage() }}</span>
-      <button type="button" (click)="dismissSaved()" aria-label="Dismiss">✕</button>
+      <button type="button" (click)="dismissSaved()" aria-label="Dismiss confirmation">
+        Dismiss
+      </button>
     </div>
   }
 
@@ -53,8 +55,27 @@
           @for (builder of builders(); track builder.id) {
             <tr>
               <td>
-                <span class="builders-page__name">{{ builder.businessName }}</span>
-                <span class="builders-page__sub-name">{{ builder.displayName }}</span>
+                <span class="builders-page__builder-cell">
+                  <span class="builders-page__avatar" aria-hidden="true">
+                    @if (builder.logoUrl) {
+                      <img
+                        [src]="builder.logoUrl"
+                        [alt]="builder.businessName + ' logo'"
+                        (error)="onLogoError(builder.id)"
+                        [hidden]="logoFailed().has(builder.id)"
+                      />
+                      @if (logoFailed().has(builder.id)) {
+                        {{ initials(builder.businessName) }}
+                      }
+                    } @else {
+                      {{ initials(builder.businessName) }}
+                    }
+                  </span>
+                  <span>
+                    <span class="builders-page__name">{{ builder.businessName }}</span>
+                    <span class="builders-page__sub-name">{{ builder.displayName }}</span>
+                  </span>
+                </span>
               </td>
               <td><code class="builders-page__key">{{ builder.tenantKey }}</code></td>
               <td>
@@ -89,7 +110,9 @@
         @if (saveError(); as err) {
           <div class="builders-page__banner builders-page__banner--error" role="alert">
             <span>{{ err }}</span>
-            <button type="button" (click)="dismissSaveError()" aria-label="Dismiss">✕</button>
+            <button type="button" (click)="dismissSaveError()" aria-label="Dismiss error">
+              Dismiss
+            </button>
           </div>
         }
 

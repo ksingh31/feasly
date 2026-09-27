@@ -15,6 +15,7 @@ import type {
   BuilderUpdateBody,
 } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
+import { initials } from '../../shared/utils/initials';
 import {
   CreateBuilder,
   DismissBuildersError,
@@ -84,6 +85,9 @@ export class AdminBuildersComponent implements OnInit {
   protected readonly saved = this.store.selectSignal(AdminBuildersState.saved);
 
   protected readonly planOptions = PLAN_OPTIONS;
+
+  /** Logo images that failed to load — those avatars fall back to initials. */
+  protected readonly logoFailed = signal<ReadonlySet<string>>(new Set());
 
   /** Form visible + which builder is being edited (null = creating). */
   protected readonly showForm = signal(false);
@@ -301,5 +305,15 @@ export class AdminBuildersComponent implements OnInit {
 
   protected statusLabel(status: BuilderStatus): string {
     return status === 'active' ? 'Active' : 'Inactive';
+  }
+
+  /** Initials avatar (wordmark fallback) when the builder has no logo. */
+  protected initials(name: string): string {
+    return initials(name);
+  }
+
+  /** A broken logo URL falls back to the initials avatar, same as no logo. */
+  protected onLogoError(builderId: string): void {
+    this.logoFailed.update((failed) => new Set(failed).add(builderId));
   }
 }
