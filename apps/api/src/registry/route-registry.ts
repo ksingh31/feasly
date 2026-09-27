@@ -516,6 +516,20 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary: 'Funnel dashboards (admin/07): step drop-off, gate conversion.',
   },
+  // ── Billing admin (billing/03 follow-on, was OPS-007) ──────────────
+  {
+    method: 'GET',
+    path: '/api/v1/admin/billing',
+    auth: 'admin',
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Billing-health dashboard (billing/03): MRR (flat model; null under ' +
+      'the 1% commission model), trailing-30d commission collections, ' +
+      'in-review invoice aging buckets (<48h / <7d / overdue), disputed ' +
+      'totals, the dunning queue with past_due_since, and Stripe webhook ' +
+      'health. Read-only — no charge/refund/void actions.',
+  },
   {
     method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
