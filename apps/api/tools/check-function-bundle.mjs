@@ -123,6 +123,44 @@ function checkBundles() {
   return adapters.length;
 }
 
+/**
+ * Every timerTrigger binding must carry a valid 6-field NCRONTAB schedule.
+ *
+ * Azure Functions timer schedules are
+ * `{second} {minute} {hour} {day} {month} {day-of-week}` — six fields. A
+ * 5-field cron is silently accepted by the host and the timer NEVER fires,
+ * which presents exactly like the Sep 2026 nudge-timer incident (function
+ * deployed and registered, but dead). Field-count is the critical property;
+ * field contents are left to the host's parser to avoid false positives on
+ * valid-but-fancy expressions (MON/JAN names, L/W/# modifiers).
+ */
+function checkTimerSchedules() {
+  for (const adapter of listAdapters()) {
+    const raw = readFileSync(join(root, adapter, 'function.json'), 'utf8');
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      failures.push(`${adapter}/function.json is not valid JSON`);
+      continue;
+    }
+    for (const binding of parsed.bindings ?? []) {
+      if (binding?.type !== 'timerTrigger') continue;
+      const fields = String(binding.schedule ?? '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (fields.length !== 6) {
+        failures.push(
+          `${adapter}/function.json: timerTrigger schedule ` +
+            `"${binding.schedule}" has ${fields.length} field(s), not 6 — ` +
+            `Azure timer schedules are 6-field NCRONTAB and a 5-field cron ` +
+            `silently never fires`,
+        );
+      }
+    }
+  }
+}
 /** Remove the bundler's outputs so later CI steps never scan generated code. */
 function removeGeneratedBundles() {
   for (const adapter of listAdapters()) {
@@ -147,6 +185,7 @@ let adapterCount = 0;
 try {
   adapterCount = checkBundles();
   checkAdapterBindings();
+  checkTimerSchedules();
 } finally {
   removeGeneratedBundles();
 }
