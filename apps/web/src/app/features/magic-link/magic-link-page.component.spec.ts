@@ -7,11 +7,11 @@ import { provideStore, Store } from '@ngxs/store';
 import { throwError } from 'rxjs';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MagicLinkVerifyResponse } from '@feasly/contracts';
+import type { MagicLinkVerifyResponse, PartnerShareVerifyResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config';
 import { MagicLinkPageComponent } from './magic-link-page.component';
-import { SetReportToken } from '../report/report.actions';
+import { SetPartnerView, SetReportToken } from '../report/report.actions';
 
 /**
  * Magic-link redemption (consumer/02): `/r/:token` verifies the token,
@@ -19,12 +19,18 @@ import { SetReportToken } from '../report/report.actions';
  * report. Expired/invalid/empty tokens show an error card with a resend form
  * (POST /api/v1/magic-link/reissue). Transport failures show a retry screen.
  * The page is noindexed.
+ *
+ * Partner-share tokens are a different token type: the owner verify
+ * endpoint answers invalid for them, so `/r/:token` falls through to
+ * GET /api/v1/shares/verify and, on success, opens the report in
+ * read-only partner view (SetReportToken + SetPartnerView).
  */
 describe('MagicLinkPageComponent', () => {
   let fixture: ComponentFixture<MagicLinkPageComponent>;
   let httpMock: HttpTestingController;
   let api: {
     verifyMagicLink: ReturnType<typeof vi.fn>;
+    verifyPartnerShare: ReturnType<typeof vi.fn>;
     reissueMagicLink: ReturnType<typeof vi.fn>;
   };
   let dispatchSpy: ReturnType<typeof vi.spyOn>;
@@ -34,10 +40,17 @@ describe('MagicLinkPageComponent', () => {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }
 
-  async function setup(token: string | null, response: MagicLinkVerifyResponse | { error: unknown }): Promise<void> {
+  async function setup(
+    token: string | null,
+    response: MagicLinkVerifyResponse | { error: unknown },
+    partnerResponse: PartnerShareVerifyResponse = { valid: false, reason: 'invalid' },
+  ): Promise<void> {
     TestBed.resetTestingModule();
     api = {
       verifyMagicLink: vi.fn(),
+      // Partner-share tokens are a different token type: the owner verify
+      // endpoint answers invalid for them, and the page falls through here.
+      verifyPartnerShare: vi.fn().mockReturnValue(of(partnerResponse)),
       reissueMagicLink: vi.fn(),
     };
     if ('error' in response) {
@@ -95,9 +108,67 @@ describe('MagicLinkPageComponent', () => {
 
   it('invalid token shows the invalid card with a resend form', async () => {
     await setup('tok-bogus', { valid: false, reason: 'invalid', reissueAllowed: true });
+    expect(api.verifyMagicLink).toHaveBeenCalledWith('tok-bogus');
+    // Owner-verify answers invalid for partner-share tokens too, so the
+    // page falls through to the partner redemption path.
+    expect(api.verifyPartnerShare).toHaveBeenCalledWith('tok-bogus');
     expect(text()).toContain('valid');
     expect(fixture.nativeElement.querySelector('form')).toBeTruthy();
     expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+
+  it('partner-share token falls through to shares/verify and opens the report in partner view', async () => {
+    await setup(
+      'tok-partner',
+      { valid: false, reason: 'invalid', reissueAllowed: true },
+      {
+        valid: true,
+        reportToken: 'tok-partner',
+        estimateId: 'est-1',
+        partnerEmail: 'partner@example.com',
+      },
+    );
+    expect(api.verifyMagicLink).toHaveBeenCalledWith('tok-partner');
+    expect(api.verifyPartnerShare).toHaveBeenCalledWith('tok-partner');
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const actions = dispatchSpy.mock.calls[0][0];
+    expect(actions[0]).toBeInstanceOf(SetReportToken);
+    expect(actions[0].reportToken).toBe('tok-partner');
+    expect(actions[1]).toBeInstanceOf(SetPartnerView);
+    expect(navigateSpy).toHaveBeenCalledWith(['/estimate/report']);
+  });
+
+  it('expired partner token shows the expired card', async () => {
+    await setup(
+      'tok-partner-old',
+      { valid: false, reason: 'invalid', reissueAllowed: true },
+      { valid: false, reason: 'expired' },
+    );
+    expect(api.verifyPartnerShare).toHaveBeenCalledWith('tok-partner-old');
+    expect(text()).toContain('expired');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('partner-verify transport failure shows the error card with retry', async () => {
+    await setup('tok-partner', { valid: false, reason: 'invalid', reissueAllowed: true });
+    api.verifyMagicLink.mockClear();
+    api.verifyPartnerShare.mockClear();
+    api.verifyPartnerShare.mockReturnValue(throwError(() => ({ code: 'NETWORK_ERROR' })));
+    fixture = TestBed.createComponent(MagicLinkPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(text()).toContain('Something went wrong');
+    // Retry re-runs the whole chain: owner verify, then the partner path.
+    api.verifyMagicLink.mockReturnValue(of({ valid: false, reason: 'invalid', reissueAllowed: true }));
+    api.verifyPartnerShare.mockReturnValue(
+      of({ valid: true, reportToken: 'tok-partner', estimateId: 'est-1', partnerEmail: 'p@x.com' }),
+    );
+    (fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(api.verifyMagicLink).toHaveBeenCalledTimes(2);
+    expect(api.verifyPartnerShare).toHaveBeenCalledTimes(2);
+    expect(navigateSpy).toHaveBeenCalledWith(['/estimate/report']);
   });
 
   it('empty token shows the invalid card without calling the API', async () => {

@@ -25,6 +25,20 @@
   margin: 0 0 12px;
 }
 
+/* Partner-share view: "read-only copy" notice, same badge language as the
+   uncalibrated notice (accent border, no new visual vocabulary). */
+.partner-note {
+  display: inline-block;
+  margin: 0 0 20px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .report-sub {
   font-size: 15px;
   line-height: 1.5;

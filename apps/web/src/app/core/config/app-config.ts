@@ -470,6 +470,12 @@ export interface AppConfig {
       shareTokenError: string;
       /** Partner-share button label after a send failure. */
       shareRetry: string;
+      /**
+       * Read-only banner on the report page when the session redeemed a
+       * partner-share link (the stepper, share form, and callback form are
+       * hidden in partner view).
+       */
+      partnerViewNote: string;
       callbackTitle: string;
       callbackHint: string;
       callbackNameLabel: string;
@@ -896,8 +902,9 @@ export interface AppConfig {
     /**
      * Magic-link redemption page (`/r/:token`, consumer/02) copy. All
      * user-facing strings live here so the no-hardcode tripwire stays green.
-     * The invalid-link card also covers partner-share tokens, which use the
-     * same `/r/` URL shape but have no verify endpoint yet (follow-up).
+     * Partner-share tokens use the same `/r/` URL shape and verify on
+     * GET /api/v1/shares/verify — the owner verify endpoint answers
+     * invalid for them, and the page falls through to the partner path.
      */
     magicLink: {
       loadingLabel: string;

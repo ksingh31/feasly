@@ -15,6 +15,11 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { magicLinks } from '../db/schema';
 
+/** Magic-link purpose for the homeowner's own report links. */
+export const OWNER_LINK_PURPOSE = 'lead';
+/** Magic-link purpose for partner-share links (a DIFFERENT token type). */
+export const PARTNER_SHARE_LINK_PURPOSE = 'partner-share';
+
 export interface MagicLinkRecord {
   readonly id: string;
   readonly leadId: string | null;
@@ -116,7 +121,7 @@ export function createDrizzleMagicLinkStore(
         .values({
           id: randomUUID(),
           leadId: args.leadId,
-          purpose: args.purpose ?? 'lead',
+          purpose: args.purpose ?? OWNER_LINK_PURPOSE,
           email: args.email ?? null,
           tokenHash: hashMagicToken(token),
           expiresAt: new Date(now.getTime() + args.ttlSeconds * 1000),

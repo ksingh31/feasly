@@ -41,6 +41,7 @@ import {
   MagicLinkVerifyResponseSchema,
   PartnerShareRequestSchema,
   PartnerShareResponseSchema,
+  PartnerShareVerifyResponseSchema,
   PreviewEstimateResponseSchema,
   PrivacyEraseConfirmResponseSchema,
   PrivacyEraseRequestSchema,
@@ -142,6 +143,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('CallbackResponse', CallbackResponseSchema);
   registry.register('PartnerShareRequest', PartnerShareRequestSchema);
   registry.register('PartnerShareResponse', PartnerShareResponseSchema);
+  registry.register('PartnerShareVerifyResponse', PartnerShareVerifyResponseSchema);
   registry.register('PrivacyEraseRequest', PrivacyEraseRequestSchema);
   registry.register(
     'PrivacyEraseConfirmResponse',
@@ -382,6 +384,39 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Share recorded (and emailed when the provider accepts)',
         content: {
           'application/json': { schema: PartnerShareResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/shares/verify (partner-share redemption)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/shares/verify',
+    summary: 'Verify a partner-share link token',
+    description:
+      'Dedicated redemption path for partner-share magic links ' +
+      '(purpose \'partner-share\'). Owner magic-link tokens answer invalid ' +
+      'here — they verify on GET /v1/magic-link/verify. The partner token ' +
+      'IS the credential; on success reportToken is the presented token ' +
+      'itself, which unlocks GET /v1/reports/{reportToken} (read-only ' +
+      'view for the partner).',
+    security: [],
+    request: {
+      query: z.object({
+        token: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe('The partner-share link token from the email URL'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Partner link validity',
+        content: {
+          'application/json': { schema: PartnerShareVerifyResponseSchema },
         },
       },
       ...errorResponses(),

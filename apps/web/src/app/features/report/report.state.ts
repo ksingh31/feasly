@@ -6,7 +6,7 @@ import type { ApiError, PreviewEstimateResponse, ReportSnapshot } from '@feasly/
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { WizardState } from '../wizard/wizard.state';
-import { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } from './report.actions';
+import { ClearReport, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
 export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -17,6 +17,11 @@ export interface ReportStateModel {
   preview: PreviewEstimateResponse | null;
   /** Bearer token from magic-link verification. Memory-only — stripped before storage persistence. */
   reportToken: string | null;
+  /**
+   * True when the session came from a partner-share link: the report page
+   * renders its read-only partner view (no share/callback/stepper).
+   */
+  partnerView: boolean;
   /** Post-gate verified snapshot. Null until unlocked. */
   snapshot: ReportSnapshot | null;
   status: ReportStatus;
@@ -33,6 +38,7 @@ export interface ReportStateModel {
 const defaults: ReportStateModel = {
   preview: null,
   reportToken: null,
+  partnerView: false,
   snapshot: null,
   status: 'idle',
   error: null,
@@ -74,6 +80,12 @@ export class ReportState {
   @Selector()
   static reportToken(state: ReportStateModel): string | null {
     return state.reportToken;
+  }
+
+  /** True when the session redeemed a partner-share link (read-only view). */
+  @Selector()
+  static partnerView(state: ReportStateModel): boolean {
+    return state.partnerView;
   }
 
   @Selector()
@@ -166,7 +178,15 @@ export class ReportState {
 
   @Action(SetReportToken)
   setReportToken(ctx: StateContext<ReportStateModel>, action: SetReportToken): void {
-    ctx.patchState({ reportToken: action.reportToken, snapshot: null });
+    // A fresh token resets partner mode: owner links land here from the
+    // owner verify path; the /r/:token page dispatches SetPartnerView right
+    // after for partner links.
+    ctx.patchState({ reportToken: action.reportToken, snapshot: null, partnerView: false });
+  }
+
+  @Action(SetPartnerView)
+  setPartnerView(ctx: StateContext<ReportStateModel>): void {
+    ctx.patchState({ partnerView: true });
   }
 
   /**

@@ -275,6 +275,21 @@ describe('report service — createRevision', () => {
       service.createRevision('bogus-token', { tier: 'luxury' }),
     ).rejects.toMatchObject({ status: 404 });
   });
+
+  it('answers 403 for a partner token — revisions are owner-only', async () => {
+    const { service, inserted } = fakes({
+      link: { ...liveLink(), purpose: 'partner-share' },
+    });
+    // getReport still reads fine for the partner…
+    const report = await service.getReport(TOKEN);
+    expect(report.estimateId).toBe(ESTIMATE_ID);
+    // …but revisions are blocked and insert nothing new.
+    const insertedBefore = inserted.length;
+    await expect(
+      service.createRevision(TOKEN, { tier: 'luxury' }),
+    ).rejects.toMatchObject({ status: 403, code: ErrorCodes.FORBIDDEN });
+    expect(inserted).toHaveLength(insertedBefore);
+  });
 });
 
 describe('report route', () => {
