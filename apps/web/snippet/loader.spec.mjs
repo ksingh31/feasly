@@ -83,6 +83,24 @@ function readyFrom(iframe) {
   );
 }
 
+/**
+ * The injected loader executes inside jsdom's VM context, whose `console`
+ * is a different object from the test's — `vi.spyOn(console)` in the test
+ * never sees loader log output. Capture the VM's console through a DOM
+ * expando (the DOM itself is shared across the realm boundary) so tests
+ * can spy on loader warnings. The expando is removed immediately; nothing
+ * leaks into other tests.
+ */
+function captureLoaderConsole() {
+  const cap = document.createElement('script');
+  cap.textContent =
+    'document.documentElement.__feaslyLoaderConsole = console;';
+  document.body.appendChild(cap);
+  const vmConsole = document.documentElement.__feaslyLoaderConsole;
+  delete document.documentElement.__feaslyLoaderConsole;
+  return vmConsole;
+}
+
 afterEach(() => {
   document.body.innerHTML = '';
   document.head.innerHTML = '';
@@ -162,10 +180,14 @@ describe('embed loader (embed/07)', () => {
     expect(iframe.style.height).toBe('4000px');
   });
 
-  it('ignores spoofed messages from any window other than the iframe', () => {
+  it('ignores AND logs spoofed messages from any window other than the iframe', () => {
     const { iframe } = installLoader({ query: '?feasly_rt=RELAY123' });
     const postMessage = vi.fn();
     iframe.contentWindow.postMessage = postMessage;
+    // The loader runs in jsdom's VM context: spy on ITS console, not the test's.
+    const warn = vi
+      .spyOn(captureLoaderConsole(), 'warn')
+      .mockImplementation(() => {});
 
     // Spoof: correct shape, wrong source (the page itself).
     window.dispatchEvent(
@@ -176,6 +198,9 @@ describe('embed loader (embed/07)', () => {
       }),
     );
     expect(postMessage).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('ignored spoofed "feasly:ready"'),
+    );
 
     // Spoof: a second, attacker-controlled iframe on the same page.
     const evil = document.createElement('iframe');
@@ -188,6 +213,20 @@ describe('embed loader (embed/07)', () => {
       }),
     );
     expect(iframe.style.height).not.toBe('5px');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('ignored spoofed "feasly:resize"'),
+    );
+
+    // Unrelated page traffic is ignored silently (no log spam).
+    const callsBefore = warn.mock.calls.length;
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'some-analytics-ping' },
+        origin: EMBED_ORIGIN,
+        source: window,
+      }),
+    );
+    expect(warn.mock.calls.length).toBe(callsBefore);
 
     // The real iframe still works afterwards.
     readyFrom(iframe);
