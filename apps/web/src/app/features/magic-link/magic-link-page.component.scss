@@ -1,0 +1,136 @@
+/* Magic-link redemption page — prototype cream/charcoal/brass language. */
+
+/* NOTE: the sticky-footer flex shell lives in global styles.scss (applies to
+   every page host); do not set display on :host here — it would override it. */
+
+.magic-link {
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.04);
+}
+
+.magic-link h1 {
+  font-family: var(--font-headline);
+  font-size: var(--type-hero);
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.magic-link h2 {
+  font-family: var(--font-headline);
+  font-size: var(--type-section-title);
+  color: var(--text);
+  margin: 24px 0 8px;
+}
+
+.body {
+  font-size: var(--type-hero-sub);
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.status {
+  font-size: var(--type-hero-sub);
+  color: var(--muted);
+  margin: 0;
+}
+
+.resend-prompt {
+  font-size: var(--type-section-body);
+  color: var(--muted);
+  margin: 24px 0 16px;
+}
+
+.field {
+  display: block;
+  text-align: left;
+  margin: 0 0 8px;
+}
+
+.field span {
+  display: block;
+  font-size: var(--type-section-body);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 1rem;
+  color: var(--text);
+  background: #fff;
+}
+
+.field-error {
+  font-size: var(--type-section-body);
+  color: var(--danger);
+  margin: 0 0 12px;
+  text-align: left;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--text);
+  color: var(--cream);
+  font-weight: 600;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.text-button {
+  display: inline-block;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 32px 24px;
+  }
+}

@@ -154,12 +154,15 @@ describe('CommunityPageComponent', () => {
     expect(items.length).toBe(5);
   });
 
-  it('links the CTA to /estimate/address', async () => {
+  it('links the CTA to the homepage address step', async () => {
     await setup('beltline');
     const cta = fixture.nativeElement.querySelector('.cta-card a');
-    const html = cta?.outerHTML ?? '';
+    const html = (cta?.outerHTML ?? '').toLowerCase();
     // RouterLink renders without href in the test bed; assert the binding exists.
-    expect(html).toContain('/estimate/address');
+    // The wizard's address step lives on the landing page (/) — there is no
+    // /estimate/address route (P0 fix: the old link 404'd).
+    expect(html).toContain('routerlink="/"');
+    expect(html).not.toContain('/estimate/address');
     expect(cta?.textContent).toContain('Get your address-specific estimate');
   });
 

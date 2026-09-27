@@ -37,6 +37,11 @@ apps/web/src/app/features/admin/admin-estimate-lookup.component.html
 # unsubscribe-page.component.spec.ts.
 apps/web/src/app/features/unsubscribe/unsubscribe-page.component.ts
 
+# Magic-link redemption page (consumer/02 P0 fix): same as above — the only
+# long literals are the import paths of the shared site-nav/site-footer
+# chrome components. All user copy lives in ConfigService.
+apps/web/src/app/features/magic-link/magic-link-page.component.ts
+
 # The `/404` route path (SEO-01): 404 is the HTTP status code — a web
 # standard, not a tunable. The no-hardcode tripwire's magic-number rule
 # cannot distinguish it from a tunable threshold.

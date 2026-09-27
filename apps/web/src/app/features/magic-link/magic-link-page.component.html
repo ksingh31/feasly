@@ -1,0 +1,49 @@
+<app-site-nav />
+<main class="magic-link" id="main-content" tabindex="-1">
+  <div class="card" aria-live="polite">
+    @if (view() === 'verifying') {
+      <p class="status" role="status">{{ copy.loadingLabel }}</p>
+    } @else if (view() === 'expired' || view() === 'invalid') {
+      <h1>{{ view() === 'expired' ? copy.expiredHeading : copy.invalidHeading }}</h1>
+      <p class="body">{{ view() === 'expired' ? copy.expiredBody : copy.invalidBody }}</p>
+      @if (resendStatus() === 'sent') {
+        <h2>{{ copy.resendDoneHeading }}</h2>
+        <p class="body">{{ copy.resendDoneBody }}</p>
+      } @else {
+        <p class="resend-prompt">{{ copy.resendPrompt }}</p>
+        <form [formGroup]="resendForm" (ngSubmit)="resend()" novalidate>
+          <label class="field">
+            <span>{{ copy.resendEmailLabel }}</span>
+            <input
+              type="email"
+              formControlName="email"
+              [placeholder]="copy.resendEmailPlaceholder"
+              autocomplete="email"
+              [attr.aria-invalid]="resendEmailInvalid"
+            />
+          </label>
+          @if (resendEmailInvalid) {
+            <p class="field-error" role="alert">{{ copy.resendEmailError }}</p>
+          }
+          @if (resendStatus() === 'send-error') {
+            <p class="field-error" role="alert">{{ copy.resendErrorBody }}</p>
+          }
+          <button type="submit" class="cta" [disabled]="resendStatus() === 'sending'">
+            {{ resendStatus() === 'sending' ? copy.resendingLabel : copy.resendCta }}
+          </button>
+        </form>
+      }
+      <a class="text-button" routerLink="/">{{ copy.homeCta }}</a>
+    } @else {
+      <h1>{{ copy.errorHeading }}</h1>
+      <p class="body">{{ copy.errorBody }}</p>
+      <div class="actions">
+        <button type="button" class="cta" (click)="retry()">
+          {{ copy.retryLabel }}
+        </button>
+        <a class="text-button" routerLink="/">{{ copy.homeCta }}</a>
+      </div>
+    }
+  </div>
+</main>
+<app-site-footer />

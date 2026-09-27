@@ -311,6 +311,20 @@ export const routes: Routes = [
     ],
     data: { noindex: true },
   },
+  // Magic-link redemption (consumer/02): /r/:token from the estimate email.
+  // Verifies the token, sets the report token, and lands on the unlocked
+  // report. noindex like the other private token routes; never prerendered
+  // (the token is only known at click time). Lazy-loaded so the page stays
+  // out of the initial bundle (budget).
+  {
+    path: 'r/:token',
+    loadComponent: () =>
+      import('./features/magic-link/magic-link-page.component').then(
+        (m) => m.MagicLinkPageComponent,
+      ),
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
   // Wildcard 404 MUST be last — Angular matches routes in order. Placing it
   // before the admin routes above would swallow /admin/login etc. (P0 fix).
   { path: '**', component: NotFoundPageComponent, canActivate: [robotsGuard], data: { noindex: true } },
