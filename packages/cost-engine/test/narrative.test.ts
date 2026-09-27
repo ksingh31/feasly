@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import {
   allowedNarrativeFigures,
   buildNarrativePrompt,
+  ensureNarrativeFooter,
   NARRATIVE_FOOTER,
   validateNarrative,
   type CommunityFacts,
@@ -185,11 +186,9 @@ describe('narrative validation (AC2)', () => {
     expect(validateNarrative(narrative, RENO).ok).toBe(true);
   });
 
-  it('fails when the verbatim footer is missing', () => {
+  it('passes a narrative without the footer — the worker appends it deterministically', () => {
     const narrative = 'Your extensive renovation is estimated at $230,000.';
-    const result = validateNarrative(narrative, RENO);
-    expect(result.ok).toBe(false);
-    expect(result.violations.some((v) => v.includes('verbatim footer'))).toBe(true);
+    expect(validateNarrative(narrative, RENO)).toEqual({ ok: true, violations: [] });
   });
 
   it('reports every invented figure, not just the first', () => {
@@ -197,6 +196,33 @@ describe('narrative validation (AC2)', () => {
     const result = validateNarrative(narrative, NEW_BUILD);
     expect(result.ok).toBe(false);
     expect(result.violations).toHaveLength(2);
+  });
+});
+
+describe('ensureNarrativeFooter', () => {
+  it('appends the verbatim footer as its own paragraph when missing', () => {
+    const result = ensureNarrativeFooter('Your build is estimated at $450,000.');
+    expect(result).toBe(
+      `Your build is estimated at $450,000.\n\n${NARRATIVE_FOOTER}`,
+    );
+  });
+
+  it('trims trailing whitespace before appending', () => {
+    const result = ensureNarrativeFooter('Summary text.  \n');
+    expect(result).toBe(`Summary text.\n\n${NARRATIVE_FOOTER}`);
+  });
+
+  it('leaves text unchanged when the model already emitted the footer', () => {
+    const text = `Summary text. ${NARRATIVE_FOOTER}`;
+    expect(ensureNarrativeFooter(text)).toBe(text);
+  });
+
+  it('appended footer passes validation', () => {
+    const text = ensureNarrativeFooter('Roughly $999,999 should cover it.');
+    const result = validateNarrative(text, NEW_BUILD);
+    expect(result.ok).toBe(false);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toContain('$999,999');
   });
 });
 
