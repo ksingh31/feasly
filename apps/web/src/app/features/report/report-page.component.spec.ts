@@ -219,6 +219,38 @@ describe('ReportPageComponent', () => {
       // Still blurred — no figures leak while locked.
       expect(text()).not.toMatch(/\d{6}/);
     });
+
+    describe('pending-lead sub copy', () => {
+      const subCopy = (): string =>
+        fixture.nativeElement.querySelector('.report-sub')?.textContent ?? '';
+
+      it('shows the "on its way" copy when the gate POST sent a fresh magic link', () => {
+        store.dispatch(
+          new StoreLeadResult({
+            leadId: 'lead-pending-1',
+            email: 'buyer@example.com',
+            magicLinkSent: true,
+            expiresInDays: 7,
+          }),
+        );
+        fixture.detectChanges();
+        expect(subCopy()).toContain('Your magic link is on its way.');
+      });
+
+      it('shows the "already in your inbox" copy on a duplicate submit (no new email sent)', () => {
+        store.dispatch(
+          new StoreLeadResult({
+            leadId: 'lead-pending-1',
+            email: 'buyer@example.com',
+            magicLinkSent: false,
+            expiresInDays: 7,
+          }),
+        );
+        fixture.detectChanges();
+        expect(subCopy()).toContain('Your link is already in your inbox');
+        expect(subCopy()).not.toContain('on its way');
+      });
+    });
   });
 
   describe('post-gate', () => {
