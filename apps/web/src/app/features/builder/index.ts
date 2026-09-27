@@ -14,6 +14,7 @@ export { BuilderLoginComponent } from './builder-login.component';
 export { BuilderShellComponent } from './builder-shell.component';
 export {
   BuilderState,
+  EMPTY_SUMMARY,
   type BuilderAuthStatus,
   type BuilderLeadsStatus,
   type BuilderStateModel,

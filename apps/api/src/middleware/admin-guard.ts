@@ -1,14 +1,24 @@
 /**
- * Admin guard (admin/01) — session-cookie auth.
+ * Admin guard (admin/01) — session-token auth.
  *
  * Replaces the interim pre-shared-key guard (api-mcp/01). Admin endpoints
- * require a valid `feasly_admin_session` httpOnly cookie: the opaque token
- * is SHA-256 hashed and looked up in `admin_sessions`; missing, revoked, or
- * expired sessions → 401 UNAUTHENTICATED.
+ * require a valid session token: the opaque token is SHA-256 hashed and
+ * looked up in `admin_sessions`; missing, revoked, or expired sessions →
+ * 401 UNAUTHENTICATED.
+ *
+ * The token arrives as `Authorization: Bearer <token>` (the SPA bearer
+ * flow — the cookie never sticks cross-origin) or, for a same-origin
+ * future, the `feasly_admin_session` httpOnly cookie. Bearer wins when
+ * both are present.
  *
  * Routes depend on the `AdminGuard` interface, not this implementation.
  */
 import { ErrorCodes, HttpError } from './errors';
+import {
+  extractSessionToken,
+  parseCookieValue,
+  type HeaderRecord,
+} from './session-token';
 import type { AdminAuthService } from '../services/admin-auth.service';
 
 export interface AdminGuard {
@@ -39,22 +49,8 @@ export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
  * Extract the session token from the `Cookie` header. Returns null when
  * absent or malformed (the guard treats it as unauthenticated).
  */
-export function parseSessionCookie(
-  headers: Record<string, string | string[] | undefined>,
-): string | null {
-  const raw = headers['cookie'];
-  const cookieHeader = Array.isArray(raw) ? raw[0] : raw;
-  if (!cookieHeader) return null;
-  for (const part of cookieHeader.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx === -1) continue;
-    const name = part.slice(0, idx).trim();
-    if (name === ADMIN_SESSION_COOKIE) {
-      const value = part.slice(idx + 1).trim();
-      return value ? decodeURIComponent(value) : null;
-    }
-  }
-  return null;
+export function parseSessionCookie(headers: HeaderRecord): string | null {
+  return parseCookieValue(headers, ADMIN_SESSION_COOKIE);
 }
 
 function unauthorized(): HttpError {
@@ -72,7 +68,7 @@ export function createSessionAdminGuard(
   async function resolveEmail(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<string | null> {
-    const token = parseSessionCookie(headers);
+    const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
     if (!token) return null;
     return deps.adminAuth.validateSession(token);
   }

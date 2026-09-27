@@ -27,6 +27,14 @@ export type BuilderAuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 export type BuilderLeadsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface BuilderStateModel {
+  /**
+   * The builder session token (from the verify JSON body). Sent back as
+   * `Authorization: Bearer <token>` by the credentials interceptor.
+   * Persisted via the NGXS storage plugin so the builder session survives
+   * a reload — the cross-origin session cookie never sticks on modern
+   * browsers. Everything else in this slice stays memory-only (see below).
+   */
+  sessionToken: string | null;
   /** Session identity (email + tenant), memory-only — never persisted. */
   session: BuilderAuthMeResponse | null;
   authStatus: BuilderAuthStatus;
@@ -42,7 +50,7 @@ export interface BuilderStateModel {
   updateError: string | null;
 }
 
-const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
+export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
   total: 0,
   new: 0,
   contacted: 0,
@@ -52,6 +60,7 @@ const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
 };
 
 const defaults: BuilderStateModel = {
+  sessionToken: null,
   session: null,
   authStatus: 'unknown',
   sessionExpired: false,
@@ -66,11 +75,12 @@ const defaults: BuilderStateModel = {
  * Builder portal state (embed/09): the single source of truth for the
  * `/builder/*` portal.
  *
- * The session is cookie-based (HttpOnly `feasly_builder_session`); the store
- * only caches the identity for display. Everything is memory-only: the
- * session and the lead list (homeowner PII) are never written to storage,
- * so this state is deliberately NOT registered with the NGXS storage
- * plugin.
+ * The session token is bearer-based (`Authorization: Bearer <token>`,
+ * attached by the credentials interceptor) and persisted via the NGXS
+ * storage plugin so the portal survives a reload — the cross-origin
+ * session cookie never sticks on modern browsers. Everything else is
+ * memory-only: the session identity and the lead list (homeowner PII)
+ * are stripped before persistence and refetched on mount.
  *
  * Action handlers RETURN their API observables (never bare `.subscribe()`):
  * NGXS then owns the subscription.
@@ -87,6 +97,11 @@ export class BuilderState {
   @Selector()
   static session(state: BuilderStateModel): BuilderAuthMeResponse | null {
     return state.session;
+  }
+
+  @Selector()
+  static sessionToken(state: BuilderStateModel): string | null {
+    return state.sessionToken;
   }
 
   @Selector()
@@ -143,6 +158,7 @@ export class BuilderState {
     return this.authApi.verifyMagicLink(action.token).pipe(
       tap((identity) => {
         ctx.patchState({
+          sessionToken: identity.sessionToken,
           session: {
             authenticated: true,
             email: identity.email,
@@ -175,6 +191,7 @@ export class BuilderState {
             ? (error as { code: unknown }).code
             : null;
         ctx.patchState({
+          sessionToken: null,
           authStatus: 'unauthenticated',
           session: null,
           sessionExpired: code === 'SESSION_EXPIRED',
@@ -256,7 +273,7 @@ export class BuilderState {
       tap(() => ctx.setState({ ...defaults })),
       catchError(() => {
         // Even if the server call fails, drop the local session — the
-        // cookie is HttpOnly and the guard re-probes on next navigation.
+        // guard re-probes on next navigation and fails closed.
         ctx.setState({ ...defaults });
         return of(null);
       }),

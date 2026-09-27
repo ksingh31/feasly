@@ -17,9 +17,10 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Admin leads-explorer API client (admin/02).
  *
- * Speaks the versioned `/api/v1/admin/leads/*` routes. All calls use
- * `withCredentials: true` so the `feasly_admin_session` HttpOnly cookie is
- * sent (same pattern as the admin auth service).
+ * Speaks the versioned `/api/v1/admin/leads/*` routes. All calls carry
+ * `Authorization: Bearer <token>` (via the credentials interceptor) so the
+ * admin session authenticates cross-origin (same pattern as the admin auth
+ * service).
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).
