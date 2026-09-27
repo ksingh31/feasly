@@ -671,6 +671,48 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Admin resolves a billing dispute: "resume" returns the invoice to ' +
       'review with a fresh 7-day window, "void" cancels it.',
   },
+  // ── Dispute console (billing/01 follow-on, was OPS-009) ─────────────
+  {
+    method: 'GET',
+    path: '/api/v1/admin/disputes',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Dispute console: open disputes oldest-first with reason, immutable ' +
+      'evidence snapshot reference, and the 5-business-day SLA countdown ' +
+      '(America/Edmonton). Admin only.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/disputes/{id}',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'One dispute: immutable evidence snapshot, SLA state, and the ' +
+      'billing audit trail. Admin only.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/disputes/{id}/accept',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Accept a dispute: voids the invoice (Stripe refund first when it ' +
+      'was already paid — the credit note). Audit-logged. Admin only.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/disputes/{id}/reject',
+    auth: 'admin',
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Reject a dispute: the invoice returns to in_review with a fresh ' +
+      '7-day window. Audit-logged. Admin only.',
+  },
 ];
 
 /** Lookup key: `METHOD /path`. */

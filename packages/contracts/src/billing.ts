@@ -57,3 +57,76 @@ export interface StripeWebhookResult {
   /** True when this event id was already handled (Stripe retry). */
   readonly duplicate: boolean;
 }
+
+/**
+ * Dispute console contracts (billing/01 follow-on, was OPS-009).
+ *
+ * Wire shapes for `/api/v1/admin/disputes/*`. Dates are ISO-8601 strings.
+ * The evidence snapshot is immutable server-side: the console renders it,
+ * never the live invoice row, so the evidence can't change under review.
+ */
+
+/** Dispute lifecycle: open → accepted | rejected. */
+export type DisputeStatus = 'open' | 'accepted' | 'rejected';
+
+/** Immutable invoice state captured at dispute-open time. */
+export interface DisputeEvidenceSnapshot {
+  readonly invoiceId: string;
+  readonly tenantKey: string;
+  readonly attributionId: string;
+  readonly leadId: string;
+  /** Signed construction contract value, integer cents, excl. land. */
+  readonly contractValueCents: number;
+  /** round(contractValueCents * rate), integer cents. */
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly stripePaymentIntentId: string | null;
+  readonly status: 'disputed';
+  readonly reviewDueAt: string | null;
+  readonly disputeReason: string;
+  readonly invoiceCreatedAt: string;
+  readonly disputedAt: string;
+  /** True when backfilled for a disputed invoice with no dispute row. */
+  readonly backfilled?: boolean;
+}
+
+export interface DisputeListItem {
+  readonly id: string;
+  readonly invoiceId: string;
+  readonly tenantKey: string;
+  readonly reason: string;
+  readonly status: DisputeStatus;
+  readonly openedAt: string;
+  /** openedAt + 5 business days (America/Edmonton). */
+  readonly slaDueAt: string;
+  /** When the SLA-breach ops escalation fired; null until then. */
+  readonly slaBreachedAt: string | null;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly contractValueCents: number;
+  /** Whole business days until slaDueAt (negative when breached). */
+  readonly businessDaysRemaining: number;
+  /** True when now is past slaDueAt. */
+  readonly breached: boolean;
+}
+
+/** GET /api/v1/admin/disputes — open disputes, oldest first. */
+export interface DisputeListResponse {
+  readonly disputes: DisputeListItem[];
+}
+
+/** GET /api/v1/admin/disputes/{id} — full detail for the console. */
+export interface DisputeDetailResponse extends DisputeListItem {
+  readonly evidenceSnapshot: DisputeEvidenceSnapshot;
+  readonly resolvedAt: string | null;
+  readonly resolvedBy: string | null;
+  readonly resolutionNote: string | null;
+  /** billing_events rows for the dispute + its invoice, oldest first. */
+  readonly auditTrail: BillingEvent[];
+}
+
+/** POST /api/v1/admin/disputes/{id}/accept and …/reject. */
+export interface ResolveDisputeRequest {
+  /** Optional admin note recorded on the dispute + audit trail. */
+  readonly note?: string;
+}

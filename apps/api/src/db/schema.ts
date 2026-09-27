@@ -742,6 +742,67 @@ export const billingEvents = pgTable(
 );
 
 /**
+ * Billing disputes (billing/01 follow-on: dispute console, was OPS-009).
+ *
+ * One row per builder dispute, opened when an invoice transitions to
+ * 'disputed' (see DisputeService.recordOpenedDispute). The evidence
+ * snapshot is IMMUTABLE: the invoice's money/state fields at dispute-open
+ * time, so a later void/refund can never rewrite what the admin saw.
+ * The 5-business-day resolution SLA runs on the America/Edmonton calendar
+ * (see lib/business-days.ts); a breach escalates via ops alerts and NEVER
+ * auto-resolves the dispute.
+ *
+ * Status lifecycle: open → accepted (invoice voided; Stripe refund when it
+ * was already paid) | rejected (invoice back to in_review with a fresh
+ * 7-day window). Terminal: accepted, rejected.
+ */
+export const billingDisputes = pgTable(
+  'billing_disputes',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** The disputed commission invoice. */
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => commissionInvoices.id),
+    /** Which builder tenant raised the dispute. */
+    tenantKey: text('tenant_key')
+      .notNull()
+      .references(() => tenants.tenantKey),
+    /** Builder-supplied reason (mirrors the invoice's dispute_reason). */
+    reason: text('reason').notNull(),
+    /** Immutable invoice state at dispute-open time. Never updated. */
+    evidenceSnapshot: jsonb('evidence_snapshot').notNull(),
+    /** open | accepted | rejected. */
+    status: text('status').notNull().default('open'),
+    /** When the dispute was opened. */
+    openedAt: timestamp('opened_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** openedAt + 5 business days (America/Edmonton). */
+    slaDueAt: timestamp('sla_due_at', { withTimezone: true }).notNull(),
+    /** When the SLA-breach ops escalation fired. Never auto-resolves. */
+    slaBreachedAt: timestamp('sla_breached_at', { withTimezone: true }),
+    /** When a human accepted/rejected the dispute. */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** Admin email that resolved the dispute. */
+    resolvedBy: text('resolved_by'),
+    /** Admin's resolution note. */
+    resolutionNote: text('resolution_note'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('billing_disputes_status_opened_idx').on(t.status, t.openedAt),
+    index('billing_disputes_invoice_idx').on(t.invoiceId),
+  ],
+);
+
+/**
  * Ops alert dedupe state (admin/06).
  *
  * One row per alert class (e.g. 'sheets_sync_failed'). The alert service

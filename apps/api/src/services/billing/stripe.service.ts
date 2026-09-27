@@ -54,6 +54,15 @@ export interface StripeClient {
     },
     idempotencyKey: string,
   ): Promise<{ id: string; status: string }>;
+  /**
+   * Refund a PaymentIntent in full (dispute console: credit note when an
+   * accepted dispute's invoice was already paid). Idempotent via the
+   * idempotency key — timer/retry safe.
+   */
+  refundPaymentIntent(
+    paymentIntentId: string,
+    idempotencyKey: string,
+  ): Promise<{ id: string; status: string }>;
   createSubscription(input: {
     customerId: string;
     priceId: string;
@@ -93,6 +102,15 @@ export interface StripeService {
     priceId: string;
   }): Promise<{ id: string; status: string }>;
   cancelSubscription(subscriptionId: string): Promise<{ id: string }>;
+  /**
+   * Refund a PaymentIntent in full (dispute console: credit note when an
+   * accepted dispute's invoice was already paid). Idempotent via the
+   * idempotency key — timer/retry safe.
+   */
+  refundPaymentIntent(
+    paymentIntentId: string,
+    idempotencyKey: string,
+  ): Promise<{ id: string; status: string }>;
   /**
    * Verify the webhook signature and normalize the event. Throws
    * INVALID_SIGNATURE (401) on a bad signature — never a 500.
@@ -188,6 +206,13 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       const subscription = await stripe.subscriptions.cancel(subscriptionId);
       return { id: subscription.id };
     },
+    async refundPaymentIntent(paymentIntentId, idempotencyKey) {
+      const refund = await stripe.refunds.create(
+        { payment_intent: paymentIntentId },
+        { idempotencyKey },
+      );
+      return { id: refund.id, status: refund.status ?? 'unknown' };
+    },
     constructWebhookEvent(rawBody, signature, webhookSecret) {
       const event = stripe.webhooks.constructEvent(
         rawBody,
@@ -232,6 +257,8 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
       requireClient().createSubscription(input),
     cancelSubscription: (subscriptionId) =>
       requireClient().cancelSubscription(subscriptionId),
+    refundPaymentIntent: (paymentIntentId, idempotencyKey) =>
+      requireClient().refundPaymentIntent(paymentIntentId, idempotencyKey),
 
     verifyWebhook(rawBody: Buffer, signature: string): NormalizedStripeEvent {
       const webhookSecret = billing.stripeWebhookSecret;

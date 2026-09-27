@@ -240,6 +240,27 @@ const targets = [
     entry: 'src/functions/billing-invoice-resolve.ts',
     out: 'billing-invoice-resolve/index.js',
   },
+  // Dispute console (billing/01 follow-on, was OPS-009).
+  {
+    entry: 'src/functions/admin-disputes.ts',
+    out: 'admin-disputes/index.js',
+  },
+  {
+    entry: 'src/functions/admin-disputes-get.ts',
+    out: 'admin-disputes-get/index.js',
+  },
+  {
+    entry: 'src/functions/admin-disputes-accept.ts',
+    out: 'admin-disputes-accept/index.js',
+  },
+  {
+    entry: 'src/functions/admin-disputes-reject.ts',
+    out: 'admin-disputes-reject/index.js',
+  },
+  {
+    entry: 'src/functions/dispute-sla-timer.ts',
+    out: 'dispute-sla-timer/index.js',
+  },
   // billing/03 follow-on: read-only billing-health dashboard endpoint.
   {
     entry: 'src/functions/admin-billing.ts',
