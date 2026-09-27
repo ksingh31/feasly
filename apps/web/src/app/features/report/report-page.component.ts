@@ -200,8 +200,15 @@ export class ReportPageComponent implements OnInit {
     return snap.narrative?.trim() ? snap.narrative : '';
   });
 
-  /** Per-sq-ft context from the SERVER's build base and sqft — display only. */
+  /**
+   * Per-sq-ft context from the SERVER's build base and sqft — display only.
+   * New-build only: the reno engine deliberately avoids per-sqft framing
+   * (reno/04), so reno reports never surface this figure.
+   */
   protected readonly perSqft = computed(() => {
+    if (this.isReno()) {
+      return null;
+    }
     const snap = this.snapshot();
     const f = this.figures();
     if (!snap || !f || snap.inputs.sqft <= 0) {
