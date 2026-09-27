@@ -489,6 +489,10 @@ export interface AppConfig {
       aiSummaryLocked: string;
       /** Shown post-gate when the AI narrative could not be produced — never mock text. */
       aiSummaryUnavailable: string;
+      /** Title for the static Calgary guide shown when every narrative model failed (BE-9). */
+      staticGuideTitle: string;
+      /** Honest sub-note under the static guide title — never implies AI prose. */
+      staticGuideNote: string;
       stepsTitle: string;
       steps: { title: string; body: string }[];
       shareTitle: string;

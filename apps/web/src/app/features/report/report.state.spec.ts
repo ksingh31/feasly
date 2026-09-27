@@ -211,6 +211,7 @@ describe('ReportState', () => {
         narrative: 'Fresh narrative from the backend.',
         narrativeGeneratedAt: new Date().toISOString(),
         cached: false,
+        narrativeSource: 'ai',
       }),
     );
     try {

@@ -192,6 +192,7 @@ describe('HttpApiService', () => {
       narrative: 'Summary text.',
       narrativeGeneratedAt: new Date().toISOString(),
       cached: false,
+      narrativeSource: 'ai',
     });
     await pending;
     httpMock.verify();

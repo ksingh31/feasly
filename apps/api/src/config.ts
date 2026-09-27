@@ -150,7 +150,15 @@ const EnvSchema = z.object({
   // overridable without a code change. (2.5-flash was retired by Google
   // for new API keys on 2026-09-27; their API names 3.8-flash as the
   // replacement.)
-  NARRATIVE_MODEL: z.string().default('gemini-3.8-flash'),
+  /**
+   * Ordered narrative model list, primary first — config-owned so Karan
+   * can reorder or swap models without a code change. The provider tries
+   * the next model on capacity errors (408/429/5xx), timeouts, and
+   * network failures, and fails fast on other 4xx.
+   */
+  NARRATIVE_MODELS: z.string().default('gemini-2.5-flash,gemini-2.5-flash-lite'),
+  /** Per-attempt timeout (ms) for each model in the narrative chain. */
+  NARRATIVE_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
   // Base URL of the OpenAI-compatible endpoint. Overridable for tests;
   // default is Google's Gemini OpenAI-compatibility base. The provider
   // appends /chat/completions when the value does not already end with it.
@@ -568,10 +576,35 @@ export interface NarrativeConfig {
   readonly provider: 'log' | 'openai-compatible';
   /** LLM API key (from Key Vault, never in repo). Empty = fail-closed. */
   readonly apiKey: string;
-  /** LLM model name for narratives. */
-  readonly model: string;
+  /**
+   * Ordered narrative model list, primary first (parsed from
+   * NARRATIVE_MODELS). The provider tries the next model on capacity
+   * errors (408/429/5xx), timeouts, and network failures. Always
+   * non-empty — loadConfig throws on an empty list.
+   */
+  readonly models: readonly string[];
+  /** Per-attempt timeout (ms) for each model in the narrative chain. */
+  readonly timeoutMs: number;
   /** Base URL of the OpenAI-compatible endpoint (chat/completions appended if missing). */
   readonly endpoint: string;
+}
+
+/**
+ * Parse the comma-separated NARRATIVE_MODELS value into an ordered,
+ * trimmed, non-empty list. Throws on empty so a misconfigured
+ * deployment fails closed at startup, not at first narrative request.
+ */
+export function parseNarrativeModels(raw: string): readonly string[] {
+  const models = raw
+    .split(',')
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0);
+  if (models.length === 0) {
+    throw new Error(
+      'NARRATIVE_MODELS is empty — configure at least one narrative model (comma-separated).',
+    );
+  }
+  return models;
 }
 
 export interface ApiConfig {
@@ -850,7 +883,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     narrative: {
       provider: e.NARRATIVE_PROVIDER,
       apiKey: e.NARRATIVE_API_KEY,
-      model: e.NARRATIVE_MODEL,
+      models: parseNarrativeModels(e.NARRATIVE_MODELS),
+      timeoutMs: e.NARRATIVE_TIMEOUT_MS,
       endpoint: e.NARRATIVE_ENDPOINT,
     },
     embed: {

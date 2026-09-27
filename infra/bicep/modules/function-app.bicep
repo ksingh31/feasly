@@ -74,7 +74,7 @@ param narrativeApiKeySecretUri string = ''
 param narrativeEndpoint string = ''
 
 @description('Model slug for the narrative provider (e.g. gemini-3.8-flash). Empty = the app config default.')
-param narrativeModel string = ''
+param narrativeModels string = ''
 
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
@@ -289,12 +289,12 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 value: narrativeEndpoint
               }
             ],
-        empty(narrativeModel)
+        empty(narrativeModels)
           ? []
           : [
               {
-                name: 'NARRATIVE_MODEL'
-                value: narrativeModel
+                name: 'NARRATIVE_MODELS'
+                value: narrativeModels
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls

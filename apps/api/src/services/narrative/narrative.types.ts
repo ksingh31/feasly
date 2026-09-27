@@ -38,12 +38,20 @@ export function isSyntheticNarrative(text: string): boolean {
 }
 
 export class NarrativeProviderError extends Error {
+  /**
+   * HTTP status from the provider's error response, when the failure was
+   * an error status. Undefined for transport failures (timeout, network)
+   * — the chain treats those as transient. Lets the model chain decide
+   * whether to advance (408/429/5xx) or fail fast (other 4xx).
+   */
+  readonly status?: number;
   constructor(
     message: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; status?: number },
   ) {
     super(message, options);
     this.name = 'NarrativeProviderError';
+    this.status = options?.status;
   }
 }
 

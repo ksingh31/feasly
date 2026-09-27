@@ -181,11 +181,20 @@
       }
     </section>
 
-    <!-- AI SUMMARY: deterministic narrative only — engine figures, no LLM-invented numbers. -->
-    <section class="card" [attr.aria-label]="copy.narrativeTitle">
-      <h2>{{ copy.narrativeTitle }}</h2>
+    <!-- AI SUMMARY: deterministic narrative only — engine figures, no LLM-invented numbers.
+         When every model failed (BE-9), the backend returns the static Calgary guide
+         labeled 'static-guide' — rendered under its own honest title, never as AI prose. -->
+    <section class="card" [attr.aria-label]="isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle">
+      <h2>{{ isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle }}</h2>
       @if (unlocked() && narrative()) {
-        <p class="narrative">{{ narrative() }}</p>
+        @if (isStaticGuide()) {
+          <p class="hint">{{ copy.staticGuideNote }}</p>
+          @for (para of guideParagraphs(); track $index) {
+            <p class="narrative">{{ para }}</p>
+          }
+        } @else {
+          <p class="narrative">{{ narrative() }}</p>
+        }
       } @else if (unlocked()) {
         <p class="hint">{{ copy.aiSummaryUnavailable }}</p>
       } @else {

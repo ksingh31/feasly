@@ -428,6 +428,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       aiSummaryLocked: 'Unlock your report to read the AI summary of your estimate.',
       aiSummaryUnavailable:
         'The AI summary is not available for this report right now — the figures above are the complete estimate.',
+      /** Shown when every narrative model failed: the static Calgary guide, honestly labeled. */
+      staticGuideTitle: 'Building in Calgary',
+      staticGuideNote:
+        'Our AI summary is unavailable right now — here’s a general guide.',
       stepsTitle: 'Your next steps',
       steps: [
         {

@@ -335,7 +335,13 @@ export class ReportState {
     }
     return this.api.getNarrative(snapshot.estimateId, token).pipe(
       map((res) =>
-        res.narrative?.trim() ? { ...snapshot, narrative: res.narrative } : snapshot,
+        res.narrative?.trim()
+          ? {
+              ...snapshot,
+              narrative: res.narrative,
+              narrativeSource: res.narrativeSource,
+            }
+          : snapshot,
       ),
       catchError(() => of(snapshot)),
     );

@@ -155,8 +155,19 @@ export class ReportPdfService {
       rule();
     }
 
-    // Narrative (or its honest absence — never invented).
-    text('Summary', { size: 13, bold: true, gap: 6 });
+    // Narrative (or its honest absence — never invented). When every model
+    // failed (BE-9) the snapshot carries the static Calgary guide labeled
+    // 'static-guide': render it under its own honest title, never as an
+    // AI summary.
+    const isStaticGuide = snap.narrativeSource === 'static-guide';
+    text(isStaticGuide ? reportCopy.staticGuideTitle : 'Summary', {
+      size: 13,
+      bold: true,
+      gap: 6,
+    });
+    if (isStaticGuide) {
+      text(reportCopy.staticGuideNote, { size: 9, gap: 4 });
+    }
     const narrative = snap.narrative?.trim();
     text(
       narrative || reportCopy.pdfNarrativeFallback,
