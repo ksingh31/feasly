@@ -34,6 +34,7 @@ import type { LeadStore } from './lead.store';
 import {
   hashMagicToken,
   OWNER_LINK_PURPOSE,
+  type IssuedMagicLink,
   type MagicLinkStore,
 } from './magic-link.store';
 
@@ -98,7 +99,7 @@ export interface IssueAndSendMagicLinkArgs {
 
 export async function issueAndSendMagicLink(
   args: IssueAndSendMagicLinkArgs,
-): Promise<void> {
+): Promise<IssuedMagicLink> {
   const issued = await args.magicLinks.issue({
     leadId: args.leadId,
     purpose: OWNER_LINK_PURPOSE,
@@ -112,6 +113,11 @@ export async function issueAndSendMagicLink(
     expiresInDays: Math.max(1, Math.ceil(args.magicLinkTtlSeconds / 86_400)),
     audience: 'consumer',
   });
+  // Returned so the lead-submit path can hand the same-session client the
+  // owner token directly (Karan directive 2026-09-27: immediate unlock —
+  // the email is return-access for other devices). Callers that don't need
+  // the token ignore the return value.
+  return issued;
 }
 
 export function createMagicLinkService(
