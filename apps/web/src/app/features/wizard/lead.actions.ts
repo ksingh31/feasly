@@ -9,6 +9,8 @@ export class StoreLeadResult {
       email: string;
       magicLinkSent: boolean;
       expiresInDays: number;
+      /** Why the magic-link email failed — present only when magicLinkSent is false. */
+      emailError?: 'invalid-recipient' | 'delivery-failed';
     },
   ) {}
 }

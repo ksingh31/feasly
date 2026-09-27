@@ -12,7 +12,7 @@ import { createDrizzleLeadStore } from '../src/services/lead.store';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
 import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
 import type { EmailService } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import { createTestDb, type TestDb } from './pglite-db';
 import { createUnsubscribeService } from '../src/services/unsubscribe.service';
 
@@ -21,7 +21,7 @@ const NOW = new Date('2026-09-26T07:00:00Z');
 
 function fakeEmail(): EmailService & { sent: unknown[] } {
   const sent: unknown[] = [];
-  const ok: EmailSendResult = { provider: 'log' };
+  const ok: EmailDelivery = { sent: true, provider: 'log' };
   return {
     sent,
     sendMagicLink: async (input) => { sent.push(input); return ok; },

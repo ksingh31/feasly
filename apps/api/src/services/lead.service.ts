@@ -9,8 +9,10 @@
  *     persisted estimate).
  *  4. 90-day dedup: same email + same property address (address_key
  *     denormalized from the estimate) inside the configured window returns
- *     the existing lead — no duplicate row, no duplicate email. A fresh
- *     estimate for the same address is still the same household.
+ *     the existing lead — no duplicate row. A fresh estimate for the same
+ *     address is still the same household. The email is ALWAYS sent on a
+ *     genuine submission (Karan directive 2026-09-27): dedupe never
+ *     suppresses the send.
  *  5. Otherwise insert and return the contract `LeadResponse`.
  *
  * PII discipline: error messages reference field *paths* ('email'), never
@@ -23,12 +25,19 @@
  *   from the latest submission), estimate_id → newest. Email, address,
  *   consent, consent_ts, status, notes, and status history are never
  *   touched (the store's `updateOnRepeat` column list is the guarantee).
- * - AC4: on a dedupe hit the magic-link email is sent ONLY when the lead
- *   has no live link (expired or missing → reissue). A live link means
- *   zero new sends.
+ * - Every genuine submission sends the magic-link email (Karan directive
+ *   2026-09-27): a dedupe hit still mints a fresh token AND emails it.
+ *   The old AC4 rule (live link → zero new sends) is gone — it stranded
+ *   users whose first email never arrived, because the token is issued
+ *   before the send, so a failed first send still left a live link that
+ *   suppressed every later retry.
  * - New capture: the magic-link email is sent immediately (this wires the
- *   BE-5/email seam — `magicLinkSent` is true on success). Quarantined
- *   (honeypot) rows are issued a token but never emailed.
+ *   BE-5/email seam — `magicLinkSent` is true on success). A FAILED send
+ *   degrades gracefully: the request still returns 200 with the lead saved,
+ *   the fresh `reportToken` included (report unlocks), and
+ *   `magicLinkSent: false` — the client tells the user to check their
+ *   inbox or resubmit. Quarantined (honeypot) rows are issued a token but
+ *   never emailed (and the token is never returned to the caller).
  * `expiresInDays` is derived from the configured magic-link TTL so the UI
  * never hardcodes it.
  */
@@ -41,7 +50,10 @@ import type { BuilderConfigService } from './builder-config.service';
 import type { EmailService } from './email/email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
-import { isMagicLinkLive, issueAndSendMagicLink } from './magic-link.service';
+import {
+  issueOwnerMagicLinkToken,
+  sendOwnerMagicLinkEmail,
+} from './magic-link.service';
 import type { MagicLinkStore } from './magic-link.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 
@@ -148,17 +160,26 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
   /**
    * consumer/02 — the dedupe-hit path. Updates the existing lead's scalar
    * columns (name, phone, timeline, lead_score, estimate_id → newest) and
-   * sends a magic-link email ONLY when the lead has no live link (AC4).
+   * ALWAYS sends a fresh magic-link email.
+   *
+   * Karan directive 2026-09-27 (estimate-email resend fix): every genuine
+   * new submission must send the estimate email — even when the email +
+   * address already exists inside the dedupe window. The old AC4 rule
+   * ("a live magic link means zero new sends") permanently stranded users
+   * whose first email never arrived: the token is issued BEFORE the send,
+   * so a failed or bounced first send still left a live link, and every
+   * later submission then refused to retry while the UI claimed the link
+   * was "already in your inbox". Dedupe still prevents duplicate lead
+   * rows (update in place); it never suppresses the email.
    */
   async function handleRepeatEstimate(args: {
     readonly existing: LeadRecord;
     readonly input: LeadRequest;
     readonly estimate: { readonly figures: unknown };
     readonly email: string;
-    readonly now: Date;
     readonly expiresInDays: number;
   }): Promise<LeadResponse> {
-    const { existing, input, estimate, email, now, expiresInDays } = args;
+    const { existing, input, estimate, email, expiresInDays } = args;
     if (existing.quarantined) {
       // Spam stays buried: no update, no email, same response shape.
       return { leadId: existing.id, magicLinkSent: false, expiresInDays };
@@ -183,61 +204,60 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     } catch (error) {
       throw new Error('lead dedupe update failed', { cause: error });
     }
-    // AC4: a live magic link means zero new sends. Only an expired or
-    // missing link takes the reissue path.
-    let links;
-    try {
-      links = await deps.magicLinks.findByLeadIds([existing.id]);
-    } catch (error) {
-      throw new Error('magic link lookup failed', { cause: error });
-    }
-    const live = links
-      .filter((l) => l.purpose === 'lead')
-      .some((l) => isMagicLinkLive(l, now));
-    if (live) {
-      // AC4: no new email — but the in-tab client still needs a working
-      // owner token for the token-gated extras (share, callback, narrative,
-      // revise). The live link's raw token is unrecoverable (only its hash
-      // is stored), so mint a fresh one WITHOUT emailing: the "already in
-      // your inbox" copy stays honest and the tab is fully functional.
-      let issued;
-      try {
-        issued = await deps.magicLinks.issue({
-          leadId: existing.id,
-          ttlSeconds: deps.magicLinkTtlSeconds,
-          clock,
-        });
-      } catch (error) {
-        throw new Error('magic link issuance failed', { cause: error });
-      }
-      return {
-        leadId: updated.id,
-        magicLinkSent: false,
-        expiresInDays,
-        reportToken: issued.token,
-      };
-    }
+    // Every submission sends: mint a fresh owner token AND email it. The
+    // in-tab client needs the fresh raw token for the token-gated extras
+    // (share, callback, narrative, revise) — the stored hash is
+    // unrecoverable — and the email is the return-access path for other
+    // devices. A live link from an earlier submission never suppresses
+    // this send.
+    //
+    // Karan directive 2026-09-27 (send-failure UX): the lead row is
+    // already saved and the token is issued BEFORE the send, so a failed
+    // send must NOT fail the request — the old fail-loud 500 showed the
+    // generic "couldn't save your details" error even though the lead WAS
+    // saved, blocking the report for no reason. Instead return 200 with
+    // magicLinkSent: false and the fresh token: the report still unlocks
+    // (immediate-unlock rule) and the client tells the user to check
+    // their inbox or resubmit. A resubmission retries the send — the user
+    // is never stranded. (The email provider already logs email.send-failed
+    // for the ops alert; the message here is sanitized — provider errors
+    // can echo PII.)
     let issued;
     try {
-      issued = await issueAndSendMagicLink({
+      issued = await issueOwnerMagicLinkToken({
         magicLinks: deps.magicLinks,
-        email: deps.email,
-        unsubscribe: deps.unsubscribe,
         leadId: existing.id,
-        to: email,
-        name: input.name,
-        appBaseUrl: deps.appBaseUrl,
         magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
         clock,
       });
     } catch (error) {
       throw new Error('magic link reissue failed', { cause: error });
     }
+    const delivery = await sendOwnerMagicLinkEmail({
+      email: deps.email,
+      unsubscribe: deps.unsubscribe,
+      leadId: existing.id,
+      to: email,
+      name: input.name,
+      appBaseUrl: deps.appBaseUrl,
+      magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
+      token: issued.token,
+    });
+    if (!delivery.sent) {
+      // Send failed (after in-code retries) — degrade, don't 500: the lead
+      // is saved and the token is issued, so the report still unlocks.
+      console.warn(`lead: magic-link send failed (${delivery.failureReason})`);
+    }
     return {
       leadId: updated.id,
-      magicLinkSent: true,
+      magicLinkSent: delivery.sent,
       expiresInDays,
       reportToken: issued.token,
+      // Present only when the send failed: tells the frontend WHY
+      // ('invalid-recipient' → check for typos, never arrives;
+      // 'delivery-failed' → an earlier attempt may still have sent it,
+      // check inbox or try again).
+      ...(!delivery.sent ? { emailError: delivery.emailError } : {}),
     };
   }
 
@@ -309,7 +329,6 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           input,
           estimate,
           email,
-          now,
           expiresInDays,
         });
       }
@@ -350,7 +369,14 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // the token-gated extras (share, callback, narrative, token revise)
       // without the email round-trip. The email remains return-access for
       // other devices.
+      //
+      // Send-failure UX (same directive): a failed send degrades to
+      // magicLinkSent: false with the token still returned — the lead is
+      // saved and the report unlocks; the client tells the user to check
+      // their inbox or resubmit. Only a failed token ISSUE still throws.
       let reportToken: string | undefined;
+      let emailError: 'invalid-recipient' | 'delivery-failed' | undefined;
+      let magicLinkSent = !quarantined;
       try {
         if (quarantined) {
           await deps.magicLinks.issue({
@@ -359,8 +385,14 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             clock,
           });
         } else {
-          const issued = await issueAndSendMagicLink({
+          const issued = await issueOwnerMagicLinkToken({
             magicLinks: deps.magicLinks,
+            leadId: inserted.id,
+            magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
+            clock,
+          });
+          reportToken = issued.token;
+          const delivery = await sendOwnerMagicLinkEmail({
             email: deps.email,
             unsubscribe: deps.unsubscribe,
             leadId: inserted.id,
@@ -368,18 +400,25 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             name: input.name,
             appBaseUrl: deps.appBaseUrl,
             magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
-            clock,
+            token: issued.token,
           });
-          reportToken = issued.token;
+          if (!delivery.sent) {
+            console.warn(
+              `lead: magic-link send failed (${delivery.failureReason})`,
+            );
+            magicLinkSent = false;
+            emailError = delivery.emailError;
+          }
         }
       } catch (error) {
         throw new Error('magic link issuance failed', { cause: error });
       }
       return {
         leadId: inserted.id,
-        magicLinkSent: !quarantined,
+        magicLinkSent,
         expiresInDays,
         ...(reportToken !== undefined ? { reportToken } : {}),
+        ...(emailError !== undefined ? { emailError } : {}),
       };
     },
   };

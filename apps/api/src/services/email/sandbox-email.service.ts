@@ -13,6 +13,7 @@
  * available.
  */
 import type {
+  EmailDelivery,
   EmailService,
   MagicLinkEmailInput,
   NudgeEmailInput,
@@ -20,14 +21,14 @@ import type {
   PartnerShareEmailInput,
   CallbackConfirmationInput,
 } from './email.service';
-import type { EmailSendResult } from './email.types';
 
 export interface SandboxEmailServiceDeps {
   readonly inner: EmailService;
   readonly log?: (message: string) => void;
 }
 
-const SUPPRESSED_RESULT: EmailSendResult = {
+const SUPPRESSED_RESULT: EmailDelivery = {
+  sent: true,
   provider: 'log',
   messageId: 'sandbox-suppressed',
 };
@@ -35,7 +36,7 @@ const SUPPRESSED_RESULT: EmailSendResult = {
 function suppressed(
   method: string,
   log?: (message: string) => void,
-): Promise<EmailSendResult> {
+): Promise<EmailDelivery> {
   // No recipient, subject, or body — the fact of suppression is all we log.
   log?.(`[sandbox] suppressed email send via ${method}`);
   return Promise.resolve(SUPPRESSED_RESULT);

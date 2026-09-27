@@ -16,6 +16,7 @@ import { HttpError, ErrorCodes } from '../../middleware/errors';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
+import { EmailProviderError } from '../email';
 
 export interface FlatPlanService {
   /**
@@ -203,7 +204,7 @@ export function createFlatPlanService(
           customerId: input.customerId ?? null,
         },
       });
-      await email.sendOpsAlert({
+      const dunningDelivery = await email.sendOpsAlert({
         to: deps.opsInbox,
         title: 'Flat-plan payment failed — dunning',
         summary:
@@ -212,6 +213,12 @@ export function createFlatPlanService(
           `. Update the card on file to keep the flat plan active.`,
         firedAt: now(),
       });
+      if (!dunningDelivery.sent) {
+        throw new EmailProviderError(
+          `Ops alert email failed: ${dunningDelivery.failureReason}`,
+          { retryable: false, failureCode: dunningDelivery.emailError },
+        );
+      }
     },
 
     async handleInvoicePaymentSucceeded(input: {

@@ -157,3 +157,98 @@ describe('acs provider', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   });
 });
+
+describe('acs provider failure classification (retry)', () => {
+  /** Fake an Azure SDK RestError: statusCode carried on the error itself. */
+  function restError(statusCode: number, message: string): Error {
+    const error = new Error(message) as Error & { statusCode: number };
+    error.statusCode = statusCode;
+    return error;
+  }
+
+  it('marks a 400 beginSend rejection as non-retryable invalid-recipient', async () => {
+    // Karan 2026-09-27: the address comes straight from user input, so a
+    // beginSend 400 is the user's typo — no retry, straight to the
+    // "check for typos" copy.
+    mockBeginSend.mockRejectedValue(
+      restError(400, 'The request is malformed'),
+    );
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.retryable).toBe(false);
+    expect(error.failureCode).toBe('invalid-recipient');
+  });
+
+  it('classifies a recipient-rejected 400 as invalid-recipient (check for typos, no retry)', async () => {
+    mockBeginSend.mockRejectedValue(
+      restError(400, 'Invalid recipient email address'),
+    );
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(false);
+    expect(error.failureCode).toBe('invalid-recipient');
+  });
+
+  it('does NOT blame the user for a sender-side 400 ("invalid sender address")', async () => {
+    mockBeginSend.mockRejectedValue(
+      restError(400, 'Invalid sender address: domain not verified'),
+    );
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(false);
+    // Permanent, but not the user's typo — delivery-failed copy applies.
+    expect(error.failureCode).toBe('delivery-failed');
+  });
+
+  it('marks 429 and 5xx beginSend rejections as retryable', async () => {
+    for (const status of [429, 500, 503]) {
+      mockBeginSend.mockRejectedValue(restError(status, `HTTP ${status}`));
+      const error = await provider().send(MESSAGE).catch((e) => e);
+      expect(error.retryable).toBe(true);
+      expect(error.failureCode).toBe('delivery-failed');
+    }
+  });
+
+  it('marks the delivery-poll timeout as retryable (transient stall)', async () => {
+    mockBeginSend.mockResolvedValue({
+      pollUntilDone: vi.fn(() => new Promise(() => {})),
+    });
+    const error = await providerWithTimeout(50).send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(true);
+    expect(error.failureCode).toBe('delivery-failed');
+  });
+
+  it('marks a bounced delivery (550) as non-retryable invalid-recipient', async () => {
+    mockBeginSend.mockResolvedValue({
+      pollUntilDone: vi.fn().mockResolvedValue({
+        id: 'acs-msg-bounce',
+        status: 'Failed',
+        error: { message: '550 5.1.1 mailbox unavailable' },
+      }),
+    });
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(false);
+    expect(error.failureCode).toBe('invalid-recipient');
+  });
+
+  it('marks a generic delivery failure as retryable', async () => {
+    mockBeginSend.mockResolvedValue({
+      pollUntilDone: vi.fn().mockResolvedValue({
+        id: 'acs-msg-x',
+        status: 'Failed',
+        error: { message: 'transient upstream error' },
+      }),
+    });
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(true);
+    expect(error.failureCode).toBe('delivery-failed');
+  });
+
+  it('marks missing configuration as non-retryable', async () => {
+    const p = createAcsEmailProvider({
+      connectionString: undefined,
+      fromAddress: 'noreply@feasly.example',
+    });
+    const error = await p.send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(false);
+    expect(error.failureCode).toBe('delivery-failed');
+  });
+});

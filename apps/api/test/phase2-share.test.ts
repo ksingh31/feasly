@@ -50,6 +50,8 @@ function fakeStores(opts?: {
   emailed?: boolean;
   newestEstimateId?: string | null;
   insertFails?: boolean;
+  /** When true, the email send fails (exhausted transient retries) instead of succeeding. */
+  emailFails?: boolean;
 }) {
   const live = opts?.live ?? true;
   const partnerLive = opts?.partnerLive ?? true;
@@ -114,8 +116,16 @@ function fakeStores(opts?: {
   } as unknown as LeadStore;
   const email = {
     sendPartnerShare: async (input: { to: string; shareUrl: string }) => {
+      if (opts?.emailFails === true) {
+        return {
+          sent: false as const,
+          provider: 'log' as const,
+          failureReason: 'simulated outage',
+          emailError: 'delivery-failed' as const,
+        };
+      }
       sentEmails.push(input);
-      return { accepted: true };
+      return { sent: true as const, provider: 'log' as const };
     },
   } as unknown as EmailService;
   const auditRow: PartnerShareRecord = {
@@ -297,6 +307,17 @@ describe('partner-share verify', () => {
       'partner_shares insert failed',
     );
     expect(sentEmails).toHaveLength(1);
+  });
+
+  it('an email send failure is never recorded as sent (no false share row)', async () => {
+    const { service, persisted, sentEmails } = fakeStores({ emailFails: true });
+    // A returned { sent: false } must surface — never answered as success
+    // with an audit row claiming the email went out.
+    await expect(service.shareWithPartner(VALID_BODY)).rejects.toThrow(
+      /Partner share email failed/,
+    );
+    expect(persisted).toHaveLength(0);
+    expect(sentEmails).toHaveLength(0);
   });
 });
 

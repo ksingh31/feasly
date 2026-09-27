@@ -11,7 +11,7 @@
  *
  * Providers are faked at the EmailProvider boundary; no network is touched.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from '../src/config';
@@ -270,6 +270,131 @@ describe('callback + ops-alert paths', () => {
   });
 });
 
+describe('in-code retry (deliver)', () => {
+  const MAGIC_INPUT = {
+    to: 'aman@example.com',
+    magicLinkUrl: MAGIC_URL,
+    expiresInDays: 7,
+    audience: 'consumer' as const,
+  };
+
+  function transientError(): EmailProviderError {
+    return new EmailProviderError(
+      'Azure Communication Services email failed (delivery polling timed out after 6000ms).',
+      { retryable: true, failureCode: 'delivery-failed' },
+    );
+  }
+
+  function permanentError(): EmailProviderError {
+    return new EmailProviderError(
+      'Azure Communication Services email failed (invalid recipient).',
+      { retryable: false, failureCode: 'invalid-recipient' },
+    );
+  }
+
+  /**
+   * Provider fake following a script of outcomes per attempt
+   * ('transient' | 'permanent' | 'ok'); the last step repeats.
+   */
+  function scriptedService(
+    script: Array<'transient' | 'permanent' | 'ok' | 'unknown'>,
+    opts?: { maxAttempts?: number },
+  ): { service: EmailService; attempts: number[] } {
+    const attempts: number[] = [];
+    const provider: EmailProvider = {
+      name: 'log',
+      async send() {
+        attempts.push(Date.now());
+        const step = script[Math.min(attempts.length - 1, script.length - 1)];
+        if (step === 'transient') throw transientError();
+        if (step === 'permanent') throw permanentError();
+        if (step === 'unknown') throw new Error('weird provider bug');
+        return { provider: 'log', messageId: 'msg-1' };
+      },
+    };
+    const service = createEmailService({
+      provider,
+      fromAddress: 'noreply@feasly.example',
+      fromName: 'Feasly',
+      appBaseUrl: CTX.appBaseUrl,
+      unsubscribeBaseUrl: CTX.unsubscribeBaseUrl,
+      opsInbox: 'ops@feasly.example',
+      ...opts,
+    });
+    return { service, attempts };
+  }
+
+  it('retries a transient failure and reports success when a later attempt lands', async () => {
+    const { service, attempts } = scriptedService(['transient', 'ok']);
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    expect(attempts).toHaveLength(2);
+    expect(delivery).toEqual({
+      sent: true,
+      provider: 'log',
+      messageId: 'msg-1',
+    });
+  });
+
+  it('exhausts attempts on persistent transient failure and returns the failure WITHOUT throwing', async () => {
+    const { service, attempts } = scriptedService(['transient']);
+    // Must not throw: the failure feeds the lead gate's
+    // `magicLinkSent: false` + reportToken path.
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    expect(attempts).toHaveLength(3);
+    expect(delivery.sent).toBe(false);
+    if (!delivery.sent) {
+      expect(delivery.provider).toBe('log');
+      expect(delivery.emailError).toBe('delivery-failed');
+      expect(delivery.failureReason.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('never retries a permanent invalid-recipient failure — one attempt, straight to the failure path', async () => {
+    const { service, attempts } = scriptedService(['permanent']);
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    // A wrong email address must NOT be retried (Karan 2026-09-27).
+    expect(attempts).toHaveLength(1);
+    expect(delivery.sent).toBe(false);
+    if (!delivery.sent) {
+      expect(delivery.emailError).toBe('invalid-recipient');
+    }
+  });
+
+  it('retries unknown (non-provider) errors by default — never silently dropped as permanent', async () => {
+    const { service, attempts } = scriptedService(['unknown']);
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    expect(attempts).toHaveLength(3);
+    expect(delivery.sent).toBe(false);
+    if (!delivery.sent) {
+      expect(delivery.emailError).toBe('delivery-failed');
+    }
+  });
+
+  it('honors a custom maxAttempts', async () => {
+    const { service, attempts } = scriptedService(['transient'], {
+      maxAttempts: 1,
+    });
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    expect(attempts).toHaveLength(1);
+    expect(delivery.sent).toBe(false);
+  });
+
+  it('backs off ~1s between attempts (fake timers)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, attempts } = scriptedService(['transient', 'ok']);
+      const pending = service.sendMagicLink(MAGIC_INPUT);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const delivery = await pending;
+      expect(delivery.sent).toBe(true);
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]! - attempts[0]!).toBe(1_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('banned copy patterns (rendered output)', () => {
   const patterns = loadBannedPatterns();
 
@@ -350,6 +475,73 @@ describe('provider fail-closed behavior', () => {
   });
 });
 
+describe('postmark provider failure classification', () => {
+  const MESSAGE = { to: 'a@b.example', subject: 's', html: 'h', text: 't' };
+
+  function provider() {
+    return createPostmarkEmailProvider({
+      serverToken: 'test-token',
+      fromAddress: 'noreply@feasly.example',
+      endpoint: 'https://api.postmarkapp.com/email',
+    });
+  }
+
+  function stubFetch(status: number, body: unknown): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      }),
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('422 with an invalid-address ErrorCode is non-retryable invalid-recipient', async () => {
+    stubFetch(422, {
+      ErrorCode: 300,
+      Message: "Invalid 'To' address: 'not-an-email'",
+    });
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.retryable).toBe(false);
+    expect(error.failureCode).toBe('invalid-recipient');
+  });
+
+  it('429 and 5xx rejections are retryable', async () => {
+    for (const status of [429, 500, 503]) {
+      stubFetch(status, { ErrorCode: 0, Message: 'busy' });
+      const error = await provider().send(MESSAGE).catch((e) => e);
+      expect(error.retryable).toBe(true);
+      expect(error.failureCode).toBe('delivery-failed');
+    }
+  });
+
+  it('a network failure is retryable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+    );
+    const error = await provider().send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(true);
+    expect(error.failureCode).toBe('delivery-failed');
+  });
+
+  it('missing server token is non-retryable (permanent misconfiguration)', async () => {
+    const unconfigured = createPostmarkEmailProvider({
+      serverToken: undefined,
+      fromAddress: 'noreply@feasly.example',
+      endpoint: 'https://api.postmarkapp.com/email',
+    });
+    const error = await unconfigured.send(MESSAGE).catch((e) => e);
+    expect(error.retryable).toBe(false);
+  });
+});
+
 describe('email config', () => {
   const baseEnv = {
     NODE_ENV: 'test',
@@ -373,6 +565,17 @@ describe('email config', () => {
   it('EMAIL_LOG_LINKS=false disables link logging', () => {
     const config = loadConfig({ ...baseEnv, EMAIL_LOG_LINKS: 'false' });
     expect(config.email.logLinks).toBe(false);
+  });
+
+  it('email retry budget defaults to 3 attempts with a 6s ACS poll bound', () => {
+    const config = loadConfig({ ...baseEnv });
+    expect(config.email.sendMaxAttempts).toBe(3);
+    expect(config.email.acsPollTimeoutMs).toBe(6_000);
+  });
+
+  it('EMAIL_SEND_MAX_ATTEMPTS overrides the retry budget', () => {
+    const config = loadConfig({ ...baseEnv, EMAIL_SEND_MAX_ATTEMPTS: '5' });
+    expect(config.email.sendMaxAttempts).toBe(5);
   });
 });
 

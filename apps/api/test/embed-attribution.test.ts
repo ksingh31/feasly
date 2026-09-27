@@ -24,7 +24,7 @@ import type {
   MagicLinkStore,
 } from '../src/services/magic-link.store';
 import type { EmailService } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../src/middleware/errors';
 
@@ -162,7 +162,7 @@ function fakeMagicLinkStore(): MagicLinkStore {
 }
 
 function fakeEmailService(): EmailService {
-  const result: EmailSendResult = { provider: 'log' };
+  const result: EmailDelivery = { sent: true, provider: 'log' };
   return {
     sendMagicLink: async () => result,
     sendNudge: async () => result,

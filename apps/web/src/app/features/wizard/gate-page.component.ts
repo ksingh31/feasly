@@ -220,6 +220,9 @@ export class GatePageComponent implements OnInit {
               email,
               magicLinkSent: lead.magicLinkSent,
               expiresInDays: lead.expiresInDays,
+              // Explicit (possibly undefined): clears a stale emailError
+              // from an earlier failed submit on success.
+              emailError: lead.emailError,
             }),
           );
           // Karan directive 2026-09-27 (immediate unlock): the backend
@@ -276,6 +279,7 @@ export class GatePageComponent implements OnInit {
               email: values.email.trim(),
               magicLinkSent: lead.magicLinkSent,
               expiresInDays: lead.expiresInDays,
+              emailError: lead.emailError,
             }),
           );
           this.store.dispatch(new ComparisonLeadSubmitted(lead.leadId));

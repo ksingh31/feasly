@@ -28,6 +28,12 @@ export interface AppConfig {
     useMockApi: boolean;
     /** HTTP timeout for API calls. */
     timeoutMs: number;
+    /**
+     * Gate-submit timeout. The lead-gate POST waits on the synchronous
+     * email send (in-code retries: worst case ~20s), so it gets headroom
+     * over the global timeout — without slowing every other API call.
+     */
+    gateTimeoutMs: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
@@ -459,6 +465,18 @@ export interface AppConfig {
       leadLinkNote: string;
       /** Duplicate-submit variant of the lead-link note: no new email was sent. */
       leadLinkNoteDuplicate: string;
+      /**
+       * Send-failure variant of the lead-link note: the lead was saved and
+       * the report unlocked (reportToken present) but the magic-link email
+       * failed to send — nudges the user to check their inbox or try again.
+       */
+      leadLinkNoteFailed: string;
+      /**
+       * Invalid-recipient variant: the address itself was rejected
+       * (emailError === 'invalid-recipient') — asks the user to check for
+       * typos instead of "check your inbox", which would never arrive.
+       */
+      leadLinkNoteInvalidRecipient: string;
       breakdownTitle: string;
       breakdownLocked: string;
       /** Display-only finish tier on the report ("Selected finish level — Standard"). */

@@ -24,7 +24,7 @@ import type {
   EmailService,
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import { HttpError } from '../src/middleware/errors';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -91,7 +91,7 @@ function fakeEmailService(): EmailService & {
   magicLinkSends: MagicLinkEmailInput[];
 } {
   const magicLinkSends: MagicLinkEmailInput[] = [];
-  const ok: EmailSendResult = { provider: 'log', messageId: 'test-msg' };
+  const ok: EmailDelivery = { sent: true, provider: 'log', messageId: 'test-msg' };
   return {
     magicLinkSends,
     sendMagicLink: async (input: MagicLinkEmailInput) => {
@@ -470,23 +470,26 @@ describe('lead service', () => {
     expect(store.updated).toHaveLength(0);
   });
 
-  it('returns the existing lead without inserting a duplicate inside the window', async () => {
+  it('resends the estimate email on a repeat submission even with a live link', async () => {
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
-    // AC4: the existing lead's link is still live → zero new sends.
+    // Karan directive 2026-09-27: EVERY genuine submission sends the
+    // estimate email — a live link from an earlier submission must NOT
+    // suppress the resend. (The old AC4 "zero new sends" rule stranded
+    // users whose first email never arrived.)
     const magicLinks = fakeMagicLinkStore();
     magicLinks.seededLinks.push(liveLink('existing-lead-id'));
     const email = fakeEmailService();
     const service = createLeadService({ ...DEPS, store, magicLinks, email });
     const result = await service.submitLead(VALID_BODY);
     expect(result.leadId).toBe('existing-lead-id');
-    expect(result.magicLinkSent).toBe(false);
-    expect(email.magicLinkSends).toHaveLength(0);
-    // …but the in-tab client still needs a working owner token for the
-    // token-gated extras (share, callback, narrative, revise): the live
-    // link's raw token is unrecoverable (hash-only storage), so exactly one
-    // fresh token is minted WITHOUT emailing — the "already in your inbox"
-    // copy stays honest.
+    expect(result.magicLinkSent).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(1);
+    expect(email.magicLinkSends[0]!.to).toBe('sam@example.com');
+    // …and the in-tab client still gets a fresh working owner token for
+    // the token-gated extras (share, callback, narrative, revise): the
+    // live link's raw token is unrecoverable (hash-only storage), so the
+    // resend mints a new one.
     expect(magicLinks.issued).toHaveLength(1);
     expect(typeof result.reportToken).toBe('string');
     expect(result.reportToken!.length).toBeGreaterThan(0);
@@ -494,6 +497,114 @@ describe('lead service', () => {
     // …but the repeat submission still refreshes the lead's scalars.
     expect(store.updated).toHaveLength(1);
     expect(store.updated[0]).toMatchObject({ id: 'existing-lead-id' });
+  });
+
+  it('sends again on a second consecutive repeat submission (every submission sends)', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const magicLinks = fakeMagicLinkStore();
+    magicLinks.seededLinks.push(liveLink('existing-lead-id'));
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, magicLinks, email });
+
+    const first = await service.submitLead(VALID_BODY);
+    const second = await service.submitLead(VALID_BODY);
+
+    expect(first.magicLinkSent).toBe(true);
+    expect(second.magicLinkSent).toBe(true);
+    // One email per genuine submission — the second is NOT suppressed as
+    // a "duplicate", even with a live link from the first.
+    expect(email.magicLinkSends).toHaveLength(2);
+    expect(store.inserted).toHaveLength(0);
+  });
+
+  it('a send failure on the repeat path degrades gracefully — 200, lead saved, token returned, magicLinkSent false', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const magicLinks = fakeMagicLinkStore();
+    magicLinks.seededLinks.push(liveLink('existing-lead-id'));
+    const email = fakeEmailService();
+    email.sendMagicLink = async () => ({
+      sent: false as const,
+      provider: 'log' as const,
+      failureReason: 'simulated ACS outage',
+      emailError: 'delivery-failed' as const,
+    });
+    const service = createLeadService({ ...DEPS, store, magicLinks, email });
+
+    // No throw: the lead row is updated, a fresh token is minted and
+    // returned (the report still unlocks), and magicLinkSent: false tells
+    // the client to show the "check your inbox or try again later" note.
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.leadId).toBe('existing-lead-id');
+    expect(result.magicLinkSent).toBe(false);
+    expect(result.emailError).toBe('delivery-failed');
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
+    expect(magicLinks.issued).toHaveLength(1);
+    expect(store.updated).toHaveLength(1);
+    // The failure is never reported as sent.
+    expect(result.magicLinkSent).not.toBe(true);
+  });
+
+  it('an invalid-recipient send failure propagates emailError so the UI says "check for typos"', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const magicLinks = fakeMagicLinkStore();
+    magicLinks.seededLinks.push(liveLink('existing-lead-id'));
+    const email = fakeEmailService();
+    // Wrong email address: the provider classifies it non-retryable, so
+    // deliver() returns the failure immediately (no retries).
+    email.sendMagicLink = async () => ({
+      sent: false as const,
+      provider: 'log' as const,
+      failureReason: 'invalid recipient',
+      emailError: 'invalid-recipient' as const,
+    });
+    const service = createLeadService({ ...DEPS, store, magicLinks, email });
+
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.magicLinkSent).toBe(false);
+    expect(result.emailError).toBe('invalid-recipient');
+    // The lead is still saved and the report still unlocks.
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
+  });
+
+  it('a send failure on the new-capture path degrades gracefully — the resubmission retries the send', async () => {
+    const store = fakeLeadStore();
+    const magicLinks = fakeMagicLinkStore();
+    const email = fakeEmailService();
+    let attempts = 0;
+    email.sendMagicLink = async (input: MagicLinkEmailInput) => {
+      attempts += 1;
+      if (attempts === 1)
+        return {
+          sent: false as const,
+          provider: 'log' as const,
+          failureReason: 'simulated ACS outage',
+          emailError: 'delivery-failed' as const,
+        };
+      return { sent: true as const, provider: 'log' as const, messageId: 'recovered' };
+    };
+    const service = createLeadService({ ...DEPS, store, magicLinks, email });
+
+    // First attempt: the lead is captured, the token is issued and
+    // returned, but the send failed — 200 with magicLinkSent: false, NOT
+    // a 500. The report unlocks via reportToken.
+    const first = await service.submitLead(VALID_BODY);
+    expect(first.magicLinkSent).toBe(false);
+    expect(first.emailError).toBe('delivery-failed');
+    expect(typeof first.reportToken).toBe('string');
+    expect(first.reportToken!.length).toBeGreaterThan(0);
+    expect(store.inserted).toHaveLength(1);
+
+    // The resubmission hits the dedupe path (same email + address) — and
+    // with the resend fix it actually retries the email instead of
+    // suppressing it.
+    store.recent = existingLeadFixture({ id: store.inserted[0]!.id });
+    const retry = await service.submitLead(VALID_BODY);
+    expect(retry.magicLinkSent).toBe(true);
   });
 
   it('dedups across a fresh estimate for the same address (email + address, not estimate id)', async () => {
@@ -727,7 +838,7 @@ describe('consumer/02 duplicate-estimate semantics', () => {
     expect(store.recent!.leadScore).toBe(50);
   });
 
-  it('reissues the magic link and emails it when the existing link expired (AC4)', async () => {
+  it('reissues the magic link and emails it when the existing link expired', async () => {
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
     const magicLinks = fakeMagicLinkStore();

@@ -46,6 +46,14 @@ export interface LeadResponse {
    */
   readonly reportToken?: string;
   /**
+   * Why the magic-link email didn't send — present only when `magicLinkSent`
+   * is false. 'invalid-recipient': the address was rejected (tell the user
+   * to check for typos — it will never arrive). 'delivery-failed': transient
+   * failure after retries (an earlier attempt may still have sent it — the
+   * honest copy is "check your inbox or try again later").
+   */
+  readonly emailError?: 'invalid-recipient' | 'delivery-failed';
+  /**
    * 0–100 lead score computed server-side (embed/08). Optional: backends
    * that predate the embed bridge omit it; the bridge posts the
    * lead-created event regardless.

@@ -254,7 +254,15 @@ const EnvSchema = z.object({
   // response (2026-09-27: lead-gate "Sending..." hang). Past the deadline
   // the poll is aborted and the send fails LOUD — the lead row and token
   // are already committed, so a retry is safe (dedupe live-link path).
-  EMAIL_ACS_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+  // 6s default: the email service retries transient failures in-code
+  // (EMAIL_SEND_MAX_ATTEMPTS), so the worst case is 6+1+6+1+6 ≈ 20s —
+  // inside the frontend gate-submit timeout (25s).
+  EMAIL_ACS_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(6_000),
+  // In-code email retry budget: initial try + retries, inside the email
+  // service's deliver() (Karan 2026-09-27: at least 2 retries, no queue).
+  // Only retryable failures (timeouts, 429, 5xx, network errors) are
+  // retried — a wrong email address fails immediately.
+  EMAIL_SEND_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(3),
   // Base URL the web app lives at — magic-link / resume links are built
   // from this. Placeholder until the production domain is confirmed.
   APP_BASE_URL: z.string().url().default('https://feasly.example'),
@@ -389,8 +397,15 @@ export interface EmailConfig {
    * Deadline for the ACS delivery poll, in milliseconds. The send runs
    * inline in the HTTP request path, so this bounds how long a stalled
    * delivery poll can hold the response open before it fails loud.
+   * Default 6s: with in-code retries the worst case is 6+1+6+1+6 ≈ 20s,
+   * inside the frontend gate-submit timeout (25s).
    */
   readonly acsPollTimeoutMs: number;
+  /**
+   * Max email send attempts (initial try + retries), from
+   * EMAIL_SEND_MAX_ATTEMPTS. Only retryable failures are retried.
+   */
+  readonly sendMaxAttempts: number;
   /** Web-app base URL that magic-link / resume links are built from. */
   readonly appBaseUrl: string;
   /** One-click unsubscribe links are built from this (email/03). */
@@ -829,6 +844,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       postmarkEndpoint: e.EMAIL_POSTMARK_ENDPOINT,
       acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
       acsPollTimeoutMs: e.EMAIL_ACS_POLL_TIMEOUT_MS,
+      sendMaxAttempts: e.EMAIL_SEND_MAX_ATTEMPTS,
       appBaseUrl: e.APP_BASE_URL,
       unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,
       unsubscribeTokenSecret: e.UNSUBSCRIBE_TOKEN_SECRET,

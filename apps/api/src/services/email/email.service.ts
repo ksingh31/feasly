@@ -16,8 +16,9 @@
 import type {
   EmailMessage,
   EmailProvider,
-  EmailSendResult,
 } from './email.types';
+import { EmailProviderError, type EmailFailureCode } from './email.types';
+import { sanitizeErrorMessage } from '../../lib/sanitize-error';
 import {
   renderCallbackTeamEmail,
   renderMagicLinkEmail,
@@ -89,13 +90,13 @@ export interface OpsAlertEmailInput {
 }
 
 export interface EmailService {
-  sendMagicLink(input: MagicLinkEmailInput): Promise<EmailSendResult>;
-  sendPartnerShare(input: PartnerShareEmailInput): Promise<EmailSendResult>;
+  sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
+  sendPartnerShare(input: PartnerShareEmailInput): Promise<EmailDelivery>;
   sendCallbackConfirmation(
     input: CallbackConfirmationInput,
-  ): Promise<EmailSendResult>;
-  sendNudge(input: NudgeEmailInput): Promise<EmailSendResult>;
-  sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailSendResult>;
+  ): Promise<EmailDelivery>;
+  sendNudge(input: NudgeEmailInput): Promise<EmailDelivery>;
+  sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailDelivery>;
 }
 
 export interface EmailServiceDeps {
@@ -106,6 +107,49 @@ export interface EmailServiceDeps {
   readonly unsubscribeBaseUrl: string;
   /** Team inbox for callback confirmations + default ops-alert target. */
   readonly opsInbox: string;
+  /**
+   * Max send attempts (initial try + retries). Default 3 (Karan 2026-09-27:
+   * at least 2 retries). From EMAIL_SEND_MAX_ATTEMPTS.
+   */
+  readonly maxAttempts?: number;
+  /** Backoff between attempts, ms. Default 1000. */
+  readonly retryBackoffMs?: number;
+}
+
+/**
+ * What every EmailService send method resolves with — the service never
+ * throws on send failure. `deliver()` retries retryable failures inside;
+ * when attempts are exhausted (or the failure is permanent) the failure is
+ * returned so callers can degrade gracefully (lead gate: 200 +
+ * `magicLinkSent: false` + reportToken, report still unlocks).
+ */
+export type EmailDelivery =
+  | {
+      readonly sent: true;
+      readonly provider: EmailProvider['name'];
+      readonly messageId?: string;
+    }
+  | {
+      readonly sent: false;
+      readonly provider: EmailProvider['name'];
+      /** Sanitized one-line failure summary — logs only, never shown to users. */
+      readonly failureReason: string;
+      /**
+       * UX reason code. 'invalid-recipient': the address was rejected — tell
+       * the user to check for typos (it will never arrive). 'delivery-failed':
+       * transient failure after retries — an earlier attempt may still have
+       * sent it, so "check your inbox or try again later" is honest.
+       */
+      readonly emailError: EmailFailureCode;
+    };
+
+/** Default max attempts: initial try + 2 retries. */
+const DEFAULT_MAX_ATTEMPTS = 3;
+/** Default backoff between attempts. */
+const DEFAULT_RETRY_BACKOFF_MS = 1_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function createEmailService(deps: EmailServiceDeps): EmailService {
@@ -115,26 +159,74 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     brandName: 'Feasly',
   };
 
-  async function deliver(message: EmailMessage): Promise<EmailSendResult> {
-    return deps.provider.send(message);
+  /**
+   * The one funnel every send path goes through. Retries retryable
+   * failures (provider-classified: timeouts, 429, 5xx, network errors)
+   * with a short backoff; permanent failures (wrong address, rejected
+   * sender) skip retries and go straight to the failure result. Never
+   * throws on send failure — exhaustion returns `{ sent: false, ... }`
+   * so callers degrade gracefully instead of 500ing.
+   *
+   * Duplicate-email caveat: a retry can rarely produce a duplicate (attempt
+   * 1 actually sent but we timed out waiting for the poll). Low-harm for
+   * magic links — both links stay valid — so no dedupe machinery.
+   */
+  async function deliver(message: EmailMessage): Promise<EmailDelivery> {
+    const maxAttempts = Math.max(
+      1,
+      Math.floor(deps.maxAttempts ?? DEFAULT_MAX_ATTEMPTS),
+    );
+    const backoffMs = Math.max(0, deps.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS);
+    let attempt = 0;
+    for (;;) {
+      attempt += 1;
+      try {
+        const result = await deps.provider.send(message);
+        return {
+          sent: true,
+          provider: result.provider,
+          messageId: result.messageId,
+        };
+      } catch (error) {
+        // Classification lives with the provider (EmailProviderError):
+        // unknown/non-provider errors default to retryable — retried, never
+        // silently dropped as permanent.
+        const retryable =
+          error instanceof EmailProviderError ? error.retryable : true;
+        const emailError: EmailFailureCode =
+          error instanceof EmailProviderError
+            ? error.failureCode
+            : 'delivery-failed';
+        if (retryable && attempt < maxAttempts) {
+          await sleep(backoffMs);
+          continue;
+        }
+        return {
+          sent: false,
+          provider: deps.provider.name,
+          failureReason: sanitizeErrorMessage(error),
+          emailError,
+        };
+      }
+    }
   }
 
   return {
-    async sendMagicLink(input: MagicLinkEmailInput): Promise<EmailSendResult> {
+    async sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery> {
       const rendered = renderMagicLinkEmail(ctx, input);
       return deliver({ ...rendered, to: input.to });
     },
 
     async sendPartnerShare(
       input: PartnerShareEmailInput,
-    ): Promise<EmailSendResult> {
+    ): Promise<EmailDelivery> {
       const rendered = renderShareEmail(ctx, input);
       return deliver({ ...rendered, to: input.to });
     },
 
     async sendCallbackConfirmation(
       input: CallbackConfirmationInput,
-    ): Promise<EmailSendResult> {
+    ): Promise<EmailDelivery> {
       const rendered = renderCallbackTeamEmail(ctx, {
         leadName: input.leadName,
         leadEmail: input.leadEmail,
@@ -146,7 +238,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
       return deliver({ ...rendered, to: input.teamInbox ?? deps.opsInbox });
     },
 
-    async sendNudge(input: NudgeEmailInput): Promise<EmailSendResult> {
+    async sendNudge(input: NudgeEmailInput): Promise<EmailDelivery> {
       const rendered = renderNudgeEmail(ctx, {
         name: input.name,
         resumeUrl: input.resumeUrl,
@@ -162,7 +254,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
       });
     },
 
-    async sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailSendResult> {
+    async sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailDelivery> {
       const rendered = renderOpsAlertEmail(ctx, {
         title: input.title,
         summary: input.summary,

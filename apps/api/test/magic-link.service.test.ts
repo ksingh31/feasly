@@ -25,7 +25,7 @@ import type {
   EmailService,
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import { HttpError } from '../src/middleware/errors';
 
@@ -155,7 +155,7 @@ function fakeLeads(opts?: {
 
 function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
   const sends: MagicLinkEmailInput[] = [];
-  const ok: EmailSendResult = { provider: 'log' };
+  const ok: EmailDelivery = { sent: true, provider: 'log' };
   return {
     sends,
     sendMagicLink: async (input) => {

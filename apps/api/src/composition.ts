@@ -802,6 +802,8 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     unsubscribeBaseUrl: config.email.unsubscribeUrlBase,
     opsInbox: config.email.opsInbox,
+    // In-code retry budget (Karan 2026-09-27: at least 2 retries, no queue).
+    maxAttempts: config.email.sendMaxAttempts,
   });
   // email/03 — one-click unsubscribe center. The HMAC secret arrives via
   // config (Key Vault in staging/production); the service fails closed

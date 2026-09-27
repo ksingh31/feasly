@@ -99,11 +99,11 @@ describe('lead route', () => {
         markUsed: async () => true,
       },
       email: {
-        sendMagicLink: async () => ({ provider: 'log' as const }),
-        sendPartnerShare: async () => ({ provider: 'log' as const }),
-        sendCallbackConfirmation: async () => ({ provider: 'log' as const }),
-        sendNudge: async () => ({ provider: 'log' as const }),
-        sendOpsAlert: async () => ({ provider: 'log' as const }),
+        sendMagicLink: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendPartnerShare: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendCallbackConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendNudge: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendOpsAlert: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({
         leads: leadStore,

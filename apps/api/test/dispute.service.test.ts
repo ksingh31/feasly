@@ -119,7 +119,7 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
   const service = {
     sendOpsAlert: async (input: unknown) => {
       sent.push({ op: 'sendOpsAlert', input });
-      return { sent: true };
+      return { sent: true as const, provider: 'log' as const };
     },
   };
   return Object.assign(service as unknown as EmailService, { sent });

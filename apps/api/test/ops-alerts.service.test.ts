@@ -61,7 +61,7 @@ function makeHarness(now: Date) {
   const email = {
     sendOpsAlert: vi.fn(async (input: OpsAlertEmailInput) => {
       sent.push(input);
-      return { provider: 'log' as const };
+      return { sent: true as const, provider: 'log' as const };
     }),
   };
   let current = now;

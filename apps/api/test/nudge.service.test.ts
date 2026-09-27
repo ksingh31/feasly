@@ -24,7 +24,7 @@ import type {
   EmailService,
   NudgeEmailInput,
 } from '../src/services/email/email.service';
-import type { EmailSendResult } from '../src/services/email/email.types';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 
 const NOW = new Date('2026-09-25T12:00:00Z');
@@ -98,7 +98,7 @@ function makeWorld(): World {
   };
 }
 
-const OK: EmailSendResult = { provider: 'log', messageId: 'msg-1' };
+const OK: EmailDelivery = { sent: true, provider: 'log', messageId: 'msg-1' };
 
 function makeService(
   world: World,
@@ -182,7 +182,7 @@ function makeService(
   };
 
   const email = {
-    sendNudge: async (input: NudgeEmailInput): Promise<EmailSendResult> => {
+    sendNudge: async (input: NudgeEmailInput): Promise<EmailDelivery> => {
       if (opts?.failNudgeFor && input.to === opts.failNudgeFor) {
         throw new Error('smtp down');
       }

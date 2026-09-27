@@ -210,6 +210,12 @@ export const LeadResponseSchema = z
     leadId: z.string(),
     magicLinkSent: z.boolean(),
     expiresInDays: z.number().int(),
+    emailError: z
+      .enum(['invalid-recipient', 'delivery-failed'])
+      .optional()
+      .describe(
+        'Why the magic-link email failed — present only when magicLinkSent is false',
+      ),
   })
   .openapi('LeadResponse');
 

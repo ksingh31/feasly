@@ -26,11 +26,36 @@ export interface EmailSendResult {
   readonly messageId?: string;
 }
 
+/** Machine-readable email failure classification, for retry decisions + UX copy. */
+export type EmailFailureCode = 'invalid-recipient' | 'delivery-failed';
+
 /** Thrown when a provider is misconfigured or refuses the send. */
 export class EmailProviderError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  /**
+   * True when the send may succeed on retry (timeouts, 429, 5xx, network
+   * errors). False for permanent failures (invalid recipient, rejected
+   * sender). Defaults to true — unknown errors are retried, never silently
+   * dropped as permanent (Karan 2026-09-27).
+   */
+  readonly retryable: boolean;
+  /**
+   * Why the send failed, for UX copy selection. 'invalid-recipient' means
+   * the address itself was rejected — the user should check for typos, not
+   * "check their inbox". Everything else is 'delivery-failed'.
+   */
+  readonly failureCode: EmailFailureCode;
+  constructor(
+    message: string,
+    options?: {
+      cause?: unknown;
+      retryable?: boolean;
+      failureCode?: EmailFailureCode;
+    },
+  ) {
     super(message, options);
     this.name = 'EmailProviderError';
+    this.retryable = options?.retryable ?? true;
+    this.failureCode = options?.failureCode ?? 'delivery-failed';
   }
 }
 
