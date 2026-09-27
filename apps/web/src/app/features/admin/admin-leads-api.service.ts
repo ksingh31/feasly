@@ -142,16 +142,16 @@ export class AdminLeadsApiService {
    * handed to the caller to trigger the browser download.
    */
   exportCsv(filters: AdminLeadFilters): Observable<Blob> {
-    // Bulk export gets a longer timeout: Azure Functions cold starts plus
-    // CSV generation for thousands of rows can exceed the standard 15s API
-    // timeout (2026-09-27: export failed with "Request failed" on 26 leads).
+    // Bulk export gets its own timeout from config: Azure Functions cold
+    // starts plus CSV generation for thousands of rows can exceed the
+    // standard API timeout (2026-09-27: export failed with "Request failed").
     return this.call(
       this.http.get(`${this.leadsBase}/export.csv`, {
         params: this.toQueryParams(filters),
         withCredentials: true,
         responseType: 'blob',
       }),
-      60000,
+      this.config.get('api').exportTimeoutMs,
     );
   }
 }
