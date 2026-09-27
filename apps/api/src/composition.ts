@@ -125,6 +125,14 @@ import {
   type AdminDisputesRoute,
 } from './routes/admin-disputes.route';
 import {
+  createAdminBillingRoute,
+  type AdminBillingRoute,
+} from './routes/admin-billing.route';
+import {
+  createBillingHealthService,
+  type BillingHealthService,
+} from './services/billing/billing-health.service';
+import {
   createAdminAuthService,
   type AdminAuthService,
   type AdminAllowlistStore,
@@ -545,6 +553,8 @@ export interface AppComposition {
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
   readonly adminDisputesRoute: AdminDisputesRoute;
+  /** billing/03: read-only dashboard rollup for GET /api/v1/admin/billing. */
+  readonly adminBillingRoute: AdminBillingRoute;
   /** billing/02: the only Stripe SDK touchpoint. */
   readonly stripeService: StripeService;
   /** billing/02: 1% commission engine (active when BILLING_MODEL=commission). */
@@ -1313,6 +1323,19 @@ export function createComposition(
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
   });
+  // billing/03 follow-on: read-only dashboard rollup for
+  // GET /api/v1/admin/billing (MRR, aging buckets, dunning, webhook health).
+  const billingHealthService: BillingHealthService = createBillingHealthService(
+    {
+      db: db.db,
+      billing: config.billing,
+      stripe: stripeService,
+    },
+  );
+  const adminBillingRoute: AdminBillingRoute = createAdminBillingRoute({
+    billingHealth: billingHealthService,
+    adminGuard,
+  });
   // Stripe webhook receiver: 100/min per IP (frozen registry). The signature
   // is the auth — no bearer token exists for Stripe callbacks by design.
   const webhookRateLimiter: RateLimiter = createRateLimiter({
@@ -1430,6 +1453,7 @@ export function createComposition(
     billingRoute,
     disputeService,
     adminDisputesRoute,
+    adminBillingRoute,
     stripeService,
     commissionService,
     flatPlanService,

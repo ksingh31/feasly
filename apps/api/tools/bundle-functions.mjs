@@ -261,6 +261,11 @@ const targets = [
     entry: 'src/functions/dispute-sla-timer.ts',
     out: 'dispute-sla-timer/index.js',
   },
+  // billing/03 follow-on: read-only billing-health dashboard endpoint.
+  {
+    entry: 'src/functions/admin-billing.ts',
+    out: 'admin-billing/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

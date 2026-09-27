@@ -232,6 +232,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-calibration.component').then((m) => m.AdminCalibrationComponent),
       },
+      // billing/03 follow-on: read-only billing-health dashboard (was
+      // OPS-007). MRR, review aging, dunning, webhook health.
+      {
+        path: 'billing',
+        loadComponent: () =>
+          import('./features/admin/admin-billing.component').then(
+            (m) => m.AdminBillingComponent,
+          ),
+      },
       // admin/05: Sheets sync ops panel.
       {
         path: 'ops/sheets',

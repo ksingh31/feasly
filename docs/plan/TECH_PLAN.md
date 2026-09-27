@@ -1302,6 +1302,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
+| GET | `/api/v1/admin/billing` | admin | 300/min per session | live | Billing-health dashboard (billing/03): MRR (flat model; null under the 1% commission model), trailing-30d commission collections, in-review invoice aging buckets (<48h / <7d / overdue), disputed totals, the dunning queue with past_due_since, and Stripe webhook health. Read-only — no charge/refund/void actions. |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
 | GET | `/api/v1/admin/calibration` | admin | 300/min per session | live | Calibration console (admin/09): current cost-data version, calibration report, import history. Read-only. |

@@ -22,6 +22,7 @@ export * from './privacy';
 export * from './unsubscribe';
 export * from './api-key';
 export * from './billing';
+export * from './billing-health';
 export * from './admin-auth';
 export * from './builder';
 export * from './admin-leads';
