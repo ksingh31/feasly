@@ -150,6 +150,10 @@ import {
   type BuilderLeadsService,
 } from './services/builder-leads.service';
 import {
+  createBuilderService,
+  type BuilderService,
+} from './services/builder.service';
+import {
   createDrizzleAdminAllowlistStore,
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
@@ -169,6 +173,10 @@ import {
   createAdminLeadsRoute,
   type AdminLeadsRoute,
 } from './routes/admin-leads.route';
+import {
+  createAdminBuildersRoute,
+  type AdminBuildersRoute,
+} from './routes/admin-builders.route';
 import {
   createAdminCalibrationRoute,
   type AdminCalibrationRoute,
@@ -490,6 +498,12 @@ export interface AppComposition {
   readonly builderLeadsRoute: BuilderLeadsRoute;
   readonly builderAllowlistStore: BuilderAllowlistStore;
   readonly builderSessionStore: BuilderSessionStore;
+  /**
+   * Builders table (embed/02 admin-UI migration): CRUD + lead assignment.
+   * tenant_key stays the join key for billing/attribution.
+   */
+  readonly builderService: BuilderService;
+  readonly adminBuildersRoute: AdminBuildersRoute;
   /** admin/02: leads explorer (list, detail, notes, status, CSV export). */
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
@@ -760,8 +774,8 @@ export function createComposition(
   // place the concrete table is chosen. A calibrated successor file swaps in
   // with a one-line change; every estimate pins which version it used.
   // Builder configs (EMB-02/03): created before estimate/lead services so
-  // embed tenant keys can be validated server-side. Resolution order: repo
-  // JSON first, DB tenants row as fallback. Unknown key → 404 UNKNOWN_TENANT.
+  // embed tenant keys can be validated server-side. Resolution order: DB
+  // builders row first, repo JSON as fallback. Unknown key → 404 UNKNOWN_TENANT.
   const builderConfigService: BuilderConfigService = createBuilderConfigService({
     db: db.db,
     configs: BUILDER_CONFIGS,
@@ -947,6 +961,13 @@ export function createComposition(
     createDrizzleAdminAllowlistStore({ db: db.db });
   const adminAuditStore: AdminAuditStore =
     options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  // Builders table (embed/02 admin-UI migration): runtime source of truth
+  // for builder config. tenant_key stays the join key for billing,
+  // sessions, and the embed config lookup.
+  const builderService: BuilderService = createBuilderService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   const adminAuthService: AdminAuthService = createAdminAuthService({
     allowlist: adminAllowlistStore,
     sessions: adminSessionStore,
@@ -1031,6 +1052,13 @@ export function createComposition(
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
+    builders: builderService,
+    adminGuard,
+  });
+  // Builders table admin (embed/02 admin-UI migration): CRUD + the route is
+  // admin-gated inside, like every other admin route.
+  const adminBuildersRoute: AdminBuildersRoute = createAdminBuildersRoute({
+    builders: builderService,
     adminGuard,
   });
   // admin/03 — read-only estimate lookup. Reuses the session guard; no
@@ -1327,9 +1355,12 @@ export function createComposition(
     adminGuard,
   });
   // embed/09 builder portal: won transitions run the billing charge path.
+  // Portal scoping is by builder_id (builders table); the session's tenant
+  // key resolves to the builder row.
   const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
     leadStore,
     audit: adminAuditStore,
+    builders: builderService,
     billingHook: embedBillingHookService,
   });
   const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
@@ -1452,6 +1483,8 @@ export function createComposition(
     builderLeadsRoute,
     builderAllowlistStore,
     builderSessionStore,
+    builderService,
+    adminBuildersRoute,
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,

@@ -120,6 +120,7 @@ function fakeLeadStore(): LeadStore & { inserted: NewLead[] } {
         sandbox: lead.sandbox ?? false,
         leadScore: 0,
         status: 'new',
+        builderId: null,
         unsubscribedAt: null,
         contactOptOutAt: null,
         consentUpdatedAt: NOW,

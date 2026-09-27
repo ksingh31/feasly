@@ -38,6 +38,7 @@ function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     sandbox: false,
     leadScore: 75,
     status: 'new',
+    builderId: null,
     unsubscribedAt: null,
     contactOptOutAt: null,
     consentUpdatedAt: now,
@@ -92,6 +93,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     setSheetsSyncedAt: vi.fn(),
     countNeverSynced: vi.fn().mockResolvedValue(0),
     listByTenantKey: vi.fn().mockResolvedValue([]),
+    listByBuilderId: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(null),
     updateConsentPreferences: vi.fn().mockResolvedValue(null),
   };
