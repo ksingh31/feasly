@@ -1,9 +1,7 @@
 import { Routes } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
-import { ComparePickerPageComponent, leadGateGuard } from './features/compare';
+import { leadGateGuard } from './features/compare';
 import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
-import { DevelopersPageComponent } from './features/developers';
-import { EmbedShellComponent } from './features/embed';
 import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
@@ -15,7 +13,6 @@ import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
-import { SampleReportPageComponent } from './features/sample-report';
 import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
 import { CommunityPageComponent } from './features/communities/community-page.component';
@@ -24,10 +21,6 @@ import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 import { adminGuard } from './features/admin/admin.guard';
-import { BuilderLoginComponent } from './features/builder/builder-login.component';
-import { BuilderVerifyComponent } from './features/builder/builder-verify.component';
-import { BuilderShellComponent } from './features/builder/builder-shell.component';
-import { BuilderDashboardComponent } from './features/builder/builder-dashboard.component';
 import { builderGuard } from './features/builder/builder.guard';
 
 export const routes: Routes = [
@@ -81,7 +74,10 @@ export const routes: Routes = [
   // it compares communities, not an address. Private funnel route: noindex.
   {
     path: 'estimate/compare',
-    component: ComparePickerPageComponent,
+    loadComponent: () =>
+      import('./features/compare/compare-picker-page.component').then(
+        (m) => m.ComparePickerPageComponent,
+      ),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
@@ -106,8 +102,16 @@ export const routes: Routes = [
   { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
   // API docs (api-mcp/03): indexable like the other marketing pages — no
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
-  // crawlable. Sitemap already reserves /developers (seo/02).
-  { path: 'developers', component: DevelopersPageComponent, canActivate: [robotsGuard] },
+  // crawlable. Sitemap already reserves /developers (seo/02). Lazy-loaded:
+  // prerendering follows loadComponent routes, so SEO is unaffected.
+  {
+    path: 'developers',
+    loadComponent: () =>
+      import('./features/developers/developers-page.component').then(
+        (m) => m.DevelopersPageComponent,
+      ),
+    canActivate: [robotsGuard],
+  },
   // Community index (SEO-05): prerendered hub listing all 40 community
   // cost guides. Indexable — no `noindex` data. The `communities/:slug`
   // pages (SEO-04) link back here; this page links out to each of them.
@@ -121,7 +125,10 @@ export const routes: Routes = [
   // page for visitors, not a search landing page.
   {
     path: 'sample-report',
-    component: SampleReportPageComponent,
+    loadComponent: () =>
+      import('./features/sample-report/sample-report-page.component').then(
+        (m) => m.SampleReportPageComponent,
+      ),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
@@ -149,15 +156,19 @@ export const routes: Routes = [
   },
   // White-label embed shell (EMB-01): client-rendered, noindex, excluded
   // from the prerender manifest. Key via ?key= (snippet) or :tenantKey.
+  // Lazy-loaded so the embed shell stays out of the initial bundle
+  // (790kB production budget). EmbedState stays in the root store.
   {
     path: 'embed',
-    component: EmbedShellComponent,
+    loadComponent: () =>
+      import('./features/embed/embed-shell.component').then((m) => m.EmbedShellComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
   {
     path: 'embed/:tenantKey',
-    component: EmbedShellComponent,
+    loadComponent: () =>
+      import('./features/embed/embed-shell.component').then((m) => m.EmbedShellComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
@@ -225,12 +236,24 @@ export const routes: Routes = [
     canActivate: [
       robotsGuard,
       adminGuard,
-      // AdminLeadsState is lazy-loaded at this route via lazyProvider
-      // (dynamic import): the state + its actions stay in the admin lazy
-      // chunk, out of the initial bundle (790kB production budget).
+      // Admin data states are lazy-loaded at this route via lazyProvider
+      // (dynamic import): the states + their actions stay in the admin lazy
+      // chunk, out of the initial bundle (740kB lighthouse budget).
       lazyProvider(
         async () =>
           (await import('./features/admin/admin-leads.state')).adminLeadsStateProvider,
+      ),
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-disputes.state')).adminDisputesStateProvider,
+      ),
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-calibration.state')).calibrationStateProvider,
+      ),
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/sheets-sync.state')).sheetsSyncStateProvider,
       ),
     ],
     data: { noindex: true },
@@ -287,26 +310,38 @@ export const routes: Routes = [
   // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
   // pipeline. All builder routes are noindexed and excluded from
   // prerendering (not in prerender-routes.txt). No public-page links point
-  // here.
+  // here. Lazy-loaded so the builder portal stays out of the initial bundle
+  // (790kB production budget). BuilderState stays in the root store — the
+  // global credentials interceptor selects its sessionToken.
   {
     path: 'builder/login',
-    component: BuilderLoginComponent,
+    loadComponent: () =>
+      import('./features/builder/builder-login.component').then((m) => m.BuilderLoginComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
   {
     path: 'builder/verify',
-    component: BuilderVerifyComponent,
+    loadComponent: () =>
+      import('./features/builder/builder-verify.component').then((m) => m.BuilderVerifyComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
   {
     path: 'builder',
-    component: BuilderShellComponent,
+    loadComponent: () =>
+      import('./features/builder/builder-shell.component').then((m) => m.BuilderShellComponent),
     canActivate: [robotsGuard, builderGuard],
     data: { noindex: true },
     children: [
-      { path: '', component: BuilderDashboardComponent, pathMatch: 'full' },
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/builder/builder-dashboard.component').then(
+            (m) => m.BuilderDashboardComponent,
+          ),
+        pathMatch: 'full',
+      },
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
