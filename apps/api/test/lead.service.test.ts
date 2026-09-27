@@ -332,7 +332,7 @@ describe('lead service', () => {
     const result = await service.submitLead(VALID_BODY);
 
     expect(Object.keys(result).sort()).toEqual(
-      ['expiresInDays', 'leadId', 'magicLinkSent'].sort(),
+      ['expiresInDays', 'leadId', 'magicLinkSent', 'reportToken'].sort(),
     );
     expect(result.leadId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -340,6 +340,11 @@ describe('lead service', () => {
     // consumer/02: the BE-5/email seam is wired — the magic-link email goes
     // out on capture (log provider in dev/test).
     expect(result.magicLinkSent).toBe(true);
+    // Karan directive 2026-09-27 (immediate unlock): the raw owner token is
+    // returned with the response so the same-session report can use the
+    // token-gated extras without the email round-trip.
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
     // 900s TTL → 1 day, derived from config, never hardcoded.
     expect(result.expiresInDays).toBe(1);
 
@@ -407,7 +412,14 @@ describe('lead service', () => {
     expect(result.leadId).toBe('existing-lead-id');
     expect(result.magicLinkSent).toBe(false);
     expect(email.magicLinkSends).toHaveLength(0);
-    expect(magicLinks.issued).toHaveLength(0);
+    // …but the in-tab client still needs a working owner token for the
+    // token-gated extras (share, callback, narrative, revise): the live
+    // link's raw token is unrecoverable (hash-only storage), so exactly one
+    // fresh token is minted WITHOUT emailing — the "already in your inbox"
+    // copy stays honest.
+    expect(magicLinks.issued).toHaveLength(1);
+    expect(typeof result.reportToken).toBe('string');
+    expect(result.reportToken!.length).toBeGreaterThan(0);
     expect(store.inserted).toHaveLength(0);
     // …but the repeat submission still refreshes the lead's scalars.
     expect(store.updated).toHaveLength(1);
@@ -540,11 +552,15 @@ describe('lead service', () => {
       email: 'bot@example.com',
       website: 'http://spam.example',
     });
-    // Bots learn nothing: same keys, no quarantine hint. (magicLinkSent
+    // Bots learn nothing: no quarantine hint in the shape. (magicLinkSent
     // differs — clean captures get the email, quarantined rows never do —
-    // but the bot only ever sees its own response.)
-    expect(Object.keys(trapped).sort()).toEqual(Object.keys(clean).sort());
+    // but the bot only ever sees its own response. reportToken follows the
+    // same rule: clean captures get the owner token for the same-session
+    // report, quarantined rows get no credential at all.)
+    const cleanKeys = Object.keys(clean).filter((k) => k !== 'reportToken').sort();
+    expect(Object.keys(trapped).sort()).toEqual(cleanKeys);
     expect(trapped.magicLinkSent).toBe(false);
+    expect('reportToken' in trapped).toBe(false);
     expect(store.inserted).toHaveLength(2);
     expect(store.inserted[0].quarantined).toBe(false);
     expect(store.inserted[1].quarantined).toBe(true);

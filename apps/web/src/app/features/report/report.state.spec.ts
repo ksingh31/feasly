@@ -334,6 +334,146 @@ describe('ReportState', () => {
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
   });
 
+  it('LoadLeadEstimate starts the first report at version 1', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(1);
+  });
+
+  it('a reload keeps the persisted revision version instead of resetting to 1', async () => {
+    // Reach v3 through two stepper revisions on the token path (the
+    // component updates the wizard inputs before each revise).
+    await unlock();
+    store.dispatch(new UpdateInputs({ sqft: 2300 }));
+    store.dispatch(new ReviseReport(undefined, 2300));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2300, 'revision 1');
+    store.dispatch(new UpdateInputs({ sqft: 2400 }));
+    store.dispatch(new ReviseReport(undefined, 2400));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2400, 'revision 2');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(3);
+
+    // Simulate a reload: the storage plugin strips the session-scoped
+    // snapshot and token but keeps the persisted revision counter
+    // (savedVersion) alongside the wizard inputs — and the submitted lead
+    // persists too, which is what lets the report rebuild at all.
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new SetReportToken(''));
+    expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
+    expect(store.selectSnapshot(ReportState.reportToken)).toBeFalsy();
+
+    // Rebuilding from the persisted wizard inputs must keep v3, not restart
+    // at 1 — the figures match the pre-reload ones.
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    const rebuilt = store.selectSnapshot(ReportState.snapshot)!;
+    expect(rebuilt.version).toBe(3);
+    expect(rebuilt.inputs.sqft).toBe(2400);
+  });
+
+  it('a revision after a reload continues the sequence (v3 -> v4)', async () => {
+    await unlock();
+    store.dispatch(new UpdateInputs({ sqft: 2300 }));
+    store.dispatch(new ReviseReport(undefined, 2300));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2300, 'revision 1');
+    store.dispatch(new UpdateInputs({ sqft: 2400 }));
+    store.dispatch(new ReviseReport(undefined, 2400));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2400, 'revision 2');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(3);
+
+    // Reload: the lead persists (it is stored), the session-scoped token
+    // does not — and the next revision must continue the sequence.
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new SetReportToken(''));
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(3);
+
+    // …then one more revision on the lead path becomes v4, not v2.
+    store.dispatch(new UpdateInputs({ sqft: 2500 }));
+    store.dispatch(new ReviseReport(undefined, 2500));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2500, 'post-reload revision');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(4);
+  });
+
+  it('a token-path snapshot takes the backend version and persists it across reloads', async () => {
+    await unlock();
+    const token = store.selectSnapshot(ReportState.reportToken)!;
+    // The backend owns append-only versions: a v7 snapshot arriving over the
+    // token lands as v7 (not "current + 1").
+    const v7: TierRevisionResponse = {
+      ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+      version: 7,
+      narrative: 'n',
+    };
+    const spy = vi.spyOn(api, 'getReport').mockImplementation(() => of(v7));
+    try {
+      store.dispatch(new UnlockReport());
+      await pollStatus('ready');
+      expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(7);
+    } finally {
+      spy.mockRestore();
+    }
+    // Reload: the lead persists (it is stored), the session-scoped token
+    // does not — the rebuilt lead-estimate report keeps v7.
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new SetReportToken(''));
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(7);
+    expect(token).toBeTruthy();
+  });
+
+  it('clearReport resets the revision counter for a genuinely new property', async () => {
+    await unlock();
+    store.dispatch(new UpdateInputs({ sqft: 2300 }));
+    store.dispatch(new ReviseReport(undefined, 2300));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2300, 'revision 1');
+    store.dispatch(new ClearReport());
+    // A new property's first report starts at version 1 again.
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-2',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(1);
+  });
+
   it('LoadLeadEstimate unlocks the report from a submitted lead (Karan directive 2026-09-27)', async () => {
     store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
     store.dispatch(
