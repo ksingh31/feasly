@@ -3,8 +3,6 @@
 // Shared blurred-figure pattern (also used by the report page).
 @use '../../shared/locked-figures' as *;
 
-/* Back link uses the shared .back class from the wizard shell. */
-
 .preview-heading {
   font-family: var(--font-ui);
   font-size: 28px;

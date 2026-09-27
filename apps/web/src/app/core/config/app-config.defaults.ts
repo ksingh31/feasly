@@ -353,7 +353,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       totalMathTemplate: '{assessed} + {buildRange}',
       lowestLandBadge: 'Lowest land cost',
       lockedNote: 'Available after email verification',
-      unlockCta: 'Unlock Full Numbers →',
+      unlockCta: 'Unlock my free numbers →',
       editLabel: '← Edit communities',
       chartTitle: 'Total cost comparison',
       chartAxisNote: 'Bars show the likely total range per community.',
@@ -383,7 +383,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     report: {
       heading: 'Your build estimate',
-      subPreGate: 'Your preview is ready — unlock it to see the full numbers.',
+      subPreGate: 'Your free preview is ready — unlock it to see the full numbers.',
       subPostGate: 'Your personalized build estimate for this Calgary property.',
       totalLabel: 'Total investment',
       planningRangeLabel: 'Likely planning range',
@@ -397,7 +397,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       uncalibratedNote:
         'Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.',
       lockedNote: 'Locked — unlock to reveal the figures.',
-      unlockCta: 'Unlock my full report →',
+      unlockCta: 'Unlock my free report →',
       // Post-gate confirmation line (Karan directive 2026-09-27): the
       // magic-link email is return-access for other devices now, not the
       // unlock key — the report is already unlocked. Persistent, subtle.
@@ -537,7 +537,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       privacyNote:
         'We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our',
       privacyLinkLabel: 'Privacy Policy',
-      submitLabel: 'Unlock My Preview →',
+      submitLabel: 'Unlock my free preview →',
       submittingLabel: 'Sending…',
       submitError: 'We couldn’t save your details. Please check your connection and try again.',
       retryLabel: 'Try again',

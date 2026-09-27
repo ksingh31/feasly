@@ -6,6 +6,7 @@
           <p>This estimator is temporarily unavailable right now.</p>
         </div>
       } @else {
+        <app-wizard-back [label]="copy.backLabel" [link]="backLink()" [step]="2" />
         @if (!isComparisonFlow) {
           <app-wizard-steps [current]="3" />
         }
@@ -124,7 +125,6 @@
         }
 
         <div class="actions">
-          <button type="button" class="back" (click)="goBack()">{{ copy.backLabel }}</button>
           <button class="cta" type="submit" [disabled]="status === 'sending'">
             {{ status === 'sending' ? copy.submittingLabel : copy.submitLabel }}
           </button>

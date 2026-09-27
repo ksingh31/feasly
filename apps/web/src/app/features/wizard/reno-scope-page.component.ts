@@ -15,6 +15,7 @@ import {
   PropertyCardComponent,
   SiteFooterComponent,
   SiteNavComponent,
+  WizardBackComponent,
   WizardStepsComponent,
 } from '../../shared/components';
 
@@ -35,6 +36,7 @@ import {
     RouterLink,
     SiteFooterComponent,
     SiteNavComponent,
+    WizardBackComponent,
     WizardStepsComponent,
   ],
   templateUrl: './reno-scope-page.component.html',
@@ -195,11 +197,6 @@ export class RenoScopePageComponent implements OnInit {
       r.renoSqft >= this.wizard.renoSqftMin &&
       r.renoSqft <= cap
     );
-  }
-
-  goBack(): void {
-    this.store.dispatch(new GoToStep(2));
-    // The routerLink on the template anchor performs the navigation.
   }
 
   seePreview(): void {

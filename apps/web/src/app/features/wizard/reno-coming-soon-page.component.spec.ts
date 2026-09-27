@@ -60,8 +60,8 @@ describe('RenoComingSoonPageComponent', () => {
   });
 
   it('back link returns to the reno scope step', () => {
-    const back = fixture.nativeElement.querySelector('a.back') as HTMLAnchorElement;
-    expect(back.getAttribute('routerLink')).toBe('/estimate/reno-scope');
+    const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/estimate/reno-scope');
   });
 
   it('new-build CTA flips the wizard to new-build and continues to scope', async () => {

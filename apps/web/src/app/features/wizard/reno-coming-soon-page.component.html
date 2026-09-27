@@ -1,12 +1,12 @@
 <app-site-nav />
 <main class="wrap reno-coming-soon">
+  <app-wizard-back [label]="copy.backLabel" [link]="'/estimate/reno-scope'" />
   <div class="soon-card">
     <span class="soon-badge" aria-hidden="true"></span>
     <h1 class="soon-heading">{{ copy.heading }}</h1>
     <p class="soon-body">{{ copy.body }}</p>
     <div class="soon-actions">
       <button class="cta" type="button" (click)="startNewBuild()">{{ copy.newBuildCta }}</button>
-      <a class="back" routerLink="/estimate/reno-scope">{{ copy.backLabel }}</a>
     </div>
   </div>
 </main>

@@ -40,15 +40,3 @@
   align-items: center;
   justify-content: center;
 }
-/* Back-link row: centered on mobile, left-aligned on desktop (matches scope). */
-.back-wrap {
-  display: flex;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-@media (min-width: 640px) {
-  .back-wrap {
-    justify-content: flex-start;
-  }
-}

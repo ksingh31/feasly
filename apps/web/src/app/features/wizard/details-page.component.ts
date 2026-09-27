@@ -3,8 +3,8 @@ import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { GoToStep, WizardState } from '../wizard';
-import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
+import { WizardState } from '../wizard';
+import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 
 /**
  * S3 details step.
@@ -19,6 +19,7 @@ import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardSte
     RouterLink,
     SiteFooterComponent,
     SiteNavComponent,
+    WizardBackComponent,
     WizardStepsComponent,
   ],
   templateUrl: './details-page.component.html',
@@ -50,8 +51,4 @@ export class DetailsPageComponent implements OnInit {
     this.seo.setForRoute('estimate/details');
   }
 
-  goBack(): void {
-    this.store.dispatch(new GoToStep(2));
-    // The routerLink on the template anchor performs the navigation.
-  }
 }

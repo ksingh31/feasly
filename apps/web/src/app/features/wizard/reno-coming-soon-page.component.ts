@@ -1,9 +1,9 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
 import { ChooseProjectType } from '../wizard';
 
 /**
@@ -21,7 +21,7 @@ import { ChooseProjectType } from '../wizard';
 @Component({
   selector: 'app-reno-coming-soon-page',
   standalone: true,
-  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [SiteFooterComponent, SiteNavComponent, WizardBackComponent],
   templateUrl: './reno-coming-soon-page.component.html',
   styleUrls: ['./wizard-shell.scss', './reno-coming-soon-page.component.scss'],
 })
