@@ -296,7 +296,12 @@
       }
 
       <!-- RENO-04: estimate another address works from a reno report -->
-      <a class="cta secondary no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
+      <a
+        class="cta secondary no-print another-address"
+        href="/"
+        (click)="startNewEstimate($event)"
+        >{{ copy.estimateAnotherLabel }}</a
+      >
     }
   }
 </main>

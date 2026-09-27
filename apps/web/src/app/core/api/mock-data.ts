@@ -307,8 +307,8 @@ export function scaledMockFigures(
   };
 }
 
-export function mockLeadResponse(leadId: string): LeadResponse {
-  return { leadId, magicLinkSent: true, expiresInDays: 7 };
+export function mockLeadResponse(leadId: string, reportToken?: string): LeadResponse {
+  return { leadId, magicLinkSent: true, expiresInDays: 7, reportToken };
 }
 
 export function mockVerifySuccess(

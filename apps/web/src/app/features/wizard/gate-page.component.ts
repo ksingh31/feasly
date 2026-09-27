@@ -13,6 +13,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { GoToStep, StoreLeadResult, WizardState } from '../wizard';
+import { SetReportToken } from '../report/report.actions';
 import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
 import { AnalyticsService } from '../consent';
 import { EmbedBridgeService } from '../embed/embed-bridge.service';
@@ -214,6 +215,14 @@ export class GatePageComponent implements OnInit {
               expiresInDays: lead.expiresInDays,
             }),
           );
+          // Karan directive 2026-09-27 (immediate unlock): the backend
+          // returns the owner report token with the submit response, so the
+          // same-session report can share, request callbacks, and revise
+          // without waiting for the magic-link email (which is now
+          // return-access for other devices).
+          if (lead.reportToken) {
+            this.store.dispatch(new SetReportToken(lead.reportToken));
+          }
           void this.router.navigate(['/estimate/analyzing']);
         },
         error: () => {

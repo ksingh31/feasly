@@ -1,7 +1,7 @@
 import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import type { CallbackWindow, CostRange } from '@feasly/contracts';
@@ -71,6 +71,7 @@ export class ReportPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly analytics = inject(AnalyticsService);
+  private readonly router = inject(Router);
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
@@ -479,5 +480,17 @@ export class ReportPageComponent implements OnInit {
     // this is a silent no-op.
     this.analytics.track('pdf_download');
     window.print();
+  }
+
+  /**
+   * "Estimate another address": restart the funnel on the landing page.
+   * Programmatic navigation (not anchor interception) — the same
+   * `router.navigate` path the landing page's own property-select uses, so
+   * the restart can never depend on click-interception quirks. The href
+   * keeps it a real link (keyboard, open-in-new-tab, crawlers).
+   */
+  startNewEstimate(event: Event): void {
+    event.preventDefault();
+    void this.router.navigate(['/']);
   }
 }

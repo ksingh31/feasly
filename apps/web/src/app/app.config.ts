@@ -127,8 +127,10 @@ export const appConfig: ApplicationConfig = {
           // session-scoped: strip them so a refresh re-gates instead of
           // silently unlocking, and a persisted partnerView:true can never
           // paint the "shared with you" banner on the owner's own report
-          // in a later session. The report page re-dispatches LoadPreview
-          // on init, so nothing the UI needs is lost.
+          // in a later session. `savedVersion` (the revision counter)
+          // deliberately persists alongside the wizard inputs so the
+          // rebuilt report keeps its honest version label. The report page
+          // re-dispatches LoadPreview on init, so nothing the UI needs is lost.
           key === 'report'
             ? { ...obj, reportToken: null, partnerView: false, preview: null, snapshot: null }
             : key === 'comparison'
