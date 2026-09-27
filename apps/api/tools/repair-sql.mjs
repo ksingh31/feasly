@@ -1,11 +1,19 @@
--- repair-missing-tables.sql
--- Idempotent repair: recreates any missing tables/columns.
--- GENERATED from apps/api/tools/repair-sql.mjs (which is covered by
--- test/schema-repair-coverage.test.ts asserting EVERY Drizzle pgTable and
--- column is present). Do not hand-edit — update repair-sql.mjs and re-run:
---   node -e "import('./apps/api/tools/repair-sql.mjs').then(...)"
--- Safe to run multiple times: all statements use IF NOT EXISTS.
-
+/**
+ * Idempotent schema-repair SQL.
+ *
+ * Safety net for drizzle-kit's silent migration skips (observed on dev:
+ * 0025, 0028 marked applied but columns missing; 0030 silently skipped).
+ * After `drizzle-kit migrate`, every table/column the Drizzle schema
+ * declares is ensured with IF NOT EXISTS — a no-op on a healthy database.
+ *
+ * REGRESSION GUARD (2026-09-27 P0): the consumer report endpoint
+ * (GET /api/v1/reports/{token}) 500'd for every property because the
+ * `report_snapshots` table (migration 0024) never materialized on dev and
+ * this repair script didn't cover it. `test/schema-repair-coverage.test.ts`
+ * asserts EVERY pgTable in the Drizzle schema appears here — add new tables
+ * to this file when you add them to the schema.
+ */
+export const REPAIR_SQL = `
 CREATE TABLE IF NOT EXISTS "leads" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -575,3 +583,4 @@ ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with t
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "used_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now();
+`;
