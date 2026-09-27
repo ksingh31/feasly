@@ -18,6 +18,10 @@ import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
  * captured it falls back to reloading the page. The page renders static copy
  * ONLY — no error text, stack trace, or PII ever reaches the DOM.
  * Noindexed via `SeoService.setForRoute('error')`.
+ *
+ * "Back to home" is context-aware: when the failure happened on an admin
+ * route it returns to the admin home (`/admin`, which redirects to leads);
+ * everywhere else it goes to the public homepage.
  */
 @Component({
   selector: 'app-error-page',
@@ -31,7 +35,7 @@ import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
       <p class="body">Your estimate is safe — try again in a moment.</p>
       <div class="actions">
         <button type="button" class="cta" (click)="tryAgain()">Try again</button>
-        <a class="link" routerLink="/">Back to home →</a>
+        <a class="link" [routerLink]="homeLink">Back to home →</a>
       </div>
     </main>
     <app-site-footer />
@@ -41,6 +45,15 @@ import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 export class ErrorPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly recovery = inject(ErrorRecoveryService);
+
+  /**
+   * Where "Back to home" goes. The global error handler passes the failed
+   * URL in navigation state; admin failures return to the admin home.
+   */
+  protected get homeLink(): string {
+    const from = (history.state as { from?: unknown } | null)?.from;
+    return typeof from === 'string' && from.startsWith('/admin') ? '/admin' : '/';
+  }
 
   ngOnInit(): void {
     this.seo.setForRoute('error');

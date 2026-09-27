@@ -176,3 +176,7 @@ apps/web/src/app/core/utils/coverage.ts
 # (narrative fallback, inputs line, button/error states) lives in
 # ConfigService under copy.report.
 apps/web/src/app/features/report/report-pdf.service.ts
+
+# Brand mark default size (fix/admin-header): a presentational default for
+# the logo's px size — it is design, not a deploy-tunable threshold.
+apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts

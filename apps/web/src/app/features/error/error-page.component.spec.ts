@@ -68,6 +68,22 @@ describe('ErrorPageComponent', () => {
     expect(link?.getAttribute('href')).toBe('/');
   });
 
+  it('links "Back to home" to the admin home when the failure came from an admin route', () => {
+    vi.stubGlobal('history', { state: { from: '/admin/billing' } });
+    const homeLink = (
+      fixture.componentInstance as unknown as { homeLink: string }
+    ).homeLink;
+    expect(homeLink).toBe('/admin');
+  });
+
+  it('links "Back to home" to the landing page when the failure came from a public route', () => {
+    vi.stubGlobal('history', { state: { from: '/estimate/abc' } });
+    const homeLink = (
+      fixture.componentInstance as unknown as { homeLink: string }
+    ).homeLink;
+    expect(homeLink).toBe('/');
+  });
+
   it('noindexes the page via setForRoute(error)', () => {
     expect(TestBed.inject(Meta).getTag('name="robots"')?.content).toBe('noindex,nofollow');
   });
