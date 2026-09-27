@@ -255,7 +255,6 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/sheets-sync.state')).sheetsSyncStateProvider,
       ),
-      ),
     ],
     data: { noindex: true },
     children: [
