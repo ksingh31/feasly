@@ -126,6 +126,66 @@ describe('property service', () => {
         code: ErrorCodes.DEPENDENCY_UNAVAILABLE,
       });
     });
+
+    describe('full-address normalization (frontend PR #225 parity)', () => {
+      const row2631 = { ...ROW, address: '2631 63 AV SW' };
+
+      it('drops a trailing ", Calgary, AB" so full addresses return suggestions', async () => {
+        mockFetchOnce([row2631]);
+        const res = await service.autocomplete('2631 63 av sw, calgary, ab');
+        expect(res.suggestions).toHaveLength(1);
+        expect(res.suggestions[0]).toMatchObject({
+          addressKey: '2631 63 AV SW',
+          address: '2631 63 Av Sw, Calgary, AB',
+        });
+        const url = String(vi.mocked(fetch).mock.calls[0][0]);
+        // The SoQL predicate prefix-matches the street address, not the city tail.
+        expect(url).toContain('2631+63+AV+SW');
+        expect(url).not.toContain('CALGARY');
+      });
+
+      it('drops the suffix without commas ("2631 63 AV SW CALGARY AB")', async () => {
+        mockFetchOnce([row2631]);
+        const res = await service.autocomplete('2631 63 av sw calgary ab');
+        expect(res.suggestions).toHaveLength(1);
+        const url = String(vi.mocked(fetch).mock.calls[0][0]);
+        expect(url).toContain('2631+63+AV+SW');
+        expect(url).not.toContain('CALGARY');
+      });
+
+      it('drops a bare trailing ", Calgary"', async () => {
+        mockFetchOnce([row2631]);
+        const res = await service.autocomplete('2631 63 av sw, calgary');
+        expect(res.suggestions).toHaveLength(1);
+        const url = String(vi.mocked(fetch).mock.calls[0][0]);
+        expect(url).toContain('2631+63+AV+SW');
+        expect(url).not.toContain('CALGARY');
+      });
+
+      it('leaves a mid-query Calgary token alone', async () => {
+        mockFetchOnce([{ ...ROW, address: '100 CALGARY TR NW' }]);
+        await service.autocomplete('100 calgary trail nw');
+        const url = String(vi.mocked(fetch).mock.calls[0][0]);
+        // Anchored at the end: a street name containing the token is untouched.
+        expect(url).toContain('100+CALGARY+TR+NW');
+      });
+
+      it('partial address still prefix-matches', async () => {
+        mockFetchOnce([row2631]);
+        const res = await service.autocomplete('2631 63');
+        expect(res.suggestions).toHaveLength(1);
+        const url = String(vi.mocked(fetch).mock.calls[0][0]);
+        expect(url).toContain('2631+63');
+      });
+
+      it('a bare ", Calgary, AB" query resolves to an empty list without hitting Socrata', async () => {
+        const fetchSpy = vi.fn();
+        vi.stubGlobal('fetch', fetchSpy);
+        const res = await service.autocomplete('Calgary, AB');
+        expect(res).toEqual({ suggestions: [] });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('getProperty', () => {
