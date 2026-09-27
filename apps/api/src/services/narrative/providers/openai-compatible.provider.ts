@@ -12,7 +12,7 @@
  * staging/production — never committed; the secrets-hygiene tripwire
  * fails the build if a key literal ever lands in this module). A missing
  * key fails closed at generate time naming the exact env var. The model
- * (`NARRATIVE_MODEL`, default `gemini-2.5-flash`) comes from config.
+ * (`NARRATIVE_MODEL`, default `gemini-3.8-flash`) comes from config.
  *
  * Endpoint: `NARRATIVE_ENDPOINT` is the provider base URL (e.g. the
  * Gemini OpenAI-compatibility base). `chatCompletionsUrl()` appends
@@ -35,7 +35,7 @@ export interface OpenAiCompatibleProviderDeps {
    * staging/production). Absent = fail-closed generation.
    */
   readonly apiKey?: string;
-  /** Model name, e.g. 'gemini-2.5-flash'. */
+  /** Model name, e.g. 'gemini-3.8-flash'. */
   readonly model: string;
   /** Endpoint base URL (from NARRATIVE_ENDPOINT config). */
   readonly endpoint?: string;

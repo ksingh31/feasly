@@ -73,7 +73,7 @@ param narrativeApiKeySecretUri string = ''
 @description('Base URL of the OpenAI-compatible endpoint for the narrative provider. Empty = the app config default.')
 param narrativeEndpoint string = ''
 
-@description('Model slug for the narrative provider (e.g. gemini-2.5-flash). Empty = the app config default.')
+@description('Model slug for the narrative provider (e.g. gemini-3.8-flash). Empty = the app config default.')
 param narrativeModel string = ''
 
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')

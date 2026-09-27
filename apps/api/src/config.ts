@@ -146,9 +146,11 @@ const EnvSchema = z.object({
   // LLM API key (Gemini) — from Key Vault, never in repo/env files. Empty
   // with provider='openai-compatible' = fail-closed generation naming this var.
   NARRATIVE_API_KEY: z.string().default(''),
-  // LLM model for narratives. Default is Gemini 2.5 Flash (free tier);
-  // overridable without a code change.
-  NARRATIVE_MODEL: z.string().default('gemini-2.5-flash'),
+  // LLM model for narratives. Default is Gemini 3.8 Flash (free tier);
+  // overridable without a code change. (2.5-flash was retired by Google
+  // for new API keys on 2026-09-27; their API names 3.8-flash as the
+  // replacement.)
+  NARRATIVE_MODEL: z.string().default('gemini-3.8-flash'),
   // Base URL of the OpenAI-compatible endpoint. Overridable for tests;
   // default is Google's Gemini OpenAI-compatibility base. The provider
   // appends /chat/completions when the value does not already end with it.
