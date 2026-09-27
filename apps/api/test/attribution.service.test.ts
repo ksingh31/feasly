@@ -100,6 +100,70 @@ describe('attribution service', () => {
     expect(record.introducedAt.toISOString()).toBe(INTRODUCED_AT.toISOString());
   });
 
+  it('concurrent introductions for the same lead+tenant yield one open attribution', async () => {
+    const service = newService(testDb);
+    const leadId = await seedLead(testDb);
+    const input = {
+      leadId,
+      tenantKey: 'race-builders',
+      introducedAt: INTRODUCED_AT,
+    };
+
+    // Both pass any pre-check before either inserts; the UNIQUE backstop
+    // (migration 0034) lets exactly one win and the loser reuses it.
+    const [a, b] = await Promise.all([
+      service.recordIntroduction(input),
+      service.recordIntroduction(input),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(a.status).toBe('introduced');
+  });
+
+  it('allows a new introduction after the first one closes', async () => {
+    const service = newService(testDb);
+    const leadId = await seedLead(testDb);
+    const input = {
+      leadId,
+      tenantKey: 'reintro-builders',
+      introducedAt: INTRODUCED_AT,
+    };
+
+    const first = await service.recordIntroduction(input);
+    await service.markExpired(first.id);
+    // The partial unique index only covers OPEN introductions: a lead may
+    // be re-introduced after the first introduction closes.
+    const second = await service.recordIntroduction(input);
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe('introduced');
+  });
+
+  it('reporting the same contract twice is idempotent; different details conflict', async () => {
+    const service = newService(testDb);
+    const leadId = await seedLead(testDb);
+    const intro = await service.recordIntroduction({
+      leadId,
+      tenantKey: 'idem-report-builders',
+      introducedAt: INTRODUCED_AT,
+    });
+    const report = {
+      attributionId: intro.id,
+      contractValueCents: 85_000_000,
+      contractSignedAt: new Date('2026-09-01T10:00:00.000Z'),
+    };
+
+    const first = await service.reportContract(report);
+    expect(first.status).toBe('attributed');
+    // Concurrent won events share one introduction: the loser's identical
+    // report returns the existing record instead of 409ing.
+    const second = await service.reportContract(report);
+    expect(second.id).toBe(first.id);
+
+    // But a DIFFERENT contract on the same attribution is a real conflict.
+    await expect(
+      service.reportContract({ ...report, contractValueCents: 90_000_000 }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   it('reports a contract signed inside the attribution window', async () => {
     const service = newService(testDb);
     const leadId = await seedLead(testDb);

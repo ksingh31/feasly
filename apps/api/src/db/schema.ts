@@ -27,8 +27,10 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const estimates = pgTable(
   'estimates',
@@ -556,6 +558,17 @@ export const attributionEvents = pgTable(
   (t) => [
     index('attribution_events_lead_tenant_idx').on(t.leadId, t.tenantKey),
     index('attribution_events_status_idx').on(t.status),
+    // UNIQUE backstop (P0, 2026-09-27): one OPEN introduction per
+    // lead+tenant. The embed won flow is find-open-or-introduce; two
+    // concurrent won events both pass the find and both insert — the loser
+    // gets 23505 and recordIntroduction returns the winner (idempotent)
+    // instead of minting a second attribution (which would become a second
+    // invoice → double charge). Closed attributions (attributed / expired /
+    // excluded_prior_relationship) don't count: a lead may legitimately be
+    // re-introduced after the first introduction closes.
+    uniqueIndex('attribution_events_open_intro_unique')
+      .on(t.leadId, t.tenantKey)
+      .where(sql`${t.status} = 'introduced'`),
   ],
 );
 
