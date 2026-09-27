@@ -160,19 +160,30 @@
   border-left: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* ── Compare neighbourhoods entry (NBH-04) ── */
+/* ── Entry card pair (NBH-04 / SEO-05) ── */
+/* Single column on mobile (the previous stacked layout, same 32px rhythm);
+   two equal columns on tablet and up. The wrapper carries the section
+   spacing so the pair aligns as one row; the inner sections are neutralized. */
 
-.compare-entry {
+.entry-pair {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 20px 0;
+  padding: 32px 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    align-items: stretch;
+  }
 }
 
-/* Last entry before the trust strip: bottom breathing room so the card
-   doesn't sit flush on the dark band (mobile QA 2026-09-26). 32px matches
-   the section's own top rhythm. */
-.compare-entry--last {
-  padding-bottom: 32px;
+.entry-pair .compare-entry {
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .compare-card {
@@ -180,6 +191,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  height: 100%;
   padding: 24px 28px;
   background: var(--card);
   border: 1.5px solid var(--border);
