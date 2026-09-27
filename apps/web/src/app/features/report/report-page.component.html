@@ -25,7 +25,7 @@
         <button type="button" class="link-btn" (click)="retry()">{{ copy.retryLabel }}</button>
       </p>
     }
-    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? copy.pendingSub : copy.subPreGate }}</p>
+    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? pendingSubCopy() : copy.subPreGate }}</p>
     @if (unlocked()) {
       <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
     }
