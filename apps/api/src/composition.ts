@@ -9,6 +9,7 @@
 import { loadConfig, type ApiConfig } from './config';
 import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
 import { createDbClient, type DbClient } from './db/client';
+import { sanitizeErrorMessage } from './lib/sanitize-error';
 import { createHealthService, type HealthService } from './services/health.service';
 import { createEstimateService, type EstimateService } from './services/estimate.service';
 import {
@@ -842,6 +843,13 @@ export function createComposition(
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    // P0-class visibility guard: per-lead failures are swallowed into the
+    // `skipped` count by design (batch survives); this sink makes a dead
+    // provider visible. Sanitized: no tokens, emails, or keys.
+    onLeadError: (error) =>
+      console.error(
+        `nudge: lead send failed (error=${sanitizeErrorMessage(error)})`,
+      ),
   });
   // api-mcp/09 — daily sandbox purge for test data. Hard-deletes sandbox
   // rows older than the retention window. Dry-run defaults true (first-run
@@ -940,6 +948,13 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    // P0-class visibility guard: the admin magic-link send is fire-and-forget
+    // (no timing oracle), so a failed send must be loud — never swallowed by
+    // the service's no-op default. Sanitized: no tokens, no emails, no keys.
+    onEmailError: (error) =>
+      console.error(
+        `admin-auth: magic-link email send failed (error=${sanitizeErrorMessage(error)})`,
+      ),
   });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
@@ -978,6 +993,13 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    // P0-class visibility guard: same fire-and-forget send as admin auth —
+    // a failed builder sign-in email must be loud, never swallowed.
+    // Sanitized: no tokens, no emails, no keys.
+    onEmailError: (error) =>
+      console.error(
+        `builder-auth: magic-link email send failed (error=${sanitizeErrorMessage(error)})`,
+      ),
   });
   const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
     builderAuth: builderAuthService,

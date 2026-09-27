@@ -153,12 +153,19 @@ function makeEmail(): EmailService & { sends: unknown[] } {
 function makeService(overrides?: {
   allowlisted?: readonly string[];
   clock?: () => Date;
+  onEmailError?: (error: unknown) => void;
+  emailSendFails?: boolean;
 }) {
   const magicLinks = makeMagicLinkStore();
   const sessions = makeSessionStore();
   const allowlist = makeAllowlist(overrides?.allowlisted ?? [ADMIN_EMAIL]);
   const audit = makeAudit();
   const email = makeEmail();
+  if (overrides?.emailSendFails === true) {
+    email.sendMagicLink = async () => {
+      throw new Error('ACS provider down');
+    };
+  }
   const service = createAdminAuthService({
     allowlist,
     sessions,
@@ -169,6 +176,7 @@ function makeService(overrides?: {
     magicLinkTtlSeconds: MAGIC_LINK_TTL,
     adminSessionTtlSeconds: SESSION_TTL,
     clock: overrides?.clock ?? (() => NOW),
+    onEmailError: overrides?.onEmailError,
   });
   return { service, magicLinks, sessions, allowlist, audit, email };
 }
@@ -210,6 +218,20 @@ describe('admin auth service (admin/01)', () => {
         status: 400,
         code: ErrorCodes.VALIDATION_FAILED,
       });
+    });
+
+    it('a failed email send still returns { sent: true } but reports via onEmailError (P0 visibility guard)', async () => {
+      const errors: unknown[] = [];
+      const { service } = makeService({
+        emailSendFails: true,
+        onEmailError: (e) => void errors.push(e),
+      });
+      const result = await service.requestMagicLink({ email: ADMIN_EMAIL });
+      // Fire-and-forget: identical response, no timing oracle — but the
+      // failure must reach the sink, never be swallowed.
+      expect(result).toEqual({ sent: true });
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(String((errors[0] as Error).message)).toContain('ACS provider down');
     });
   });
 

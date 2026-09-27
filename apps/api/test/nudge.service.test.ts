@@ -96,7 +96,10 @@ function makeWorld(): World {
 
 const OK: EmailSendResult = { provider: 'log', messageId: 'msg-1' };
 
-function makeService(world: World, opts?: { failNudgeFor?: string }) {
+function makeService(
+  world: World,
+  opts?: { failNudgeFor?: string; onLeadError?: (error: unknown) => void },
+) {
   const leads: LeadStore = {
     findRecentByEmailAndAddress: async () => null,
     insert: async () => {
@@ -197,6 +200,7 @@ function makeService(world: World, opts?: { failNudgeFor?: string }) {
     appBaseUrl: 'https://feasly.example',
     magicLinkTtlSeconds: 604_800,
     clock: () => NOW,
+    onLeadError: opts?.onLeadError,
   });
   return { service, world };
 }
@@ -380,5 +384,21 @@ describe('nudge service (email/02)', () => {
     expect(result).toEqual({ nudged: 0, skipped: 1 });
     // Not stamped — the next hourly run will retry.
     expect(world.nudgeSentAtCalls).toHaveLength(0);
+  });
+
+  it('a per-lead failure is reported via onLeadError (visibility, not just a skipped count)', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.links.push(linkRecord());
+    const errors: unknown[] = [];
+    const { service } = makeService(world, {
+      failNudgeFor: 'sam@example.com',
+      onLeadError: (e) => void errors.push(e),
+    });
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 0, skipped: 1 });
+    expect(errors).toHaveLength(1);
   });
 });

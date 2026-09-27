@@ -49,6 +49,7 @@ function fakeStores(opts?: {
   partnerExpired?: boolean;
   emailed?: boolean;
   newestEstimateId?: string | null;
+  insertFails?: boolean;
 }) {
   const live = opts?.live ?? true;
   const partnerLive = opts?.partnerLive ?? true;
@@ -127,6 +128,9 @@ function fakeStores(opts?: {
   };
   const shares: PartnerShareStore = {
     insert: async (share: NewPartnerShare) => {
+      if (opts?.insertFails === true) {
+        throw new Error('partner_shares insert failed');
+      }
       persisted.push(share);
       return {
         ...share,
@@ -282,6 +286,17 @@ describe('partner-share verify', () => {
       valid: false,
       reason: 'invalid',
     });
+  });
+
+  it('an audit-row insert failure after the email send propagates (never swallowed)', async () => {
+    const { service, sentEmails } = fakeStores({ insertFails: true });
+    // The email went out, but the audit row write died: the failure must
+    // surface to the caller (route → 500 → owner retries with a fresh
+    // link) rather than answer { sent: true } with an unrecorded share.
+    await expect(service.shareWithPartner(VALID_BODY)).rejects.toThrow(
+      'partner_shares insert failed',
+    );
+    expect(sentEmails).toHaveLength(1);
   });
 });
 
