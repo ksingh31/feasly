@@ -407,19 +407,67 @@ describe('lead service', () => {
 
   it('normalizes the email before dedup and insert', async () => {
     const store = fakeLeadStore();
-    const seen: Array<{ email: string; addressKey: string }> = [];
+    const seen: Array<{ email: string; addressKey: string; tenantKey: string | null }> = [];
     store.findRecentByEmailAndAddress = async (args) => {
-      seen.push({ email: args.email, addressKey: args.addressKey });
+      seen.push({ email: args.email, addressKey: args.addressKey, tenantKey: args.tenantKey });
       return null;
     };
     const service = createLeadService({ ...DEPS, store });
     await service.submitLead({ ...VALID_BODY, email: '  Sam@Example.COM ' });
     expect(store.inserted[0].email).toBe('sam@example.com');
-    // Normalized email + the estimate's addressKey drive the dedup lookup.
+    // Normalized email + the estimate's addressKey drive the dedup lookup,
+    // tenant-scoped (null = the direct site).
     expect(seen).toEqual([
-      { email: 'sam@example.com', addressKey: 'calgary-123-fake-st-nw' },
+      { email: 'sam@example.com', addressKey: 'calgary-123-fake-st-nw', tenantKey: null },
     ]);
     expect(store.inserted[0].addressKey).toBe('calgary-123-fake-st-nw');
+  });
+
+  it('scopes the dedupe lookup to the embed tenant — another tenant\'s lead is never rewritten', async () => {
+    const store = fakeLeadStore();
+    const tenantALead = existingLeadFixture({ id: 'tenant-a-lead', tenantKey: 'tenant-a' });
+    const seenScopes: Array<string | null> = [];
+    store.findRecentByEmailAndAddress = async (args) => {
+      seenScopes.push(args.tenantKey);
+      // Mirror the real store's tenant-scoped lookup: only the same
+      // tenant's lead matches.
+      return args.tenantKey === 'tenant-a' ? tenantALead : null;
+    };
+    const magicLinks = fakeMagicLinkStore();
+    const service = createLeadService({ ...DEPS, store, magicLinks });
+    // 'elite-craft' is the tenant key the DEPS builderConfigs fake knows.
+    const result = await service.submitLead({
+      ...VALID_BODY,
+      tenantKey: 'elite-craft',
+      name: 'Mallory',
+    });
+    // The lookup was scoped to the submitting tenant …
+    expect(seenScopes).toEqual(['elite-craft']);
+    // …so tenant A's lead was NOT matched: no rewrite, no owner token
+    // minted for it — a fresh lead was inserted for the embed tenant.
+    expect(store.updated).toHaveLength(0);
+    expect(magicLinks.issued.filter((i) => i.leadId === 'tenant-a-lead')).toHaveLength(0);
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0].tenantKey).toBe('elite-craft');
+    expect(store.inserted[0].source).toBe('embed');
+    expect(result.leadId).toBe(store.inserted[0].id);
+  });
+
+  it('rejects a forged tenant key on the repeat path before the dedupe lookup', async () => {
+    const store = fakeLeadStore();
+    let lookupCalled = false;
+    store.findRecentByEmailAndAddress = async () => {
+      lookupCalled = true;
+      return existingLeadFixture();
+    };
+    const service = createLeadService({ ...DEPS, store });
+    await expect(
+      service.submitLead({ ...VALID_BODY, tenantKey: 'forged-tenant' }),
+    ).rejects.toThrow('Unknown tenant key.');
+    // The 400 fires before any store read — no chance to touch the lead.
+    expect(lookupCalled).toBe(false);
+    expect(store.inserted).toHaveLength(0);
+    expect(store.updated).toHaveLength(0);
   });
 
   it('returns the existing lead without inserting a duplicate inside the window', async () => {

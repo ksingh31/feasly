@@ -270,6 +270,20 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
 
       const now = clock();
       const since = new Date(now.getTime() - deps.dedupWindowDays * MS_PER_DAY);
+
+      // EMB-03 (tenant isolation): resolve the embed tenant key server-side
+      // BEFORE the dedupe lookup. The key is validated against the tenants
+      // table — a forged or unknown key is a 400 on both the new-lead and
+      // the repeat paths, never silently trusted. A client-supplied
+      // `tenant_id` field is not in the schema, so Zod strips it; only the
+      // validated key wins.
+      let tenantKey: string | undefined;
+      let source = 'api';
+      if (input.tenantKey !== undefined) {
+        tenantKey = await resolveTenantKey(input.tenantKey);
+        source = 'embed';
+      }
+
       // PII guard: store failures are rethrown sanitized (the original is
       // chained as `cause` for programmatic inspection but never reaches
       // logs — driver errors can echo submitted values).
@@ -279,6 +293,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           email,
           addressKey: estimate.addressKey,
           since,
+          // Tenant-scoped dedupe: an embed repeat only matches the same
+          // tenant's leads; a direct-site repeat only matches direct leads.
+          // Without this, tenant B's repeat could rewrite tenant A's lead
+          // and mint an owner token for it.
+          tenantKey: tenantKey ?? null,
         });
       } catch (error) {
         throw new Error('lead store lookup failed', { cause: error });
@@ -299,17 +318,6 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // rejecting the request — the response shape is identical to a clean
       // capture so bots can't probe for the trap.
       const quarantined = (input.website ?? '').trim().length > 0;
-
-      // EMB-03: resolve the embed tenant key server-side. The key is
-      // validated against the tenants table — a forged or unknown key is a
-      // 400, never silently trusted. A client-supplied `tenant_id` field is
-      // not in the schema, so Zod strips it; only the validated key wins.
-      let tenantKey: string | undefined;
-      let source = 'api';
-      if (input.tenantKey !== undefined) {
-        tenantKey = await resolveTenantKey(input.tenantKey);
-        source = 'embed';
-      }
 
       let inserted;
       try {
