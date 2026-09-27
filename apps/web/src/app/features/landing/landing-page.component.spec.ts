@@ -88,14 +88,20 @@ describe('LandingPageComponent', () => {
     expect(card.textContent).toContain('Side-by-side build costs for 2–3 Calgary communities.');
   });
 
-  it('comparison entry renders above the trust strip (Karan layout)', () => {
+  it('entry cards render side-by-side above the trust strip (Karan layout)', () => {
     const main = fixture.nativeElement.querySelector('main.page');
-    const sections = [...main.querySelectorAll(':scope > section')].map((el: Element) =>
+    const pair = main.querySelector(':scope > .entry-pair');
+    expect(pair).toBeTruthy();
+    const hrefs = [...pair.querySelectorAll('.compare-card')].map((el: Element) =>
+      el.getAttribute('href'),
+    );
+    expect(hrefs).toEqual(['/estimate/compare', '/communities']);
+    const blocks = [...main.querySelectorAll(':scope > section, :scope > div')].map((el: Element) =>
       el.className.split(' ')[0],
     );
-    expect(sections).toContain('compare-entry');
-    expect(sections).toContain('trust');
-    expect(sections.indexOf('compare-entry')).toBeLessThan(sections.indexOf('trust'));
+    expect(blocks).toContain('entry-pair');
+    expect(blocks).toContain('trust');
+    expect(blocks.indexOf('entry-pair')).toBeLessThan(blocks.indexOf('trust'));
   });
 
   it('trust strip carries no ±, %, or accuracy claim (copy-lint)', () => {
