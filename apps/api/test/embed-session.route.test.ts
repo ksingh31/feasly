@@ -20,6 +20,9 @@ const RESPONSE: EmbedSessionResponse = {
 function serviceReturning(response: EmbedSessionResponse): EmbedRelayService {
   return {
     exchange: vi.fn(async () => response),
+    resend: vi.fn(async () => {
+      throw new Error('not used in these tests');
+    }),
     resolveSession: vi.fn(async () => null),
   };
 }
@@ -39,6 +42,9 @@ describe('embed-session route', () => {
     const service: EmbedRelayService = {
       exchange: vi.fn(async () => {
         throw failure;
+      }),
+      resend: vi.fn(async () => {
+        throw new Error('not used in these tests');
       }),
       resolveSession: vi.fn(async () => null),
     };

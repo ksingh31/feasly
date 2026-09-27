@@ -1,9 +1,12 @@
 /**
  * Admin auth contracts (admin/01).
  *
- * Magic-link + allowlist session auth for the admin area. The session itself
- * travels as an httpOnly cookie (never in these shapes); the client only
- * ever sees the opaque magic-link token from the email URL.
+ * Magic-link + allowlist session auth for the admin area. The session
+ * token is returned in the verify JSON body: the SPA stores it and sends
+ * it back as `Authorization: Bearer <token>` (the cross-origin session
+ * cookie never sticks on modern browsers). The adapter additionally emits
+ * it as an httpOnly `Set-Cookie` for a same-origin future. The client only
+ * ever sees the opaque magic-link token from the email URL before that.
  */
 
 export interface AdminAuthRequestBody {
@@ -24,9 +27,12 @@ export interface AdminAuthVerifyResponse {
   /** Lowercased admin email the session was issued for. */
   readonly email: string;
   /**
-   * The raw session token, for the Function adapter to place in the
-   * Set-Cookie header. The adapter strips this from the JSON body before
-   * responding — it never reaches the browser as JSON.
+   * The raw session token. Returned in the JSON body so the SPA can store
+   * it and send it back as `Authorization: Bearer <token>` on admin
+   * requests (the cross-origin session cookie is blocked by modern
+   * browsers). The Function adapter ALSO places it in the Set-Cookie
+   * header (kept for a same-origin future) and strips only `setCookie`
+   * from the JSON body.
    */
   readonly sessionToken: string;
   /** The full Set-Cookie header value the adapter must emit. */

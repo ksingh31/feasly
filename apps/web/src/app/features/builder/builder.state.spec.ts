@@ -107,8 +107,10 @@ describe('BuilderState (embed/09)', () => {
 
     const s = snapshot();
     expect(s.authStatus).toBe('authenticated');
+    expect(s.sessionToken).toBe('s');
     expect(s.session?.email).toBe('builder@example.com');
     expect(s.session?.tenantKey).toBe('elite-craft');
+    expect(store.selectSnapshot(BuilderState.sessionToken)).toBe('s');
     httpMock.verify();
   });
 
@@ -123,6 +125,7 @@ describe('BuilderState (embed/09)', () => {
     const s = snapshot();
     expect(s.authStatus).toBe('unauthenticated');
     expect(s.session).toBeNull();
+    expect(s.sessionToken).toBeNull();
     httpMock.verify();
   });
 
@@ -222,6 +225,7 @@ describe('BuilderState (embed/09)', () => {
     const s = snapshot();
     expect(s.authStatus).toBe('unknown');
     expect(s.session).toBeNull();
+    expect(s.sessionToken).toBeNull();
     expect(s.leads).toEqual([]);
     httpMock.verify();
   });

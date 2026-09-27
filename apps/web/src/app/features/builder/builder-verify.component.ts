@@ -13,9 +13,11 @@ type VerifyStatus = 'verifying' | 'error';
  * Builder magic-link verification (embed/09). Mirrors admin/01.
  *
  * Route: `/builder/verify?token=…` (linked from the email). On success the
- * backend sets the `feasly_builder_session` HttpOnly cookie and we land on
- * `/builder`. On failure (expired/used/invalid token) we show the error
- * copy with a link back to `/builder/login`.
+ * session token (from the verify JSON body) is stored in BuilderState and
+ * we land on `/builder`; subsequent builder API calls carry it as
+ * `Authorization: Bearer <token>` via the credentials interceptor. On
+ * failure (expired/used/invalid token) we show the error copy with a link
+ * back to `/builder/login`.
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
@@ -56,7 +58,7 @@ export class BuilderVerifyComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.store.selectSnapshot(BuilderState.authenticated)) {
-          // Cookie is set by the backend; land on the builder portal.
+          // Session token is stored in BuilderState; land on the portal.
           void this.router.navigate(['/builder']);
         } else {
           this.status = 'error';

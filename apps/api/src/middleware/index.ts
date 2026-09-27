@@ -22,3 +22,4 @@ export * from './pipeline';
 export * from './api-key-auth';
 export * from './admin-guard';
 export * from './security-headers';
+export * from './session-token';

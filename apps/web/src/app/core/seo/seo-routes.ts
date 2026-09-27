@@ -103,19 +103,26 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'unsubscribe',
     noindex: true,
   },
+  // Magic-link redemption (consumer/02): /r/:token from the estimate email.
+  // Private token URL — noindex, never in search results.
+  {
+    pattern: 'r/:token',
+    titleKey: 'magicLinkTitle',
+    descriptionKey: 'magicLink',
+    noindex: true,
+  },
 ];
 
 /**
- * Patterns for routes that do not exist yet (lead gate, analyzing, magic-link
- * redemption, embed, admin). Declared now so they are noindexed from the day
- * they ship — no story may add one of these paths without this table covering
- * it. Checked by `seo.service.spec.ts`.
+ * Patterns for routes that do not exist yet (lead gate, analyzing, embed,
+ * admin). Declared now so they are noindexed from the day they ship — no
+ * story may add one of these paths without this table covering it. Checked
+ * by `seo.service.spec.ts`.
  */
 const FUTURE_NOINDEX: SeoRouteConfig[] = [
   { pattern: 'preview', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'check-email', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'analyzing', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
-  { pattern: 'r/:token', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'embed/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'admin/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'builder/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },

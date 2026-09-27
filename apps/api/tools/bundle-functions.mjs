@@ -286,6 +286,11 @@ const targets = [
     entry: 'src/functions/embed-session.ts',
     out: 'embed-session/index.js',
   },
+  // embed/06 AC3: relay-code re-issue (60s per-code cooldown).
+  {
+    entry: 'src/functions/embed-relay-resend.ts',
+    out: 'embed-relay-resend/index.js',
+  },
 ];
 
 // 1. Shared closure, bundled once.

@@ -21,8 +21,9 @@ import { ReportState } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminLeadsState } from './features/admin/admin-leads.state';
+import { AdminAuthState } from './features/admin/admin-auth.state';
 import { CalibrationState } from './features/admin/admin-calibration.state';
-import { BuilderState } from './features/builder';
+import { BuilderState, EMPTY_SUMMARY } from './features/builder';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -37,8 +38,13 @@ export const appConfig: ApplicationConfig = {
     // The connectivity interceptor (HRD-02) re-verifies reachability via the
     // health probe whenever a request fails at the network layer. The
     // credentials interceptor (ADM-10) attaches withCredentials to API-base
-    // requests so the admin session cookie flows cross-origin.
-    provideHttpClient(withFetch(), withInterceptors([credentialsInterceptor, connectivityInterceptor])),
+    // requests plus `Authorization: Bearer <token>` on admin/builder paths —
+    // the cross-origin session cookie never sticks on modern browsers, so
+    // the bearer token is the primary session credential.
+    provideHttpClient(
+      withFetch(),
+      withInterceptors([credentialsInterceptor, connectivityInterceptor]),
+    ),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
     provideAppInitializer(() => inject(ConfigService).load()),
@@ -68,19 +74,48 @@ export const appConfig: ApplicationConfig = {
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
-    // AdminLeadsState, CalibrationState, and BuilderState are memory-only on
-    // purpose: admin/builder data is sensitive and must not persist in
+    // AdminLeadsState, CalibrationState, and SheetsSyncState are memory-only
+    // on purpose: admin/builder DATA is sensitive and must not persist in
     // localStorage — it refetches on mount. (All kept out of the storage
-    // plugin's keys below.)
+    // plugin's keys below.) The AUTH slices are different: AdminAuthState
+    // holds only the session token + the admin's own email, and BuilderState
+    // persists ONLY its sessionToken (identity + homeowner-PII leads are
+    // stripped in beforeSerialize below). The tokens must persist — the
+    // cross-origin session cookie never sticks on modern browsers, so
+    // without persistence every reload would bounce to the login page.
+    // Security note: a bearer token in localStorage is XSS-stealable where
+    // an httpOnly cookie was not — the standard, accepted tradeoff for
+    // cross-origin SPAs (the cookie simply does not work cross-origin).
     provideStore(
-// ApiKeysState is NOT here: it is lazy-loaded at the `admin/api-keys` route
-// via lazyProvider (api-mcp/02) so the admin state stays out of the initial bundle.
-[WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState, AdminLeadsState, CalibrationState, SheetsSyncState, BuilderState],
+      // ApiKeysState is NOT here: it is lazy-loaded at the `admin/api-keys` route
+      // via lazyProvider (api-mcp/02) so the admin state stays out of the initial bundle.
+      [
+        WizardState,
+        ReportState,
+        LeadState,
+        EmbedState,
+        ConsentState,
+        ComparisonState,
+        AdminLeadsState,
+        CalibrationState,
+        SheetsSyncState,
+        BuilderState,
+        AdminAuthState,
+      ],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in
         // localStorage. It is memory-only, re-fetched on each visit.
-        keys: [WizardState, ReportState, LeadState, EmbedState, ConsentState, ComparisonState],
+        keys: [
+          WizardState,
+          ReportState,
+          LeadState,
+          EmbedState,
+          ConsentState,
+          ComparisonState,
+          AdminAuthState,
+          BuilderState,
+        ],
         beforeSerialize: (obj, key) =>
           // The report token and the comparison unlock are session-scoped:
           // strip them so a refresh re-gates instead of silently unlocking.
@@ -88,7 +123,28 @@ export const appConfig: ApplicationConfig = {
             ? { ...obj, reportToken: null }
             : key === 'comparison'
               ? { ...obj, leadId: null }
-              : obj,
+              : // The relay code is a single-use secret: memory-only, never
+                // persisted. Transient resend UI state is reset too — the
+                // shell re-boots and re-posts the stashed code on reload.
+                key === 'embed'
+                ? { ...obj, relayCode: null, resending: false, resendError: null }
+                : // BuilderState persists ONLY the session token: the session
+                  // identity and the lead list (homeowner PII) are stripped so
+                  // they can never sit in localStorage. The shape is kept
+                  // complete so rehydration can't break selectors/templates.
+                  key === 'builder'
+                  ? {
+                      sessionToken: obj.sessionToken ?? null,
+                      session: null,
+                      authStatus: 'unknown',
+                      sessionExpired: false,
+                      leads: [],
+                      summary: { ...EMPTY_SUMMARY },
+                      leadsStatus: 'idle',
+                      updatingLeadId: null,
+                      updateError: null,
+                    }
+                  : obj,
       }),
     ),
   ],

@@ -12,7 +12,7 @@ export class VerifyBuilderToken {
   constructor(public readonly token: string) {}
 }
 
-/** Probes the current builder session (cookie-based). */
+/** Probes the current builder session (bearer token). */
 export class LoadBuilderSession {
   static readonly type = '[Builder] Load session';
 }

@@ -39,6 +39,8 @@ describe('SeoService', () => {
         terms: 'Terms description.',
         notFoundTitle: 'Feasly — Page not found',
         notFound: 'Not found description.',
+        magicLinkTitle: 'Feasly — Opening your estimate',
+        magicLink: 'Opening description.',
       },
     },
   };

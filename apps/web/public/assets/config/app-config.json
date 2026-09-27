@@ -352,11 +352,18 @@
       "body": "We measure which pages people visit so we can improve Feasly. First-party only — no cookies, no trackers, no selling data. Accept or decline; the site works the same either way.",
       "accept": "Accept analytics",
       "decline": "Decline"
+    },
+    "legal": {
+      "reviewBannerHeading": "Draft — pending legal review",
+      "reviewBannerBody": "This legal copy is a draft awaiting review by our lawyer. It is shown for evaluation only and is not the final policy."
     }
   },
   "features": {
     "renovationWaitlist": false,
     "sampleReport": false
+  },
+  "legal": {
+    "reviewPending": true
   },
   "admin": {
     "defaultRateLimit": 60

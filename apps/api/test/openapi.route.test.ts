@@ -70,6 +70,6 @@ describe('OpenAPI route', () => {
       servers: Array<{ url: string }>;
     };
 
-    expect(spec.servers[0].url).toBe('https://example.com');
+    expect(spec.servers[0].url).toBe('https://example.com/api');
   });
 });

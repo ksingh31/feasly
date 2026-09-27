@@ -15,9 +15,12 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Builder auth API client (embed/09). Mirrors the admin/01 client.
  *
- * Speaks the versioned `/api/v1/builder/auth/*` routes. All calls use
- * `withCredentials: true` so the `feasly_builder_session` HttpOnly cookie is
- * sent on same-origin builder requests.
+ * Speaks the versioned `/api/v1/builder/auth/*` routes. Credential flow is
+ * handled centrally by `credentialsInterceptor` (ADM-10): every builder API
+ * request carries `Authorization: Bearer <token>` from BuilderState (plus
+ * `withCredentials` for the same-origin cookie fallback) — the
+ * cross-origin session cookie never sticks on modern browsers, so the
+ * bearer token is the primary session credential.
  *
  * The builder portal is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock builder session).
@@ -49,7 +52,7 @@ export class BuilderAuthApiService {
     );
   }
 
-  /** Verify a magic-link token from the email. Sets the session cookie. */
+  /** Verify a magic-link token from the email. Returns the session token. */
   verifyMagicLink(token: string): Observable<BuilderAuthVerifyResponse> {
     return this.call(
       this.http.get<BuilderAuthVerifyResponse>(`${this.authBase}/verify`, {
@@ -59,7 +62,7 @@ export class BuilderAuthApiService {
     );
   }
 
-  /** Log out: revoke the session and clear the cookie. */
+  /** Log out: revoke the session server-side. */
   logout(): Observable<BuilderAuthLogoutResponse> {
     return this.call(
       this.http.post<BuilderAuthLogoutResponse>(

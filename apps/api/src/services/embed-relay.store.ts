@@ -19,7 +19,7 @@
  * machine-readable result. No raw codes, no raw IPs, no PII — ever.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gte, isNull } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { embedRelayAuditLog, embedRelayCodes } from '../db/schema';
 
@@ -69,6 +69,14 @@ export type EmbedRelayExchangeResult =
   | { readonly ok: true; readonly record: EmbedRelayCodeRecord }
   | { readonly ok: false; readonly reason: 'not_found' | 'expired' | 'used' };
 
+/** Audit actions for the relay flow. Never PII, never code material. */
+export type EmbedRelayAuditAction =
+  | 'issued'
+  | 'exchanged'
+  | 'exchange.denied'
+  | 'relay.resent'
+  | 'relay.resend_denied';
+
 export interface EmbedRelayStore {
   /**
    * Mint a code for a tenant. Returns the raw code exactly once — the
@@ -83,12 +91,24 @@ export interface EmbedRelayStore {
    * stay uniform (no oracle for code enumeration beyond the 410 contract).
    */
   exchange(args: ExchangeEmbedRelayCodeArgs): Promise<EmbedRelayExchangeResult>;
+  /**
+   * Look up a code row by the raw presented code (hashed here). Returns
+   * null when no row exists. Used by the resend path — the exchange path
+   * keeps its own lookup so its denial semantics stay untouched.
+   */
+  findByHash(code: string): Promise<EmbedRelayCodeRecord | null>;
+  /**
+   * How many `relay.resent` audit rows exist for this code id since `since`.
+   * Backs the 60s per-code resend cooldown (embed/06 AC3) without a schema
+   * change — the audit log is the cooldown ledger.
+   */
+  countRecentResends(codeId: string, since: Date): Promise<number>;
   /** Append an audit row. Never throws — audit must not break the request. */
   audit(args: {
     readonly codeId: string | null;
     readonly tenantKey: string;
     readonly ipHash: string;
-    readonly action: 'issued' | 'exchanged' | 'exchange.denied';
+    readonly action: EmbedRelayAuditAction;
     readonly detail?: string;
   }): Promise<void>;
 }
@@ -184,6 +204,30 @@ export function createDrizzleEmbedRelayStore(
         return { ok: false, reason: 'used' };
       }
       return { ok: true, record: toRecord({ ...row, usedAt: now }) };
+    },
+
+    async findByHash(code: string): Promise<EmbedRelayCodeRecord | null> {
+      const rows = await db
+        .select()
+        .from(embedRelayCodes)
+        .where(eq(embedRelayCodes.codeHash, hashRelayCode(code)))
+        .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async countRecentResends(codeId: string, since: Date): Promise<number> {
+      const rows = await db
+        .select({ id: embedRelayAuditLog.id })
+        .from(embedRelayAuditLog)
+        .where(
+          and(
+            eq(embedRelayAuditLog.codeId, codeId),
+            eq(embedRelayAuditLog.action, 'relay.resent'),
+            gte(embedRelayAuditLog.createdAt, since),
+          ),
+        );
+      return rows.length;
     },
 
     async audit(args): Promise<void> {

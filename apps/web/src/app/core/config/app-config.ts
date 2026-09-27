@@ -56,6 +56,16 @@ export interface AppConfig {
     /** Show the renovation waitlist capture instead of the estimator. */
     renovationWaitlist: boolean;
   };
+  /**
+   * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
+   * True while the privacy/terms copy is draft-pending-lawyer: the legal
+   * pages render the "draft — pending legal review" banner, and the HRD-05
+   * legal gate blocks production deploys while true.
+   */
+  legal: {
+    /** Draft legal copy is still awaiting lawyer review. */
+    reviewPending: boolean;
+  };
   /** Wizard tunables (FE-2). */
   wizard: {
     sqftDefault: number;
@@ -184,6 +194,10 @@ export interface AppConfig {
       sessionExpiredHeading: string;
       sessionExpiredBody: string;
       resendLinkLabel: string;
+      /** Busy label on the fresh-link button while the re-issue is in flight. */
+      resendLinkBusyLabel: string;
+      /** Shown when the 60s per-code resend cooldown fires (embed/06 AC3). */
+      resendCooldownBody: string;
     };
     /**
      * Wizard scope-step copy (S2 — FE-2). Step labels are structural;
@@ -550,6 +564,8 @@ export interface AppConfig {
       notFound: string;
       unsubscribeTitle: string;
       unsubscribe: string;
+      magicLinkTitle: string;
+      magicLink: string;
       errorTitle: string;
       error: string;
     };
@@ -600,6 +616,17 @@ export interface AppConfig {
       body: string;
       accept: string;
       decline: string;
+    };
+    /**
+     * Legal pages (legal/01). Banner copy for the draft-pending-review
+     * notice shown while `legal.reviewPending` is true. Story-pinned
+     * wording — do not paraphrase.
+     */
+    legal: {
+      /** Banner heading: "Draft — pending legal review". */
+      reviewBannerHeading: string;
+      /** Banner body explaining the draft status. */
+      reviewBannerBody: string;
     };
     /**
      * Community pages (SEO-04). Static copy for `/communities/:slug/` —
@@ -838,6 +865,32 @@ export interface AppConfig {
       errorBody: string;
       retryLabel: string;
       homeCta: string;
+    };
+    /**
+     * Magic-link redemption page (`/r/:token`, consumer/02) copy. All
+     * user-facing strings live here so the no-hardcode tripwire stays green.
+     * The invalid-link card also covers partner-share tokens, which use the
+     * same `/r/` URL shape but have no verify endpoint yet (follow-up).
+     */
+    magicLink: {
+      loadingLabel: string;
+      invalidHeading: string;
+      invalidBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      homeCta: string;
+      resendPrompt: string;
+      resendEmailLabel: string;
+      resendEmailPlaceholder: string;
+      resendEmailError: string;
+      resendCta: string;
+      resendingLabel: string;
+      resendDoneHeading: string;
+      resendDoneBody: string;
+      resendErrorBody: string;
     };
   };
 }

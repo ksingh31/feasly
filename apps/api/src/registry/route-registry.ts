@@ -264,6 +264,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/embed/relay/resend',
+    auth: 'none',
+    rateLimit: '60s per code · 30/min per IP',
+    status: 'live',
+    summary:
+      'Re-issue a fresh relay code for an expired/used one (embed/06 ' +
+      'AC3 — the "session expired" re-issue affordance). 410 on ' +
+      'unknown/still-valid codes; 429 inside the 60s per-code cooldown.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/chat/ask',
     auth: 'none',
     rateLimit: '20/hr per IP',

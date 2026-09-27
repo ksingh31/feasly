@@ -41,6 +41,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     sampleReport: false,
     renovationWaitlist: false,
   },
+  // legal/01 AC3: draft until the lawyer reviews and approves the
+  // privacy/terms copy. Flip to false only together with removing every
+  // `draft-pending-lawyer` marker (the HRD-05 gate checks both).
+  legal: {
+    reviewPending: true,
+  },
   wizard: {
     sqftDefault: 2200,
     sqftMin: 1200,
@@ -134,8 +140,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       poweredBy: 'Powered by Feasly',
       sessionExpiredHeading: 'This link has expired',
       sessionExpiredBody:
-        'For your security, report links are single-use and expire after 10 minutes. Tap below and we’ll email you a fresh link.',
-      resendLinkLabel: 'Email me a fresh link',
+        'For your security, report links are single-use and expire after 10 minutes. Tap below to get a fresh link.',
+      resendLinkLabel: 'Get a fresh link',
+      resendLinkBusyLabel: 'Getting a fresh link…',
+      resendCooldownBody:
+        'A fresh link was just issued — please wait a minute and try again.',
     },
     wizard: {
       stepAddress: 'Address',
@@ -495,6 +504,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       error: 'Your estimate is safe — try again in a moment.',
       unsubscribeTitle: 'Feasly — Email preferences',
       unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
+      magicLinkTitle: 'Feasly — Opening your estimate',
+      magicLink: 'Opening your secure Feasly estimate link — verifying and unlocking your Calgary build estimate.',
     },
     marketing: {
       howItWorks: {
@@ -573,6 +584,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       body: 'We measure which pages people visit so we can improve Feasly. First-party only — no cookies, no trackers, no selling data. Accept or decline; the site works the same either way.',
       accept: 'Accept analytics',
       decline: 'Decline',
+    },
+    // legal/01 AC3: staging banner copy while legal.reviewPending is true.
+    // Story-pinned wording — do not paraphrase.
+    legal: {
+      reviewBannerHeading: 'Draft — pending legal review',
+      reviewBannerBody:
+        'This legal copy is a draft awaiting review by our lawyer. It is shown for evaluation only and is not the final policy.',
     },
     communities: {
       illustrativeBanner:
@@ -758,6 +776,27 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       errorBody: 'We couldn’t check your link. Please check your connection and try again.',
       retryLabel: 'Try again',
       homeCta: 'Back to home',
+    },
+    magicLink: {
+      loadingLabel: 'Opening your estimate…',
+      invalidHeading: 'This link isn’t valid.',
+      invalidBody:
+        'This estimate link doesn’t look right — it may have been copied incompletely. Request a fresh one below.',
+      expiredHeading: 'This link has expired.',
+      expiredBody: 'Estimate links expire after 7 days to protect your information.',
+      errorHeading: 'Something went wrong.',
+      errorBody: 'We couldn’t check your link. Please check your connection and try again.',
+      retryLabel: 'Try again',
+      homeCta: 'Back to home',
+      resendPrompt: 'Need a fresh link?',
+      resendEmailLabel: 'Email address',
+      resendEmailPlaceholder: 'you@example.com',
+      resendEmailError: 'Enter a valid email address.',
+      resendCta: 'Email me a fresh link',
+      resendingLabel: 'Sending…',
+      resendDoneHeading: 'Your fresh link is on its way.',
+      resendDoneBody: 'Check your inbox — your new estimate link is on its way. It expires in 7 days.',
+      resendErrorBody: 'We couldn’t send a fresh link. Check your connection and try again.',
     },
   },
 };

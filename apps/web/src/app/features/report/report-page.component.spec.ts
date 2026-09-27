@@ -259,59 +259,16 @@ describe('ReportPageComponent', () => {
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
-    it('renders the tier what-if toggle (FE5-002) with the current tier selected', () => {
-      const selector = fixture.nativeElement.querySelector('.tier-card app-tier-selector');
-      expect(selector).not.toBeNull();
-      expect(selector.textContent).toContain('What if you change the finish tier?');
-      const buttons = [...selector.querySelectorAll('[role="radio"]')] as HTMLElement[];
-      expect(buttons.map((b) => b.getAttribute('data-tier'))).toEqual(['standard', 'premium', 'luxury']);
-      expect(buttons.map((b) => b.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-    });
-
-    it('tier pick updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {
-      const before = store.selectSnapshot(ReportState.snapshot)!;
-      expect(before.inputs.tier).toBe('premium');
-      const luxuryBtn = fixture.nativeElement.querySelector(
-        '.tier-card [data-tier="luxury"]',
-      ) as HTMLButtonElement;
-      expect(luxuryBtn).not.toBeNull();
-      luxuryBtn.click();
-      fixture.detectChanges();
-      // Draft updates immediately — no waiting for the backend.
-      expect(luxuryBtn.getAttribute('aria-checked')).toBe('true');
-      // …but the revision is debounced: the snapshot still holds the old tier.
-      expect(store.selectSnapshot(ReportState.snapshot)?.inputs.tier).toBe('premium');
-      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury', 'tier revision');
-      const after = store.selectSnapshot(ReportState.snapshot)!;
-      expect(after.version).toBe(before.version + 1);
-      // Every figure refreshed inline (no reload, URL unchanged): hero total,
-      // build cost, tier display, narrative — land untouched.
-      fixture.detectChanges();
-      expect(after.buildRange.base).toBeGreaterThan(before.buildRange.base);
-      expect(after.landValue.value).toBe(before.landValue.value);
-      expect(fixture.nativeElement.querySelector('.build-highlight')?.textContent).toContain(
-        'Selected finish level — Luxury',
+    it('has NO tier toggle — the chosen tier is display-only (consumer/04 AC8)', () => {
+      // Karan 2026-09-25: the finish-tier what-if switcher is removed from
+      // the report page entirely; the tier is shown, never switched here.
+      expect(fixture.nativeElement.querySelector('.tier-card')).toBeNull();
+      expect(fixture.nativeElement.querySelector('app-tier-selector')).toBeNull();
+      // The chosen tier is still SHOWN (display-only) so the user knows
+      // which finishes the numbers assume.
+      expect(fixture.nativeElement.querySelector('.tier-display')?.textContent).toContain(
+        'Selected finish level — Premium',
       );
-      expect(fixture.nativeElement.querySelector('.narrative')?.textContent).toContain('luxury finishes');
-    });
-
-    it('coalesces rapid tier picks into a single revision', async () => {
-      const before = store.selectSnapshot(ReportState.snapshot)!;
-      const pick = (tier: string): void => {
-        const btn = fixture.nativeElement.querySelector(`.tier-card [data-tier="${tier}"]`) as HTMLButtonElement;
-        expect(btn).not.toBeNull();
-        btn.click();
-      };
-      pick('luxury');
-      pick('standard');
-      pick('luxury');
-      fixture.detectChanges();
-      await pollFor(
-        () => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury',
-        'coalesced tier revision',
-      );
-      // One revision, not three — last write wins.
-      expect(store.selectSnapshot(ReportState.snapshot)?.version).toBe(before.version + 1);
     });
 
     it('shows land as ONE fixed number — never a range', () => {
@@ -565,6 +522,14 @@ describe('ReportPageComponent', () => {
         // New-build living-area wording must not appear on a reno report.
         expect(t).not.toContain('Adjust the size');
         expect(t).not.toContain('living area');
+      });
+
+      it('never shows a per-sq-ft figure on a reno report', async () => {
+        await setupReno();
+        // The reno engine deliberately avoids per-sqft framing (reno/04):
+        // no per-sqft line in the DOM, and the unit copy never appears.
+        expect(fixture.nativeElement.querySelector('.per-sqft')).toBeNull();
+        expect(text()).not.toContain('per sq ft');
       });
 
       it('keeps the stepper inside the reno bounds (addition cap 400)', async () => {

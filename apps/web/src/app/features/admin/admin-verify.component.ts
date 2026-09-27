@@ -1,8 +1,10 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
-import { AdminAuthApiService } from './admin-auth-api.service';
+import { AdminAuthState } from './admin-auth.state';
+import { VerifyAdminToken } from './admin-auth.actions';
 
 type VerifyStatus = 'verifying' | 'error';
 
@@ -10,9 +12,10 @@ type VerifyStatus = 'verifying' | 'error';
  * Admin magic-link verification (admin/01).
  *
  * Route: `/admin/verify?token=…` (linked from the email). On success the
- * backend sets the `feasly_admin_session` HttpOnly cookie and we land on
- * `/admin/leads`. On failure (expired/used/invalid token) we show the
- * error state below.
+ * session token (from the verify JSON body) is stored in AdminAuthState
+ * and we land on `/admin/leads`; subsequent admin API calls carry it as
+ * `Authorization: Bearer <token>` via the credentials interceptor. On
+ * failure (expired/used/invalid token) we show the error state below.
  *
  * `status` is a signal, not a plain field: the app runs zoneless change
  * detection (no zone.js), so a plain-field write inside the HTTP callbacks
@@ -29,7 +32,7 @@ type VerifyStatus = 'verifying' | 'error';
 export class AdminVerifyComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly api = inject(AdminAuthApiService);
+  private readonly store = inject(Store);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -49,17 +52,15 @@ export class AdminVerifyComponent implements OnInit {
       this.toLogin();
       return;
     }
-    this.api
-      .verifyMagicLink(token)
+    this.store
+      .dispatch(new VerifyAdminToken(token))
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          // Cookie is set by the backend; land on the admin area.
+      .subscribe(() => {
+        if (this.store.selectSnapshot(AdminAuthState.authenticated)) {
           void this.router.navigate(['/admin/leads']);
-        },
-        error: () => {
+        } else {
           this.status.set('error');
-        },
+        }
       });
   }
 

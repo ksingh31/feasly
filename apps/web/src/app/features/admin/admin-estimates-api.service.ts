@@ -9,10 +9,10 @@ import { toApiError } from '../../core/api/api-error';
 /**
  * Admin estimate-lookup API client (admin/03).
  *
- * Speaks `GET /api/v1/admin/estimates/{id}`. All calls use
- * `withCredentials: true` so the `feasly_admin_session` HttpOnly cookie is
- * sent on same-origin admin requests. Read-only by construction — this
- * service exposes no mutation method (AC3).
+ * Speaks `GET /api/v1/admin/estimates/{id}`. All calls carry
+ * `Authorization: Bearer <token>` (via the credentials interceptor) so the
+ * admin session authenticates cross-origin. Read-only by construction —
+ * this service exposes no mutation method (AC3).
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).

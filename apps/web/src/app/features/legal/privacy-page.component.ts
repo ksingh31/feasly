@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent } from '../../shared/components/site-footer/site-footer.component';
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
+import { LegalReviewBannerComponent } from '../../shared/components/legal-review-banner/legal-review-banner.component';
 
 /**
  * Privacy Policy (FE1-001 minimal page — M1 plain-language version).
@@ -14,10 +15,11 @@ import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.comp
 @Component({
   selector: 'app-privacy-page',
   standalone: true,
-  imports: [SiteFooterComponent, SiteNavComponent],
+  imports: [SiteFooterComponent, SiteNavComponent, LegalReviewBannerComponent],
   template: `
     <app-site-nav />
     <main class="legal" id="main-content" tabindex="-1">
+      <app-legal-review-banner />
       <h1>Privacy Policy</h1>
       <p class="updated">Last updated: September 2026</p>
 

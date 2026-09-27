@@ -3,9 +3,12 @@
  *
  * Builder-facing lead pipeline dashboard: magic-link + allowlist session
  * auth (same 7-day expiry as admin/01), tenant-scoped lead listing, and
- * pipeline status updates. The session travels as an httpOnly cookie
- * (never in these shapes); the client only ever sees the opaque magic-link
- * token from the email URL.
+ * pipeline status updates. The session token is returned in the verify
+ * JSON body: the SPA stores it and sends it back as
+ * `Authorization: Bearer <token>` (the cross-origin session cookie never
+ * sticks on modern browsers). The adapter additionally emits it as an
+ * httpOnly `Set-Cookie` for a same-origin future. The client only ever
+ * sees the opaque magic-link token from the email URL before that.
  */
 
 export interface BuilderAuthRequestBody {
@@ -28,9 +31,12 @@ export interface BuilderAuthVerifyResponse {
   /** The tenant this builder session is authorized for. */
   readonly tenantKey: string;
   /**
-   * The raw session token, for the Function adapter to place in the
-   * Set-Cookie header. The adapter strips this from the JSON body before
-   * responding — it never reaches the browser as JSON.
+   * The raw session token. Returned in the JSON body so the SPA can store
+   * it and send it back as `Authorization: Bearer <token>` on builder
+   * requests (the cross-origin session cookie is blocked by modern
+   * browsers). The Function adapter ALSO places it in the Set-Cookie
+   * header (kept for a same-origin future) and strips only `setCookie`
+   * from the JSON body.
    */
   readonly sessionToken: string;
   /** The full Set-Cookie header value the adapter must emit. */

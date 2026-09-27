@@ -4,11 +4,11 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import type { CallbackWindow, CostRange, FinishTier } from '@feasly/contracts';
+import type { CallbackWindow, CostRange } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, TierSelectorComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { UpdateInputs, WizardState, LeadState } from '../wizard';
 import { AnalyticsService } from '../consent';
@@ -43,8 +43,7 @@ type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
  * post-gate it renders the verified snapshot: ONE prominent
  * total with its likely planning range, the highlighted build cost, the fixed
  * City-assessed land figure, the always-on sqft stepper (debounced live
- * revise), the tier what-if toggle (debounced live revise), the 3-bucket
- * breakdown, the AI narrative, next steps, email share, and callback.
+ * revise), the 3-bucket breakdown, the AI narrative, next steps, email share, and callback.
  *
  * Money rule: the component never computes dollar figures — it displays what
  * the API returned, including the deterministic base from each range. The one
@@ -54,7 +53,7 @@ type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
 @Component({
   selector: 'app-report-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, SiteFooterComponent, SiteNavComponent, TierSelectorComponent],
+  imports: [ReactiveFormsModule, RouterLink, SiteFooterComponent, SiteNavComponent],
   templateUrl: './report-page.component.html',
   styleUrls: ['../wizard/wizard-shell.scss', './report-page.component.scss'],
 })
@@ -201,8 +200,15 @@ export class ReportPageComponent implements OnInit {
     return snap.narrative?.trim() ? snap.narrative : '';
   });
 
-  /** Per-sq-ft context from the SERVER's build base and sqft — display only. */
+  /**
+   * Per-sq-ft context from the SERVER's build base and sqft — display only.
+   * New-build only: the reno engine deliberately avoids per-sqft framing
+   * (reno/04), so reno reports never surface this figure.
+   */
   protected readonly perSqft = computed(() => {
+    if (this.isReno()) {
+      return null;
+    }
     const snap = this.snapshot();
     const f = this.figures();
     if (!snap || !f || snap.inputs.sqft <= 0) {
@@ -222,13 +228,6 @@ export class ReportPageComponent implements OnInit {
   /** Raw stepper taps; the ngOnInit pipeline debounces them into revises. */
   private readonly sqftRevisions = new Subject<number>();
 
-  /** Tier what-if draft (FE5-002), seeded from the latest snapshot (or wizard inputs). */
-  protected readonly tierDraft = signal<FinishTier | null>(null);
-  /** A tier the user picked but whose debounced revise hasn't fired yet. */
-  private pendingReviseTier: FinishTier | null = null;
-  /** Raw tier picks; the ngOnInit pipeline debounces them into revises. */
-  private readonly tierRevisions = new Subject<FinishTier>();
-
   protected readonly shareForm = new FormGroup({
     email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
   });
@@ -241,18 +240,15 @@ export class ReportPageComponent implements OnInit {
   protected readonly callbackStatus = signal<FormStatus>('idle');
 
   constructor() {
-    // Keep the stepper and tier drafts in sync with re-runs without
-    // clobbering a value the user just picked but whose debounced revise is
-    // still pending.
+    // Keep the stepper draft in sync with re-runs without clobbering a
+    // value the user just picked but whose debounced revise is still
+    // pending.
     effect(() => {
       const snap = this.snapshot();
       if (snap && snap.version !== this.lastSnapshotVersion) {
         this.lastSnapshotVersion = snap.version;
         if (this.pendingReviseSqft === null) {
           this.sqftDraft.set(snap.inputs.sqft);
-        }
-        if (this.pendingReviseTier === null) {
-          this.tierDraft.set(snap.inputs.tier);
         }
       }
     });
@@ -261,13 +257,11 @@ export class ReportPageComponent implements OnInit {
   ngOnInit(): void {
     this.seo.setForRoute('estimate/report');
     // Reno reports step the affected area, not the new-build living area:
-    // seed the drafts from the reno inputs when in the renovation flow.
+    // seed the draft from the reno inputs when in the renovation flow.
     if (this.isReno()) {
       this.sqftDraft.set(this.wizardRenoInputs().renoSqft);
-      this.tierDraft.set(this.wizardRenoInputs().tier);
     } else {
       this.sqftDraft.set(this.wizardInputs().sqft);
-      this.tierDraft.set(this.wizardInputs().tier);
     }
     // D-02: rapid stepper taps coalesce into one revise. distinctUntilChanged
     // drops no-op re-emissions; the state's cancelUncompleted gives switchMap
@@ -283,15 +277,6 @@ export class ReportPageComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((sqft) => this.dispatchSqftRevision(sqft));
-    // FE5-002: the same debounce pipeline drives tier what-if picks — rapid
-    // toggling coalesces into one revision and last-write-wins.
-    this.tierRevisions
-      .pipe(
-        debounceTime(this.config.get('timings').reviseDebounceMs),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((tier) => this.dispatchTierRevision(tier));
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());
     } else {
@@ -362,24 +347,6 @@ export class ReportPageComponent implements OnInit {
       return;
     }
     this.store.dispatch([new ReviseReport(undefined, sqft), new UpdateInputs({ sqft })]);
-  }
-
-  /** Tier what-if pick (FE5-002): updates the draft immediately, queues a debounced revise. */
-  selectTier(tier: FinishTier): void {
-    if (!this.unlocked() || tier === this.tierDraft()) {
-      return;
-    }
-    this.tierDraft.set(tier);
-    this.pendingReviseTier = tier;
-    this.tierRevisions.next(tier);
-  }
-
-  private dispatchTierRevision(tier: FinishTier): void {
-    this.pendingReviseTier = null;
-    if (!this.unlocked()) {
-      return;
-    }
-    this.store.dispatch([new ReviseReport(tier), new UpdateInputs({ tier })]);
   }
 
   retry(): void {

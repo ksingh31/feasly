@@ -1088,7 +1088,7 @@ export const embedRelayAuditLog = pgTable(
     tenantKey: text('tenant_key').notNull(),
     /** SHA-256 hex of the client IP — audit without PII. */
     ipHash: text('ip_hash').notNull(),
-    /** 'exchanged' | 'exchange.denied' | 'issued' */
+    /** 'exchanged' | 'exchange.denied' | 'issued' | 'relay.resent' | 'relay.resend_denied' */
     action: text('action').notNull(),
     /** Short machine-readable detail — never PII, never code material. */
     detail: text('detail'),

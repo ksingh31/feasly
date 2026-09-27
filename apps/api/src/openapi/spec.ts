@@ -6,6 +6,8 @@
  * `GET /api/v1/openapi.json` (public, no auth).
  *
  * `servers` uses the SITE_URL config (production) plus a sandbox placeholder.
+ * Both include the Azure Functions `/api` route prefix — without it every
+ * server+path URL 404s (verified against the live dev API).
  * The drift test regenerates this spec and fails on any diff — the spec
  * cannot drift from the schemas.
  */
@@ -264,6 +266,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       'The report token IS the credential (magic-link bearer). Old links ' +
       'resolve to the newest estimate for the email + property. Unknown or ' +
       'expired tokens return 404.',
+    // No named security scheme: the report token in the path IS the
+    // credential (registry auth: magic-token). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       params: z.object({
         reportToken: z
@@ -292,6 +298,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       'engine and appends a new immutable snapshot version (old versions are ' +
       'never mutated). At least one of tier or sqft is required. The report ' +
       'token IS the credential.',
+    // No named security scheme: the report token in the path IS the
+    // credential (registry auth: magic-token). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       params: z.object({
         reportToken: z
@@ -324,6 +334,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       'Records a callback request (name/phone/preferred window) for the ' +
       'report token\'s lead. The report token IS the credential; it is never ' +
       'stored — only the leadId is persisted.',
+    // No named security scheme: the report token in the body IS the
+    // credential (registry auth: magic-token). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       body: {
         content: {
@@ -352,6 +366,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       '(the owner\'s token is never reused or persisted), emails it to the ' +
       'partner address, and records the audit row. The report token IS the ' +
       'credential.',
+    // No named security scheme: the report token in the body IS the
+    // credential (registry auth: magic-token). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       body: {
         content: {
@@ -381,6 +399,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       'empty suggestion list. Queries with an explicit out-of-coverage ' +
       'signal (non-Calgary city or postal code) return 404 OUT_OF_COVERAGE ' +
       '(reno/05). No auth — public by design.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       query: z.object({
         q: z
@@ -428,6 +449,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'Returns the City-assessed property record for an exact address key ' +
       '(as returned by the autocomplete endpoint). No auth — public by design.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       query: z.object({
         addressKey: z
@@ -476,6 +500,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'Returns the public builder config for an embed tenant ' +
       '(branding, contact fallbacks). No auth — public by design.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       query: z.object({
         key: z.string().describe('Tenant key from the embed snippet'),
@@ -498,6 +525,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     path: '/v1/communities/{slug}/stats',
     summary: 'Get community statistics',
     description: 'Aggregated City-assessment stats for a community page.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       params: z.object({
         slug: z.string().describe('Community slug (kebab-case)'),
@@ -522,6 +552,9 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     description:
       'First-party analytics ingest. Events require a valid consent_ts — ' +
       'the endpoint rejects payloads with missing or future-dated consent.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
     request: {
       body: {
         content: {
@@ -807,8 +840,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
             schema: {
               type: 'object',
               properties: {
-                from: { type: 'string', format: 'date-time', nullable: true },
-                to: { type: 'string', format: 'date-time', nullable: true },
+                from: { type: ['string', 'null'], format: 'date-time' },
+                to: { type: ['string', 'null'], format: 'date-time' },
                 tenant: { type: 'string' },
                 steps: {
                   type: 'array',
@@ -819,8 +852,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
                       label: { type: 'string' },
                       count: { type: 'integer' },
                       conversionFromPrevious: {
-                        type: 'number',
-                        nullable: true,
+                        type: ['number', 'null'],
                       },
                     },
                     required: [
@@ -937,9 +969,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       license: { name: 'Proprietary' },
     },
     servers: [
-      { url: options.siteUrl, description: 'Production' },
       {
-        url: 'https://api.sandbox.feasly.dev',
+        url: `${options.siteUrl}/api`,
+        description: 'Production (includes the Azure Functions /api route prefix)',
+      },
+      {
+        url: 'https://api.sandbox.feasly.dev/api',
         description: 'Sandbox (test keys only, no real emails)',
       },
     ],

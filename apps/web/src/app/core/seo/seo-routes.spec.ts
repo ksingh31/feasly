@@ -22,7 +22,9 @@ describe('seo-routes', () => {
   });
 
   it('matches :param segments', () => {
-    expect(findSeoRoute('r/abc123').titleKey).toBe('notFoundTitle');
+    // Magic-link redemption (consumer/02) is now a real route with its own
+    // title/description keys — still noindexed.
+    expect(findSeoRoute('r/abc123').titleKey).toBe('magicLinkTitle');
     expect(findSeoRoute('r/abc123').noindex).toBe(true);
     // multi-token paths under a single-segment pattern do not match
     expect(findSeoRoute('r/abc/123').pattern).toBe('**');

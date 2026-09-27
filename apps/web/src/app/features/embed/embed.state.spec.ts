@@ -5,7 +5,13 @@ import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { EmbedConfigFailed, EmbedConfigLoaded, LoadEmbedConfig } from './embed.actions';
+import {
+  EmbedConfigFailed,
+  EmbedConfigLoaded,
+  ExchangeRelayCode,
+  LoadEmbedConfig,
+  ResendRelayCode,
+} from './embed.actions';
 import { EmbedState, type EmbedStateModel } from './embed.state';
 
 /** EMB-01: embed state transitions — load, success, and failure paths. */
@@ -49,6 +55,9 @@ describe('EmbedState', () => {
       sessionEstimateId: null,
       sessionLeadScore: null,
       relayError: null,
+      relayCode: null,
+      resending: false,
+      resendError: null,
     });
   });
 
@@ -105,5 +114,115 @@ describe('EmbedState', () => {
     expect(store.selectSnapshot(EmbedState.status)).toBe('ready');
     expect(store.selectSnapshot(EmbedState.config)?.business_name).toBe('Elite Craft Builders');
     expect(store.selectSnapshot(EmbedState.tenantKey)).toBeNull();
+  });
+
+  describe('relay resend (embed/06 AC3)', () => {
+    const OLD_CODE =
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const NEW_CODE =
+      'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+
+    /** Load config, then fail an exchange so the shell sits in the expired state. */
+    async function arrangeFailedExchange(): Promise<void> {
+      const load = store.dispatch(new LoadEmbedConfig('elite-craft'));
+      const cfgReq = httpMock.expectOne((r) => r.url.endsWith('/api/v1/embed/config'));
+      cfgReq.flush(fakeConfig);
+      await load;
+
+      const exchange = store.dispatch(new ExchangeRelayCode(OLD_CODE));
+      const exReq = httpMock.expectOne((r) => r.url.endsWith('/api/v1/embed/session'));
+      exReq.flush(
+        { code: 'RELAY_CODE_INVALID', message: 'expired' },
+        { status: 410, statusText: 'Gone' },
+      );
+      await exchange;
+      expect(snapshot().relayStatus).toBe('failed');
+    }
+
+    it('re-issues and immediately exchanges the fresh code', async () => {
+      await arrangeFailedExchange();
+
+      const done = store.dispatch(new ResendRelayCode());
+      expect(snapshot().resending).toBe(true);
+      const resendReq = httpMock.expectOne((r) =>
+        r.url.endsWith('/api/v1/embed/relay/resend'),
+      );
+      expect(resendReq.request.body).toEqual({
+        code: OLD_CODE,
+        tenant_key: 'elite-craft',
+      });
+      resendReq.flush({ code: NEW_CODE, expiresInSeconds: 600 });
+
+      // The fresh code is exchanged immediately — no parent involvement.
+      const exReq = httpMock.expectOne((r) => r.url.endsWith('/api/v1/embed/session'));
+      expect(exReq.request.body).toEqual({ code: NEW_CODE, tenant_key: 'elite-craft' });
+      exReq.flush({
+        sessionToken: 'sess-123',
+        estimateId: 'est-1',
+        leadScore: 72,
+        expiresInSeconds: 43_200,
+      });
+      await done;
+      httpMock.verify();
+
+      const s = snapshot();
+      expect(s.relayStatus).toBe('active');
+      expect(s.sessionToken).toBe('sess-123');
+      expect(s.resending).toBe(false);
+      expect(s.resendError).toBeNull();
+      // The old code is gone from memory once the session is live.
+      expect(s.relayCode).toBeNull();
+    });
+
+    it('maps the 60s cooldown (429) to resendError=cooldown', async () => {
+      await arrangeFailedExchange();
+
+      const resend = store.dispatch(new ResendRelayCode());
+      const resendReq = httpMock.expectOne((r) =>
+        r.url.endsWith('/api/v1/embed/relay/resend'),
+      );
+      resendReq.flush(
+        { code: 'RATE_LIMITED', message: 'A fresh link was just issued.' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
+      await resend;
+
+      const s = snapshot();
+      expect(s.resending).toBe(false);
+      expect(s.resendError).toBe('cooldown');
+      // Still in the expired state — the user can retry after a minute.
+      expect(s.relayStatus).toBe('failed');
+      httpMock.expectNone((r) => r.url.endsWith('/api/v1/embed/session'));
+      httpMock.verify();
+    });
+
+    it('maps other failures to resendError=failed', async () => {
+      await arrangeFailedExchange();
+
+      const resend = store.dispatch(new ResendRelayCode());
+      const resendReq = httpMock.expectOne((r) =>
+        r.url.endsWith('/api/v1/embed/relay/resend'),
+      );
+      resendReq.flush(
+        { code: 'RELAY_CODE_INVALID', message: 'invalid' },
+        { status: 410, statusText: 'Gone' },
+      );
+      await resend;
+
+      const s = snapshot();
+      expect(s.resending).toBe(false);
+      expect(s.resendError).toBe('failed');
+      expect(s.relayStatus).toBe('failed');
+      httpMock.verify();
+    });
+
+    it('ignores a second resend while one is in flight', async () => {
+      await arrangeFailedExchange();
+
+      store.dispatch(new ResendRelayCode());
+      store.dispatch(new ResendRelayCode());
+      httpMock.expectOne((r) => r.url.endsWith('/api/v1/embed/relay/resend'));
+      httpMock.verify();
+    });
   });
 });

@@ -84,6 +84,27 @@ describe('admin auth route (admin/01)', () => {
     expect(adminAuth.validateSession).toHaveBeenCalledWith('tok123');
   });
 
+  it('me accepts a Bearer <redacted> (ADM-10 bearer flow)', async () => {
+    const { route, adminAuth } = makeRoute();
+    const result = await route.me({
+      authorization: 'Bearer bearer-tok',
+    });
+    expect(result).toEqual({
+      authenticated: true,
+      email: 'admin@example.com',
+    });
+    expect(adminAuth.validateSession).toHaveBeenCalledWith('bearer-tok');
+  });
+
+  it('me prefers the bearer token over the cookie', async () => {
+    const { route, adminAuth } = makeRoute();
+    await route.me({
+      authorization: 'Bearer bearer-tok',
+      cookie: `${ADMIN_SESSION_COOKIE}=cookie-tok`,
+    });
+    expect(adminAuth.validateSession).toHaveBeenCalledWith('bearer-tok');
+  });
+
   it('me with invalid session → 401 UNAUTHENTICATED', async () => {
     const { route, adminAuth } = makeRoute();
     adminAuth.validateSession.mockResolvedValue(null);
@@ -112,6 +133,15 @@ describe('admin auth route (admin/01)', () => {
     expect(result.loggedOut).toBe(true);
     expect(result.setCookie).toContain('Max-Age=0');
     expect(adminAuth.logout).toHaveBeenCalledWith('tok123');
+  });
+
+  it('logout accepts a Bearer <redacted> (ADM-10 bearer flow)', async () => {
+    const { route, adminAuth } = makeRoute();
+    const result = await route.logout({
+      authorization: 'Bearer bearer-tok',
+    });
+    expect(result.loggedOut).toBe(true);
+    expect(adminAuth.logout).toHaveBeenCalledWith('bearer-tok');
   });
 
   it('logout without cookie → still succeeds', async () => {
