@@ -72,6 +72,8 @@ export interface AdminLeadRow {
   readonly createdAt: Date;
   /** Project type from the joined estimate (null when estimate missing). */
   readonly projectType: string | null;
+  /** Builder id the lead is assigned to (null when unassigned). */
+  readonly builderId: string | null;
 }
 
 export interface AdminLeadListResult {
@@ -253,6 +255,7 @@ function toRow(
     nudgeSentAt: lead.nudgeSentAt,
     createdAt: lead.createdAt,
     projectType,
+    builderId: lead.builderId,
   };
 }
 

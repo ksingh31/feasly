@@ -63,14 +63,27 @@
         <p class="lead-modal-card__error" role="alert">{{ err }}</p>
       }
 
-      <!-- PLACEHOLDER: assign-to-builder has no backend endpoint. Visual-only:
-           always "Unassigned", disabled, wired to nothing. -->
       <label class="lead-modal-card__assign">
         <span class="lead-modal-card__field-label">Assign to builder</span>
-        <select disabled aria-label="Assign to builder (not available yet)">
-          <option>Unassigned</option>
+        <select
+          [formControl]="builderControl"
+          [disabled]="assigning() || buildersStatus() === 'loading'"
+          aria-label="Assign to builder"
+        >
+          <option value="">Unassigned</option>
+          @for (b of builders(); track b.id) {
+            <option [value]="b.id">{{ b.displayName }}</option>
+          }
         </select>
+        @if (assigning()) {
+          <span class="lead-modal-card__assign-state">Assigning…</span>
+        } @else if (assignedBuilderName(); as name) {
+          <span class="lead-modal-card__assign-state">Currently with {{ name }}</span>
+        }
       </label>
+      @if (assignError(); as err) {
+        <p class="lead-modal-card__error" role="alert">{{ err }}</p>
+      }
     </section>
 
     <section class="lead-modal-card__section" aria-label="Contact">

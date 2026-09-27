@@ -135,6 +135,12 @@ export interface AdminLeadDetail extends AdminLeadListItem {
   readonly sheetsSyncedAt: string | null;
   /** Number of persisted report snapshots for this lead. */
   readonly snapshotCount: number;
+  /**
+   * Builder the lead is assigned to (null when unassigned). Surfaced from
+   * `leads.builder_id` so the admin UI can show and change the assignment
+   * via POST /api/v1/admin/leads/{id}/assign-builder.
+   */
+  readonly builderId: string | null;
   readonly notes: readonly AdminLeadNote[];
   readonly statusHistory: readonly AdminLeadStatusHistoryEntry[];
 }

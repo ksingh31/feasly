@@ -24,6 +24,12 @@ import {
   UpdateAdminLeadStatus,
 } from './admin-leads.actions';
 import { AdminLeadsState } from './admin-leads.state';
+import {
+  AssignLeadBuilder,
+  DismissAssignBuilderError,
+  LoadBuilders,
+} from './admin-builders.actions';
+import { AdminBuildersState } from './admin-builders.state';
 
 /** Pipeline statuses in the order Karan works them. */
 const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
@@ -52,8 +58,9 @@ const FOCUSABLE_SELECTOR =
  * status in the dropdown, then Apply Status. The button stays disabled
  * until the selection differs from the lead's current status.
  *
- * Assign-to-builder is a visual-only PLACEHOLDER — no backend endpoint
- * exists. It renders "Unassigned", is disabled, and is wired to nothing.
+ * Assign-to-builder is a live dropdown (builders table): picking a builder
+ * assigns the lead immediately (POST assign-builder), and the detail is
+ * refetched so the modal reflects the updated assignment.
  */
 @Component({
   selector: 'app-admin-lead-detail',
@@ -78,6 +85,12 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly statusUpdating = this.store.selectSignal(AdminLeadsState.statusUpdating);
   protected readonly statusUpdateError = this.store.selectSignal(AdminLeadsState.statusUpdateError);
 
+  /** Builders table (for the assign dropdown). */
+  protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
+  protected readonly buildersStatus = this.store.selectSignal(AdminBuildersState.listStatus);
+  protected readonly assigning = this.store.selectSignal(AdminBuildersState.assigning);
+  protected readonly assignError = this.store.selectSignal(AdminBuildersState.assignError);
+
   protected readonly noteControl = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(5000)],
@@ -85,6 +98,12 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly statusControl = new FormControl<AdminLeadStatus>('new', {
     nonNullable: true,
   });
+
+  /**
+   * Builder assignment: '' = unassigned, otherwise the builder id. Unlike
+   * the status flow this applies immediately on change (task requirement).
+   */
+  protected readonly builderControl = new FormControl<string>('', { nonNullable: true });
 
   /** Mirrors the dropdown so the template can react without a method call. */
   protected readonly selectedStatus = signal<AdminLeadStatus>('new');
@@ -101,11 +120,24 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
     );
   });
 
+  /** Display name of the builder the lead is currently assigned to (null when unassigned). */
+  protected readonly assignedBuilderName = computed(() => {
+    const detail = this.detail();
+    if (!detail || !detail.builderId) {
+      return null;
+    }
+    return this.builders().find((b) => b.id === detail.builderId)?.displayName ?? null;
+  });
+
   /** Element that had focus before the modal opened — restored on close. */
   private previousFocus: Element | null = null;
 
   ngOnInit(): void {
     this.previousFocus = this.document.activeElement;
+
+    // Fresh builders list each time the modal opens — the dropdown needs
+    // the current table (names can change under us).
+    this.store.dispatch(new LoadBuilders());
 
     // Keep the status dropdown in sync when the detail loads/changes
     // (including the optimistic-update rollback on a failed apply).
@@ -116,6 +148,7 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
         if (detail) {
           this.statusControl.setValue(detail.status, { emitEvent: false });
           this.selectedStatus.set(detail.status);
+          this.builderControl.setValue(detail.builderId ?? '', { emitEvent: false });
         }
       });
 
@@ -128,6 +161,10 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
           this.store.dispatch(new DismissAdminLeadStatusError());
         }
       });
+
+    this.builderControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((builderId) => this.assignBuilder(builderId));
   }
 
   ngAfterViewInit(): void {
@@ -206,6 +243,30 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
       return;
     }
     this.store.dispatch(new UpdateAdminLeadStatus(detail.id, status));
+  }
+
+  /**
+   * Assign (or unassign) the lead to a builder, immediately on dropdown
+   * change. On completion the detail is refetched so the modal reflects
+   * the updated assignment; a failed assign rolls the dropdown back to
+   * the server-side value via that same refetch.
+   */
+  private assignBuilder(builderId: string): void {
+    const detail = this.detail();
+    if (!detail || this.assigning()) {
+      return;
+    }
+    const next = builderId === '' ? null : builderId;
+    // A fresh pick dismisses the previous assign error.
+    if (this.assignError()) {
+      this.store.dispatch(new DismissAssignBuilderError());
+    }
+    this.store
+      .dispatch(new AssignLeadBuilder(detail.id, next))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.store.dispatch(new SelectAdminLead(detail.id));
+      });
   }
 
   protected retry(): void {

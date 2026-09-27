@@ -334,6 +334,7 @@ export function createAdminLeadsService(
         magicLinkStatus,
         sheetsSyncedAt,
         snapshotCount,
+        builderId: row.builderId,
         notes: notes.map((n, i) => ({
           id: `note-${i}`,
           note: n.note,

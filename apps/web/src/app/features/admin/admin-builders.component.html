@@ -1,0 +1,255 @@
+<div class="builders-page">
+  <header class="builders-page__header">
+    <div>
+      <h1>Builders</h1>
+      <p class="builders-page__sub">
+        The building companies that receive your leads — their branding, their
+        sign-in key, and which websites may load their estimator.
+      </p>
+    </div>
+    <button type="button" class="builders-page__add" (click)="startCreate()">
+      Add builder
+    </button>
+  </header>
+
+  @if (saved()) {
+    <div class="builders-page__banner builders-page__banner--success" role="status">
+      <span>{{ savedMessage() }}</span>
+      <button type="button" (click)="dismissSaved()" aria-label="Dismiss">✕</button>
+    </div>
+  }
+
+  @if (listStatus() === 'loading') {
+    <p class="builders-page__state">Loading builders…</p>
+  } @else if (listStatus() === 'error') {
+    <div class="builders-page__state builders-page__state--error">
+      <p>{{ listError() }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else if (builders().length === 0) {
+    <div class="builders-page__empty">
+      <h2>No builders yet</h2>
+      <p>
+        Add your first builder to set up their branding, sign-in key, and the
+        websites their estimator runs on. Leads can only be routed to a builder
+        once they exist here.
+      </p>
+      <button type="button" (click)="startCreate()">Add your first builder</button>
+    </div>
+  } @else {
+    <div class="builders-page__table-wrap">
+      <table class="builders-page__table">
+        <thead>
+          <tr>
+            <th scope="col">Builder</th>
+            <th scope="col">Sign-in key</th>
+            <th scope="col">Status</th>
+            <th scope="col">Plan</th>
+            <th scope="col">Email</th>
+            <th scope="col"><span class="builders-page__sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (builder of builders(); track builder.id) {
+            <tr>
+              <td>
+                <span class="builders-page__name">{{ builder.businessName }}</span>
+                <span class="builders-page__sub-name">{{ builder.displayName }}</span>
+              </td>
+              <td><code class="builders-page__key">{{ builder.tenantKey }}</code></td>
+              <td>
+                <span
+                  class="badge"
+                  [class.badge--builder-active]="builder.status === 'active'"
+                  [class.badge--builder-inactive]="builder.status === 'inactive'"
+                >{{ statusLabel(builder.status) }}</span>
+              </td>
+              <td>{{ planLabel(builder.plan) }}</td>
+              <td>{{ builder.email ?? '—' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="builders-page__edit"
+                  (click)="startEdit(builder)"
+                >
+                  Edit
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (showForm()) {
+    <section class="builders-page__form-card" aria-label="Builder details">
+      <h2>{{ editing() ? 'Edit builder' : 'Add builder' }}</h2>
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+        @if (saveError(); as err) {
+          <div class="builders-page__banner builders-page__banner--error" role="alert">
+            <span>{{ err }}</span>
+            <button type="button" (click)="dismissSaveError()" aria-label="Dismiss">✕</button>
+          </div>
+        }
+
+        <div class="builders-page__grid">
+          <label class="builders-page__field">
+            <span class="builders-page__label">Business name <em>*</em></span>
+            <input type="text" formControlName="businessName" autocomplete="organization" />
+            @if (fieldError('businessName'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Display name <em>*</em></span>
+            <input type="text" formControlName="displayName" />
+            <span class="builders-page__hint">The name buyers see on reports and emails.</span>
+            @if (fieldError('displayName'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Sign-in key <em>*</em></span>
+            <input
+              type="text"
+              formControlName="tenantKey"
+              autocapitalize="none"
+              spellcheck="false"
+              [attr.aria-describedby]="editing() ? 'tenant-key-locked' : 'tenant-key-hint'"
+            />
+            @if (editing()) {
+              <span class="builders-page__hint" id="tenant-key-locked">
+                Locked — the sign-in key can't change after creation.
+              </span>
+            } @else {
+              <span class="builders-page__hint" id="tenant-key-hint">
+                Lowercase letters, numbers, and dashes (e.g. elite-craft). Used
+                in sign-in links and website embeds — set it carefully.
+              </span>
+            }
+            @if (fieldError('tenantKey'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Status</span>
+            <select formControlName="status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <span class="builders-page__hint">Inactive builders can't sign in.</span>
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Email</span>
+            <input type="email" formControlName="email" autocomplete="email" />
+            <span class="builders-page__hint">Where sign-in links and notifications go.</span>
+            @if (fieldError('email'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Phone</span>
+            <input type="tel" formControlName="phone" autocomplete="tel" />
+            @if (fieldError('phone'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Logo URL</span>
+            <input type="url" formControlName="logoUrl" placeholder="https://…" />
+            <span class="builders-page__hint">Shown on their builder portal and reports.</span>
+            @if (fieldError('logoUrl'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Brand color</span>
+            <span class="builders-page__color-row">
+              @if (accentPreview(); as preview) {
+                <span
+                  class="builders-page__swatch"
+                  [style.background]="preview"
+                  aria-hidden="true"
+                ></span>
+              }
+              <input
+                type="text"
+                formControlName="accentColor"
+                placeholder="#C8A24B"
+                autocapitalize="none"
+                spellcheck="false"
+              />
+            </span>
+            <span class="builders-page__hint">Their brand color, as #rrggbb. Leave blank for the default.</span>
+            @if (fieldError('accentColor'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Plan</span>
+            <select formControlName="plan">
+              @for (option of planOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="builders-page__field builders-page__field--full">
+            <span class="builders-page__label">Allowed websites</span>
+            <textarea
+              formControlName="allowedOrigins"
+              rows="3"
+              placeholder="elitebuilders.ca&#10;www.elitebuilders.ca"
+              autocapitalize="none"
+              spellcheck="false"
+            ></textarea>
+            <span class="builders-page__hint">
+              One website per line. Only these sites may load this builder's
+              estimator — everything else is blocked.
+            </span>
+          </label>
+
+          <label class="builders-page__field builders-page__field--full">
+            <span class="builders-page__label">Advanced settings (JSON)</span>
+            <textarea
+              formControlName="settings"
+              rows="4"
+              placeholder='{ "key": "value" }'
+              autocapitalize="none"
+              spellcheck="false"
+            ></textarea>
+            <span class="builders-page__hint">
+              Optional technical settings as a JSON object. Leave blank unless
+              you know what goes here.
+            </span>
+            @if (fieldError('settings'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+        </div>
+
+        <div class="builders-page__form-actions">
+          <button type="button" class="builders-page__cancel" (click)="cancelForm()">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="builders-page__submit"
+            [disabled]="saving() || form.invalid"
+          >
+            {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Add builder' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  }
+</div>
