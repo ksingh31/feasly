@@ -60,7 +60,7 @@ const FOCUSABLE_SELECTOR =
   standalone: true,
   imports: [ReactiveFormsModule],
   templateUrl: './admin-lead-detail.component.html',
-  styleUrls: ['./admin-leads.component.scss'],
+  styleUrls: ['./admin-lead-detail.component.scss'],
   host: {
     '(keydown)': 'onKeydown($event)',
   },
