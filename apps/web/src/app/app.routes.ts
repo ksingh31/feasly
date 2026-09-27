@@ -222,7 +222,17 @@ export const routes: Routes = [
     path: 'admin',
     loadComponent: () =>
       import('./features/admin/admin-shell.component').then((m) => m.AdminShellComponent),
-    canActivate: [robotsGuard, adminGuard],
+    canActivate: [
+      robotsGuard,
+      adminGuard,
+      // AdminLeadsState is lazy-loaded at this route via lazyProvider
+      // (dynamic import): the state + its actions stay in the admin lazy
+      // chunk, out of the initial bundle (790kB production budget).
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-leads.state')).adminLeadsStateProvider,
+      ),
+    ],
     data: { noindex: true },
     children: [
       { path: '', redirectTo: 'leads', pathMatch: 'full' },
