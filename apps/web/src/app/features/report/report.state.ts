@@ -2,11 +2,18 @@ import { inject, Injectable } from '@angular/core';
 import { EMPTY, catchError, map, of, switchMap, tap } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
-import type { ApiError, PreviewEstimateResponse, ReportSnapshot } from '@feasly/contracts';
+import type {
+  ApiError,
+  EstimateResponse,
+  FinishTier,
+  PreviewEstimateResponse,
+  ReportSnapshot,
+} from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
+import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
-import { ClearReport, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
 export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -49,10 +56,13 @@ const defaults: ReportStateModel = {
  * Report state: the single source of truth for the estimate report page.
  *
  * Pre-gate the model holds the real-figures preview (rendered blurred);
- * post-gate it holds the
- * verified snapshot. The component never calls the API directly — it
- * dispatches actions and renders selectors. The wizard slice supplies the
- * property + inputs the estimate is based on.
+ * post-gate it holds the report snapshot. The snapshot arrives either via
+ * the magic-link report token (`UnlockReport`) or — Karan directive
+ * 2026-09-27 — immediately after the lead gate is submitted
+ * (`LoadLeadEstimate`, sourced from the public estimate endpoint; the blur
+ * was a nudge, not a boundary). The component never calls the API directly
+ * — it dispatches actions and renders selectors. The wizard slice supplies
+ * the property + inputs the estimate is based on.
  *
  * Action handlers RETURN their API observables (never bare `.subscribe()`):
  * NGXS then owns the subscription, so a newer `ReviseReport` cancels an
@@ -131,44 +141,131 @@ export class ReportState {
     });
   }
 
-  @Action(LoadPreview)
-  loadPreview(ctx: StateContext<ReportStateModel>) {
+  /**
+   * Builds the estimate request from the wizard state (RENO-04: reno inputs
+   * when projectType is renovation). Shared by `LoadPreview` (preview
+   * endpoint) and `LoadLeadEstimate` / the no-token `ReviseReport` fallback
+   * (public full-estimate endpoint — same request shape, richer response).
+   * Optional overrides apply a stepper/tier revision without mutating the
+   * wizard state first (the component dispatches `UpdateInputs` alongside).
+   * Returns null when the wizard basis is incomplete — callers fail honestly.
+   */
+  private buildEstimateRequest(overrides?: {
+    sqft?: number;
+    tier?: FinishTier;
+  }): Parameters<typeof this.api.getEstimate>[0] | null {
     const property = this.store.selectSnapshot(WizardState.property);
     const projectType = this.store.selectSnapshot(WizardState.projectType);
-    
+
     if (!property) {
-      this.fail(ctx);
-      return EMPTY;
+      return null;
     }
-    
-    // RENO-04: build the preview request from reno inputs when projectType is renovation
-    let request: Parameters<typeof this.api.getPreviewEstimate>[0];
+
+    // RENO-04: build the request from reno inputs when projectType is renovation
     if (projectType === 'renovation') {
       const reno = this.store.selectSnapshot(WizardState.renoInputs);
-      if (!reno.renoType || !reno.tier || reno.renoSqft <= 0) {
-        this.fail(ctx);
-        return EMPTY;
+      const renoSqft = overrides?.sqft ?? reno.renoSqft;
+      const tier = overrides?.tier ?? reno.tier;
+      if (!reno.renoType || !tier || renoSqft <= 0) {
+        return null;
       }
-      request = {
+      return {
         projectType: 'renovation',
         addressKey: property.addressKey,
         renoType: reno.renoType,
-        renoSqft: reno.renoSqft,
-        tier: reno.tier,
+        renoSqft,
+        tier,
         underpinning: reno.underpinning,
       };
-    } else {
-      const inputs = this.store.selectSnapshot(WizardState.inputs);
-      if (inputs.sqft <= 0) {
-        this.fail(ctx);
-        return EMPTY;
-      }
-      request = buildNewBuildRequest(property, inputs);
     }
-    
+
+    const inputs = this.store.selectSnapshot(WizardState.inputs);
+    const sqft = overrides?.sqft ?? inputs.sqft;
+    if (sqft <= 0) {
+      return null;
+    }
+    return buildNewBuildRequest(property, {
+      ...inputs,
+      sqft,
+      tier: overrides?.tier ?? inputs.tier,
+    });
+  }
+
+  @Action(LoadPreview)
+  loadPreview(ctx: StateContext<ReportStateModel>) {
+    const request = this.buildEstimateRequest();
+    if (!request) {
+      this.fail(ctx);
+      return EMPTY;
+    }
+
     this.beginLoad(ctx);
     return this.api.getPreviewEstimate(request).pipe(
       tap((preview) => ctx.patchState({ preview, status: 'ready' })),
+      catchError((err: unknown) => {
+        this.fail(ctx, err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  /**
+   * Maps a public full-estimate response onto the report snapshot the page
+   * renders. The figures and cost rows are the same deterministic engine
+   * output the token path would return; the token-only extras stay empty —
+   * the AI narrative, token revise, share, and callback still need the
+   * magic-link email (now return-access for other devices, not the unlock
+   * key for this session). `leadId` ties the snapshot to the submitted lead.
+   */
+  private toLeadSnapshot(
+    estimate: EstimateResponse,
+    leadId: string,
+    version: number,
+  ): ReportSnapshot {
+    return {
+      snapshotId: `lead-${estimate.estimateId}`,
+      estimateId: estimate.estimateId,
+      leadId,
+      inputs: estimate.inputs,
+      buildRange: estimate.figures.build,
+      totalRange: estimate.figures.total,
+      landValue: estimate.figures.land,
+      rows: estimate.rows,
+      // No token in this path, so no narrative fetch is possible — the page
+      // shows the honest empty state, never mock text.
+      narrative: '',
+      preparedAt: estimate.createdAt,
+      version,
+      projectType: estimate.projectType,
+      renoInputs: estimate.renoInputs,
+      assumptions: estimate.assumptions,
+    };
+  }
+
+  /**
+   * Immediate post-gate unlock (Karan directive 2026-09-27): the lead was
+   * submitted in-session but there is no report token (the magic-link email
+   * is on its way or was dedupe-suppressed). Runs the PUBLIC estimate
+   * endpoint — auth:none by design, so this exposes nothing new — and
+   * renders the full report at once: no blurred figures, no dead-end.
+   */
+  @Action(LoadLeadEstimate)
+  loadLeadEstimate(ctx: StateContext<ReportStateModel>) {
+    const leadId = this.store.selectSnapshot(LeadState.leadId);
+    const request = this.buildEstimateRequest();
+    if (!leadId || !request) {
+      this.fail(ctx);
+      return EMPTY;
+    }
+
+    this.beginLoad(ctx);
+    return this.api.getEstimate(request).pipe(
+      tap((estimate) =>
+        ctx.patchState({
+            snapshot: this.toLeadSnapshot(estimate, leadId, (ctx.getState().snapshot?.version ?? 0) + 1),
+            status: 'ready',
+          }),
+      ),
       catchError((err: unknown) => {
         this.fail(ctx, err);
         return EMPTY;
@@ -234,23 +331,50 @@ export class ReportState {
    * dispatching a newer revision tears down the previous in-flight request,
    * so a slow (stale) response can never overwrite a newer snapshot. The
    * component debounces rapid stepper taps before dispatching (D-02).
+   *
+   * Two paths: with a report token the revision runs against the token
+   * endpoint; without one but with a submitted lead (Karan directive
+   * 2026-09-27 — immediate post-gate unlock) it re-runs the PUBLIC estimate
+   * endpoint with the revised size — the server still computes every figure,
+   * so the component's money rule holds. With neither, it fails honestly:
+   * the magic-link email is the only re-verification path.
    */
   @Action(ReviseReport, { cancelUncompleted: true })
   reviseReport(ctx: StateContext<ReportStateModel>, action: ReviseReport) {
     const token = ctx.getState().reportToken;
-    if (!token) {
-      // No token (e.g. after a reload — the token is memory-only by design).
-      // Fail honestly with the inline error instead of silently doing nothing:
-      // the magic-link email is the only re-verification path.
+    if (token) {
+      this.beginLoad(ctx);
+      return this.api.reviseTier(token, { tier: action.tier, sqft: action.sqft }).pipe(
+        switchMap((snapshot) => this.withNarrative(token, snapshot)),
+        tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
+        catchError(() => {
+          this.fail(ctx);
+          return EMPTY;
+        }),
+      );
+    }
+    // No token (e.g. same-session lead unlock — the token is memory-only and
+    // the magic link may not have been clicked): re-run the public estimate
+    // when a lead was submitted, so the stepper stays live.
+    const leadId = this.store.selectSnapshot(LeadState.leadId);
+    const request = this.buildEstimateRequest({ sqft: action.sqft, tier: action.tier });
+    if (!leadId || !request) {
+      // No lead either (e.g. after a reload — the token is memory-only by
+      // design). Fail honestly with the inline error instead of silently
+      // doing nothing: the magic-link email is the only re-verification path.
       this.fail(ctx);
       return EMPTY;
     }
     this.beginLoad(ctx);
-    return this.api.reviseTier(token, { tier: action.tier, sqft: action.sqft }).pipe(
-      switchMap((snapshot) => this.withNarrative(token, snapshot)),
-      tap((snapshot) => ctx.patchState({ snapshot, status: 'ready' })),
-      catchError(() => {
-        this.fail(ctx);
+    return this.api.getEstimate(request).pipe(
+      tap((estimate) =>
+        ctx.patchState({
+            snapshot: this.toLeadSnapshot(estimate, leadId, (ctx.getState().snapshot?.version ?? 0) + 1),
+            status: 'ready',
+          }),
+      ),
+      catchError((err: unknown) => {
+        this.fail(ctx, err);
         return EMPTY;
       }),
     );

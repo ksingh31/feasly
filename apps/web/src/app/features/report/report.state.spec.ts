@@ -11,8 +11,16 @@ import { MockApiService } from '../../core/api/mock-api.service';
 import { mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { SelectProperty, UpdateInputs, WizardState } from '../wizard';
-import { ClearReport, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
+import {
+  ClearReport,
+  LoadLeadEstimate,
+  LoadPreview,
+  ReviseReport,
+  SetPartnerView,
+  SetReportToken,
+  UnlockReport,
+} from './report.actions';
 import { ReportState } from './report.state';
 
 /**
@@ -49,7 +57,7 @@ describe('ReportState', () => {
   async function setup(): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideStore([WizardState, ReportState])],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideStore([WizardState, LeadState, ReportState])],
     });
     // provideApi is a factory provider; register it explicitly.
     TestBed.configureTestingModule({
@@ -324,6 +332,60 @@ describe('ReportState', () => {
     store.dispatch(new ReviseReport('luxury'));
     expect(store.selectSnapshot(ReportState.status)).toBe('error');
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
+  });
+
+  it('LoadLeadEstimate unlocks the report from a submitted lead (Karan directive 2026-09-27)', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
+    const report = store.selectSnapshot(ReportState.snapshot);
+    expect(report).not.toBeNull();
+    // Real figures from the public full-estimate endpoint.
+    expect(report!.totalRange.base).toBeGreaterThan(0);
+    expect(report!.rows.length).toBeGreaterThan(0);
+    // No token exists in this state, so no narrative was fetched — the
+    // component shows the honest empty state instead of inventing one.
+    expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+    expect(report!.narrative).toBe('');
+  });
+
+  it('LoadLeadEstimate without a submitted lead fails honestly', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200 })]);
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('error');
+    expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
+    expect(store.selectSnapshot(ReportState.unlocked)).toBe(false);
+  });
+
+  it('reviseReport without a token but with a submitted lead re-runs the public estimate', async () => {
+    store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-1',
+        email: 'buyer@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new LoadLeadEstimate());
+    await pollStatus('ready');
+    const before = store.selectSnapshot(ReportState.snapshot)!;
+    store.dispatch(new ReviseReport(undefined, 2300));
+    await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.inputs.sqft === 2300, 'lead sqft revision');
+    const after = store.selectSnapshot(ReportState.snapshot)!;
+    expect(after.inputs.sqft).toBe(2300);
+    expect(after.version).toBe(before.version + 1);
+    // A bigger home costs more: the build range moves up.
+    expect(after.buildRange.base).toBeGreaterThan(before.buildRange.base);
   });
 
   it('clearReport resets the model', async () => {

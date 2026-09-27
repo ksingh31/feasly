@@ -16,10 +16,10 @@ export interface LeadStateModel {
  * Lead state (FE-004): the receipt for the single lead-gate POST.
  *
  * Persisted (storage plugin): leadId, email, magicLinkSent, expiresInDays —
- * the receipt the report page needs to render the pending "check your email"
- * state after a reload, instead of looping the user back to an empty gate.
- * The lead's NAME never enters this store (it stays in the gate form), and
- * there is no Bearer <redacted> here — the report token lives in ReportState
+ * the receipt the report page needs to unlock immediately after a reload
+ * (Karan directive 2026-09-27), instead of looping the user back to an
+ * empty gate. The lead's NAME never enters this store (it stays in the gate
+ * form), and there is no Bearer <redacted> here — the report token lives in ReportState
  * memory only.
  */
 @State<LeadStateModel>({
