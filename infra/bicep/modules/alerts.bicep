@@ -4,6 +4,12 @@
 //   the App Insights `AppRequests` table (Log Analytics). Flex Consumption
 //   function apps do not emit the `Http5xx` platform metric, so a metric
 //   alert cannot be used here.
+// - Timer schedule-monitor health: a log-based scheduled query rule against
+//   `AppExceptions` for the Functions host's StorageScheduleMonitor failing
+//   to access host storage ("Could not create BlobContainer"). When the
+//   Function App's managed identity loses data-plane access to the host
+//   storage account, EVERY timer trigger (nudge, sheets sync, purges,
+//   …) silently stops firing — this alert pages ops before leads rot.
 //
 // (Poison queue metric alert removed: QueueMessageCount is not available
 // as a platform metric at the storage account level. To be re-added with
@@ -67,6 +73,53 @@ resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 5
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+    }
+  }
+}
+
+// Timer schedule-monitor health (nudge-timer incident, Sep 2026): the
+// Functions host persists timer schedules in the `azure-webjobs-hosts`
+// blob container on the host storage account (AzureWebJobsStorage). When
+// the app's managed identity cannot create that container — e.g. the
+// Storage Blob Data Owner/Contributor role assignment is missing or not
+// effective — the host throws
+// `InvalidOperationException("Could not create BlobContainer")` at
+// `StorageScheduleMonitor.get_ContainerClient` and NO timer trigger on the
+// app fires (nudge, sheets sync, purges, …), silently. The RBAC itself is
+// declared in main.bicep (#124/#131); this alert catches the case where
+// the assignment is declared but not effective in Azure.
+// Fires on 3+ such exceptions in 15 minutes (the incident ran ~14/hour).
+resource timerScheduleMonitorAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
+  name: '${namePrefix}-timer-schedule-monitor'
+  location: workspaceLocation
+  properties: {
+    description: 'Functions host StorageScheduleMonitor cannot access host storage — timer triggers are not firing'
+    severity: 2
+    enabled: true
+    scopes: [
+      logAnalyticsWorkspaceId
+    ]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          query: 'AppExceptions | where TimeGenerated > ago(15m) | where ProblemId contains "StorageScheduleMonitor" or OuterMessage contains "Could not create BlobContainer" | summarize count()'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 2
           failingPeriods: {
             numberOfEvaluationPeriods: 1
             minFailingPeriodsToAlert: 1
