@@ -8,9 +8,15 @@
  * Sitemap sources (no hardcoded URL total — the parity test asserts
  * set-equality):
  * - Static routes: /, /privacy, /terms, /how-it-works, /faq, /communities/,
- *   /developers, and /sample-report (only if present in prerender-routes.txt).
+ *   and /developers.
  * - Community pages: all slugs from community-aggregates.json
  *   (/communities/{slug}/).
+ *
+ * NOTE: /sample-report is deliberately EXCLUDED even though it is
+ * prerendered — the route is noindex (trust page for visitors, not a search
+ * landing page), and a noindex URL must never appear in the sitemap
+ * (conflicting crawl signals). If the route ever becomes indexable, add it
+ * to STATIC_ROUTES above — never via a prerender-routes.txt conditional.
  *
  * Each <url> carries <lastmod> = aggregates generatedAt, with per-route
  * changefreq/priority per SEO-02 AC2.
@@ -24,13 +30,12 @@
  *
  * Usage: tsx apps/web/scripts/build-seo-artifacts.ts
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
-const PRERENDER_ROUTES_PATH = join(SCRIPT_DIR, '..', 'prerender-routes.txt');
 
 /** Static routes with their changefreq/priority (SEO-02 AC2). */
 const STATIC_ROUTES: ReadonlyArray<{ path: string; changefreq: string; priority: string }> = [
@@ -81,13 +86,11 @@ function loadSitemapUrls(siteUrl: string): SitemapUrl[] {
     priority: r.priority,
   }));
 
-  // /sample-report is included only if the story shipped (present in prerender routes).
-  if (existsSync(PRERENDER_ROUTES_PATH)) {
-    const prerendered = readFileSync(PRERENDER_ROUTES_PATH, 'utf-8').split('\n').map((l) => l.trim());
-    if (prerendered.includes('/sample-report')) {
-      urls.push({ loc: `${siteUrl}/sample-report`, lastmod, changefreq: 'monthly', priority: '0.6' });
-    }
-  }
+  // /sample-report is NEVER in the sitemap: the route is noindex (trust
+  // page for visitors, not a search landing page). Emitting a noindex URL
+  // in the sitemap sends conflicting signals to crawlers. If the route
+  // ever becomes indexable, add it to STATIC_ROUTES — do not re-add a
+  // prerender-routes.txt conditional here.
 
   // Community pages from the aggregates (source of truth for the 40 slugs).
   for (const c of aggregatesRaw.communities) {

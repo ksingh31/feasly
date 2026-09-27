@@ -424,10 +424,10 @@ export interface AppConfig {
       uncalibratedNote: string;
       lockedNote: string;
       unlockCta: string;
-      pendingSub: string;
-      /** Duplicate-submit variant of the pending-lead sub heading: no new email was sent. */
-      pendingSubDuplicate: string;
-      pendingNote: string;
+      /** Post-gate confirmation line: the emailed link is return-access for other devices. */
+      leadLinkNote: string;
+      /** Duplicate-submit variant of the lead-link note: no new email was sent. */
+      leadLinkNoteDuplicate: string;
       breakdownTitle: string;
       breakdownLocked: string;
       /** Display-only finish tier on the report ("Selected finish level — Standard"). */

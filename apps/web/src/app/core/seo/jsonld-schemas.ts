@@ -63,6 +63,65 @@ export function buildWebSiteSchema(
   };
 }
 
+export interface ItemListEntry {
+  readonly name: string;
+  readonly url: string;
+}
+
+/**
+ * ItemList of crawlable guide URLs (SEO: the /communities/ hub page).
+ * Lets crawlers discover every community cost guide from the hub's
+ * structured data, not just the anchor links.
+ */
+export function buildItemListSchema(
+  pageUrl: string,
+  items: readonly ItemListEntry[],
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    url: pageUrl,
+    numberOfItems: items.length,
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      url: item.url,
+    })),
+  };
+}
+
+export interface HowToStepInput {
+  readonly title: string;
+  readonly body: string;
+}
+
+/**
+ * HowTo for the /how-it-works page. Steps come from config-owned
+ * `copy.marketing.howItWorks.steps` — the same source as the rendered
+ * steps, so copy and schema can't drift.
+ */
+export function buildHowToSchema(
+  pageUrl: string,
+  name: string,
+  description: string,
+  steps: readonly HowToStepInput[],
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name,
+    description,
+    url: pageUrl,
+    step: steps.map((step, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: step.title,
+      text: step.body,
+    })),
+  };
+}
+
 /**
  * Asserts a built schema contains no `null` values (SEO-06 acceptance).
  * Throws on the first `null` found.

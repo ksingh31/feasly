@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   assertNoNulls,
   buildFaqPageSchema,
+  buildHowToSchema,
+  buildItemListSchema,
   buildLocalBusinessSchema,
   buildWebSiteSchema,
   type FaqItem,
+  type HowToStepInput,
+  type ItemListEntry,
 } from './jsonld-schemas';
 
 const FAQ_ITEMS: FaqItem[] = [
@@ -76,6 +80,67 @@ describe('buildWebSiteSchema', () => {
 
   it('emits no null values', () => {
     expect(() => assertNoNulls(buildWebSiteSchema('https://feasly.ca', 'desc'))).not.toThrow();
+  });
+});
+
+describe('buildItemListSchema', () => {
+  const entries: ItemListEntry[] = [
+    { name: 'Beltline, Calgary', url: 'https://feasly.ca/communities/beltline/' },
+    { name: 'Bowness, Calgary', url: 'https://feasly.ca/communities/bowness/' },
+  ];
+
+  it('builds an ItemList with positioned entries', () => {
+    const schema = buildItemListSchema('https://feasly.ca/communities/', entries);
+    expect(schema['@type']).toBe('ItemList');
+    expect(schema['url']).toBe('https://feasly.ca/communities/');
+    expect(schema['numberOfItems']).toBe(2);
+    const items = schema['itemListElement'] as Record<string, unknown>[];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Beltline, Calgary',
+      url: 'https://feasly.ca/communities/beltline/',
+    });
+    expect(items[1]).toMatchObject({ position: 2 });
+  });
+
+  it('emits no null values', () => {
+    expect(() =>
+      assertNoNulls(buildItemListSchema('https://feasly.ca/communities/', entries)),
+    ).not.toThrow();
+  });
+});
+
+describe('buildHowToSchema', () => {
+  const steps: HowToStepInput[] = [
+    { title: 'Enter your Calgary address', body: 'We pull your City property record.' },
+    { title: 'Configure your scope', body: 'Tell us about the project.' },
+  ];
+
+  it('builds a HowTo mirroring the visible steps', () => {
+    const schema = buildHowToSchema(
+      'https://feasly.ca/how-it-works/',
+      'From address to estimate in about 2 minutes',
+      'No account, no phone calls.',
+      steps,
+    );
+    expect(schema['@type']).toBe('HowTo');
+    expect(schema['url']).toBe('https://feasly.ca/how-it-works/');
+    const rendered = schema['step'] as Record<string, unknown>[];
+    expect(rendered).toHaveLength(2);
+    expect(rendered[0]).toMatchObject({
+      '@type': 'HowToStep',
+      position: 1,
+      name: 'Enter your Calgary address',
+      text: 'We pull your City property record.',
+    });
+  });
+
+  it('emits no null values', () => {
+    expect(() =>
+      assertNoNulls(buildHowToSchema('https://feasly.ca/how-it-works/', 't', 'd', steps)),
+    ).not.toThrow();
   });
 });
 

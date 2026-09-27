@@ -39,6 +39,12 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: 'developers', titleKey: 'developersTitle', descriptionKey: 'developers' },
   // Community index (SEO-05): indexable guide listing — no `noindex`.
   { pattern: 'communities', titleKey: 'communitiesTitle', descriptionKey: 'communities' },
+  // NOTE: `communities/:slug` (SEO-04) is intentionally NOT in this table.
+  // Those pages are data-driven, not route-driven: CommunityPageComponent
+  // composes per-community title/description via SeoService.setPage() from
+  // the titleTemplate/descriptionTemplate (unique per community) and injects
+  // FAQPage + LocalBusiness JSON-LD. A static table entry could never carry
+  // the per-community copy — do not add one.
   {
     pattern: 'estimate/scope',
     titleKey: 'scopeTitle',

@@ -66,9 +66,10 @@ export const appConfig: ApplicationConfig = {
     // out of the storage-plugin keys. The storage plugin is SSR-safe.
     // The lead receipt (leadId, email, magicLinkSent, expiresInDays) persists
     // so a reload mid-flow doesn't loop the user back to an empty gate —
-    // email is needed anyway for the pending "check your email" state. The
-    // lead's NAME never enters the store (it stays in the gate form), and
-    // there is no bearer credential here — see the report token note below.
+    // the report unlocks immediately from the submitted lead (Karan
+    // directive 2026-09-27). The lead's NAME never enters the store (it
+    // stays in the gate form), and there is no bearer credential here — see
+    // the report token note below.
     // Security: the report token is a bearer credential — it lives in memory
     // only and is stripped before persistence. The snapshot (the user's own
     // figures) persists, so the report still renders after a refresh;

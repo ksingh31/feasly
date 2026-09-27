@@ -62,8 +62,10 @@ export interface CommunityStats {
  * {@link API_SERVICE} — they never know (or care) which implementation is
  * wired. The one deliberate exception is the optional `devTokenForLead` hook:
  * it is implemented only by the mock, and components treat `undefined`
- * (the real backend) as the honest "check your email" path, never as a
- * shortcut around verification.
+ * (the real backend) as the lead-unlock path — the report page unlocks
+ * immediately from the submitted lead (Karan directive 2026-09-27) — never
+ * as a shortcut around verification: the token-gated extras (AI narrative,
+ * token revise, share, callback) still need the magic-link email.
  */
 export interface ApiService {
   /** Address autocomplete. Short queries resolve to zero suggestions. */
@@ -98,9 +100,11 @@ export interface ApiService {
    * DEV ONLY unlock: the report token the mock issued for a lead, so the
    * analyzing screen can complete the same-session unlock without an email
    * round-trip. OPTIONAL — only the mock implements it. The production
-   * implementation MUST NOT: in production the magic-link email is the only
-   * unlock path, and this must return undefined. Components treat `undefined`
-   * as "check your email" and land the user on the locked report.
+   * implementation MUST NOT: in production the report page unlocks from the
+   * submitted lead itself (Karan directive 2026-09-27) and the magic-link
+   * email stays the only path to the token-gated extras. Components treat
+   * `undefined` as the lead-unlock path and land the user on the unlocked
+   * report.
    */
   devTokenForLead?(leadId: string): string | undefined;
   /** Re-sends the magic link. */

@@ -7,6 +7,7 @@ import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jso
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
 import ranges from '../../../content/data/community-ranges.json';
+import { toDisplayName } from './community-names';
 
 interface TierRow {
   key: 'standard' | 'premium' | 'luxury';
@@ -86,9 +87,15 @@ export class CommunityPageComponent implements OnInit {
     }
     this.community = view;
     const title = this.copy.titleTemplate.replace('{name}', view.displayName);
+    // The meta description carries the real per-community assessed value so
+    // all 40 community pages have unique descriptions in search results
+    // (template-only copy would be near-duplicate across pages).
+    const description = this.copy.descriptionTemplate
+      .replace('{name}', view.displayName)
+      .replace('{avgAssessed}', this.formatCad(view.avgAssessedValue));
     this.seo.setPage({
       title,
-      description: this.copy.descriptionTemplate.replace('{name}', view.displayName),
+      description,
       path: `/communities/${view.slug}/`,
     });
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
@@ -190,21 +197,3 @@ interface RangeRow {
 
 /** Branded 404 path for unknown slugs. */
 const NOT_FOUND_PATH = '/404';
-
-/**
- * City names are SCREAMING_CASE ("MCKENZIE TOWNE", "DOUGLASDALE/GLEN").
- * Renders them as display names ("McKenzie Towne", "Douglasdale/Glen").
- */
-export function toDisplayName(name: string): string {
-  return name
-    .toLowerCase()
-    .split(/([ /-]+)/)
-    .map((part) => {
-      if (/^[ /-]+$/.test(part) || part.length === 0) return part;
-      // Mc/Mac prefix: "mckenzie" -> "McKenzie"
-      const mc = part.match(/^(mc|mac)([a-z].*)$/);
-      if (mc) return mc[1][0]!.toUpperCase() + mc[1].slice(1) + mc[2][0]!.toUpperCase() + mc[2].slice(1);
-      return part[0]!.toUpperCase() + part.slice(1);
-    })
-    .join('');
-}
