@@ -25,6 +25,13 @@ const databaseUrl = resolveDatabaseUrl('db:migrate');
 
 // Idempotent repair: every column the Drizzle schema selects on the
 // lead/magic-link/estimate tables. IF NOT EXISTS => no-op if healthy.
+//
+// NOTE (2026-09-26 P0): POST /api/v1/estimate and /api/v1/estimates/preview
+// 500 with INTERNAL_ERROR on live dev — the insert names estimates.tenant_key
+// (migration 0030, restored 2026-09-26 after being wrongly dropped) and the
+// 0021 narrative columns, but drizzle-kit silently skipped 0030 on dev (same
+// pattern as the 0025/0028 leads incident). The estimates block below restores
+// every column the estimate store inserts/selects.
 const REPAIR_SQL = `
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "discarded" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tenant_key" text;
@@ -38,6 +45,19 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with t
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "email" text;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "id" uuid;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "project_type" text DEFAULT 'new_build' NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "address_key" text NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "tenant_key" text;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "inputs" jsonb NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "figures" jsonb NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "rows" jsonb NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "cost_data_version" text NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative" text;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative_generated_at" timestamp with time zone;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "assumptions" jsonb;
 `;
 
 async function runRepair() {
