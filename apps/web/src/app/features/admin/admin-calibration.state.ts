@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import { inject } from '@angular/core';
 import { tap, catchError, EMPTY } from 'rxjs';
 import type { AdminCalibrationResponse } from '@feasly/contracts';
@@ -80,3 +80,11 @@ export class CalibrationState {
     );
   }
 }
+
+/**
+ * Route-level provider for the lazy `/admin` route.
+ * Registered via `lazyProvider` in `app.routes.ts` with a dynamic import so
+ * the state + its actions stay in the admin lazy chunk, out of the
+ * initial bundle (790kB production budget).
+ */
+export const calibrationStateProvider = provideStates([CalibrationState]);

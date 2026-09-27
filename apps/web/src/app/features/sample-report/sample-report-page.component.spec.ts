@@ -116,10 +116,14 @@ describe('SampleReportPageComponent', () => {
     httpMock.verify();
   });
 
-  it('is routed at /sample-report with noindex', () => {
+  it('is routed at /sample-report with noindex', async () => {
     const route = routes.find((r) => r.path === 'sample-report');
     expect(route).toBeDefined();
-    expect(route!.component).toBe(SampleReportPageComponent);
+    // Lazy-loaded (bundle diet): the route uses loadComponent, not component.
+    expect(route!.component).toBeUndefined();
+    expect(typeof route!.loadComponent).toBe('function');
+    const loaded = await route!.loadComponent!();
+    expect(loaded).toBe(SampleReportPageComponent);
     expect(route!.data?.['noindex']).toBe(true);
     expect(route!.canActivate).toContain(robotsGuard);
   });

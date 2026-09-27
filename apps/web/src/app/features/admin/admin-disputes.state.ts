@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import { tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import type {
@@ -266,3 +266,11 @@ export class AdminDisputesState {
     );
   }
 }
+
+/**
+ * Route-level provider for the lazy `/admin` route.
+ * Registered via `lazyProvider` in `app.routes.ts` with a dynamic import so
+ * the state + its actions stay in the admin lazy chunk, out of the
+ * initial bundle (790kB production budget).
+ */
+export const adminDisputesStateProvider = provideStates([AdminDisputesState]);
