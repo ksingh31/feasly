@@ -64,13 +64,13 @@ param sheetsServiceAccountPrivateKeySecretUri string = ''
 @description('Key Vault secret URI (versionless) for the unsubscribe token HMAC secret (email/03). Empty = not configured; the app fails closed (503) on /api/v1/unsubscribe/{token}.')
 param unsubscribeTokenSecretUri string = ''
 
-@description('AI summary (narrative worker) provider: log = dev/test console transport (refuses production); meta = OpenAI-compatible chat-completions endpoint (Gemini).')
+@description('AI summary (narrative worker) provider: log = dev/test console transport (refuses production); openai-compatible = any OpenAI-protocol chat-completions endpoint (Gemini).')
 param narrativeProvider string = 'log'
 
 @description('Key Vault secret URI (versionless) for the narrative LLM API key (Gemini). Empty = not configured; the provider fails closed naming the env var. Karan provisions the key in Key Vault himself — Bicep only references it, never writes it.')
 param narrativeApiKeySecretUri string = ''
 
-@description('OpenAI-compatible chat-completions endpoint for the narrative provider. Empty = the app config default.')
+@description('Base URL of the OpenAI-compatible endpoint for the narrative provider. Empty = the app config default.')
 param narrativeEndpoint string = ''
 
 @description('Model slug for the narrative provider (e.g. gemini-2.5-flash). Empty = the app config default.')
@@ -269,7 +269,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           ? []
           : [
               {
-                name: 'NARRATIVE_META_API_KEY'
+                name: 'NARRATIVE_API_KEY'
                 value: '@Microsoft.KeyVault(SecretUri=${narrativeApiKeySecretUri})'
               }
             ],
@@ -277,7 +277,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           ? []
           : [
               {
-                name: 'NARRATIVE_META_ENDPOINT'
+                name: 'NARRATIVE_ENDPOINT'
                 value: narrativeEndpoint
               }
             ],

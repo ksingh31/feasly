@@ -32,7 +32,7 @@ Key constraints established 2026-09-22:
 | Database | PostgreSQL (managed; Azure Flexible Server or equivalent) |
 | IaC | Azure Bicep |
 | CI/CD | GitHub Actions |
-| AI narrative | Meta API behind a provider abstraction (swappable) — decided 2026-09-22 |
+| AI narrative | OpenAI-protocol LLM behind a provider abstraction (swappable) — decided 2026-09-22 (supersedes: Meta hosted Llama API, retired 2026-07-06); Gemini via its OpenAI-compatible endpoint, provider name `openai-compatible` — Karan's call 2026-09-27 |
 | Auth | Magic link (passwordless email) |
 | Lead ops | PostgreSQL as source of truth + auto-sync to Google Sheets |
 | Property data | City of Calgary Open Data — Current Year Property Assessments API (Socrata), validated live 2026-09-22 |

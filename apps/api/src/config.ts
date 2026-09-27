@@ -140,20 +140,19 @@ const EnvSchema = z.object({
   SHEETS_SHEET_ID: z.string().default(''),
   // --- AI narrative worker (consumer/06) ---
   // Narrative LLM provider: 'log' = dev/test console transport (default,
-  // refuses production); 'meta' = OpenAI-compatible chat-completions
-  // endpoint (Gemini, Karan's pick — Meta retired its hosted Llama API).
-  NARRATIVE_PROVIDER: z.enum(['log', 'meta']).default('log'),
+  // refuses production); 'openai-compatible' = any OpenAI-protocol
+  // chat-completions endpoint (Gemini today, Groq/OpenAI later — Karan's pick).
+  NARRATIVE_PROVIDER: z.enum(['log', 'openai-compatible']).default('log'),
   // LLM API key (Gemini) — from Key Vault, never in repo/env files. Empty
-  // with provider='meta' = fail-closed generation naming this var.
-  NARRATIVE_META_API_KEY: z.string().default(''),
+  // with provider='openai-compatible' = fail-closed generation naming this var.
+  NARRATIVE_API_KEY: z.string().default(''),
   // LLM model for narratives. Default is Gemini 2.5 Flash (free tier);
   // overridable without a code change.
   NARRATIVE_MODEL: z.string().default('gemini-2.5-flash'),
-  // OpenAI-compatible chat-completions endpoint. Overridable for tests;
-  // default is Google's Gemini OpenAI-compatibility endpoint.
-  NARRATIVE_META_ENDPOINT: z
-    .string()
-    .default('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'),
+  // Base URL of the OpenAI-compatible endpoint. Overridable for tests;
+  // default is Google's Gemini OpenAI-compatibility base. The provider
+  // appends /chat/completions when the value does not already end with it.
+  NARRATIVE_ENDPOINT: z.string().default('https://generativelanguage.googleapis.com/v1beta/openai/'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -549,14 +548,14 @@ export interface SheetsConfig {
 }
 
 export interface NarrativeConfig {
-  /** 'log' = dev/test console transport; 'meta' = Meta Llama API. */
-  readonly provider: 'log' | 'meta';
-  /** Meta API key (from Key Vault, never in repo). Empty = fail-closed. */
-  readonly metaApiKey: string;
+  /** 'log' = dev/test console transport; 'openai-compatible' = remote OpenAI-protocol LLM. */
+  readonly provider: 'log' | 'openai-compatible';
+  /** LLM API key (from Key Vault, never in repo). Empty = fail-closed. */
+  readonly apiKey: string;
   /** LLM model name for narratives. */
   readonly model: string;
-  /** Meta API endpoint (OpenAI-compatible chat completions). */
-  readonly metaEndpoint: string;
+  /** Base URL of the OpenAI-compatible endpoint (chat/completions appended if missing). */
+  readonly endpoint: string;
 }
 
 export interface ApiConfig {
@@ -833,9 +832,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     narrative: {
       provider: e.NARRATIVE_PROVIDER,
-      metaApiKey: e.NARRATIVE_META_API_KEY,
+      apiKey: e.NARRATIVE_API_KEY,
       model: e.NARRATIVE_MODEL,
-      metaEndpoint: e.NARRATIVE_META_ENDPOINT,
+      endpoint: e.NARRATIVE_ENDPOINT,
     },
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,

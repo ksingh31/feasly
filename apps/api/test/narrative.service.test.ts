@@ -13,7 +13,7 @@ import {
 } from '@feasly/cost-engine';
 import { createNarrativeService } from '../src/services/narrative.service';
 import { createLogNarrativeProvider } from '../src/services/narrative/providers/log.provider';
-import { createMetaNarrativeProvider } from '../src/services/narrative/providers/meta.provider';
+import { createOpenAiCompatibleNarrativeProvider, chatCompletionsUrl } from '../src/services/narrative/providers/openai-compatible.provider';
 import type {
   NarrativeProvider,
   NarrativeProviderResult,
@@ -379,9 +379,9 @@ describe('log narrative provider', () => {
   });
 });
 
-describe('meta narrative provider', () => {
+describe('openai-compatible narrative provider', () => {
   it('fails closed without API key', async () => {
-    const provider = createMetaNarrativeProvider({
+    const provider = createOpenAiCompatibleNarrativeProvider({
       model: 'test-model',
       endpoint: 'https://example.com/v1/chat/completions',
     });
@@ -393,7 +393,7 @@ describe('meta narrative provider', () => {
   });
 
   it('does not leak API key in error messages', async () => {
-    const provider = createMetaNarrativeProvider({
+    const provider = createOpenAiCompatibleNarrativeProvider({
       apiKey: 'secret-key-12345',
       model: 'test-model',
       endpoint: 'https://example.com/v1/chat/completions',
@@ -410,7 +410,56 @@ describe('meta narrative provider', () => {
 
     // The provider uses a generic message, never including the key
     expect(error.message).not.toContain('secret-key-12345');
-    expect(error.message).toBe('Meta API request failed');
+    expect(error.message).toBe('LLM API request failed');
+  });
+
+  it('fails closed naming NARRATIVE_ENDPOINT when no endpoint is configured', () => {
+    expect(() =>
+      createOpenAiCompatibleNarrativeProvider({ model: 'test-model' }),
+    ).toThrow(/NARRATIVE_ENDPOINT is not configured/);
+  });
+
+  it('appends /chat/completions to a bare base URL', async () => {
+    const seen: string[] = [];
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      fetchImpl: (async (url: string | URL | Request) => {
+        seen.push(String(url));
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'A fine neighbourhood summary.' } }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+    const result = await provider.generate({
+      system: 'System',
+      user: 'User',
+    });
+    expect(seen).toEqual([
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    ]);
+    expect(result.text).toBe('A fine neighbourhood summary.');
+  });
+});
+
+describe('chatCompletionsUrl', () => {
+  it('leaves a full chat-completions URL unchanged', () => {
+    expect(chatCompletionsUrl('https://example.com/v1/chat/completions')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
+  });
+
+  it('appends /chat/completions to a bare base, tolerating trailing slashes', () => {
+    expect(chatCompletionsUrl('https://example.com/v1/')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
+    expect(chatCompletionsUrl('https://example.com/v1')).toBe(
+      'https://example.com/v1/chat/completions',
+    );
   });
 });
 

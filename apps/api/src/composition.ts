@@ -242,7 +242,7 @@ import {
   type NarrativeService,
 } from './services/narrative.service';
 import { createLogNarrativeProvider } from './services/narrative/providers/log.provider';
-import { createMetaNarrativeProvider } from './services/narrative/providers/meta.provider';
+import { createOpenAiCompatibleNarrativeProvider } from './services/narrative/providers/openai-compatible.provider';
 import type { NarrativeProvider } from './services/narrative/narrative.types';
 import {
   createCommunityStatsRoute,
@@ -1076,20 +1076,20 @@ export function createComposition(
     privacy: privacyService,
   });
   // Narrative worker (consumer/06): provider selected by config.
-  // 'log' is the dev/test default (refuses production); 'meta' is the
-  // OpenAI-compatible chat-completions endpoint (Gemini, Karan's pick) —
-  // fails closed until the API key is configured in Key Vault.
+  // 'log' is the dev/test default (refuses production);
+  // 'openai-compatible' is the remote OpenAI-protocol LLM (Gemini,
+  // Karan's pick) — fails closed until the API key is in Key Vault.
   const narrativeProvider: NarrativeProvider =
-    config.narrative.provider === 'meta'
-      ? createMetaNarrativeProvider({
-          apiKey: config.narrative.metaApiKey || undefined,
+    config.narrative.provider === 'openai-compatible'
+      ? createOpenAiCompatibleNarrativeProvider({
+          apiKey: config.narrative.apiKey || undefined,
           model: config.narrative.model,
-          endpoint: config.narrative.metaEndpoint,
+          endpoint: config.narrative.endpoint,
         })
       : createLogNarrativeProvider();
   if (config.env === 'production' && config.narrative.provider === 'log') {
     throw new Error(
-      'NARRATIVE_PROVIDER=log refuses production — configure the Meta API provider.',
+      'NARRATIVE_PROVIDER=log refuses production — configure the OpenAI-compatible provider.',
     );
   }
   // (Narrative service is created after propertyService below — it needs

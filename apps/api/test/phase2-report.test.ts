@@ -331,7 +331,7 @@ describe('report service — synthetic placeholder guard (goal_aec0b247775d)', (
   const placeholder =
     `This is a ${NARRATIVE_SYNTHETIC_MARKER} (log provider — no LLM was called). ` +
     `The estimate figures above were calculated deterministically from our cost model. ` +
-    `Configure the Meta API provider for a real AI-generated summary. ${NARRATIVE_FOOTER}`;
+    `Configure the OpenAI-compatible provider for a real AI-generated summary. ${NARRATIVE_FOOTER}`;
 
   it('strips a placeholder from the estimate row on v1 materialization', async () => {
     const { service, inserted } = fakes({ estimateNarrative: placeholder });

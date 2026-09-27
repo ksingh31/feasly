@@ -114,9 +114,9 @@ describe('loadConfig', () => {
       },
       narrative: {
         provider: 'log',
-        metaApiKey: '',
+        apiKey: '',
         model: 'gemini-2.5-flash',
-        metaEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       },
       embed: {
         relayCodeTtlSeconds: 600,

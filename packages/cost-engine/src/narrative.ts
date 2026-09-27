@@ -214,7 +214,7 @@ function buildSystemPrompt(
     sections.push(
       '',
       `Neighbourhood — write for a homebuyer choosing this area (${communityFacts.community}):`,
-      ...renderRules(neighbourhoodRules(communityFacts)),
+      renderRules(neighbourhoodRules(communityFacts)),
     );
   }
   sections.push(
