@@ -56,6 +56,16 @@ export interface AppConfig {
     /** Show the renovation waitlist capture instead of the estimator. */
     renovationWaitlist: boolean;
   };
+  /**
+   * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
+   * True while the privacy/terms copy is draft-pending-lawyer: the legal
+   * pages render the "draft — pending legal review" banner, and the HRD-05
+   * legal gate blocks production deploys while true.
+   */
+  legal: {
+    /** Draft legal copy is still awaiting lawyer review. */
+    reviewPending: boolean;
+  };
   /** Wizard tunables (FE-2). */
   wizard: {
     sqftDefault: number;
@@ -600,6 +610,17 @@ export interface AppConfig {
       body: string;
       accept: string;
       decline: string;
+    };
+    /**
+     * Legal pages (legal/01). Banner copy for the draft-pending-review
+     * notice shown while `legal.reviewPending` is true. Story-pinned
+     * wording — do not paraphrase.
+     */
+    legal: {
+      /** Banner heading: "Draft — pending legal review". */
+      reviewBannerHeading: string;
+      /** Banner body explaining the draft status. */
+      reviewBannerBody: string;
     };
     /**
      * Community pages (SEO-04). Static copy for `/communities/:slug/` —

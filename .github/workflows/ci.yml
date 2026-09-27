@@ -40,12 +40,25 @@ jobs:
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
       # HRD-05: prelaunch gates that must stay green while development
-      # continues. (The legal gate is intentionally NOT here — it blocks
-      # production deploys in cd.yml, not PR merges, so work doesn't freeze
-      # while the lawyer reviews.)
+      # continues. (The legal gate is probed non-blockingly below — it hard-
+      # blocks production deploys in cd.yml, not PR merges, so work doesn't
+      # freeze while the lawyer reviews.)
       - run: node apps/web/tools/check-casl-copy.mjs
       - run: node apps/web/tools/check-banned-phrases.mjs
       - run: node tools/check-placeholders.mjs
+      # HRD-05/legal-01 AC3: LEGAL_REVIEW_PENDING probe. Runs the real gate
+      # CLI against the real tree so CI proves the failure mechanism trips,
+      # but non-blocking on PRs (warning annotation, not a failed check) so
+      # development doesn't freeze while the lawyer reviews. The fail/pass
+      # logic itself is proven by check-legal-gate.spec.ts (runs above via
+      # `npm run test`); the hard block lives in the cd.yml prod-deploy job.
+      - name: Legal gate probe (HRD-05/legal-01 AC3)
+        run: |
+          if node apps/web/tools/check-legal-gate.mjs; then
+            echo "Legal gate passed — LEGAL_REVIEW_PENDING cleared."
+          else
+            echo "::warning::LEGAL_REVIEW_PENDING is set — the HRD-05 legal gate will block production deploys until the lawyer signs off."
+          fi
 
   # HRD-04: assert PITR-capable backup config on the Postgres (read-only).
   # Failing here is the "scheduled backup missed" signal until admin/06 wires
