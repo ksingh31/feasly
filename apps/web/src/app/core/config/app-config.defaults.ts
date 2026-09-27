@@ -31,6 +31,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // with in-code retries) — 25s gives it headroom without raising the
     // timeout for every other API call.
     gateTimeoutMs: 25000,
+    // Bulk CSV export on a cold Function can exceed the standard 15s timeout.
+    exportTimeoutMs: 60000,
   },
   propertyData: {
     source: 'live',

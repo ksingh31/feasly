@@ -549,5 +549,44 @@ describe('admin-leads service (admin/02)', () => {
       expect(lines[1]).toContain(',out,');
       expect(lines[1]).toContain('2026-09-26T00:00:00.000Z');
     });
+
+    it('does not fail when a row has null dates (2026-09-27: export failed server-side)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [
+          makeLeadRow({
+            consentTs: null as unknown as Date,
+            consentUpdatedAt: null as unknown as Date,
+            createdAt: null as unknown as Date,
+          }),
+        ],
+        nextCursor: null,
+        totalCount: 1,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      const result = await service.exportCsv({}, ADMIN_EMAIL);
+      const lines = result.csv.split('\n');
+      // Header + 1 data row; null dates render as empty cells, not a throw.
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('lead-1');
+    });
+
+    it('exports zero rows as header-only CSV', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [],
+        nextCursor: null,
+        totalCount: 0,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      const result = await service.exportCsv({}, ADMIN_EMAIL);
+      const lines = result.csv.split('\n');
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('id,name,email');
+    });
   });
 });

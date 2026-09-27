@@ -34,6 +34,11 @@ export interface AppConfig {
      * over the global timeout — without slowing every other API call.
      */
     gateTimeoutMs: number;
+    /**
+     * CSV-export timeout. Bulk export on a cold Azure Function plus CSV
+     * generation for thousands of rows can exceed the standard timeout.
+     */
+    exportTimeoutMs: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {

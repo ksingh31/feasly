@@ -521,6 +521,11 @@ export function createAdminLeadsService(
       };
 
       const lines = [headers.join(',')];
+      // Dates are null-safe: a single row with a missing timestamp must not
+      // kill the entire export (2026-09-27: export failed server-side for the
+      // full lead set, likely one bad row).
+      const isoDate = (d: Date | null | undefined): string | null =>
+        d?.toISOString() ?? null;
       for (const row of result.rows) {
         lines.push(
           [
@@ -538,16 +543,16 @@ export function createAdminLeadsService(
             escapeCsv(row.sandbox),
             escapeCsv(row.quarantined),
             escapeCsv(row.marketingConsent),
-            escapeCsv(row.consentTs.toISOString()),
+            escapeCsv(isoDate(row.consentTs)),
             escapeCsv(
               row.unsubscribedAt !== null || row.contactOptOutAt !== null
                 ? 'out'
                 : 'in',
             ),
-            escapeCsv(row.consentUpdatedAt.toISOString()),
-            escapeCsv(row.unsubscribedAt?.toISOString() ?? null),
-            escapeCsv(row.contactOptOutAt?.toISOString() ?? null),
-            escapeCsv(row.createdAt.toISOString()),
+            escapeCsv(isoDate(row.consentUpdatedAt)),
+            escapeCsv(isoDate(row.unsubscribedAt)),
+            escapeCsv(isoDate(row.contactOptOutAt)),
+            escapeCsv(isoDate(row.createdAt)),
           ].join(','),
         );
       }
