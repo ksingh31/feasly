@@ -5,7 +5,8 @@
  * - unconfigured service → fail-closed, no alert calls, one log line
  * - healthy chain → notifyRecovered('backup_missed'), no failure email
  * - stale chain → notifyFailure('backup_missed', …) with staleSince
- * - probe error → skip, no alert calls
+ * - probe error (token/ARM failure) → PROBE FAILED log, no alert calls
+ * - unexpected throw → CYCLE FAILED log, rethrown for the host
  * Logs carry aggregates only — never tokens or connection strings.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -54,6 +55,7 @@ describe('backup-check-timer adapter', () => {
   it('sends the all-clear when the chain is healthy', async () => {
     checkBackupFreshness.mockResolvedValue({
       healthy: true,
+      probeError: false,
       server: 'feasly-dev-pg-4fhkep',
       retentionDays: 7,
       earliestRestore: new Date('2026-09-25T23:00:00Z'),
@@ -73,6 +75,7 @@ describe('backup-check-timer adapter', () => {
   it('fires the backup_missed alert when the chain is stale', async () => {
     checkBackupFreshness.mockResolvedValue({
       healthy: false,
+      probeError: false,
       server: 'feasly-dev-pg-4fhkep',
       retentionDays: 7,
       earliestRestore: new Date('2026-09-23T22:00:00Z'),
@@ -95,14 +98,39 @@ describe('backup-check-timer adapter', () => {
     expect(line).not.toMatch(/bearer|token|password|secret/i);
   });
 
-  it('skips without alerting when the probe itself errors', async () => {
-    checkBackupFreshness.mockRejectedValue(new Error('boom'));
+  it('logs PROBE FAILED and skips the alert when the probe itself errors', async () => {
+    checkBackupFreshness.mockResolvedValue({
+      healthy: false,
+      probeError: true,
+      server: 'feasly-dev-pg-4fhkep',
+      retentionDays: null,
+      earliestRestore: null,
+      staleHours: null,
+      staleSince: null,
+      reason: 'could not acquire managed-identity token: boom',
+    });
     const logs: unknown[][] = [];
     await backupCheckTimerHandler({
       log: (...args: unknown[]) => void logs.push(args),
     });
     expect(notifyFailure).not.toHaveBeenCalled();
     expect(notifyRecovered).not.toHaveBeenCalled();
-    expect(String(logs[0]?.[0])).toMatch(/probe errored/);
+    const line = String(logs[0]?.[0]);
+    expect(line).toMatch(/PROBE FAILED/);
+    // No tokens or connection strings in the log line.
+    expect(line).not.toMatch(/bearer|password|secret/i);
+  });
+
+  it('logs CYCLE FAILED and rethrows when the check throws', async () => {
+    checkBackupFreshness.mockRejectedValue(new Error('boom'));
+    const logs: unknown[][] = [];
+    await expect(
+      backupCheckTimerHandler({
+        log: (...args: unknown[]) => void logs.push(args),
+      }),
+    ).rejects.toThrow('boom');
+    expect(notifyFailure).not.toHaveBeenCalled();
+    expect(notifyRecovered).not.toHaveBeenCalled();
+    expect(String(logs[0]?.[0])).toMatch(/CYCLE FAILED/);
   });
 });
