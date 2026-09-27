@@ -15,6 +15,7 @@
       spellcheck="false"
       [formControl]="query"
       (keydown)="onKeydown($event)"
+      (input)="onRawInput($event)"
       (focus)="onFocus()"
       (blur)="onBlur()"
     />
@@ -25,6 +26,10 @@
 
   @if (hint()) {
     <p class="form-error" role="alert">{{ hint() }}</p>
+  }
+
+  @if (selectionHint()) {
+    <p class="form-error" role="alert">{{ selectionHint() }}</p>
   }
 
   @if (status() === 'error') {

@@ -68,6 +68,12 @@ export class AddressAutocompleteComponent {
   readonly searched = signal(false);
   /** Empty-submit hint, set by the parent via `nudgeIfEmpty()`. */
   readonly hint = signal<string | null>(null);
+  /**
+   * Submit-without-selection hint, set by the parent via `nudgeOnSubmit()`
+   * when the query has 3+ chars and suggestions are on screen but none was
+   * picked. The CTA must never proceed with an unresolved address.
+   */
+  readonly selectionHint = signal<string | null>(null);
 
   /** Address key currently resolving to a full record (for retry). */
   private pendingKey: string | null = null;
@@ -84,6 +90,7 @@ export class AddressAutocompleteComponent {
         distinctUntilChanged(),
         tap((q) => {
           this.hint.set(null);
+          this.selectionHint.set(null);
           this.errorCode.set(null);
           if (q.length < 3) {
             this.suggestions.set([]);
@@ -168,6 +175,41 @@ export class AddressAutocompleteComponent {
     }
   }
 
+  /**
+   * Submit with no pickable suggestion: tell the user what to do next
+   * instead of silently doing nothing. Under 3 chars → the empty hint;
+   * 3+ chars with suggestions on screen → the select-from-suggestions
+   * hint; 3+ chars with none → the no-results/error UI already on screen
+   * speaks for itself. Never navigates — the parent must not proceed
+   * without a resolved address.
+   */
+  nudgeOnSubmit(): void {
+    if (this.query.value.trim().length < 3) {
+      this.nudgeIfEmpty();
+      return;
+    }
+    if (this.status() !== 'searching' && this.suggestions().length > 0) {
+      this.selectionHint.set(this.config.get('copy').search.selectHint);
+    }
+  }
+
+  /**
+   * iOS Safari fires `input` events inside an unconfirmed
+   * composition/autocorrect session that Angular's DefaultValueAccessor
+   * deliberately swallows (composition mode is on for non-Android), so
+   * `valueChanges` never fires and the debounced search never runs — the
+   * dropdown stays empty no matter what is typed. Syncing the control from
+   * the raw DOM value here closes that gap; the setValue is a no-op when
+   * the accessor already delivered the keystroke, so desktop behavior is
+   * unchanged and `distinctUntilChanged` still dedupes.
+   */
+  onRawInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (value !== this.query.value) {
+      this.query.setValue(value);
+    }
+  }
+
 
   retry(): void {
     const key = this.pendingKey;
@@ -228,6 +270,8 @@ export class AddressAutocompleteComponent {
     if (!suggestion) return;
     this.open.set(false);
     this.activeIndex.set(-1);
+    this.hint.set(null);
+    this.selectionHint.set(null);
     // Show the picked address while the record resolves.
     this.query.setValue(suggestion.address, { emitEvent: false });
     this.resolve(suggestion.addressKey);

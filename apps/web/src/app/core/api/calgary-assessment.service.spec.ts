@@ -159,6 +159,42 @@ describe('CalgaryAssessmentService', () => {
       });
     });
 
+    describe('city/province suffix stripping', () => {
+      async function whereFor(input: string): Promise<string | null> {
+        const pending = firstValueFrom(service.autocomplete(input));
+        const req = httpMock.expectOne((r) => r.url === RESOURCE);
+        const where = req.request.params.get('$where');
+        req.flush([]);
+        await pending;
+        return where;
+      }
+
+      it('drops a trailing ", Calgary, AB" so full addresses prefix-match', async () => {
+        await expect(whereFor('2631 63 av sw, calgary, ab')).resolves.toBe(
+          "starts_with(upper(address),'2631 63 AV SW')",
+        );
+      });
+
+      it('drops the suffix without commas ("2631 63 AV SW CALGARY AB")', async () => {
+        await expect(whereFor('2631 63 av sw calgary ab')).resolves.toBe(
+          "starts_with(upper(address),'2631 63 AV SW')",
+        );
+      });
+
+      it('drops a bare trailing ", Calgary"', async () => {
+        await expect(whereFor('2631 63 av sw, calgary')).resolves.toBe(
+          "starts_with(upper(address),'2631 63 AV SW')",
+        );
+      });
+
+      it('leaves a mid-query Calgary token alone', async () => {
+        // Anchored at the end: a street name containing the token is untouched.
+        await expect(whereFor('100 calgary trail nw')).resolves.toBe(
+          "starts_with(upper(address),'100 CALGARY TR NW')",
+        );
+      });
+    });
+
     it('maps rows to suggestions with formatted addresses, deduped', async () => {
       const pending = firstValueFrom(service.autocomplete('16 ave'));
       // Same address twice (two parcels) collapses to one suggestion.

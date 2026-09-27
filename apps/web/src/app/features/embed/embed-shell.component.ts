@@ -172,7 +172,7 @@ export class EmbedShellComponent {
   protected onCta(addressBox: AddressAutocompleteComponent): void {
     const picked = this.property();
     if (picked === null) {
-      addressBox.nudgeIfEmpty();
+      addressBox.nudgeOnSubmit();
       return;
     }
     this.store.dispatch([new SelectProperty(picked), new GoToStep(2)]);
