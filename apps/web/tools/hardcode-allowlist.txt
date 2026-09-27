@@ -148,3 +148,9 @@ apps/web/src/app/features/embed/embed-shell.component.ts
 # unit conversions (0–1 ratio → % for bar widths and labels), not tunables.
 # They change by math, not by deploy tuning.
 apps/web/src/app/features/admin/funnels-page.component.ts
+
+# Billing-health dashboard copy (billing/03, /admin/billing): the page's
+# explanatory subtitle is pinned by the story's read-only acceptance
+# criterion (no charge/refund/void actions) — it changes by product
+# decision, not by deploy tuning. Copy-pinned by admin-billing.component.spec.ts.
+apps/web/src/app/features/admin/admin-billing.component.html
