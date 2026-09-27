@@ -153,8 +153,18 @@ function decodeCursor(cursor: string): CursorPayload | null {
   }
 }
 
-function buildFilterConditions(filters: AdminLeadFilters) {
-  const conditions = [];
+/**
+ * Filters used for the pipeline totals row: every active filter EXCEPT
+ * `status`, so the totals stay stable while the admin switches status
+ * filters. Exported for unit tests.
+ */
+export function pipelineCountFilters(filters: AdminLeadFilters): AdminLeadFilters {
+  const { status: _status, ...rest } = filters;
+  void _status;
+  return rest;
+}
+
+function buildFilterConditions(filters: AdminLeadFilters) {  const conditions = [];
 
   if (filters.minScore !== undefined) {
     conditions.push(gte(leads.leadScore, filters.minScore));
@@ -285,7 +295,7 @@ export function createDrizzleAdminLeadsStore(
       // computed with every active filter EXCEPT `status` so the totals
       // row stays stable while the admin switches status filters. The
       // cursor is pagination-only and excluded as well.
-      const countsConditions = buildFilterConditions({ ...filters, status: undefined });
+      const countsConditions = buildFilterConditions(pipelineCountFilters(filters));
       const countsWhere =
         countsConditions.length > 0 ? and(...countsConditions) : undefined;
       const statusRows = await db
