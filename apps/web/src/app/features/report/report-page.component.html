@@ -288,7 +288,7 @@
       </section>
       }
 
-      <button class="cta ghost no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
+      <button class="cta pdf no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
 
       <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
       @if (isReno()) {
@@ -296,7 +296,7 @@
       }
 
       <!-- RENO-04: estimate another address works from a reno report -->
-      <a class="cta ghost no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
+      <a class="cta secondary no-print another-address" routerLink="/">{{ copy.estimateAnotherLabel }}</a>
     }
   }
 </main>
