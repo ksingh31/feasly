@@ -54,6 +54,30 @@ function listAdapters() {
     .sort();
 }
 
+/**
+ * Every adapter the bundler emits must have a committed function.json.
+ * Without the binding file the Functions host never registers the HTTP
+ * trigger and the route 404s, even though the code, tests, and frontend
+ * all exist (this is exactly how GET /api/v1/admin/calibration shipped
+ * dead in Sep 2026: adapter bundled, binding file never committed).
+ */
+function checkAdapterBindings() {
+  const bundleScript = readFileSync(join(root, 'tools', 'bundle-functions.mjs'), 'utf8');
+  const targets = [
+    ...bundleScript.matchAll(/out:\s*'([^']+)\/index\.js'/g),
+  ].map((m) => m[1]);
+  for (const target of targets) {
+    if (!existsSync(join(root, target, 'function.json'))) {
+      failures.push(
+        `${target}/function.json missing: the adapter is bundled but the ` +
+          `Functions host will not register its HTTP trigger (route 404s). ` +
+          `Commit the binding file.`,
+      );
+    }
+  }
+  return targets.length;
+}
+
 function checkBundles() {
   if (!existsSync(SHARED_BUNDLE)) {
     failures.push('shared bundle apps/api/index.js was not produced');
@@ -122,6 +146,7 @@ try {
 let adapterCount = 0;
 try {
   adapterCount = checkBundles();
+  checkAdapterBindings();
 } finally {
   removeGeneratedBundles();
 }
