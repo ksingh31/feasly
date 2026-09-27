@@ -41,21 +41,53 @@ export interface AcsEmailProviderDeps {
   readonly fromAddress: string;
 }
 
-/** Redact credential fragments and email addresses from SDK error text. */
+/** Redact credential fragments, email addresses, and raw magic-link tokens from SDK error text. */
 function sanitizeErrorText(text: string): string {
   return text
     .replace(/endpoint=[^;'"`\s]+;accesskey=[^;'"`\s]+/gi, '[redacted-connection-string]')
     .replace(
       /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
       '[redacted-recipient]',
-    );
+    )
+    // Magic-link tokens are 64 hex chars (two dash-stripped UUIDs —
+    // magic-link.store.ts `issue`). They must never reach logs or errors.
+    .replace(/\b[0-9a-f]{64}\b/gi, '[redacted-token]');
+}
+
+/**
+ * Structured send-failure event name, emitted as a JSON log line on every
+ * provider throw. The Functions host captures console output into
+ * Application Insights (`AppTraces`), and the
+ * `${namePrefix}-email-send-failures` scheduled query rule in
+ * `infra/bicep/modules/alerts.bicep` keys its alert query off this exact
+ * string — rename it only together with the Bicep query (the
+ * `email.send-failure-alert.test.ts` drift guard fails otherwise).
+ *
+ * The line carries NO PII: the error text is sanitized (credentials and
+ * recipient addresses redacted), and the message body/subject/recipient
+ * are never included. The HTTP request paths also hit the pipeline's error
+ * log, which carries the correlation ID — correlate by timestamp.
+ */
+export const EMAIL_SEND_FAILED_EVENT = 'email.send-failed';
+
+function logSendFailure(context: string, sanitizedError: string): void {
+  console.error(
+    JSON.stringify({
+      event: EMAIL_SEND_FAILED_EVENT,
+      provider: 'acs',
+      context,
+      error: sanitizedError,
+    }),
+  );
 }
 
 function toProviderError(context: string, error: unknown): EmailProviderError {
   const raw =
     error instanceof Error ? error.message : 'unknown error';
+  const sanitized = sanitizeErrorText(raw);
+  logSendFailure(context, sanitized);
   return new EmailProviderError(
-    `Azure Communication Services email failed (${context}): ${sanitizeErrorText(raw)}`,
+    `Azure Communication Services email failed (${context}): ${sanitized}`,
     { cause: error },
   );
 }
@@ -102,6 +134,7 @@ export function createAcsEmailProvider(
         const detail = result.error?.message
           ? sanitizeErrorText(result.error.message)
           : `status ${result.status}`;
+        logSendFailure('not delivered', detail);
         throw new EmailProviderError(
           `Azure Communication Services email was not delivered (${detail}).`,
         );
