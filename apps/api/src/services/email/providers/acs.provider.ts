@@ -13,7 +13,9 @@
  * provider's own clear error, which is the correct placeholder behavior
  * (no provisioning, no DNS changes, no spend in this story).
  *
- * Long-running send: beginSend + pollUntilDone. SDK errors are wrapped in
+ * Long-running send: beginSend + pollUntilDone with a bounded deadline
+ * (deliveryPollTimeoutMs — the SDK poller accepts an abortSignal but no
+ * timeout of its own). SDK errors are wrapped in
  * EmailProviderError with the connection string and any recipient addresses
  * redacted out of the message — never leak credentials or PII in errors.
  *
@@ -39,7 +41,21 @@ export interface AcsEmailProviderDeps {
   readonly connectionString?: string;
   /** Sender identity; must be an ACS-verified domain sender to deliver. */
   readonly fromAddress: string;
+  /**
+   * Deadline for the delivery poll, in milliseconds. The send is
+   * synchronous in the HTTP request path, so an unbounded
+   * `pollUntilDone()` stalls the response when ACS's polling endpoint
+   * hangs (2026-09-27: lead-gate "Sending..." hang). Past the deadline the
+   * poll is aborted via the SDK's abortSignal and the send fails LOUD
+   * (EmailProviderError) — the lead row and token are already committed
+   * upstream, so a client retry is safe (dedupe live-link path, no
+   * duplicate email). Defaults to 20s.
+   */
+  readonly deliveryPollTimeoutMs?: number;
 }
+
+/** Default delivery-poll deadline when the dep is not supplied. */
+const DEFAULT_DELIVERY_POLL_TIMEOUT_MS = 20_000;
 
 /** Redact credential fragments, email addresses, and raw magic-link tokens from SDK error text. */
 function sanitizeErrorText(text: string): string {
@@ -125,10 +141,49 @@ export function createAcsEmailProvider(
         throw toProviderError('send rejected', error);
       }
       let result;
+      // The SDK's pollUntilDone() has no deadline of its own — bound it so
+      // a stalled ACS polling endpoint can't hold the HTTP response open
+      // forever (2026-09-27: lead-gate "Sending..." hang). Two mechanisms:
+      // (1) the abortSignal the SDK honors (core-lro cancels its poll
+      // loop), and (2) a Promise.race deadline that guarantees the bound
+      // even if the poller ignores the signal. On timeout the send fails
+      // LOUD (EmailProviderError + the send-failure log line the ops alert
+      // keys off) — the lead row and token are already committed upstream,
+      // so a client retry is safe (dedupe live-link path, no duplicate
+      // email).
+      const pollTimeoutMs =
+        deps.deliveryPollTimeoutMs ?? DEFAULT_DELIVERY_POLL_TIMEOUT_MS;
+      const aborter = new AbortController();
+      const failTimedOut = (): EmailProviderError => {
+        const detail = `delivery polling timed out after ${pollTimeoutMs}ms`;
+        logSendFailure('delivery polling timed out', detail);
+        return new EmailProviderError(
+          `Azure Communication Services email failed (${detail}).`,
+        );
+      };
+      let fireTimeout!: () => void;
+      const pollTimer = setTimeout(() => {
+        aborter.abort();
+        fireTimeout();
+      }, pollTimeoutMs);
+      // Don't hold the process open on the timer in tests/local runs.
+      pollTimer.unref?.();
       try {
-        result = await poller.pollUntilDone();
-      } catch (error) {
-        throw toProviderError('delivery polling failed', error);
+        result = await Promise.race([
+          poller
+            .pollUntilDone({ abortSignal: aborter.signal })
+            .catch((error: unknown) => {
+              // Our abort won the race: report the timeout, not the SDK's
+              // generic abort error.
+              if (aborter.signal.aborted) throw failTimedOut();
+              throw toProviderError('delivery polling failed', error);
+            }),
+          new Promise<never>((_, reject) => {
+            fireTimeout = () => reject(failTimedOut());
+          }),
+        ]);
+      } finally {
+        clearTimeout(pollTimer);
       }
       if (result.status !== 'Succeeded') {
         const detail = result.error?.message

@@ -1519,6 +1519,7 @@ function createEmailProvider(config: ApiConfig): EmailProvider {
       return createAcsEmailProvider({
         connectionString: config.email.acsConnectionString,
         fromAddress: config.email.fromAddress,
+        deliveryPollTimeoutMs: config.email.acsPollTimeoutMs,
       });
     case 'log':
     default:
