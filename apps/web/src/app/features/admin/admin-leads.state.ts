@@ -1,7 +1,8 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable } from '@angular/core';
 import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
-import { tap } from 'rxjs/operators';
+import { catchError, tap } from 'rxjs/operators';
+import { EMPTY } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AdminLeadDetail,
@@ -15,6 +16,7 @@ import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
   DismissAdminLeadStatusError,
+  DismissExportError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -55,6 +57,8 @@ export interface AdminLeadsStateModel {
   /** Last failed status-update message; null when the last apply succeeded. */
   statusUpdateError: string | null;
   exporting: boolean;
+  /** Last failed CSV-export message; null when the last export succeeded. */
+  exportError: string | null;
 }
 
 const defaults: AdminLeadsStateModel = {
@@ -75,6 +79,7 @@ const defaults: AdminLeadsStateModel = {
   statusUpdating: false,
   statusUpdateError: null,
   exporting: false,
+  exportError: null,
 };
 
 /**
@@ -181,6 +186,11 @@ export class AdminLeadsState {
   @Selector()
   static exporting(state: AdminLeadsStateModel): boolean {
     return state.exporting;
+  }
+
+  @Selector()
+  static exportError(state: AdminLeadsStateModel): string | null {
+    return state.exportError;
   }
 
   // ------------------------------------------------------------------ helpers
@@ -406,18 +416,30 @@ export class AdminLeadsState {
     }
     const state = ctx.getState();
     const filters = this.effectiveFilters(state, state.filters, state.tab);
-    ctx.patchState({ exporting: true });
+    ctx.patchState({ exporting: true, exportError: null });
     return this.api.exportCsv(filters).pipe(
       tap({
         next: (blob) => {
           ctx.patchState({ exporting: false });
           this.downloadBlob(blob, 'feasly-leads.csv');
         },
-        error: () => {
-          ctx.patchState({ exporting: false });
-        },
+      }),
+      // Swallow the error into user-facing state. Without this catchError the
+      // ApiError propagates through the NGXS dispatch stream as an unhandled
+      // error and lands the admin on the branded /error page (2026-09-27).
+      catchError((err: { message?: string }) => {
+        ctx.patchState({
+          exporting: false,
+          exportError: err?.message ?? 'Could not export the CSV. Please try again.',
+        });
+        return EMPTY;
       }),
     );
+  }
+
+  @Action(DismissExportError)
+  dismissExportError(ctx: StateContext<AdminLeadsStateModel>): void {
+    ctx.patchState({ exportError: null });
   }
 
   @Action(SetAdminLeadsTab)

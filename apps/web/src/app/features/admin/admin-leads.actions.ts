@@ -56,6 +56,11 @@ export class ExportAdminLeadsCsv {
   static readonly type = '[AdminLeads] Export CSV';
 }
 
+/** Dismiss the inline CSV-export error. */
+export class DismissExportError {
+  static readonly type = '[AdminLeads] Dismiss export error';
+}
+
 /** Switch between the all-leads and quarantine tabs. */
 export class SetAdminLeadsTab {
   static readonly type = '[AdminLeads] Set tab';
