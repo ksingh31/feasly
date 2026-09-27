@@ -39,6 +39,12 @@ jobs:
       # HRD-06: repo-owned health-check tests (mocked endpoints — no network,
       # no Azure). Fails the build if a check or the alert dedupe regresses.
       - run: bash infra/health/test/test-checks.sh
+      # HRD-04: PITR drill-script guard unit tests + no-auth static check that
+      # the Bicep declares PITR-capable backup settings (retention >= 7d).
+      # The live config is asserted separately by the backup-config job, which
+      # needs the Azure OIDC login; these two need nothing but the repo.
+      - run: bash infra/health/test/test-pitr-drill.sh
+      - run: bash tools/check-backup-bicep.sh
       # HRD-05: prelaunch gates that must stay green while development
       # continues. (The legal gate is probed non-blockingly below — it hard-
       # blocks production deploys in cd.yml, not PR merges, so work doesn't

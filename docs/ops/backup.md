@@ -51,7 +51,20 @@ the needed rows across.
 
 **Iron rule: production data is NEVER restored over production.** Every
 restore targets a *new* server whose name starts with `feasly-drill-`. The
-drill script asserts the target name differs from the source before running.
+runnable drill script `tools/pitr-drill.sh` enforces this with a unit-tested
+guard (target must start with `feasly-drill-`, must differ from the source,
+source must not itself be a drill server) and refuses to run otherwise.
+Prefer the script over the manual steps below — it adds restore-point
+validation, RTO timing, the RPO cross-check against production, and automatic
+teardown:
+
+```bash
+bash tools/pitr-drill.sh --source-server feasly-dev-pg-4fhkep \
+  --resource-group rg-feasly-dev \
+  --restore-point "$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+The manual equivalent, step by step:
 
 ### 4.1. Pick a restore point
 
@@ -85,9 +98,19 @@ echo "drill server: $DRILL"
 ### 4.3. Verify integrity
 
 ```bash
-# Allow a firewall rule for the operator IP, then:
+# The drill server inherits the source's firewall rules; add a temporary rule
+# for the operator IP (it is deleted automatically with the server in §4.4):
+MY_IP="$(curl -s --max-time 10 https://api.ipify.org)"
+az postgres flexible-server firewall-rule create \
+  -n "$DRILL" -g "$RG" \
+  --rule-name drill-tmp-operator \
+  --start-ip-address "$MY_IP" --end-ip-address "$MY_IP"
+
 DRILL_HOST="$(az postgres flexible-server show -n "$DRILL" -g "$RG" \
   --query fullyQualifiedDomainName -o tsv)"
+# Admin login is discovered, not guessed:
+ADMIN_USER="$(az postgres flexible-server show -n "$DRILL" -g "$RG" \
+  --query administratorLogin -o tsv)"
 # Key Vault name carries a hash suffix — discover it; the secret name is fixed
 # by infra/bicep/main.bicep (postgresSecretName).
 KV_NAME="$(az keyvault list -g "$RG" \
@@ -96,14 +119,19 @@ ADMIN_PW="$(az keyvault secret show --vault-name "$KV_NAME" \
   --name feasly-dev-postgres-admin --query value -o tsv)"
 
 export PGPASSWORD="$ADMIN_PW"
+# The app database is `feasly` (see infra/bicep/modules/postgres.bicep), not
+# the default `postgres` database.
+DSN="host=$DRILL_HOST user=$ADMIN_USER dbname=feasly sslmode=require"
 # Row counts + latest write must be present and no newer than the restore point.
-psql "host=$DRILL_HOST user=<admin-user> dbname=postgres sslmode=require" -c \
+psql "$DSN" -c \
   "SELECT count(*) AS estimates, max(created_at) AS latest_estimate FROM estimates;"
-psql "host=$DRILL_HOST user=<admin-user> dbname=postgres sslmode=require" -c \
+psql "$DSN" -c \
   "SELECT count(*) AS leads, max(created_at) AS latest_lead FROM leads;"
-psql "host=$DRILL_HOST user=<admin-user> dbname=postgres sslmode=require" -c \
+psql "$DSN" -c \
   "SELECT count(*) AS writes_after_restore_point FROM estimates WHERE created_at > timestamptz '$RESTORE_POINT';"
-# ^ must be 0: nothing newer than the restore point may exist.
+psql "$DSN" -c \
+  "SELECT count(*) AS writes_after_restore_point FROM leads WHERE created_at > timestamptz '$RESTORE_POINT';"
+# ^ both must be 0: nothing newer than the restore point may exist.
 ```
 
 Record: date, operator, restore point, time from `restore` command to first
@@ -137,7 +165,7 @@ update the "Proven by drill" cells in §2.
 
 | Date | Operator | Restore point | Measured RTO | RPO verified | Result |
 |---|---|---|---|---|---|
-| — | — | — | — | — | **Not yet run.** Needs approval to provision the short-lived drill server (torn down same session; burstable tier). |
+| — | — | — | — | — | **Not yet run.** Needs approval to provision the short-lived drill server (torn down same session; burstable tier). `tools/pitr-drill.sh` prints the row to paste here when the drill runs. |
 
 ## 7. Policy
 
