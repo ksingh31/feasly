@@ -10,6 +10,12 @@
 //   Function App's managed identity loses data-plane access to the host
 //   storage account, EVERY timer trigger (nudge, sheets sync, purges,
 //   …) silently stops firing — this alert pages ops before leads rot.
+// - Email send-failure monitor: a log-based scheduled query rule against
+//   `AppTraces` for the ACS provider's structured `email.send-failed` event
+//   (consumer magic-link emails stopped arriving with the UI claiming
+//   success, Sep 2026). The event is emitted at every provider throw site;
+//   the nudge timer's per-lead try/catch swallows send failures, so this is
+//   the only place timer-path failures surface.
 //
 // (Poison queue metric alert removed: QueueMessageCount is not available
 // as a platform metric at the storage account level. To be re-added with
@@ -117,6 +123,49 @@ resource timerScheduleMonitorAlert 'Microsoft.Insights/scheduledQueryRules@2021-
         {
           criterionType: 'StaticThresholdCriterion'
           query: 'AppExceptions | where TimeGenerated > ago(15m) | where ProblemId contains "StorageScheduleMonitor" or OuterMessage contains "Could not create BlobContainer" | summarize count()'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 2
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+    }
+  }
+}
+
+// Email send-failure monitor (magic-link email outage, Sep 2026): consumer
+// magic-link emails stopped arriving (~05:29 UTC) while the UI claimed
+// success. The send path threw, but nothing watched it — the nudge timer
+// even swallows per-lead send failures, so timer-path failures surface
+// nowhere else. The ACS provider now emits a structured `email.send-failed`
+// JSON line (console → Application Insights `AppTraces`) at every throw
+// site, and this rule fires on 3+ such events in 15 minutes (the outage
+// ran at a comparable rate; single transient failures don't page).
+resource emailSendFailureAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
+  name: '${namePrefix}-email-send-failures'
+  location: workspaceLocation
+  properties: {
+    description: 'Consumer email sends failing — ACS provider threw (magic links, nudges, ops mail)'
+    severity: 2
+    enabled: true
+    scopes: [
+      logAnalyticsWorkspaceId
+    ]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "email.send-failed" | summarize count()'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 2
