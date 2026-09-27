@@ -504,6 +504,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       error: 'Your estimate is safe — try again in a moment.',
       unsubscribeTitle: 'Feasly — Email preferences',
       unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
+      magicLinkTitle: 'Feasly — Opening your estimate',
+      magicLink: 'Opening your secure Feasly estimate link — verifying and unlocking your Calgary build estimate.',
     },
     marketing: {
       howItWorks: {
@@ -774,6 +776,27 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       errorBody: 'We couldn’t check your link. Please check your connection and try again.',
       retryLabel: 'Try again',
       homeCta: 'Back to home',
+    },
+    magicLink: {
+      loadingLabel: 'Opening your estimate…',
+      invalidHeading: 'This link isn’t valid.',
+      invalidBody:
+        'This estimate link doesn’t look right — it may have been copied incompletely. Request a fresh one below.',
+      expiredHeading: 'This link has expired.',
+      expiredBody: 'Estimate links expire after 7 days to protect your information.',
+      errorHeading: 'Something went wrong.',
+      errorBody: 'We couldn’t check your link. Please check your connection and try again.',
+      retryLabel: 'Try again',
+      homeCta: 'Back to home',
+      resendPrompt: 'Need a fresh link?',
+      resendEmailLabel: 'Email address',
+      resendEmailPlaceholder: 'you@example.com',
+      resendEmailError: 'Enter a valid email address.',
+      resendCta: 'Email me a fresh link',
+      resendingLabel: 'Sending…',
+      resendDoneHeading: 'Your fresh link is on its way.',
+      resendDoneBody: 'Check your inbox — your new estimate link is on its way. It expires in 7 days.',
+      resendErrorBody: 'We couldn’t send a fresh link. Check your connection and try again.',
     },
   },
 };

@@ -564,6 +564,8 @@ export interface AppConfig {
       notFound: string;
       unsubscribeTitle: string;
       unsubscribe: string;
+      magicLinkTitle: string;
+      magicLink: string;
       errorTitle: string;
       error: string;
     };
@@ -863,6 +865,32 @@ export interface AppConfig {
       errorBody: string;
       retryLabel: string;
       homeCta: string;
+    };
+    /**
+     * Magic-link redemption page (`/r/:token`, consumer/02) copy. All
+     * user-facing strings live here so the no-hardcode tripwire stays green.
+     * The invalid-link card also covers partner-share tokens, which use the
+     * same `/r/` URL shape but have no verify endpoint yet (follow-up).
+     */
+    magicLink: {
+      loadingLabel: string;
+      invalidHeading: string;
+      invalidBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      homeCta: string;
+      resendPrompt: string;
+      resendEmailLabel: string;
+      resendEmailPlaceholder: string;
+      resendEmailError: string;
+      resendCta: string;
+      resendingLabel: string;
+      resendDoneHeading: string;
+      resendDoneBody: string;
+      resendErrorBody: string;
     };
   };
 }
