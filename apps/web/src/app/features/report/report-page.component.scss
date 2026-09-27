@@ -537,31 +537,28 @@
   margin: 12px 0 0;
 }
 
-.cta.ghost {
+/* Download PDF: solid primary CTA (base .cta comes from wizard-shell.scss —
+   dark solid, light text). Full-width so it reads as the report's main
+   bottom action. */
+button.cta.pdf {
   width: 100%;
   margin-top: 20px;
+}
+
+/* "Estimate another address": clearly-visible secondary — the design-system
+   outline variant (same recipe as .developers .cta.secondary): transparent
+   with an accent outline and accent text. Never a ghost/text link. */
+a.cta.secondary.another-address {
+  width: 100%;
+  margin-top: 12px;
   background: transparent;
-  color: var(--text);
-  border: 1.5px solid var(--border);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
   box-sizing: border-box;
-}
-
-/* Download PDF: prominent secondary action — solid subtle background so the
-   button is clearly visible against the page (was transparent/barely visible). */
-button.cta.ghost {
-  background: var(--card);
-  border-color: var(--text);
-  border-width: 2px;
-  font-weight: 700;
-}
-
-/* "Estimate another address" link: sits below Download PDF with clear separation. */
-a.cta.ghost.another-address {
-  margin-top: 12px;
 }
 
 /* PRINT: v1 PDF via Save-as-PDF. The redesigned content — hero, build-cost

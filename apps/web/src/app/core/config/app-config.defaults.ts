@@ -404,8 +404,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       stepsTitle: 'Your next 3 steps',
       steps: [
         {
-          title: 'Confirm site feasibility',
-          body: 'Walk the lot with a builder or designer and confirm setbacks, servicing, and access before you spend on drawings. Surprises live in the site, not the spreadsheet.',
+          title: 'Meet your matched builders',
+          body: 'We’ll connect you with 2–3 Calgary infill builders matched to your project — compare their detailed quotes against the same scope.',
         },
         {
           title: 'Refine your project brief',
