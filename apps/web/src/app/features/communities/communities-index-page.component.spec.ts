@@ -13,6 +13,7 @@ describe('CommunitiesIndexPageComponent', () => {
     const seoMock = {
       setForRoute: vi.fn(),
       setJsonLd: vi.fn(),
+      getSiteUrl: vi.fn().mockReturnValue('https://feasly.test'),
     };
     const configMock = {
       get: vi.fn().mockReturnValue({
@@ -82,12 +83,21 @@ describe('CommunitiesIndexPageComponent', () => {
     expect(component.fromPrice(first)).toMatch(/^\$\d{1,3}(,\d{3})*$/);
   });
 
-  it('sets SEO for the communities route and clears JSON-LD', () => {
+  it('sets SEO for the communities route and injects the ItemList JSON-LD', () => {
     const seo = TestBed.inject(SeoService) as unknown as {
       setForRoute: ReturnType<typeof vi.fn>;
       setJsonLd: ReturnType<typeof vi.fn>;
+      getSiteUrl: ReturnType<typeof vi.fn>;
     };
     expect(seo.setForRoute).toHaveBeenCalledWith('communities');
-    expect(seo.setJsonLd).toHaveBeenCalledWith(null);
+    expect(seo.setJsonLd).toHaveBeenCalledTimes(1);
+    const schema = seo.setJsonLd.mock.calls[0][0] as Record<string, unknown>;
+    expect(schema['@type']).toBe('ItemList');
+    const items = schema['itemListElement'] as Record<string, unknown>[];
+    // One entry per community guide — crawlers discover every guide.
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0]['@type']).toBe('ListItem');
+    expect(items[0]['position']).toBe(1);
+    expect(String(items[0]['url'])).toMatch(/\/communities\/[a-z-]+\/$/);
   });
 });
