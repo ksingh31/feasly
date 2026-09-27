@@ -27,8 +27,10 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const estimates = pgTable(
   'estimates',
@@ -556,6 +558,17 @@ export const attributionEvents = pgTable(
   (t) => [
     index('attribution_events_lead_tenant_idx').on(t.leadId, t.tenantKey),
     index('attribution_events_status_idx').on(t.status),
+    // UNIQUE backstop (P0, 2026-09-27): one OPEN introduction per
+    // lead+tenant. The embed won flow is find-open-or-introduce; two
+    // concurrent won events both pass the find and both insert — the loser
+    // gets 23505 and recordIntroduction returns the winner (idempotent)
+    // instead of minting a second attribution (which would become a second
+    // invoice → double charge). Closed attributions (attributed / expired /
+    // excluded_prior_relationship) don't count: a lead may legitimately be
+    // re-introduced after the first introduction closes.
+    uniqueIndex('attribution_events_open_intro_unique')
+      .on(t.leadId, t.tenantKey)
+      .where(sql`${t.status} = 'introduced'`),
   ],
 );
 
@@ -672,7 +685,13 @@ export const commissionInvoices = pgTable(
     /** The attribution whose reported contract this invoice bills. */
     attributionId: uuid('attribution_id')
       .notNull()
-      .references(() => attributionEvents.id),
+      .references(() => attributionEvents.id)
+      // UNIQUE — one invoice max per attribution. This is the database
+      // backstop for the won-event race: two concurrent chargeCommission
+      // calls for the same deal both pass the findFirst check, but only
+      // one insert wins; the loser gets 23505 and createDraftInvoice
+      // returns the winner's invoice (idempotent) instead of double-billing.
+      .unique(),
     /** Denormalized from the attribution for invoice queries. */
     leadId: uuid('lead_id')
       .notNull()

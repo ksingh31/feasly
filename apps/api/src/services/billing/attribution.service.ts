@@ -29,6 +29,7 @@ import {
   isWithinAttributionWindow,
   reportingDeadline,
 } from '../../lib/billing-deadlines';
+import { isUniqueViolation } from './pg-errors';
 
 export type AttributionStatus =
   | 'introduced'
@@ -65,7 +66,11 @@ export interface ReportContractInput {
 }
 
 export interface AttributionService {
-  /** Record a lead→builder introduction (opens the attribution window). */
+  /**
+   * Record a lead→builder introduction (opens the attribution window).
+   * Idempotent per open (lead, tenant): a concurrent duplicate returns the
+   * existing open introduction (UNIQUE backstop, migration 0034).
+   */
   recordIntroduction(input: RecordIntroductionInput): Promise<AttributionRecord>;
   /**
    * Record a signed contract against an introduction. Rejects when the
@@ -113,8 +118,22 @@ const TERMINAL_STATUSES: ReadonlySet<AttributionStatus> = new Set([
   'excluded_prior_relationship',
 ]);
 
-function toRecord(row: typeof attributionEvents.$inferSelect): AttributionRecord {
-  const status = row.status as AttributionStatus;
+/**
+ * True when the stored contract matches the incoming report — the
+ * idempotency key for duplicate reportContract calls (P0, 2026-09-27).
+ */
+function sameContractDetails(
+  row: typeof attributionEvents.$inferSelect,
+  input: ReportContractInput,
+): boolean {
+  return (
+    row.contractValueCents === input.contractValueCents &&
+    row.contractSignedAt !== null &&
+    row.contractSignedAt.getTime() === input.contractSignedAt.getTime()
+  );
+}
+
+function toRecord(row: typeof attributionEvents.$inferSelect): AttributionRecord {  const status = row.status as AttributionStatus;
   return {
     id: row.id,
     leadId: row.leadId,
@@ -153,17 +172,34 @@ export function createAttributionService(deps: AttributionServiceDeps): Attribut
   return {
     async recordIntroduction(input: RecordIntroductionInput): Promise<AttributionRecord> {
       const introducedAt = input.introducedAt ?? now();
-      const [row] = await db
-        .insert(attributionEvents)
-        .values({
-          id: newId(),
-          leadId: input.leadId,
-          tenantKey: input.tenantKey,
-          introducedAt,
-          status: 'introduced',
-        })
-        .returning();
-      return toRecord(row);
+      try {
+        const [row] = await db
+          .insert(attributionEvents)
+          .values({
+            id: newId(),
+            leadId: input.leadId,
+            tenantKey: input.tenantKey,
+            introducedAt,
+            status: 'introduced',
+          })
+          .returning();
+        return toRecord(row);
+      } catch (error) {
+        // Lost the introduction race: the UNIQUE backstop on open
+        // (lead_id, tenant_key) (migration 0034) rejected our insert because
+        // a concurrent won event introduced the same lead first. Reuse the
+        // winner — one open introduction per lead+tenant, never a 500.
+        if (!isUniqueViolation(error)) throw error;
+        const winner = await db.query.attributionEvents.findFirst({
+          where: and(
+            eq(attributionEvents.leadId, input.leadId),
+            eq(attributionEvents.tenantKey, input.tenantKey),
+            eq(attributionEvents.status, 'introduced'),
+          ),
+        });
+        if (winner === undefined) throw error;
+        return toRecord(winner);
+      }
     },
 
     async reportContract(input: ReportContractInput): Promise<AttributionRecord> {
@@ -174,7 +210,34 @@ export function createAttributionService(deps: AttributionServiceDeps): Attribut
           'contractValueCents must be a positive integer (cents, excl. land)',
         );
       }
-      const row = await requireOpen(input.attributionId);
+      // Single fetch: the idempotency decision and the transition guard must
+      // see the same row, otherwise the check-then-act race just moves.
+      const row = await db.query.attributionEvents.findFirst({
+        where: eq(attributionEvents.id, input.attributionId),
+      });
+      if (row === undefined) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, `Attribution not found: "${input.attributionId}"`);
+      }
+      if (row.status === 'attributed') {
+        // Idempotent retry (P0, 2026-09-27): concurrent won events share one
+        // introduction via the 0034 backstop, so both report the contract.
+        // The same contract reported twice returns the existing record;
+        // different details on an already-attributed introduction is a
+        // genuine conflict, not a retry.
+        if (sameContractDetails(row, input)) return toRecord(row);
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Attribution "${input.attributionId}" is already attributed with different contract details`,
+        );
+      }
+      if (TERMINAL_STATUSES.has(row.status as AttributionStatus)) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Attribution "${input.attributionId}" is already ${row.status} and cannot transition`,
+        );
+      }
       const record = toRecord(row);
       if (
         !isWithinAttributionWindow(
@@ -191,6 +254,9 @@ export function createAttributionService(deps: AttributionServiceDeps): Attribut
         );
       }
       const reportedAt = input.reportedAt ?? now();
+      // Conditional UPDATE: a concurrent report that landed first wins;
+      // the loser re-reads and applies the idempotency rule on the final
+      // state instead of 409ing or silently overwriting.
       const [updated] = await db
         .update(attributionEvents)
         .set({
@@ -199,9 +265,29 @@ export function createAttributionService(deps: AttributionServiceDeps): Attribut
           status: 'attributed',
           updatedAt: reportedAt,
         })
-        .where(eq(attributionEvents.id, input.attributionId))
+        .where(
+          and(
+            eq(attributionEvents.id, input.attributionId),
+            eq(attributionEvents.status, 'introduced'),
+          ),
+        )
         .returning();
-      return toRecord(updated);
+      if (updated !== undefined) return toRecord(updated);
+      const final = await db.query.attributionEvents.findFirst({
+        where: eq(attributionEvents.id, input.attributionId),
+      });
+      if (
+        final !== undefined &&
+        final.status === 'attributed' &&
+        sameContractDetails(final, input)
+      ) {
+        return toRecord(final);
+      }
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Attribution "${input.attributionId}" changed concurrently (now '${final?.status ?? 'missing'}')`,
+      );
     },
 
     async markExpired(attributionId: string): Promise<AttributionRecord> {

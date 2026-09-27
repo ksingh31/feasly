@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import {
   createCommissionService,
   type CommissionService,
@@ -23,7 +24,7 @@ import {
 } from '../src/services/billing/attribution.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
-import { estimates, leads, tenants, billingEvents } from '../src/db/schema';
+import { estimates, leads, tenants, billingEvents, commissionInvoices } from '../src/db/schema';
 import { ErrorCodes } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
 
@@ -232,7 +233,7 @@ describe('commission service', () => {
     });
   });
 
-  it('creates exactly one invoice per attribution', async () => {
+  it('creates exactly one invoice per attribution (idempotent on retry)', async () => {
     const { commission, attribution } = newServices(testDb);
     await seedTenant(testDb, 'one-invoice-builder');
     const attributionId = await seedAttribution(
@@ -241,10 +242,64 @@ describe('commission service', () => {
       'one-invoice-builder',
     );
 
-    await commission.createDraftInvoice(attributionId);
-    await expect(
+    const first = await commission.createDraftInvoice(attributionId);
+    // Retried won event: returns the existing invoice, never a 409 and
+    // never a second row.
+    const second = await commission.createDraftInvoice(attributionId);
+    expect(second.id).toBe(first.id);
+    const count = await testDb.rows<{ n: string | number }>(
+      `select count(*) as n from commission_invoices where attribution_id = '${attributionId}'`,
+    );
+    expect(Number(count[0].n)).toBe(1);
+  });
+
+  it('survives concurrent won events for the same attribution (DB backstop)', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'race-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'race-builder',
+    );
+
+    // Two won events racing: both pass the findFirst check before either
+    // inserts. The UNIQUE backstop (migration 0033) makes exactly one win;
+    // the loser returns the winner's invoice instead of 500ing.
+    const [a, b] = await Promise.all([
       commission.createDraftInvoice(attributionId),
-    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+      commission.createDraftInvoice(attributionId),
+    ]);
+    expect(a.id).toBe(b.id);
+    const count = await testDb.rows<{ n: string | number }>(
+      `select count(*) as n from commission_invoices where attribution_id = '${attributionId}'`,
+    );
+    expect(Number(count[0].n)).toBe(1);
+  });
+
+  it('rejects a duplicate attribution_id at the database level', async () => {
+    const { attribution } = newServices(testDb);
+    await seedTenant(testDb, 'db-backstop-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'db-backstop-builder',
+    );
+    const record = await attribution.getById(attributionId);
+    // Raw inserts bypassing the service: the constraint itself must hold.
+    const values = {
+      id: randomUUID(),
+      tenantKey: 'db-backstop-builder',
+      attributionId,
+      leadId: record.leadId,
+      contractValueCents: 50_000_000,
+      commissionCents: 500_000,
+    };
+    await testDb.db.insert(commissionInvoices).values(values);
+    await expect(
+      testDb.db
+        .insert(commissionInvoices)
+        .values({ ...values, id: randomUUID() }),
+    ).rejects.toThrow();
   });
 
   it('flags + alerts when the contract was reported after the 14-day SLA', async () => {
@@ -395,6 +450,146 @@ describe('commission service', () => {
     const disputed2 = await commission.disputeInvoice(resumed.id, 'again');
     const voided = await commission.resolveDispute(disputed2.id, 'void');
     expect(voided.status).toBe('void');
+  });
+
+  it('webhook payment for a disputed invoice stays disputed (freeze holds)', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'webhook-freeze-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'webhook-freeze-builder',
+    );
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const disputed = await commission.disputeInvoice(
+      inReview.id,
+      'prior relationship',
+    );
+    expect(disputed.status).toBe('disputed');
+
+    // Simulate the pre-fix race outcome: a finalize that slipped a
+    // PaymentIntent onto the invoice before the dispute won. The webhook
+    // handler must still refuse to move it.
+    const piId = 'pi_test_disputed_race';
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ stripePaymentIntentId: piId })
+      .where(eq(commissionInvoices.id, disputed.id));
+
+    const result = await commission.markPaidByPaymentIntent(piId);
+    expect(result.status).toBe('disputed');
+    expect(result.paidAt).toBeNull();
+
+    // No charge recorded: status unchanged on re-read.
+    const reread = await commission.getById(disputed.id);
+    expect(reread.status).toBe('disputed');
+    expect(reread.paidAt).toBeNull();
+
+    // Audit trail written — the blocked attempt is NOT silent.
+    const events = await testDb.db.select().from(billingEvents);
+    const blocked = events.filter(
+      (e) =>
+        e.entityId === disputed.id &&
+        e.eventType === 'invoice.charge_blocked_disputed',
+    );
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].payload).toMatchObject({
+      attempted: 'paid',
+      paymentIntentId: piId,
+    });
+  });
+
+  it('webhook failure for a disputed invoice stays disputed (no dunning)', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    await seedTenant(testDb, 'webhook-freeze-fail-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'webhook-freeze-fail-builder',
+    );
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const disputed = await commission.disputeInvoice(inReview.id, 'duplicate');
+    const piId = 'pi_test_disputed_race_fail';
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ stripePaymentIntentId: piId })
+      .where(eq(commissionInvoices.id, disputed.id));
+
+    const sentBefore = email.sent.length;
+    const result = await commission.markFailedByPaymentIntent(piId);
+    expect(result.status).toBe('disputed');
+
+    // No dunning alert fired for a frozen invoice.
+    expect(email.sent.length).toBe(sentBefore);
+
+    const events = await testDb.db.select().from(billingEvents);
+    const blocked = events.filter(
+      (e) =>
+        e.entityId === disputed.id &&
+        e.eventType === 'invoice.charge_blocked_disputed',
+    );
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].payload).toMatchObject({ attempted: 'failed' });
+  });
+
+  it('dispute vs finalize race: loser gets 409, exactly one state wins', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'transition-race-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'transition-race-builder',
+    );
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+
+    // Both pass their status pre-checks before either UPDATE lands; the
+    // atomic conditional UPDATE lets exactly one through.
+    const results = await Promise.allSettled([
+      commission.disputeInvoice(inReview.id, 'race dispute'),
+      commission.finalizeInvoice(inReview.id),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(
+      (rejected[0] as PromiseRejectedResult).reason,
+    ).toMatchObject({ code: ErrorCodes.CONFLICT });
+
+    const final = await commission.getById(inReview.id);
+    expect(['disputed', 'finalized']).toContain(final.status);
+  });
+
+  it('illegal transition out of a state throws 409 (not a silent no-op)', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'illegal-transition-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'illegal-transition-builder',
+    );
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    // A payment webhook for a draft invoice (PI attached out of band):
+    // draft → paid is not a legal transition.
+    const piId = 'pi_test_illegal_transition';
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ stripePaymentIntentId: piId })
+      .where(eq(commissionInvoices.id, draft.id));
+
+    await expect(
+      commission.markPaidByPaymentIntent(piId),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+
+    const reread = await commission.getById(draft.id);
+    expect(reread.status).toBe('draft');
   });
 
   it('rejects invalid status transitions', async () => {
