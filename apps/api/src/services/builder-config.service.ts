@@ -1,9 +1,11 @@
 /**
  * Builder-config service (EMB-02).
  *
- * Resolution order: in-memory repo JSON first (`config/builders/*.json`,
- * inlined at build time by `tools/generate-builder-configs.ts`), DB
- * `tenants` row as the fallback. Unknown key → 404 UNKNOWN_TENANT.
+ * Resolution order: DB `builders` row first (the runtime source of truth
+ * since the embed/02 admin-UI migration), in-memory repo JSON
+ * (`config/builders/*.json`, inlined at build time by
+ * `tools/generate-builder-configs.ts`) as the fallback. Unknown key → 404
+ * UNKNOWN_TENANT. Inactive builders → 404 as well (they can't embed).
  *
  * The injected configs are re-validated at creation (the build-time
  * generator already validated them — this is defense in depth and the
@@ -16,7 +18,7 @@
 import { eq } from 'drizzle-orm';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { tenants } from '../db/schema';
+import { builders } from '../db/schema';
 import { HttpError, ErrorCodes } from '../middleware/errors';
 import {
   validateBuilderConfigs,
@@ -52,15 +54,22 @@ function toPublicConfig(file: BuilderConfigFile): EmbedPublicConfig {
   };
 }
 
-function toPublicConfigFromRow(row: typeof tenants.$inferSelect): EmbedPublicConfig {
+function toPublicConfigFromRow(row: typeof builders.$inferSelect): EmbedPublicConfig {
+  if (row.status !== 'active') {
+    throw new HttpError(
+      404,
+      ErrorCodes.UNKNOWN_TENANT,
+      `Unknown builder tenant: "${row.tenantKey}"`,
+    );
+  }
   return {
     business_name: row.businessName,
     display_name: row.displayName,
-    logo_url: row.logoUrl,
-    accent_color: row.accentColor,
+    logo_url: row.logoUrl ?? '',
+    accent_color: row.accentColor ?? '',
     allowed_origins: [...row.allowedOrigins],
-    fallback_phone: row.fallbackPhone,
-    fallback_email: row.fallbackEmail,
+    fallback_phone: row.phone ?? '',
+    fallback_email: row.email ?? '',
     plan: row.plan === 'flat' || row.plan === 'commission' ? row.plan : null,
   };
 }
@@ -80,13 +89,15 @@ export function createBuilderConfigService(
 
   return {
     async getByKey(tenantKey: string): Promise<EmbedPublicConfig> {
-      const fromFile = configs[tenantKey];
-      if (fromFile !== undefined) return toPublicConfig(fromFile);
-
-      const row = await db.query.tenants.findFirst({
-        where: eq(tenants.tenantKey, tenantKey),
+      // DB first: the builders table is the runtime source of truth.
+      const row = await db.query.builders.findFirst({
+        where: eq(builders.tenantKey, tenantKey),
       });
       if (row !== undefined) return toPublicConfigFromRow(row);
+
+      // Fallback: repo JSON (seed source + offline fallback).
+      const fromFile = configs[tenantKey];
+      if (fromFile !== undefined) return toPublicConfig(fromFile);
 
       throw new HttpError(
         404,

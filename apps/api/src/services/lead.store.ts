@@ -33,6 +33,11 @@ export interface LeadRecord {
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
   readonly status: string;
+  /**
+   * Admin-assigned builder (builders table). Null = unassigned; the lead
+   * flow never depends on it. The builder portal scopes to this column.
+   */
+  readonly builderId: string | null;
   /** email/03: CASL opt-out timestamp; null = still subscribed. */
   readonly unsubscribedAt: Date | null;
   /**
@@ -167,6 +172,15 @@ export interface LeadStore {
     readonly tenantKey: string;
     readonly limit?: number;
   }): Promise<LeadRecord[]>;
+  /**
+   * Returns only leads assigned to the given builder, newest first.
+   * Quarantined rows are EXCLUDED (spam never reaches the builder).
+   * This is the builder-portal scoping query (builders table migration).
+   */
+  listByBuilderId(args: {
+    readonly builderId: string;
+    readonly limit?: number;
+  }): Promise<LeadRecord[]>;
   /** One lead by id, or null. */
   findById(id: string): Promise<LeadRecord | null>;
   /**
@@ -286,6 +300,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     contactOptOutAt: row.contactOptOutAt,
     consentUpdatedAt: row.consentUpdatedAt,
     nudgeSentAt: row.nudgeSentAt,
+    builderId: row.builderId,
     sheetsSyncedAt: row.sheetsSyncedAt,
     updatedAt: row.updatedAt,
     createdAt: row.createdAt,
@@ -363,6 +378,17 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .from(leads)
         .where(
           and(eq(leads.tenantKey, args.tenantKey), eq(leads.quarantined, false)),
+        )
+        .orderBy(desc(leads.createdAt))
+        .limit(args.limit ?? 100);
+      return rows.map(toRecord);
+    },
+    async listByBuilderId(args): Promise<LeadRecord[]> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(
+          and(eq(leads.builderId, args.builderId), eq(leads.quarantined, false)),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
