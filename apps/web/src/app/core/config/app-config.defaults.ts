@@ -136,6 +136,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       unavailableHeading: 'Estimator unavailable',
       unavailableBody:
         'This estimator is temporarily unavailable — please contact the builder directly.',
+      missingKeyHeading: 'This estimator needs a builder link',
+      missingKeyBody:
+        'This embed link is missing its builder key. Please open the estimator from your builder’s website instead of visiting this page directly.',
       ctaLabel: 'Get my estimate →',
       contactPrefix: 'Questions?',
       poweredBy: 'Powered by Feasly',
