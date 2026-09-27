@@ -43,6 +43,12 @@ export class LeadState {
     return state.email;
   }
 
+  /** False when the last gate POST was a duplicate (or quarantined) and the backend sent no new email. */
+  @Selector()
+  static magicLinkSent(state: LeadStateModel): boolean {
+    return state.magicLinkSent;
+  }
+
   @Action(StoreLeadResult)
   storeLeadResult(ctx: StateContext<LeadStateModel>, action: StoreLeadResult): void {
     ctx.patchState({ ...action.result });

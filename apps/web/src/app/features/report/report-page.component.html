@@ -7,6 +7,9 @@
   @if (updatedLabel(); as updated) {
     <p class="report-updated">{{ updated }}</p>
   }
+  @if (partnerView()) {
+    <p class="partner-note" role="note">{{ copy.partnerViewNote }}</p>
+  }
 
   @if (status() === 'loading' && !snapshot()) {
     <p class="loading" role="status">{{ copy.loadingLabel }}</p>
@@ -22,7 +25,7 @@
         <button type="button" class="link-btn" (click)="retry()">{{ copy.retryLabel }}</button>
       </p>
     }
-    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? copy.pendingSub : copy.subPreGate }}</p>
+    <p class="report-sub">{{ unlocked() ? copy.subPostGate : pendingLead() ? pendingSubCopy() : copy.subPreGate }}</p>
     @if (unlocked()) {
       <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
     }
@@ -43,7 +46,9 @@
         </div>
 
         <!-- Living-area stepper: always visible, no toggle, no re-run button.
-             On reno reports this steps the affected area with reno wording. -->
+             On reno reports this steps the affected area with reno wording.
+             Hidden in partner view — partners get a read-only report. -->
+        @if (!partnerView()) {
         <div class="stepper-card no-print">
           <div class="stepper-head">
             <h2>{{ stepperTitle() }}</h2>
@@ -77,6 +82,7 @@
             </button>
           </div>
         </div>
+        }
 
         <div class="hero-sub">
           <div class="figure-card build-highlight">
@@ -194,7 +200,10 @@
 
     @if (unlocked()) {
       <!-- PARTNER SHARE: the backend sends the structured Feasly email and
-           mints the partner their own link (share/01) — no mailto: draft. -->
+           mints the partner their own link (share/01) — no mailto: draft.
+           Hidden in partner view: a partner link must not mint more links
+           (the backend answers 403 anyway). -->
+      @if (!partnerView()) {
       <section class="card no-print" [attr.aria-label]="copy.shareTitle">
         <h2>{{ copy.shareTitle }}</h2>
         <p class="hint">{{ copy.shareHint }}</p>
@@ -230,8 +239,11 @@
           <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
         }
       </section>
+      }
 
-      <!-- CALLBACK -->
+      <!-- CALLBACK. Hidden in partner view: the callback is booked against
+           the owner's lead — a partner must not file one (backend 403s). -->
+      @if (!partnerView()) {
       <section class="card no-print" [attr.aria-label]="copy.callbackTitle">
         <h2>{{ copy.callbackTitle }}</h2>
         <p class="hint">{{ copy.callbackHint }}</p>
@@ -266,6 +278,7 @@
           <p class="field-error" role="alert">{{ copy.callbackError }}</p>
         }
       </section>
+      }
 
       <button class="cta ghost no-print" type="button" (click)="print()">{{ copy.pdfCta }}</button>
 

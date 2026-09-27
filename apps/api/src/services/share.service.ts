@@ -16,12 +16,19 @@
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { PartnerShareResponse } from '@feasly/contracts';
+import type {
+  PartnerShareResponse,
+  PartnerShareVerifyResponse,
+} from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email';
 import type { LeadStore } from './lead.store';
-import type { MagicLinkStore } from './magic-link.store';
-import { resolveReportToken } from './report-context';
+import { isMagicLinkLive } from './magic-link.service';
+import {
+  PARTNER_SHARE_LINK_PURPOSE,
+  type MagicLinkStore,
+} from './magic-link.store';
+import { requireOwnerLink, resolveReportToken } from './report-context';
 import type { PartnerShareStore } from './partner-share.store';
 
 /** Request validation — mirrors the contracts `PartnerShareRequest` shape. */
@@ -35,9 +42,17 @@ export const PartnerShareRequestSchema = z
 export interface ShareService {
   /**
    * Share a report with a partner on an untrusted request body. Unknown or
-   * expired report tokens → HttpError(404).
+   * expired report tokens → HttpError(404); partner-share tokens (a
+   * different token type) → HttpError(403) — only the owner's link can mint
+   * new shares.
    */
   shareWithPartner(requestBody: unknown): Promise<PartnerShareResponse>;
+  /**
+   * Verify a partner-share link token. ONLY tokens minted with purpose
+   * 'partner-share' redeem here — owner tokens and unknown/expired links
+   * are denied with the same invalid/expired shape (no purpose oracle).
+   */
+  verifyPartnerLink(token: string): Promise<PartnerShareVerifyResponse>;
 }
 
 export interface ShareServiceDeps {
@@ -67,16 +82,19 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         );
       }
       const { reportToken, partnerEmail } = parsed.data;
-      const { lead } = await resolveReportToken(
+      const { lead, linkPurpose } = await resolveReportToken(
         { magicLinks: deps.magicLinks, leads: deps.leads, clock },
         reportToken,
       );
+      // Only the owner's link mints new shares: a partner link is a
+      // different token type and must not fan out more links.
+      requireOwnerLink(linkPurpose);
 
       // Fresh link for the partner — the owner's token never leaves the
       // browser and is never stored server-side beyond its hash.
       const issued = await deps.magicLinks.issue({
         leadId: lead.id,
-        purpose: 'partner-share',
+        purpose: PARTNER_SHARE_LINK_PURPOSE,
         ttlSeconds: deps.magicLinkTtlSeconds,
         clock,
       });
@@ -100,6 +118,54 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         sent: true,
       });
       return { sent: true, sharedTo: partnerEmail };
+    },
+
+    /**
+     * Partner-link redemption for `/r/:token`.
+     *
+     * Mirrors the owner magic-link verify semantics (consumer/02): unknown
+     * token, missing lead, or a link that was never emailed → invalid;
+     * revoked or expired → expired; an old link resolves to the NEWEST
+     * estimate for the email + property. The `valid: false` shapes are
+     * deliberately identical for owner tokens presented here — the caller
+     * learns nothing about which token types exist.
+     */
+    async verifyPartnerLink(token: string): Promise<PartnerShareVerifyResponse> {
+      if (typeof token !== 'string' || token.length === 0) {
+        return { valid: false, reason: 'invalid' };
+      }
+      const record = await deps.magicLinks.findByToken(token);
+      if (
+        !record ||
+        record.leadId === null ||
+        record.purpose !== PARTNER_SHARE_LINK_PURPOSE
+      ) {
+        return { valid: false, reason: 'invalid' };
+      }
+      const lead = await deps.leads.findById(record.leadId);
+      if (!lead) {
+        return { valid: false, reason: 'invalid' };
+      }
+      if (!isMagicLinkLive(record, clock())) {
+        return { valid: false, reason: 'expired' };
+      }
+      // Only links the share service actually emailed redeem: the audit
+      // row is inserted after the provider accepts the message, so a
+      // minted-but-never-sent link stays dead.
+      const audit = await deps.shares.findByMagicLinkId(record.id);
+      if (!audit) {
+        return { valid: false, reason: 'invalid' };
+      }
+      const newest = await deps.leads.findNewestEstimateIdByEmailAndAddress({
+        email: lead.email,
+        addressKey: lead.addressKey,
+      });
+      return {
+        valid: true,
+        reportToken: token,
+        estimateId: newest?.estimateId ?? lead.estimateId,
+        partnerEmail: audit.partnerEmail,
+      };
     },
   };
 }

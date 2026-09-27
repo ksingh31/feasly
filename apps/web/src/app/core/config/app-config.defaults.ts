@@ -368,6 +368,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my full report →',
       pendingSub: 'Your magic link is on its way.',
+      // Shown instead of pendingSub when the gate POST was a duplicate and
+      // the backend sent no new email (magicLinkSent === false).
+      pendingSubDuplicate: 'Your link is already in your inbox — check your email.',
       pendingNote:
         'We emailed your magic link — click the link in the email to unlock your full numbers.',
       breakdownTitle: 'Where the build budget goes',
@@ -423,6 +426,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shareTokenError:
         'This report link is no longer available in this tab. Reopen it from the link in your email, then send again.',
       shareRetry: 'Try again',
+      partnerViewNote:
+        'This report was shared with you — you’re viewing a read-only copy.',
       callbackTitle: 'Prefer to talk it through?',
       callbackHint: 'Request a callback and we will walk through the numbers with you.',
       callbackNameLabel: 'Your name',

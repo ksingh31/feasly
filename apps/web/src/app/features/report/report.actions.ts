@@ -15,6 +15,17 @@ export class SetReportToken {
   constructor(public readonly reportToken: string) {}
 }
 
+/**
+ * Marks the current report session as a partner-share view (partner-share
+ * redemption). The report page renders read-only in this mode: no share
+ * form, no callback form, no size stepper — the backend also rejects those
+ * actions for partner tokens with 403. Reset by SetReportToken (a fresh
+ * owner link) and ClearReport.
+ */
+export class SetPartnerView {
+  static readonly type = '[Report] Set partner view';
+}
+
 export class UnlockReport {
   static readonly type = '[Report] Unlock report';
 }

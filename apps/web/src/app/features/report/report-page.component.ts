@@ -77,9 +77,17 @@ export class ReportPageComponent implements OnInit {
   protected readonly preview = this.store.selectSignal(ReportState.preview);
   protected readonly snapshot = this.store.selectSignal(ReportState.snapshot);
   protected readonly reportToken = this.store.selectSignal(ReportState.reportToken);
+  /**
+   * True when the session redeemed a partner-share link: the page renders
+   * the read-only partner view — no sqft stepper, no share form, no
+   * callback form.
+   */
+  protected readonly partnerView = this.store.selectSignal(ReportState.partnerView);
   protected readonly status = this.store.selectSignal(ReportState.status);
   protected readonly loadError = this.store.selectSignal(ReportState.error);
   protected readonly leadEmail = this.store.selectSignal(LeadState.email);
+  /** True when the last gate POST triggered a fresh magic-link email. */
+  protected readonly magicLinkSent = this.store.selectSignal(LeadState.magicLinkSent);
 
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
@@ -146,6 +154,14 @@ export class ReportPageComponent implements OnInit {
    */
   protected readonly pendingLead = computed(
     () => !this.unlocked() && this.leadEmail() !== null,
+  );
+
+  /**
+   * Pending-lead sub copy: a duplicate gate POST sends no new email, so it
+   * gets the "already in your inbox" variant instead of the "on its way" one.
+   */
+  protected readonly pendingSubCopy = computed(() =>
+    this.magicLinkSent() ? this.copy.pendingSub : this.copy.pendingSubDuplicate,
   );
 
   /**
@@ -325,7 +341,7 @@ export class ReportPageComponent implements OnInit {
 
   /** Always-on stepper: every tap updates the draft immediately and queues a debounced revise. */
   adjustSqft(delta: number): void {
-    if (!this.unlocked()) {
+    if (!this.unlocked() || this.partnerView()) {
       return;
     }
     // Reno reports step the affected area within the reno bounds (addition
@@ -386,6 +402,11 @@ export class ReportPageComponent implements OnInit {
       this.shareStatus.set('token-error');
       return;
     }
+    if (this.partnerView()) {
+      // Belt-and-suspenders: the section is hidden in partner view, and the
+      // backend rejects partner tokens with 403.
+      return;
+    }
     const partnerEmail = this.shareForm.controls.email.value.trim();
     this.shareStatus.set('sending');
     this.api
@@ -414,6 +435,11 @@ export class ReportPageComponent implements OnInit {
       // magic-link email is the only re-verification path. Fail honestly
       // instead of flagging the user's valid details as invalid.
       this.callbackStatus.set('error');
+      return;
+    }
+    if (this.partnerView()) {
+      // Belt-and-suspenders: the section is hidden in partner view, and the
+      // backend rejects partner tokens with 403.
       return;
     }
     this.callbackStatus.set('sending');

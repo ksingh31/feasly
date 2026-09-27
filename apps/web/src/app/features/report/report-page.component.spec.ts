@@ -17,7 +17,7 @@ import {
   UpdateRenoInputs,
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
-import { SetReportToken, UnlockReport } from './report.actions';
+import { SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -218,6 +218,38 @@ describe('ReportPageComponent', () => {
       expect(pending.textContent).toContain('magic link');
       // Still blurred — no figures leak while locked.
       expect(text()).not.toMatch(/\d{6}/);
+    });
+
+    describe('pending-lead sub copy', () => {
+      const subCopy = (): string =>
+        fixture.nativeElement.querySelector('.report-sub')?.textContent ?? '';
+
+      it('shows the "on its way" copy when the gate POST sent a fresh magic link', () => {
+        store.dispatch(
+          new StoreLeadResult({
+            leadId: 'lead-pending-1',
+            email: 'buyer@example.com',
+            magicLinkSent: true,
+            expiresInDays: 7,
+          }),
+        );
+        fixture.detectChanges();
+        expect(subCopy()).toContain('Your magic link is on its way.');
+      });
+
+      it('shows the "already in your inbox" copy on a duplicate submit (no new email sent)', () => {
+        store.dispatch(
+          new StoreLeadResult({
+            leadId: 'lead-pending-1',
+            email: 'buyer@example.com',
+            magicLinkSent: false,
+            expiresInDays: 7,
+          }),
+        );
+        fixture.detectChanges();
+        expect(subCopy()).toContain('Your link is already in your inbox');
+        expect(subCopy()).not.toContain('on its way');
+      });
     });
   });
 
@@ -572,6 +604,47 @@ describe('ReportPageComponent', () => {
         const stepperValue = fixture.nativeElement.querySelector('.stepper-value')?.textContent ?? '';
         expect(stepperValue).toContain('400');
       });
+    });
+  });
+
+  describe('partner view (partner-share redemption)', () => {
+    async function unlockAsPartner(): Promise<void> {
+      await unlock();
+      store.dispatch(new SetPartnerView());
+      fixture.detectChanges();
+    }
+
+    it('shows the read-only partner note', async () => {
+      await unlockAsPartner();
+      const note = fixture.nativeElement.querySelector('.partner-note');
+      expect(note).toBeTruthy();
+      expect(note.textContent).toContain('read-only');
+    });
+
+    it('hides the sqft stepper in partner view', async () => {
+      await unlockAsPartner();
+      expect(fixture.nativeElement.querySelector('.stepper-card')).toBeNull();
+    });
+
+    it('hides the share and callback sections in partner view', async () => {
+      await unlockAsPartner();
+      expect(
+        fixture.nativeElement.querySelector('section[aria-label="Share with a partner"]'),
+      ).toBeNull();
+      expect(
+        fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
+      ).toBeNull();
+    });
+
+    it('still shows share and callback sections for the owner', async () => {
+      await unlock();
+      expect(
+        fixture.nativeElement.querySelector('section[aria-label="Share with a partner"]'),
+      ).toBeTruthy();
+      expect(
+        fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
+      ).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
     });
   });
 });

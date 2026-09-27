@@ -2,9 +2,11 @@
  * Shared report-token resolution (phase-2 wiring).
  *
  * The report token IS the presented magic-link token (consumer/02): the
- * same bearer credential unlocks `GET /v1/reports/{token}`, revisions,
- * callback requests, and partner shares. Resolution mirrors the magic-link
- * verify semantics exactly:
+ * same bearer credential unlocks `GET /v1/reports/{token}` (owner AND
+ * partner links both read the report). Mutating or owner-behalf actions —
+ * revisions, callback requests, new partner shares — require the OWNER
+ * link purpose; partner tokens get 403 via `requireOwnerLink`.
+ * Resolution mirrors the magic-link verify semantics exactly:
  *
  * - unknown token, missing lead, or erased lead → 404
  * - revoked or expired link → 404 (same response — no live/dead oracle)
@@ -17,7 +19,10 @@
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isMagicLinkLive } from './magic-link.service';
 import type { LeadRecord, LeadStore } from './lead.store';
-import type { MagicLinkStore } from './magic-link.store';
+import {
+  OWNER_LINK_PURPOSE,
+  type MagicLinkStore,
+} from './magic-link.store';
 
 export interface ReportContextDeps {
   readonly magicLinks: MagicLinkStore;
@@ -43,6 +48,24 @@ function notFound(): HttpError {
     'Unknown or expired report token.',
     false,
   );
+}
+
+/**
+ * Owner-only actions (revisions, callback requests, new partner shares)
+ * reject partner-share tokens with 403. Partners get a read-only view of
+ * the report; anything that mutates shared state or acts on the owner's
+ * behalf requires the owner's own link. The denial is FORBIDDEN (not 404)
+ * because the token itself is valid — the audience is wrong.
+ */
+export function requireOwnerLink(linkPurpose: string): void {
+  if (linkPurpose !== OWNER_LINK_PURPOSE) {
+    throw new HttpError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      'This action requires the owner report link.',
+      false,
+    );
+  }
 }
 
 export async function resolveReportToken(

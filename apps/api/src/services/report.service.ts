@@ -44,7 +44,7 @@ import type { EstimateRecord, EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import type { PropertyService } from './property.service';
-import { resolveReportToken } from './report-context';
+import { requireOwnerLink, resolveReportToken } from './report-context';
 import type {
   NewReportSnapshot,
   ReportSnapshotRecord,
@@ -53,13 +53,15 @@ import type {
 
 export interface ReportService {
   /**
-   * Latest report snapshot for the token's lead. Unknown or expired tokens
-   * → HttpError(404); comparison estimates → HttpError(400).
+   * Latest report snapshot for the token's lead. Owner and partner-share
+   * tokens both read. Unknown or expired tokens → HttpError(404);
+   * comparison estimates → HttpError(400).
    */
   getReport(reportToken: string): Promise<ReportSnapshot>;
   /**
    * Apply a tier/sqft what-if on an untrusted request body and append a new
-   * snapshot version. At least one of `tier`/`sqft` is required.
+   * snapshot version. Owner links only — partner-share tokens →
+   * HttpError(403). At least one of `tier`/`sqft` is required.
    */
   createRevision(reportToken: string, requestBody: unknown): Promise<ReportSnapshot>;
 }
@@ -236,13 +238,15 @@ interface ResolvedEstimate {
   readonly latest: ReportSnapshotRecord | null;
   /** The token owner's lead — the estimates table has no lead_id column. */
   readonly leadId: string;
+  /** 'lead' | 'partner-share' — which flow minted the presented token. */
+  readonly linkPurpose: string;
 }
 
 export function createReportService(deps: ReportServiceDeps): ReportService {
   const clock = deps.clock ?? (() => new Date());
 
   async function resolveEstimate(reportToken: string): Promise<ResolvedEstimate> {
-    const { estimateId, lead } = await resolveReportToken(
+    const { estimateId, lead, linkPurpose } = await resolveReportToken(
       { magicLinks: deps.magicLinks, leads: deps.leads, clock },
       reportToken,
     );
@@ -266,7 +270,7 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
       );
     }
     const latest = await deps.snapshots.findLatestByEstimateId(estimate.id);
-    return { estimate, latest, leadId: lead.id };
+    return { estimate, latest, leadId: lead.id, linkPurpose };
   }
 
   /** Version-1 snapshot straight from the persisted estimate + lead rows. */
@@ -340,7 +344,11 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
         );
       }
       const { tier, sqft } = parsed.data;
-      const { estimate, latest, leadId } = await resolveEstimate(reportToken);
+      const { estimate, latest, leadId, linkPurpose } =
+        await resolveEstimate(reportToken);
+      // Revisions append shared snapshot versions visible to the owner —
+      // a partner link (read-only view) must not mutate them.
+      requireOwnerLink(linkPurpose);
       const baseInputs = readInputs(
         latest ? latest.inputs : estimate.inputs,
       );
