@@ -82,6 +82,7 @@ export class AdminLeadsApiService {
     set('search', filters.search);
     set('includeQuarantined', filters.includeQuarantined);
     set('includeSandbox', filters.includeSandbox);
+    set('consent', filters.consent);
     set('cursor', cursor);
     set('limit', limit);
     return params;

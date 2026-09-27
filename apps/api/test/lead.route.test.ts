@@ -16,6 +16,7 @@ import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
 import { createDrizzlePrivacyStore } from '../src/services/privacy.store';
 import { isProblemDetails } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
+import { createUnsubscribeService } from '../src/services/unsubscribe.service';
 
 const TEST_ENV = {
   NODE_ENV: 'test',
@@ -54,6 +55,8 @@ describe('lead route', () => {
         leadScore: 0,
         status: 'new',
         unsubscribedAt: null,
+        contactOptOutAt: null,
+        consentUpdatedAt: new Date(),
         nudgeSentAt: null,
         sheetsSyncedAt: null,
         updatedAt: new Date(),
@@ -79,6 +82,7 @@ describe('lead route', () => {
       countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
     };
     const service = createLeadService({
       store: leadStore,
@@ -101,6 +105,12 @@ describe('lead route', () => {
         sendNudge: async () => ({ provider: 'log' as const }),
         sendOpsAlert: async () => ({ provider: 'log' as const }),
       },
+      unsubscribe: createUnsubscribeService({
+        leads: leadStore,
+        unsubscribeUrlBase: 'https://feasly.example',
+        tokenSecret: 'route-test-secret',
+        tokenTtlSeconds: 30 * 86_400,
+      }),
       appBaseUrl: 'https://feasly.example',
       dedupWindowDays: 90,
       magicLinkTtlSeconds: 900,

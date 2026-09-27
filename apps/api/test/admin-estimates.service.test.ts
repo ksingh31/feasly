@@ -56,6 +56,8 @@ function leadFixture(estimateId: string): LeadRecord {
     sandbox: false,
     consentTs: new Date('2026-09-20T10:00:00Z'),
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: new Date('2026-09-20T10:00:00Z'),
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: new Date('2026-09-20T10:05:00Z'),
@@ -107,6 +109,7 @@ function makeService(world: World) {
       countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
     },
   });
 }

@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeadService } from '../src/services/lead.service';
 import type { EstimateRecord, EstimateStore } from '../src/services/estimate.store';
 import type { LeadRecord, LeadStore, NewLead } from '../src/services/lead.store';
+import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import type {
   IssuedMagicLink,
   MagicLinkRecord,
@@ -153,6 +154,8 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -216,6 +219,7 @@ function fakeLeadStore(): FakeLeadStore {
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
     insert: async (lead: NewLead) => {
       inserted.push(lead);
       return toFakeRecord(lead);
@@ -281,6 +285,8 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -289,7 +295,17 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
   };
 }
 
+/**
+ * Fake unsubscribe service: mints deterministic preference-page URLs so the
+ * magic-link email footer can be asserted without HMAC secrets.
+ */
+const fakeUnsubscribe = {
+  buildUnsubscribeUrl: (leadId: string) =>
+    `https://app.test/unsubscribe/tok-${leadId}`,
+} as unknown as UnsubscribeService;
+
 const DEPS = {
+  unsubscribe: fakeUnsubscribe,
   estimateStore: fakeEstimateStore(),
   magicLinks: fakeMagicLinkStore(),
   email: fakeEmailService(),
@@ -340,6 +356,12 @@ describe('lead service', () => {
     // consumer/02: the BE-5/email seam is wired — the magic-link email goes
     // out on capture (log provider in dev/test).
     expect(result.magicLinkSent).toBe(true);
+    // Contact-optout: the consumer magic-link email carries the tokenized
+    // preference-page URL in its footer.
+    expect(email.magicLinkSends).toHaveLength(1);
+    expect(email.magicLinkSends[0]!.unsubscribeUrl).toBe(
+      `https://app.test/unsubscribe/tok-${result.leadId}`,
+    );
     // Karan directive 2026-09-27 (immediate unlock): the raw owner token is
     // returned with the response so the same-session report can use the
     // token-gated extras without the email round-trip.

@@ -43,6 +43,7 @@ import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
 import { isMagicLinkLive, issueAndSendMagicLink } from './magic-link.service';
 import type { MagicLinkStore } from './magic-link.store';
+import type { UnsubscribeService } from './unsubscribe.service';
 
 /**
  * Contract-shaped validation. `timeline` defaults to 'exploring' and
@@ -86,6 +87,8 @@ export interface LeadServiceDeps {
   readonly magicLinks: MagicLinkStore;
   /** Sends the magic-link email (consumer/02 wires the BE-5 seam). */
   readonly email: EmailService;
+  /** Mints the tokenized preference-page URL for the email footer. */
+  readonly unsubscribe: UnsubscribeService;
   /** From config — minted into the magic-link URL, never hardcoded. */
   readonly appBaseUrl: string;
   /** 90-day window: same email + address → existing lead. */
@@ -219,6 +222,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       issued = await issueAndSendMagicLink({
         magicLinks: deps.magicLinks,
         email: deps.email,
+        unsubscribe: deps.unsubscribe,
         leadId: existing.id,
         to: email,
         name: input.name,
@@ -350,6 +354,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           const issued = await issueAndSendMagicLink({
             magicLinks: deps.magicLinks,
             email: deps.email,
+            unsubscribe: deps.unsubscribe,
             leadId: inserted.id,
             to: email,
             name: input.name,

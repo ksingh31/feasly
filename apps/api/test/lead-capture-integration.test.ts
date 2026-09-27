@@ -14,6 +14,7 @@ import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
 import type { EmailService } from '../src/services/email/email.service';
 import type { EmailSendResult } from '../src/services/email/email.types';
 import { createTestDb, type TestDb } from './pglite-db';
+import { createUnsubscribeService } from '../src/services/unsubscribe.service';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-26T07:00:00Z');
@@ -60,11 +61,18 @@ describe('lead capture end-to-end (real stores, PGlite)', () => {
       assumptions: null,
     });
     const email = fakeEmail();
+    const leadStore = createDrizzleLeadStore({ db: testDb.db });
     const service = createLeadService({
-      store: createDrizzleLeadStore({ db: testDb.db }),
+      store: leadStore,
       estimateStore,
       magicLinks: createDrizzleMagicLinkStore({ db: testDb.db }),
       email,
+      unsubscribe: createUnsubscribeService({
+        leads: leadStore,
+        unsubscribeUrlBase: 'https://feasly.example',
+        tokenSecret: 'integration-test-secret',
+        tokenTtlSeconds: 30 * 86_400,
+      }),
       appBaseUrl: 'https://feasly.example',
       dedupWindowDays: 90,
       magicLinkTtlSeconds: 604800,

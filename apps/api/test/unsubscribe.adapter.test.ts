@@ -76,8 +76,24 @@ describe('unsubscribe adapters (email/03)', () => {
     await unsubscribePostHandler(ctx, { headers: {} });
     expect(pipelineRun).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
-    expect(unsubscribe).toHaveBeenCalledWith('lead-1.1726611200.abc123');
+    // Bodyless POST (legacy one-click): no preference body.
+    expect(unsubscribe).toHaveBeenCalledWith('lead-1.1726611200.abc123', undefined);
     expect(getState).not.toHaveBeenCalled();
+    expect(ctx.res).toMatchObject({ status: 200 });
+  });
+
+  it('POST with a preferences body forwards it to savePreferences', async () => {
+    const ctx = context('lead-1.1726611200.abc123');
+    await unsubscribePostHandler(ctx, {
+      headers: {},
+      body: { emailOptOut: false, contactOptOut: true },
+    });
+    expect(pipelineRun).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledWith('lead-1.1726611200.abc123', {
+      emailOptOut: false,
+      contactOptOut: true,
+    });
     expect(ctx.res).toMatchObject({ status: 200 });
   });
 

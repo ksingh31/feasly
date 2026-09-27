@@ -70,6 +70,8 @@ function lead(id: string, email: string, estimateId: string): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -184,6 +186,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
     updateOnRepeat: async () => {
       throw new Error('not used in these tests');
     },

@@ -35,6 +35,13 @@ export interface LeadRecord {
   readonly status: string;
   /** email/03: CASL opt-out timestamp; null = still subscribed. */
   readonly unsubscribedAt: Date | null;
+  /**
+   * Contact opt-out (calls/messages from Feasly and builders associated
+   * with us); null = gate consent still stands.
+   */
+  readonly contactOptOutAt: Date | null;
+  /** Last change to ANY consent flag (gate capture, opt-out, resubscribe). */
+  readonly consentUpdatedAt: Date;
   /** email/02: 24h-nudge exactly-once guard; null = not yet sent. */
   readonly nudgeSentAt: Date | null;
   /** admin/04: Sheets sync watermark; null = never synced. */
@@ -179,6 +186,19 @@ export interface LeadStore {
     readonly at: Date;
   }): Promise<LeadRecord | null>;
   /**
+   * Granular consent preferences (unsubscribe preference page). Each flag
+   * is optional — only provided flags change. Opt-out stamps the timestamp
+   * (idempotent: keeps the FIRST opt-out as the audit trail); opting back
+   * in clears it to NULL. `consent_updated_at` bumps only when at least one
+   * flag actually changed. Returns null when the lead doesn't exist.
+   */
+  updateConsentPreferences(args: {
+    readonly id: string;
+    readonly emailOptOut?: boolean;
+    readonly contactOptOut?: boolean;
+    readonly at: Date;
+  }): Promise<LeadRecord | null>;
+  /**
    * email/02 — nudge candidates. Leads created in `[createdAfter,
    * createdBefore)` that have never been nudged (`nudge_sent_at IS NULL`).
    * The timer passes a ~1h window anchored at 24h ago; the NULL guard is
@@ -256,6 +276,8 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     leadScore: row.leadScore,
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
+    contactOptOutAt: row.contactOptOutAt,
+    consentUpdatedAt: row.consentUpdatedAt,
     nudgeSentAt: row.nudgeSentAt,
     sheetsSyncedAt: row.sheetsSyncedAt,
     updatedAt: row.updatedAt,
@@ -295,6 +317,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           timeline: lead.timeline,
           marketingConsent: lead.marketingConsent,
           consentTs: lead.consentTs,
+          // The gate consent timestamp is the consent-change timestamp for a
+          // new lead — set explicitly, never rely on the DB default.
+          consentUpdatedAt: lead.consentTs,
           tenantKey: lead.tenantKey ?? null,
           source: lead.source,
           quarantined: lead.quarantined ?? false,
@@ -371,6 +396,47 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
       return row ? toRecord(row) : null;
     },
 
+    async updateConsentPreferences(args): Promise<LeadRecord | null> {
+      const existing = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.id, args.id))
+        .limit(1);
+      const row = existing[0];
+      if (!row) return null;
+      const patch: {
+        unsubscribedAt?: Date | null;
+        contactOptOutAt?: Date | null;
+        consentUpdatedAt?: Date;
+      } = {};
+      if (args.emailOptOut !== undefined) {
+        // Idempotent: keep the FIRST opt-out timestamp as the audit trail.
+        const next = args.emailOptOut ? (row.unsubscribedAt ?? args.at) : null;
+        if ((next?.getTime() ?? null) !== (row.unsubscribedAt?.getTime() ?? null)) {
+          patch.unsubscribedAt = next;
+        }
+      }
+      if (args.contactOptOut !== undefined) {
+        const next = args.contactOptOut ? (row.contactOptOutAt ?? args.at) : null;
+        if ((next?.getTime() ?? null) !== (row.contactOptOutAt?.getTime() ?? null)) {
+          patch.contactOptOutAt = next;
+        }
+      }
+      // No flag actually changed: leave consent_updated_at alone so the
+      // admin column date keeps meaning "last real change".
+      if (Object.keys(patch).length === 0) {
+        return toRecord(row);
+      }
+      patch.consentUpdatedAt = args.at;
+      const updated = await db
+        .update(leads)
+        .set(patch)
+        .where(eq(leads.id, args.id))
+        .returning();
+      const updatedRow = updated[0];
+      return updatedRow ? toRecord(updatedRow) : null;
+    },
+
     async findNudgeCandidates(args): Promise<LeadRecord[]> {
       const rows = await db
         .select()
@@ -380,6 +446,10 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             gte(leads.createdAt, args.createdAfter),
             lt(leads.createdAt, args.createdBefore),
             isNull(leads.nudgeSentAt),
+            // Proactive outreach respects opt-outs: neither email-unsubscribed
+            // nor calls/messages-opted-out leads are nudge candidates.
+            isNull(leads.unsubscribedAt),
+            isNull(leads.contactOptOutAt),
           ),
         )
         .orderBy(leads.createdAt)

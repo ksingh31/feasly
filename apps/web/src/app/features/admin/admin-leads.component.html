@@ -124,6 +124,14 @@
         (change)="applyFilters()"
       />
     </label>
+    <label class="leads-page__filter">
+      <span>Contact consent</span>
+      <select formControlName="consent" (change)="applyFilters()">
+        <option value="">All</option>
+        <option value="in">In</option>
+        <option value="out">Out</option>
+      </select>
+    </label>
     <button type="button" class="leads-page__clear" (click)="clearFilters()">
       Clear
     </button>
@@ -158,6 +166,7 @@
             <th scope="col">Source</th>
             <th scope="col">Type</th>
             <th scope="col">Tenant</th>
+            <th scope="col">Contact consent</th>
             <th scope="col">Created</th>
           </tr>
         </thead>
@@ -184,11 +193,21 @@
               <td>{{ lead.source }}</td>
               <td>{{ projectTypeLabel(lead.projectType) }}</td>
               <td>{{ lead.tenantKey ?? '—' }}</td>
+              <td>
+                <span
+                  class="badge"
+                  [class.badge--consent-in]="lead.contactConsent === 'in'"
+                  [class.badge--consent-out]="lead.contactConsent === 'out'"
+                >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
+                <span class="leads-page__consent-date">{{
+                  formatDate(lead.consentUpdatedAt)
+                }}</span>
+              </td>
               <td>{{ formatDate(lead.createdAt) }}</td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="9" class="leads-page__empty">
+              <td colspan="10" class="leads-page__empty">
                 @if (listStatus() === 'loading') {
                   Loading…
                 } @else {

@@ -48,6 +48,8 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 50,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -80,6 +82,7 @@ interface World {
   issued: number;
   nudgeSentAtCalls: Array<{ id: string; at: Date }>;
   unsubscribed: Set<string>;
+  contactOptedOut: Set<string>;
 }
 
 function makeWorld(): World {
@@ -91,6 +94,7 @@ function makeWorld(): World {
     issued: 0,
     nudgeSentAtCalls: [],
     unsubscribed: new Set(),
+    contactOptedOut: new Set(),
   };
 }
 
@@ -139,6 +143,7 @@ function makeService(
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
   };
 
   const magicLinks: MagicLinkStore = {
@@ -188,6 +193,8 @@ function makeService(
 
   const unsubscribe = {
     isUnsubscribed: async (leadId: string) => world.unsubscribed.has(leadId),
+    isContactOptedOut: async (leadId: string) =>
+      world.contactOptedOut.has(leadId),
     buildUnsubscribeUrl: (leadId: string) =>
       `https://feasly.example/unsubscribe/${leadId}.token`,
   } as unknown as UnsubscribeService;
@@ -256,6 +263,20 @@ describe('nudge service (email/02)', () => {
     world.leads.set('lead-1', leadFixture());
     world.links.push(linkRecord());
     world.unsubscribed.add('lead-1');
+    const { service } = makeService(world);
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 0, skipped: 1 });
+    expect(world.nudges).toHaveLength(0);
+    expect(world.issued).toBe(0);
+  });
+
+  it('a calls/messages-opted-out lead gets no nudge (contact opt-out honored)', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.links.push(linkRecord());
+    world.contactOptedOut.add('lead-1');
     const { service } = makeService(world);
 
     const result = await service.runNudgeCycle();

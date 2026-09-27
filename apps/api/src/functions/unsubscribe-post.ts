@@ -1,8 +1,9 @@
 /**
  * Azure Functions v3 trigger adapter — POST /api/v1/unsubscribe/{token}.
  *
- * Records the CASL opt-out (`leads.unsubscribed_at`). Idempotent: a second
- * POST with the same token keeps the first timestamp. The token is NEVER
+ * Records the opt-out (idempotent: a second POST keeps the first
+ * timestamp). With a JSON `{ emailOptOut, contactOptOut }` body: granular
+ * preference save. Without a body: legacy one-click email opt-out. The token is NEVER
  * logged (PII-grade bearer credential).
  *
  * Bundled by `npm run bundle:functions` into `unsubscribe-post/index.js`
@@ -20,7 +21,10 @@ export async function unsubscribePostHandler(
 ): Promise<void> {
   const token = context.bindingData?.['token'];
   await dispatchUnsubscribe(context, req, (app) =>
-    app.unsubscribeRoute.unsubscribe(typeof token === 'string' ? token : ''),
+    app.unsubscribeRoute.unsubscribe(
+      typeof token === 'string' ? token : '',
+      req.body,
+    ),
   );
 }
 

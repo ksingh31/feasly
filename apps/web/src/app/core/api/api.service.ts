@@ -30,6 +30,7 @@ import type {
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -149,6 +150,14 @@ export interface ApiService {
    * Idempotent — already-unsubscribed tokens succeed without state change.
    */
   confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse>;
+  /**
+   * Unsubscribe preference page: granular save of the lead's consent.
+   * `{ emailOptOut, contactOptOut }` — true = opt out of that channel.
+   */
+  saveUnsubscribePreferences(
+    token: string,
+    prefs: UnsubscribePreferencesInput,
+  ): Observable<UnsubscribeResultResponse>;
   /** First-party analytics event. Fire-and-forget. */
   trackEvent(event: AnalyticsEvent): Observable<void>;
   /**
@@ -288,9 +297,15 @@ class LazyApiService implements ApiService {
   getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {
     return this.resolve().getUnsubscribeState(token);
   }
-
   confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse> {
     return this.resolve().confirmUnsubscribe(token);
+  }
+
+  saveUnsubscribePreferences(
+    token: string,
+    prefs: UnsubscribePreferencesInput,
+  ): Observable<UnsubscribeResultResponse> {
+    return this.resolve().saveUnsubscribePreferences(token, prefs);
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {

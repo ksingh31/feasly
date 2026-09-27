@@ -5,10 +5,14 @@
  * the URLs (app base, unsubscribe base) so no URL is ever hardcoded here —
  * the layer-boundary test forbids URL literals in services/. Copy rules:
  *   - magic-link: single CTA, states the 7-day expiry, plain-text fallback.
+ *     Consumer magic-link emails carry the unsubscribe footer
+ *     (admin/builder sign-in links are team credentials — no footer).
  *   - share: carries the partner's FRESH bearer share URL — never the
- *     owner's magic link. No dollar figures in email copy, ever.
- *   - nudge (non-transactional): one-click unsubscribe link in the body;
- *     the service also sets List-Unsubscribe headers.
+ *     owner's magic link. No dollar figures in email copy, ever. The
+ *     recipient is not a lead (one-off, owner-initiated) — no footer.
+ *   - nudge (non-transactional): unsubscribe footer via
+ *     renderLeadEmailFooter; the service also sets List-Unsubscribe headers.
+ *   - callback-team / ops-alert: internal team mail — no footer.
  *   - every template: banned-phrase clean (see banned-patterns.txt) and a
  *     trust footer noting deterministic math + uncalibrated cost data.
  */
@@ -45,7 +49,12 @@ function esc(value: string): string {
  * Shared table-based layout (email-client safe, inline CSS only).
  * Warm cream / charcoal / brass per the Feasly design tokens.
  */
-function layout(ctx: TemplateContext, title: string, bodyHtml: string): string {
+function layout(
+  ctx: TemplateContext,
+  title: string,
+  bodyHtml: string,
+  footerLinksHtml?: string,
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -59,7 +68,7 @@ function layout(ctx: TemplateContext, title: string, bodyHtml: string): string {
 ${bodyHtml}
 </td></tr>
 <tr><td style="padding:0 32px 28px;font-size:12px;line-height:1.6;color:#8a8378;border-top:1px solid #eee6d6;">
-<p style="margin:12px 0 0;">Deterministic cost math &middot; not a contractor quote &middot; cost data currently uncalibrated.</p>
+${footerLinksHtml ?? ''}<p style="margin:12px 0 0;">Deterministic cost math &middot; not a contractor quote &middot; cost data currently uncalibrated.</p>
 </td></tr>
 </table>
 </td></tr>
@@ -72,6 +81,23 @@ function ctaButton(url: string, label: string): string {
   return `<p style="margin:20px 0;"><a href="${esc(url)}" style="display:inline-block;background-color:#b08d3e;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:14px 28px;border-radius:8px;">${esc(label)}</a></p>`;
 }
 
+/**
+ * Footer block for LEAD-facing emails: one-click unsubscribe + preference
+ * management. Both links land on the tokenized preference page (the page
+ * confirms before saving — that page IS the one click). Internal emails
+ * (callback-team, ops-alert) and the partner-share email (one-off,
+ * owner-initiated, recipient is not a lead) never render this.
+ */
+export function renderLeadEmailFooter(unsubscribeUrl: string): string {
+  const url = esc(unsubscribeUrl);
+  return `<p style="margin:16px 0 0;font-size:12px;color:#8a8378;"><a href="${url}" style="color:#b08d3e;">Unsubscribe</a> &middot; <a href="${url}" style="color:#b08d3e;">Manage email preferences</a></p>`;
+}
+
+/** Plain-text twin of {@link renderLeadEmailFooter}. */
+export function leadEmailFooterText(unsubscribeUrl: string): string {
+  return `Unsubscribe: ${unsubscribeUrl}\nManage email preferences: ${unsubscribeUrl}`;
+}
+
 function fallbackLink(url: string): string {
   return `<p style="font-size:13px;color:#8a8378;">Button not working? Paste this link into your browser:<br><a href="${esc(url)}" style="color:#b08d3e;word-break:break-all;">${esc(url)}</a></p>`;
 }
@@ -82,9 +108,15 @@ export interface MagicLinkTemplateInput {
   /** Days until the link expires — rendered from config, never hardcoded. */
   readonly expiresInDays: number;
   readonly audience: 'consumer' | 'admin' | 'builder';
+  /**
+   * Tokenized preference-page URL. Rendered as the unsubscribe footer for
+   * the consumer audience only — admin/builder sign-in links are team
+   * credentials, not lead marketing, and carry no footer.
+   */
+  readonly unsubscribeUrl?: string;
 }
 
-/** Single-CTA magic-link email. Transactional: no unsubscribe link. */
+/** Consumer magic-link emails carry the unsubscribe footer; admin/builder do not. */
 export function renderMagicLinkEmail(
   ctx: TemplateContext,
   input: MagicLinkTemplateInput,
@@ -107,8 +139,21 @@ export function renderMagicLinkEmail(
 <p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
 ${fallbackLink(input.magicLinkUrl)}`;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
-  return { subject, html: layout(ctx, 'Your secure sign-in link', body), text };
+  const footerUrl =
+    input.audience === 'consumer' ? input.unsubscribeUrl : undefined;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.${
+    footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : ''
+  }`;
+  return {
+    subject,
+    html: layout(
+      ctx,
+      'Your secure sign-in link',
+      body,
+      footerUrl ? renderLeadEmailFooter(footerUrl) : undefined,
+    ),
+    text,
+  };
 }
 
 export interface ShareTemplateInput {
@@ -203,10 +248,18 @@ export function renderNudgeEmail(
   const body = `<p>${greeting}</p>
 <p>You started a build estimate yesterday but haven't unlocked the full numbers yet. Your estimate is saved — pick up right where you left off.</p>
 ${ctaButton(input.resumeUrl, 'See my full estimate')}
-${fallbackLink(input.resumeUrl)}
-<p style="font-size:13px;color:#8a8378;">Changed your mind? <a href="${esc(input.unsubscribeUrl)}" style="color:#b08d3e;">Unsubscribe</a> from these reminders — no hard feelings.</p>`;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nYou started a build estimate yesterday but haven't unlocked the full numbers yet. Your estimate is saved — pick up right where you left off:\n\n${input.resumeUrl}\n\nChanged your mind? Unsubscribe from these reminders: ${input.unsubscribeUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
-  return { subject, html: layout(ctx, 'Your estimate is waiting', body), text };
+${fallbackLink(input.resumeUrl)}`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nYou started a build estimate yesterday but haven't unlocked the full numbers yet. Your estimate is saved — pick up right where you left off:\n\n${input.resumeUrl}\n\n${leadEmailFooterText(input.unsubscribeUrl)}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return {
+    subject,
+    html: layout(
+      ctx,
+      'Your estimate is waiting',
+      body,
+      renderLeadEmailFooter(input.unsubscribeUrl),
+    ),
+    text,
+  };
 }
 
 export interface OpsAlertTemplateInput {

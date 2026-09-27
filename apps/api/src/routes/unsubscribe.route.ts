@@ -13,6 +13,7 @@
  */
 import { z } from 'zod';
 import type {
+  UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -26,11 +27,23 @@ export interface UnsubscribeRouteDeps {
 export interface UnsubscribeRoute {
   /** GET /api/v1/unsubscribe/{token} — confirmation-page state (read-only). */
   getState(token: unknown): Promise<UnsubscribeStateResponse>;
-  /** POST /api/v1/unsubscribe/{token} — record the opt-out (idempotent). */
-  unsubscribe(token: unknown): Promise<UnsubscribeResultResponse>;
+  /**
+   * POST /api/v1/unsubscribe/{token} — record the opt-out (idempotent).
+   * With a `{ emailOptOut, contactOptOut }` body: granular preference save.
+   * Without a body: legacy one-click email opt-out.
+   */
+  unsubscribe(
+    token: unknown,
+    body?: unknown,
+  ): Promise<UnsubscribeResultResponse>;
 }
 
 const tokenParamSchema = z.string().trim().min(1).max(500);
+
+const preferencesBodySchema = z.object({
+  emailOptOut: z.boolean(),
+  contactOptOut: z.boolean(),
+});
 
 function invalidToken(): HttpError {
   // Same 403 shape the service returns for forged tokens — no oracle.
@@ -52,10 +65,31 @@ export function createUnsubscribeRoute(
       }
       return deps.unsubscribe.getState(parsed.data);
     },
-    unsubscribe: (token: unknown): Promise<UnsubscribeResultResponse> => {
+    unsubscribe: (
+      token: unknown,
+      body?: unknown,
+    ): Promise<UnsubscribeResultResponse> => {
       const parsed = tokenParamSchema.safeParse(token);
       if (!parsed.success) {
         return Promise.reject(invalidToken());
+      }
+      if (body !== undefined && body !== null) {
+        const prefs = preferencesBodySchema.safeParse(body);
+        if (!prefs.success) {
+          return Promise.reject(
+            new HttpError(
+              400,
+              ErrorCodes.VALIDATION_FAILED,
+              'Preferences body must be { emailOptOut: boolean, contactOptOut: boolean }.',
+              false,
+            ),
+          );
+        }
+        const input: UnsubscribePreferencesInput = {
+          emailOptOut: prefs.data.emailOptOut,
+          contactOptOut: prefs.data.contactOptOut,
+        };
+        return deps.unsubscribe.savePreferences(parsed.data, input);
       }
       return deps.unsubscribe.unsubscribe(parsed.data);
     },

@@ -13,23 +13,49 @@ import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 function fakeService(): UnsubscribeService & {
   getStateCalls: unknown[];
   unsubscribeCalls: unknown[];
+  savePreferencesCalls: unknown[];
 } {
   const getStateCalls: unknown[] = [];
   const unsubscribeCalls: unknown[] = [];
+  const savePreferencesCalls: unknown[] = [];
+  const now = new Date('2026-09-27T00:00:00Z').toISOString();
   return {
     getStateCalls,
     unsubscribeCalls,
+    savePreferencesCalls,
     buildUnsubscribeUrl: (leadId: string) =>
       `https://feasly.example/unsubscribe/token-for-${leadId}`,
     getState: async (token: string) => {
       getStateCalls.push(token);
-      return { valid: true, leadId: 'lead-1', alreadyUnsubscribed: false };
+      return {
+        valid: true,
+        leadId: 'lead-1',
+        emailOptedOut: false,
+        contactOptedOut: false,
+        consentUpdatedAt: now,
+        alreadyUnsubscribed: false,
+      };
     },
     unsubscribe: async (token: string) => {
       unsubscribeCalls.push(token);
-      return { unsubscribed: true, alreadyUnsubscribed: false };
+      return {
+        unsubscribed: true,
+        alreadyUnsubscribed: false,
+        emailOptedOut: true,
+        contactOptedOut: false,
+      };
+    },
+    savePreferences: async (token: string, prefs: { emailOptOut: boolean; contactOptOut: boolean }) => {
+      savePreferencesCalls.push({ token, prefs });
+      return {
+        unsubscribed: prefs.emailOptOut,
+        alreadyUnsubscribed: false,
+        emailOptedOut: prefs.emailOptOut,
+        contactOptedOut: prefs.contactOptOut,
+      };
     },
     isUnsubscribed: async () => false,
+    isContactOptedOut: async () => false,
   };
 }
 
@@ -41,6 +67,9 @@ describe('createUnsubscribeRoute', () => {
     expect(result).toEqual({
       valid: true,
       leadId: 'lead-1',
+      emailOptedOut: false,
+      contactOptedOut: false,
+      consentUpdatedAt: expect.any(String),
       alreadyUnsubscribed: false,
     });
     expect(service.getStateCalls).toEqual(['some.token.here']);
@@ -50,8 +79,34 @@ describe('createUnsubscribeRoute', () => {
     const service = fakeService();
     const route = createUnsubscribeRoute({ unsubscribe: service });
     const result = await route.unsubscribe('some.token.here');
-    expect(result).toEqual({ unsubscribed: true, alreadyUnsubscribed: false });
+    expect(result).toEqual({
+      unsubscribed: true,
+      alreadyUnsubscribed: false,
+      emailOptedOut: true,
+      contactOptedOut: false,
+    });
     expect(service.unsubscribeCalls).toEqual(['some.token.here']);
+  });
+
+  it('savePreferences delegates the granular body to the service', async () => {
+    const service = fakeService();
+    const route = createUnsubscribeRoute({ unsubscribe: service });
+    const result = await route.unsubscribe('some.token.here', {
+      emailOptOut: false,
+      contactOptOut: true,
+    });
+    expect(result).toEqual({
+      unsubscribed: false,
+      alreadyUnsubscribed: false,
+      emailOptedOut: false,
+      contactOptedOut: true,
+    });
+    expect(service.savePreferencesCalls).toEqual([
+      {
+        token: 'some.token.here',
+        prefs: { emailOptOut: false, contactOptOut: true },
+      },
+    ]);
   });
 
   it('rejects non-string / empty tokens with 403 without calling the service', async () => {

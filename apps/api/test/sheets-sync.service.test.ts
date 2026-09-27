@@ -39,6 +39,8 @@ function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     leadScore: 75,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: now,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: now,
@@ -91,6 +93,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     countNeverSynced: vi.fn().mockResolvedValue(0),
     listByTenantKey: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(null),
+    updateConsentPreferences: vi.fn().mockResolvedValue(null),
   };
   const estimates: EstimateStore = {
     save: vi.fn(),
@@ -202,6 +205,28 @@ describe('SheetsSyncService', () => {
       phone: '', // null → empty string
       tenant: 'elite-craft',
       marketingConsent: true,
+      contactConsent: 'in',
+      consentUpdatedAt: expect.any(String),
+    });
+  });
+
+  it('flags opted-out leads in the Sheet payload (never excludes them)', async () => {
+    const lead = makeLead({
+      contactOptOutAt: new Date('2026-09-26T00:00:00Z'),
+    });
+    const { deps, leads, sheets } = makeDeps();
+    vi.mocked(leads.findSheetsSyncCandidates).mockResolvedValue([lead]);
+    vi.mocked(leads.findById).mockResolvedValue(lead);
+
+    const service = createSheetsSyncService(deps);
+    await service.runSyncCycle();
+
+    const rows: readonly SheetLeadRow[] = vi.mocked(sheets.upsertRows).mock
+      .calls[0][0];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      leadId: 'lead-1',
+      contactConsent: 'out',
     });
   });
 

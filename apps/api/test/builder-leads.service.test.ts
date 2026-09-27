@@ -40,6 +40,8 @@ function makeLead(overrides?: {
     projectType: 'new-build',
     sandbox: false,
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: new Date(),
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     createdAt: new Date(),
@@ -73,6 +75,7 @@ function makeDeps() {
     updateOnRepeat: async () => {
       throw new Error('not implemented');
     },
+    updateConsentPreferences: async () => null,
     updateStatus: async ({ id, status }: { id: string; status: string }) => {
       const lead = leads.get(id);
       if (!lead) return null;

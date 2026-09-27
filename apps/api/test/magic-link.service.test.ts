@@ -26,6 +26,7 @@ import type {
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
 import type { EmailSendResult } from '../src/services/email/email.types';
+import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import { HttpError } from '../src/middleware/errors';
 
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -67,6 +68,8 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 0,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -142,6 +145,7 @@ function fakeLeads(opts?: {
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
     appendNote: noop,
     getNotes: async () => [],
     appendStatusHistory: noop,
@@ -165,6 +169,15 @@ function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
   };
 }
 
+/**
+ * Fake unsubscribe service: mints deterministic preference-page URLs so the
+ * magic-link email footer can be asserted without HMAC secrets.
+ */
+const fakeUnsubscribe = {
+  buildUnsubscribeUrl: (leadId: string) =>
+    `https://app.test/unsubscribe/tok-${leadId}`,
+} as unknown as UnsubscribeService;
+
 function makeService(opts?: {
   magicLinks?: FakeMagicLinks;
   leads?: LeadStore;
@@ -180,6 +193,7 @@ function makeService(opts?: {
     magicLinks,
     leads,
     email,
+    unsubscribe: fakeUnsubscribe,
     appBaseUrl: APP_BASE_URL,
     magicLinkTtlSeconds: opts?.ttlSeconds ?? 7 * 86_400,
     magicLinkReissueCooldownMs: opts?.reissueCooldownMs ?? 60_000,

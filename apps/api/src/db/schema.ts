@@ -135,6 +135,21 @@ export const leads = pgTable(
      * emails still send (they are requested content, not marketing).
      */
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+    /**
+     * Contact opt-out (calls/messages from Feasly and builders associated
+     * with us). Set/cleared via the unsubscribe preference page; NULL means
+     * the gate consent still stands. Proactive outreach must exclude leads
+     * while this is set.
+     */
+    contactOptOutAt: timestamp('contact_opt_out_at', { withTimezone: true }),
+    /**
+     * Last change to ANY consent flag (gate capture, one-click unsubscribe,
+     * preference-page save). Powers the admin "Contact consent" column date
+     * and the Sheets sync change detection.
+     */
+    consentUpdatedAt: timestamp('consent_updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
     nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
     /**

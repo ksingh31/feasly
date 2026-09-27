@@ -114,7 +114,11 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     // concurrent timer instance could race us. Re-check before sending.
     if (lead.nudgeSentAt) return false;
     if (lead.quarantined) return false;
+    // Proactive outreach respects both opt-outs: email-unsubscribed leads
+    // get no nudge, and neither do leads who opted out of calls/messages
+    // ("don't contact me about my estimate" covers the nudge too).
     if (await unsubscribe.isUnsubscribed(lead.id)) return false;
+    if (await unsubscribe.isContactOptedOut(lead.id)) return false;
 
     const links = await magicLinks.findByLeadIds([lead.id]);
     // Verified in the meantime: any used link means the homeowner unlocked

@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { ApiError } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
@@ -9,25 +9,18 @@ import { SiteFooterComponent } from '../../shared/components/site-footer/site-fo
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
 
 /**
- * Unsubscribe center (email/03): `/unsubscribe/{token}`.
+ * Unsubscribe preference center: `/unsubscribe/{token}`.
  *
  * Token-authenticated — no login. The token IS the credential: it is never
  * logged, never rendered, and the lead's email is never exposed to the
  * client (the backend returns a leadId only, which this page never displays).
  *
- * States: loading → confirm (valid token) | already (opted out) |
- * expired | invalid → done (after POST). Transport failures show a retry
- * screen. The page is noindexed via the route's `data.noindex` + the
- * `unsubscribe/:token` SeoService entry.
+ * States: loading → preferences (valid token, toggles pre-set from the
+ * current consent) → done (after granular POST) | expired | invalid.
+ * Transport failures show a retry screen. The page is noindexed via the
+ * route's `data.noindex` + the `unsubscribe/:token` SeoService entry.
  */
-type UnsubscribeView =
-  | 'loading'
-  | 'confirm'
-  | 'done'
-  | 'already'
-  | 'expired'
-  | 'invalid'
-  | 'error';
+type UnsubscribeView = 'loading' | 'preferences' | 'done' | 'expired' | 'invalid' | 'error';
 
 @Component({
   selector: 'app-unsubscribe-page',
@@ -38,7 +31,6 @@ type UnsubscribeView =
 })
 export class UnsubscribePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly api = inject(API_SERVICE);
   private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
@@ -47,6 +39,12 @@ export class UnsubscribePageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').unsubscribe;
   protected readonly view = signal<UnsubscribeView>('loading');
   protected readonly submitting = signal(false);
+  /** Toggle state: true = the lead still wants this channel. */
+  protected readonly emailEnabled = signal(true);
+  protected readonly contactEnabled = signal(true);
+  /** Echoed from the save response so the done screen is honest. */
+  protected readonly savedEmailOptedOut = signal(false);
+  protected readonly savedContactOptedOut = signal(false);
 
   private token = '';
 
@@ -56,17 +54,28 @@ export class UnsubscribePageComponent implements OnInit {
     this.loadState();
   }
 
-  protected confirm(): void {
+  /** "Unsubscribe from everything" — flips both channels off. */
+  protected unsubscribeAll(): void {
+    this.emailEnabled.set(false);
+    this.contactEnabled.set(false);
+  }
+
+  protected save(): void {
     if (this.submitting()) {
       return;
     }
     this.submitting.set(true);
     this.api
-      .confirmUnsubscribe(this.token)
+      .saveUnsubscribePreferences(this.token, {
+        emailOptOut: !this.emailEnabled(),
+        contactOptOut: !this.contactEnabled(),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.submitting.set(false);
+          this.savedEmailOptedOut.set(result.emailOptedOut);
+          this.savedContactOptedOut.set(result.contactOptedOut);
           this.view.set('done');
         },
         error: () => {
@@ -78,10 +87,6 @@ export class UnsubscribePageComponent implements OnInit {
 
   protected retry(): void {
     this.loadState();
-  }
-
-  protected keepSubscribed(): void {
-    void this.router.navigate(['/']);
   }
 
   private loadState(): void {
@@ -101,7 +106,9 @@ export class UnsubscribePageComponent implements OnInit {
           if (state.valid === false) {
             this.view.set(state.reason === 'expired' ? 'expired' : 'invalid');
           } else {
-            this.view.set(state.alreadyUnsubscribed ? 'already' : 'confirm');
+            this.emailEnabled.set(!state.emailOptedOut);
+            this.contactEnabled.set(!state.contactOptedOut);
+            this.view.set('preferences');
           }
         },
         error: (err: ApiError) => {

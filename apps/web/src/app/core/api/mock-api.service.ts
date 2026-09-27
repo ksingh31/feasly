@@ -33,6 +33,7 @@ import type {
   RenoEstimateRequest,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -83,6 +84,14 @@ export class MockApiService implements ApiService {
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
   /** Unsubscribe tokens already opted out (email/03 dev harness). */
   private readonly unsubscribedTokens = new Set<string>();
+  /**
+   * Granular mock consent per token for the preference page. Legacy
+   * one-click sets emailOptOut only.
+   */
+  private readonly consentByToken = new Map<
+    string,
+    { emailOptOut: boolean; contactOptOut: boolean }
+  >();
   /** Inputs per estimate, so report/tier-revision stay consistent. */
   private readonly estimateInputs = new Map<string, EstimateInputs>();
   /** Reno inputs per estimate (RENO-04), so reno reports include renoInputs. */
@@ -442,27 +451,69 @@ export class MockApiService implements ApiService {
   }
 
   /**
-   * Dev harness for the unsubscribe center (email/03): any non-empty token
+   * Dev harness for the unsubscribe preference center: any non-empty token
    * resolves as valid — the real backend HMAC-verifies the token, which the
-   * mock cannot mint. POST is idempotent: repeat calls report
-   * `alreadyUnsubscribed` without changing state.
+   * mock cannot mint. Tracks granular consent per token so the preference
+   * page toggles behave like the backend.
    */
   getUnsubscribeState(token: string): Observable<UnsubscribeStateResponse> {
+    const consent = this.consentByToken.get(token) ?? {
+      emailOptOut: false,
+      contactOptOut: false,
+    };
     const response: UnsubscribeStateResponse =
       token.trim().length > 0
         ? {
             valid: true,
             leadId: 'mock-lead',
-            alreadyUnsubscribed: this.unsubscribedTokens.has(token),
+            emailOptedOut: consent.emailOptOut,
+            contactOptedOut: consent.contactOptOut,
+            consentUpdatedAt: new Date().toISOString(),
+            alreadyUnsubscribed: consent.emailOptOut,
           }
         : { valid: false, reason: 'invalid' };
     return this.roundTrip(response);
   }
 
   confirmUnsubscribe(token: string): Observable<UnsubscribeResultResponse> {
-    const alreadyUnsubscribed = this.unsubscribedTokens.has(token);
+    const consent = this.consentByToken.get(token) ?? {
+      emailOptOut: false,
+      contactOptOut: false,
+    };
+    const alreadyUnsubscribed = consent.emailOptOut;
+    this.consentByToken.set(token, { ...consent, emailOptOut: true });
     this.unsubscribedTokens.add(token);
-    return this.roundTrip({ unsubscribed: true, alreadyUnsubscribed });
+    return this.roundTrip({
+      unsubscribed: true,
+      alreadyUnsubscribed,
+      emailOptedOut: true,
+      contactOptedOut: consent.contactOptOut,
+    });
+  }
+
+  saveUnsubscribePreferences(
+    token: string,
+    prefs: UnsubscribePreferencesInput,
+  ): Observable<UnsubscribeResultResponse> {
+    const before = this.consentByToken.get(token) ?? {
+      emailOptOut: false,
+      contactOptOut: false,
+    };
+    this.consentByToken.set(token, {
+      emailOptOut: prefs.emailOptOut,
+      contactOptOut: prefs.contactOptOut,
+    });
+    if (prefs.emailOptOut) {
+      this.unsubscribedTokens.add(token);
+    } else {
+      this.unsubscribedTokens.delete(token);
+    }
+    return this.roundTrip({
+      unsubscribed: prefs.emailOptOut,
+      alreadyUnsubscribed: before.emailOptOut,
+      emailOptedOut: prefs.emailOptOut,
+      contactOptedOut: prefs.contactOptOut,
+    });
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {

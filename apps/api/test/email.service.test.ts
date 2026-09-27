@@ -112,7 +112,21 @@ describe('magic-link template', () => {
     expect(rendered.text).not.toContain('<a');
   });
 
-  it('carries no unsubscribe link (transactional)', () => {
+  it('consumer audience carries the unsubscribe footer with the tokenized URL', () => {
+    const withFooter = renderMagicLinkEmail(CTX, {
+      name: 'Aman',
+      magicLinkUrl: MAGIC_URL,
+      expiresInDays: 7,
+      audience: 'consumer',
+      unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
+    });
+    expect(withFooter.html).toContain(`${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`);
+    expect(withFooter.html.toLowerCase()).toContain('unsubscribe');
+    expect(withFooter.html.toLowerCase()).toContain('manage email preferences');
+    expect(withFooter.text).toContain(`${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`);
+  });
+
+  it('consumer magic link without a footer URL renders no footer (degraded send)', () => {
     expect(rendered.html.toLowerCase()).not.toContain('unsubscribe');
     expect(rendered.text.toLowerCase()).not.toContain('unsubscribe');
   });
@@ -142,6 +156,20 @@ describe('magic-link template', () => {
       audience: 'consumer',
     });
     expect(consumer.html).toContain('View my estimate');
+  });
+
+  it('admin/builder audiences never get the footer (team credentials, not lead marketing)', () => {
+    for (const audience of ['admin', 'builder'] as const) {
+      const team = renderMagicLinkEmail(CTX, {
+        magicLinkUrl: MAGIC_URL,
+        expiresInDays: 7,
+        audience,
+        // Even if a caller mistakenly passes one, the footer stays off.
+        unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
+      });
+      expect(team.html.toLowerCase()).not.toContain('unsubscribe');
+      expect(team.text.toLowerCase()).not.toContain('unsubscribe');
+    }
   });
 });
 

@@ -42,6 +42,8 @@ function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
     leadScore: 75,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: new Date('2026-09-25T00:00:00Z'),
     nudgeSentAt: null,
     createdAt: new Date('2026-09-25T00:00:00Z'),
     projectType: 'new_build',
@@ -146,6 +148,61 @@ describe('admin-leads service (admin/02)', () => {
       await expect(
         service.listLeads({ minScore: 999 }, ADMIN_EMAIL),
       ).rejects.toThrow();
+      await expect(
+        service.listLeads({ consent: 'maybe' }, ADMIN_EMAIL),
+      ).rejects.toThrow();
+    });
+
+    it('maps contact consent: out when either opt-out is set, in otherwise', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      const outEmail = makeLeadRow({ unsubscribedAt: new Date('2026-09-26T00:00:00Z') });
+      const outContact = makeLeadRow({
+        id: 'lead-2',
+        contactOptOutAt: new Date('2026-09-26T00:00:00Z'),
+      });
+      const inRow = makeLeadRow({ id: 'lead-3' });
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [outEmail, outContact, inRow],
+        nextCursor: null,
+        totalCount: 3,
+      });
+
+      const result = await service.listLeads({}, ADMIN_EMAIL);
+      expect(result.leads.map((l) => [l.id, l.contactConsent])).toEqual([
+        ['lead-1', 'out'],
+        ['lead-2', 'out'],
+        ['lead-3', 'in'],
+      ]);
+      for (const lead of result.leads) {
+        expect(lead.consentUpdatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      }
+    });
+
+    it('passes the consent filter to the store (default: no consent filter)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [],
+        nextCursor: null,
+        totalCount: 0,
+      });
+
+      // Default: consent is undefined — the admin view never filters by
+      // consent unless Karan selects it.
+      await service.listLeads({}, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.not.objectContaining({ consent: expect.anything() }),
+        cursor: null,
+        limit: 25,
+      });
+
+      await service.listLeads({ consent: 'out' }, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.objectContaining({ consent: 'out' }),
+        cursor: null,
+        limit: 25,
+      });
     });
   });
 
@@ -454,6 +511,28 @@ describe('admin-leads service (admin/02)', () => {
       const result = await service.exportCsv({}, ADMIN_EMAIL);
       const lines = result.csv.split('\n');
       expect(lines[1]).toContain('"Doe, ""John"""');
+    });
+
+    it('CSV carries the consent columns (opt-outs flagged, never hidden)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [
+          makeLeadRow({ contactOptOutAt: new Date('2026-09-26T00:00:00Z') }),
+        ],
+        nextCursor: null,
+        totalCount: 1,
+      });
+
+      const result = await service.exportCsv({}, ADMIN_EMAIL);
+      const lines = result.csv.split('\n');
+      expect(lines[0]).toContain('contact_consent');
+      expect(lines[0]).toContain('consent_updated_at');
+      expect(lines[0]).toContain('unsubscribed_at');
+      expect(lines[0]).toContain('contact_opt_out_at');
+      // The opted-out row is present and flagged 'out' — not suppressed.
+      expect(lines[1]).toContain(',out,');
+      expect(lines[1]).toContain('2026-09-26T00:00:00.000Z');
     });
   });
 });
