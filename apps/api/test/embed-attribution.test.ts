@@ -18,6 +18,7 @@ import { createLeadService } from '../src/services/lead.service';
 import type { BuilderConfigService } from '../src/services/builder-config.service';
 import type { EstimateRecord, EstimateStore } from '../src/services/estimate.store';
 import type { LeadRecord, LeadStore, NewLead } from '../src/services/lead.store';
+import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import type {
   IssuedMagicLink,
   MagicLinkStore,
@@ -120,6 +121,8 @@ function fakeLeadStore(): LeadStore & { inserted: NewLead[] } {
         leadScore: 0,
         status: 'new',
         unsubscribedAt: null,
+        contactOptOutAt: null,
+        consentUpdatedAt: NOW,
         nudgeSentAt: null,
         sheetsSyncedAt: null,
         updatedAt: NOW,
@@ -170,7 +173,17 @@ function fakeEmailService(): EmailService {
   } as EmailService;
 }
 
+/**
+ * Fake unsubscribe service: mints deterministic preference-page URLs so the
+ * magic-link email footer can be asserted without HMAC secrets.
+ */
+const fakeUnsubscribe = {
+  buildUnsubscribeUrl: (leadId: string) =>
+    `https://app.test/unsubscribe/tok-${leadId}`,
+} as unknown as UnsubscribeService;
+
 const DEPS = {
+  unsubscribe: fakeUnsubscribe,
   estimateStore: fakeEstimateStore(),
   magicLinks: fakeMagicLinkStore(),
   email: fakeEmailService(),

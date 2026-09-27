@@ -245,6 +245,24 @@
   color: #555;
 }
 
+.badge--consent-in {
+  background: #e6f4ea;
+  color: #1e6b34;
+}
+
+.badge--consent-out {
+  background: #fdecea;
+  color: #8a1f1a;
+}
+
+/* Contact-consent date under the badge (table cell stacks vertically). */
+.leads-page__consent-date {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted, #6b6459);
+  margin-top: 0.25rem;
+}
+
 /* Detail drawer */
 
 .leads-page__drawer-backdrop {

@@ -822,25 +822,35 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     unsubscribe: {
       loadingLabel: 'Checking your link…',
-      confirmHeading: 'Unsubscribe from Feasly updates?',
-      confirmBody:
-        'You’ll stop receiving estimate follow-ups and product updates from Feasly. Your saved estimates stay available through your magic link.',
-      confirmCta: 'Yes, unsubscribe me',
-      keepCta: 'Keep me subscribed',
-      submittingLabel: 'Unsubscribing…',
-      doneHeading: 'You’ve been unsubscribed from Feasly updates.',
-      doneBody:
-        'You won’t receive follow-ups or product updates anymore. Emails you request — like your estimate magic link — still send.',
+      preferencesHeading: 'Email & contact preferences',
+      preferencesBody:
+        'Choose what Feasly can contact you about. Your saved estimates stay available through your magic link.',
+      emailToggleLabel: 'Estimate update emails',
+      emailToggleBody: 'Follow-ups and reminders about your Feasly estimates.',
+      contactToggleLabel: 'Calls and messages',
+      contactToggleBody:
+        'Calls and texts from Feasly and builders associated with us about your estimate.',
+      unsubscribeAllCta: 'Unsubscribe from everything',
+      saveCta: 'Save preferences',
+      savingLabel: 'Saving…',
+      doneHeading: 'Preferences saved.',
+      doneEmailsOff:
+        'You won’t receive estimate follow-ups or product updates anymore.',
+      doneEmailsOn: 'You’ll keep receiving estimate updates.',
+      doneCallsOff:
+        'We won’t call or text you — and we won’t ask builders to either.',
+      doneCallsOn:
+        'Feasly and associated builders may still contact you by call or text.',
+      doneMagicLinkNote:
+        'Emails you request — like your estimate magic link — still send.',
       resubscribePrompt: 'Changed your mind?',
       resubscribeBody:
         'Just reply to any Feasly email and we’ll re-subscribe you — no forms, no fuss.',
-      alreadyHeading: 'You’re already unsubscribed.',
-      alreadyBody: 'This address is already unsubscribed from Feasly updates — nothing more to do.',
       expiredHeading: 'This link has expired.',
-      expiredBody: 'Unsubscribe links expire after 30 days to protect your inbox.',
+      expiredBody: 'Preference links expire after 30 days to protect your inbox.',
       expiredCta: 'Reply to any Feasly email to request a fresh link, or start a new estimate below.',
       invalidHeading: 'This link isn’t valid.',
-      invalidBody: 'This unsubscribe link doesn’t look right — it may have been copied incompletely.',
+      invalidBody: 'This preferences link doesn’t look right — it may have been copied incompletely.',
       errorHeading: 'Something went wrong.',
       errorBody: 'We couldn’t check your link. Please check your connection and try again.',
       retryLabel: 'Try again',

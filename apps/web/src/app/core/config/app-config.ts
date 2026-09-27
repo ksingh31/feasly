@@ -905,17 +905,23 @@ export interface AppConfig {
      */
     unsubscribe: {
       loadingLabel: string;
-      confirmHeading: string;
-      confirmBody: string;
-      confirmCta: string;
-      keepCta: string;
-      submittingLabel: string;
+      preferencesHeading: string;
+      preferencesBody: string;
+      emailToggleLabel: string;
+      emailToggleBody: string;
+      contactToggleLabel: string;
+      contactToggleBody: string;
+      unsubscribeAllCta: string;
+      saveCta: string;
+      savingLabel: string;
       doneHeading: string;
-      doneBody: string;
+      doneEmailsOff: string;
+      doneEmailsOn: string;
+      doneCallsOff: string;
+      doneCallsOn: string;
+      doneMagicLinkNote: string;
       resubscribePrompt: string;
       resubscribeBody: string;
-      alreadyHeading: string;
-      alreadyBody: string;
       expiredHeading: string;
       expiredBody: string;
       expiredCta: string;

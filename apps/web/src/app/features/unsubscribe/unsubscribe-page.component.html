@@ -3,32 +3,62 @@
   <div class="card" aria-live="polite">
     @if (view() === 'loading') {
       <p class="status">{{ copy.loadingLabel }}</p>
-    } @else if (view() === 'confirm') {
-      <h1>{{ copy.confirmHeading }}</h1>
-      <p class="body">{{ copy.confirmBody }}</p>
+    } @else if (view() === 'preferences') {
+      <h1>{{ copy.preferencesHeading }}</h1>
+      <p class="body">{{ copy.preferencesBody }}</p>
+      <div class="prefs">
+        <label class="pref-row">
+          <span class="pref-text">
+            <span class="pref-label">{{ copy.emailToggleLabel }}</span>
+            <span class="pref-body">{{ copy.emailToggleBody }}</span>
+          </span>
+          <input
+            type="checkbox"
+            class="switch"
+            [checked]="emailEnabled()"
+            (change)="emailEnabled.set($any($event.target).checked)"
+            [attr.aria-label]="copy.emailToggleLabel"
+          />
+        </label>
+        <label class="pref-row">
+          <span class="pref-text">
+            <span class="pref-label">{{ copy.contactToggleLabel }}</span>
+            <span class="pref-body">{{ copy.contactToggleBody }}</span>
+          </span>
+          <input
+            type="checkbox"
+            class="switch"
+            [checked]="contactEnabled()"
+            (change)="contactEnabled.set($any($event.target).checked)"
+            [attr.aria-label]="copy.contactToggleLabel"
+          />
+        </label>
+      </div>
       <div class="actions">
         <button
           type="button"
-          class="cta danger"
-          (click)="confirm()"
+          class="cta"
+          (click)="save()"
           [disabled]="submitting()"
         >
-          {{ submitting() ? copy.submittingLabel : copy.confirmCta }}
+          {{ submitting() ? copy.savingLabel : copy.saveCta }}
         </button>
-        <button type="button" class="text-button" (click)="keepSubscribed()">
-          {{ copy.keepCta }}
+        <button type="button" class="text-button" (click)="unsubscribeAll()">
+          {{ copy.unsubscribeAllCta }}
         </button>
       </div>
     } @else if (view() === 'done') {
       <h1>{{ copy.doneHeading }}</h1>
-      <p class="body">{{ copy.doneBody }}</p>
+      <p class="body">
+        {{ savedEmailOptedOut() ? copy.doneEmailsOff : copy.doneEmailsOn }}
+      </p>
+      <p class="body">
+        {{ savedContactOptedOut() ? copy.doneCallsOff : copy.doneCallsOn }}
+      </p>
+      <p class="body">{{ copy.doneMagicLinkNote }}</p>
       <p class="resub">
         <strong>{{ copy.resubscribePrompt }}</strong> {{ copy.resubscribeBody }}
       </p>
-      <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
-    } @else if (view() === 'already') {
-      <h1>{{ copy.alreadyHeading }}</h1>
-      <p class="body">{{ copy.alreadyBody }}</p>
       <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
     } @else if (view() === 'expired') {
       <h1>{{ copy.expiredHeading }}</h1>

@@ -42,6 +42,8 @@ function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
     leadScore: 75,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: new Date('2026-09-25T00:00:00Z'),
     nudgeSentAt: null,
     createdAt: new Date('2026-09-25T00:00:00Z'),
     projectType: 'new_build',

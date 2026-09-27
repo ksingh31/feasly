@@ -16,21 +16,36 @@ import { ConfigService } from '../../core/config';
 import { UnsubscribePageComponent } from './unsubscribe-page.component';
 
 /**
- * Unsubscribe center (email/03): the `/unsubscribe/{token}` page renders the
- * confirmation flow from the backend state machine — confirm → done, already,
- * expired, invalid — and never exposes the leadId (no PII in the URL flow).
- * The page is noindexed.
+ * Unsubscribe preference center: `/unsubscribe/{token}` renders the granular
+ * preference page (estimate-emails toggle + calls/messages toggle +
+ * unsubscribe-everything) from the backend state machine — loading →
+ * preferences → done, or expired | invalid — and never exposes the leadId
+ * (no PII in the URL flow). The page is noindexed.
  */
 describe('UnsubscribePageComponent', () => {
   let fixture: ComponentFixture<UnsubscribePageComponent>;
   let httpMock: HttpTestingController;
   let api: {
     getUnsubscribeState: ReturnType<typeof vi.fn>;
-    confirmUnsubscribe: ReturnType<typeof vi.fn>;
+    saveUnsubscribePreferences: ReturnType<typeof vi.fn>;
   };
 
   function text(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  function validState(
+    overrides: Partial<Extract<UnsubscribeStateResponse, { valid: true }>> = {},
+  ): UnsubscribeStateResponse {
+    return {
+      valid: true,
+      leadId: 'lead-1',
+      emailOptedOut: false,
+      contactOptedOut: false,
+      consentUpdatedAt: new Date().toISOString(),
+      alreadyUnsubscribed: false,
+      ...overrides,
+    };
   }
 
   async function setup(
@@ -40,15 +55,20 @@ describe('UnsubscribePageComponent', () => {
     TestBed.resetTestingModule();
     api = {
       getUnsubscribeState: vi.fn(),
-      confirmUnsubscribe: vi.fn(),
+      saveUnsubscribePreferences: vi.fn(),
     };
     if ('error' in state) {
       api.getUnsubscribeState.mockReturnValue(throwError(() => state.error));
     } else {
       api.getUnsubscribeState.mockReturnValue(of(state));
     }
-    api.confirmUnsubscribe.mockReturnValue(
-      of({ unsubscribed: true, alreadyUnsubscribed: false } satisfies UnsubscribeResultResponse),
+    api.saveUnsubscribePreferences.mockReturnValue(
+      of({
+        unsubscribed: true,
+        alreadyUnsubscribed: false,
+        emailOptedOut: true,
+        contactOptedOut: false,
+      } satisfies UnsubscribeResultResponse),
     );
     TestBed.configureTestingModule({
       imports: [UnsubscribePageComponent],
@@ -72,6 +92,10 @@ describe('UnsubscribePageComponent', () => {
     await fixture.whenStable();
   }
 
+  function toggles(): NodeListOf<HTMLInputElement> {
+    return (fixture.nativeElement as HTMLElement).querySelectorAll('input.switch');
+  }
+
   it('shows a loading state while the token resolves', async () => {
     const { Subject } = await import('rxjs');
     TestBed.resetTestingModule();
@@ -86,7 +110,7 @@ describe('UnsubscribePageComponent', () => {
           provide: API_SERVICE,
           useValue: {
             getUnsubscribeState: vi.fn().mockReturnValue(pending$),
-            confirmUnsubscribe: vi.fn(),
+            saveUnsubscribePreferences: vi.fn(),
           },
         },
         {
@@ -105,35 +129,63 @@ describe('UnsubscribePageComponent', () => {
     pending$.complete();
   });
 
-  it('renders the confirm screen for a valid token', async () => {
-    await setup('tok-123', { valid: true, leadId: 'lead-1', alreadyUnsubscribed: false });
-    expect(text()).toContain('Unsubscribe from Feasly updates?');
-    expect(text()).toContain('Yes, unsubscribe me');
-    expect(text()).toContain('Keep me subscribed');
+  it('renders the preference toggles for a valid token, both on by default', async () => {
+    await setup('tok-123', validState());
+    expect(text()).toContain('Email & contact preferences');
+    expect(text()).toContain('Estimate update emails');
+    expect(text()).toContain('Calls and messages');
+    expect(text()).toContain('Unsubscribe from everything');
+    const boxes = toggles();
+    expect(boxes.length).toBe(2);
+    expect(boxes[0].checked).toBe(true);
+    expect(boxes[1].checked).toBe(true);
   });
 
-  it('posts the opt-out and shows the story-pinned confirmation', async () => {
-    await setup('tok-123', { valid: true, leadId: 'lead-1', alreadyUnsubscribed: false });
-    const button = (fixture.nativeElement as HTMLElement).querySelector(
-      'button.cta.danger',
+  it('pre-checks the toggles from the backend opt-out state', async () => {
+    await setup(
+      'tok-123',
+      validState({ emailOptedOut: true, contactOptedOut: true, alreadyUnsubscribed: true }),
+    );
+    const boxes = toggles();
+    expect(boxes[0].checked).toBe(false);
+    expect(boxes[1].checked).toBe(false);
+  });
+
+  it('saves the granular preferences and shows the done screen', async () => {
+    await setup('tok-123', validState());
+    const boxes = toggles();
+    // Flip calls/messages off, leave emails on.
+    boxes[1].checked = false;
+    boxes[1].dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    const save = (fixture.nativeElement as HTMLElement).querySelector(
+      'button.cta',
     ) as HTMLButtonElement;
-    button.click();
+    save.click();
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(api.confirmUnsubscribe).toHaveBeenCalledWith('tok-123');
-    expect(text()).toContain('You’ve been unsubscribed from Feasly updates.');
-    expect(text()).toContain('Changed your mind?');
+    expect(api.saveUnsubscribePreferences).toHaveBeenCalledWith('tok-123', {
+      emailOptOut: false,
+      contactOptOut: true,
+    });
+    expect(text()).toContain('Preferences saved.');
+  });
+
+  it('unsubscribe-from-everything flips both toggles off', async () => {
+    await setup('tok-123', validState());
+    const all = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => b.textContent?.includes('Unsubscribe from everything')) as HTMLButtonElement;
+    all.click();
+    fixture.detectChanges();
+    const boxes = toggles();
+    expect(boxes[0].checked).toBe(false);
+    expect(boxes[1].checked).toBe(false);
   });
 
   it('never renders the leadId (no PII in the URL flow)', async () => {
-    await setup('tok-123', { valid: true, leadId: 'lead-SECRET-1', alreadyUnsubscribed: false });
+    await setup('tok-123', validState({ leadId: 'lead-SECRET-1' }));
     expect(text()).not.toContain('lead-SECRET-1');
-  });
-
-  it('shows the already-unsubscribed screen without calling POST', async () => {
-    await setup('tok-123', { valid: true, leadId: 'lead-1', alreadyUnsubscribed: true });
-    expect(text()).toContain('already unsubscribed');
-    expect(api.confirmUnsubscribe).not.toHaveBeenCalled();
   });
 
   it('shows the expired screen with a no-dead-end path', async () => {
@@ -161,20 +213,18 @@ describe('UnsubscribePageComponent', () => {
   it('shows the retry screen on transport failure and retries', async () => {
     await setup('tok-123', { error: { code: 'http_0' } });
     expect(text()).toContain('Something went wrong');
-    api.getUnsubscribeState.mockReturnValue(
-      of({ valid: true, leadId: 'lead-1', alreadyUnsubscribed: false } satisfies UnsubscribeStateResponse),
-    );
+    api.getUnsubscribeState.mockReturnValue(of(validState()));
     const retry = (fixture.nativeElement as HTMLElement).querySelector(
       'button.cta',
     ) as HTMLButtonElement;
     retry.click();
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(text()).toContain('Unsubscribe from Feasly updates?');
+    expect(text()).toContain('Email & contact preferences');
   });
 
   it('sets noindex,nofollow on the page', async () => {
-    await setup('tok-123', { valid: true, leadId: 'lead-1', alreadyUnsubscribed: false });
+    await setup('tok-123', validState());
     const meta = TestBed.inject(Meta);
     expect(meta.getTag('name="robots"')?.content).toBe('noindex,nofollow');
   });

@@ -46,6 +46,12 @@ export interface AdminLeadFilters {
    * "Sandbox" and excluded from counts by default.
    */
   readonly includeSandbox?: boolean;
+  /**
+   * Contact-consent filter: 'in' = no opt-outs recorded; 'out' = opted out
+   * of estimate emails and/or calls/messages. Absent = no consent
+   * filtering — the default admin view always shows every lead.
+   */
+  readonly consent?: 'in' | 'out';
 }
 
 /** One row in the leads table. */

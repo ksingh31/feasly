@@ -31,6 +31,7 @@ import type {
   PropertyRecord,
   TierRevisionRequest,
   TierRevisionResponse,
+  UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -194,6 +195,18 @@ export class HttpApiService implements ApiService {
       this.http.post<UnsubscribeResultResponse>(
         `${this.base}${this.unsubscribePath(token)}`,
         {},
+      ),
+    );
+  }
+
+  saveUnsubscribePreferences(
+    token: string,
+    prefs: UnsubscribePreferencesInput,
+  ): Observable<UnsubscribeResultResponse> {
+    return this.call(
+      this.http.post<UnsubscribeResultResponse>(
+        `${this.base}${this.unsubscribePath(token)}`,
+        prefs,
       ),
     );
   }

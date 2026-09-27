@@ -39,6 +39,8 @@ function makeLead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     leadScore: 75,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: now,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: now,
@@ -91,6 +93,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     countNeverSynced: vi.fn().mockResolvedValue(0),
     listByTenantKey: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(null),
+    updateConsentPreferences: vi.fn().mockResolvedValue(null),
   };
   const estimates: EstimateStore = {
     save: vi.fn(),

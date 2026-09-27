@@ -48,6 +48,8 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     leadScore: 50,
     status: 'new',
     unsubscribedAt: null,
+    contactOptOutAt: null,
+    consentUpdatedAt: NOW,
     nudgeSentAt: null,
     sheetsSyncedAt: null,
     updatedAt: NOW,
@@ -139,6 +141,7 @@ function makeService(
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
       updateStatus: async () => null,
+      updateConsentPreferences: async () => null,
   };
 
   const magicLinks: MagicLinkStore = {

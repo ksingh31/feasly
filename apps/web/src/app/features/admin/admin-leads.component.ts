@@ -86,6 +86,8 @@ export class AdminLeadsComponent implements OnInit {
     createdAfter: [''],
     createdBefore: [''],
     tenantId: [''],
+    /** Contact-consent filter. '' = All (the admin default — never filtered). */
+    consent: ['' as '' | 'in' | 'out'],
   });
 
   constructor() {
@@ -153,6 +155,9 @@ export class AdminLeadsComponent implements OnInit {
     if (tenantId) {
       filters.tenantId = tenantId;
     }
+    if (raw.consent) {
+      filters.consent = raw.consent;
+    }
     return filters;
   }
 
@@ -171,6 +176,7 @@ export class AdminLeadsComponent implements OnInit {
       createdAfter: '',
       createdBefore: '',
       tenantId: '',
+      consent: '',
     });
     this.applyFilters();
   }
