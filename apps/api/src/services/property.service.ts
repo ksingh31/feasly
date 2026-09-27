@@ -131,12 +131,22 @@ function formatAddress(raw: string): string {
 }
 
 /**
- * Normalizes for SoQL prefix search: uppercase, single-spaced, and natural
+ * Normalizes for SoQL prefix search: uppercase, single-spaced, natural
  * street-type spellings ("AVE", "STREET") rewritten to the abbreviations the
- * City dataset stores ("AV", "ST").
+ * City dataset stores ("AV", "ST") — and a trailing city/province tail
+ * (", Calgary, AB") dropped. A full address never prefix-matches the stored
+ * street address otherwise, so typing one surfaced zero suggestions while
+ * shorter prefixes worked (frontend PR #225 had the same gap client-side).
  */
 function normalizeQuery(query: string): string {
-  const tokens = query.trim().replace(/\s+/g, ' ').toUpperCase().split(' ');
+  const cleaned = query
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
+    .replace(/,?\s*CALGARY\s*,?\s*AB\s*$/, '')
+    .replace(/,?\s*CALGARY\s*$/, '')
+    .replace(/,\s*AB\s*$/, '');
+  const tokens = cleaned.split(' ');
   const typeIndex =
     tokens.length >= 2 && QUADRANT.test(tokens[tokens.length - 1])
       ? tokens.length - 2
