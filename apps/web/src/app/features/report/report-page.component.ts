@@ -18,7 +18,7 @@ import { ReportState } from './report.state';
 /**
  * Fills a `{token}` config template (FE0-002: user-facing copy lives in
  * ConfigService, never in components). Module-local: only the report's
- * mailto: share uses it.
+ * partner-share success message uses it.
  */
 function fillTemplate(template: string, values: Record<string, string>): string {
   let out = template;
@@ -31,25 +31,8 @@ function fillTemplate(template: string, values: Record<string, string>): string 
 /** One-shot form lifecycle for the callback form. */
 type FormStatus = 'idle' | 'sending' | 'sent' | 'error';
 
-export interface ShareMailtoArgs {
-  to: string;
-  subject: string;
-  body: string;
-}
-
-/**
- * Builds the `mailto:` draft for the email share (AC12): the recipient's own
- * mail client sends the email, so there is no send state to track. Pure —
- * exported for unit tests. The body copy comes from the
- * `report.shareBodyTemplate` config template, filled by the caller.
- */
-export function buildEstimateShareMailto(args: ShareMailtoArgs): string {
-  return (
-    `mailto:${encodeURIComponent(args.to)}` +
-    `?subject=${encodeURIComponent(args.subject)}` +
-    `&body=${encodeURIComponent(args.body)}`
-  );
-}
+/** Partner-share flow lifecycle: the backend mints the partner's own link. */
+type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
 
 /**
  * Estimate report page (the payoff screen).
@@ -408,43 +391,49 @@ export class ReportPageComponent implements OnInit {
   }
 
   /**
-   * Email share (AC12): opens a `mailto:` draft prefilled with the current
-   * size and exact numbers. The recipient's own mail client sends the email —
-   * the honest v1 until the saved-link share ships with story email/01.
+   * Partner share (share/01): the backend mints the partner their OWN fresh
+   * magic link and sends the structured Feasly email — the recipient never
+   * gets the owner's token. Same missing-token pattern as requestCallback:
+   * the token is memory-only, so after a reload it is gone.
    */
+  protected readonly shareStatus = signal<ShareStatus>('idle');
+  /** Recipient of the last successful share, named in the success message. */
+  protected readonly shareSentTo = signal('');
+  protected readonly shareSentMessage = computed(() =>
+    fillTemplate(this.copy.shareSent, { email: this.shareSentTo() }),
+  );
+
   shareViaEmail(): void {
-    const snap = this.snapshot();
-    const f = this.figures();
+    const token = this.reportToken();
+    if (this.shareStatus() === 'sending') {
+      return;
+    }
     if (this.shareForm.invalid) {
       this.shareForm.markAllAsTouched();
       return;
     }
-    if (!snap || !f) {
+    if (!token) {
+      // The token is memory-only: after a reload it is gone, and the
+      // magic-link email is the only re-verification path. Fail honestly
+      // instead of flagging the user's valid details as invalid.
+      this.shareStatus.set('token-error');
       return;
     }
-    const to = this.shareForm.controls.email.value.trim();
-    const address = this.property()?.address ?? 'your Calgary property';
-    const subject = [this.copy.shareSubject, address].filter(Boolean).join(' — ');
-    const fmt = (n: number): string => '$' + Math.round(n).toLocaleString('en-CA');
-    const body = fillTemplate(this.copy.shareBodyTemplate, {
-      address,
-      sqft: snap.inputs.sqft.toLocaleString('en-CA'),
-      tierLabel: this.tierLabel(),
-      total: fmt(f.total.base),
-      rangeLow: fmt(f.total.low),
-      rangeHigh: fmt(f.total.high),
-      build: fmt(f.build.base),
-      land: fmt(f.landValue.value),
-      planningRangeLabel: this.copy.planningRangeLabel,
-      buildLabel: this.copy.buildLabel,
-      landLabel: this.copy.landLabel,
-      landFixedNote: this.copy.landFixedNote,
-      bodyClose: this.copy.shareBodyClose,
-    });
-    window.location.href = buildEstimateShareMailto({ to, subject, body });
-    // Consent-gated inside AnalyticsService: declined/pending banner means
-    // this is a silent no-op.
-    this.analytics.track('partner_share');
+    const partnerEmail = this.shareForm.controls.email.value.trim();
+    this.shareStatus.set('sending');
+    this.api
+      .shareWithPartner({ reportToken: token, partnerEmail })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.shareStatus.set('sent');
+          this.shareSentTo.set(partnerEmail);
+          // Consent-gated inside AnalyticsService: declined/pending banner
+          // means this is a silent no-op.
+          this.analytics.track('partner_share');
+        },
+        error: () => this.shareStatus.set('send-error'),
+      });
   }
 
   requestCallback(): void {

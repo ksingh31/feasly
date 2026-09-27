@@ -419,16 +419,16 @@ export interface AppConfig {
       shareEmailLabel: string;
       shareCta: string;
       shareInvalid: string;
-      /** mailto: subject prefix for the email-draft share. */
-      shareSubject: string;
-      /**
-       * mailto: body template for the email-draft share. `{tokens}` are filled
-       * from the current snapshot (figures) and sibling report copy (labels),
-       * so every label stays individually tunable via config.
-       */
-      shareBodyTemplate: string;
-      /** Closing line of the mailto: body. */
-      shareBodyClose: string;
+      /** Partner-share button label while the backend sends the email. */
+      shareSending: string;
+      /** Partner-share success copy; `{email}` is the recipient's address. */
+      shareSent: string;
+      /** Partner-share send failure (retry stays available on the button). */
+      shareError: string;
+      /** Partner share when the memory-only report token is gone. */
+      shareTokenError: string;
+      /** Partner-share button label after a send failure. */
+      shareRetry: string;
       callbackTitle: string;
       callbackHint: string;
       callbackNameLabel: string;
