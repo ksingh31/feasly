@@ -49,6 +49,7 @@ describe('loadConfig', () => {
         postmarkServerToken: undefined,
         postmarkEndpoint: 'https://api.postmarkapp.com/email',
         acsConnectionString: undefined,
+        acsPollTimeoutMs: 20_000,
         appBaseUrl: 'https://feasly.example',
         unsubscribeUrlBase: 'https://feasly.example/unsubscribe',
         unsubscribeTokenSecret: undefined,
