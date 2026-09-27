@@ -215,12 +215,19 @@
     {
       "idx": 30,
       "version": "7",
+      "when": 1790497200000,
+      "tag": "0032_contact_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
       "when": 1790514285849,
       "tag": "0033_unique_invoice_attribution",
       "breakpoints": true
     },
     {
-      "idx": 31,
+      "idx": 32,
       "version": "7",
       "when": 1790515024100,
       "tag": "0034_unique_open_attribution",
