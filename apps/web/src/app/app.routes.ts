@@ -57,10 +57,24 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   // Analyzing (FE-004): runs the real estimate pipeline, then the report.
+  // Renovation never reaches it — reno users get the coming-soon page
+  // (Karan 2026-09-27: reno out of launch scope).
   {
     path: 'estimate/analyzing',
     component: AnalyzingPageComponent,
     canActivate: [robotsGuard, wizardScopeGuard],
+    data: { noindex: true },
+  },
+  // Reno coming-soon (Karan 2026-09-27): a designed holding page instead of
+  // the analyzing pipeline. Private funnel route: noindex. Lazy-loaded so
+  // it stays out of the initial bundle (budget).
+  {
+    path: 'estimate/reno-coming-soon',
+    loadComponent: () =>
+      import('./features/wizard/reno-coming-soon-page.component').then(
+        (m) => m.RenoComingSoonPageComponent,
+      ),
+    canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
   // Neighbourhood comparison picker (NBH-04): no wizard property needed —

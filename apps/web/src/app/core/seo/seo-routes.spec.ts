@@ -57,6 +57,7 @@ describe('seo-routes', () => {
       'estimate/details': 'estimate/details',
       'estimate/gate': 'estimate/gate',
       'estimate/analyzing': 'estimate/analyzing',
+      'estimate/reno-coming-soon': 'estimate/reno-coming-soon',
       'estimate/preview': 'estimate/preview',
       'estimate/report': 'estimate/report',
       'estimate/compare': 'estimate/compare',

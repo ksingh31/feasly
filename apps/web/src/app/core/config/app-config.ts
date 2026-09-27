@@ -548,11 +548,6 @@ export interface AppConfig {
       stageValidate: string;
       stageFetch: string;
       stageEstimate: string;
-      /** RENO-04: reno-specific step labels (each maps 1:1 to a real awaited call). */
-      stageFetchReno: string;
-      stageScopeReno: string;
-      stageEstimateReno: string;
-      stagePreviewReno: string;
       /** Screen-reader status words for each stage. */
       statusPending: string;
       statusActive: string;
@@ -562,6 +557,14 @@ export interface AppConfig {
       errorBody: string;
       retryLabel: string;
       /** Back link out of the analyzing screen (the pipeline must never trap the user). */
+      backLabel: string;
+    };
+    /** Renovation coming-soon page (reno out of launch scope, Karan 2026-09-27). */
+    renoComingSoon: {
+      heading: string;
+      body: string;
+      newBuildCta: string;
+      /** Back link to the reno scope step. */
       backLabel: string;
     };
     /** Per-page SEO titles + descriptions (long literals live here, not in components). */
@@ -584,6 +587,8 @@ export interface AppConfig {
       gate: string;
       analyzingTitle: string;
       analyzing: string;
+      renoComingSoonTitle: string;
+      renoComingSoon: string;
       compareTitle: string;
       compare: string;
       privacyTitle: string;
