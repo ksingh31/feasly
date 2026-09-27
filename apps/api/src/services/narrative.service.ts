@@ -9,7 +9,8 @@
  * 1. `buildNarrativePrompt()` (in @feasly/cost-engine) accepts ONLY the
  *    engine output — passing `CostData`/`CostParams` is a compile error.
  * 2. `validateNarrative()` rejects any output containing a $-figure not
- *    from the engine output, or missing the verbatim footer.
+ *    from the engine output. The verbatim compliance footer is appended
+ *    deterministically by the worker (never required from the model).
  *
  * Flow: authenticate (magic-link bearer) → load estimate → verify
  * ownership → return cached if present → rate-limit check → resolve
@@ -30,6 +31,7 @@
  */
 import {
   buildNarrativePrompt,
+  ensureNarrativeFooter,
   validateNarrative,
   type CommunityFacts,
   type CostRow,
@@ -271,6 +273,10 @@ export function createNarrativeService(
    * instead, and the report page renders its "summary unavailable" state.
    * The marker-string check is a backstop in case a provider ever forgets
    * to set `synthetic: true`.
+   *
+   * The verbatim compliance footer is appended deterministically here —
+   * never required from the model — so a model that omits it can no longer
+   * fail validation on an otherwise good narrative.
    */
   async function generateReal(
     output: EstimateOutput,
@@ -283,7 +289,13 @@ export function createNarrativeService(
     if (deps.provider.synthetic || isSyntheticNarrative(generation.result.text)) {
       return null;
     }
-    return generation;
+    return {
+      result: {
+        ...generation.result,
+        text: ensureNarrativeFooter(generation.result.text),
+      },
+      communityFacts: generation.communityFacts,
+    };
   }
 
   return {

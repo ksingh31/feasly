@@ -263,6 +263,30 @@ describe('narrative service', () => {
     expect(calls).toBe(2);
   });
 
+  it('appends the footer deterministically when the model omits it (no 502)', async () => {
+    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
+    // Regression: a model upgrade once dropped the verbatim footer and the
+    // worker 502'd on an otherwise good narrative. The footer is now
+    // appended deterministically instead of required from the model.
+    const provider = makeProvider('This is a valid narrative about the estimate.');
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe(
+      `This is a valid narrative about the estimate.\n\n${NARRATIVE_FOOTER}`,
+    );
+    expect(opsAlerts.notifyFailure).not.toHaveBeenCalled();
+  });
+
   it('rejects cross-user access with 403', async () => {
     const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     const provider = makeProvider(VALID_TEXT);
