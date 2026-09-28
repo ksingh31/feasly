@@ -9,6 +9,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
+import { expectSharedCalgaryGate } from '../../shared/test-helpers/entry-gate.harness';
 import { LeadState, StoreLeadResult, WizardState, type WizardStateModel } from '../wizard';
 import { ReportState } from '../report/report.state';
 import { SetReportToken } from '../report/report.actions';
@@ -286,5 +287,16 @@ describe('LandingPageComponent', () => {
     document.head
       .querySelectorAll('script[type="application/ld+json"]')
       .forEach((el) => el.remove());
+  });
+
+  describe('Calgary-only gate (D-03)', () => {
+    it('shows the shared Calgary-only gate on an out-of-coverage query', async () => {
+      // Entry-point integration: both the new-build AND the reno flows
+      // start at this hero search (reno pages have no address input of
+      // their own — reno users must pick a property here first), so the
+      // shared component's gate must surface here for all three entries
+      // (new-build, reno, embed).
+      await expectSharedCalgaryGate(fixture);
+    });
   });
 });
