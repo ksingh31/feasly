@@ -504,7 +504,6 @@ ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text 
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 CREATE TABLE IF NOT EXISTS "users" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -528,6 +527,7 @@ ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "entra_object_id" text;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "is_protected" boolean DEFAULT false NOT NULL;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 CREATE TABLE IF NOT EXISTS "builder_memberships" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -694,4 +694,26 @@ ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with t
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "used_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now();
+
+-- P0 2026-09-28: bootstrap-data guard. drizzle-kit silently skipped
+-- migration 0036 on dev (users table never materialized), so the protected
+-- super_admin seed row may also be missing even after the schema repair
+-- above creates the tables. This idempotent INSERT mirrors 0036's seed
+-- exactly (same fixed UUID) and is a no-op when the row already exists.
+-- Without it, the Entra callback has no protected row to link and Karan
+-- cannot sign in.
+INSERT INTO "users"
+  ("id", "email", "name", "status", "staff_role", "entra_object_id", "is_protected")
+SELECT
+  '805793cc-5aca-46f4-9498-996c784aee5a',
+  'karanbirsingh667@gmail.com',
+  'Karan',
+  'invited',
+  'super_admin',
+  NULL,
+  true
+WHERE EXISTS (
+  SELECT 1 FROM "admin_allowlist" WHERE "email" = 'karanbirsingh667@gmail.com'
+)
+ON CONFLICT ("email") DO NOTHING;
 `;
