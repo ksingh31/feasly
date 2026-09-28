@@ -10,7 +10,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
+import { BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { StoreLeadResult, WizardState } from '../wizard';
 import { SetReportToken } from '../report/report.actions';
@@ -51,6 +51,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    BuilderMatchingExplainerComponent,
     SiteFooterComponent,
     SiteNavComponent,
     WizardBackComponent,

@@ -1,7 +1,34 @@
-    <nav class="nav" aria-label="Primary">
-      <a class="skip-link" href="#main-content">Skip to content</a>
-      <a class="nav-brand" href="/" (click)="goHome($event)" [attr.aria-label]="siteName + ' home'">
-        <app-brand-mark />
-        <span class="nav-wordmark">{{ siteName }}</span>
-      </a>
-    </nav>
+<nav class="nav" aria-label="Primary">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <a class="nav-brand" href="/" (click)="goHome($event)" [attr.aria-label]="siteName + ' home'">
+    <app-brand-mark />
+    <span class="nav-wordmark">{{ siteName }}</span>
+  </a>
+
+  <!-- Desktop inline nav (UX audit 2026-09-28) -->
+  <div class="nav-links">
+    @for (link of navLinks; track link.path) {
+      <a class="nav-link" [href]="link.path" (click)="go($event, link.path)">{{ link.label }}</a>
+    }
+  </div>
+
+  <!-- Mobile hamburger (UX audit 2026-09-28) -->
+  <button
+    type="button"
+    class="nav-menu-btn"
+    (click)="toggleMenu()"
+    [attr.aria-expanded]="menuOpen()"
+    aria-controls="site-nav-menu"
+    aria-label="Menu"
+  >
+    <span class="nav-menu-icon" aria-hidden="true"></span>
+  </button>
+</nav>
+
+@if (menuOpen()) {
+  <div class="nav-menu" id="site-nav-menu">
+    @for (link of navLinks; track link.path) {
+      <a class="nav-menu-link" [href]="link.path" (click)="go($event, link.path)">{{ link.label }}</a>
+    }
+  </div>
+}
