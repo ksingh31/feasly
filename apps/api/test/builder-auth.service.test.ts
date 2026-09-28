@@ -38,6 +38,8 @@ function makeDeps(overrides?: {
     findByHash: vi.fn(async () => null),
     revokeByHash: vi.fn(async () => {}),
     revokeByEmail: vi.fn(async () => 0),
+    revokeByUserId: vi.fn(async () => 0),
+    updateBuilderId: vi.fn(async () => false),
   };
 
   const audit: AdminAuditStore = {

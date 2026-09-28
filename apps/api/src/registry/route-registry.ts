@@ -527,6 +527,89 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary: 'Revoke the builder session; clears the session cookie.',
   },
+  // ── Builder v1 — Entra org accounts (auth/05) ──────────────────────
+  {
+    method: 'POST',
+    path: '/api/v1/builder/auth/entra/callback',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '10/15min per IP',
+    status: 'live',
+    summary:
+      'Builder Entra sign-in callback. Exchanges the PKCE code, resolves ' +
+      'the user\u2019s builder memberships (not staff roles), and mints a ' +
+      'builder session bound to the user id + active builder. 503 while ' +
+      'the builder Entra app is unprovisioned.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/auth/memberships',
+    auth: 'builder-session',
+    permissions: [] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'List the caller\u2019s org memberships with the session\u2019s active builder.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/auth/active-org',
+    auth: 'builder-session',
+    permissions: [] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Switch the session\u2019s active builder (org switcher). The builder ' +
+      'must be one of the caller\u2019s memberships — anything else is 403, ' +
+      'never honored. Audit-logged.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/users',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'List users holding a membership in the session\u2019s active org. ' +
+      'Builder-admin only.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/users/invite',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Invite a team member into the session\u2019s active org (builder ' +
+      'roles only; the org comes from the session, never the request). ' +
+      'Builder-admin only.',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/builder/users/{id}',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Rename / change org role / activate / disable an org user. ' +
+      'Disabling kills the user\u2019s builder sessions immediately. ' +
+      'Builder-admin only.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/builder/users/{id}',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Remove a user from the session\u2019s active org (membership ' +
+      'revoked; row disabled when it\u2019s the last membership). Sessions ' +
+      'revoked immediately. Builder-admin only.',
+  },
   {
     method: 'GET',
     path: '/api/v1/builder/leads',

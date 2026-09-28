@@ -26,6 +26,8 @@ function toSessionRecord(
     tenantKey: row.tenantKey,
     // auth/04: the session's builder tenant (server-side, not a request value).
     builderId: row.builderId,
+    // auth/05: the user this session belongs to (null for legacy rows).
+    userId: row.userId,
     sessionTokenHash: row.sessionTokenHash,
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
@@ -102,6 +104,37 @@ export function createDrizzleBuilderSessionStore(
         )
         .returning({ id: builderSessions.id });
       return rows.length;
+    },
+
+    async revokeByUserId(userId: string, revokedAt: Date): Promise<number> {
+      const rows = await db
+        .update(builderSessions)
+        .set({ revokedAt })
+        .where(
+          and(
+            eq(builderSessions.userId, userId),
+            isNull(builderSessions.revokedAt),
+          ),
+        )
+        .returning({ id: builderSessions.id });
+      return rows.length;
+    },
+
+    async updateBuilderId(
+      sessionTokenHash: string,
+      builderId: string,
+    ): Promise<boolean> {
+      const rows = await db
+        .update(builderSessions)
+        .set({ builderId })
+        .where(
+          and(
+            eq(builderSessions.sessionTokenHash, sessionTokenHash),
+            isNull(builderSessions.revokedAt),
+          ),
+        )
+        .returning({ id: builderSessions.id });
+      return rows.length > 0;
     },
   };
 }

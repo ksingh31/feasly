@@ -44,6 +44,11 @@ export interface BuilderSessionRecord {
    * legacy rows whose tenant_key has no builder row.
    */
   readonly builderId: string | null;
+  /**
+   * auth/05: the user this session belongs to. Null for legacy magic-link
+   * sessions (no user row).
+   */
+  readonly userId: string | null;
   /** SHA-256 hex — never the raw token. */
   readonly sessionTokenHash: string;
   readonly revokedAt: Date | null;
@@ -59,6 +64,11 @@ export interface BuilderSessionStore {
     readonly builderId: string | null;
     readonly sessionTokenHash: string;
     readonly expiresAt: Date;
+    /**
+     * auth/05: the user this session belongs to. Set for Entra sessions;
+     * null for legacy magic-link sessions (no user row).
+     */
+    readonly userId?: string | null;
   }): Promise<BuilderSessionRecord>;
   /** Active = not revoked and not expired. */
   findActiveByHash(
@@ -73,6 +83,21 @@ export interface BuilderSessionStore {
   revokeByHash(sessionTokenHash: string, revokedAt: Date): Promise<void>;
   /** Revoke all sessions for an email (allowlist removal). Returns count. */
   revokeByEmail(email: string, revokedAt: Date): Promise<number>;
+  /**
+   * auth/05: revoke all sessions for a user id — immediate session kill
+   * on deactivation. Returns count.
+   */
+  revokeByUserId(userId: string, revokedAt: Date): Promise<number>;
+  /**
+   * auth/05: switch the session's active builder (org switcher). The
+   * builder id must be one of the user's memberships — the service
+   * checks; the store just writes. Returns false when the session hash
+   * is unknown.
+   */
+  updateBuilderId(
+    sessionTokenHash: string,
+    builderId: string,
+  ): Promise<boolean>;
 }
 
 export interface BuilderAllowlistStore {
