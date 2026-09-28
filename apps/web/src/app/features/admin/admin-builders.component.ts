@@ -157,6 +157,10 @@ export class AdminBuildersComponent implements OnInit {
   }
 
   /** Open the edit form prefilled from a builder row. */
+  // FUTURE (builder onboarding story): the portal-access email manager
+  // hooks in here — the builder_allowlist table and the /builder/login
+  // magic-link flow already exist; this form will list/grant/revoke
+  // allowlisted emails per builder once self-serve onboarding is scoped.
   protected startEdit(builder: Builder): void {
     this.editing.set(builder);
     this.form.reset({
