@@ -20,6 +20,8 @@ import type {
   AdminLeadMagicLinkStatus,
   AdminLeadMutationResponse,
   AdminLeadStatus,
+  CostRange,
+  FixedFigure,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
@@ -181,6 +183,37 @@ export function formatCentsCad(cents: number): string {
   return `${negative ? '-' : ''}$${grouped}.${centsStr}`;
 }
 
+/**
+ * Estimate-summary money mapping.
+ *
+ * Stored estimate figures use the EstimateResponse contract shapes in WHOLE
+ * DOLLARS — `{ build: CostRange, total: CostRange, land: FixedFigure }`,
+ * where `CostRange = { low, base, high }`. The admin summary reports
+ * INTEGER CENTS, so every value is converted (×100 with integer math).
+ *
+ * Comparison estimates persist `{ rowSets }` instead of ranges — those have
+ * no build/total/land and legitimately read as zeros. Anything malformed
+ * degrades to zero rather than crashing the detail view. (2026-09-28: the
+ * summary previously cast figures to `{ total: [n,n], build: [n,n], land: n }`
+ * — a shape the store never persisted — so every lead detail rendered $0.)
+ */
+function dollarsToCents(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) : 0;
+}
+
+function costRangeToCents(range: unknown): readonly [number, number] {
+  if (typeof range !== 'object' || range === null) return [0, 0];
+  const { low, high } = range as Partial<CostRange>;
+  return [dollarsToCents(low), dollarsToCents(high)];
+}
+
+/** Persisted estimate figures (new_build/renovation contract shape). */
+interface StoredEstimateFigures {
+  readonly total?: CostRange;
+  readonly build?: CostRange;
+  readonly land?: FixedFigure;
+}
+
 function parseQuery(query: unknown): AdminLeadListQuery {
   const parsed = AdminLeadListQuerySchema.safeParse(query);
   if (!parsed.success) {
@@ -287,11 +320,9 @@ export function createAdminLeadsService(
       const estimate = await estimateStore.findById(row.estimateId);
       let estimateSummary: AdminLeadDetail['estimate'] = null;
       if (estimate) {
-        const figures = estimate.figures as {
-          readonly total?: readonly [number, number];
-          readonly build?: readonly [number, number];
-          readonly land?: number;
-        };
+        // figures follow the EstimateResponse contract (whole dollars);
+        // the summary reports integer cents (see dollarsToCents above).
+        const figures = (estimate.figures ?? {}) as StoredEstimateFigures;
         const inputs = estimate.inputs as {
           readonly sqft?: number;
           readonly tier?: string;
@@ -302,9 +333,9 @@ export function createAdminLeadsService(
           projectType: estimate.projectType,
           sqft: inputs.sqft ?? null,
           tier: inputs.tier ?? null,
-          totalRangeCents: figures.total ?? [0, 0],
-          buildRangeCents: figures.build ?? [0, 0],
-          landCents: figures.land ?? 0,
+          totalRangeCents: costRangeToCents(figures.total),
+          buildRangeCents: costRangeToCents(figures.build),
+          landCents: dollarsToCents(figures.land?.value),
           createdAt: estimate.createdAt.toISOString(),
         };
       }
