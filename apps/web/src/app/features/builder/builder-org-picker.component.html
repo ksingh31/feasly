@@ -12,16 +12,16 @@
       </button>
     } @else {
       <ul class="builder-org-picker__list">
-        @for (membership of memberships(); track membership.builderId) {
+        @for (m of memberships(); track m.builderId) {
           <li>
             <button
               type="button"
               class="builder-org-picker__org"
-              (click)="choose(membership)"
+              (click)="choose(m)"
               [disabled]="switchingId !== null"
             >
-              <span class="builder-org-picker__name">{{ membership.builderName }}</span>
-              <span class="builder-org-picker__role">{{ roleLabel(membership) }}</span>
+              <span class="builder-org-picker__name">{{ m.builderName }}</span>
+              <span class="builder-org-picker__role">{{ roleLabel(m) }}</span>
             </button>
           </li>
         } @empty {
