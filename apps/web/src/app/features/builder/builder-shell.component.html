@@ -5,6 +5,9 @@
       <a routerLink="/builder" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
         {{ copy.shellNavDashboard }}
       </a>
+      <a routerLink="/builder/billing" routerLinkActive="active">
+        {{ copy.shellNavBilling }}
+      </a>
       @if (session(); as s) {
         <span class="builder-shell__email">{{ s.email }}</span>
       }

@@ -374,6 +374,16 @@ export const routes: Routes = [
           ),
         pathMatch: 'full',
       },
+      {
+        // Builder billing (billing/02, BILL-02): card-on-file section.
+        // Lazy-loaded like the dashboard so the builder portal stays out
+        // of the initial bundle.
+        path: 'billing',
+        loadComponent: () =>
+          import('./features/builder/builder-billing.component').then(
+            (m) => m.BuilderBillingComponent,
+          ),
+      },
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —

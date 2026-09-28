@@ -94,6 +94,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "viewer",
   ],
+  "GET /api/v1/billing/card": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "GET /api/v1/billing/invoices/{id}": [
     "super_admin",
     "admin",
@@ -319,6 +324,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
   ],
   "POST /api/v1/billing/report-contract": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/billing/setup-intent": [
     "super_admin",
     "admin",
     "builder_admin",

@@ -45,6 +45,16 @@ export interface AppConfig {
      */
     downloadRevokeDelayMs: number;
   };
+  /**
+   * Billing wiring (billing/02, BILL-02). Stripe publishable key for the
+   * builder-portal card form (Stripe Elements). Empty string = card setup
+   * is unavailable in the UI (the backend fails closed too). The secret key
+   * never reaches the browser — it stays in the Function App's settings.
+   */
+  billing: {
+    /** Stripe publishable key (`pk_test_…` in dev). Empty = unavailable. */
+    stripePublishableKey: string;
+  };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
     /**
@@ -936,6 +946,38 @@ export interface AppConfig {
       leadStatusUpdatedLabel: string;
       /** Status action group label (screen reader). */
       actionsLabel: string;
+      /** Builder shell nav: billing link label. */
+      shellNavBilling: string;
+      /** `/builder/billing` heading. */
+      billingHeading: string;
+      /** Card-status loading copy. */
+      billingLoading: string;
+      /** Card-status load-failure copy. */
+      billingLoadError: string;
+      /** "No card on file" status copy. */
+      billingNoCard: string;
+      /** Card-on-file status line; {brand} {last4} {exp} are interpolated. */
+      billingCardOnFile: string;
+      /** "Add card" button label. */
+      billingAddCard: string;
+      /** "Update card" button label. */
+      billingUpdateCard: string;
+      /** Card form heading. */
+      billingFormHeading: string;
+      /** "Save card" submit label. */
+      billingSaveCard: string;
+      /** Submit label while Stripe confirms the setup. */
+      billingSavingCard: string;
+      /** Durable success copy after the card is saved. */
+      billingCardSaved: string;
+      /** Card-save failure copy. */
+      billingSaveFailed: string;
+      /** Copy when Stripe.js or the publishable key is unavailable. */
+      billingUnavailable: string;
+      /** "Cancel" button label (card form). */
+      billingCancel: string;
+      /** Explains the 1% commission charge timing. */
+      billingExplainer: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard

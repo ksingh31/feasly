@@ -1321,6 +1321,8 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/mcp/v1` | api-key | — | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | — | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
 | POST | `/api/v1/billing/report-contract` | builder-session | builder:billing | 100/min per session | live | Builder reports the signed construction contract (value excl. land) for one of their leads. Runs the commission charge path: attribution → draft invoice → auto-submitted into the 7-day review window. Idempotent: re-reporting returns the existing invoice. |
+| POST | `/api/v1/billing/setup-intent` | builder-session | builder:billing | 100/min per session | live | Builder creates a SetupIntent to save a card on file (commission model). Idempotent: ensures the tenant's Stripe customer first. Returns the client secret for Stripe Elements. |
+| GET | `/api/v1/billing/card` | builder-session | builder:billing | 100/min per session | live | Builder reads their card-on-file status (brand/last4/expiry only — the PAN never leaves Stripe). Commission model. |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live | Read a commission invoice. Builders see only their own tenant's invoices; admins see all. |
 | POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | builder:billing | 100/min per session | live | Builder disputes their own invoice (reason required): the charge clock freezes and ops is alerted. 403 for another tenant's invoice. |
 | POST | `/api/v1/billing/invoices/{id}/resolve` | admin | billing:manage | 100/min per session | live | Admin resolves a billing dispute: "resume" returns the invoice to review with a fresh 7-day window, "void" cancels it. |
@@ -1328,4 +1330,3 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/disputes/{id}` | admin | billing:read | 100/min per session | live | One dispute: immutable evidence snapshot, SLA state, and the billing audit trail. Admin only. |
 | POST | `/api/v1/admin/disputes/{id}/accept` | admin | billing:manage | 100/min per session | live | Accept a dispute: voids the invoice (Stripe refund first when it was already paid — the credit note). Audit-logged. Admin only. |
 | POST | `/api/v1/admin/disputes/{id}/reject` | admin | billing:manage | 100/min per session | live | Reject a dispute: the invoice returns to in_review with a fresh 7-day window. Audit-logged. Admin only. |
-

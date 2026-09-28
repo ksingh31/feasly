@@ -432,6 +432,10 @@ import {
   type FlatPlanService,
 } from './services/billing/flat-plan.service';
 import {
+  createCommissionCardService,
+  type CommissionCardService,
+} from './services/billing/commission-card.service';
+import {
   createBillingWebhookService,
   type BillingWebhookService,
 } from './services/billing/billing-webhook.service';
@@ -636,6 +640,8 @@ export interface AppComposition {
   readonly commissionService: CommissionService;
   /** billing/02: flat subscription path (dormant until BILLING_MODEL=flat). */
   readonly flatPlanService: FlatPlanService;
+  /** billing/02 (BILL-02): commission card-on-file (SetupIntent + status). */
+  readonly commissionCardService: CommissionCardService;
   /** billing/02: Stripe webhook dispatch. */
   readonly billingWebhookService: BillingWebhookService;
   /** billing/02: daily review-window finalizer. */
@@ -1502,8 +1508,17 @@ export function createComposition(
     commission: commissionService,
     disputes: disputeService,
   });
+  // billing/02 (BILL-02) — commission card-on-file: the setup-intent +
+  // card-status endpoints. Model-gated inside the service.
+  const commissionCardService: CommissionCardService =
+    createCommissionCardService({
+      billing: config.billing,
+      audit: billingAuditService,
+      stripe: stripeService,
+    });
   const billingRoute: BillingRoute = createBillingRoute({
     billing: billingService,
+    commissionCard: commissionCardService,
     builderGuard,
     adminGuard,
   });
@@ -1699,6 +1714,7 @@ export function createComposition(
     stripeService,
     commissionService,
     flatPlanService,
+    commissionCardService,
     billingWebhookService,
     invoiceReviewerService,
     stripeWebhooksRoute,
