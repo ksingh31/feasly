@@ -484,6 +484,12 @@ export interface AppConfig {
        */
       validationHeading: string;
       validationGenericBody: string;
+      /**
+       * Non-residential coverage explainer: shown when the City classifies
+       * the parcel commercial/industrial. Takes precedence over the generic
+       * body in the early coverage guard (landing + embed).
+       */
+      validationNonResidentialBody: string;
       validationBackLabel: string;
     };
     /** Property card (shared) copy. */
@@ -772,6 +778,8 @@ export interface AppConfig {
       adminBuilders: string;
       adminDisputesTitle: string;
       adminDisputes: string;
+      adminUsersTitle: string;
+      adminUsers: string;
       adminCalibrationTitle: string;
       adminCalibration: string;
       adminBillingTitle: string;

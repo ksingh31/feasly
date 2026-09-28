@@ -74,38 +74,62 @@ describe('pricingCoverageIssue', () => {
   };
 
   it('returns null for ordinary lots', () => {
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 729000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1200, assessedValue: 25000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 20000, assessedValue: 10000000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 1200, assessedValue: 25000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 20000, assessedValue: 10000000, isNonResidential: false }, bounds)).toBeNull();
   });
 
   it("never blocks on lot size — Karan's 21,577 sq ft lot prices (lot-size block bug, 2026-09-28)", () => {
-    expect(pricingCoverageIssue({ lotSqft: 21577, assessedValue: 729000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 21577, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
   });
 
   it('never blocks on very large or very small lots', () => {
     // Supersedes the old 643,811 sq ft regression: no lot size may block.
     // (assessed values below are in range — only the lot varies.)
-    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 729000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1199, assessedValue: 729000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 0, assessedValue: 729000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: NaN, assessedValue: 729000 }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1199.4, assessedValue: 729000 }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 1199, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 0, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: NaN, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue({ lotSqft: 1199.4, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
   });
 
   it("flags missing/out-of-range assessed values as 'assessed-value'", () => {
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0 }, bounds)).toBe('assessed-value');
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 24999 }, bounds)).toBe(
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0, isNonResidential: false }, bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 24999, isNonResidential: false }, bounds)).toBe(
       'assessed-value',
     );
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 10000001 }, bounds)).toBe(
+    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 10000001, isNonResidential: false }, bounds)).toBe(
       'assessed-value',
     );
   });
 
   it('still flags assessed value when the lot is also extreme (lot never wins)', () => {
-    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 0 }, bounds)).toBe(
+    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 0, isNonResidential: false }, bounds)).toBe(
       'assessed-value',
     );
+  });
+
+  it("flags non-residential parcels as 'non-residential' (industrial/commercial)", () => {
+    expect(
+      pricingCoverageIssue(
+        { lotSqft: 452960, assessedValue: 729000, isNonResidential: true },
+        bounds,
+      ),
+    ).toBe('non-residential');
+  });
+
+  it("non-residential takes precedence over the assessed-value issue (Karan's 12345 40 St SE industrial case)", () => {
+    // The industrial parcel's $61.58M assessed value ALSO breaks the $10M
+    // cap — the user must see the specific commercial/industrial message,
+    // not the generic can't-price card.
+    expect(
+      pricingCoverageIssue(
+        { lotSqft: 452960, assessedValue: 61580000, isNonResidential: true },
+        bounds,
+      ),
+    ).toBe('non-residential');
+    expect(
+      pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0, isNonResidential: true }, bounds),
+    ).toBe('non-residential');
   });
 });

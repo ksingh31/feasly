@@ -92,20 +92,26 @@ export interface PricingCoverageBounds {
 export interface PricingCoverageFacts {
   readonly lotSqft: number;
   readonly assessedValue: number;
+  readonly isNonResidential: boolean;
 }
 
 /**
  * Which property fact breaks pricing coverage, or null when the property
  * is priceable. Lot size is NEVER a coverage issue (Karan, 2026-09-28) —
- * any lot prices, quoted off the house size. Only the assessed value is
- * checked, with the engine's whole-dollar rounding.
+ * any lot prices, quoted off the house size. A non-residential parcel
+ * (industrial/commercial, per the City's assessment class) is checked FIRST
+ * and wins over the assessed-value issue: the user gets the specific
+ * commercial/industrial message, not the generic can't-price card.
  */
-export type PricingCoverageIssue = 'assessed-value';
+export type PricingCoverageIssue = 'non-residential' | 'assessed-value';
 
 export function pricingCoverageIssue(
   facts: PricingCoverageFacts,
   bounds: PricingCoverageBounds,
 ): PricingCoverageIssue | null {
+  if (facts.isNonResidential) {
+    return 'non-residential';
+  }
   const assessed = Math.round(facts.assessedValue);
   if (
     !Number.isFinite(assessed) ||

@@ -405,6 +405,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       validationHeading: 'We can’t price this property yet',
       validationGenericBody:
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
+      validationNonResidentialBody:
+        'This looks like a commercial or industrial property — Feasly only prices residential Calgary homes right now.',
       validationBackLabel: '← Try a different address',
     },
     propertyCard: {
@@ -701,6 +703,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminBuilders: 'Feasly admin builders management.',
       adminDisputesTitle: 'Disputes — Feasly Admin',
       adminDisputes: 'Feasly admin billing dispute console.',
+      adminUsersTitle: 'Users — Feasly Admin',
+      adminUsers: 'Feasly admin user management.',
       adminCalibrationTitle: 'Calibration — Feasly Admin',
       adminCalibration: 'Cost engine calibration console.',
       adminBillingTitle: 'Billing — Feasly Admin',

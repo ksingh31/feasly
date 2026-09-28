@@ -1037,6 +1037,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "description": "City-assessed value, integer CAD",
             "type": "integer",
           },
+          "assessmentClass": {
+            "description": "City assessment class code, verbatim (e.g. 'R', 'NR')",
+            "type": "string",
+          },
           "assessmentYear": {
             "type": "integer",
           },
@@ -1046,6 +1050,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "dataAsOf": {
             "description": "When the City data was fetched (ISO date)",
             "type": "string",
+          },
+          "isNonResidential": {
+            "description": "True when the City classifies the parcel non-residential (commercial/industrial)",
+            "type": "boolean",
           },
           "lotSqft": {
             "description": "Lot size in square feet",
@@ -1075,6 +1083,8 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "assessedValue",
           "assessmentYear",
           "yearBuilt",
+          "assessmentClass",
+          "isNonResidential",
           "dataAsOf",
           "stale",
         ],

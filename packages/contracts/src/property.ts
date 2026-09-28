@@ -21,6 +21,10 @@ export interface PropertyRecord {
   readonly assessedValue: number;
   readonly assessmentYear: number;
   readonly yearBuilt: number | null;
+  /** City assessment class code, verbatim (e.g. 'R', 'NR'). */
+  readonly assessmentClass: string;
+  /** True when the City classifies the parcel non-residential (commercial/industrial). */
+  readonly isNonResidential: boolean;
   /** When the City data was fetched (ISO date). Shown under the assessed value. */
   readonly dataAsOf: string;
   /** True when the assessment year is older than the freshness threshold. */

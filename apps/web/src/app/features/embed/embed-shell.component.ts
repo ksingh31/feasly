@@ -212,7 +212,9 @@ export class EmbedShellComponent {
 
   /** Buyer-grade explanation for the embed coverage note (preview copy, same wording). */
   protected coverageMessage(): string {
-    return this.previewCopy.validationGenericBody;
+    return this.coverageIssue() === 'non-residential'
+      ? this.previewCopy.validationNonResidentialBody
+      : this.previewCopy.validationGenericBody;
   }
 
   /**
