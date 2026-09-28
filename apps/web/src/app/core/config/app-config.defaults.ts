@@ -180,7 +180,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       selectHint: 'Please choose your address from the suggestions above.',
-      noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
+      // U3 (2026-09-28): no-results is a guidance state, not a dead end —
+      // typing a complete address finds nothing; the working path is typing
+      // the street number and picking a suggestion from the list.
+      noResults:
+        "We couldn't find that address. Start typing the street number and pick your address from the list.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
@@ -646,9 +650,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
       renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
-      detailsTitle: 'Feasly — Review your build details',
+      detailsTitle: 'Feasly — Configure your build details',
       details:
-        'Review your property and build details before previewing your Calgary infill estimate — step 3 of 3.',
+        'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
         'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
@@ -657,8 +661,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
-      gateTitle: 'Feasly — Get your estimate',
-      gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
+      gateTitle: 'Feasly — Unlock your free estimate report',
+      gate: 'Enter your details to unlock your personalized Calgary infill estimate report.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
       renoComingSoonTitle: 'Feasly — Renovations are coming soon',
