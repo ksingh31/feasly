@@ -30,14 +30,6 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
-  "GET /api/v1/admin/auth/verify": [
-    "super_admin",
-    "admin",
-    "viewer",
-    "builder_admin",
-    "builder_member",
-    "none",
-  ],
   "GET /api/v1/admin/billing": [
     "super_admin",
     "admin",
@@ -262,14 +254,6 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "POST /api/v1/admin/auth/logout": [
-    "super_admin",
-    "admin",
-    "viewer",
-    "builder_admin",
-    "builder_member",
-    "none",
-  ],
-  "POST /api/v1/admin/auth/request": [
     "super_admin",
     "admin",
     "viewer",

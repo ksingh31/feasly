@@ -506,9 +506,6 @@ ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text 
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
-ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "active_builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
-ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
 CREATE TABLE IF NOT EXISTS "users" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -533,6 +530,8 @@ ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "is_protected" boolean DEFAULT fals
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "active_builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
 CREATE TABLE IF NOT EXISTS "builder_memberships" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
