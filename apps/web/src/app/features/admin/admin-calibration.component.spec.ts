@@ -21,7 +21,6 @@ import {
   CalibrationState,
   type CalibrationStateModel,
 } from './admin-calibration.state';
-import { SeoService } from '../../core/seo/seo.service';
 import type { AdminCalibrationResponse } from '@feasly/contracts';
 
 /** Blank route target. */
@@ -61,7 +60,6 @@ async function setup(
       .fn()
       .mockReturnValue(apiResponse === 'never' ? NEVER : of(CALIBRATION)),
   };
-  const seo = { setPage: vi.fn() };
 
   TestBed.configureTestingModule({
     imports: [AdminCalibrationComponent, BlankComponent],
@@ -69,7 +67,6 @@ async function setup(
       provideRouter([{ path: '', component: BlankComponent }]),
       provideStore([CalibrationState]),
       { provide: AdminCalibrationApiService, useValue: api },
-      { provide: SeoService, useValue: seo },
     ],
   });
 

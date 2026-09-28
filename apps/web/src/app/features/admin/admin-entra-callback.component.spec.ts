@@ -32,7 +32,7 @@ function setup(opts: {
   exchangeOk?: boolean;
 }) {
   TestBed.resetTestingModule();
-  const seo = { setPage: vi.fn() };
+  const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
   const paramMap = {
     get: (key: string): string | null => opts.query[key] ?? null,
   };

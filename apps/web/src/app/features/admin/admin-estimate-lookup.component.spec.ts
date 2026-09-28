@@ -15,7 +15,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminEstimateDetail } from '@feasly/contracts';
 import { AdminEstimateLookupComponent } from './admin-estimate-lookup.component';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
-import { SeoService } from '../../core/seo/seo.service';
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
@@ -60,7 +59,6 @@ async function setup(options: {
         ? vi.fn().mockReturnValue(throwError(() => options.error))
         : vi.fn().mockReturnValue(of(options.detail ?? DETAIL)),
   };
-  const seo = { setPage: vi.fn() };
   // paramMap as a BehaviorSubject so tests can simulate param-only
   // navigation (component reuse) the way the real router does.
   const paramMap$ = new BehaviorSubject(
@@ -73,7 +71,6 @@ async function setup(options: {
     providers: [
       provideRouter([{ path: '', component: BlankComponent }]),
       { provide: AdminEstimatesApiService, useValue: api },
-      { provide: SeoService, useValue: seo },
       { provide: ActivatedRoute, useValue: route },
     ],
   });
