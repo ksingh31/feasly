@@ -154,7 +154,7 @@ describe('loadConfig', () => {
         fallback: {
           endpoint: 'https://api.groq.com/openai/v1',
           apiKey: '',
-          models: ['llama-3.3-70b-versatile'],
+          models: ['openai/gpt-oss-120b'],
         },
       },
       embed: {

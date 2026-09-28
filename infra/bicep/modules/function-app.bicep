@@ -82,7 +82,7 @@ param narrativeFallbackEndpoint string = ''
 @description('Key Vault secret URI (versionless) for the fallback narrative LLM API key (Groq). Empty = not configured; the Groq step is skipped gracefully. Karan provisions the key in Key Vault himself — Bicep only references it, never writes it.')
 param narrativeFallbackApiKeySecretUri string = ''
 
-@description('Model slug(s) for the fallback narrative provider (e.g. llama-3.3-70b-versatile). Empty = the app config default.')
+@description('Model slug(s) for the fallback narrative provider (e.g. openai/gpt-oss-120b). Empty = the app config default.')
 param narrativeFallbackModels string = ''
 
 @description('Microsoft Entra External ID: tenant subdomain — the ciamlogin.com host prefix (e.g. feaslyext). Empty = the admin sign-in callback fails closed (503).')
