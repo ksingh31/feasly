@@ -42,6 +42,12 @@ export interface AdminLeadFilters {
    */
   readonly includeQuarantined?: boolean;
   /**
+   * Quarantine tab: return ONLY honeypot-flagged rows. Takes precedence
+   * over `includeQuarantined` — the tab lists the quarantine queue, not
+   * every lead with quarantined rows mixed in.
+   */
+  readonly quarantinedOnly?: boolean;
+  /**
    * Include sandbox rows (API-014). Default false — sandbox rows are badged
    * "Sandbox" and excluded from counts by default.
    */
@@ -68,6 +74,11 @@ export interface AdminLeadListItem {
   readonly timeline: string;
   /** True when created via a sandbox API key — UI badges "Sandbox". */
   readonly sandbox: boolean;
+  /**
+   * True when honeypot-flagged (quarantined). The quarantine tab filters
+   * on this; the UI badges "Quarantine" on the lead card.
+   */
+  readonly quarantined: boolean;
   /**
    * Contact consent: 'in' = no opt-outs recorded (gate consent stands);
    * 'out' = opted out of estimate emails and/or calls/messages. Drives the

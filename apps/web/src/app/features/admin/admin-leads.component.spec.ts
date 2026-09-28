@@ -25,6 +25,7 @@ const LEAD_A: AdminLeadListItem = {
   tenantKey: null,
   timeline: '6-12 months',
   sandbox: false,
+  quarantined: false,
   discarded: false,
   createdAt: '2026-09-20T10:00:00.000Z',
   contactConsent: 'in',
@@ -155,6 +156,18 @@ describe('AdminLeadsComponent', () => {
       By.css('.lead-card__side .badge'),
     ).nativeElement;
     expect(consentBadge.getAttribute('aria-label')).toBe('Contact consent: in');
+  });
+
+  it('badges quarantined leads on the card', async () => {
+    await setup();
+    await loadList([{ ...LEAD_A, quarantined: true }]);
+
+    const card = fixture.debugElement.query(By.css('.lead-card')).nativeElement;
+    const quarantineBadge = fixture.debugElement.query(
+      By.css('.lead-card .badge--quarantine'),
+    ).nativeElement;
+    expect(card.textContent).toContain('Quarantine');
+    expect(quarantineBadge.textContent).toContain('Quarantine');
   });
 
   it('row click selects the lead and opens the modal', async () => {

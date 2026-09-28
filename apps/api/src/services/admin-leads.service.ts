@@ -59,6 +59,8 @@ export const AdminLeadListQuerySchema = z.object({
   createdBefore: z.string().datetime({ offset: true }).optional(),
   search: z.string().trim().min(1).max(200).optional(),
   includeQuarantined: z.coerce.boolean().optional(),
+  /** Quarantine tab: return only honeypot-flagged rows. */
+  quarantinedOnly: z.coerce.boolean().optional(),
   includeSandbox: z.coerce.boolean().optional(),
   includeDiscarded: z.coerce.boolean().optional(),
   cursor: z.string().min(1).max(500).optional(),
@@ -159,6 +161,7 @@ function toListItem(row: AdminLeadRow): AdminLeadListItem {
     tenantKey: row.tenantKey,
     timeline: row.timeline,
     sandbox: row.sandbox,
+    quarantined: row.quarantined,
     discarded: row.discarded,
     contactConsent:
       row.unsubscribedAt !== null || row.contactOptOutAt !== null
@@ -239,6 +242,7 @@ function toStoreFilters(q: AdminLeadListQuery): AdminLeadFilters {
     createdBefore: q.createdBefore ? new Date(q.createdBefore) : undefined,
     search: q.search,
     includeQuarantined: q.includeQuarantined,
+    quarantinedOnly: q.quarantinedOnly,
     includeSandbox: q.includeSandbox,
     includeDiscarded: q.includeDiscarded,
     consent: q.consent,

@@ -50,6 +50,15 @@ describe('pipelineCountFilters', () => {
     expect(countsFilters.includeSandbox).toBe(false);
   });
 
+  it('keeps quarantinedOnly in the counts so the quarantine tab totals match', () => {
+    const countsFilters = pipelineCountFilters({
+      status: 'new',
+      quarantinedOnly: true,
+    });
+    expect(countsFilters.quarantinedOnly).toBe(true);
+    expect(countsFilters).not.toHaveProperty('status');
+  });
+
   it('does not mutate the original filters', () => {
     const filters: AdminLeadFilters = { status: 'won', minScore: 50 };
     pipelineCountFilters(filters);

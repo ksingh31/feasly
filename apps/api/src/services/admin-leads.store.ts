@@ -25,6 +25,11 @@ export interface AdminLeadFilters {
   readonly createdBefore?: Date;
   readonly search?: string;
   readonly includeQuarantined?: boolean;
+  /**
+   * Quarantine tab: return ONLY honeypot-flagged rows. Takes precedence
+   * over `includeQuarantined`.
+   */
+  readonly quarantinedOnly?: boolean;
   readonly includeSandbox?: boolean;
   /** Include admin-discarded rows. Default false — discarded rows are kept
    * for audit but excluded from every listing and count. */
@@ -91,7 +96,8 @@ export interface AdminLeadListResult {
 export interface AdminLeadsStore {
   /**
    * Filtered, paginated lead listing. All filters combine with AND.
-   * Excludes quarantined and sandbox rows unless explicitly included.
+   * Excludes quarantined and sandbox rows unless explicitly included;
+   * `quarantinedOnly` (quarantine tab) returns only quarantined rows.
    */
   listLeads(args: AdminLeadListArgs): Promise<AdminLeadListResult>;
   /** One lead by id with its estimate's project type, or null. */
@@ -202,7 +208,9 @@ function buildFilterConditions(filters: AdminLeadFilters) {  const conditions = 
       ),
     );
   }
-  if (!filters.includeQuarantined) {
+  if (filters.quarantinedOnly) {
+    conditions.push(eq(leads.quarantined, true));
+  } else if (!filters.includeQuarantined) {
     conditions.push(eq(leads.quarantined, false));
   }
   if (!filters.includeSandbox) {
