@@ -111,4 +111,65 @@ export class BuilderEntraAuthService {
     sessionStorage.removeItem(BuilderEntraAuthService.VERIFIER_KEY);
     return { state, codeVerifier };
   }
+
+  /**
+   * Build the full Entra end-session URL for sign-out. Mirrors the admin
+   * helper: `id_token_hint` (the id_token captured at sign-in, returned
+   * by the backend on logout) tells Entra exactly which session to end,
+   * so it skips the "Pick an account" picker (logout UX, Karan 2026-09-28).
+   * Pure (no navigation) so it is unit-testable.
+   */
+  buildEntraLogoutUrl(
+    entraLogoutUrl: string,
+    idTokenHint?: string | null,
+  ): string {
+    const postLogoutRedirectUri = `${window.location.origin}/builder/login`;
+    const params = new URLSearchParams({
+      post_logout_redirect_uri: postLogoutRedirectUri,
+    });
+    if (idTokenHint) {
+      params.set('id_token_hint', idTokenHint);
+    }
+    return `${entraLogoutUrl}?${params.toString()}`;
+  }
+
+  /**
+   * Full-page navigation to the Entra end-session endpoint, killing the
+   * IdP session. The `post_logout_redirect_uri` brings the browser back
+   * to /builder/login afterwards — it must be registered as a logout URL
+   * on the builder app registration (portal step; see
+   * docs/auth/entra-manual-changes.md).
+   *
+   * Without this, the Entra cookie survives our session revocation and
+   * the next "Sign in" silently re-authenticates. Null/empty URL (builder
+   * Entra unprovisioned) → no redirect, returns false.
+   */
+  redirectToEntraLogout(
+    entraLogoutUrl: string | null,
+    idTokenHint?: string | null,
+  ): boolean {
+    if (!entraLogoutUrl) {
+      return false;
+    }
+    window.location.href = this.buildEntraLogoutUrl(
+      entraLogoutUrl,
+      idTokenHint,
+    );
+    this.signOutRedirectInitiated = true;
+    return true;
+  }
+
+  /**
+   * True when the last sign-out triggered the Entra end-session redirect.
+   * Consumed once by the sign-out caller to decide whether its own
+   * navigation is still needed.
+   */
+  consumeSignOutRedirect(): boolean {
+    const initiated = this.signOutRedirectInitiated;
+    this.signOutRedirectInitiated = false;
+    return initiated;
+  }
+
+  /** Set when `redirectToEntraLogout` fires; read via `consumeSignOutRedirect`. */
+  private signOutRedirectInitiated = false;
 }

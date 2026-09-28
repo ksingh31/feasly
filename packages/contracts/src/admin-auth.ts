@@ -53,6 +53,13 @@ export interface AdminAuthLogoutResponse {
    * silently re-authenticates (Karan, 2026-09-28).
    */
   readonly entraLogoutUrl: string | null;
+  /**
+   * The Entra id_token captured at sign-in, or null. The frontend passes
+   * this as `id_token_hint` on the end-session redirect so Entra ends the
+   * right session directly instead of showing the "Pick an account" picker
+   * (logout UX, 2026-09-28).
+   */
+  readonly entraIdTokenHint: string | null;
 }
 
 /**

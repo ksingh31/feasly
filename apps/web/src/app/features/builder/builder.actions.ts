@@ -10,12 +10,6 @@ import type {
  * selectors, never call the API directly.
  */
 
-/** Verifies a builder magic-link token (from the email URL). */
-export class VerifyBuilderToken {
-  static readonly type = '[Builder] Verify token';
-  constructor(public readonly token: string) {}
-}
-
 /** Probes the current builder session (bearer token). */
 export class LoadBuilderSession {
   static readonly type = '[Builder] Load session';

@@ -142,13 +142,15 @@ var entraClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.k
 
 // Builder-portal Entra External ID sign-in (auth/05): separate app
 // registration from the admin `feasly-web` app (builder sign-in must never
-// mint an admin session). UNPROVISIONED as of 2026-09-28 — Karan creates the
-// app registration in the portal (see docs/auth/builder-entra-status.md),
-// then fills the identifiers below and creates the client secret in Key
-// Vault under its exact name here. Until then the settings stay empty and
-// the builder callback fails closed (503) naming the missing variables.
-// The user flow can be the existing `feasly-signup-signin` (tenant-level,
-// not per-app) unless Karan wants a separate builder flow.
+// mint an admin session). Provisioned 2026-09-28 via Microsoft Graph
+// (Karan-authorized one-time setup; see the dated entry in
+// ~/workspace/feasly/docs/auth/entra-manual-changes.md): app
+// `feasly-builder-web`, client ID 5e87b5ee-7ff7-4a70-a056-b0bab5715622.
+// The user flow is the existing `feasly-signup-signin` (tenant-level,
+// not per-app). The client secret lives in Key Vault under its exact name
+// here — Bicep references it, never the raw value. Other environments keep
+// the identifiers empty and the builder callback fails closed (503) naming
+// the missing variables.
 var builderEntraClientSecretName = 'feasly-builder-entra-client-secret'
 var builderEntraClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${builderEntraClientSecretName}'
 
@@ -295,14 +297,15 @@ module functionApp 'modules/function-app.bicep' = {
     entraGraphClientId: environment == 'dev' ? '2fe45e0e-a3ae-4695-93db-eaf1a15ba4d0' : ''
     entraGraphClientSecretUri: environment == 'dev' ? entraGraphClientSecretUri : ''
     entraClientSecretUri: environment == 'dev' ? entraClientSecretUri : ''
-    // Builder-portal Entra External ID sign-in (auth/05): UNPROVISIONED
-    // (2026-09-28) — empty until Karan creates the builder app registration
-    // and fills these in (see docs/auth/builder-entra-status.md). Empty =
-    // the builder callback fails closed (503) naming the missing variables.
-    builderEntraTenantSubdomain: ''
-    builderEntraTenantId: ''
-    builderEntraClientId: ''
-    builderEntraUserFlow: ''
+    // Builder-portal Entra External ID sign-in (auth/05): dev-only until Karan
+    // provisions the builder tenant identifiers for other environments.
+    // Elsewhere the settings stay empty and the builder callback fails
+    // closed (503) naming the missing variables. These identifiers are
+    // non-secret (they also ship in the public web app-config.json).
+    builderEntraTenantSubdomain: environment == 'dev' ? 'feaslyext' : ''
+    builderEntraTenantId: environment == 'dev' ? 'e8f46aab-2491-4389-8e39-ae78ee12db6a' : ''
+    builderEntraClientId: environment == 'dev' ? '5e87b5ee-7ff7-4a70-a056-b0bab5715622' : ''
+    builderEntraUserFlow: environment == 'dev' ? 'feasly-signup-signin' : ''
     builderEntraClientSecretUri: environment == 'dev' ? builderEntraClientSecretUri : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets

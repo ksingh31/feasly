@@ -254,7 +254,12 @@ export class AdminAuthState {
         // redirect the Entra cookie survives and the next "Sign in"
         // silently re-authenticates (Karan, 2026-09-28). Null when
         // Entra is unprovisioned — then there is no IdP session.
-        this.entraAuth.redirectToEntraLogout(res.entraLogoutUrl ?? null);
+        // The id_token_hint skips Entra's "Pick an account" picker so the
+        // sign-out completes without the extra stop (logout UX, 2026-09-28).
+        this.entraAuth.redirectToEntraLogout(
+          res.entraLogoutUrl ?? null,
+          res.entraIdTokenHint ?? null,
+        );
       }),
       catchError(() => {
         // Even if the server call fails, drop the local token — the guard
