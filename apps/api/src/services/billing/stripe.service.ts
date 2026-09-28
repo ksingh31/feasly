@@ -227,11 +227,31 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       }));
     },
     async createOffSessionPaymentIntent(input, idempotencyKey) {
+      // Resolve an explicit payment method: a card attached via SetupIntent
+      // is NOT automatically the customer's default payment method, so
+      // charging with only `customer` fails when no default is set
+      // ("no payment method attached to customer"). Newest card first —
+      // matches listPaymentMethods ordering, so the card the builder most
+      // recently saved is the one we charge.
+      const methods = await stripe.paymentMethods.list({
+        customer: input.customerId,
+        type: 'card',
+        limit: 1,
+      });
+      const pm = methods.data[0];
+      if (!pm) {
+        throw new HttpError(
+          422,
+          ErrorCodes.BILLING_NOT_CONFIGURED,
+          `Tenant customer "${input.customerId}" has no card on file — cannot charge`,
+        );
+      }
       const intent = await stripe.paymentIntents.create(
         {
           amount: input.amountCents,
           currency: input.currency.toLowerCase(),
           customer: input.customerId,
+          payment_method: pm.id,
           description: input.description,
           off_session: true,
           confirm: true,
