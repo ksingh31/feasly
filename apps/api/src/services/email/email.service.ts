@@ -21,6 +21,7 @@ import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
 import {
   renderCallbackTeamEmail,
+  renderInvitationEmail,
   renderMagicLinkEmail,
   renderNudgeEmail,
   renderOpsAlertEmail,
@@ -89,8 +90,25 @@ export interface OpsAlertEmailInput {
   readonly firedAt: Date;
 }
 
+export interface InvitationEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /**
+   * Sign-in URL (e.g. /admin/login) — Entra External ID owns the
+   * credential, so the email carries no token and no password.
+   */
+  readonly signInUrl: string;
+  /** Days until the invitation expires — rendered from config, never hardcoded. */
+  readonly expiresInDays: number;
+  /** Human-readable access grant, e.g. "an admin" or "a team member for Elite Craft Builders". */
+  readonly accessDescription: string;
+  /** Name of the person who sent the invite, if known. */
+  readonly inviterName?: string;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
+  sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
   sendPartnerShare(input: PartnerShareEmailInput): Promise<EmailDelivery>;
   sendCallbackConfirmation(
     input: CallbackConfirmationInput,
@@ -214,6 +232,11 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
   return {
     async sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery> {
       const rendered = renderMagicLinkEmail(ctx, input);
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery> {
+      const rendered = renderInvitationEmail(ctx, input);
       return deliver({ ...rendered, to: input.to });
     },
 

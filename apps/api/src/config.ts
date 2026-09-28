@@ -119,6 +119,20 @@ const EnvSchema = z.object({
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
   // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
   ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // auth/01: invitation lifetime — 7 days, same discipline as the
+  // magic links it replaces.
+  INVITATION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // auth/01 (Entra pivot): Microsoft Entra External ID — the tenant that
+  // owns staff/builder credentials. All optional: the tenant is being
+  // created in parallel, so the EntraUserService fails closed with a clear
+  // error when called before these are set. The client secret lives in Key
+  // Vault in Azure (plain env locally); it is never logged or emailed.
+  ENTRA_TENANT_ID: z.string().default(''),
+  ENTRA_GRAPH_CLIENT_ID: z.string().default(''),
+  ENTRA_GRAPH_CLIENT_SECRET: z.string().default(''),
+  // Issuer domain for the email sign-in identity, e.g.
+  // feaslyexternal.onmicrosoft.com (from the tenant's domain list).
+  ENTRA_ISSUER_DOMAIN: z.string().default(''),
 
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
@@ -375,6 +389,28 @@ export interface AuthConfig {
   readonly adminApiKey: string | undefined;
   /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
   readonly adminSessionTtlSeconds: number;
+  /** Lifetime of an invitation (auth/01: 7 days). */
+  readonly invitationTtlSeconds: number;
+}
+
+/**
+ * Microsoft Entra External ID wiring (auth/01). `configured` is false
+ * until the tenant exists and all four values are set — the
+ * EntraUserService refuses to call Graph before then.
+ */
+export interface EntraConfig {
+  readonly tenantId: string;
+  readonly graphClientId: string;
+  readonly graphClientSecret: string;
+  readonly issuerDomain: string;
+  /**
+   * Microsoft identity platform + Graph endpoints. Stable global
+   * endpoints, not per-tenant tunables — defaults live here (like
+   * postmarkEndpoint) rather than in the service.
+   */
+  readonly loginBaseUrl: string;
+  readonly graphBaseUrl: string;
+  readonly configured: boolean;
 }
 
 export interface QueueConfig {
@@ -634,6 +670,7 @@ export interface ApiConfig {
   readonly analytics: AnalyticsConfig;
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
+  readonly entra: EntraConfig;
   readonly corsOrigins: readonly string[];
   /** Public site URL — production `servers` entry in the OpenAPI spec. */
   readonly siteUrl: string;
@@ -827,6 +864,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
+      invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
+    },
+    entra: {
+      tenantId: e.ENTRA_TENANT_ID,
+      graphClientId: e.ENTRA_GRAPH_CLIENT_ID,
+      graphClientSecret: e.ENTRA_GRAPH_CLIENT_SECRET,
+      issuerDomain: e.ENTRA_ISSUER_DOMAIN,
+      loginBaseUrl: 'https://login.microsoftonline.com',
+      graphBaseUrl: 'https://graph.microsoft.com',
+      configured:
+        e.ENTRA_TENANT_ID !== '' &&
+        e.ENTRA_GRAPH_CLIENT_ID !== '' &&
+        e.ENTRA_GRAPH_CLIENT_SECRET !== '' &&
+        e.ENTRA_ISSUER_DOMAIN !== '',
     },
     corsOrigins: resolveCorsOrigins(e),
     siteUrl: e.SITE_URL,

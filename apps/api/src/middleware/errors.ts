@@ -70,6 +70,16 @@ export const ErrorCodes = {
    * show "already used" copy instead of the generic invalid/expired message.
    */
   MAGIC_LINK_USED: 'MAGIC_LINK_USED',
+  /**
+   * auth/01 — invitation expired before first sign-in. 401 with the
+   * "link expired" copy (no stack trace, no token echo).
+   */
+  INVITATION_EXPIRED: 'INVITATION_EXPIRED',
+  /**
+   * auth/01 — the protected super-admin account (Karan's). The API refuses
+   * to edit or delete it; link it during the Azure tenant setup instead.
+   */
+  PROTECTED_ACCOUNT: 'PROTECTED_ACCOUNT',
 } as const;
 
 /**

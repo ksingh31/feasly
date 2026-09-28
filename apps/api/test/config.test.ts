@@ -38,6 +38,19 @@ describe('loadConfig', () => {
         magicLinkReissueCooldownMs: 60_000,
         adminApiKey: undefined,
         adminSessionTtlSeconds: 604_800,
+        // AUTH-01: Entra invitations expire after 7 days.
+        invitationTtlSeconds: 604_800,
+      },
+      // AUTH-01: Entra External ID (Microsoft Graph user provisioning).
+      // All values empty in test env → configured: false.
+      entra: {
+        tenantId: '',
+        graphClientId: '',
+        graphClientSecret: '',
+        issuerDomain: '',
+        loginBaseUrl: 'https://login.microsoftonline.com',
+        graphBaseUrl: 'https://graph.microsoft.com',
+        configured: false,
       },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',

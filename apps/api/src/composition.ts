@@ -146,6 +146,22 @@ import {
   type BuilderSessionStore,
 } from './services/builder-auth.service';
 import {
+  createUserService,
+  type UserService,
+  type UserStore,
+  type InvitationStore,
+  type MembershipStore,
+} from './services/user.service';
+import {
+  createEntraUserService,
+  type EntraUserService,
+} from './services/entra-user.service';
+import {
+  createDrizzleUserStore,
+  createDrizzleInvitationStore,
+  createDrizzleMembershipStore,
+} from './services/user.store';
+import {
   createBuilderLeadsService,
   type BuilderLeadsService,
 } from './services/builder-leads.service';
@@ -485,6 +501,11 @@ export interface AppComposition {
   /** api-mcp/01: API key issuance + storage (admin-only). */
   readonly apiKeyService: ApiKeyService;
   readonly apiKeyRoute: ApiKeyRoute;
+  /** auth/01: Entra identity + invitations (service only; routes land in auth/02+). */
+  readonly userService: UserService;
+  readonly userStore: UserStore;
+  readonly invitationStore: InvitationStore;
+  readonly membershipStore: MembershipStore;
   /** admin/01: magic-link + allowlist session auth for /admin/*. */
   readonly adminAuthService: AdminAuthService;
   readonly adminAuthRoute: AdminAuthRoute;
@@ -609,6 +630,9 @@ export interface CompositionOptions {
   readonly adminAllowlistStore?: AdminAllowlistStore;
   readonly builderSessionStore?: BuilderSessionStore;
   readonly builderAllowlistStore?: BuilderAllowlistStore;
+  readonly userStore?: UserStore;
+  readonly invitationStore?: InvitationStore;
+  readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
   /**
@@ -995,6 +1019,34 @@ export function createComposition(
   });
   const adminGuard: AdminGuard = createSessionAdminGuard({
     adminAuth: adminAuthService,
+  });
+  // auth/01 — Entra identity + invitations. Service only in this story;
+  // the sign-in routes (auth/02) and user-management routes (auth/03)
+  // consume userService from AppDeps. Stores are injectable for tests.
+  const entraUserService: EntraUserService = createEntraUserService({
+    tenantId: config.entra.tenantId,
+    graphClientId: config.entra.graphClientId,
+    graphClientSecret: config.entra.graphClientSecret,
+    issuerDomain: config.entra.issuerDomain,
+    loginBaseUrl: config.entra.loginBaseUrl,
+    graphBaseUrl: config.entra.graphBaseUrl,
+    configured: config.entra.configured,
+  });
+  const userStore: UserStore =
+    options.userStore ?? createDrizzleUserStore({ db: db.db });
+  const invitationStore: InvitationStore =
+    options.invitationStore ?? createDrizzleInvitationStore({ db: db.db });
+  const membershipStore: MembershipStore =
+    options.membershipStore ?? createDrizzleMembershipStore({ db: db.db });
+  const userService: UserService = createUserService({
+    users: userStore,
+    invitations: invitationStore,
+    memberships: membershipStore,
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    invitationTtlSeconds: config.auth.invitationTtlSeconds,
+    entra: entraUserService,
+    audit: adminAuditStore,
   });
   // admin/05 — Sheets sync ops status + manual trigger routes. Built after
   // the session guard: both routes are admin-gated, and the manual trigger
@@ -1480,6 +1532,10 @@ export function createComposition(
     adminAuthService,
     adminAuthRoute,
     adminGuard,
+    userService,
+    userStore,
+    invitationStore,
+    membershipStore,
     builderAuthService,
     builderAuthRoute,
     builderGuard,

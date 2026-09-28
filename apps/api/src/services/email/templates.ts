@@ -156,6 +156,50 @@ ${fallbackLink(input.magicLinkUrl)}`;
   };
 }
 
+export interface InvitationTemplateInput {
+  readonly name?: string;
+  /**
+   * Sign-in URL (e.g. /admin/login) — Entra owns the credential, so the
+   * email carries no token and no password.
+   */
+  readonly signInUrl: string;
+  /** Days until the invitation expires — rendered from config, never hardcoded. */
+  readonly expiresInDays: number;
+  /** Human-readable access grant, e.g. "an admin" or "a team member for Elite Craft Builders". */
+  readonly accessDescription: string;
+  /** Name of the person who sent the invite, if known. */
+  readonly inviterName?: string;
+}
+
+/**
+ * Invitation emails are team credentials (like admin/builder sign-in
+ * links) — transactional, no unsubscribe footer.
+ */
+export function renderInvitationEmail(
+  ctx: TemplateContext,
+  input: InvitationTemplateInput,
+): RenderedEmail {
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const inviter = input.inviterName
+    ? `${esc(input.inviterName)} invited you`
+    : `You've been invited`;
+  const body = `<p>${greeting}</p>
+<p>${inviter} to join ${esc(ctx.brandName)} as ${esc(input.accessDescription)}.</p>
+<p>Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.</p>
+${ctaButton(input.signInUrl, 'Sign in to Feasly')}
+${fallbackLink(input.signInUrl)}`;
+  const text =
+    `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\n` +
+    `${input.inviterName ? `${input.inviterName} invited you` : `You've been invited`} to join ${ctx.brandName} as ${input.accessDescription}.\n\n` +
+    `Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.\n\n` +
+    `Sign in to Feasly: ${input.signInUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return {
+    subject: `You've been invited to ${ctx.brandName}`,
+    html: layout(ctx, `You've been invited to ${esc(ctx.brandName)}`, body),
+    text,
+  };
+}
+
 export interface ShareTemplateInput {
   readonly ownerName?: string;
   readonly partnerName?: string;
