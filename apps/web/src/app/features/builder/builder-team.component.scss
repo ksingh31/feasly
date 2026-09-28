@@ -1,0 +1,175 @@
+/**
+ * Builder team page (auth/05) — builder-portal design language.
+ */
+.builder-team {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.builder-team h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+
+.builder-team__org {
+  color: var(--color-text-muted, #6b6257);
+  margin: 0 0 0.5rem;
+}
+
+.builder-team__intro {
+  color: var(--color-text-muted, #6b6257);
+  margin: 0 0 2rem;
+}
+
+.builder-team__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2.5rem;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.builder-team__table th,
+.builder-team__table td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+  font-size: 0.875rem;
+}
+
+.builder-team__table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted, #6b6257);
+}
+
+.builder-team__pill {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.builder-team__pill--active {
+  background: #e6f4ea;
+  color: #1a7f37;
+}
+
+.builder-team__pill--invited {
+  background: #fff8e6;
+  color: #8a6d00;
+}
+
+.builder-team__pill--deactivated {
+  background: #f1efec;
+  color: #6b6257;
+}
+
+.builder-team__table button {
+  margin-right: 0.5rem;
+  font-size: 0.875rem;
+  background: none;
+  border: none;
+  color: var(--color-primary, #1a1a1a);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.builder-team__invite {
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.builder-team__invite h2 {
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.builder-team__field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.builder-team__field span {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.builder-team__field input,
+.builder-team__field select {
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+}
+
+.builder-team__button {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary, #1a1a1a);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.builder-team__button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.builder-team__errorbox {
+  background: #fdecec;
+  border: 1px solid #f5c6c6;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.builder-team__notice {
+  background: #e6f4ea;
+  border: 1px solid #b7e0c3;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.builder-team__fielderror {
+  color: #b3261e;
+  font-size: 0.875rem;
+  margin: -0.5rem 0 1rem;
+}
+
+.builder-team__confirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 1.5rem;
+}
+
+.builder-team__confirm p {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  max-width: 24rem;
+  margin: 0;
+}

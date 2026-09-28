@@ -8,6 +8,20 @@
       <a routerLink="/builder/billing" routerLinkActive="active">
         {{ copy.shellNavBilling }}
       </a>
+      @if (isBuilderAdmin()) {
+        <a routerLink="/builder/team" routerLinkActive="active">
+          {{ copy.teamNavLabel }}
+        </a>
+      }
+      @if (activeOrgName(); as orgName) {
+        <a
+          routerLink="/builder/org-picker"
+          class="builder-shell__org"
+          [attr.aria-label]="copy.orgSwitcherLabel + ': ' + orgName"
+        >
+          {{ orgName }}
+        </a>
+      }
       @if (session(); as s) {
         <span class="builder-shell__email">{{ s.email }}</span>
       }

@@ -37,7 +37,7 @@ import type { BuilderOrgMembership } from './builder-auth.contracts';
   selector: 'app-builder-org-picker',
   standalone: true,
   templateUrl: './builder-org-picker.component.html',
-  styleUrls: ['./builder-login.component.scss'],
+  styleUrls: ['./builder-login.component.scss', './builder-org-picker.component.scss'],
 })
 export class BuilderOrgPickerComponent implements OnInit {
   private readonly store = inject(Store);
