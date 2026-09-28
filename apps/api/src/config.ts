@@ -134,6 +134,25 @@ const EnvSchema = z.object({
   // feaslyexternal.onmicrosoft.com (from the tenant's domain list).
   ENTRA_ISSUER_DOMAIN: z.string().default(''),
 
+  // --- Microsoft Entra External ID (auth/02) ---
+  // PLACEHOLDER values until AUTH-00 provisions the tenant (tenant subdomain,
+  // tenant id, `feasly-web` client id, sign-in user flow). Empty = the Entra
+  // callback fails closed with 503 naming the missing variable. Real values
+  // arrive via app settings / Key Vault references — never in the repo.
+  // (Allowlisted: tools/placeholder-allowlist.txt.)
+  ENTRA_TENANT_SUBDOMAIN: z.string().trim().default(''),
+  ENTRA_CLIENT_ID: z.string().trim().default(''),
+  ENTRA_USER_FLOW: z.string().trim().default(''),
+  // JWKS cache TTL (ms). Entra rotates signing keys infrequently; a short
+  // cache bounds both fetch latency and staleness after a rotation.
+  ENTRA_JWKS_CACHE_TTL_MS: z.coerce.number().int().positive().default(600_000),
+  // HTTP timeout (ms) for the Entra token/JWKS calls — a hanging IdP must
+  // not hang the sign-in request.
+  ENTRA_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Callback rate limit (frozen registry): 10 attempts per IP per 15 min.
+  ENTRA_CALLBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
+  ENTRA_CALLBACK_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 
@@ -413,6 +432,49 @@ export interface EntraConfig {
   readonly configured: boolean;
 }
 
+export interface EntraRateLimitConfig {
+  readonly windowMs: number;
+  readonly maxRequests: number;
+}
+
+/**
+ * Microsoft Entra External ID sign-in (auth/02). Separate from auth/01's
+ * `EntraConfig` (Graph-side provisioning): this is the runtime sign-in
+ * wiring for the callback. `configured` is false while any of the four
+ * tenant values is empty — the callback fails closed with 503.
+ */
+export interface EntraSignInConfig {
+  /**
+   * Tenant subdomain, e.g. `feaslyext` for `feaslyext.ciamlogin.com`
+   * (AUTH-00). Empty until provisioned.
+   */
+  readonly tenantSubdomain: string;
+  /** Entra External ID tenant (directory) id. Empty until provisioned. */
+  readonly tenantId: string;
+  /** Application (client) id of the `feasly-web` app registration. */
+  readonly clientId: string;
+  /** Sign-in user flow name, e.g. `feasly_signup_signin`. */
+  readonly userFlow: string;
+  /** False while any of the four values above is empty — the callback 503s. */
+  readonly configured: boolean;
+  /** Derived: the OAuth2 token endpoint for the authorization-code exchange. */
+  readonly tokenEndpoint: string;
+  /** Derived: the JWKS discovery URI for id_token signature verification. */
+  readonly jwksUri: string;
+  /**
+   * Derived: the expected `iss` claim of id_tokens from this tenant.
+   * Tenant-ID host (not the domain name) per the tenant's
+   * openid-configuration.
+   */
+  readonly issuer: string;
+  /** JWKS cache TTL in milliseconds. */
+  readonly jwksCacheTtlMs: number;
+  /** HTTP timeout (ms) for the Entra token/JWKS calls. */
+  readonly httpTimeoutMs: number;
+  /** Tight per-IP rate limiter for the public callback (10/15min frozen). */
+  readonly callbackRateLimit: EntraRateLimitConfig;
+}
+
 export interface QueueConfig {
   readonly email: string;
   readonly pdf: string;
@@ -671,6 +733,8 @@ export interface ApiConfig {
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
   readonly entra: EntraConfig;
+  /** Microsoft Entra External ID sign-in (auth/02). Fail-closed while unprovisioned. */
+  readonly entraSignIn: EntraSignInConfig;
   readonly corsOrigins: readonly string[];
   /** Public site URL — production `servers` entry in the OpenAPI spec. */
   readonly siteUrl: string;
@@ -778,6 +842,49 @@ function resolveDatabaseUrl(e: ParsedEnv): string {
 }
 
 /**
+ * Derive the Entra External ID sign-in endpoints from the tenant values
+ * (auth/02). This is the ONLY place the ciamlogin.com URL shape is
+ * constructed — routes/services/middleware must never embed URL literals
+ * (boundary test). Empty tenant values = unprovisioned; callers fail closed
+ * via `configured: false`.
+ *
+ * Endpoint shapes were verified live against the tenant's
+ * openid-configuration (2026-09-28): the token endpoint and JWKS URI use
+ * the domain-name host, but the id_token `iss` claim uses the TENANT ID as
+ * host (`https://<tenant-id>.ciamlogin.com/<tenant-id>/v2.0`) — do not
+ * rewrite the issuer to the discovery host. The tenant's `jwks_uri` carries
+ * no policy param, so none is appended here.
+ */
+function resolveEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
+  const tenantSubdomain = e.ENTRA_TENANT_SUBDOMAIN;
+  const tenantId = e.ENTRA_TENANT_ID;
+  const clientId = e.ENTRA_CLIENT_ID;
+  const userFlow = e.ENTRA_USER_FLOW;
+  const configured =
+    tenantSubdomain.length > 0 &&
+    tenantId.length > 0 &&
+    clientId.length > 0 &&
+    userFlow.length > 0;
+  const base = `https://${tenantSubdomain}.ciamlogin.com/${tenantId}`;
+  return {
+    tenantSubdomain,
+    tenantId,
+    clientId,
+    userFlow,
+    configured,
+    tokenEndpoint: `${base}/oauth2/v2.0/token`,
+    jwksUri: `${base}/discovery/v2.0/keys`,
+    issuer: `https://${tenantId}.ciamlogin.com/${tenantId}/v2.0`,
+    jwksCacheTtlMs: e.ENTRA_JWKS_CACHE_TTL_MS,
+    httpTimeoutMs: e.ENTRA_HTTP_TIMEOUT_MS,
+    callbackRateLimit: {
+      windowMs: e.ENTRA_CALLBACK_RATE_LIMIT_WINDOW_MS,
+      maxRequests: e.ENTRA_CALLBACK_RATE_LIMIT_MAX_REQUESTS,
+    },
+  };
+}
+
+/**
  * Build the typed config. `env` is injectable so tests never touch the
  * real process environment. Empty-string values are treated as unset so
  * `VAR=` in a .env file falls back to the default instead of failing.
@@ -879,6 +986,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         e.ENTRA_GRAPH_CLIENT_SECRET !== '' &&
         e.ENTRA_ISSUER_DOMAIN !== '',
     },
+    entraSignIn: resolveEntraSignInConfig(e),
     corsOrigins: resolveCorsOrigins(e),
     siteUrl: e.SITE_URL,
     queues: {

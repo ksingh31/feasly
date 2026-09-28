@@ -13,6 +13,7 @@ import {
   middleware,
   type AppComposition,
 } from '../../index';
+import type { RequestPipeline } from '../../middleware/pipeline';
 
 /** Minimal structural types — no @azure/functions dependency needed. */
 export interface FunctionContext {
@@ -49,7 +50,15 @@ export async function dispatchAdminAuth(
   context: FunctionContext,
   req: FunctionRequest,
   invoke: (app: AppComposition) => Promise<unknown>,
-  opts?: { readonly requireAuth?: boolean },
+  opts?: {
+    readonly requireAuth?: boolean;
+    /**
+     * Override the request pipeline (rate limiter). Used by endpoints with
+     * a dedicated limiter — e.g. the Entra callback's 10/15min per-IP
+     * budget. Defaults to the shared pipeline.
+     */
+    readonly pipeline?: (app: AppComposition) => RequestPipeline;
+  },
 ): Promise<void> {
   const origin = req.headers?.['origin'];
   const corsHeaders = middleware.resolveCorsHeaders(
@@ -94,7 +103,8 @@ export async function dispatchAdminAuth(
     }
   }
 
-  const result = await app.requestPipeline.run(
+  const pipeline = opts?.pipeline ? opts.pipeline(app) : app.requestPipeline;
+  const result = await pipeline.run(
     { headers, clientIp: clientIpFrom(req) },
     () => invoke(app),
   );

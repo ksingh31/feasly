@@ -110,6 +110,10 @@ import {
   type AdminAuthRoute,
 } from './routes/admin-auth.route';
 import {
+  createAdminEntraCallbackRoute,
+  type AdminEntraCallbackRoute,
+} from './routes/admin/entra-callback';
+import {
   createBuilderAuthRoute,
   type BuilderAuthRoute,
 } from './routes/builder-auth.route';
@@ -173,6 +177,14 @@ import {
   createDrizzleAdminAllowlistStore,
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
+import {
+  createEntraTokenValidator,
+  type EntraTokenValidator,
+} from './services/entra-token-validator';
+import {
+  createEntraCallbackService,
+  type EntraCallbackService,
+} from './services/entra-callback.service';
 import {
   createDrizzleBuilderAllowlistStore,
   createDrizzleBuilderSessionStore,
@@ -509,6 +521,12 @@ export interface AppComposition {
   /** admin/01: magic-link + allowlist session auth for /admin/*. */
   readonly adminAuthService: AdminAuthService;
   readonly adminAuthRoute: AdminAuthRoute;
+  /** auth/02: dedicated tight pipeline for the public Entra callback. */
+  readonly entraCallbackRateLimiter: RateLimiter;
+  readonly entraCallbackPipeline: RequestPipeline;
+  readonly entraTokenValidator: EntraTokenValidator;
+  readonly entraCallbackService: EntraCallbackService;
+  readonly entraCallbackRoute: AdminEntraCallbackRoute;
   readonly adminGuard: AdminGuard;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
@@ -786,6 +804,19 @@ export function createComposition(
     rateLimiter: analyticsRateLimiter,
     logger: options.logger,
   });
+  // auth/02 — the Entra callback is public by design (it IS the sign-in),
+  // so it gets its own deliberately tight limiter on a separate pipeline:
+  // 10 attempts per IP per 15 min (frozen registry). Entra owns credential
+  // brute-force; this stops authorization-code replay abuse.
+  const entraCallbackRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.entraSignIn.callbackRateLimit.windowMs,
+    maxRequests: config.entraSignIn.callbackRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const entraCallbackPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: entraCallbackRateLimiter,
+    logger: options.logger,
+  });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
   const estimateStore: EstimateStore =
     options.estimateStore ?? createDrizzleEstimateStore({ db: db.db });
@@ -1017,6 +1048,13 @@ export function createComposition(
     adminAuth: adminAuthService,
     adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
   });
+  // auth/02 — Entra External ID sign-in. The token validator owns the
+  // code exchange + id_token verification (no passwords in our database).
+  // The callback service itself is wired below, after auth/01's user
+  // stores exist — it consumes the typed Drizzle stores, not raw SQL.
+  const entraTokenValidator: EntraTokenValidator = createEntraTokenValidator({
+    ...config.entraSignIn,
+  });
   const adminGuard: AdminGuard = createSessionAdminGuard({
     adminAuth: adminAuthService,
   });
@@ -1048,6 +1086,22 @@ export function createComposition(
     entra: entraUserService,
     audit: adminAuditStore,
   });
+  // auth/02 — callback. Resolves/links our user row through the typed
+  // Drizzle stores above and mints the 7-day session in admin_sessions
+  // bound to the user id.
+  const entraCallbackService: EntraCallbackService = createEntraCallbackService({
+    tokenValidator: entraTokenValidator,
+    users: userStore,
+    userService,
+    sessions: adminSessionStore,
+    audit: adminAuditStore,
+    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+  });
+  const entraCallbackRoute: AdminEntraCallbackRoute =
+    createAdminEntraCallbackRoute({
+      entraCallback: entraCallbackService,
+      adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    });
   // admin/05 — Sheets sync ops status + manual trigger routes. Built after
   // the session guard: both routes are admin-gated, and the manual trigger
   // is audit-logged with the admin's email.
@@ -1531,6 +1585,11 @@ export function createComposition(
     apiKeyRoute,
     adminAuthService,
     adminAuthRoute,
+    entraCallbackRateLimiter,
+    entraCallbackPipeline,
+    entraTokenValidator,
+    entraCallbackService,
+    entraCallbackRoute,
     adminGuard,
     userService,
     userStore,
