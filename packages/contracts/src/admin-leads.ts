@@ -30,6 +30,12 @@ export interface AdminLeadFilters {
   readonly projectType?: string;
   /** Tenant key filter (builder embeds). */
   readonly tenantId?: string;
+  /**
+   * Builder-assignment filter (admin/08): a builder UUID, or the literal
+   * 'unassigned' for leads with no builder assignment. Absent = no
+   * assignment filtering.
+   */
+  readonly builderId?: string;
   /** Created at/after (ISO 8601). */
   readonly createdAfter?: string;
   /** Created before (ISO 8601). */

@@ -56,6 +56,18 @@ describe('AdminLeadsApiService', () => {
     expect(params.get('limit')).toBe('25');
   });
 
+  it('passes the builderId assignment filter; "unassigned" selects leads with no builder', () => {
+    const assigned = service.toQueryParams({
+      builderId: '123e4567-e89b-12d3-a456-426614174000',
+    });
+    expect(assigned.get('builderId')).toBe('123e4567-e89b-12d3-a456-426614174000');
+    const unassigned = service.toQueryParams({ builderId: 'unassigned' });
+    expect(unassigned.get('builderId')).toBe('unassigned');
+    // The admin "All" default: the component strips '' before calling, so
+    // the backend sees no builderId param and applies no filtering.
+    expect(service.toQueryParams({}).has('builderId')).toBe(false);
+  });
+
   it('omits undefined/empty filters so backend defaults apply', () => {
     const params = service.toQueryParams({});
     expect(params.keys().length).toBe(0);

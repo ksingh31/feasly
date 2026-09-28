@@ -166,9 +166,13 @@
                   <span class="badge badge--quarantine">Quarantine</span>
                 }
               </h2>
-              <span class="badge badge--status-{{ lead.status }}">{{
-                statusLabel(lead.status)
-              }}</span>
+              @if (lead.status) {
+                <span class="badge badge--status-{{ lead.status }}">{{
+                  statusLabel(lead.status)
+                }}</span>
+              } @else {
+                <span class="badge">No status</span>
+              }
             </div>
             <p class="lead-card__contact">{{ lead.email }} · {{ lead.addressKey }}</p>
             <p class="lead-card__meta">
