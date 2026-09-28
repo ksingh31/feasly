@@ -45,13 +45,21 @@ export class NarrativeProviderError extends Error {
    * whether to advance (408/429/5xx) or fail fast (other 4xx).
    */
   readonly status?: number;
+  /**
+   * When true, the model chain fails fast instead of advancing to the
+   * next model/target — for failures where retrying the same prompt
+   * won't help (e.g. a token-truncated completion). The service falls
+   * back to the static guide instead.
+   */
+  readonly fatal: boolean;
   constructor(
     message: string,
-    options?: { cause?: unknown; status?: number },
+    options?: { cause?: unknown; status?: number; fatal?: boolean },
   ) {
     super(message, options);
     this.name = 'NarrativeProviderError';
     this.status = options?.status;
+    this.fatal = options?.fatal ?? false;
   }
 }
 

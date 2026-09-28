@@ -248,6 +248,42 @@ describe('narrative service', () => {
     expect(opsAlerts.notifyFailure).toHaveBeenCalled();
   });
 
+  it('serves the static guide (never persisting) when the provider reports a truncated completion', async () => {
+    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
+    // Regression: a token-truncated completion (finish_reason=length)
+    // used to flow through with the deterministic footer appended, so
+    // the DB held a cut-off summary that looked complete. The provider
+    // now throws a fatal error instead — the service serves the honest
+    // static guide and never persists the truncated text.
+    const provider: NarrativeProvider = {
+      synthetic: false,
+      generate: async () => {
+        throw new NarrativeProviderError(
+          'LLM API returned a truncated completion (finish_reason=length) for model test-model even at 1600 tokens — refusing to store or serve it',
+          { fatal: true },
+        );
+      },
+    };
+    const service = createNarrativeService({
+      magicLinks,
+      leads,
+      estimates,
+      provider,
+      opsAlerts,
+      properties,
+      communityStats,
+    });
+
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+
+    expect(result.narrative).toBe(buildStaticGuideNarrative());
+    expect(result.narrativeSource).toBe('static-guide');
+    expect(opsAlerts.notifyFailure).toHaveBeenCalled();
+    // Never persisted: the next visit retries the AI chain instead of
+    // serving a truncated-looking row from cache.
+    expect(records.get(ESTIMATE_ID)?.narrative).toBeNull();
+  });
+
   it('retries once after invalid output then succeeds', async () => {
     const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
     let calls = 0;
@@ -547,6 +583,101 @@ describe('openai-compatible narrative provider', () => {
     await expect(
       provider.generate({ system: 'System', user: 'User' }),
     ).rejects.toThrow(/API key/);
+  });
+
+  it('retries once with a higher token budget when the completion is truncated', async () => {
+    const seenMaxTokens: number[] = [];
+    let calls = 0;
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
+      fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
+        calls++;
+        seenMaxTokens.push(
+          (JSON.parse(String(init?.body)) as { max_tokens: number }).max_tokens,
+        );
+        const truncated = calls === 1;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: truncated
+                    ? 'Cut off mid-senten'
+                    : 'A complete neighbourhood summary.',
+                },
+                finish_reason: truncated ? 'length' : 'stop',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+
+    const result = await provider.generate({ system: 'System', user: 'User' });
+
+    // First attempt at 800 tokens, one retry at 1600 — the truncated
+    // first text is discarded, never returned.
+    expect(calls).toBe(2);
+    expect(seenMaxTokens).toEqual([800, 1600]);
+    expect(result.text).toBe('A complete neighbourhood summary.');
+    expect(result.model).toBe('test-model');
+  });
+
+  it('fails fast (no chain) when the truncation retry is also truncated', async () => {
+    let calls = 0;
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['primary-model', 'backup-model'], endpoint: 'https://example.com/v1/chat/completions' }],
+      fetchImpl: (async () => {
+        calls++;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: 'Always cut off mid-senten' },
+                finish_reason: 'length',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+
+    const error = await provider
+      .generate({ system: 'System', user: 'User' })
+      .catch((e) => e);
+
+    // One attempt + one retry on the primary model only — the backup
+    // model is never tried (chaining would burn spend on the same
+    // prompt), and the truncated text is never returned.
+    expect(calls).toBe(2);
+    expect(error).toBeInstanceOf(NarrativeProviderError);
+    expect(error.fatal).toBe(true);
+    expect(error.message).toContain('truncated');
+    expect(error.message).toContain('finish_reason=length');
+  });
+
+  it('treats an explicit finish_reason=stop as a normal success', async () => {
+    const provider = createOpenAiCompatibleNarrativeProvider({
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: 'A finished summary.' },
+                finish_reason: 'stop',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )) as typeof fetch,
+    });
+
+    const result = await provider.generate({ system: 'System', user: 'User' });
+
+    expect(result.text).toBe('A finished summary.');
   });
 });
 
