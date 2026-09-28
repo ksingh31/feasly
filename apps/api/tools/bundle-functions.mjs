@@ -159,6 +159,10 @@ const targets = [
     out: 'admin-auth-me/index.js',
   },
   {
+    entry: 'src/functions/admin-auth-entra-callback.ts',
+    out: 'admin-auth-entra-callback/index.js',
+  },
+  {
     entry: 'src/functions/mcp.ts',
     out: 'mcp/index.js',
   },

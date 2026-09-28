@@ -339,6 +339,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'planned',
     summary: 'Revoke the admin session; clears the session cookie.',
   },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/auth/entra/callback',
+    auth: 'none',
+    rateLimit: '10/15min per IP',
+    status: 'live',
+    summary:
+      'Entra PKCE callback: exchange the code, validate the id_token ' +
+      '(JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day ' +
+      'admin session. Unknown account → 403, no enumeration.',
+  },
   // ── Builder v1 (session cookie; embed/09) ──────────────────────────
   {
     method: 'POST',

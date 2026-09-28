@@ -60,3 +60,10 @@ apps/api/src/services/callback.service.ts :: PLACEHOLDER :: outbound email/SMS n
 # dropdown and remove both placeholder markers and these entries.
 apps/web/src/app/features/admin/admin-lead-detail.component.html :: PLACEHOLDER :: assign-to-builder visual-only placeholder, blocked on backend assign-to-builder endpoint story
 apps/web/src/app/features/admin/admin-lead-detail.component.ts :: PLACEHOLDER :: assign-to-builder visual-only placeholder comment, blocked on backend assign-to-builder endpoint story
+
+# Entra External ID tenant values (auth/02): empty until AUTH-00 provisions
+# the tenant (subdomain, tenant id, client id, user flow). Fail-closed by
+# design — the callback 503s while unset. Unblock: AUTH-00 tenant setup →
+# set ENTRA_TENANT_SUBDOMAIN/ENTRA_TENANT_ID/ENTRA_CLIENT_ID/ENTRA_USER_FLOW
+# via app settings and remove this entry.
+apps/api/src/config.ts :: PLACEHOLDER :: Entra tenant values empty until AUTH-00 provisions the tenant (fail-closed 503)

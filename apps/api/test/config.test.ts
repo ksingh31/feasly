@@ -52,6 +52,21 @@ describe('loadConfig', () => {
         graphBaseUrl: 'https://graph.microsoft.com',
         configured: false,
       },
+      // auth/02: Entra External ID sign-in wiring — fail-closed while
+      // unprovisioned.
+      entraSignIn: {
+        tenantSubdomain: '',
+        tenantId: '',
+        clientId: '',
+        userFlow: '',
+        configured: false,
+        tokenEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/token',
+        jwksUri: 'https://.ciamlogin.com//discovery/v2.0/keys',
+        issuer: 'https://.ciamlogin.com//v2.0',
+        jwksCacheTtlMs: 600_000,
+        httpTimeoutMs: 15_000,
+        callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
+      },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
@@ -147,6 +162,30 @@ describe('loadConfig', () => {
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
     const config = loadConfig({ ...VALID_ENV, COST_ENGINE_ALLOW_DRAFT: 'true' });
     expect(config.costEngine.allowDraftCostData).toBe(true);
+  });
+
+  it('derives the Entra sign-in endpoints when the tenant is provisioned (auth/02)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      ENTRA_TENANT_SUBDOMAIN: 'feaslyext',
+      ENTRA_TENANT_ID: 'tenant-123',
+      ENTRA_CLIENT_ID: 'client-abc',
+      ENTRA_USER_FLOW: 'feasly-signup-signin',
+    });
+    expect(config.entraSignIn).toEqual({
+      tenantSubdomain: 'feaslyext',
+      tenantId: 'tenant-123',
+      clientId: 'client-abc',
+      userFlow: 'feasly-signup-signin',
+      configured: true,
+      tokenEndpoint: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/token',
+      jwksUri: 'https://feaslyext.ciamlogin.com/tenant-123/discovery/v2.0/keys',
+      // id_token iss uses the tenant id as host (tenant openid-configuration).
+      issuer: 'https://tenant-123.ciamlogin.com/tenant-123/v2.0',
+      jwksCacheTtlMs: 600_000,
+      httpTimeoutMs: 15_000,
+      callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
+    });
   });
 
   it('reads the billing model, rate, window, and SLA from env', () => {

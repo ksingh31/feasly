@@ -47,6 +47,11 @@ export interface AdminSessionStore {
     readonly email: string;
     readonly sessionTokenHash: string;
     readonly expiresAt: Date;
+    /**
+     * auth/02: the user this session belongs to. Null/omitted for
+     * magic-link-era sessions; always set for Entra sign-in sessions.
+     */
+    readonly userId?: string | null;
   }): Promise<AdminSessionRecord>;
   /** Active = not revoked and not expired. */
   findActiveByHash(
