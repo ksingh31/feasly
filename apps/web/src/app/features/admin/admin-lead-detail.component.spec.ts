@@ -441,10 +441,11 @@ describe('AdminLeadDetailComponent', () => {
       .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/assign-builder'))
       .error(new ProgressEvent('error'));
     // The component still refetches the detail, rolling the dropdown back
-    // to the server-side (unassigned) value.
+    // to the server-side (unassigned) value. The spread gives the refetch a
+    // fresh object identity, like a real HTTP response.
     httpMock
       .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
-      .flush(DETAIL);
+      .flush({ ...DETAIL });
 
     await waitFor(
       () => store.selectSnapshot(AdminBuildersState.assignError) !== null,
