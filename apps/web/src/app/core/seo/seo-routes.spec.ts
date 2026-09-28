@@ -106,6 +106,7 @@ describe('seo-routes', () => {
       'admin/leads': 'admin/leads',
       'admin/builders': 'admin/builders',
       'admin/disputes': 'admin/disputes',
+      'admin/users': 'admin/users',
       'admin/calibration': 'admin/calibration',
       'admin/billing': 'admin/billing',
       'admin/ops/sheets': 'admin/ops/sheets',
