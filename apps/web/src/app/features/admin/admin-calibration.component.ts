@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { Store } from '@ngxs/store';
 import { Observable } from 'rxjs';
 import type { AdminCalibrationResponse } from '@feasly/contracts';
-import { SeoService } from '../../core/seo/seo.service';
 import {
   CalibrationState,
   CalibrationStatus,
@@ -30,7 +29,6 @@ import {
 })
 export class AdminCalibrationComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly seo = inject(SeoService);
 
   protected readonly calibration$: Observable<AdminCalibrationResponse | null> =
     this.store.select(CalibrationState.calibration);
@@ -40,14 +38,6 @@ export class AdminCalibrationComponent implements OnInit {
   protected readonly error$: Observable<string | null> = this.store.select(
     CalibrationState.error,
   );
-
-  constructor() {
-    this.seo.setPage({
-      title: 'Calibration — Feasly Admin',
-      description: 'Cost engine calibration console.',
-      path: '/admin/calibration',
-    });
-  }
 
   ngOnInit(): void {
     this.store.dispatch(new LoadCalibration());

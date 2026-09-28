@@ -728,6 +728,31 @@ export interface AppConfig {
       magicLink: string;
       errorTitle: string;
       error: string;
+      /** Admin console (admin/07): per-section titles for client-side nav. All noindexed. */
+      adminHomeTitle: string;
+      adminHome: string;
+      adminLeadsTitle: string;
+      adminLeads: string;
+      adminBuildersTitle: string;
+      adminBuilders: string;
+      adminDisputesTitle: string;
+      adminDisputes: string;
+      adminCalibrationTitle: string;
+      adminCalibration: string;
+      adminBillingTitle: string;
+      adminBilling: string;
+      adminSheetsTitle: string;
+      adminSheets: string;
+      adminEstimatesTitle: string;
+      adminEstimates: string;
+      adminApiKeysTitle: string;
+      adminApiKeys: string;
+      adminFunnelsTitle: string;
+      adminFunnels: string;
+      adminLoginTitle: string;
+      adminLogin: string;
+      adminCallbackTitle: string;
+      adminCallback: string;
     };
     /**
      * Marketing pages (SEO-010). All user-facing copy for `/how-it-works`

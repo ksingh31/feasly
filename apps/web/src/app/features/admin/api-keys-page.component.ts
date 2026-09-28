@@ -77,7 +77,7 @@ export class ApiKeysPageComponent implements OnInit {
   protected readonly copied = signal(false);
 
   ngOnInit(): void {
-    // Matches the `admin/**` noindex pattern in seo-routes.ts.
+    // Title comes from the seo-routes table (admin/api-keys).
     this.seo.setForRoute('admin/api-keys');
     this.store.dispatch(new LoadApiKeys());
     // Clear the once-only plaintext when leaving the page.

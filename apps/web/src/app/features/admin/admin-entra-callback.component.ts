@@ -59,11 +59,9 @@ export class AdminEntraCallbackComponent implements OnInit {
   protected readonly errorKind = signal<EntraCallbackErrorKind>('cancelled');
 
   constructor() {
-    this.seo.setPage({
-      title: 'Completing sign in — Feasly',
-      description: 'Completing your Feasly admin sign in.',
-      path: '/admin/auth/callback',
-    });
+    // Outside the admin shell — resolves the config-owned title from the
+    // seo-routes table.
+    this.seo.setForRoute('admin/auth/callback');
   }
 
   ngOnInit(): void {

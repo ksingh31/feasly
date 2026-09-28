@@ -47,11 +47,9 @@ export class AdminLoginComponent {
 
   constructor() {
     this.showExpired = this.route.snapshot.queryParamMap.get('expired') === '1';
-    this.seo.setPage({
-      title: 'Admin sign in — Feasly',
-      description: 'Feasly admin sign in.',
-      path: '/admin/login',
-    });
+    // Outside the admin shell — resolves the config-owned title from the
+    // seo-routes table.
+    this.seo.setForRoute('admin/login');
   }
 
   /**

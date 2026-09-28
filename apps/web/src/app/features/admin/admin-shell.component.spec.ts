@@ -7,7 +7,7 @@
  */
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,7 @@ class BlankComponent {}
 
 async function setup() {
   TestBed.resetTestingModule();
-  const seo = { setPage: vi.fn() };
+  const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
 
   // auth/04: the view-as banner reads via store.selectSignal — the mock
   // returns a null banner (banner hidden).
@@ -41,7 +41,7 @@ async function setup() {
     TestBed.createComponent(AdminShellComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture };
+  return { fixture, seo };
 }
 
 function toggleButton(fixture: ComponentFixture<AdminShellComponent>): HTMLButtonElement {
@@ -98,5 +98,13 @@ describe('AdminShellComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(nav(fixture).classList.contains('admin-shell__nav--open')).toBe(false);
+  });
+
+  it('drives the document title from the seo-routes table on navigation', async () => {
+    const { fixture, seo } = await setup();
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/admin/billing');
+    await fixture.whenStable();
+    expect(seo.setForRoute).toHaveBeenCalledWith('/admin/billing');
   });
 });

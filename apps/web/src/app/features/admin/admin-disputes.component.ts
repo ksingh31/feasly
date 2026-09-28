@@ -3,7 +3,6 @@ import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import type { DisputeListItem } from '@feasly/contracts';
-import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad } from '../../shared/utils/money';
 import {
   AcceptAdminDispute,
@@ -48,7 +47,6 @@ export class AdminDisputesComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly seo = inject(SeoService);
 
   protected readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
   protected readonly listStatus = this.store.selectSignal(AdminDisputesState.listStatus);
@@ -68,14 +66,6 @@ export class AdminDisputesComponent implements OnInit {
 
   /** Two-step confirm: which action is awaiting confirmation. */
   protected confirmingAction: 'accept' | 'reject' | null = null;
-
-  constructor() {
-    this.seo.setPage({
-      title: 'Disputes — Feasly Admin',
-      description: 'Feasly admin billing dispute console.',
-      path: '/admin/disputes',
-    });
-  }
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminDisputes());

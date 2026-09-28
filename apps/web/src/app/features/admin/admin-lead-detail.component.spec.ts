@@ -208,6 +208,15 @@ describe('AdminLeadDetailComponent', () => {
     expect(header.textContent).toContain('AS');
   });
 
+  it('shows a support hint next to the magic-link status', async () => {
+    await setup();
+    await openLead(); // DETAIL fixture has magicLinkStatus: 'sent'
+
+    const card = fixture.debugElement.query(By.css('.lead-modal-card')).nativeElement;
+    expect(card.textContent).toContain('Sent');
+    expect(card.textContent).toContain('The customer can open their report with the link in their email.');
+  });
+
   it('keeps Apply Status disabled until a different status is picked', async () => {
     await setup();
     await openLead();

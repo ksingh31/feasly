@@ -32,18 +32,23 @@ export class AdminShellComponent {
   protected readonly menuOpen = signal(false);
 
   constructor() {
-    this.seo.setPage({
-      title: 'Admin — Feasly',
-      description: 'Feasly admin.',
-      path: '/admin',
-    });
-    // Close the mobile menu whenever navigation completes.
+    // Admin console titles (admin/07) are driven centrally from the
+    // seo-routes table on every completed navigation: section components
+    // must NOT set their own titles. NavigationEnd fires after the
+    // incoming section's component is created, so this always wins over
+    // any stale per-section title and covers sections that never set one
+    // (previously /admin/billing inherited "Disputes — Feasly Admin" and
+    // /admin/builders fell through to the 404 title).
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => this.menuOpen.set(false));
+      .subscribe((event) => {
+        // Close the mobile menu whenever navigation completes.
+        this.menuOpen.set(false);
+        this.seo.setForRoute(event.urlAfterRedirects);
+      });
   }
 
   protected toggleMenu(): void {

@@ -36,7 +36,7 @@ async function setup(opts: SetupOpts = {}) {
     isConfigured: () => opts.entraConfigured ?? true,
     startSignIn: vi.fn().mockResolvedValue(undefined),
   };
-  const seo = { setPage: vi.fn() };
+  const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
   const config = {
     get: (section: string) =>
       section === 'copy'

@@ -5,7 +5,6 @@ import { By } from '@angular/platform-browser';
 import { provideStore, Store } from '@ngxs/store';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
-import { SeoService } from '../../core/seo/seo.service';
 import { AdminBuildersComponent } from './admin-builders.component';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
@@ -80,7 +79,6 @@ describe('AdminBuildersComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        { provide: SeoService, useValue: { setForRoute: vi.fn() } },
         provideStore([AdminBuildersState]),
       ],
     });
