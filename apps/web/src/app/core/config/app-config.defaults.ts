@@ -930,6 +930,43 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
       shellNavBilling: 'Billing',
+      shellNavReportContract: 'Report contract',
+      reportContractSeoDescription:
+        'Report a signed build contract in the Feasly builder portal.',
+      reportContractHeading: 'Report a signed contract',
+      reportContractExplainer:
+        'When a Feasly lead signs a build contract, report it here. We take a 1% commission on the signed contract value, excluding land. Please report within 14 days of signing.',
+      reportContractLeadLabel: 'Which lead signed?',
+      reportContractLeadRequired: 'Choose the lead that signed the contract.',
+      reportContractLeadsLoading: 'Loading your leads…',
+      reportContractLeadsError:
+        'We couldn’t load your leads. Please try again.',
+      reportContractLeadsEmpty:
+        'You don’t have any leads yet. Once Feasly sends you leads, you can report signed contracts here.',
+      reportContractValueLabel: 'Contract value (CAD, excluding land)',
+      reportContractValueHint:
+        'The signed construction contract amount — land cost stays out. Example: 650000',
+      reportContractValueRequired: 'Enter the contract value.',
+      reportContractValueInvalid: 'Enter a valid amount, like 650000.',
+      reportContractDateLabel: 'Date the contract was signed',
+      reportContractDateRequired: 'Enter the signing date.',
+      reportContractDateFuture: 'The signing date can’t be in the future.',
+      reportContractSubmit: 'Report contract',
+      reportContractSubmitting: 'Reporting…',
+      reportContractSuccessTitle: 'Contract reported — thank you',
+      reportContractSuccessBody:
+        'You reported a {amount} contract. Your 1% commission is {commission}. It enters a 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+      reportContractAlreadyReported:
+        'This contract is already reported — nothing more to do.',
+      reportContractDisputed:
+        'This contract already has an invoice under dispute. The charge is paused while we review it — nothing more for you to do.',
+      reportContractFlatCovered:
+        'You’re on the flat plan, so this contract is already covered — no commission is due.',
+      reportContractNotEnabled:
+        'Billing isn’t enabled for your account yet. We saved your report and our team will follow up.',
+      reportContractAwaitingDetails:
+        'We received your report but need more details before we can create the invoice. Our team will follow up.',
+      reportContractReportAnother: 'Report another contract',
       billingHeading: 'Billing',
       billingLoading: 'Loading your billing details…',
       billingLoadError: 'We couldn’t load your billing details. Please try again.',

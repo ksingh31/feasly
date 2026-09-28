@@ -9,6 +9,38 @@ import type {
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
+/** Request body for POST /api/v1/billing/report-contract. */
+export interface ReportContractRequest {
+  /** The signed lead's id (UUID). */
+  readonly leadId: string;
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
+  /** ISO-8601 datetime (with offset) of the contract signing. */
+  readonly contractSignedAt: string;
+}
+
+/**
+ * Response for POST /api/v1/billing/report-contract (mirrors the
+ * backend's BillableEventResult). The component only collects the inputs —
+ * attribution, the draft invoice, and the 7-day review window all happen
+ * server-side.
+ */
+export type ReportContractResult =
+  | {
+      readonly billed: true;
+      readonly invoiceId: string;
+      readonly invoiceStatus: string;
+      /** Idempotent retry: the invoice already existed. */
+      readonly reason?: 'existing_invoice' | 'existing_disputed';
+    }
+  | {
+      readonly billed: false;
+      readonly reason:
+        | 'billing_not_enabled'
+        | 'flat_subscription_covers'
+        | 'awaiting_contract_details';
+    };
+
 /**
  * Builder billing API client (billing/02, BILL-02).
  *
@@ -61,6 +93,24 @@ export class BuilderBillingApiService {
       this.http.post<SetupIntentResponse>(
         `${this.billingBase}/setup-intent`,
         {},
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * Report a signed contract for one of the tenant's leads. The backend
+   * runs attribution (12-month window), mints a draft commission invoice,
+   * and starts the 7-day review window — the response tells the UI which
+   * of those outcomes happened.
+   */
+  reportContract(
+    body: ReportContractRequest,
+  ): Observable<ReportContractResult> {
+    return this.call(
+      this.http.post<ReportContractResult>(
+        `${this.billingBase}/report-contract`,
+        body,
         { withCredentials: true },
       ),
     );

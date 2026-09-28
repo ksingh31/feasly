@@ -986,6 +986,58 @@ export interface AppConfig {
       actionsLabel: string;
       /** Builder shell nav: billing link label. */
       shellNavBilling: string;
+      /** Builder shell nav: report-contract link label. */
+      shellNavReportContract: string;
+      /** `/builder/report-contract` SEO description. */
+      reportContractSeoDescription: string;
+      /** `/builder/report-contract` heading. */
+      reportContractHeading: string;
+      /** Explains the 1% commission and 14-day reporting SLA. */
+      reportContractExplainer: string;
+      /** Lead picker label. */
+      reportContractLeadLabel: string;
+      /** Lead picker required-field copy. */
+      reportContractLeadRequired: string;
+      /** Leads loading copy. */
+      reportContractLeadsLoading: string;
+      /** Leads load-failure copy. */
+      reportContractLeadsError: string;
+      /** Empty leads list copy. */
+      reportContractLeadsEmpty: string;
+      /** Contract value field label. */
+      reportContractValueLabel: string;
+      /** Contract value field hint (excl. land). */
+      reportContractValueHint: string;
+      /** Contract value required-field copy. */
+      reportContractValueRequired: string;
+      /** Contract value invalid-format copy. */
+      reportContractValueInvalid: string;
+      /** Signing-date field label. */
+      reportContractDateLabel: string;
+      /** Signing-date required-field copy. */
+      reportContractDateRequired: string;
+      /** Signing-date in-the-future copy. */
+      reportContractDateFuture: string;
+      /** Submit button label. */
+      reportContractSubmit: string;
+      /** Submit label while the report posts. */
+      reportContractSubmitting: string;
+      /** Success confirmation heading. */
+      reportContractSuccessTitle: string;
+      /** Success confirmation body; {amount} {commission} interpolated. */
+      reportContractSuccessBody: string;
+      /** Idempotent duplicate-report copy. */
+      reportContractAlreadyReported: string;
+      /** Invoice-under-dispute copy. */
+      reportContractDisputed: string;
+      /** Flat-plan coverage copy. */
+      reportContractFlatCovered: string;
+      /** Billing-not-enabled copy. */
+      reportContractNotEnabled: string;
+      /** Awaiting-contract-details fallback copy. */
+      reportContractAwaitingDetails: string;
+      /** "Report another contract" button label. */
+      reportContractReportAnother: string;
       /** `/builder/billing` heading. */
       billingHeading: string;
       /** Card-status loading copy. */
