@@ -26,7 +26,6 @@ import {
   LogoutBuilder,
   SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
-  VerifyBuilderToken,
 } from './builder.actions';
 
 /** Auth lifecycle for the builder portal. */
@@ -227,35 +226,6 @@ export class BuilderState {
   @Selector()
   static loadFailed(state: BuilderStateModel): boolean {
     return state.leadsStatus === 'error';
-  }
-
-  @Action(VerifyBuilderToken)
-  verifyBuilderToken(
-    ctx: StateContext<BuilderStateModel>,
-    action: VerifyBuilderToken,
-  ): Observable<unknown> {
-    return this.authApi.verifyMagicLink(action.token).pipe(
-      tap((identity) => {
-        ctx.patchState({
-          sessionToken: identity.sessionToken,
-          session: {
-            authenticated: true,
-            email: identity.email,
-            name: null,
-            builderId: identity.tenantKey,
-            builderName: null,
-            role: null,
-            memberships: [],
-          },
-          authStatus: 'authenticated',
-          sessionExpired: false,
-        });
-      }),
-      catchError(() => {
-        ctx.patchState({ authStatus: 'unauthenticated', session: null });
-        return of(null);
-      }),
-    );
   }
 
   @Action(LoadBuilderSession)

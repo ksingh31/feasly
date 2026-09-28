@@ -878,7 +878,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is not included in these figures?',
-          a: 'The ranges exclude demolition of an existing structure, unusual soil or servicing work, permit and development fees beyond typical allowances, financing costs, and GST. Your full report itemizes what is and is not covered.',
+          a: 'Only landscaping — it varies too much from lot to lot to price, so budget it separately with your builder. Everything else (demolition, soil and servicing, permits and fees, financing, GST) is part of the estimate range.',
         },
         {
           q: 'What is the next step?',
@@ -893,20 +893,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     builder: {
       loginHeading: 'Builder sign in',
       loginExpired:
-        'Your builder session expired. Enter your email for a fresh sign-in link.',
-      loginSent: 'Check your email for your sign-in link.',
-      emailLabel: 'Email',
-      emailPlaceholder: 'you@example.com',
+        'Your builder session expired. Please sign in again with your Microsoft account.',
       emailInvalid: 'Enter a valid email address.',
-      submitLabel: 'Send sign-in link',
-      sendingLabel: 'Sending…',
-      submitError: 'Something went wrong. Please try again.',
       retryLabel: 'Retry',
-      verifyHeading: 'Verifying sign in',
-      verifyProgress: 'Verifying your sign-in link…',
-      verifyError:
-        'This sign-in link is invalid or has expired. Request a fresh one below.',
-      backToLoginLabel: 'Back to sign in',
       shellBrand: 'Feasly Builder',
       shellNavDashboard: 'Leads',
       signOutLabel: 'Sign out',

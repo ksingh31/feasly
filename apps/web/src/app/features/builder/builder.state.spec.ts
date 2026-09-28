@@ -23,7 +23,6 @@ import {
   LoadBuilderSession,
   LogoutBuilder,
   UpdateBuilderLeadStatus,
-  VerifyBuilderToken,
 } from './builder.actions';
 import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderState, type BuilderStateModel } from './builder.state';
@@ -94,40 +93,6 @@ describe('BuilderState (embed/09)', () => {
     expect(s.session).toBeNull();
     expect(s.leads).toEqual([]);
     expect(s.leadsStatus).toBe('idle');
-  });
-
-  it('VerifyBuilderToken stores the session on success', async () => {
-    const done = store.dispatch(new VerifyBuilderToken('tok-123'));
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/builder/auth/verify'),
-    );
-    expect(req.request.params.get('token')).toBe('tok-123');
-    expect(req.request.withCredentials).toBe(true);
-    req.flush({ ...SESSION, sessionToken: 's', setCookie: 'c' });
-    await done;
-
-    const s = snapshot();
-    expect(s.authStatus).toBe('authenticated');
-    expect(s.sessionToken).toBe('s');
-    expect(s.session?.email).toBe('builder@example.com');
-    expect(s.session?.builderId).toBe('elite-craft');
-    expect(store.selectSnapshot(BuilderState.sessionToken)).toBe('s');
-    httpMock.verify();
-  });
-
-  it('VerifyBuilderToken marks unauthenticated on failure', async () => {
-    const done = store.dispatch(new VerifyBuilderToken('bad-token'));
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/builder/auth/verify'),
-    );
-    req.flush({ message: 'invalid' }, { status: 401, statusText: 'Unauthorized' });
-    await done;
-
-    const s = snapshot();
-    expect(s.authStatus).toBe('unauthenticated');
-    expect(s.session).toBeNull();
-    expect(s.sessionToken).toBeNull();
-    httpMock.verify();
   });
 
   it('LoadBuilderLeads stores leads and the summary', async () => {
@@ -209,11 +174,12 @@ describe('BuilderState (embed/09)', () => {
   });
 
   it('LogoutBuilder clears the session and pipeline', async () => {
-    const verify = store.dispatch(new VerifyBuilderToken('tok-123'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/verify'))
-      .flush({ ...SESSION, sessionToken: 's', setCookie: 'c' });
-    await verify;
+    const probe = store.dispatch(new LoadBuilderSession());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
+      ...SESSION,
+      memberships: [],
+    });
+    await probe;
 
     const done = store.dispatch(new LogoutBuilder());
     const req = httpMock.expectOne((r) =>
