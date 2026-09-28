@@ -1,18 +1,22 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, delay, of, timeout } from 'rxjs';
+import { catchError, delay, map, of, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type { CommissionInvoice } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
 /**
- * Paginated invoice list — the documented wire shape for
- * `GET /api/v1/billing/invoices` (BILL-04, backend lane in progress).
+ * Paginated invoice list — normalized wire shape for
+ * `GET /api/v1/billing/invoices` (BILL-04).
+ *
+ * `total` is null when the backend does not report a count (the live
+ * endpoint returns a bare array with limit/offset pagination); the UI
+ * degrades gracefully to prev/next without "of N pages".
  */
 export interface InvoiceListResponse {
   readonly invoices: readonly CommissionInvoice[];
-  readonly total: number;
+  readonly total: number | null;
   readonly page: number;
   readonly pageSize: number;
 }
@@ -20,15 +24,20 @@ export interface InvoiceListResponse {
 // ---------------------------------------------------------------------------
 // PLACEHOLDER — BILL-04 backend not live yet.
 // ---------------------------------------------------------------------------
-// The backend lane is building `GET /api/v1/billing/invoices` (paginated,
-// tenant-scoped) in parallel. Until that endpoint lands, this service serves
-// realistic mock invoices in the documented wire shape so the UI can ship
-// and be QA'd end to end.
+// The backend lane built `GET /api/v1/billing/invoices` (paginated,
+// tenant-scoped) in parallel, but it is not deployed yet. Until it lands,
+// this service serves realistic mock invoices in the normalized shape above
+// so the UI can ship and be QA'd end to end.
 //
-// CUTOVER: when the endpoint is live, delete the mock branch below (and
-// `mockInvoices`/`USE_PLACEHOLDER_INVOICES`) and let `listInvoices` /
-// `getInvoice` hit the real routes. The `InvoiceListResponse` shape above is
-// the contract the backend lane agreed to; reconcile before deleting.
+// ACTUAL BACKEND SHAPE (verified against the backend lane's worktree):
+//   GET /api/v1/billing/invoices?limit={n}&offset={m}
+//   → 200: CommissionInvoiceRecord[] (BARE ARRAY, newest first, no envelope)
+// Tenant scoping is server-side via the builder session cookie.
+//
+// CUTOVER: set USE_PLACEHOLDER_INVOICES = false. The real branch below
+// already speaks the backend's limit/offset shape and normalizes the bare
+// array (total: null → UI shows "Page N" without a page count). Delete the
+// mock branch and `mockInvoices` once the endpoint is live and verified.
 // ---------------------------------------------------------------------------
 const USE_PLACEHOLDER_INVOICES = true;
 
@@ -178,6 +187,9 @@ export class BuilderInvoicesApiService {
   /**
    * Paginated invoice list, newest first. PLACEHOLDER: serves mock data
    * until `GET /api/v1/billing/invoices` is live (see top of file).
+   *
+   * Real branch speaks the backend's limit/offset shape and normalizes the
+   * bare-array response (total unknown → null).
    */
   listInvoices(page: number, pageSize: number): Observable<InvoiceListResponse> {
     if (USE_PLACEHOLDER_INVOICES) {
@@ -190,11 +202,19 @@ export class BuilderInvoicesApiService {
         pageSize,
       }).pipe(delay(150));
     }
+    const offset = (page - 1) * pageSize;
     return this.call(
-      this.http.get<InvoiceListResponse>(`${this.billingBase}/invoices`, {
-        params: { page: String(page), pageSize: String(pageSize) },
-        withCredentials: true,
-      }),
+      this.http.get<readonly CommissionInvoice[]>(
+        `${this.billingBase}/invoices`,
+        {
+          params: { limit: String(pageSize), offset: String(offset) },
+          withCredentials: true,
+        },
+      ),
+    ).pipe(
+      // Normalize the bare array; the endpoint reports no total.
+      // (rxjs `map` is imported via the pipe below.)
+      map((invoices) => ({ invoices, total: null, page, pageSize })),
     );
   }
 

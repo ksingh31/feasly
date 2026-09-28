@@ -935,6 +935,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       invoicesPrevPage: 'Previous',
       invoicesNextPage: 'Next',
       invoicesPageOf: 'Page {page} of {pages}',
+      invoicesPage: 'Page {page}',
       invoicesTimelineCreated: 'Invoice created',
       invoicesTimelineReviewEnds: 'Review window ends',
       invoicesTimelineFinalized: 'Finalized',

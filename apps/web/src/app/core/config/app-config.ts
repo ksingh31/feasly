@@ -1054,6 +1054,7 @@ export interface AppConfig {
       invoicesNextPage: string;
       /** Pagination status; {page} and {pages} are interpolated. */
       invoicesPageOf: string;
+      invoicesPage: string;
       /** Timeline event: invoice created. */
       invoicesTimelineCreated: string;
       /** Timeline event: review window ends. */

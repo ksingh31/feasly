@@ -66,6 +66,9 @@ export class BuilderInvoicesComponent implements OnInit {
   );
   protected readonly total = this.store.selectSignal(BuilderInvoicesState.total);
   protected readonly page = this.store.selectSignal(BuilderInvoicesState.page);
+  protected readonly pageSize = this.store.selectSignal(
+    BuilderInvoicesState.pageSize,
+  );
   protected readonly totalPages = this.store.selectSignal(
     BuilderInvoicesState.totalPages,
   );
@@ -118,9 +121,27 @@ export class BuilderInvoicesComponent implements OnInit {
   }
 
   protected pageLabel(): string {
+    const totalPages = this.totalPages();
+    if (totalPages === null) {
+      // Backend reports no total (bare-array pagination): "Page N".
+      return this.copy.invoicesPage.replace('{page}', String(this.page()));
+    }
     return this.copy.invoicesPageOf
       .replace('{page}', String(this.page()))
-      .replace('{pages}', String(this.totalPages()));
+      .replace('{pages}', String(totalPages));
+  }
+
+  /**
+   * Whether the Next button should be disabled. With a known total this is
+   * the last numbered page; with an unknown total (bare-array backend) the
+   * page is last when it came back shorter than a full page.
+   */
+  protected isLastPage(): boolean {
+    const totalPages = this.totalPages();
+    if (totalPages !== null) {
+      return this.page() >= totalPages;
+    }
+    return this.invoices().length < this.pageSize();
   }
 
   /** Integer cents → "$12,345" (shared money util, integer math only). */

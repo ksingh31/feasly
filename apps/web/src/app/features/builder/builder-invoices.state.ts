@@ -20,8 +20,8 @@ export type InvoicesStatus = 'idle' | 'loading' | 'ready' | 'error';
 export interface BuilderInvoicesStateModel {
   /** Current page of invoices, newest first. Memory-only. */
   invoices: readonly CommissionInvoice[];
-  /** Total invoice count across all pages. */
-  total: number;
+  /** Total invoice count across all pages; null when the backend reports none. */
+  total: number | null;
   /** 1-based current page. */
   page: number;
   pageSize: number;
@@ -65,7 +65,7 @@ export class BuilderInvoicesState {
   }
 
   @Selector()
-  static total(state: BuilderInvoicesStateModel): number {
+  static total(state: BuilderInvoicesStateModel): number | null {
     return state.total;
   }
 
@@ -74,8 +74,12 @@ export class BuilderInvoicesState {
     return state.page;
   }
 
+  /** Null when the backend reports no total (bare-array pagination). */
   @Selector()
-  static totalPages(state: BuilderInvoicesStateModel): number {
+  static totalPages(state: BuilderInvoicesStateModel): number | null {
+    if (state.total === null) {
+      return null;
+    }
     return Math.max(1, Math.ceil(state.total / state.pageSize));
   }
 
