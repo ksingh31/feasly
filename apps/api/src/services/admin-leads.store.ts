@@ -40,6 +40,12 @@ export interface AdminLeadFilters {
    * filtering — the default admin view always shows every lead.
    */
   readonly consent?: 'in' | 'out';
+  /**
+   * Builder-assignment filter (admin/08): a builder UUID matches leads
+   * assigned to that builder; `null` matches unassigned leads only.
+   * Absent = no assignment filtering.
+   */
+  readonly builderId?: string | null;
 }
 
 export interface AdminLeadListArgs {
@@ -191,6 +197,13 @@ function buildFilterConditions(filters: AdminLeadFilters) {  const conditions = 
   }
   if (filters.tenantKey) {
     conditions.push(eq(leads.tenantKey, filters.tenantKey));
+  }
+  if (filters.builderId !== undefined) {
+    conditions.push(
+      filters.builderId === null
+        ? isNull(leads.builderId)
+        : eq(leads.builderId, filters.builderId),
+    );
   }
   if (filters.createdAfter) {
     conditions.push(gte(leads.createdAt, filters.createdAfter));

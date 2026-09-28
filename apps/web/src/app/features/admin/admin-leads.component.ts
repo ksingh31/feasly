@@ -44,12 +44,8 @@ const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
 ];
 
 /**
- * Assignment filter options. There is no assign-to-builder backend yet, so
- * every lead is unassigned — the static options show the full list. Builder
- * options are appended dynamically from AdminBuildersState; selecting one is
- * visual-only until the backend lands. The control exists to match the
- * approved mockup's three filters; it becomes a real filter when the backend
- * lands.
+ * Assignment filter options: all leads, unassigned only, then one option
+ * per builder appended dynamically from AdminBuildersState.
  */
 const ASSIGNED_OPTIONS: readonly ('' | 'unassigned')[] = ['', 'unassigned'];
 
@@ -101,7 +97,7 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly filtersForm = this.fb.nonNullable.group({
     search: [''],
     status: ['' as '' | AdminLeadStatus],
-    /** Visual-only until the assign-to-builder backend exists (see ASSIGNED_OPTIONS). Builder IDs are allowed as values for the dynamic options. */
+    /** '' = all, 'unassigned' = no builder assigned, otherwise a builder UUID (sent as builderId). */
     assigned: ['' as '' | 'unassigned' | string],
   });
 
@@ -146,8 +142,11 @@ export class AdminLeadsComponent implements OnInit {
     if (raw.status) {
       filters.status = raw.status;
     }
-    // `assigned` is visual-only: no backend param exists. "Unassigned"
-    // matches every lead today, so it intentionally sends nothing.
+    // `assigned` maps to the backend `builderId` param: '' = no filter,
+    // 'unassigned' = leads with no builder, otherwise a builder UUID.
+    if (raw.assigned) {
+      filters.builderId = raw.assigned;
+    }
     return filters;
   }
 
