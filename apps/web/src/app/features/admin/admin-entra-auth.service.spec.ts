@@ -130,6 +130,23 @@ describe('AdminEntraAuthService', () => {
     httpMock.verify();
   });
 
+  it('buildEntraLogoutUrl appends id_token_hint when provided (skips the MS account picker)', () => {
+    const endpoint = `https://${ENTRA.tenantSubdomain}.ciamlogin.com/${ENTRA.tenantId}/oauth2/v2.0/logout`;
+    const url = new URL(service.buildEntraLogoutUrl(endpoint, 'stub-id-token'));
+    expect(url.searchParams.get('id_token_hint')).toBe('stub-id-token');
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe(
+      `${window.location.origin}/admin/login`,
+    );
+    httpMock.verify();
+  });
+
+  it('buildEntraLogoutUrl omits id_token_hint when null (legacy session)', () => {
+    const endpoint = `https://${ENTRA.tenantSubdomain}.ciamlogin.com/${ENTRA.tenantId}/oauth2/v2.0/logout`;
+    const url = new URL(service.buildEntraLogoutUrl(endpoint, null));
+    expect(url.searchParams.has('id_token_hint')).toBe(false);
+    httpMock.verify();
+  });
+
   it('redirectToEntraLogout returns false and does not navigate without a URL', () => {
     expect(service.redirectToEntraLogout(null)).toBe(false);
     expect(service.consumeSignOutRedirect()).toBe(false);

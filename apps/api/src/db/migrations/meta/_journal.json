@@ -267,6 +267,13 @@
       "when": 1790600000000,
       "tag": "0039_billing_retry_count",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790627481649,
+      "tag": "0041_session_id_token",
+      "breakpoints": true
     }
   ]
 }

@@ -97,20 +97,34 @@ export class AdminEntraAuthService {
    * Build the full Entra end-session URL for sign-out. Pure (no
    * navigation) so it is unit-testable; `redirectToEntraLogout` performs
    * the navigation.
+   *
+   * `idTokenHint` is the id_token captured at sign-in (returned by the
+   * backend on logout). Passing it as `id_token_hint` tells Entra exactly
+   * which session to end, so it skips the "Pick an account" picker and
+   * signs out directly (logout UX, Karan 2026-09-28). Null (pre-change
+   * sessions, non-Entra sessions) — the picker fallback is no worse
+   * than before.
    */
-  buildEntraLogoutUrl(entraLogoutUrl: string): string {
+  buildEntraLogoutUrl(
+    entraLogoutUrl: string,
+    idTokenHint?: string | null,
+  ): string {
     const postLogoutRedirectUri = `${window.location.origin}/admin/login`;
-    return (
-      `${entraLogoutUrl}?post_logout_redirect_uri=` +
-      encodeURIComponent(postLogoutRedirectUri)
-    );
+    const params = new URLSearchParams({
+      post_logout_redirect_uri: postLogoutRedirectUri,
+    });
+    if (idTokenHint) {
+      params.set('id_token_hint', idTokenHint);
+    }
+    return `${entraLogoutUrl}?${params.toString()}`;
   }
 
   /**
    * Full-page navigation to the Entra end-session endpoint, killing the
    * IdP session. The `post_logout_redirect_uri` brings the browser back
    * to /admin/login afterwards — it must be registered as a logout URL
-   * on the app registration (portal step, recorded in the logout PR).
+   * on the app registration (portal step; see
+   * docs/auth/entra-manual-changes.md).
    *
    * Without this, the Entra cookie survives our session revocation and
    * the next "Sign in" silently re-authenticates (Karan, 2026-09-28).
@@ -119,11 +133,17 @@ export class AdminEntraAuthService {
    * its own in-app navigation in that case (the page is unloading).
    * Null/empty URL (Entra unprovisioned) → no redirect, returns false.
    */
-  redirectToEntraLogout(entraLogoutUrl: string | null): boolean {
+  redirectToEntraLogout(
+    entraLogoutUrl: string | null,
+    idTokenHint?: string | null,
+  ): boolean {
     if (!entraLogoutUrl) {
       return false;
     }
-    window.location.href = this.buildEntraLogoutUrl(entraLogoutUrl);
+    window.location.href = this.buildEntraLogoutUrl(
+      entraLogoutUrl,
+      idTokenHint,
+    );
     this.signOutRedirectInitiated = true;
     return true;
   }

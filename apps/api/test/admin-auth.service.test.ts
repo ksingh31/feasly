@@ -31,6 +31,7 @@ function makeSessionStore(): AdminSessionStore & {
         id: s.id,
         email: s.email,
         sessionTokenHash: s.sessionTokenHash,
+        idToken: s.idToken ?? null,
         userId: s.userId ?? null,
         activeBuilderId: s.activeBuilderId ?? null,
         viewAs: null,
@@ -123,11 +124,13 @@ async function insertSession(
   token: string,
   email: string,
   expiresAt: Date,
+  idToken?: string,
 ): Promise<void> {
   await sessions.insert({
     id: `sess-${token}`,
     email,
     sessionTokenHash: hashSessionToken(token),
+    idToken: idToken ?? null,
     expiresAt,
   });
 }
@@ -149,6 +152,7 @@ describe('admin auth service (auth/02)', () => {
         loggedOut: true,
         entraLogoutUrl:
           'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+        entraIdTokenHint: null,
       });
       // Invalid after logout
       expect(await service.validateSession('sess-token')).toBeNull();
@@ -165,13 +169,39 @@ describe('admin auth service (auth/02)', () => {
         loggedOut: true,
         entraLogoutUrl:
           'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+        entraIdTokenHint: null,
       });
+    });
+
+    it('returns the stored id_token as entraIdTokenHint (skips the MS account picker)', async () => {
+      const { service, sessions } = makeService();
+      await insertSession(
+        sessions,
+        'sess-token',
+        ADMIN_EMAIL,
+        new Date(NOW.getTime() + SESSION_TTL * 1000),
+        'stub-id-token',
+      );
+      const result = await service.logout('sess-token');
+      expect(result.loggedOut).toBe(true);
+      expect(result.entraIdTokenHint).toBe('stub-id-token');
+    });
+
+    it('unknown token → hint is null (legacy session without id_token)', async () => {
+      const { service } = makeService();
+      const result = await service.logout('no-such-token');
+      expect(result.loggedOut).toBe(true);
+      expect(result.entraIdTokenHint).toBeNull();
     });
 
     it('entraLogoutUrl is null when Entra is unprovisioned', async () => {
       const { service } = makeService({ entraConfigured: false });
       const result = await service.logout(null);
-      expect(result).toEqual({ loggedOut: true, entraLogoutUrl: null });
+      expect(result).toEqual({
+        loggedOut: true,
+        entraLogoutUrl: null,
+        entraIdTokenHint: null,
+      });
     });
   });
 

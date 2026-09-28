@@ -29,6 +29,7 @@ function toSessionRecord(
     // auth/05: the user this session belongs to (null for legacy rows).
     userId: row.userId,
     sessionTokenHash: row.sessionTokenHash,
+    idToken: row.idToken,
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
