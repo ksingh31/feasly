@@ -58,9 +58,11 @@ const FOCUSABLE_SELECTOR =
  * status in the dropdown, then Apply Status. The button stays disabled
  * until the selection differs from the lead's current status.
  *
- * Assign-to-builder is a live dropdown (builders table): picking a builder
- * assigns the lead immediately (POST assign-builder), and the detail is
- * refetched so the modal reflects the updated assignment.
+ * Assign-to-builder is two-step like status (Karan's requirement): pick a
+ * builder in the dropdown, then Apply Builder. The button stays disabled
+ * until the selection differs from the lead's current assignment, and the
+ * detail is refetched after apply so the modal reflects the updated
+ * assignment.
  */
 @Component({
   selector: 'app-admin-lead-detail',
@@ -100,13 +102,17 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   });
 
   /**
-   * Builder assignment: '' = unassigned, otherwise the builder id. Unlike
-   * the status flow this applies immediately on change (task requirement).
+   * Builder assignment: '' = unassigned, otherwise the builder id. Two-step
+   * like the status flow — the dropdown holds a pending pick and Apply
+   * Builder commits it, so a misclick can't reassign the lead.
    */
   protected readonly builderControl = new FormControl<string>('', { nonNullable: true });
 
   /** Mirrors the dropdown so the template can react without a method call. */
   protected readonly selectedStatus = signal<AdminLeadStatus>('new');
+
+  /** Mirrors the builder dropdown's pending pick (committed by Apply Builder). */
+  protected readonly selectedBuilderId = signal<string>('');
 
   protected readonly pipelineStatuses = PIPELINE_STATUSES;
 
@@ -117,6 +123,16 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
       detail !== null &&
       this.selectedStatus() !== detail.status &&
       !this.statusUpdating()
+    );
+  });
+
+  /** Apply Builder is enabled only when the pick differs from the current assignment. */
+  protected readonly canApplyBuilder = computed(() => {
+    const detail = this.detail();
+    return (
+      detail !== null &&
+      this.selectedBuilderId() !== (detail.builderId ?? '') &&
+      !this.assigning()
     );
   });
 
@@ -149,6 +165,7 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
           this.statusControl.setValue(detail.status, { emitEvent: false });
           this.selectedStatus.set(detail.status);
           this.builderControl.setValue(detail.builderId ?? '', { emitEvent: false });
+          this.selectedBuilderId.set(detail.builderId ?? '');
         }
       });
 
@@ -164,7 +181,13 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
 
     this.builderControl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((builderId) => this.assignBuilder(builderId));
+      .subscribe((builderId) => {
+        this.selectedBuilderId.set(builderId);
+        // A fresh pick dismisses the previous apply error.
+        if (this.assignError()) {
+          this.store.dispatch(new DismissAssignBuilderError());
+        }
+      });
   }
 
   ngAfterViewInit(): void {
@@ -246,18 +269,19 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   /**
-   * Assign (or unassign) the lead to a builder, immediately on dropdown
-   * change. On completion the detail is refetched so the modal reflects
-   * the updated assignment; a failed assign rolls the dropdown back to
-   * the server-side value via that same refetch.
+   * Two-step builder assignment: only fires from the Apply Builder button.
+   * On completion the detail is refetched so the modal reflects the updated
+   * assignment; a failed assign rolls the dropdown back to the server-side
+   * value via that same refetch.
    */
-  private assignBuilder(builderId: string): void {
+  protected applyBuilder(): void {
     const detail = this.detail();
-    if (!detail || this.assigning()) {
+    const picked = this.selectedBuilderId();
+    const next = picked === '' ? null : picked;
+    if (!detail || next === (detail.builderId ?? null) || this.assigning()) {
       return;
     }
-    const next = builderId === '' ? null : builderId;
-    // A fresh pick dismisses the previous assign error.
+    // A fresh apply dismisses the previous assign error.
     if (this.assignError()) {
       this.store.dispatch(new DismissAssignBuilderError());
     }

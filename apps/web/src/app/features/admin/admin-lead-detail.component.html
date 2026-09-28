@@ -65,16 +65,26 @@
 
       <label class="lead-modal-card__assign">
         <span class="lead-modal-card__field-label">Assign to builder</span>
-        <select
-          [formControl]="builderControl"
-          [disabled]="assigning() || buildersStatus() === 'loading'"
-          aria-label="Assign to builder"
-        >
-          <option value="">Unassigned</option>
-          @for (b of builders(); track b.id) {
-            <option [value]="b.id">{{ b.displayName }}</option>
-          }
-        </select>
+        <span class="lead-modal-card__assign-row">
+          <select
+            [formControl]="builderControl"
+            [disabled]="assigning() || buildersStatus() === 'loading'"
+            aria-label="Assign to builder"
+          >
+            <option value="">Unassigned</option>
+            @for (b of builders(); track b.id) {
+              <option [value]="b.id">{{ b.displayName }}</option>
+            }
+          </select>
+          <button
+            type="button"
+            class="lead-modal-card__apply"
+            (click)="applyBuilder()"
+            [disabled]="!canApplyBuilder()"
+          >
+            {{ assigning() ? 'Assigning…' : 'Apply Builder' }}
+          </button>
+        </span>
         @if (assigning()) {
           <span class="lead-modal-card__assign-state">Assigning…</span>
         } @else if (assignedBuilderName(); as name) {

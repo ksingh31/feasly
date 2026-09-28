@@ -71,7 +71,8 @@ const BUILDER_X: Builder = {
 
 /**
  * Admin lead-detail modal (FE-9): centered dialog, focus trap, Esc close,
- * dropdown + Apply Status two-step flow, inline error + rollback.
+ * dropdown + Apply Status two-step flow, dropdown + Apply Builder two-step
+ * flow, inline error + rollback.
  */
 describe('AdminLeadDetailComponent', () => {
   let store: Store;
@@ -175,6 +176,12 @@ describe('AdminLeadDetailComponent', () => {
     return fixture.debugElement.query(By.css('.lead-modal-card__apply')).nativeElement;
   }
 
+  function applyBuilderButton(): HTMLButtonElement {
+    return fixture.debugElement.query(
+      By.css('.lead-modal-card__assign .lead-modal-card__apply'),
+    ).nativeElement;
+  }
+
   function statusSelect(): HTMLSelectElement {
     return fixture.debugElement.query(By.css('.lead-modal-card__status-row select'))
       .nativeElement;
@@ -273,11 +280,45 @@ describe('AdminLeadDetailComponent', () => {
     expect(labels).toEqual(['Unassigned', 'Elite Craft']);
   });
 
-  it('assigns the lead on change and shows the builder display name', async () => {
+  it('keeps Apply Builder disabled until a different builder is picked', async () => {
+    await setup();
+    await openLeadWithBuilders();
+
+    expect(assignSelect().value).toBe('');
+    expect(applyBuilderButton().disabled).toBe(true);
+
+    pickBuilder('b1');
+    expect(applyBuilderButton().disabled).toBe(false);
+
+    // Reverting to the current assignment disables it again.
+    pickBuilder('');
+    expect(applyBuilderButton().disabled).toBe(true);
+  });
+
+  it('does not assign the lead on dropdown change alone', async () => {
     await setup();
     await openLeadWithBuilders();
 
     pickBuilder('b1');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // The pick stays pending until Apply Builder is clicked — no request
+    // fires on selection alone.
+    httpMock.expectNone((r) =>
+      r.url.endsWith('/api/v1/admin/leads/a1/assign-builder'),
+    );
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.builderId).toBeNull();
+    expect(applyBuilderButton().disabled).toBe(false);
+  });
+
+  it('assigns the lead when Apply Builder is clicked and shows the builder display name', async () => {
+    await setup();
+    await openLeadWithBuilders();
+
+    pickBuilder('b1');
+    applyBuilderButton().click();
+    fixture.detectChanges();
     flushAssign('b1', DETAIL);
 
     // The detail refetch updates the assignment; the dropdown and caption
@@ -287,18 +328,23 @@ describe('AdminLeadDetailComponent', () => {
       'assigned builderId',
     );
     expect(assignSelect().value).toBe('b1');
+    expect(applyBuilderButton().disabled).toBe(true);
     const caption = fixture.debugElement.query(By.css('.lead-modal-card__assign-state'));
     expect(caption.nativeElement.textContent).toContain('Currently with Elite Craft');
     expect(store.selectSnapshot(AdminBuildersState.assignError)).toBeNull();
   });
 
-  it('unassigns the lead when Unassigned is picked', async () => {
+  it('unassigns the lead when Unassigned is picked and applied', async () => {
     await setup();
     await openLeadWithBuilders({ ...DETAIL, builderId: 'b1' });
 
     expect(assignSelect().value).toBe('b1');
+    expect(applyBuilderButton().disabled).toBe(true);
 
     pickBuilder('');
+    expect(applyBuilderButton().disabled).toBe(false);
+    applyBuilderButton().click();
+    fixture.detectChanges();
     flushAssign(null, { ...DETAIL, builderId: 'b1' });
 
     await waitFor(
@@ -308,11 +354,14 @@ describe('AdminLeadDetailComponent', () => {
     expect(assignSelect().value).toBe('');
   });
 
-  it('rolls the dropdown back and shows an inline error when assign fails', async () => {
+  it('rolls the dropdown back and shows an inline error when builder apply fails', async () => {
     await setup();
     await openLeadWithBuilders();
 
     pickBuilder('b1');
+    applyBuilderButton().click();
+    fixture.detectChanges();
+
     httpMock
       .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/assign-builder'))
       .error(new ProgressEvent('error'));
@@ -327,6 +376,7 @@ describe('AdminLeadDetailComponent', () => {
       'assign error',
     );
     expect(assignSelect().value).toBe('');
+    expect(applyBuilderButton().disabled).toBe(true);
     const error = fixture.debugElement.query(By.css('.lead-modal-card__error'));
     expect(error).toBeTruthy();
     expect(error.nativeElement.getAttribute('role')).toBe('alert');
