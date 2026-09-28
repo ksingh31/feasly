@@ -543,8 +543,13 @@ export function createAdminLeadsService(
         'created_at',
       ];
 
-      const escapeCsv = (value: string | number | boolean | null): string => {
-        if (value === null) return '';
+      // Total CSV escapers: no input value — null, undefined, a wrong-typed
+      // date, an Invalid Date — may throw. A single bad row must never kill
+      // the entire export (2026-09-27: export failed server-side for the
+      // full lead set, likely one bad row; 2026-09-28: hardened further
+      // after the null-date fix proved insufficient).
+      const escapeCsv = (value: unknown): string => {
+        if (value === null || value === undefined) return '';
         const str = String(value);
         if (str.includes(',') || str.includes('"') || str.includes('\n')) {
           return `"${str.replace(/"/g, '""')}"`;
@@ -553,40 +558,51 @@ export function createAdminLeadsService(
       };
 
       const lines = [headers.join(',')];
-      // Dates are null-safe: a single row with a missing timestamp must not
-      // kill the entire export (2026-09-27: export failed server-side for the
-      // full lead set, likely one bad row).
-      const isoDate = (d: Date | null | undefined): string | null =>
-        d?.toISOString() ?? null;
+      const isoDate = (d: unknown): string | null => {
+        if (d instanceof Date) {
+          return Number.isNaN(d.getTime()) ? null : d.toISOString();
+        }
+        if (typeof d === 'string' || typeof d === 'number') {
+          const parsed = new Date(d);
+          return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+        }
+        return null;
+      };
+      const serializeRow = (row: AdminLeadRow): string =>
+        [
+          escapeCsv(row.id),
+          escapeCsv(row.name),
+          escapeCsv(row.email),
+          escapeCsv(row.phone),
+          escapeCsv(row.addressKey),
+          escapeCsv(row.leadScore),
+          escapeCsv(row.status),
+          escapeCsv(row.source),
+          escapeCsv(row.projectType ?? ''),
+          escapeCsv(row.tenantKey),
+          escapeCsv(row.timeline),
+          escapeCsv(row.sandbox),
+          escapeCsv(row.quarantined),
+          escapeCsv(row.marketingConsent),
+          escapeCsv(isoDate(row.consentTs)),
+          escapeCsv(
+            row.unsubscribedAt !== null || row.contactOptOutAt !== null
+              ? 'out'
+              : 'in',
+          ),
+          escapeCsv(isoDate(row.consentUpdatedAt)),
+          escapeCsv(isoDate(row.unsubscribedAt)),
+          escapeCsv(isoDate(row.contactOptOutAt)),
+          escapeCsv(isoDate(row.createdAt)),
+        ].join(',');
       for (const row of result.rows) {
-        lines.push(
-          [
-            escapeCsv(row.id),
-            escapeCsv(row.name),
-            escapeCsv(row.email),
-            escapeCsv(row.phone),
-            escapeCsv(row.addressKey),
-            escapeCsv(row.leadScore),
-            escapeCsv(row.status),
-            escapeCsv(row.source),
-            escapeCsv(row.projectType ?? ''),
-            escapeCsv(row.tenantKey),
-            escapeCsv(row.timeline),
-            escapeCsv(row.sandbox),
-            escapeCsv(row.quarantined),
-            escapeCsv(row.marketingConsent),
-            escapeCsv(isoDate(row.consentTs)),
-            escapeCsv(
-              row.unsubscribedAt !== null || row.contactOptOutAt !== null
-                ? 'out'
-                : 'in',
-            ),
-            escapeCsv(isoDate(row.consentUpdatedAt)),
-            escapeCsv(isoDate(row.unsubscribedAt)),
-            escapeCsv(isoDate(row.contactOptOutAt)),
-            escapeCsv(isoDate(row.createdAt)),
-          ].join(','),
-        );
+        try {
+          lines.push(serializeRow(row));
+        } catch {
+          // Last resort: emit the row id so the export still completes and
+          // the bad row is identifiable in the file.
+          lines.push(escapeCsv((row as { id?: unknown })?.id ?? ''));
+        }
       }
 
       const timestamp = new Date().toISOString().slice(0, 10);

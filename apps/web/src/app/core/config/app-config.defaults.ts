@@ -33,6 +33,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     gateTimeoutMs: 25000,
     // Bulk CSV export on a cold Function can exceed the standard 15s timeout.
     exportTimeoutMs: 60000,
+    // Give the browser a task to start the download before the blob URL dies
+    // (synchronous revoke aborts downloads in Safari/WebKit).
+    downloadRevokeDelayMs: 1000,
   },
   propertyData: {
     source: 'live',

@@ -7,7 +7,8 @@
     "baseUrl": "https://feasly-dev-api-4fhkep.azurewebsites.net",
     "timeoutMs": 15000,
     "useMockApi": false,
-    "exportTimeoutMs": 60000
+    "exportTimeoutMs": 60000,
+    "downloadRevokeDelayMs": 1000
   },
   "propertyData": {
     "source": "live",

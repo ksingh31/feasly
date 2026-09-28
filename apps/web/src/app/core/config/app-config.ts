@@ -39,6 +39,11 @@ export interface AppConfig {
      * generation for thousands of rows can exceed the standard timeout.
      */
     exportTimeoutMs: number;
+    /**
+     * Delay before revoking a blob object URL after a programmatic download
+     * click. Revoking synchronously aborts the download in Safari/WebKit.
+     */
+    downloadRevokeDelayMs: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
