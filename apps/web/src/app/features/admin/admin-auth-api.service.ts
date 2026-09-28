@@ -7,10 +7,8 @@ import type {
   AdminAuthRequestResponse,
   AdminAuthLogoutResponse,
   AdminAuthVerifyResponse,
-  AdminForgotPasswordBody,
-  AdminForgotPasswordResponse,
-  AdminPasswordLoginBody,
-  AdminPasswordLoginResponse,
+  AdminEntraCallbackBody,
+  AdminEntraCallbackResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
@@ -70,43 +68,27 @@ export class AdminAuthApiService {
   }
 
   // ------------------------------------------------------------------
-  // AUTH-02 (auth modernization, MVP) — password sign-in.
+  // AUTH-02 (auth modernization, MVP) — Microsoft Entra External ID.
   //
-  // CONTRACT-DRIVEN: `POST /api/v1/admin/auth/login` lands with the
-  // backend half of auth/02. This method codes against
-  // `AdminPasswordLoginBody` / `AdminPasswordLoginResponse` in
+  // CONTRACT-DRIVEN: `POST /api/v1/admin/auth/entra/callback` lands with
+  // the backend half of auth/02. This method codes against
+  // `AdminEntraCallbackBody` / `AdminEntraCallbackResponse` in
   // @feasly/contracts — the backend must honor that shape.
   // ------------------------------------------------------------------
 
   /**
-   * Sign in with email + password. On success the session token arrives in
-   * the JSON body (same Bearer <redacted> discipline as the magic-link
-   * verify response). Failures propagate through `toApiError`:
-   * - 401 INVALID_CREDENTIALS — wrong email or password (indistinguishable)
-   * - 429 TOO_MANY_ATTEMPTS — rate limit (5 attempts / 15 min)
+   * Exchange an Entra authorization code for our session. The SPA never
+   * touches Entra tokens: the backend redeems `{ code, codeVerifier,
+   * redirectUri }` with Entra and returns the Feasly session
+   * (`sessionToken` + user) in the JSON body — the same Bearer <redacted>
+   * discipline as the magic-link verify response.
    */
-  loginWithPassword(
-    body: AdminPasswordLoginBody,
-  ): Observable<AdminPasswordLoginResponse> {
+  exchangeEntraCode(
+    body: AdminEntraCallbackBody,
+  ): Observable<AdminEntraCallbackResponse> {
     return this.call(
-      this.http.post<AdminPasswordLoginResponse>(
-        `${this.authBase}/login`,
-        body,
-      ),
-    );
-  }
-
-  /**
-   * Request a password-reset email. Always returns `{ sent: true }` (no
-   * enumeration oracle) — the UI shows the "check your email" copy either
-   * way. CONTRACT-DRIVEN: backend lands with auth/02.
-   */
-  requestPasswordReset(
-    body: AdminForgotPasswordBody,
-  ): Observable<AdminForgotPasswordResponse> {
-    return this.call(
-      this.http.post<AdminForgotPasswordResponse>(
-        `${this.authBase}/forgot-password`,
+      this.http.post<AdminEntraCallbackResponse>(
+        `${this.authBase}/entra/callback`,
         body,
       ),
     );

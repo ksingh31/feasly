@@ -1,30 +1,28 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Store } from '@ngxs/store';
+import { ActivatedRoute } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { AdminAuthApiService } from './admin-auth-api.service';
-import { LoginAdminWithPassword } from './admin-auth.actions';
-import { AdminAuthState, type LoginErrorKind } from './admin-auth.state';
+import { AdminEntraAuthService } from './admin-entra-auth.service';
 
-type PasswordStatus = 'idle' | 'submitting';
 type MagicLinkStatus = 'idle' | 'sending' | 'sent' | 'error';
-type LoginMode = 'password' | 'magic-link';
+type LoginMode = 'entra' | 'magic-link';
 
 /**
- * Admin login (auth/02): password-first sign in.
+ * Admin login (auth/02 pivot): Microsoft Entra External ID.
  *
- * The password form posts to `POST /api/v1/admin/auth/login` via the
- * `LoginAdminWithPassword` NGXS action (contract-driven — the backend
- * route lands separately). Inline errors come from
- * `AdminAuthState.lastLoginError`; on success the guard's probe takes over
- * and we land on `/admin`.
+ * The card keeps the admin design language (warm cream page, centered
+ * white card, brass primary button). The single "Sign in →" button starts
+ * the Microsoft-hosted flow via `AdminEntraAuthService.startSignIn()`
+ * (PKCE + state, verifier kept in sessionStorage); Entra redirects back
+ * to `/admin/auth/callback`, which exchanges the code with the backend.
+ * The SPA never sees Entra tokens.
  *
  * The magic-link flow is NOT removed: it stays available behind the
  * "Use a sign-in link instead" toggle while the backend keeps the routes
- * live (`admin.auth.magicLinkEnabled`, auth/02 story). AUTH-06 retires it.
+ * live. AUTH-06 retires it. `/admin/verify` is untouched.
  *
  * Query params:
  * - `expired=1` — shows the session-expired copy.
@@ -37,41 +35,33 @@ type LoginMode = 'password' | 'magic-link';
 @Component({
   selector: 'app-admin-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule],
   templateUrl: './admin-login.component.html',
   styleUrls: ['./admin-login.component.scss'],
 })
 export class AdminLoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AdminAuthApiService);
-  private readonly store = inject(Store);
-  private readonly router = inject(Router);
+  private readonly entra = inject(AdminEntraAuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
   /**
    * Buyer-grade login copy (ConfigService, `copy.admin.auth`) — exact
    * story wording, deploy-tunable, keeps the no-hardcode tripwire green.
-   * The 401 copy never reveals whether the email exists (no oracle).
    */
   protected readonly copy = inject(ConfigService).get('copy').admin.auth;
-
-  protected readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required]],
-    rememberMe: [true],
-  });
 
   /** Legacy magic-link form (kept while the backend flag stays on). */
   protected readonly magicLinkForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
   });
 
-  protected readonly mode = signal<LoginMode>('password');
-  protected readonly passwordStatus = signal<PasswordStatus>('idle');
+  protected readonly mode = signal<LoginMode>('entra');
+  protected readonly entraStarting = signal(false);
+  /** False while the deployed app-config still carries ENTRA_* placeholders. */
+  protected readonly entraConfigured = this.entra.isConfigured();
   protected readonly magicLinkStatus = signal<MagicLinkStatus>('idle');
-  protected readonly showPassword = signal(false);
-  protected readonly lastLoginError = this.store.selectSignal(AdminAuthState.lastLoginError);
 
   protected showExpired = false;
 
@@ -84,21 +74,19 @@ export class AdminLoginComponent {
     });
   }
 
-  protected submitPassword(): void {
-    if (this.form.invalid || this.passwordStatus() === 'submitting') return;
-    this.passwordStatus.set('submitting');
-    const { email, password, rememberMe } = this.form.getRawValue();
-    this.store
-      .dispatch(new LoginAdminWithPassword(email.trim(), password, rememberMe))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.passwordStatus.set('idle');
-        if (this.store.selectSnapshot(AdminAuthState.authenticated)) {
-          void this.router.navigate(['/admin']);
-        }
-        // Otherwise lastLoginError renders the inline error — the user
-        // keeps their place and can retry immediately.
-      });
+  /**
+   * Start the Microsoft-hosted sign-in. The redirect unloads the page, so
+   * `entraStarting` only resets when the redirect itself throws (e.g.
+   * `crypto.subtle` unavailable outside a secure context).
+   */
+  protected async startEntraSignIn(): Promise<void> {
+    if (!this.entraConfigured || this.entraStarting()) return;
+    this.entraStarting.set(true);
+    try {
+      await this.entra.startSignIn();
+    } catch {
+      this.entraStarting.set(false);
+    }
   }
 
   protected submitMagicLink(): void {
@@ -120,33 +108,6 @@ export class AdminLoginComponent {
 
   protected retryMagicLink(): void {
     this.magicLinkStatus.set('idle');
-  }
-
-  protected togglePasswordVisibility(): void {
-    this.showPassword.update((v) => !v);
-  }
-
-  protected loginErrorText(): string | null {
-    const kind = this.lastLoginError();
-    if (kind === null) return null;
-    switch (kind) {
-      case 'invalid-credentials':
-        return this.copy.loginInvalidCredentials;
-      case 'rate-limited':
-        return this.copy.loginRateLimited;
-      case 'transient':
-        return this.copy.loginTransient;
-    }
-  }
-
-  protected get emailInvalid(): boolean {
-    const control = this.form.controls.email;
-    return control.invalid && (control.dirty || control.touched);
-  }
-
-  protected get passwordInvalid(): boolean {
-    const control = this.form.controls.password;
-    return control.invalid && (control.dirty || control.touched);
   }
 
   protected get magicLinkEmailInvalid(): boolean {

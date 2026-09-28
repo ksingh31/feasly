@@ -155,11 +155,11 @@ export const appConfig: ApplicationConfig = {
                       updateError: null,
                     }
                   : // AdminAuthState persists the session token + identity so the
-                    // session survives a reload, but the transient login /
+                    // session survives a reload, but the transient Entra /
                     // verify error classifications are reset — a reload must
                     // never repaint a stale failure (auth/02).
                     key === 'adminAuth'
-                    ? { ...obj, lastLoginError: null, lastVerifyError: null }
+                    ? { ...obj, lastEntraError: null, lastVerifyError: null }
                     : obj,
       }),
     ),

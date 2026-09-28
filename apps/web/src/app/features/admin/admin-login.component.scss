@@ -1,5 +1,5 @@
 /**
- * Admin login (auth/02): password-first sign in.
+ * Admin login (auth/02 pivot): Microsoft Entra External ID sign-in.
  *
  * Layout mirrors the approved auth mockups (artifact `auth-mockups`,
  * "Sign in" screen); every token below comes from the Feasly theme in
@@ -97,43 +97,14 @@
   border-color: var(--accent);
 }
 
-.admin-login__password-wrap {
-  position: relative;
-  display: block;
-}
-
-.admin-login__password-wrap input {
-  padding-right: 4.5rem;
-}
-
-.admin-login__toggle {
-  position: absolute;
-  top: 50%;
-  right: 0.5rem;
-  transform: translateY(-50%);
-  padding: 0.25rem 0.5rem;
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--accent-deep);
-  background: none;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-}
-
-.admin-login__toggle:hover {
-  background: var(--accent-bg);
-}
-
 .admin-login__error {
   color: var(--danger);
   margin: -0.5rem 0 1rem;
   font-size: 0.875rem;
 }
 
-/* Inline login-failure box (401/429/transient) — mirrors the mockup's
- * error-box: the user keeps their place and can retry immediately. */
+/* Inline failure box — mirrors the mockup's error-box: the user keeps
+ * their place and can retry immediately. */
 .admin-login__errorbox {
   margin: 0 0 1rem;
   padding: 0.75rem 0.8125rem;
@@ -142,37 +113,6 @@
   border: 1px solid rgba(179, 38, 30, 0.36);
   color: var(--danger);
   font-size: 0.875rem;
-}
-
-.admin-login__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0 0 1.25rem;
-  font-size: 0.875rem;
-}
-
-.admin-login__remember {
-  display: flex;
-  align-items: center;
-  gap: 0.5625rem;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.admin-login__remember input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--accent-deep);
-}
-
-.admin-login__link {
-  color: var(--accent-deep);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  white-space: nowrap;
 }
 
 .admin-login__submit {
@@ -203,7 +143,7 @@
   box-shadow: var(--focus-ring);
 }
 
-/* Secondary toggle between password and magic-link modes. */
+/* Secondary toggle between Entra and magic-link modes. */
 .admin-login__alt {
   width: 100%;
   margin-top: 0.75rem;
@@ -229,11 +169,5 @@
 
   .admin-login__card {
     padding: 1.5rem;
-  }
-
-  .admin-login__meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.625rem;
   }
 }

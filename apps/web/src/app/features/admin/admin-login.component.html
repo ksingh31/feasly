@@ -2,7 +2,6 @@
   <div class="admin-login__card">
     <p class="admin-login__eyebrow">Admin portal</p>
     <h1>Welcome back</h1>
-    <p class="admin-login__intro">Sign in to manage leads, builders and your team.</p>
 
     @if (showExpired) {
       <p class="admin-login__notice" role="status">
@@ -10,73 +9,27 @@
       </p>
     }
 
-    @if (mode() === 'password') {
-      <form [formGroup]="form" (ngSubmit)="submitPassword()" novalidate>
-        <label class="admin-login__field">
-          <span>Email address</span>
-          <input
-            type="email"
-            formControlName="email"
-            autocomplete="username"
-            inputmode="email"
-            [attr.aria-invalid]="emailInvalid"
-            placeholder="you@example.com"
-          />
-        </label>
-        @if (emailInvalid) {
-          <p class="admin-login__error" role="alert">Enter a valid email address.</p>
-        }
+    @if (mode() === 'entra') {
+      <p class="admin-login__intro">{{ copy.entraSignInIntro }}</p>
 
-        <label class="admin-login__field">
-          <span>Password</span>
-          <span class="admin-login__password-wrap">
-            <input
-              [type]="showPassword() ? 'text' : 'password'"
-              formControlName="password"
-              autocomplete="current-password"
-              [attr.aria-invalid]="passwordInvalid"
-              placeholder="Your password"
-            />
-            <button
-              type="button"
-              class="admin-login__toggle"
-              (click)="togglePasswordVisibility()"
-              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
-            >
-              {{ showPassword() ? 'Hide' : 'Show' }}
-            </button>
-          </span>
-        </label>
-        @if (passwordInvalid) {
-          <p class="admin-login__error" role="alert">Enter your password.</p>
-        }
-
-        @if (loginErrorText(); as errorText) {
-          <p class="admin-login__errorbox" role="alert">
-            {{ errorText }}
-          </p>
-        }
-
-        <div class="admin-login__meta">
-          <label class="admin-login__remember">
-            <input type="checkbox" formControlName="rememberMe" />
-            Remember me on this device
-          </label>
-          <a class="admin-login__link" routerLink="/admin/forgot-password"> Forgot password? </a>
-        </div>
-
+      @if (entraConfigured) {
         <button
-          type="submit"
+          type="button"
           class="admin-login__submit"
-          [disabled]="form.invalid || passwordStatus() === 'submitting'"
+          (click)="startEntraSignIn()"
+          [disabled]="entraStarting()"
         >
-          @if (passwordStatus() === 'submitting') {
-            Signing in…
+          @if (entraStarting()) {
+            Redirecting…
           } @else {
-            Sign in
+            {{ copy.entraSignInLabel }}
           }
         </button>
-      </form>
+      } @else {
+        <p class="admin-login__errorbox" role="alert">
+          {{ copy.entraNotConfigured }}
+        </p>
+      }
       <button type="button" class="admin-login__alt" (click)="mode.set('magic-link')">
         Use a sign-in link instead
       </button>
@@ -118,8 +71,8 @@
           </button>
         </form>
       }
-      <button type="button" class="admin-login__alt" (click)="mode.set('password')">
-        Back to password sign in
+      <button type="button" class="admin-login__alt" (click)="mode.set('entra')">
+        Back to Microsoft sign in
       </button>
     }
   </div>
