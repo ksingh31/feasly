@@ -355,14 +355,25 @@ describe('GET /api/v1/billing/invoices (BILL-04)', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('applies limit/offset defaults and clamps', async () => {
+  it('applies limit/offset defaults', async () => {
     const { route, billing } = makeDeps();
-    await route.listInvoices({}, { limit: '500', offset: '-5' });
+    await route.listInvoices({}, {});
 
     expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
-      limit: 100,
+      limit: 20,
       offset: 0,
     });
+  });
+
+  it('rejects out-of-range pagination with 400', async () => {
+    const { route, billing } = makeDeps();
+    await expect(
+      route.listInvoices({}, { limit: '500', offset: '0' }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      route.listInvoices({}, { limit: '20', offset: '-5' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(billing.listInvoices).not.toHaveBeenCalled();
   });
 
   it('rejects a non-numeric limit with 400', async () => {

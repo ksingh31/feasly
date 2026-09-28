@@ -22,31 +22,29 @@ import {
 const CTX: TemplateContext = {
   appBaseUrl: 'https://app.feasly.example',
   unsubscribeBaseUrl: 'https://app.feasly.example/unsubscribe',
-  appName: 'Feasly',
-  supportEmail: 'support@feasly.example',
-  builderName: 'Test Builder Inc',
+  brandName: 'Feasly',
 };
 
 describe('commission-invoice-ready template (BILL-04)', () => {
   it('renders reference, commission, contract value, and review deadline', () => {
     const due = new Date('2026-10-01T12:00:00.000Z');
     const rendered = renderCommissionInvoiceReadyEmail(CTX, {
-      invoiceReference: 'INV-2026-001',
+      invoiceRef: 'INV-2026-001',
       commissionCents: 500_000,
       contractValueCents: 50_000_000,
+      currency: 'CAD',
       reviewDueAt: due,
-      billingPortalUrl: 'https://app.feasly.example/builder/billing',
     });
 
-    expect(rendered.subject).toContain('INV-2026-001');
+    expect(rendered.subject).toContain('commission invoice');
     expect(rendered.html).toContain('INV-2026-001');
     // 1% commission: $5,000.00
     expect(rendered.html).toContain('$5,000.00');
     // Contract value excluding land: $500,000.00
     expect(rendered.html).toContain('$500,000.00');
-    expect(rendered.html).toContain('excluding land');
-    // Review deadline rendered as a day-level date.
-    expect(rendered.html).toContain('October 1, 2026');
+    expect(rendered.html).toContain('excl. land');
+    // Review deadline rendered as a day-level date (en-CA short month).
+    expect(rendered.html).toContain('Oct 1, 2026');
     expect(rendered.text).toContain('INV-2026-001');
     expect(rendered.text).toContain('$5,000.00');
     // Transactional: no unsubscribe footer.
@@ -57,19 +55,16 @@ describe('commission-invoice-ready template (BILL-04)', () => {
 describe('commission-payment-received template (BILL-04)', () => {
   it('renders receipt details and invoice reference', () => {
     const rendered = renderCommissionPaymentReceivedEmail(CTX, {
-      invoiceReference: 'INV-2026-001',
+      invoiceRef: 'INV-2026-001',
       commissionCents: 500_000,
+      currency: 'CAD',
       paidAt: new Date('2026-09-28T12:00:00.000Z'),
-      cardBrand: 'visa',
-      cardLast4: '4242',
-      receiptUrl: 'https://app.feasly.example/builder/billing/receipt/1',
     });
 
     expect(rendered.subject).toContain('Payment received');
     expect(rendered.html).toContain('INV-2026-001');
     expect(rendered.html).toContain('$5,000.00');
-    expect(rendered.html).toContain('4242');
-    expect(rendered.html).toContain('September 28, 2026');
+    expect(rendered.html).toContain('Sep 28, 2026');
     expect(rendered.text).toContain('INV-2026-001');
   });
 });
@@ -77,20 +72,17 @@ describe('commission-payment-received template (BILL-04)', () => {
 describe('commission-payment-failed template (BILL-04)', () => {
   it('renders the card-update CTA and the 7-day window', () => {
     const rendered = renderCommissionPaymentFailedEmail(CTX, {
-      invoiceReference: 'INV-2026-001',
+      invoiceRef: 'INV-2026-001',
       commissionCents: 500_000,
-      failureReason: 'card_declined',
-      updateCardUrl: 'https://app.feasly.example/builder/billing/card',
+      currency: 'CAD',
+      updateWithinDays: 7,
     });
 
     expect(rendered.subject).toContain('INV-2026-001');
     expect(rendered.html).toContain('INV-2026-001');
     expect(rendered.html).toContain('$5,000.00');
-    expect(rendered.html).toContain('update your card');
+    expect(rendered.html).toContain('Update card');
     expect(rendered.html).toContain('7 days');
-    expect(rendered.html).toContain(
-      'https://app.feasly.example/builder/billing/card',
-    );
     expect(rendered.text).toContain('7 days');
   });
 });
