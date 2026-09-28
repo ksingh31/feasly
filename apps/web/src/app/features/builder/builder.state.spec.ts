@@ -12,7 +12,7 @@ import {
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BuilderAuthMeResponse,
   BuilderLeadListResponse,
@@ -25,6 +25,7 @@ import {
   UpdateBuilderLeadStatus,
   VerifyBuilderToken,
 } from './builder.actions';
+import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderState, type BuilderStateModel } from './builder.state';
 
 const SESSION: BuilderAuthMeResponse = {
@@ -227,6 +228,31 @@ describe('BuilderState (embed/09)', () => {
     expect(s.session).toBeNull();
     expect(s.sessionToken).toBeNull();
     expect(s.leads).toEqual([]);
+    httpMock.verify();
+  });
+
+  it('LogoutBuilder fires the Entra end-session redirect with the id_token hint', async () => {
+    const entraAuth = TestBed.inject(BuilderEntraAuthService);
+    const redirectSpy = vi
+      .spyOn(entraAuth, 'redirectToEntraLogout')
+      .mockReturnValue(true);
+
+    const done = store.dispatch(new LogoutBuilder());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/logout'))
+      .flush({
+        loggedOut: true,
+        setCookie: 'cleared',
+        entraLogoutUrl:
+          'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+        entraIdTokenHint: 'builder-id-token',
+      });
+    await done;
+
+    expect(redirectSpy).toHaveBeenCalledWith(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      'builder-id-token',
+    );
     httpMock.verify();
   });
 

@@ -149,14 +149,50 @@ describe('AdminAuthState (auth/02)', () => {
       loggedOut: true,
       setCookie: 'cleared',
       entraLogoutUrl: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      entraIdTokenHint: 'stub-id-token',
     });
     await done;
 
     expect(redirectSpy).toHaveBeenCalledWith(
       'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      'stub-id-token',
     );
     // Local state is still cleared even when the IdP redirect fires.
     expect(snapshot().sessionToken).toBeNull();
+    httpMock.verify();
+  });
+
+  it('LogoutAdmin passes a null hint when the API returned none (legacy session)', async () => {
+    await signIn();
+    const entraAuth = TestBed.inject(AdminEntraAuthService);
+    const redirectSpy = vi
+      .spyOn(entraAuth, 'redirectToEntraLogout')
+      .mockReturnValue(true);
+
+    const done = store.dispatch(new LogoutAdmin());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/auth/logout')).flush({
+      loggedOut: true,
+      setCookie: 'cleared',
+      entraLogoutUrl: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    });
+    await done;
+
+    expect(redirectSpy).toHaveBeenCalledWith(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      null,
+    );
+    httpMock.verify();
+  });
+
+  it('LogoutAdmin with no active session still succeeds (no error)', async () => {
+    const done = store.dispatch(new LogoutAdmin());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/logout'))
+      .flush({ loggedOut: true, setCookie: 'cleared', entraLogoutUrl: null });
+    await done;
+
+    expect(snapshot().sessionToken).toBeNull();
+    expect(snapshot().authStatus).toBe('unknown');
     httpMock.verify();
   });
 
