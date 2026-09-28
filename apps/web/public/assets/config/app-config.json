@@ -365,7 +365,13 @@
     "reviewPending": true
   },
   "admin": {
-    "defaultRateLimit": 60
+    "defaultRateLimit": 60,
+    "entra": {
+      "tenantSubdomain": "feaslyext",
+      "tenantId": "e8f46aab-2491-4389-8e39-ae78ee12db6a",
+      "clientId": "8d5e842c-c97d-490c-9437-5c77bd9104df",
+      "userFlow": "feasly-signup-signin"
+    }
   },
   "limits": {
     "communityPageLimit": 24,
