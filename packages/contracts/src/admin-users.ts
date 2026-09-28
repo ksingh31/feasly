@@ -100,6 +100,11 @@ export interface AdminUserUpdateBody {
   readonly memberships?: ReadonlyArray<AdminUserMembership>;
 }
 
+/** `DELETE /api/v1/admin/users/{id}` response. */
+export interface AdminUserDeleteResponse {
+  readonly deleted: true;
+}
+
 /** `POST /api/v1/admin/users/{id}/resend-invite` response. */
 export interface AdminUserResendInviteResponse {
   readonly user: AdminUser;

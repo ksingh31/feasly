@@ -268,6 +268,11 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/admin-builders.state')).adminBuildersStateProvider,
       ),
+      // Admin user management (auth/03): the team-user table.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-users.state')).adminUsersStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -283,6 +288,12 @@ export const routes: Routes = [
         path: 'builders',
         loadComponent: () =>
           import('./features/admin/admin-builders.component').then((m) => m.AdminBuildersComponent),
+      },
+      // Admin user management (auth/03): invite/edit/deactivate/delete users.
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent),
       },
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day
