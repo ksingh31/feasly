@@ -784,6 +784,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "LeadResponse": {
         "properties": {
+          "emailAlreadySent": {
+            "description": "True when no new email was sent because one already went out recently for this email + property (idempotent resubmit)",
+            "type": "boolean",
+          },
           "emailError": {
             "description": "Why the magic-link email failed — present only when magicLinkSent is false",
             "enum": [

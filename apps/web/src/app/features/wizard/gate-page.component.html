@@ -78,14 +78,22 @@
 
         <div class="field">
           <label for="gate-timeline">
-            {{ timelineLabel }} <span class="optional">{{ copy.optionalMarker }}</span>
+            {{ timelineLabel }}
           </label>
-          <select id="gate-timeline" formControlName="timeline">
+          <select
+            id="gate-timeline"
+            formControlName="timeline"
+            [attr.aria-invalid]="showError('timeline')"
+            aria-describedby="gate-timeline-error"
+          >
             <option value="">{{ copy.timelinePlaceholder }}</option>
             @for (option of copy.timelineOptions; track option.id) {
               <option [value]="option.id">{{ option.label }}</option>
             }
           </select>
+          @if (showError('timeline')) {
+            <p class="field-error" id="gate-timeline-error" role="alert">{{ copy.timelineRequired }}</p>
+          }
         </div>
 
         <!-- HRD-03 honeypot: invisible to humans, irresistible to bots.

@@ -535,6 +535,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       timelineLabel: 'When are you hoping to build?',
       timelineLabelReno: 'When are you hoping to renovate?',
       timelinePlaceholder: 'Choose one…',
+      // Karan 2026-09-27: the timeline question is required — it determines
+      // the best leads.
+      timelineRequired: 'Please choose when you’re hoping to build.',
       timelineOptions: [
         { id: '0-3mo', label: 'Within 3 months' },
         { id: '3-6mo', label: '3–6 months' },

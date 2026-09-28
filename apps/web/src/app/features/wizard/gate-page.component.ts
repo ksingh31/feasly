@@ -23,7 +23,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
 /**
  * Lead gate (FE-004): the single gate in the flow.
  *
- * Name + email required, phone + timeline optional. The contact-consent
+ * Name + email + timeline required, phone optional. The contact-consent
  * checkbox is REQUIRED to submit (Karan 2026-09-27): Feasly and builders
  * associated with us may proactively contact the lead about their estimate;
  * the lead can opt out anytime. Consent wording is a DRAFT pending legal
@@ -95,7 +95,7 @@ export class GatePageComponent implements OnInit {
       const value = (control.value as string | null)?.trim() ?? '';
       return value === '' || this.phonePattern.test(value) ? null : { phoneInvalid: true };
     }],
-    timeline: ['' as TimelineOption | ''],
+    timeline: ['' as TimelineOption | '', Validators.required],
     // Contact consent (Karan 2026-09-27): REQUIRED to submit. Feasly and
     // builders associated with us may contact the lead about their estimate;
     // the lead can opt out anytime. Wording is a DRAFT pending legal review.
@@ -143,7 +143,7 @@ export class GatePageComponent implements OnInit {
   }
 
   /** True when the control is invalid and the user has interacted or submitted. */
-  showError(controlName: 'name' | 'email' | 'phone' | 'consent'): boolean {
+  showError(controlName: 'name' | 'email' | 'phone' | 'timeline' | 'consent'): boolean {
     const control = this.form.get(controlName);
     return !!control && control.invalid && (control.touched || control.dirty);
   }
@@ -220,6 +220,10 @@ export class GatePageComponent implements OnInit {
               // Explicit (possibly undefined): clears a stale emailError
               // from an earlier failed submit on success.
               emailError: lead.emailError,
+              // Idempotent resubmit (P0 2026-09-27): no new email was sent
+              // because one already went out recently for this email +
+              // property — the report page says "already in your inbox".
+              emailAlreadySent: lead.emailAlreadySent,
             }),
           );
           // Karan directive 2026-09-27 (immediate unlock): the backend
@@ -277,6 +281,7 @@ export class GatePageComponent implements OnInit {
               magicLinkSent: lead.magicLinkSent,
               expiresInDays: lead.expiresInDays,
               emailError: lead.emailError,
+              emailAlreadySent: lead.emailAlreadySent,
             }),
           );
           this.store.dispatch(new ComparisonLeadSubmitted(lead.leadId));

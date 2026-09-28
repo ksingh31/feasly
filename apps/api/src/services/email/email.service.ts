@@ -159,6 +159,14 @@ export type EmailDelivery =
        * sent it, so "check your inbox or try again later" is honest.
        */
       readonly emailError: EmailFailureCode;
+      /**
+       * True when the provider accepted the message but delivery couldn't
+       * be confirmed (ACS beginSend succeeded, polling timed out). The send
+       * was NOT retried — re-sending would likely duplicate a delivered
+       * email (P0 2026-09-27). Callers should record this like a send for
+       * resubmit suppression: a user retry must not start a second send.
+       */
+      readonly acceptedByProvider?: boolean;
     };
 
 /** Default max attempts: initial try + 2 retries. */
@@ -185,9 +193,13 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
    * throws on send failure — exhaustion returns `{ sent: false, ... }`
    * so callers degrade gracefully instead of 500ing.
    *
-   * Duplicate-email caveat: a retry can rarely produce a duplicate (attempt
-   * 1 actually sent but we timed out waiting for the poll). Low-harm for
-   * magic links — both links stay valid — so no dedupe machinery.
+   * Duplicate-email safety (P0 2026-09-27): a retry NEVER re-sends a
+   * message the provider already accepted. Providers signal that with
+   * `EmailProviderError.sendAccepted` (ACS: beginSend succeeded, delivery
+   * polling timed out) — such errors are never retried, and the returned
+   * failure carries `acceptedByProvider: true` so callers can suppress
+   * resubmits. Retries only re-attempt sends that never reached the
+   * provider, where a duplicate is impossible.
    */
   async function deliver(message: EmailMessage): Promise<EmailDelivery> {
     const maxAttempts = Math.max(
@@ -224,6 +236,12 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
           provider: deps.provider.name,
           failureReason: sanitizeErrorMessage(error),
           emailError,
+          // Accepted-but-unconfirmed: the provider has the message (a
+          // re-send would likely duplicate it), so this failure is never
+          // retried and the caller must suppress resubmits.
+          ...(error instanceof EmailProviderError && error.sendAccepted
+            ? { acceptedByProvider: true as const }
+            : {}),
         };
       }
     }

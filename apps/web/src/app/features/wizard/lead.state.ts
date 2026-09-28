@@ -16,6 +16,12 @@ export interface LeadStateModel {
    * 'delivery-failed': transient failure after retries (check inbox).
    */
   emailError?: 'invalid-recipient' | 'delivery-failed';
+  /**
+   * Idempotent resubmit (P0 2026-09-27): no new email was sent because one
+   * already went out recently for this email + property — the earlier link
+   * is still live ("already in your inbox").
+   */
+  emailAlreadySent?: boolean;
 }
 
 /**
@@ -49,7 +55,7 @@ export class LeadState {
     return state.email;
   }
 
-  /** False when the last gate POST was a duplicate (or quarantined) and the backend sent no new email. */
+  /** False when the last gate POST failed to send the email (or the lead was quarantined). Idempotent resubmits keep this true with emailAlreadySent set. */
   @Selector()
   static magicLinkSent(state: LeadStateModel): boolean {
     return state.magicLinkSent;
@@ -63,6 +69,15 @@ export class LeadState {
     return state.emailError;
   }
 
+  /**
+   * True when the last gate POST was an idempotent resubmit: no new email
+   * was sent because one already went out recently (P0 2026-09-27).
+   */
+  @Selector()
+  static emailAlreadySent(state: LeadStateModel): boolean {
+    return state.emailAlreadySent === true;
+  }
+
   @Action(StoreLeadResult)
   storeLeadResult(ctx: StateContext<LeadStateModel>, action: StoreLeadResult): void {
     ctx.patchState({ ...action.result });
@@ -70,6 +85,6 @@ export class LeadState {
 
   @Action(ClearLead)
   clearLead(ctx: StateContext<LeadStateModel>): void {
-    ctx.setState({ leadId: null, email: null, magicLinkSent: false, expiresInDays: null, emailError: undefined });
+    ctx.setState({ leadId: null, email: null, magicLinkSent: false, expiresInDays: null, emailError: undefined, emailAlreadySent: undefined });
   }
 }
