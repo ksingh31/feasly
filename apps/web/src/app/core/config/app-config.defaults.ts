@@ -77,11 +77,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     communityPageLimit: 24,
     autocompleteSuggestionLimit: 6,
     /**
-     * Mirror of the cost-data inputBounds the estimate API enforces
+     * Mirror of the cost-data inputBounds
      * (packages/cost-engine/cost-data/v0.3.0-unclibrated.json). The property
-     * record arrives direct from Socrata, so the client needs these for the
-     * early lot-coverage guard. estimate-input-bounds-drift.spec.ts fails CI
-     * if they diverge — update both together.
+     * record arrives direct from Socrata, so the client needs the
+     * assessed-value bounds for the early coverage guard.
+     * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot
+     * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the estimator
+     * never blocks on lot size. estimate-input-bounds-drift.spec.ts fails CI
+     * if the values diverge — update both together.
      */
     minLotSizeSqft: 1200,
     maxLotSizeSqft: 20000,
@@ -388,8 +391,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       renoTypeLabel: 'Renovation type',
       renoSqftLabel: 'Affected area',
       validationHeading: 'We can’t price this property yet',
-      validationLotSizeBody:
-        'The lot for this address is {lot} sq ft, which is outside the {min}–{max} sq ft range our cost data covers right now. Try a different address — we’re expanding coverage over time.',
       validationGenericBody:
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
       validationBackLabel: '← Try a different address',

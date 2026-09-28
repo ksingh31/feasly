@@ -159,7 +159,6 @@ describe('createEstimate — invalid input rejection', () => {
   const cases: Array<[string, EngineInput]> = [
     ['zero build sqft', { ...standardInput(), scope: { buildSqft: 0, tier: 'standard' } }],
     ['oversized build', { ...standardInput(), scope: { buildSqft: 99_999, tier: 'standard' } }],
-    ['undersized lot', { ...standardInput(), property: { assessedLandValue: 300_000, lotSizeSqft: 500, zoning: 'R-C1' } }],
     ['tiny assessed value', { ...standardInput(), property: { assessedLandValue: 1_000, lotSizeSqft: 2_000, zoning: 'R-C1' } }],
     ['blank zoning', { ...standardInput(), property: { assessedLandValue: 300_000, lotSizeSqft: 2_000, zoning: '  ' } }],
     ['unknown tier', { ...standardInput(), scope: { buildSqft: 1_000, tier: 'ultra' as 'standard' } }],

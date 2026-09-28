@@ -21,11 +21,7 @@ import type {
   PropertyRecord,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import {
-  formatLotSizeBody,
-  pricingCoverageIssue,
-  type PricingCoverageIssue,
-} from '../../core/utils/coverage';
+import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { AddressAutocompleteComponent } from '../../shared/components/address-autocomplete';
 import {
   EmbedConfigFailed,
@@ -196,7 +192,8 @@ export class EmbedShellComponent {
       return;
     }
     // Early coverage guard (same condition as the preview-time backstop):
-    // never start the funnel for a lot the cost data can't price.
+    // never start the funnel for a property the cost data can't price.
+    // Lot size NEVER blocks (Karan, 2026-09-28).
     const issue = pricingCoverageIssue(picked, this.config.get('limits'));
     if (issue !== null) {
       this.coverageIssue.set(issue);
@@ -215,16 +212,6 @@ export class EmbedShellComponent {
 
   /** Buyer-grade explanation for the embed coverage note (preview copy, same wording). */
   protected coverageMessage(): string {
-    const picked = this.property();
-    if (this.coverageIssue() === 'lot-size' && picked !== null) {
-      const limits = this.config.get('limits');
-      return formatLotSizeBody(
-        this.previewCopy.validationLotSizeBody,
-        picked.lotSqft,
-        limits.minLotSizeSqft,
-        limits.maxLotSizeSqft,
-      );
-    }
     return this.previewCopy.validationGenericBody;
   }
 
