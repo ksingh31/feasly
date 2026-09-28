@@ -10,6 +10,21 @@
  */
 import type { BasementOption, CallbackWindow, FinishTier, GarageOption, TimelineOption } from '@feasly/contracts';
 
+/**
+ * One trust-strip stat block on the landing page: a big display value with a
+ * small supporting label underneath.
+ * - `valueShort`: optional compact value shown on narrow screens
+ *   (e.g. "Sep 2026" instead of "September 2026"); falls back to `value`.
+ * - `badge`: renders a brass check badge above the value instead of the
+ *   large display number (for non-numeric stats like "Deterministic math").
+ */
+export interface TrustStat {
+  value: string;
+  valueShort?: string;
+  label: string;
+  badge?: boolean;
+}
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -212,13 +227,16 @@ export interface AppConfig {
       heroSub: string;
       /** Short description for SEO JSON-LD (WebSite schema). */
       seoDescription: string;
-      trustItems: string[];
+      /** Trust-strip stat blocks (redesigned 2026-09-28): big value + small label. */
+      trustItems: TrustStat[];
       /**
        * Shown instead of `trustItems` while the mock property harness
        * serves the data (`propertyData.source === 'mock'`): sample values
        * must never claim live City data (trust rule).
        */
-      trustItemsMock: string[];
+      trustItemsMock: TrustStat[];
+      /** Small caps label above the trust-strip stats ("Why Feasly"). */
+      trustEyebrow: string;
       howItWorksTitle: string;
       howItWorksSub: string;
       steps: { n: string; title: string; body: string }[];
@@ -484,6 +502,12 @@ export interface AppConfig {
        */
       validationHeading: string;
       validationGenericBody: string;
+      /**
+       * Non-residential coverage explainer: shown when the City classifies
+       * the parcel commercial/industrial. Takes precedence over the generic
+       * body in the early coverage guard (landing + embed).
+       */
+      validationNonResidentialBody: string;
       validationBackLabel: string;
     };
     /** Property card (shared) copy. */
@@ -553,9 +577,11 @@ export interface AppConfig {
       coverageTitle: string;
       /** One-line "full build" framing above the exclusions list. */
       includedLine: string;
+      /** Honest note: inflation, material choices, project conditions can move costs. */
+      costMovementNote: string;
       /** "What's not in this estimate" heading. */
       exclusionsTitle: string;
-      /** Compact exclusion list (demolition, soil, permits, financing, GST, landscaping). */
+      /** Honest exclusion list — landscaping only (Karan 2026-09-28: the estimate covers the full build except landscaping). */
       exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
@@ -770,10 +796,10 @@ export interface AppConfig {
       adminLeads: string;
       adminBuildersTitle: string;
       adminBuilders: string;
-      adminDisputesTitle: string;
-      adminDisputes: string;
       adminUsersTitle: string;
       adminUsers: string;
+      adminDisputesTitle: string;
+      adminDisputes: string;
       adminCalibrationTitle: string;
       adminCalibration: string;
       adminBillingTitle: string;
@@ -900,38 +926,18 @@ export interface AppConfig {
     /**
      * Builder portal (embed/09). All user-facing builder-portal copy lives
      * here so the no-hardcode tripwire stays green and copy is
-     * deploy-tunable. Mirrors the admin login semantics (magic link, no
-     * enumeration oracle, session expiry).
+     * deploy-tunable. Mirrors the admin login semantics (Entra sign-in,
+     * session expiry).
      */
     builder: {
       /** `/builder/login` heading. */
       loginHeading: string;
       /** Session-expired notice on the login page. */
       loginExpired: string;
-      /** Shown after the magic-link request (always — no oracle). */
-      loginSent: string;
-      /** Email field label. */
-      emailLabel: string;
-      /** Email field placeholder. */
-      emailPlaceholder: string;
-      /** Invalid-email validation message. */
+      /** Invalid-email validation message (team invites). */
       emailInvalid: string;
-      /** Submit button label. */
-      submitLabel: string;
-      /** Submit button label while the request is in flight. */
-      sendingLabel: string;
-      /** Generic submit-failure message. */
-      submitError: string;
-      /** Retry button label (submit failure). */
+      /** Retry button label (load failures). */
       retryLabel: string;
-      /** `/builder/verify` heading. */
-      verifyHeading: string;
-      /** Verify in-progress copy. */
-      verifyProgress: string;
-      /** Verify-failed copy (expired/used/invalid token). */
-      verifyError: string;
-      /** Back-to-login button label on the verify error. */
-      backToLoginLabel: string;
       /** Builder shell brand text. */
       shellBrand: string;
       /** Builder shell nav: dashboard link label. */
@@ -988,6 +994,58 @@ export interface AppConfig {
       actionsLabel: string;
       /** Builder shell nav: billing link label. */
       shellNavBilling: string;
+      /** Builder shell nav: report-contract link label. */
+      shellNavReportContract: string;
+      /** `/builder/report-contract` SEO description. */
+      reportContractSeoDescription: string;
+      /** `/builder/report-contract` heading. */
+      reportContractHeading: string;
+      /** Explains the 1% commission and 14-day reporting SLA. */
+      reportContractExplainer: string;
+      /** Lead picker label. */
+      reportContractLeadLabel: string;
+      /** Lead picker required-field copy. */
+      reportContractLeadRequired: string;
+      /** Leads loading copy. */
+      reportContractLeadsLoading: string;
+      /** Leads load-failure copy. */
+      reportContractLeadsError: string;
+      /** Empty leads list copy. */
+      reportContractLeadsEmpty: string;
+      /** Contract value field label. */
+      reportContractValueLabel: string;
+      /** Contract value field hint (excl. land). */
+      reportContractValueHint: string;
+      /** Contract value required-field copy. */
+      reportContractValueRequired: string;
+      /** Contract value invalid-format copy. */
+      reportContractValueInvalid: string;
+      /** Signing-date field label. */
+      reportContractDateLabel: string;
+      /** Signing-date required-field copy. */
+      reportContractDateRequired: string;
+      /** Signing-date in-the-future copy. */
+      reportContractDateFuture: string;
+      /** Submit button label. */
+      reportContractSubmit: string;
+      /** Submit label while the report posts. */
+      reportContractSubmitting: string;
+      /** Success confirmation heading. */
+      reportContractSuccessTitle: string;
+      /** Success confirmation body; {amount} {commission} interpolated. */
+      reportContractSuccessBody: string;
+      /** Idempotent duplicate-report copy. */
+      reportContractAlreadyReported: string;
+      /** Invoice-under-dispute copy. */
+      reportContractDisputed: string;
+      /** Flat-plan coverage copy. */
+      reportContractFlatCovered: string;
+      /** Billing-not-enabled copy. */
+      reportContractNotEnabled: string;
+      /** Awaiting-contract-details fallback copy. */
+      reportContractAwaitingDetails: string;
+      /** "Report another contract" button label. */
+      reportContractReportAnother: string;
       /** `/builder/billing` heading. */
       billingHeading: string;
       /** Card-status loading copy. */

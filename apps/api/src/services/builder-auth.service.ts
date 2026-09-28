@@ -51,6 +51,12 @@ export interface BuilderSessionRecord {
   readonly userId: string | null;
   /** SHA-256 hex — never the raw token. */
   readonly sessionTokenHash: string;
+  /**
+   * Entra id_token captured at sign-in (logout UX, 2026-09-28). Returned as
+   * `entraIdTokenHint` on logout so the frontend can pass `id_token_hint`
+   * to the end-session endpoint. Null for pre-change / non-Entra sessions.
+   */
+  readonly idToken: string | null;
   readonly revokedAt: Date | null;
   readonly expiresAt: Date;
   readonly createdAt: Date;
@@ -69,6 +75,11 @@ export interface BuilderSessionStore {
      * null for legacy magic-link sessions (no user row).
      */
     readonly userId?: string | null;
+    /**
+     * auth/05 logout UX: the Entra id_token from the sign-in callback.
+     * Optional — omitted for non-Entra session creation paths.
+     */
+    readonly idToken?: string | null;
   }): Promise<BuilderSessionRecord>;
   /** Active = not revoked and not expired. */
   findActiveByHash(
@@ -137,6 +148,12 @@ export interface BuilderAuthService {
     readonly loggedOut: true;
     /** Entra end-session endpoint, or null when Entra is unprovisioned. */
     readonly entraLogoutUrl: string | null;
+    /**
+     * Entra id_token stored at sign-in, or null. The frontend passes this
+     * as `id_token_hint` on the end-session redirect so Entra skips the
+     * "Pick an account" picker (logout UX, 2026-09-28).
+     */
+    readonly entraIdTokenHint: string | null;
   }>;
   /** Guard hook: returns the session identity for a valid session, else null. */
   validateSession(sessionToken: string | null): Promise<BuilderSession | null>;
@@ -344,8 +361,19 @@ export function createBuilderAuthService(
 
     async logout(
       sessionToken: string | null,
-    ): Promise<{ readonly loggedOut: true; readonly entraLogoutUrl: string | null }> {
+    ): Promise<{
+      readonly loggedOut: true;
+      readonly entraLogoutUrl: string | null;
+      readonly entraIdTokenHint: string | null;
+    }> {
+      let idTokenHint: string | null = null;
       if (sessionToken) {
+        // Read the stored id_token BEFORE revoking (logout UX, 2026-09-28).
+        const session = await sessions.findActiveByHash(
+          hashBuilderSessionToken(sessionToken),
+          clock(),
+        );
+        idTokenHint = session?.idToken ?? null;
         await sessions.revokeByHash(
           hashBuilderSessionToken(sessionToken),
           clock(),
@@ -359,6 +387,7 @@ export function createBuilderAuthService(
       return {
         loggedOut: true,
         entraLogoutUrl: entraSignIn.configured ? entraSignIn.logoutEndpoint : null,
+        entraIdTokenHint: idTokenHint,
       };
     },
 

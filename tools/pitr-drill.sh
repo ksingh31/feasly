@@ -11,12 +11,12 @@
 # anything else, and it is unit-tested without Azure access in
 # infra/health/test/test-pitr-drill.sh.
 #
-# Prerequisites (only when actually RUNNING the drill — the unit tests and the
-# static CI check never touch Azure):
+# Prerequisites (only when actually RUNNING the drill — the unit tests, the
+# static CI check, and --dry-run never provision anything):
 #   - `az` CLI logged in (interactive `az login`, or the azure/login OIDC step
 #     in CI) with a role on the resource group that can create/delete flexible
 #     servers and read Key Vault secrets (e.g. Contributor).
-#   - `psql` and `jq` on PATH.
+#   - `psql` and `jq` on PATH (`--dry-run` needs only `az` + `jq`).
 #
 # Usage:
 #   bash tools/pitr-drill.sh --source-server feasly-dev-pg-4fhkep \
@@ -32,6 +32,12 @@
 #   --drill-name NAME      default: feasly-drill-YYYYMMDD-HHMM
 #                          (MUST start with feasly-drill-)
 #   --dbname NAME          database to verify (default: feasly)
+#   --dry-run              validate everything WITHOUT restoring: discovers the
+#                          source, checks retention >= 7d and the live backup
+#                          window, validates the restore point and the
+#                          staging-only guard — then exits 0. Read-only Azure
+#                          calls only; no server is created, no firewall rule
+#                          touched. Use as the drill pre-flight / CI check.
 #   --keep                 do NOT tear the drill server down (debug only —
 #                          prints a loud PII warning; the drill copy holds lead PII)
 #   --yes                  skip the confirmation prompt
@@ -48,6 +54,7 @@ SRC=""
 RESTORE_POINT=""
 DRILL_NAME=""
 DBNAME="$DEFAULT_DBNAME"
+DRY_RUN=false
 KEEP=false
 YES=false
 
@@ -90,6 +97,29 @@ guard_target_name() {
 
 default_drill_name() { echo "${DRILL_PREFIX}$(date -u +%Y%m%d-%H%M)"; }
 
+# ---------------------------------------------------------------------------
+# Restore-point validation — pure logic, no Azure. Unit-tested.
+# validate_restore_point <restore-point> <earliest-restore-point> <now-epoch>
+#   → 0 = inside the backup window, 1 = rejected (reason on stderr).
+# ---------------------------------------------------------------------------
+validate_restore_point() {
+  local rp="$1" earliest="$2" now_s="$3"
+  local rp_s earliest_s
+  rp_s="$(date -d "$rp" +%s 2>/dev/null)" \
+    || { echo "REFUSING: cannot parse restore point '$rp'" >&2; return 1; }
+  earliest_s="$(date -d "$earliest" +%s 2>/dev/null)" \
+    || { echo "REFUSING: cannot parse earliest restore point '$earliest'" >&2; return 1; }
+  if (( rp_s < earliest_s )); then
+    echo "REFUSING: restore point $rp is older than the earliest restore point $earliest" >&2
+    return 1
+  fi
+  if (( rp_s > now_s )); then
+    echo "REFUSING: restore point $rp is in the future" >&2
+    return 1
+  fi
+  return 0
+}
+
 format_duration() { # format_duration <seconds>
   local s="$1"
   printf '%dm %ds' $((s / 60)) $((s % 60))
@@ -128,6 +158,7 @@ main() {
       --restore-point) RESTORE_POINT="$2"; shift 2 ;;
       --drill-name) DRILL_NAME="$2"; shift 2 ;;
       --dbname) DBNAME="$2"; shift 2 ;;
+      --dry-run) DRY_RUN=true; shift ;;
       --keep) KEEP=true; shift ;;
       --yes) YES=true; shift ;;
       -h | --help) usage; exit 0 ;;
@@ -136,8 +167,10 @@ main() {
   done
 
   command -v az >/dev/null || die "'az' CLI not found on PATH"
-  command -v psql >/dev/null || die "'psql' not found on PATH"
   command -v jq >/dev/null || die "'jq' not found on PATH"
+  if ! $DRY_RUN; then
+    command -v psql >/dev/null || die "'psql' not found on PATH"
+  fi
 
   [[ -z "$SRC" ]] && SRC="$(discover_source)"
   [[ -z "$SRC" || "$SRC" == "None" ]] && die "no source server (set --source-server)"
@@ -148,20 +181,32 @@ main() {
   guard_target_name "$DRILL_NAME" "$SRC" || die "staging-only guard rejected the target"
 
   # --- Restore point must be inside the live backup window ----------------------
-  local src_info earliest now_s rp_s
+  local src_info earliest now_s
   src_info="$(az postgres flexible-server show -n "$SRC" -g "$RG" \
     --query "{earliest: backup.earliestRestoreDate, retention: backup.backupRetentionDays, admin: administratorLogin, fqdn: fullyQualifiedDomainName}" -o json)"
   earliest="$(echo "$src_info" | jq -r '.earliest')"
   [[ -n "$earliest" && "$earliest" != "null" ]] || die "source has no earliestRestoreDate — automated backups may not be running"
-  rp_s="$(date -d "$RESTORE_POINT" +%s 2>/dev/null)" || die "cannot parse --restore-point '$RESTORE_POINT'"
   now_s="$(date +%s)"
-  if (( rp_s < $(date -d "$earliest" +%s) )); then
-    die "restore point $RESTORE_POINT is older than the earliest restore point $earliest"
-  fi
-  if (( rp_s > now_s )); then
-    die "restore point $RESTORE_POINT is in the future"
-  fi
+  validate_restore_point "$RESTORE_POINT" "$earliest" "$now_s" \
+    || die "restore point $RESTORE_POINT is outside the backup window (earliest: $earliest)"
   log "source=$SRC  drill=$DRILL_NAME  restore-point=$RESTORE_POINT  (earliest: $earliest)"
+
+  # --- Dry-run: pre-flight only, nothing is created or changed ------------------
+  if $DRY_RUN; then
+    local retention
+    retention="$(echo "$src_info" | jq -r '.retention')"
+    if [[ "$retention" == "null" || -z "$retention" ]] || (( retention < MIN_RETENTION_DAYS )); then
+      die "dry-run: source retention ${retention}d < ${MIN_RETENTION_DAYS}d — PITR window too short"
+    fi
+    echo
+    echo "DRY-RUN OK — a live drill right now would be valid:"
+    echo "  source:         $SRC (backup retention ${retention}d, chain fresh, earliest restore $earliest)"
+    echo "  drill server:   $DRILL_NAME (staging-only guard passed)"
+    echo "  restore point:  $RESTORE_POINT (inside the backup window)"
+    echo "  database:       $DBNAME"
+    echo "No Azure resources were created, modified, or deleted."
+    exit 0
+  fi
 
   if ! $YES; then
     read -r -p "About to RESTORE $SRC @ $RESTORE_POINT into NEW server $DRILL_NAME, then DELETE it. Continue? [y/N] " ans
@@ -193,8 +238,8 @@ main() {
   [[ -n "$my_ip" ]] || die "could not determine operator public IP (needed for the temp firewall rule)"
   log "adding temporary firewall rule for operator IP $my_ip (removed with the server)"
   az postgres flexible-server firewall-rule create \
-    -n "$DRILL_NAME" -g "$RG" \
-    --rule-name drill-tmp-operator \
+    --server-name "$DRILL_NAME" -g "$RG" \
+    --name drill-tmp-operator \
     --start-ip-address "$my_ip" --end-ip-address "$my_ip" >/dev/null
 
   # --- Credentials ----------------------------------------------------------------

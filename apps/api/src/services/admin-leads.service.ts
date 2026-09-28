@@ -53,6 +53,12 @@ export const AdminLeadListQuerySchema = z.object({
   source: AdminLeadSourceSchema.optional(),
   projectType: z.string().trim().min(1).max(50).optional(),
   tenantId: z.string().trim().min(1).max(120).optional(),
+  /**
+   * Builder-assignment filter (admin/08): a builder UUID, or the literal
+   * 'unassigned' for leads with no builder assignment. Absent = no
+   * assignment filtering.
+   */
+  builderId: z.union([z.string().uuid(), z.literal('unassigned')]).optional(),
   /** Contact-consent filter. Absent = show every lead (the admin default). */
   consent: AdminLeadConsentSchema.optional(),
   createdAfter: z.string().datetime({ offset: true }).optional(),
@@ -238,6 +244,12 @@ function toStoreFilters(q: AdminLeadListQuery): AdminLeadFilters {
     source: q.source,
     projectType: q.projectType,
     tenantKey: q.tenantId,
+    builderId:
+      q.builderId === undefined
+        ? undefined
+        : q.builderId === 'unassigned'
+          ? null
+          : q.builderId,
     createdAfter: q.createdAfter ? new Date(q.createdAfter) : undefined,
     createdBefore: q.createdBefore ? new Date(q.createdBefore) : undefined,
     search: q.search,

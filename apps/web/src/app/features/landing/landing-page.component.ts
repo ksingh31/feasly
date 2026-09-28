@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
+import type { TrustStat } from '../../core/config';
 import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
@@ -50,12 +51,12 @@ export class LandingPageComponent implements OnInit {
   readonly guidesCopy = this.config.get('copy').marketing.communities;
 
   /**
-   * Trust items with mock-aware substitution: while the mock property
-   * harness serves the data, the property-data item must not claim live
-   * City data. Keyed off `propertyData.source` (not `api.useMockApi`):
+   * Trust-strip stat blocks with mock-aware substitution: while the mock
+   * property harness serves the data, the property-data stat must not claim
+   * live City data. Keyed off `propertyData.source` (not `api.useMockApi`):
    * the property backend is an independent switch.
    */
-  readonly trustItems =
+  readonly trustStats: TrustStat[] =
     this.config.get('propertyData').source === 'mock'
       ? this.copy.trustItemsMock
       : this.copy.trustItems;
@@ -113,7 +114,9 @@ export class LandingPageComponent implements OnInit {
 
   /** Buyer-grade explanation for the early coverage block. */
   coverageMessage(block: { property: PropertyRecord; issue: PricingCoverageIssue }): string {
-    return this.previewCopy.validationGenericBody;
+    return block.issue === 'non-residential'
+      ? this.previewCopy.validationNonResidentialBody
+      : this.previewCopy.validationGenericBody;
   }
 
   /**

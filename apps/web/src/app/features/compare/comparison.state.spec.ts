@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
+import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
@@ -140,5 +141,82 @@ describe('ComparisonState', () => {
     store.dispatch(new ClearComparisonResult());
     expect(store.selectSnapshot(ComparisonState.result)).toBeNull();
     expect(store.selectSnapshot(ComparisonState.status)).toBe('idle');
+  });
+
+  it('discards a malformed persisted result instead of crashing the results page', async () => {
+    // Regression test for the /estimate/compare → /error crash: localStorage
+    // written by an older build (or corrupted) can hold a `comparison`
+    // result without `rowSets`/`inputs`. The results component dereferences
+    // those unconditionally, so without the rehydration guard the render
+    // throws and the global error handler redirects to /error.
+    localStorage.setItem(
+      'comparison',
+      JSON.stringify({
+        result: { estimateId: 'old', communities: [{ slug: 'beltline' }] },
+        stats: {},
+        status: 'ready',
+        stage: null,
+        error: null,
+      }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([WizardState, ComparisonState], withNgxsStoragePlugin({ keys: [ComparisonState] })),
+      ],
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        providePropertyData(),
+        { provide: API_SERVICE, useClass: MockApiService },
+      ],
+    });
+    const config = TestBed.inject(ConfigService);
+    const pending = config.load();
+    TestBed.inject(HttpTestingController).expectOne('/assets/config/app-config.json').flush(baseConfig);
+    await pending;
+    const rehydratedStore = TestBed.inject(Store);
+    // Malformed result is discarded — the picker renders instead of /error.
+    expect(rehydratedStore.selectSnapshot(ComparisonState.result)).toBeNull();
+    expect(rehydratedStore.selectSnapshot(ComparisonState.status)).toBe('idle');
+    localStorage.clear();
+  });
+
+  it('keeps a well-formed persisted result across rehydration', async () => {
+    const validResult = {
+      estimateId: 'est-1',
+      projectType: 'comparison',
+      inputs: { sqft: 2200, tier: 'premium' },
+      rowSets: [],
+      costDataVersion: 'v1',
+      createdAt: '2026-09-28T00:00:00.000Z',
+    };
+    localStorage.setItem(
+      'comparison',
+      JSON.stringify({ result: validResult, stats: {}, status: 'ready', stage: null, error: null }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([WizardState, ComparisonState], withNgxsStoragePlugin({ keys: [ComparisonState] })),
+      ],
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        providePropertyData(),
+        { provide: API_SERVICE, useClass: MockApiService },
+      ],
+    });
+    const config = TestBed.inject(ConfigService);
+    const pending = config.load();
+    TestBed.inject(HttpTestingController).expectOne('/assets/config/app-config.json').flush(baseConfig);
+    await pending;
+    const rehydratedStore = TestBed.inject(Store);
+    expect(rehydratedStore.selectSnapshot(ComparisonState.result)).toEqual(validResult);
+    localStorage.clear();
   });
 });

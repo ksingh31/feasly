@@ -63,21 +63,31 @@ describe('ReportPdfService', () => {
     expect(raw).toContain('the figures above are the complete estimate');
   });
 
-  it('includes the coverage framing and the honest exclusions list', async () => {
+  it('includes the coverage framing and the landscaping-only exclusion', async () => {
     const service = TestBed.inject(ReportPdfService);
     const blob = await service.generate(input());
     const raw = await blob.text();
     // jsPDF WinAnsi-encodes body text; assert on ASCII-safe substrings.
     expect(raw).toContain('60+ line items');
     expect(raw).toContain('not in this estimate');
-    for (const item of [
-      'Demolition of any existing home',
-      'Unusual soil or servicing conditions',
-      'Financing costs',
-      'GST',
-      'Landscaping',
-    ]) {
-      expect(raw).toContain(item);
-    }
+    // Landscaping is the only exclusion (Karan 2026-09-28).
+    expect(raw).toContain('Landscaping');
+    expect(raw).not.toContain('Demolition of any existing home');
+    expect(raw).not.toContain('Financing costs');
+  });
+
+  it('omits the new-build exclusions on a renovation snapshot', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    const renoInput = input();
+    const blob = await service.generate({
+      ...renoInput,
+      title: 'Renovation estimate',
+      snapshot: { ...renoInput.snapshot, projectType: 'renovation' as const },
+    });
+    const raw = await blob.text();
+    // New-build coverage framing must not leak onto reno PDFs.
+    expect(raw).not.toContain('60+ line items');
+    expect(raw).not.toContain('not in this estimate');
+    expect(raw).not.toContain('Demolition of any existing home');
   });
 });

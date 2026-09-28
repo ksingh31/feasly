@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { afterNextRender, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
@@ -33,8 +33,17 @@ import { CompareResultsComponent } from './compare-results/compare-results.compo
  *   pipeline (validate → fetch stats → calculate). No timers, no theater.
  * - `results`: the side-by-side cards + chart (CompareResultsComponent).
  *
- * "← Edit communities" returns here with `?edit=1`; the persisted inputs
- * stay intact. A stored result (e.g. after a refresh) lands on `results`.
+ * Query params:
+ * - `?edit=1` — "← Edit communities" returns here; the persisted inputs
+ *   stay intact and the phase drops back to the picker.
+ * - `?fresh=1` — fresh entry (the homepage "Compare neighbourhoods" link):
+ *   ALWAYS starts on the picker. Any persisted comparison result is cleared
+ *   so a previous session's comparison can never auto-resume into the
+ *   results page; the param is dropped (replaceUrl) so a later refresh keeps
+ *   the standard resume behavior.
+ *
+ * Without `?fresh=1` (e.g. a refresh, or the lead-gate return), a stored
+ * result lands on `results`.
  */
 type ComparePhase = 'picker' | 'analyzing' | 'results';
 
@@ -127,14 +136,39 @@ export class ComparePickerPageComponent {
   constructor() {
     this.seo.setForRoute('estimate/compare');
 
-    const editRequested = this.route.snapshot.queryParamMap.get('edit') === '1';
-    const hasResult = this.store.selectSnapshot(ComparisonState.result) !== null;
-    this.phase.set(editRequested || !hasResult ? 'picker' : 'results');
+    const params = this.route.snapshot.queryParamMap;
+    const freshStart = params.get('fresh') === '1';
+    if (freshStart) {
+      // Fresh entry from the homepage link: never auto-resume a persisted
+      // previous comparison — clear the stale result and start on the
+      // picker. Community picks (WizardState) stay intact. Drop the param so
+      // a later refresh keeps the standard resume behavior.
+      this.store.dispatch(new ClearComparisonResult());
+      this.phase.set('picker');
+      void this.router.navigate(['/estimate/compare'], { replaceUrl: true });
+      // A fresh start always presents the top of the picker: the homepage
+      // entry link sits below the fold, so without this the route would
+      // inherit the homepage's scroll offset and land mid-page. Browser-only
+      // (afterNextRender never runs on the server).
+      afterNextRender(() => window.scrollTo(0, 0));
+    } else {
+      const editRequested = params.get('edit') === '1';
+      const hasResult = this.store.selectSnapshot(ComparisonState.result) !== null;
+      this.phase.set(editRequested || !hasResult ? 'picker' : 'results');
+    }
 
     // "← Edit communities" navigates here with ?edit=1 on the same route —
-    // Angular reuses the component, so watch the params.
-    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((params) => {
-      if (params['edit'] === '1' && this.phase() === 'results') {
+    // Angular reuses the component, so watch the params. Same for ?fresh=1
+    // when the component is already on this route.
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((queryParams) => {
+      if (queryParams['fresh'] === '1') {
+        this.store.dispatch(new ClearComparisonResult());
+        this.phase.set('picker');
+        void this.router.navigate(['/estimate/compare'], { replaceUrl: true });
+        window.scrollTo(0, 0);
+        return;
+      }
+      if (queryParams['edit'] === '1' && this.phase() === 'results') {
         this.phase.set('picker');
       }
     });

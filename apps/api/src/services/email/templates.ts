@@ -183,15 +183,29 @@ export function renderInvitationEmail(
   const inviter = input.inviterName
     ? `${esc(input.inviterName)} invited you`
     : `You've been invited`;
+  // First-sign-in password setup (auth/05 audit 2026-09-28): the Entra
+  // account is pre-created with a random password the invitee never
+  // receives — Entra owns the credential, so the email must tell them how
+  // to set their own: "Forgot password" on the Microsoft sign-in page
+  // (self-service reset via email). Without this line invitees hit the
+  // sign-in page with no password and no way forward.
+  const passwordSetupHtml =
+    '<p>First time signing in? On the Microsoft sign-in page, choose ' +
+    '<strong>Forgot password</strong> to set your own password, then sign in.</p>';
+  const passwordSetupText =
+    'First time signing in? On the Microsoft sign-in page, choose "Forgot password" ' +
+    'to set your own password, then sign in.';
   const body = `<p>${greeting}</p>
 <p>${inviter} to join ${esc(ctx.brandName)} as ${esc(input.accessDescription)}.</p>
 <p>Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.</p>
+${passwordSetupHtml}
 ${ctaButton(input.signInUrl, 'Sign in to Feasly')}
 ${fallbackLink(input.signInUrl)}`;
   const text =
     `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\n` +
     `${input.inviterName ? `${input.inviterName} invited you` : `You've been invited`} to join ${ctx.brandName} as ${input.accessDescription}.\n\n` +
     `Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.\n\n` +
+    `${passwordSetupText}\n\n` +
     `Sign in to Feasly: ${input.signInUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return {
     subject: `You've been invited to ${ctx.brandName}`,

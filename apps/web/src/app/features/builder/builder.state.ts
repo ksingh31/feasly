@@ -14,6 +14,7 @@ import type {
   EntraCallbackErrorKind,
 } from './builder-auth.contracts';
 import { BuilderAuthApiService } from './builder-auth-api.service';
+import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import {
   ClearBuilderState,
@@ -25,7 +26,6 @@ import {
   LogoutBuilder,
   SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
-  VerifyBuilderToken,
 } from './builder.actions';
 
 /** Auth lifecycle for the builder portal. */
@@ -118,6 +118,7 @@ const defaults: BuilderStateModel = {
 @Injectable()
 export class BuilderState {
   private readonly authApi = inject(BuilderAuthApiService);
+  private readonly entraAuth = inject(BuilderEntraAuthService);
   private readonly leadsApi = inject(BuilderLeadsApiService);
 
   @Selector()
@@ -225,35 +226,6 @@ export class BuilderState {
   @Selector()
   static loadFailed(state: BuilderStateModel): boolean {
     return state.leadsStatus === 'error';
-  }
-
-  @Action(VerifyBuilderToken)
-  verifyBuilderToken(
-    ctx: StateContext<BuilderStateModel>,
-    action: VerifyBuilderToken,
-  ): Observable<unknown> {
-    return this.authApi.verifyMagicLink(action.token).pipe(
-      tap((identity) => {
-        ctx.patchState({
-          sessionToken: identity.sessionToken,
-          session: {
-            authenticated: true,
-            email: identity.email,
-            name: null,
-            builderId: identity.tenantKey,
-            builderName: null,
-            role: null,
-            memberships: [],
-          },
-          authStatus: 'authenticated',
-          sessionExpired: false,
-        });
-      }),
-      catchError(() => {
-        ctx.patchState({ authStatus: 'unauthenticated', session: null });
-        return of(null);
-      }),
-    );
   }
 
   @Action(LoadBuilderSession)
@@ -433,7 +405,18 @@ export class BuilderState {
   @Action(LogoutBuilder)
   logoutBuilder(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.authApi.logout().pipe(
-      tap(() => ctx.setState({ ...defaults })),
+      tap((res) => {
+        ctx.setState({ ...defaults });
+        // Kill the Entra IdP session too (parity with admin logout,
+        // logout UX 2026-09-28): without the end-session redirect the
+        // Entra cookie survives and the next "Sign in" silently
+        // re-authenticates. Null while builder Entra is unprovisioned —
+        // then there is no IdP session and this is a no-op.
+        this.entraAuth.redirectToEntraLogout(
+          res.entraLogoutUrl ?? null,
+          res.entraIdTokenHint ?? null,
+        );
+      }),
       catchError(() => {
         // Even if the server call fails, drop the local session — the
         // guard re-probes on next navigation and fails closed.

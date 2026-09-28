@@ -1291,16 +1291,13 @@ export function createComposition(
     adminGuard,
   });
   // admin/03 — read-only estimate lookup. Reuses the session guard; no
-  // mutation endpoints exist.
+  // mutation endpoints exist. The route is created after the narrative
+  // service (below) so the admin narrative top-up can reuse it.
   const adminEstimatesService: AdminEstimatesService =
     createAdminEstimatesService({
       estimateStore,
       leadStore,
     });
-  const adminEstimatesRoute: AdminEstimatesRoute = createAdminEstimatesRoute({
-    adminEstimates: adminEstimatesService,
-    adminGuard,
-  });
   // admin/09 — calibration console. Read-only: the cost-data table the
   // engine serves is injected; no params are written here.
   const adminCalibrationService: AdminCalibrationService =
@@ -1486,6 +1483,13 @@ export function createComposition(
   });
   const narrativeRoute: NarrativeRoute = createNarrativeRoute({
     narrative: narrativeService,
+  });
+  // admin/03 route (created here — after the narrative service — so the
+  // admin narrative top-up endpoint can reuse the generation pipeline).
+  const adminEstimatesRoute: AdminEstimatesRoute = createAdminEstimatesRoute({
+    adminEstimates: adminEstimatesService,
+    narrative: narrativeService,
+    adminGuard,
   });
   const callbackService: CallbackService = createCallbackService({
     magicLinks: magicLinkStore,

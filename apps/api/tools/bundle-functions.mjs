@@ -231,6 +231,10 @@ const targets = [
     entry: 'src/functions/admin-estimates-get.ts',
     out: 'admin-estimates-get/index.js',
   },
+  {
+    entry: 'src/functions/admin-estimates-narrative.ts',
+    out: 'admin-estimates-narrative/index.js',
+  },
   // embed/09 — builder portal auth + tenant-scoped leads.
   {
     entry: 'src/functions/builder-auth-request.ts',

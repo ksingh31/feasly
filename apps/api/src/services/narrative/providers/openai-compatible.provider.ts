@@ -105,11 +105,24 @@ function logChainEvent(
     | 'narrative.model-attempt'
     | 'narrative.model-chained'
     | 'narrative.model-served'
+    | 'narrative.model-truncated'
     | 'narrative.provider-skipped',
   fields: Record<string, string>,
 ): void {
   console.info(JSON.stringify({ event, provider: 'openai-compatible', ...fields }));
 }
+
+/** Token budget for the first attempt (matches the historical value). */
+const PRIMARY_MAX_TOKENS = 800;
+/**
+ * Token budget for the single truncation retry. A model that stops at the
+ * budget (`finish_reason: 'length'`) is usually just long-winded — 2x
+ * headroom lets it finish. Past this the completion is abandoned (fatal)
+ * rather than chained: the same prompt would truncate on the next model
+ * too, burning spend, and a truncated body must never be stored or
+ * served with the deterministic footer appended.
+ */
+const TRUNCATION_RETRY_MAX_TOKENS = 1600;
 
 /**
  * Resolve the chat-completions URL from a configured base. Appends
@@ -232,6 +245,7 @@ export function createOpenAiCompatibleNarrativeProvider(
               model,
               prompt,
               timeoutMs,
+              target.label,
             );
             logChainEvent('narrative.model-served', {
               target: target.label,
@@ -247,9 +261,9 @@ export function createOpenAiCompatibleNarrativeProvider(
                   });
             lastError = providerError;
             const chainable =
-              providerError.status !== undefined
-                ? isChainableStatus(providerError.status)
-                : true;
+              !providerError.fatal &&
+              (providerError.status === undefined ||
+                isChainableStatus(providerError.status));
             if (!chainable || isLast) throw providerError;
             const nextModel = target.models[i + 1];
             logChainEvent('narrative.model-chained', {
@@ -272,20 +286,23 @@ export function createOpenAiCompatibleNarrativeProvider(
 }
 
 /**
- * Single-model attempt. Throws NarrativeProviderError carrying the HTTP
- * status when the response is an error status, so the chain can decide
- * whether to advance. Transport failures (timeout, network) surface as a
- * status-less NarrativeProviderError — the chain treats those as
- * transient and advances.
+ * Single HTTP round trip against one model with the given token budget.
+ * Returns the assistant text plus the OpenAI finish reason. Throws
+ * NarrativeProviderError carrying the HTTP status when the response is
+ * an error status, so the chain can decide whether to advance.
+ * Transport failures (timeout, network) surface as a status-less
+ * NarrativeProviderError — the chain treats those as transient and
+ * advances.
  */
-async function attemptModel(
+async function requestCompletion(
   fetchImpl: typeof fetch,
   endpoint: string,
   apiKey: string,
   model: string,
   prompt: NarrativePrompt,
   timeoutMs: number,
-): Promise<NarrativeProviderResult> {
+  maxTokens: number,
+): Promise<{ text: string; finishReason: string | null }> {
   let res: Response;
   try {
     res = await fetchImpl(endpoint, {
@@ -303,7 +320,7 @@ async function attemptModel(
         // Low temperature: the narrative must stay close to the
         // engine figures, not get creative.
         temperature: 0.3,
-        max_tokens: 800,
+        max_tokens: maxTokens,
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -336,24 +353,94 @@ async function attemptModel(
       { cause: error },
     );
   }
-  const text = extractText(json);
-  if (!text) {
+  const completion = extractCompletion(json);
+  if (!completion.text) {
     throw new NarrativeProviderError(
       'LLM API returned no usable completion text',
     );
   }
-  return { text, model };
+  return { text: completion.text, finishReason: completion.finishReason };
 }
 
-/** Extract the assistant text from an OpenAI-compatible chat response. */
-function extractText(json: unknown): string | null {
-  if (typeof json !== 'object' || json === null) return null;
-  const choices = (json as { choices?: unknown }).choices;
-  if (!Array.isArray(choices) || choices.length === 0) return null;
-  const first = choices[0] as { message?: { content?: unknown } };
-  const content = first?.message?.content;
-  if (typeof content === 'string' && content.trim().length > 0) {
-    return content.trim();
+/**
+ * Single-model attempt with one truncation retry. When the model stops
+ * because it hit the token budget (`finish_reason: 'length'`), retry
+ * once with a higher budget — the first attempt's cut-off text is
+ * discarded, never returned. If the retry also truncates, throw a FATAL
+ * error: chaining to the next model would burn spend on the same prompt,
+ * and the truncated text must never be stored or served (the service
+ * falls back to the static guide instead).
+ */
+async function attemptModel(
+  fetchImpl: typeof fetch,
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  prompt: NarrativePrompt,
+  timeoutMs: number,
+  targetLabel: string,
+): Promise<NarrativeProviderResult> {
+  const first = await requestCompletion(
+    fetchImpl,
+    endpoint,
+    apiKey,
+    model,
+    prompt,
+    timeoutMs,
+    PRIMARY_MAX_TOKENS,
+  );
+  if (first.finishReason !== 'length') {
+    return { text: first.text, model };
   }
-  return null;
+  logChainEvent('narrative.model-truncated', {
+    target: targetLabel,
+    model,
+    maxTokens: String(PRIMARY_MAX_TOKENS),
+  });
+  const retry = await requestCompletion(
+    fetchImpl,
+    endpoint,
+    apiKey,
+    model,
+    prompt,
+    timeoutMs,
+    TRUNCATION_RETRY_MAX_TOKENS,
+  );
+  if (retry.finishReason !== 'length') {
+    return { text: retry.text, model };
+  }
+  throw new NarrativeProviderError(
+    `LLM API returned a truncated completion (finish_reason=length) for model ${model} even at ${TRUNCATION_RETRY_MAX_TOKENS} tokens — refusing to store or serve it`,
+    { fatal: true },
+  );
+}
+
+/**
+ * Extract the assistant text and finish reason from an OpenAI-compatible
+ * chat response. `finish_reason` is 'stop' | 'length' | 'content_filter'
+ * | ... per the OpenAI protocol (Gemini's compatibility endpoint uses
+ * the same field); null when the provider omits it.
+ */
+function extractCompletion(json: unknown): {
+  text: string | null;
+  finishReason: string | null;
+} {
+  if (typeof json !== 'object' || json === null)
+    return { text: null, finishReason: null };
+  const choices = (json as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0)
+    return { text: null, finishReason: null };
+  const first = choices[0] as {
+    message?: { content?: unknown };
+    finish_reason?: unknown;
+  };
+  const content = first?.message?.content;
+  return {
+    text:
+      typeof content === 'string' && content.trim().length > 0
+        ? content.trim()
+        : null,
+    finishReason:
+      typeof first?.finish_reason === 'string' ? first.finish_reason : null,
+  };
 }

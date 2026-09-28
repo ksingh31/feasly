@@ -59,6 +59,16 @@ describe('pipelineCountFilters', () => {
     expect(countsFilters).not.toHaveProperty('status');
   });
 
+  it('keeps the builderId assignment filter in the counts', () => {
+    const uuid = '123e4567-e89b-12d3-a456-426614174000';
+    expect(
+      pipelineCountFilters({ status: 'new', builderId: uuid }).builderId,
+    ).toBe(uuid);
+    expect(
+      pipelineCountFilters({ status: 'new', builderId: null }).builderId,
+    ).toBeNull();
+  });
+
   it('does not mutate the original filters', () => {
     const filters: AdminLeadFilters = { status: 'won', minScore: 50 };
     pipelineCountFilters(filters);

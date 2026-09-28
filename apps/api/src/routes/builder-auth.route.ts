@@ -143,8 +143,14 @@ export function createBuilderAuthRoute(
 
     async logout(headers): Promise<BuilderAuthLogoutResponse> {
       const token = extractSessionToken(headers, BUILDER_SESSION_COOKIE);
-      const { loggedOut, entraLogoutUrl } = await builderAuth.logout(token);
-      return { loggedOut, setCookie: buildClearBuilderSessionCookie(), entraLogoutUrl };
+      const { loggedOut, entraLogoutUrl, entraIdTokenHint } =
+        await builderAuth.logout(token);
+      return {
+        loggedOut,
+        setCookie: buildClearBuilderSessionCookie(),
+        entraLogoutUrl,
+        entraIdTokenHint,
+      };
     },
   };
 }

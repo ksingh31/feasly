@@ -9,6 +9,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
+import { expectSharedCalgaryGate } from '../../shared/test-helpers/entry-gate.harness';
 import { LeadState, StoreLeadResult, WizardState, type WizardStateModel } from '../wizard';
 import { ReportState } from '../report/report.state';
 import { SetReportToken } from '../report/report.actions';
@@ -83,7 +84,9 @@ describe('LandingPageComponent', () => {
   it('comparison entry card links to /estimate/compare with the exact story copy (NBH-04)', () => {
     const card = fixture.nativeElement.querySelector('.compare-card') as HTMLAnchorElement;
     expect(card).toBeTruthy();
-    expect(card.getAttribute('href')).toBe('/estimate/compare');
+    // ?fresh=1: the homepage link always starts a fresh comparison on the
+    // picker — it must never auto-resume a persisted previous comparison.
+    expect(card.getAttribute('href')).toBe('/estimate/compare?fresh=1');
     expect(card.textContent).toContain('Compare neighbourhoods');
     expect(card.textContent).toContain('Side-by-side build costs for 2–3 Calgary communities.');
   });
@@ -95,7 +98,7 @@ describe('LandingPageComponent', () => {
     const hrefs = [...pair.querySelectorAll('.compare-card')].map((el: Element) =>
       el.getAttribute('href'),
     );
-    expect(hrefs).toEqual(['/estimate/compare', '/communities']);
+    expect(hrefs).toEqual(['/estimate/compare?fresh=1', '/communities']);
     const blocks = [...main.querySelectorAll(':scope > section, :scope > div')].map((el: Element) =>
       el.className.split(' ')[0],
     );
@@ -105,31 +108,52 @@ describe('LandingPageComponent', () => {
   });
 
   it('trust strip carries no ±, %, or accuracy claim (copy-lint)', () => {
-    const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
+    const values = [...fixture.nativeElement.querySelectorAll('.trust-value-full')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    // Default test config has propertyData.source 'mock' → mock items, never live-data claims.
-    expect(items).toEqual([
-      'Range-based estimates',
-      'Sample property data — live City records coming soon',
-      'Transparent cost breakdown',
-    ]);
-    for (const item of items) {
-      expect(item).not.toMatch(/[±%]/);
-      expect(item?.toLowerCase()).not.toContain('accura');
+    const labels = [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    // Default test config has propertyData.source 'mock' → mock stats, never live-data claims.
+    expect(values).toEqual(['Range-based', 'Sample property data', 'Transparent']);
+    expect(labels).toEqual(['estimates', 'live City records coming soon', 'cost breakdown']);
+    for (const text of [...values, ...labels]) {
+      expect(text).not.toMatch(/[±%]/);
+      expect(text?.toLowerCase()).not.toContain('accura');
     }
   });
 
   it('trust strip claims live City data only when live property data serves the page', async () => {
     await setup({ propertyData: { source: 'live' } });
-    const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
+    const values = [...fixture.nativeElement.querySelectorAll('.trust-value-full')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(items).toEqual([
-      '600,000+ City of Calgary assessment records',
-      'Refreshed September 2026',
-      'Deterministic math — AI never invents prices',
+    const labels = [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    expect(values).toEqual(['600,000+', 'September 2026', 'Deterministic math']);
+    expect(labels).toEqual([
+      'City of Calgary assessment records',
+      'Latest data refresh',
+      'AI never invents prices',
     ]);
+  });
+
+  it('trust strip renders the redesigned stat blocks with eyebrow, badge, and sample-report button', async () => {
+    await setup({ propertyData: { source: 'live' } });
+    const root = fixture.nativeElement;
+    expect(root.querySelector('.trust-eyebrow')?.textContent?.trim()).toBe('Why Feasly');
+    expect(root.querySelectorAll('.trust-item').length).toBe(3);
+    // Third stat carries the brass check badge; compact value falls back to the full value.
+    const badgeItem = root.querySelector('.trust-item-badge');
+    expect(badgeItem?.querySelector('.trust-badge')?.textContent?.trim()).toBe('✓');
+    const shorts = [...root.querySelectorAll('.trust-value-short')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    expect(shorts).toEqual(['600,000+', 'Sep 2026', 'Deterministic math']);
+    const cta = root.querySelector('.sample-report-link a') as HTMLAnchorElement;
+    expect(cta?.getAttribute('href')).toBe('/sample-report');
+    expect(cta?.textContent).toContain('See a sample report');
   });
 
   it('hides the sample-report slot while the flag is off', () => {
@@ -286,5 +310,16 @@ describe('LandingPageComponent', () => {
     document.head
       .querySelectorAll('script[type="application/ld+json"]')
       .forEach((el) => el.remove());
+  });
+
+  describe('Calgary-only gate (D-03)', () => {
+    it('shows the shared Calgary-only gate on an out-of-coverage query', async () => {
+      // Entry-point integration: both the new-build AND the reno flows
+      // start at this hero search (reno pages have no address input of
+      // their own — reno users must pick a property here first), so the
+      // shared component's gate must surface here for all three entries
+      // (new-build, reno, embed).
+      await expectSharedCalgaryGate(fixture);
+    });
   });
 });

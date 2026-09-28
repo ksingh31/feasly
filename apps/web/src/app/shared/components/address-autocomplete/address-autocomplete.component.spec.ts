@@ -138,7 +138,7 @@ describe('AddressAutocompleteComponent', () => {
     const BODY =
       "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.";
     const NOT_FOUND =
-      "We couldn't find that address. Check the spelling or try a nearby address.";
+      "We couldn't find that address. Start typing the street number and pick your address from the list.";
 
     it('shows the exact Calgary-only copy for an out-of-coverage query', async () => {
       const fixture = create();

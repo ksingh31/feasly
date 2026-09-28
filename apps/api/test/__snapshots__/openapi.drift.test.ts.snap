@@ -1037,6 +1037,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "description": "City-assessed value, integer CAD",
             "type": "integer",
           },
+          "assessmentClass": {
+            "description": "City assessment class code, verbatim (e.g. 'R', 'NR')",
+            "type": "string",
+          },
           "assessmentYear": {
             "type": "integer",
           },
@@ -1046,6 +1050,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "dataAsOf": {
             "description": "When the City data was fetched (ISO date)",
             "type": "string",
+          },
+          "isNonResidential": {
+            "description": "True when the City classifies the parcel non-residential (commercial/industrial)",
+            "type": "boolean",
           },
           "lotSqft": {
             "description": "Lot size in square feet",
@@ -1075,6 +1083,8 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "assessedValue",
           "assessmentYear",
           "yearBuilt",
+          "assessmentClass",
+          "isNonResidential",
           "dataAsOf",
           "stale",
         ],
@@ -3154,7 +3164,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/shares": {
       "post": {
-        "description": "Mints a FRESH partner-share magic link attached to the same lead (the owner's token is never reused or persisted), emails it to the partner address, and records the audit row. The report token IS the credential.",
+        "description": "Mints a FRESH partner-share magic link attached to the same lead (the owner's token is never reused or persisted), emails it to the partner address, and records the audit row. The report token IS the credential. Abuse limits (CAP-008): max 5 shares per estimate per day over a rolling 24h window (429 RATE_LIMITED when exceeded); the partner email must differ from the owner's email (400). Partner-share tokens cannot mint further shares (403).",
         "requestBody": {
           "content": {
             "application/json": {
