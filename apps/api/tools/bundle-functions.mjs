@@ -282,6 +282,11 @@ const targets = [
     entry: 'src/functions/admin-billing.ts',
     out: 'admin-billing/index.js',
   },
+  // BILL-03: retry a failed commission charge (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-retry.ts',
+    out: 'admin-billing-retry/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

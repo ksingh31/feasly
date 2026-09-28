@@ -160,6 +160,13 @@ apps/web/src/app/features/admin/funnels-page.component.ts
 # decision, not by deploy tuning. Copy-pinned by admin-billing.component.spec.ts.
 apps/web/src/app/features/admin/admin-billing.component.html
 
+# BILL-03 retry copy: the dunning "Retry n of m" button label and the
+# one-shot retry success/error feedback are admin-facing UI copy that
+# changes by product decision (wording of a money action), not by deploy
+# tuning. Pinned by admin-billing.component.spec.ts.
+apps/web/src/app/features/admin/admin-billing.component.ts
+apps/web/src/app/features/admin/billing-health.state.ts
+
 # Calgary coverage heuristic (core/utils/coverage.ts, port of
 # apps/api/src/lib/coverage.ts): the T2/T3 FSA prefixes and non-Calgary city
 # tokens are domain constants that DEFINE what "Calgary coverage" means —

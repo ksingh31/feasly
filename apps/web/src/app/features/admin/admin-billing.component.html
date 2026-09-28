@@ -3,8 +3,9 @@
     <div>
       <h1>Billing health</h1>
       <p class="billing-panel__sub">
-        Read-only. MRR, review aging, dunning, and webhook health — no
-        charge, refund, or void actions here.
+        MRR, review aging, dunning, and webhook health. The dunning queue
+        offers a charge retry per failed invoice — everything else is
+        read-only.
       </p>
     </div>
     <div class="billing-panel__header-actions">
@@ -138,6 +139,16 @@
           No failed charges. The dunning queue is clear.
         </p>
       } @else {
+        @if (retryFeedback(); as feedback) {
+          <p
+            class="billing-panel__feedback"
+            [class.billing-panel__feedback--ok]="feedback.ok"
+            [class.billing-panel__feedback--error]="!feedback.ok"
+            role="status"
+          >
+            {{ feedback.message }}
+          </p>
+        }
         <table class="billing-panel__table">
           <thead>
             <tr>
@@ -145,6 +156,9 @@
               <th scope="col">Amount</th>
               <th scope="col">Past due since</th>
               <th scope="col">Days overdue</th>
+              <th scope="col">Retries</th>
+              <th scope="col">Last failure</th>
+              <th scope="col">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -154,6 +168,43 @@
                 <td>{{ formatCents(invoice.commissionCents) }}</td>
                 <td>{{ invoice.pastDueSince | date: 'medium' }}</td>
                 <td>{{ daysOverdue(invoice.pastDueSince) }}</td>
+                <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
+                <td>{{ invoice.lastFailureReason ?? '—' }}</td>
+                <td>
+                  @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
+                    <span class="billing-panel__muted">Manual handling</span>
+                  } @else if (isConfirming(invoice.id)) {
+                    <button
+                      type="button"
+                      class="billing-panel__btn billing-panel__btn--confirm"
+                      [disabled]="retryingInvoiceId() === invoice.id"
+                      (click)="confirmRetry(invoice.id)"
+                    >
+                      {{
+                        retryingInvoiceId() === invoice.id
+                          ? 'Retrying…'
+                          : 'Confirm retry'
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="billing-panel__btn"
+                      (click)="cancelRetry()"
+                    >
+                      Cancel
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="billing-panel__btn"
+                      (click)="requestRetry(invoice.id)"
+                    >
+                      {{
+                        retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
+                      }}
+                    </button>
+                  }
+                </td>
               </tr>
             }
           </tbody>

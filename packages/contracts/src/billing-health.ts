@@ -25,6 +25,16 @@ export interface BillingHealthDunningInvoice {
   readonly currency: string;
   /** When the charge failure moved the invoice into dunning. */
   readonly pastDueSince: string;
+  /**
+   * Off-session charge retry attempts made (BILL-03). 0 = the initial
+   * finalize charge. Capped by BILLING_MAX_CHARGE_RETRIES.
+   */
+  readonly retryCount: number;
+  /**
+   * Stripe's last_payment_error message from the latest failed charge,
+   * or null when no reason was recorded. Shown in the dunning queue.
+   */
+  readonly lastFailureReason: string | null;
 }
 
 /** MRR as reported by the dashboard. */
@@ -92,5 +102,7 @@ export interface BillingHealthResponse {
   readonly disputed: BillingHealthBucket;
   /** Failed-charge invoices with `past_due_since` — dunning work queue. */
   readonly dunning: ReadonlyArray<BillingHealthDunningInvoice>;
+  /** Max off-session charge retries per failed invoice (BILL-03). */
+  readonly maxChargeRetries: number;
   readonly webhooks: BillingHealthWebhooks;
 }

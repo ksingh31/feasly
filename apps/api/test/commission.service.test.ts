@@ -676,3 +676,150 @@ describe('commission service', () => {
     ).rejects.toMatchObject({ code: ErrorCodes.BILLING_MODEL_MISMATCH });
   });
 });
+
+describe('retryCharge (BILL-03)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  });
+
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  /** Drive an invoice to `failed`: draft → in_review → finalized → failed. */
+  async function seedFailedInvoice(
+    tenantKey: string,
+  ): Promise<{ commission: CommissionService; stripe: { calls: unknown[] }; invoiceId: string; firstPi: string }> {
+    const { commission, attribution, stripe } = newServices(testDb);
+    await seedTenant(testDb, tenantKey);
+    const attributionId = await seedAttribution(testDb, attribution, tenantKey);
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    const firstPi = finalized.stripePaymentIntentId!;
+    const failed = await commission.markFailedByPaymentIntent(firstPi, 'Your card was declined.');
+    return { commission, stripe, invoiceId: failed.id, firstPi };
+  }
+
+  it('retries a failed charge: new PaymentIntent, failed → finalized, retry count bumps', async () => {
+    const { commission, stripe, invoiceId, firstPi } =
+      await seedFailedInvoice('retry-builder-1');
+    const retried = await commission.retryCharge(invoiceId);
+    expect(retried.status).toBe('finalized');
+    expect(retried.retryCount).toBe(1);
+    expect(retried.stripePaymentIntentId).not.toBe(firstPi);
+
+    // Distinct idempotency key per retry attempt.
+    const piCalls = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ) as Array<{ idempotencyKey: string }>;
+    expect(piCalls).toHaveLength(2);
+    expect(piCalls[1]!.idempotencyKey).toBe(
+      `feasly:commission_invoices:${invoiceId}:retry:1`,
+    );
+
+    // A second retry gets :retry:2.
+    const retried2 = await commission.retryCharge(
+      (await commission.markFailedByPaymentIntent(retried.stripePaymentIntentId!, 'Insufficient funds.')).id,
+    );
+    expect(retried2.retryCount).toBe(2);
+    const piCalls2 = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ) as Array<{ idempotencyKey: string }>;
+    expect(piCalls2[2]!.idempotencyKey).toBe(
+      `feasly:commission_invoices:${invoiceId}:retry:2`,
+    );
+  });
+
+  it('settles a retried charge through the normal webhook path: finalized → paid', async () => {
+    const { commission, invoiceId } =
+      await seedFailedInvoice('retry-builder-6');
+    const retried = await commission.retryCharge(invoiceId);
+    expect(retried.status).toBe('finalized');
+    const paid = await commission.markPaidByPaymentIntent(
+      retried.stripePaymentIntentId!,
+    );
+    expect(paid.status).toBe('paid');
+  });
+
+  it('records the failure reason in the audit payload for the dunning queue', async () => {
+    const { commission, invoiceId } =
+      await seedFailedInvoice('retry-builder-2');
+    const events = await testDb.db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.entityId, invoiceId));
+    const failedEvent = events.find(
+      (e) => e.eventType === 'invoice.charge_failed',
+    );
+    expect(failedEvent).toBeDefined();
+    expect(
+      (failedEvent!.payload as Record<string, unknown>)['failureReason'],
+    ).toBe('Your card was declined.');
+    await commission.retryCharge(invoiceId);
+    const events2 = await testDb.db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.entityId, invoiceId));
+    expect(
+      events2.some((e) => e.eventType === 'invoice.charge_retried'),
+    ).toBe(true);
+  });
+
+  it('409s on non-failed invoices and never on disputed ones', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'retry-builder-3');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'retry-builder-3',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    await expect(commission.retryCharge(draft.id)).rejects.toMatchObject({
+      code: ErrorCodes.CONFLICT,
+    });
+    const inReview = await commission.submitForReview(draft.id);
+    const disputed = await commission.disputeInvoice(inReview.id, 'wrong amount');
+    await expect(commission.retryCharge(disputed.id)).rejects.toMatchObject({
+      code: ErrorCodes.CONFLICT,
+    });
+  });
+
+  it('422s past the max-retry cap', async () => {
+    const { commission } = newServices(testDb);
+    // maxChargeRetries is optional in test fixtures → default 3.
+    const { invoiceId } = await seedFailedInvoice('retry-builder-4');
+    for (let n = 0; n < 3; n += 1) {
+      const retried = await commission.retryCharge(invoiceId);
+      await commission.markFailedByPaymentIntent(
+        retried.stripePaymentIntentId!,
+      );
+    }
+    await expect(commission.retryCharge(invoiceId)).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+  });
+
+  it('422s when the tenant has no card on file', async () => {
+    const { commission, attribution, stripe } = newServices(testDb);
+    await seedTenant(testDb, 'retry-builder-5');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'retry-builder-5',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    await commission.markFailedByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+    );
+    // Card removed after the failure.
+    stripe.getCustomerId = async () => null;
+    await expect(commission.retryCharge(finalized.id)).rejects.toMatchObject({
+      code: ErrorCodes.BILLING_NOT_CONFIGURED,
+    });
+  });
+});

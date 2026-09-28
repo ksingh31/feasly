@@ -186,3 +186,55 @@
   color: var(--color-text-muted, #6b6459);
   margin: 0;
 }
+
+/* BILL-03: dunning retry action + feedback. */
+
+.billing-panel__btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  margin-right: 0.375rem;
+  border: 1px solid var(--color-border, #d8d2c7);
+  border-radius: 0.375rem;
+  background: var(--color-surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.billing-panel__btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.billing-panel__btn--confirm {
+  border-color: #b98a1c;
+  background: #fdf3dc;
+  color: #7a5a10;
+}
+
+.billing-panel__muted {
+  color: var(--color-text-muted, #6b6459);
+  font-size: 0.8125rem;
+}
+
+.billing-panel__feedback {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.billing-panel__feedback--ok {
+  border: 1px solid #b7d9a8;
+  background: #eef7e8;
+  color: #2f6b22;
+}
+
+.billing-panel__feedback--error {
+  border: 1px solid #f3b4b4;
+  background: #fde8e8;
+  color: #a02323;
+}

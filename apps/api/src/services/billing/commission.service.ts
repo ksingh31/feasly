@@ -68,6 +68,8 @@ export interface CommissionInvoiceRecord {
   readonly paidAt: Date | null;
   readonly slaBreached: boolean;
   readonly disputeReason: string | null;
+  /** Off-session charge retry attempts made (BILL-03). */
+  readonly retryCount: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -90,6 +92,16 @@ export interface CommissionService {
    * `feasly:commission_invoices:{id}:charge`).
    */
   finalizeInvoice(invoiceId: string): Promise<CommissionInvoiceRecord>;
+  /**
+   * Retry a failed charge (BILL-03): creates a NEW off-session PaymentIntent
+   * against the tenant's saved card (idempotency key
+   * `feasly:commission_invoices:{id}:retry:{n}`) and moves the invoice
+   * `failed → finalized`, where the existing webhook path settles
+   * paid/failed. Allowed from 'failed' only (409 otherwise — disputed can
+   * never be retried); capped by BILLING_MAX_CHARGE_RETRIES (422 past the
+   * cap). The 7-day review window is NOT reopened on retry.
+   */
+  retryCharge(invoiceId: string): Promise<CommissionInvoiceRecord>;
   /** Builder disputes — charge clock FROZEN, ops alerted. */
   disputeInvoice(invoiceId: string, reason: string): Promise<CommissionInvoiceRecord>;
   /** Human resolution of a dispute: back to review or void. */
@@ -104,9 +116,13 @@ export interface CommissionService {
   markPaidByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
   /**
    * Webhook: payment_intent.payment_failed → dunning. No-op (audited) while
-   * the invoice is 'disputed'.
+   * the invoice is 'disputed'. The optional failure reason is recorded in
+   * the audit payload so the dunning queue can show it (BILL-03).
    */
-  markFailedByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
+  markFailedByPaymentIntent(
+    paymentIntentId: string,
+    failureReason?: string,
+  ): Promise<CommissionInvoiceRecord>;
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
   /**
@@ -168,7 +184,16 @@ const ALLOWED_TRANSITIONS: Record<
   in_review: new Set(['finalized', 'disputed']),
   finalized: new Set(['paid', 'failed']),
   paid: new Set([]),
-  failed: new Set([]),
+  // BILL-03: a failed invoice may be re-charged by an admin (retryCharge),
+  // moving to `finalized` with a fresh PaymentIntent. `finalized` (not
+  // `in_review`) is deliberate: the webhook settles `finalized → paid` /
+  // `finalized → failed` via the EXISTING path (no new transitions), the
+  // review window is NOT reopened (the builder already had 7 days), and the
+  // invoice-reviewer timer only touches `in_review`, so no second charge
+  // can be created while the retry PI is pending. The story's literal
+  // `failed → in_review` text was corrected here: `in_review → paid` is not
+  // a legal transition, so the retry PI's success webhook would have 409'd.
+  failed: new Set(['finalized']),
   disputed: new Set(['in_review', 'void']),
   void: new Set([]),
 };
@@ -193,6 +218,7 @@ function toRecord(
     paidAt: row.paidAt,
     slaBreached: row.slaBreached,
     disputeReason: row.disputeReason,
+    retryCount: row.retryCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -525,6 +551,71 @@ export function createCommissionService(
       );
     },
 
+    async retryCharge(invoiceId: string): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      const row = await requireInvoice(invoiceId);
+      if (row.status === 'disputed') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is disputed — disputed invoices can never be retried`,
+        );
+      }
+      if (row.status !== 'failed') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${row.status}' — only 'failed' can be retried`,
+        );
+      }
+      const maxRetries = deps.billing.maxChargeRetries ?? 3;
+      if (row.retryCount >= maxRetries) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          `Invoice "${invoiceId}" has used ${row.retryCount} of ${maxRetries} ` +
+            'charge retries — manual handling required',
+        );
+      }
+      const customerId = await stripe.getCustomerId(row.tenantKey);
+      if (!customerId) {
+        throw new HttpError(
+          422,
+          ErrorCodes.BILLING_NOT_CONFIGURED,
+          `Tenant "${row.tenantKey}" has no card on file — cannot retry charge`,
+        );
+      }
+      const retryNumber = row.retryCount + 1;
+      const intent = await stripe.createOffSessionPaymentIntent(
+        {
+          amountCents: row.commissionCents,
+          currency: row.currency,
+          customerId,
+          description:
+            `Feasly commission 1% — invoice ${invoiceId} ` +
+            `(retry ${retryNumber}, contract excl. land, ` +
+            `attribution ${row.attributionId})`,
+        },
+        // Idempotency key: distinct per retry attempt.
+        `feasly:commission_invoices:${invoiceId}:retry:${retryNumber}`,
+      );
+      return transition(
+        invoiceId,
+        'failed',
+        'finalized',
+        {
+          stripePaymentIntentId: intent.id,
+          retryCount: retryNumber,
+        },
+        'invoice.charge_retried',
+        {
+          retryNumber,
+          paymentIntentId: intent.id,
+          paymentIntentStatus: intent.status,
+        },
+      );
+    },
+
     async disputeInvoice(
       invoiceId: string,
       reason: string,
@@ -638,6 +729,7 @@ export function createCommissionService(
 
     async markFailedByPaymentIntent(
       paymentIntentId: string,
+      failureReason?: string,
     ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
       const row = await db.query.commissionInvoices.findFirst({
@@ -661,7 +753,10 @@ export function createCommissionService(
         'failed',
         {},
         'invoice.charge_failed',
-        { paymentIntentId },
+        // BILL-03: the dunning queue shows the last failure reason.
+        failureReason !== undefined && failureReason.length > 0
+          ? { paymentIntentId, failureReason }
+          : { paymentIntentId },
       );
       await alertOps(
         'Billing charge failed — dunning started',

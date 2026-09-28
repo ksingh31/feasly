@@ -781,6 +781,11 @@ export const commissionInvoices = pgTable(
     paidAt: timestamp('paid_at', { withTimezone: true }),
     /** True when the contract was reported after the 14-day reporting SLA. */
     slaBreached: boolean('sla_breached').notNull().default(false),
+    /**
+     * Off-session charge retry attempts made (BILL-03). 0 = the initial
+     * finalize charge. Capped by BILLING_MAX_CHARGE_RETRIES.
+     */
+    retryCount: integer('retry_count').notNull().default(0),
     /** Builder-supplied reason while status='disputed'. */
     disputeReason: text('dispute_reason'),
     createdAt: timestamp('created_at', { withTimezone: true })

@@ -149,7 +149,7 @@ export function createBillingWebhookService(
           if (event.paymentIntentId) {
             const piId = event.paymentIntentId;
             await tolerateModelMismatch(event, () =>
-              commission.markFailedByPaymentIntent(piId),
+              commission.markFailedByPaymentIntent(piId, event.failureMessage),
             );
           }
           break;

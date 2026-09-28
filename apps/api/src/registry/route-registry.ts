@@ -683,6 +683,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/retry',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Retry a failed commission charge (BILL-03): new off-session ' +
+      'PaymentIntent with idempotency key ' +
+      'feasly:commission_invoices:{id}:retry:{n}, invoice failed → ' +
+      'finalized (review window NOT reopened). Failed-only (409 ' +
+      'otherwise), disputed never retried, ' +
+      'capped by BILLING_MAX_CHARGE_RETRIES.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
     auth: 'admin',
     permissions: ['ops:manage'] as const,

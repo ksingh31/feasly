@@ -260,6 +260,13 @@
       "when": 1790600000000,
       "tag": "0038_builder_session_builder_id",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0039_billing_retry_count",
+      "breakpoints": true
     }
   ]
 }
