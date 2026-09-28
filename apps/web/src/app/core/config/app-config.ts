@@ -136,6 +136,36 @@ export interface AppConfig {
   admin: {
     /** Default per-minute rate limit prefilled in the issue form. */
     defaultRateLimit: number;
+    /**
+     * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
+     * deploy-time values — the compiled defaults are placeholders that
+     * MUST be replaced in app-config.json before the Entra flow can start.
+     */
+    entra: {
+      /**
+       * Tenant subdomain: sign-in happens at
+       * `https://{tenantSubdomain}.ciamlogin.com/{tenantId}/…`.
+       * Placeholder key name: ENTRA_TENANT_SUBDOMAIN.
+       */
+      tenantSubdomain: string;
+      /**
+       * Directory (tenant) ID from the Entra External ID tenant.
+       * Placeholder key name: ENTRA_TENANT_ID.
+       */
+      tenantId: string;
+      /**
+       * Application (client) ID of the Feasly admin app registration.
+       * Placeholder key name: ENTRA_CLIENT_ID.
+       */
+      clientId: string;
+      /**
+       * Microsoft-hosted authorize endpoint template. `{tenantSubdomain}`
+       * and `{tenantId}` are substituted at sign-in time. Lives in config
+       * (not code) so sovereign clouds (e.g. `ciamlogin.us`) or future
+       * endpoint versions need no code change.
+       */
+      authorizeUrlTemplate: string;
+    };
   };
   copy: {
     /** Short brand tagline used in the shell footer / meta fallbacks. */
@@ -951,6 +981,31 @@ export interface AppConfig {
         activeLabel: string;
         lastUsedLabel: string;
         createdLabel: string;
+      };
+      /**
+       * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.
+       * All user-facing strings live here so the no-hardcode tripwire
+       * stays green and copy is deploy-tunable. Exact strings are pinned
+       * by the login/callback specs.
+       */
+      auth: {
+        /** Session-expired notice on the login page. */
+        loginExpired: string;
+        /** Label of the Entra "Sign in →" button. */
+        entraSignInLabel: string;
+        /** Intro line above the Entra button. */
+        entraSignInIntro: string;
+        /**
+         * Callback failure when Entra reports `error=access_denied`
+         * (user cancelled) or the callback carries no usable code.
+         */
+        entraIncomplete: string;
+        /** Callback failure when the `state` param mismatches (CSRF). */
+        entraStateMismatch: string;
+        /** Network/5xx failure exchanging the code with the backend. */
+        entraTransient: string;
+        /** Shown when the Entra tenant config is still a placeholder. */
+        entraNotConfigured: string;
       };
     };
     /**

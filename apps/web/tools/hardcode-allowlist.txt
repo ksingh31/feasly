@@ -190,3 +190,9 @@ apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts
 # admin-builders.component.spec.ts.
 apps/web/src/app/features/admin/admin-builders.component.html
 apps/web/src/app/features/admin/admin-builders.component.ts
+
+# PKCE helpers (auth/02 Entra pivot): the only numeric literals are RFC 7636
+# protocol constants (64-byte verifier, 32-byte state, SHA-256) — they are
+# wire-protocol facts, not deploy tunables. Pinned by the RFC 7636 Appendix B
+# test vector in admin-entra-pkce.spec.ts.
+apps/web/src/app/features/admin/admin-entra-pkce.ts

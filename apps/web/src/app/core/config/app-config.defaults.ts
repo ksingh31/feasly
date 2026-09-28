@@ -94,6 +94,18 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   admin: {
     defaultRateLimit: 60,
+    /**
+     * Microsoft Entra External ID (auth/02 pivot). Placeholders — the
+     * backend team provides the real tenant values (ENTRA_TENANT_SUBDOMAIN,
+     * ENTRA_TENANT_ID, ENTRA_CLIENT_ID) in the deployed app-config.json.
+     */
+    entra: {
+      tenantSubdomain: 'ENTRA_TENANT_SUBDOMAIN',
+      tenantId: 'ENTRA_TENANT_ID',
+      clientId: 'ENTRA_CLIENT_ID',
+      authorizeUrlTemplate:
+        'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
+    },
   },
   copy: {
     tagline: 'Know what your infill build will cost — before you commit.',
@@ -883,6 +895,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         entryStep: 'Entry step',
         conversionPrefix: 'Converted from previous step:',
         noConversion: '—',
+      },
+      auth: {
+        loginExpired: 'Your admin session expired. Sign in again.',
+        entraSignInLabel: 'Sign in →',
+        entraSignInIntro:
+          'Sign in with your Feasly admin account to continue.',
+        entraIncomplete: "Sign-in didn't complete — try again.",
+        entraStateMismatch: "Sign-in didn't complete — try again.",
+        entraTransient: 'Something went wrong. Please try again.',
+        entraNotConfigured: 'Sign-in is not set up yet. Contact support.',
       },
     },
     unsubscribe: {

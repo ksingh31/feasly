@@ -6,6 +6,8 @@ import { Action, Selector, State, StateContext } from '@ngxs/store';
 import { AdminAuthApiService } from './admin-auth-api.service';
 import {
   ClearAdminAuth,
+  CompleteEntraSignIn,
+  FailEntraSignIn,
   LoadAdminSession,
   LogoutAdmin,
   VerifyAdminToken,
@@ -23,6 +25,18 @@ export type AdminAuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
  */
 export type VerifyErrorKind = 'used' | 'transient' | 'invalid';
 
+/**
+ * Classification of the last Entra callback failure, so the callback page
+ * can show the right buyer-grade copy (auth/02 pivot):
+ * - 'cancelled': Entra reported `error=access_denied` (the user cancelled)
+ *   or the callback carried no usable authorization code.
+ * - 'state-mismatch': the `state` param didn't match what we stored before
+ *   the redirect (possible CSRF — never the user's fault to fix).
+ * - 'transient': network timeout, 5xx exchanging the code — safe to retry
+ *   from `/admin/login`.
+ */
+export type EntraCallbackErrorKind = 'cancelled' | 'state-mismatch' | 'transient';
+
 export interface AdminAuthStateModel {
   /**
    * The admin session token (from the verify JSON body). Sent back as
@@ -34,6 +48,17 @@ export interface AdminAuthStateModel {
   sessionToken: string | null;
   /** Lowercased admin email the session was issued for (display only). */
   email: string | null;
+  /**
+   * Display name from the password-login identity (auth/02). Null for
+   * legacy magic-link sessions until the backend enriches /me.
+   */
+  name: string | null;
+  /**
+   * Staff role from the password-login identity
+   * (`super_admin` | `admin` | `viewer`). Null for legacy magic-link
+   * sessions. Drives role-gated UI in later auth stories.
+   */
+  staffRole: string | null;
   authStatus: AdminAuthStatus;
   /** True when the last /me probe failed with SESSION_EXPIRED (login copy). */
   sessionExpired: boolean;
@@ -42,14 +67,22 @@ export interface AdminAuthStateModel {
    * verify succeeded or none has run). Read by the verify page's error state.
    */
   lastVerifyError: VerifyErrorKind | null;
+  /**
+   * Classification of the last Entra callback failure (null when the last
+   * callback succeeded or none has run). Read by the callback page.
+   */
+  lastEntraError: EntraCallbackErrorKind | null;
 }
 
 const defaults: AdminAuthStateModel = {
   sessionToken: null,
   email: null,
+  name: null,
+  staffRole: null,
   authStatus: 'unknown',
   sessionExpired: false,
   lastVerifyError: null,
+  lastEntraError: null,
 };
 
 /**
@@ -98,6 +131,16 @@ export class AdminAuthState {
   }
 
   @Selector()
+  static name(state: AdminAuthStateModel): string | null {
+    return state.name;
+  }
+
+  @Selector()
+  static staffRole(state: AdminAuthStateModel): string | null {
+    return state.staffRole;
+  }
+
+  @Selector()
   static authStatus(state: AdminAuthStateModel): AdminAuthStatus {
     return state.authStatus;
   }
@@ -110,6 +153,11 @@ export class AdminAuthState {
   @Selector()
   static lastVerifyError(state: AdminAuthStateModel): VerifyErrorKind | null {
     return state.lastVerifyError;
+  }
+
+  @Selector()
+  static lastEntraError(state: AdminAuthStateModel): EntraCallbackErrorKind | null {
+    return state.lastEntraError;
   }
 
   @Selector()
@@ -168,6 +216,38 @@ export class AdminAuthState {
         return of(null);
       }),
     );
+  }
+
+  @Action(CompleteEntraSignIn)
+  completeEntraSignIn(
+    ctx: StateContext<AdminAuthStateModel>,
+    action: CompleteEntraSignIn,
+  ): void {
+    ctx.patchState({
+      sessionToken: action.sessionToken,
+      email: action.email,
+      name: action.name,
+      staffRole: action.staffRole,
+      authStatus: 'authenticated',
+      sessionExpired: false,
+      lastEntraError: null,
+      lastVerifyError: null,
+    });
+  }
+
+  @Action(FailEntraSignIn)
+  failEntraSignIn(
+    ctx: StateContext<AdminAuthStateModel>,
+    action: FailEntraSignIn,
+  ): void {
+    ctx.patchState({
+      sessionToken: null,
+      email: null,
+      name: null,
+      staffRole: null,
+      authStatus: 'unauthenticated',
+      lastEntraError: action.error,
+    });
   }
 
   @Action(LogoutAdmin)

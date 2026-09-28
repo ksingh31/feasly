@@ -1,9 +1,11 @@
 /**
- * Admin auth state tests (admin/01).
+ * Admin auth state tests (admin/01 + auth/02 pivot).
  *
  * Verifies: token verify/load transitions (bearer token stored on
  * success, cleared on failure/logout), expired-session flagging for the
- * login copy, and logout clearing.
+ * login copy, logout clearing, and the auth/02 Entra actions
+ * (CompleteEntraSignIn bootstraps the session identity; FailEntraSignIn
+ * classifies the callback failure for the callback page copy).
  */
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -16,6 +18,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ClearAdminAuth,
+  CompleteEntraSignIn,
+  FailEntraSignIn,
   LoadAdminSession,
   LogoutAdmin,
   VerifyAdminToken,
@@ -241,6 +245,66 @@ describe('AdminAuthState (admin/01)', () => {
       });
     await ok;
     expect(snapshot().lastVerifyError).toBeNull();
+    httpMock.verify();
+  });
+
+  it('CompleteEntraSignIn bootstraps the session identity', async () => {
+    await store.dispatch(
+      new CompleteEntraSignIn(
+        'sess-entra-abc',
+        'admin@example.com',
+        'Admin User',
+        'super_admin',
+      ),
+    );
+
+    const s = snapshot();
+    expect(s.authStatus).toBe('authenticated');
+    expect(s.sessionToken).toBe('sess-entra-abc');
+    expect(s.email).toBe('admin@example.com');
+    expect(s.name).toBe('Admin User');
+    expect(s.staffRole).toBe('super_admin');
+    expect(s.sessionExpired).toBe(false);
+    expect(s.lastEntraError).toBeNull();
+    expect(store.selectSnapshot(AdminAuthState.authenticated)).toBe(true);
+    httpMock.verify();
+  });
+
+  it('CompleteEntraSignIn clears a previous callback error', async () => {
+    await store.dispatch(new FailEntraSignIn('transient'));
+    expect(snapshot().lastEntraError).toBe('transient');
+
+    await store.dispatch(
+      new CompleteEntraSignIn('sess-entra-ok', 'a@b.c', 'A B', 'admin'),
+    );
+    expect(snapshot().lastEntraError).toBeNull();
+    httpMock.verify();
+  });
+
+  it('FailEntraSignIn records the classified error and clears the session', async () => {
+    await store.dispatch(
+      new CompleteEntraSignIn('sess-entra-abc', 'a@b.c', 'A B', 'viewer'),
+    );
+    await store.dispatch(new FailEntraSignIn('state-mismatch'));
+
+    const s = snapshot();
+    expect(s.authStatus).toBe('unauthenticated');
+    expect(s.sessionToken).toBeNull();
+    expect(s.email).toBeNull();
+    expect(s.name).toBeNull();
+    expect(s.staffRole).toBeNull();
+    expect(s.lastEntraError).toBe('state-mismatch');
+    expect(store.selectSnapshot(AdminAuthState.lastEntraError)).toBe(
+      'state-mismatch',
+    );
+    httpMock.verify();
+  });
+
+  it('FailEntraSignIn supports the cancelled and transient kinds', async () => {
+    await store.dispatch(new FailEntraSignIn('cancelled'));
+    expect(snapshot().lastEntraError).toBe('cancelled');
+    await store.dispatch(new FailEntraSignIn('transient'));
+    expect(snapshot().lastEntraError).toBe('transient');
     httpMock.verify();
   });
 });

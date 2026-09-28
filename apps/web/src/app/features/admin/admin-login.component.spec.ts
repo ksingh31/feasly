@@ -1,43 +1,87 @@
 /**
- * Admin login component tests (admin/01).
+ * Admin login component specs (auth/02 pivot).
  *
- * Verifies: the expired-session query param shows the exact story copy,
- * successful submit shows the "check your email" message, and the form
- * validates email input.
+ * Verifies: the branded Entra card (single "Sign in →" button starts the
+ * Microsoft-hosted flow via AdminEntraAuthService), the not-configured
+ * copy while the app-config still carries ENTRA_* placeholders, the
+ * expired-session copy, and the preserved magic-link fallback toggle
+ * (request → sent/error states, email validation).
  */
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminLoginComponent } from './admin-login.component';
 import { AdminAuthApiService } from './admin-auth-api.service';
+import { AdminEntraAuthService } from './admin-entra-auth.service';
 import { SeoService } from '../../core/seo/seo.service';
+import { ConfigService } from '../../core/config/config.service';
 
-const EXPIRED_COPY =
-  'Your admin session expired. Enter your email for a fresh sign-in link.';
+const EXPIRED_COPY = 'Your admin session expired. Sign in again.';
+const SIGN_IN_LABEL = 'Sign in →';
+const INTRO_COPY = 'Sign in with your Feasly admin account to continue.';
+const NOT_CONFIGURED_COPY = 'Sign-in is not set up yet. Contact support.';
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
 class BlankComponent {}
 
-async function setup(queryParams: Record<string, string> = {}) {
+interface SetupOpts {
+  entraConfigured?: boolean;
+  expired?: boolean;
+  magicLinkOk?: boolean;
+}
+
+async function setup(opts: SetupOpts = {}) {
   TestBed.resetTestingModule();
   const api = {
-    requestMagicLink: vi.fn().mockReturnValue(of({ sent: true as const })),
+    requestMagicLink: vi.fn().mockReturnValue(
+      opts.magicLinkOk === false
+        ? throwError(() => ({ retryable: true }))
+        : of({ sent: true as const }),
+    ),
+  };
+  const entra = {
+    isConfigured: () => opts.entraConfigured ?? true,
+    startSignIn: vi.fn().mockResolvedValue(undefined),
   };
   const seo = { setPage: vi.fn() };
-  const paramMap = {
-    get: (key: string): string | null => queryParams[key] ?? null,
+  const config = {
+    get: (section: string) =>
+      section === 'copy'
+        ? {
+            admin: {
+              auth: {
+                loginExpired: EXPIRED_COPY,
+                entraSignInLabel: SIGN_IN_LABEL,
+                entraSignInIntro: INTRO_COPY,
+                entraIncomplete: "Sign-in didn't complete — try again.",
+                entraStateMismatch: "Sign-in didn't complete — try again.",
+                entraTransient: 'Something went wrong. Please try again.',
+                entraNotConfigured: NOT_CONFIGURED_COPY,
+              },
+            },
+          }
+        : {},
   };
-  const route = { snapshot: { queryParamMap: paramMap } };
+  const route = {
+    snapshot: {
+      queryParamMap: {
+        get: (key: string): string | null =>
+          key === 'expired' && opts.expired ? '1' : null,
+      },
+    },
+  };
 
   TestBed.configureTestingModule({
-    imports: [AdminLoginComponent, BlankComponent],
+    imports: [AdminLoginComponent],
     providers: [
-      provideRouter([{ path: '', component: BlankComponent }]),
+      provideRouter([{ path: 'admin', component: BlankComponent }]),
       { provide: AdminAuthApiService, useValue: api },
+      { provide: AdminEntraAuthService, useValue: entra },
       { provide: SeoService, useValue: seo },
+      { provide: ConfigService, useValue: config },
       { provide: ActivatedRoute, useValue: route },
     ],
   });
@@ -45,58 +89,108 @@ async function setup(queryParams: Record<string, string> = {}) {
     TestBed.createComponent(AdminLoginComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, api, seo };
+  return { fixture, api, entra };
 }
 
-describe('AdminLoginComponent (admin/01)', () => {
+function textOf(fixture: ComponentFixture<AdminLoginComponent>): string {
+  return fixture.nativeElement.textContent as string;
+}
+
+describe('AdminLoginComponent (Entra)', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });
 
-  it('shows the exact expired-session copy when ?expired=1', async () => {
-    const { fixture } = await setup({ expired: '1' });
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain(EXPIRED_COPY);
-  });
-
-  it('does not show the expired copy without the query param', async () => {
+  it('renders the branded card with the Entra sign-in button', async () => {
     const { fixture } = await setup();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).not.toContain(EXPIRED_COPY);
+    const text = textOf(fixture);
+    expect(text).toContain('Admin portal');
+    expect(text).toContain('Welcome back');
+    expect(text).toContain(INTRO_COPY);
+    expect(text).toContain(SIGN_IN_LABEL);
+    expect(text).not.toContain('Password');
   });
 
-  it('successful submit shows "Check your email"', async () => {
+  it('starts the Microsoft-hosted flow when the button is clicked', async () => {
+    const { fixture, entra } = await setup();
+    const button = fixture.nativeElement.querySelector(
+      '.admin-login__submit',
+    ) as HTMLButtonElement;
+    button.click();
+    await fixture.whenStable();
+    expect(entra.startSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the button while the redirect is starting', async () => {
+    const { fixture, entra } = await setup();
+    let resolveStart!: () => void;
+    entra.startSignIn.mockImplementation(
+      () => new Promise<void>((resolve) => (resolveStart = resolve)),
+    );
+    const button = fixture.nativeElement.querySelector(
+      '.admin-login__submit',
+    ) as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    expect(button.disabled).toBe(true);
+    resolveStart();
+    await fixture.whenStable();
+  });
+
+  it('shows the not-configured copy instead of the button when Entra is unconfigured', async () => {
+    const { fixture } = await setup({ entraConfigured: false });
+    const text = textOf(fixture);
+    expect(text).toContain(NOT_CONFIGURED_COPY);
+    expect(
+      fixture.nativeElement.querySelector('.admin-login__submit'),
+    ).toBeNull();
+  });
+
+  it('shows the expired-session notice on ?expired=1', async () => {
+    const { fixture } = await setup({ expired: true });
+    expect(textOf(fixture)).toContain(EXPIRED_COPY);
+  });
+
+  it('keeps the magic-link fallback behind the toggle', async () => {
     const { fixture, api } = await setup();
-    const component = fixture.componentInstance as unknown as {
-      form: { controls: { email: { setValue: (v: string) => void } } };
-      submit: () => void;
-    };
-    component.form.controls.email.setValue('admin@example.com');
-    component.submit();
+    const toggle = fixture.nativeElement.querySelector(
+      '.admin-login__alt',
+    ) as HTMLButtonElement;
+    expect(toggle.textContent).toContain('Use a sign-in link instead');
+    toggle.click();
+    fixture.detectChanges();
+
+    const email = fixture.nativeElement.querySelector(
+      'input[type="email"]',
+    ) as HTMLInputElement;
+    email.value = 'admin@example.com';
+    email.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const send = fixture.nativeElement.querySelector(
+      '.admin-login__submit',
+    ) as HTMLButtonElement;
+    send.click();
+    await fixture.whenStable();
     expect(api.requestMagicLink).toHaveBeenCalledWith({
       email: 'admin@example.com',
     });
     fixture.detectChanges();
+    expect(textOf(fixture)).toContain('Check your email for your sign-in link.');
+  });
+
+  it('shows the magic-link error state with a retry', async () => {
+    const { fixture } = await setup({ magicLinkOk: false });
+    (fixture.nativeElement.querySelector('.admin-login__alt') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const email = fixture.nativeElement.querySelector(
+      'input[type="email"]',
+    ) as HTMLInputElement;
+    email.value = 'admin@example.com';
+    email.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.admin-login__submit') as HTMLButtonElement).click();
     await fixture.whenStable();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Check your email for your sign-in link.');
-  });
-
-  it('does not submit an invalid email', async () => {
-    const { fixture, api } = await setup();
-    const component = fixture.componentInstance as unknown as {
-      form: { controls: { email: { setValue: (v: string) => void } } };
-      submit: () => void;
-    };
-    component.form.controls.email.setValue('not-an-email');
-    component.submit();
-    expect(api.requestMagicLink).not.toHaveBeenCalled();
-  });
-
-  it('sets SEO metadata for the login page', async () => {
-    const { seo } = await setup();
-    expect(seo.setPage).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/admin/login' }),
-    );
+    fixture.detectChanges();
+    expect(textOf(fixture)).toContain('Something went wrong. Please try again.');
   });
 });

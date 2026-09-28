@@ -211,14 +211,25 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  // Admin (admin/01): magic-link session auth. All admin routes are
-  // noindexed and excluded from prerendering (not in prerender-routes.txt).
-  // No public-page links point here. All admin views are lazy-loaded so they
-  // stay out of the initial bundle (bundle-budget regression, PR #159).
+  // Admin (admin/01 + auth/02 pivot): Microsoft Entra External ID sign-in;
+  // the magic-link flow stays available behind the backend flag until
+  // AUTH-06 retires it. All admin routes are noindexed and excluded from
+  // prerendering (not in prerender-routes.txt). No public-page links point
+  // here. All admin views are lazy-loaded so they stay out of the initial
+  // bundle (bundle-budget regression, PR #159).
   {
     path: 'admin/login',
     loadComponent: () =>
       import('./features/admin/admin-login.component').then((m) => m.AdminLoginComponent),
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    path: 'admin/auth/callback',
+    loadComponent: () =>
+      import('./features/admin/admin-entra-callback.component').then(
+        (m) => m.AdminEntraCallbackComponent,
+      ),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },

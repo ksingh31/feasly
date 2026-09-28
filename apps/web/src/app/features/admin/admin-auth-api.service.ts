@@ -7,6 +7,8 @@ import type {
   AdminAuthRequestResponse,
   AdminAuthLogoutResponse,
   AdminAuthVerifyResponse,
+  AdminEntraCallbackBody,
+  AdminEntraCallbackResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
@@ -62,6 +64,33 @@ export class AdminAuthApiService {
   logout(): Observable<AdminAuthLogoutResponse> {
     return this.call(
       this.http.post<AdminAuthLogoutResponse>(`${this.authBase}/logout`, {}),
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // AUTH-02 (auth modernization, MVP) — Microsoft Entra External ID.
+  //
+  // CONTRACT-DRIVEN: `POST /api/v1/admin/auth/entra/callback` lands with
+  // the backend half of auth/02. This method codes against
+  // `AdminEntraCallbackBody` / `AdminEntraCallbackResponse` in
+  // @feasly/contracts — the backend must honor that shape.
+  // ------------------------------------------------------------------
+
+  /**
+   * Exchange an Entra authorization code for our session. The SPA never
+   * touches Entra tokens: the backend redeems `{ code, codeVerifier,
+   * redirectUri }` with Entra and returns the Feasly session
+   * (`sessionToken` + user) in the JSON body — the same Bearer <redacted>
+   * discipline as the magic-link verify response.
+   */
+  exchangeEntraCode(
+    body: AdminEntraCallbackBody,
+  ): Observable<AdminEntraCallbackResponse> {
+    return this.call(
+      this.http.post<AdminEntraCallbackResponse>(
+        `${this.authBase}/entra/callback`,
+        body,
+      ),
     );
   }
 
