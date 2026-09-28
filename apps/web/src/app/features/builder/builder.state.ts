@@ -4,18 +4,26 @@ import { catchError, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
-  BuilderAuthMeResponse,
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
+import type {
+  BuilderOrgMembership,
+  BuilderSessionIdentity,
+  EntraCallbackErrorKind,
+} from './builder-auth.contracts';
 import { BuilderAuthApiService } from './builder-auth-api.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import {
   ClearBuilderState,
+  CompleteBuilderEntraSignIn,
+  FailBuilderEntraSignIn,
   LoadBuilderLeads,
+  LoadBuilderMemberships,
   LoadBuilderSession,
   LogoutBuilder,
+  SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
   VerifyBuilderToken,
 } from './builder.actions';
@@ -35,11 +43,25 @@ export interface BuilderStateModel {
    * browsers. Everything else in this slice stays memory-only (see below).
    */
   sessionToken: string | null;
-  /** Session identity (email + tenant), memory-only — never persisted. */
-  session: BuilderAuthMeResponse | null;
+  /** Session identity (email + org context), memory-only — never persisted. */
+  session: BuilderSessionIdentity | null;
   authStatus: BuilderAuthStatus;
   /** True when the last /me probe failed with SESSION_EXPIRED (login copy). */
   sessionExpired: boolean;
+  /**
+   * auth/05: the user's builder memberships (org picker + switcher).
+   * Memory-only — refetched on mount.
+   */
+  memberships: readonly BuilderOrgMembership[];
+  /** True while the membership list is loading (org picker). */
+  membershipsLoading: boolean;
+  /** True when the last membership load failed. */
+  membershipsError: boolean;
+  /**
+   * Classification of the last Entra callback failure (null when the last
+   * callback succeeded or none has run). Read by the callback page.
+   */
+  lastEntraError: EntraCallbackErrorKind | null;
   /** Tenant-scoped leads, memory-only (homeowner PII — never persisted). */
   leads: readonly BuilderLeadListItem[];
   summary: BuilderLeadListResponse['summary'];
@@ -64,6 +86,10 @@ const defaults: BuilderStateModel = {
   session: null,
   authStatus: 'unknown',
   sessionExpired: false,
+  memberships: [],
+  membershipsLoading: false,
+  membershipsError: false,
+  lastEntraError: null,
   leads: [],
   summary: EMPTY_SUMMARY,
   leadsStatus: 'idle',
@@ -95,7 +121,7 @@ export class BuilderState {
   private readonly leadsApi = inject(BuilderLeadsApiService);
 
   @Selector()
-  static session(state: BuilderStateModel): BuilderAuthMeResponse | null {
+  static session(state: BuilderStateModel): BuilderSessionIdentity | null {
     return state.session;
   }
 
@@ -117,6 +143,51 @@ export class BuilderState {
   @Selector()
   static authenticated(state: BuilderStateModel): boolean {
     return state.authStatus === 'authenticated';
+  }
+
+  /** auth/05: the user's builder memberships (org picker + switcher). */
+  @Selector()
+  static memberships(state: BuilderStateModel): readonly BuilderOrgMembership[] {
+    return state.memberships;
+  }
+
+  @Selector()
+  static membershipsLoading(state: BuilderStateModel): boolean {
+    return state.membershipsLoading;
+  }
+
+  @Selector()
+  static membershipsError(state: BuilderStateModel): boolean {
+    return state.membershipsError;
+  }
+
+  /** auth/05: the session's active org id (null until chosen). */
+  @Selector()
+  static activeBuilderId(state: BuilderStateModel): string | null {
+    return state.session?.builderId ?? null;
+  }
+
+  /** auth/05: the session's active org display name. */
+  @Selector()
+  static activeBuilderName(state: BuilderStateModel): string | null {
+    return state.session?.builderName ?? null;
+  }
+
+  /** auth/05: the user's role in the active org. */
+  @Selector()
+  static activeRole(state: BuilderStateModel): 'builder_admin' | 'builder_member' | null {
+    return state.session?.role ?? null;
+  }
+
+  /** auth/05: true when the active-org user is a builder_admin. */
+  @Selector()
+  static isBuilderAdmin(state: BuilderStateModel): boolean {
+    return state.session?.role === 'builder_admin';
+  }
+
+  @Selector()
+  static lastEntraError(state: BuilderStateModel): EntraCallbackErrorKind | null {
+    return state.lastEntraError;
   }
 
   @Selector()
@@ -162,7 +233,11 @@ export class BuilderState {
           session: {
             authenticated: true,
             email: identity.email,
-            tenantKey: identity.tenantKey,
+            name: null,
+            builderId: identity.tenantKey,
+            builderName: null,
+            role: null,
+            memberships: [],
           },
           authStatus: 'authenticated',
           sessionExpired: false,
@@ -183,6 +258,12 @@ export class BuilderState {
           session: identity,
           authStatus: 'authenticated',
           sessionExpired: false,
+          // Keep any memberships the Entra callback already provided;
+          // prefer the /me org context when the backend enriches it.
+          memberships:
+            identity.memberships.length > 0
+              ? identity.memberships
+              : ctx.getState().memberships,
         });
       }),
       catchError((error: unknown) => {
@@ -195,7 +276,83 @@ export class BuilderState {
           authStatus: 'unauthenticated',
           session: null,
           sessionExpired: code === 'SESSION_EXPIRED',
+          memberships: [],
         });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(CompleteBuilderEntraSignIn)
+  completeBuilderEntraSignIn(
+    ctx: StateContext<BuilderStateModel>,
+    action: CompleteBuilderEntraSignIn,
+  ): void {
+    ctx.patchState({
+      sessionToken: action.sessionToken,
+      session: {
+        authenticated: true,
+        email: action.email,
+        name: action.name,
+        builderId: null,
+        builderName: null,
+        role: null,
+        memberships: action.memberships,
+      },
+      memberships: action.memberships,
+      authStatus: 'authenticated',
+      sessionExpired: false,
+      lastEntraError: null,
+    });
+  }
+
+  @Action(FailBuilderEntraSignIn)
+  failBuilderEntraSignIn(
+    ctx: StateContext<BuilderStateModel>,
+    action: FailBuilderEntraSignIn,
+  ): void {
+    ctx.patchState({
+      sessionToken: null,
+      session: null,
+      authStatus: 'unauthenticated',
+      memberships: [],
+      lastEntraError: action.error,
+    });
+  }
+
+  @Action(SetBuilderActiveOrg)
+  setBuilderActiveOrg(
+    ctx: StateContext<BuilderStateModel>,
+    action: SetBuilderActiveOrg,
+  ): void {
+    const state = ctx.getState();
+    const session = state.session;
+    if (!session) return;
+    ctx.patchState({
+      session: {
+        ...session,
+        builderId: action.builderId,
+        builderName: action.builderName,
+        role: action.role,
+      },
+    });
+  }
+
+  @Action(LoadBuilderMemberships)
+  loadBuilderMemberships(
+    ctx: StateContext<BuilderStateModel>,
+  ): Observable<unknown> {
+    ctx.patchState({ membershipsLoading: true, membershipsError: false });
+    return this.authApi.listMemberships().pipe(
+      tap((response) => {
+        ctx.patchState({
+          memberships: response.memberships,
+          membershipsLoading: false,
+          membershipsError: false,
+        });
+      }),
+      catchError(() => {
+        ctx.patchState({ membershipsLoading: false, membershipsError: true });
         return of(null);
       }),
     );
