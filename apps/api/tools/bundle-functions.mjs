@@ -162,6 +162,23 @@ const targets = [
     entry: 'src/functions/admin-view-as.ts',
     out: 'admin-view-as/index.js',
   },
+  // auth/03 — admin user management.
+  {
+    entry: 'src/functions/admin-users.ts',
+    out: 'admin-users/index.js',
+  },
+  {
+    entry: 'src/functions/admin-users-invite.ts',
+    out: 'admin-users-invite/index.js',
+  },
+  {
+    entry: 'src/functions/admin-users-detail.ts',
+    out: 'admin-users-detail/index.js',
+  },
+  {
+    entry: 'src/functions/admin-users-resend-invite.ts',
+    out: 'admin-users-resend-invite/index.js',
+  },
   {
     entry: 'src/functions/mcp.ts',
     out: 'mcp/index.js',

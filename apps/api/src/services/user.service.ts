@@ -12,7 +12,12 @@
  *                     first create failed)
  *   revokeInvitation  withdraw a pending invitation (disables the Entra
  *                     account first — access must actually stop)
- *   disableUser / enableUser   staff lifecycle (protected-account guarded)
+ *   disableUser / enableUser   staff lifecycle (protected-account guarded,
+ *                     self-harm + last-super_admin guarded; disable revokes
+ *                     admin sessions server-side)
+ *   changeStaffRole / renameUser / setMemberships / deleteUser
+ *                     auth/03 admin user management (guarded the same way;
+ *                     hard delete only for never-accepted users)
  *   completeInvitation  #71 calls this on first sign-in: links the Entra
  *                     object id, flips invited → active, accepts the invite
  *
@@ -23,6 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
+import type { AdminSessionStore } from './admin-auth.service';
 import type { EmailService } from './email';
 import type { EntraUserService } from './entra-user.service';
 
@@ -128,6 +134,29 @@ export interface UserStore {
     now: Date,
   ): Promise<UserRecord>;
   list(limit: number, offset: number): Promise<UserRecord[]>;
+  /** Total user rows (for paginated list responses). */
+  count(): Promise<number>;
+  /**
+   * auth/03: hard-delete a user row. Memberships cascade; invitation rows
+   * stay as history (invited_by → null). Only the service calls this after
+   * the never-accepted + guard checks.
+   */
+  delete(id: string): Promise<boolean>;
+  /**
+   * auth/03: how many non-disabled users hold a staff role — the
+   * last-super_admin guard reads this.
+   */
+  countActiveByStaffRole(role: StaffRole): Promise<number>;
+}
+
+/**
+ * auth/03: who is performing a user-lifecycle mutation. `actorId` drives
+ * the self-harm guards (you can't deactivate/delete/demote yourself);
+ * `actorEmail` goes on the audit row.
+ */
+export interface ActorOpts {
+  readonly actorId?: string | null;
+  readonly actorEmail?: string | null;
 }
 
 export interface InvitationStore {
@@ -164,6 +193,12 @@ export interface UserServiceDeps {
   readonly entra: EntraUserService;
   readonly email: Pick<EmailService, 'sendInvitation'>;
   readonly audit: AdminAuditStore;
+  /**
+   * auth/03: admin session rows. Disabling a user revokes their sessions
+   * here too — the auth-context already fails closed on `disabled`, this
+   * makes it immediate server-side as well.
+   */
+  readonly sessions?: Pick<AdminSessionStore, 'revokeByEmail'>;
   readonly clock?: () => Date;
   readonly uuid?: () => string;
   readonly invitationTtlSeconds?: number;
@@ -181,16 +216,52 @@ export interface UserService {
     },
   ): Promise<{ user: PublicUser; emailSent: boolean }>;
   revokeInvitation(email: string, actorEmail?: string | null): Promise<void>;
-  disableUser(id: string, actorEmail?: string | null): Promise<PublicUser>;
-  enableUser(id: string, actorEmail?: string | null): Promise<PublicUser>;
+  disableUser(id: string, opts?: ActorOpts): Promise<PublicUser>;
+  enableUser(id: string, opts?: ActorOpts): Promise<PublicUser>;
   /** #71: first sign-in — link the Entra account, accept the invitation. */
   completeInvitation(
     email: string,
     entraObjectId: string,
   ): Promise<PublicUser>;
+  /**
+   * auth/03: change a user's staff role. Guards: protected rows, self
+   * (you can't demote yourself), only super_admin may grant super_admin,
+   * and the last super_admin can't be demoted. Audit-logged.
+   */
+  changeStaffRole(
+    id: string,
+    staffRole: StaffRole | null,
+    opts?: ActorOpts & { readonly actorStaffRole?: StaffRole | null },
+  ): Promise<PublicUser>;
+  /**
+   * auth/03: rename a user. Protected rows refuse. Audit-logged.
+   */
+  renameUser(id: string, name: string, opts?: ActorOpts): Promise<PublicUser>;
+  /**
+   * auth/03: replace a user's builder memberships with the desired set.
+   * Guards: protected rows, and a user can't change their own memberships
+   * through this path (use the org switcher). Audit-logged.
+   */
+  setMemberships(
+    id: string,
+    memberships: ReadonlyArray<{
+      readonly builderId: string;
+      readonly role: BuilderRole;
+    }>,
+    opts?: ActorOpts,
+  ): Promise<PublicUser>;
+  /**
+   * auth/03: delete a user. Only users who never accepted (status
+   * `invited`) can be hard-deleted — anyone who signed in is deactivated
+   * instead so the audit trail keeps its subject. Guards: protected rows,
+   * self, last super_admin. The Graph account is deleted first so a
+   * failed delete never orphans access. Audit-logged.
+   */
+  deleteUser(id: string, opts?: ActorOpts): Promise<void>;
   findByEmail(email: string): Promise<PublicUser | null>;
   findById(id: string): Promise<PublicUser | null>;
   listUsers(limit?: number, offset?: number): Promise<PublicUser[]>;
+  countUsers(): Promise<number>;
 }
 
 /** Lowercased, trimmed — the unique identity (allowlist discipline). */
@@ -290,6 +361,55 @@ function rejectProtected(user: UserRecord): void {
   }
 }
 
+/**
+ * auth/03: self-harm guard — you can't deactivate, delete, or demote your
+ * own account. Plain-English error per the story.
+ */
+function rejectSelf(user: UserRecord, actorId: string | null | undefined, verb: string): void {
+  if (actorId && actorId === user.id) {
+    throw new HttpError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      `You can\u2019t ${verb} your own account — ask another admin.`,
+    );
+  }
+}
+
+/**
+ * auth/03: last-super_admin guard — the platform must always have at
+ * least one active super admin. Only users with live access (status
+ * `active`) count: disabling or deleting a never-accepted invitation
+ * never trips this guard.
+ */
+async function rejectLastSuperAdmin(
+  users: UserStore,
+  user: UserRecord,
+): Promise<void> {
+  if (user.staffRole !== 'super_admin' || user.status !== 'active') return;
+  const remaining = await users.countActiveByStaffRole('super_admin');
+  if (remaining <= 1) {
+    throw new HttpError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      'This is the last super admin — promote someone else first.',
+    );
+  }
+}
+
+function rejectSuperAdminGrant(
+  role: StaffRole | null,
+  actorStaffRole: StaffRole | null | undefined,
+): void {
+  // auth/04 AC4: super_admin is the only role that can grant super_admin.
+  if (role === 'super_admin' && actorStaffRole !== 'super_admin') {
+    throw new HttpError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      'Only a super admin can grant the super admin role.',
+    );
+  }
+}
+
 export function createUserService(deps: UserServiceDeps): UserService {
   const {
     users,
@@ -299,6 +419,7 @@ export function createUserService(deps: UserServiceDeps): UserService {
     email: emailService,
     audit,
     appBaseUrl,
+    sessions,
   } = deps;
   const clock = deps.clock ?? (() => new Date());
   const uuid = deps.uuid ?? randomUUID;
@@ -535,12 +656,14 @@ export function createUserService(deps: UserServiceDeps): UserService {
       });
     },
 
-    async disableUser(id, actorEmail) {
+    async disableUser(id, opts) {
       const user = await users.findById(id);
       if (!user) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
       }
       rejectProtected(user);
+      rejectSelf(user, opts?.actorId, 'deactivate');
+      await rejectLastSuperAdmin(users, user);
       if (user.status === 'disabled') {
         return publicUser(user);
       }
@@ -552,15 +675,22 @@ export function createUserService(deps: UserServiceDeps): UserService {
         { status: 'disabled' },
         clock(),
       );
+      // auth/03: revoke live sessions immediately, server-side. The
+      // auth-context already fails closed on `disabled`, so this is
+      // defense in depth — the cookie stops working on the next request
+      // either way.
+      if (sessions) {
+        await sessions.revokeByEmail(user.email, clock());
+      }
       await audit.log({
-        actorEmail: actorEmail ?? null,
+        actorEmail: opts?.actorEmail ?? null,
         action: 'user.disabled',
         detail: `email=${user.email}`,
       });
       return publicUser(updated);
     },
 
-    async enableUser(id, actorEmail) {
+    async enableUser(id, opts) {
       const user = await users.findById(id);
       if (!user) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
@@ -575,11 +705,130 @@ export function createUserService(deps: UserServiceDeps): UserService {
         clock(),
       );
       await audit.log({
-        actorEmail: actorEmail ?? null,
+        actorEmail: opts?.actorEmail ?? null,
         action: 'user.enabled',
         detail: `email=${user.email}`,
       });
       return publicUser(updated);
+    },
+
+    async changeStaffRole(id, staffRole, opts) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      rejectSelf(user, opts?.actorId, 'change the role of');
+      rejectSuperAdminGrant(staffRole, opts?.actorStaffRole);
+      if (user.staffRole === 'super_admin' && staffRole !== 'super_admin') {
+        await rejectLastSuperAdmin(users, user);
+      }
+      if (user.staffRole === staffRole) {
+        return publicUser(user);
+      }
+      const updated = await users.updateUser(id, { staffRole }, clock());
+      await audit.log({
+        actorEmail: opts?.actorEmail ?? null,
+        action: 'user.role_changed',
+        detail: `email=${user.email} from=${user.staffRole ?? 'none'} to=${staffRole ?? 'none'}`,
+      });
+      // No session version stamp needed: the auth-context resolves the
+      // user row fresh on every request, so the new role applies on the
+      // next request without re-login (story AC2).
+      return publicUser(updated);
+    },
+
+    async renameUser(id, name, opts) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      const trimmed = name.trim();
+      if (trimmed.length === 0 || trimmed.length > 200) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Give the user a name (up to 200 characters).',
+        );
+      }
+      if (trimmed === user.name) {
+        return publicUser(user);
+      }
+      const updated = await users.updateUser(id, { name: trimmed }, clock());
+      await audit.log({
+        actorEmail: opts?.actorEmail ?? null,
+        action: 'user.renamed',
+        detail: `email=${user.email}`,
+      });
+      return publicUser(updated);
+    },
+
+    async setMemberships(id, desired, opts) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      rejectSelf(user, opts?.actorId, 'change the memberships of');
+      const current = await memberships.listByUserId(id);
+      const desiredByBuilder = new Map(desired.map((m) => [m.builderId, m.role]));
+      for (const m of current) {
+        const wanted = desiredByBuilder.get(m.builderId);
+        if (!wanted) {
+          await memberships.remove(id, m.builderId);
+        } else if (wanted !== m.role) {
+          await memberships.remove(id, m.builderId);
+          await memberships.add(id, m.builderId, wanted);
+        }
+      }
+      const currentIds = new Set(current.map((m) => m.builderId));
+      for (const m of desired) {
+        if (!currentIds.has(m.builderId)) {
+          await memberships.add(id, m.builderId, m.role);
+        }
+      }
+      await audit.log({
+        actorEmail: opts?.actorEmail ?? null,
+        action: 'user.memberships_changed',
+        detail: `email=${user.email} memberships=${desired.map((m) => `${m.builderId}:${m.role}`).join(',') || 'none'}`,
+      });
+      return publicUser(user);
+    },
+
+    async deleteUser(id, opts) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      rejectSelf(user, opts?.actorId, 'delete');
+      await rejectLastSuperAdmin(users, user);
+      if (user.status !== 'invited') {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'This person already signed in — deactivate them instead of deleting, so the audit trail keeps its subject.',
+        );
+      }
+      // Delete the Graph account FIRST: if this fails the admin knows
+      // access may still exist, and nothing changes locally.
+      const pending = await invitations.findPendingByEmail(user.email);
+      const entraUserId =
+        user.entraObjectId ?? pending.find((i) => i.entraUserId)?.entraUserId;
+      if (entraUserId) {
+        await entra.deleteUser(entraUserId);
+      }
+      await invitations.revokePendingByEmail(user.email);
+      const deleted = await users.delete(id);
+      if (!deleted) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      await audit.log({
+        actorEmail: opts?.actorEmail ?? null,
+        action: 'user.deleted',
+        detail: `email=${user.email}`,
+      });
     },
 
     async completeInvitation(email, entraObjectId) {
@@ -637,6 +886,10 @@ export function createUserService(deps: UserServiceDeps): UserService {
     async listUsers(limit = 50, offset = 0) {
       const rows = await users.list(limit, offset);
       return Promise.all(rows.map((row) => publicUser(row)));
+    },
+
+    async countUsers() {
+      return users.count();
     },
   };
 }

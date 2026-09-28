@@ -212,6 +212,10 @@ import {
   type AdminViewAsRoute,
 } from './routes/admin-view-as.route';
 import {
+  createAdminUsersRoute,
+  type AdminUsersRoute,
+} from './routes/admin-users.route';
+import {
   createAdminLeadsRoute,
   type AdminLeadsRoute,
 } from './routes/admin-leads.route';
@@ -549,6 +553,8 @@ export interface AppComposition {
   /** auth/04: view-as activation/exit + org switcher. */
   readonly viewAsService: ViewAsService;
   readonly adminViewAsRoute: AdminViewAsRoute;
+  /** auth/03: admin user management (invite, edit, deactivate, delete). */
+  readonly adminUsersRoute: AdminUsersRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
@@ -1085,6 +1091,8 @@ export function createComposition(
     invitationTtlSeconds: config.auth.invitationTtlSeconds,
     entra: entraUserService,
     audit: adminAuditStore,
+    // auth/03: disabling a user revokes their admin sessions server-side.
+    sessions: adminSessionStore,
   });
   // auth/02 — callback. Resolves/links our user row through the typed
   // Drizzle stores above and mints the 7-day session in admin_sessions
@@ -1175,6 +1183,13 @@ export function createComposition(
     permissionGuard,
     builders: builderService,
     userService,
+  });
+  // auth/03 — admin user management routes (thin adapters over
+  // UserService; permission + org scoping inside the route).
+  const adminUsersRoute: AdminUsersRoute = createAdminUsersRoute({
+    userService,
+    permissionGuard,
+    builders: builderService,
   });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
@@ -1642,6 +1657,7 @@ export function createComposition(
     permissionGuard,
     viewAsService,
     adminViewAsRoute,
+    adminUsersRoute,
     userService,
     userStore,
     invitationStore,

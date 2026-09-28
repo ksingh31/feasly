@@ -1,0 +1,1 @@
+{"bindings":[{"authLevel":"anonymous","direction":"in","methods":["get","patch","delete","options"],"name":"req","route":"v1/admin/users/{id}","type":"httpTrigger"},{"direction":"out","name":"res","type":"http"}]}

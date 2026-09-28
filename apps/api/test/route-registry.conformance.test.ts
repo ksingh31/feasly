@@ -36,6 +36,28 @@ import {
 import type { BuilderRole, StaffRole } from '../src/services/user.service';
 
 const API_ROOT = join(__dirname, '..');
+
+/**
+ * auth/03: role × route check honoring both `permissions` (AND) and
+ * `permissionsAnyOf` (OR). A route with neither is outside role-permission
+ * authorization (public / credential-mechanism routes) — every role passes.
+ */
+function rolePassesRoute(
+  entry: { permissions: readonly Permission[]; permissionsAnyOf?: readonly Permission[] },
+  rolePerms: readonly Permission[],
+): boolean {
+  const andOk = entry.permissions.every((p) => hasPermission(rolePerms, p));
+  const anyOf = entry.permissionsAnyOf ?? [];
+  return andOk && (anyOf.length === 0 || anyOf.some((p) => hasPermission(rolePerms, p)));
+}
+
+/** True when the route sits under role-permission authorization at all. */
+function isProtectedRoute(entry: {
+  permissions: readonly Permission[];
+  permissionsAnyOf?: readonly Permission[];
+}): boolean {
+  return entry.permissions.length > 0 || (entry.permissionsAnyOf?.length ?? 0) > 0;
+}
 const REPO_ROOT = join(API_ROOT, '..', '..');
 
 function allFiles(dir: string, ext: string): string[] {
@@ -102,6 +124,14 @@ describe('route registry', () => {
           true,
         );
       }
+      // auth/03: permissionsAnyOf is optional, but when present every
+      // entry must be a known permission string.
+      for (const p of e.permissionsAnyOf ?? []) {
+        expect(
+          known.has(p),
+          `${e.method} ${e.path} unknown permissionsAnyOf ${p}`,
+        ).toBe(true);
+      }
     }
   });
 
@@ -128,6 +158,25 @@ describe('route registry', () => {
       'POST /api/v1/admin/builders': ['super_admin', 'admin'],
       'GET /api/v1/admin/api-keys': ['super_admin', 'admin'],
       'GET /api/v1/admin/billing': ['super_admin', 'admin', 'viewer'],
+      // auth/03 — admin user management.
+      'GET /api/v1/admin/users': ['super_admin', 'admin'],
+      'POST /api/v1/admin/users/invite': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+      ],
+      'GET /api/v1/admin/users/{id}': ['super_admin', 'admin'],
+      'PATCH /api/v1/admin/users/{id}': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+      ],
+      'DELETE /api/v1/admin/users/{id}': ['super_admin', 'admin'],
+      'POST /api/v1/admin/users/{id}/resend-invite': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+      ],
       'POST /api/v1/billing/invoices/{id}/resolve': ['super_admin', 'admin'],
       'GET /api/v1/admin/disputes': ['super_admin', 'admin', 'viewer'],
       'POST /api/v1/admin/community-stats/refresh': ['super_admin', 'admin'],
@@ -191,9 +240,12 @@ describe('route registry', () => {
       );
       expect(entry, `registry entry for ${key}`).toBeDefined();
       for (const role of Object.keys(fixtures)) {
-        const allowed = entry!.permissions.every((p) =>
-          hasPermission(permsOf(role), p),
-        );
+        // auth/03: permissionsAnyOf is OR — the role needs any one of them.
+        const anyOf = entry!.permissionsAnyOf ?? [];
+        const allowed =
+          entry!.permissions.every((p) => hasPermission(permsOf(role), p)) &&
+          (anyOf.length === 0 ||
+            anyOf.some((p) => hasPermission(permsOf(role), p)));
         expect(
           allowed,
           `${key}: role ${role}`,
@@ -225,18 +277,13 @@ describe('route registry', () => {
     const matrix: Record<string, string[]> = {};
     for (const e of ROUTE_REGISTRY) {
       const key = `${e.method} ${e.path}`;
-      matrix[key] =
-        e.permissions.length === 0
-          ? [...roles]
-          : roles.filter((r) =>
-              e.permissions.every((p) => hasPermission(permsOf(r), p)),
-            );
+      matrix[key] = roles.filter((r) => rolePassesRoute(e, permsOf(r)));
     }
 
     // A valid user with no roles/memberships gets empty access: denied on
     // every protected route.
     for (const e of ROUTE_REGISTRY) {
-      if (e.permissions.length === 0) continue;
+      if (!isProtectedRoute(e)) continue;
       expect(
         matrix[`${e.method} ${e.path}`],
         `${e.method} ${e.path} must deny the role-less user`,
@@ -245,7 +292,10 @@ describe('route registry', () => {
 
     // viewer is read-only: denied everywhere a write/manage permission is required.
     for (const e of ROUTE_REGISTRY) {
-      if (e.permissions.some((p) => /:(manage|write)$/.test(p))) {
+      const managed = [...e.permissions, ...(e.permissionsAnyOf ?? [])].some(
+        (p) => /:(manage|write)$/.test(p),
+      );
+      if (managed) {
         expect(
           matrix[`${e.method} ${e.path}`],
           `${e.method} ${e.path} must deny viewer (read-only)`,
@@ -255,7 +305,7 @@ describe('route registry', () => {
 
     // super_admin can do everything the role model authorizes.
     for (const e of ROUTE_REGISTRY) {
-      if (e.permissions.length === 0) continue;
+      if (!isProtectedRoute(e)) continue;
       expect(
         matrix[`${e.method} ${e.path}`],
         `${e.method} ${e.path} must allow super_admin`,

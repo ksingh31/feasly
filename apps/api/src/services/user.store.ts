@@ -108,6 +108,31 @@ export function createDrizzleUserStore(deps: DrizzleUserStoreDeps): UserStore {
         .offset(offset);
       return rows.map(toUserRecord);
     },
+
+    async count() {
+      const rows = await database
+        .select({ value: sql<number>`count(*)` })
+        .from(users);
+      return Number(rows[0]?.value ?? 0);
+    },
+
+    async delete(id: string) {
+      const rows = await database
+        .delete(users)
+        .where(eq(users.id, id))
+        .returning({ id: users.id });
+      return rows.length > 0;
+    },
+
+    async countActiveByStaffRole(role: StaffRole) {
+      const rows = await database
+        .select({ value: sql<number>`count(*)` })
+        .from(users)
+        .where(
+          and(eq(users.staffRole, role), eq(users.status, 'active')),
+        );
+      return Number(rows[0]?.value ?? 0);
+    },
   };
 }
 
