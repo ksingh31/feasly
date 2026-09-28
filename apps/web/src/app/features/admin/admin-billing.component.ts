@@ -1,9 +1,10 @@
 import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import { LoadBillingHealth, RetryInvoiceCharge } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
+import { AdminCreateInvoiceComponent } from './admin-create-invoice.component';
 import { formatCentsToCad } from '../../shared/utils/money';
 
 /**
@@ -16,8 +17,11 @@ import { formatCentsToCad } from '../../shared/utils/money';
  * dunning work queue with `past_due_since`, and the Stripe webhook
  * health panel.
  *
- * BILL-03 adds the single mutating action on this page: "Retry charge"
- * per failed invoice (two-click confirm). Everything else stays read-only.
+ * Mutating actions on this page (two-click confirm each):
+ * - BILL-03: "Retry charge" per failed invoice.
+ * - Manual invoice creation ("Create invoice"): builder → lead →
+ *   contract value excl. land → 1% commission → 7-day review window.
+ * Everything else stays read-only.
  * Status badges always pair a text label with color, never color alone.
  *
  * noindex,nofollow via the robots guard on the parent admin route; excluded
@@ -26,7 +30,7 @@ import { formatCentsToCad } from '../../shared/utils/money';
 @Component({
   selector: 'app-admin-billing',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, AdminCreateInvoiceComponent],
   templateUrl: './admin-billing.component.html',
   styleUrl: './admin-billing.component.scss',
 })
@@ -57,6 +61,9 @@ export class AdminBillingComponent implements OnInit {
   /** Invoice awaiting the second (confirm) click of the retry flow. */
   private confirmRetryId: string | null = null;
 
+  /** Whether the manual-invoice creation form is open. */
+  protected readonly showCreateForm = signal(false);
+
   ngOnInit(): void {
     this.store
       .dispatch(new LoadBillingHealth())
@@ -70,6 +77,15 @@ export class AdminBillingComponent implements OnInit {
       .dispatch(new LoadBillingHealth())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  /** Open/close the manual-invoice creation form. */
+  protected openCreateForm(): void {
+    this.showCreateForm.set(true);
+  }
+
+  protected closeCreateForm(): void {
+    this.showCreateForm.set(false);
   }
 
   /**

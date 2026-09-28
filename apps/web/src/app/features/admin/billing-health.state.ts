@@ -1,12 +1,23 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
 import { catchError, of, tap } from 'rxjs';
-import type { BillingHealthResponse } from '@feasly/contracts';
+import type {
+  BillingHealthResponse,
+  ManualInvoiceResponse,
+} from '@feasly/contracts';
 import { AdminBillingApiService } from './admin-billing-api.service';
-import { LoadBillingHealth, RetryInvoiceCharge } from './billing-health.actions';
+import {
+  CreateManualInvoice,
+  DismissCreateInvoiceFeedback,
+  LoadBillingHealth,
+  RetryInvoiceCharge,
+} from './billing-health.actions';
 
 /** Loading lifecycle for the billing-health dashboard. */
 export type BillingHealthLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** Lifecycle of the manual-invoice creation form submit. */
+export type CreateInvoiceStatus = 'idle' | 'submitting' | 'error';
 
 export interface BillingHealthStateModel {
   /** The latest dashboard payload, or null before the first load. */
@@ -23,6 +34,14 @@ export interface BillingHealthStateModel {
     ok: boolean;
     message: string;
   } | null;
+  /** Manual-invoice submit lifecycle. */
+  createStatus: CreateInvoiceStatus;
+  /** One-shot create-invoice feedback; carries the created invoice. */
+  createFeedback: {
+    ok: boolean;
+    message: string;
+    invoice: ManualInvoiceResponse | null;
+  } | null;
 }
 
 const defaults: BillingHealthStateModel = {
@@ -31,6 +50,8 @@ const defaults: BillingHealthStateModel = {
   error: null,
   retryingInvoiceId: null,
   retryFeedback: null,
+  createStatus: 'idle',
+  createFeedback: null,
 };
 
 /**
@@ -99,6 +120,20 @@ export class BillingHealthState {
     return state.retryFeedback;
   }
 
+  @Selector()
+  static createStatus(
+    state: BillingHealthStateModel,
+  ): BillingHealthStateModel['createStatus'] {
+    return state.createStatus;
+  }
+
+  @Selector()
+  static createFeedback(
+    state: BillingHealthStateModel,
+  ): BillingHealthStateModel['createFeedback'] {
+    return state.createFeedback;
+  }
+
   @Action(LoadBillingHealth)
   loadBillingHealth(ctx: StateContext<BillingHealthStateModel>) {
     ctx.patchState({ loadStatus: 'loading', error: null });
@@ -152,6 +187,68 @@ export class BillingHealthState {
       }),
     );
   }
+
+  /**
+   * Manually create a commission invoice. On success the dashboard payload
+   * reloads so the in-review aging reflects the new invoice, and the
+   * feedback carries the created invoice (id, status, 1% figure) for the
+   * confirmation screen.
+   */
+  @Action(CreateManualInvoice)
+  createManualInvoice(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: CreateManualInvoice,
+  ) {
+    ctx.patchState({ createStatus: 'submitting', createFeedback: null });
+    return this.api.createManualInvoice(action.body).pipe(
+      tap((invoice) => {
+        ctx.patchState({
+          createStatus: 'idle',
+          createFeedback: {
+            ok: true,
+            message: 'Invoice created and submitted into review.',
+            invoice,
+          },
+        });
+        // Reload the dashboard so the in-review aging shows the new invoice.
+        ctx.dispatch(new LoadBillingHealth());
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({
+          createStatus: 'error',
+          createFeedback: {
+            ok: false,
+            message: friendlyCreateError(err),
+            invoice: null,
+          },
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  /** Dismiss the create-invoice feedback banner. */
+  @Action(DismissCreateInvoiceFeedback)
+  dismissCreateInvoiceFeedback(ctx: StateContext<BillingHealthStateModel>) {
+    ctx.patchState({ createStatus: 'idle', createFeedback: null });
+  }
+}
+
+/**
+ * Map a create-invoice failure to user-facing copy. The raw error never
+ * reaches the UI; specific cases are named so the admin can act on them.
+ */
+function friendlyCreateError(err: unknown): string {
+  const status =
+    typeof err === 'object' && err !== null && 'status' in err
+      ? (err as { status?: unknown }).status
+      : undefined;
+  if (status === 404) return 'That lead id was not found — check it and try again.';
+  if (status === 403) return 'That lead belongs to a different builder — pick the matching one.';
+  if (status === 409) return 'This report is outside the 12-month attribution window.';
+  if (status === 422)
+    return 'The current billing model does not support per-event invoices.';
+  return 'Invoice creation failed — check the details and try again.';
 }
 
 /**
