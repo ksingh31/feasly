@@ -123,8 +123,14 @@ export function createAdminAuthRoute(
 
     async logout(headers): Promise<AdminAuthLogoutResponse> {
       const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
-      const { loggedOut, entraLogoutUrl } = await adminAuth.logout(token);
-      return { loggedOut, setCookie: buildClearSessionCookie(), entraLogoutUrl };
+      const { loggedOut, entraLogoutUrl, entraIdTokenHint } =
+        await adminAuth.logout(token);
+      return {
+        loggedOut,
+        setCookie: buildClearSessionCookie(),
+        entraLogoutUrl,
+        entraIdTokenHint,
+      };
     },
   };
 }

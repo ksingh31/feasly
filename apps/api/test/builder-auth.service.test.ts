@@ -174,5 +174,24 @@ describe('builder-auth service (embed/09)', () => {
     expect(result.entraLogoutUrl).toBe(
       'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
     );
+    expect(result.entraIdTokenHint).toBeNull();
+  });
+
+  it('logout returns the stored id_token as entraIdTokenHint (builder parity)', async () => {
+    const { service, sessions } = makeDeps();
+    (sessions.findActiveByHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'bs-1',
+      idToken: 'builder-id-token',
+    });
+    const result = await service.logout('builder-session-token');
+    expect(result.loggedOut).toBe(true);
+    expect(result.entraIdTokenHint).toBe('builder-id-token');
+  });
+
+  it('logout with an unknown token still succeeds with a null hint', async () => {
+    const { service } = makeDeps();
+    const result = await service.logout('no-such-token');
+    expect(result.loggedOut).toBe(true);
+    expect(result.entraIdTokenHint).toBeNull();
   });
 });

@@ -424,6 +424,23 @@ describe('auth/04 session state migrations', () => {
     expect(cleared?.activeBuilderId).toBeNull();
     expect(cleared?.viewAs).toBeNull();
   });
+
+  it('admin session store round-trips the id_token (logout id_token_hint)', async () => {
+    const store = createDrizzleAdminSessionStore({ db: testDb.db });
+    const now = new Date();
+    await store.insert({
+      id: '22222222-2222-4222-8222-222222222222',
+      email: 'admin@example.com',
+      sessionTokenHash: 'hash-idtoken',
+      idToken: 'stub-id-token',
+      expiresAt: new Date(now.getTime() + 3600_000),
+    });
+    const found = await store.findActiveByHash('hash-idtoken', now);
+    expect(found?.idToken).toBe('stub-id-token');
+    // Legacy sessions (minted before the column existed) read back null.
+    const legacy = await store.findActiveByHash('hash-1', now);
+    expect(legacy?.idToken).toBeNull();
+  });
 });
 
 describe('auth/04 tenant-scoped lead access (PGlite)', () => {

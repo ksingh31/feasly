@@ -312,6 +312,9 @@ export function createBuilderEntraCallbackService(
         builderId: activeMembership.builderId,
         sessionTokenHash: hashSessionToken(sessionToken),
         userId: user.id,
+        // logout UX (2026-09-28): stored so logout can return it as
+        // `id_token_hint` for the Entra end-session redirect.
+        idToken,
         expiresAt: new Date(now.getTime() + builderSessionTtlSeconds * 1000),
       });
       await audit.log({

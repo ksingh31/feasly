@@ -4,7 +4,6 @@ export {
   LoadBuilderSession,
   LogoutBuilder,
   UpdateBuilderLeadStatus,
-  VerifyBuilderToken,
 } from './builder.actions';
 export { BuilderAuthApiService } from './builder-auth-api.service';
 export { BuilderDashboardComponent } from './builder-dashboard.component';

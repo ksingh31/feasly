@@ -35,6 +35,12 @@ export interface AdminSessionRecord {
   readonly email: string;
   /** SHA-256 hex — never the raw token. */
   readonly sessionTokenHash: string;
+  /**
+   * Entra id_token captured at sign-in (logout UX, 2026-09-28). Returned as
+   * `entraIdTokenHint` on logout so the frontend can pass `id_token_hint`
+   * to the end-session endpoint. Null for pre-change / non-Entra sessions.
+   */
+  readonly idToken: string | null;
   readonly revokedAt: Date | null;
   readonly expiresAt: Date;
   readonly createdAt: Date;
@@ -61,6 +67,11 @@ export interface AdminSessionStore {
     readonly email: string;
     readonly sessionTokenHash: string;
     readonly expiresAt: Date;
+    /**
+     * auth/02 logout UX: the Entra id_token from the sign-in callback.
+     * Optional — omitted for non-Entra session creation paths.
+     */
+    readonly idToken?: string | null;
     /**
      * auth/02: the user this session belongs to. Null/omitted for
      * magic-link-era sessions; always set for Entra sign-in sessions.
@@ -113,6 +124,7 @@ export interface AdminAuthService {
   /** POST /api/v1/admin/auth/logout — revokes the session. */
   logout(sessionToken: string | null): Promise<{
     readonly loggedOut: true;
+    readonly entraIdTokenHint: string | null;
     /**
      * Entra end-session endpoint, or null when Entra is unprovisioned.
      * The frontend navigates here (full page) after logout so the IdP
@@ -155,8 +167,21 @@ export function createAdminAuthService(
   return {
     async logout(
       sessionToken: string | null,
-    ): Promise<{ readonly loggedOut: true; readonly entraLogoutUrl: string | null }> {
+    ): Promise<{
+      readonly loggedOut: true;
+      readonly entraLogoutUrl: string | null;
+      readonly entraIdTokenHint: string | null;
+    }> {
+      let idTokenHint: string | null = null;
       if (sessionToken) {
+        // Read the stored id_token BEFORE revoking: the end-session
+        // redirect needs it as `id_token_hint` so Entra skips the
+        // "Pick an account" picker (logout UX, 2026-09-28).
+        const session = await sessions.findActiveByHash(
+          hashSessionToken(sessionToken),
+          clock(),
+        );
+        idTokenHint = session?.idToken ?? null;
         await sessions.revokeByHash(hashSessionToken(sessionToken), clock());
         await audit.log({
           actorEmail: null,
@@ -167,6 +192,7 @@ export function createAdminAuthService(
       return {
         loggedOut: true,
         entraLogoutUrl: entraSignIn.configured ? entraSignIn.logoutEndpoint : null,
+        entraIdTokenHint: idTokenHint,
       };
     },
 

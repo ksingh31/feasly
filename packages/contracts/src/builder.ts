@@ -62,6 +62,12 @@ export interface BuilderAuthLogoutResponse {
    * session to kill).
    */
   readonly entraLogoutUrl: string | null;
+  /**
+   * The Entra id_token captured at sign-in, or null. Passed as
+   * `id_token_hint` on the end-session redirect so Entra skips the
+   * "Pick an account" picker (logout UX, 2026-09-28).
+   */
+  readonly entraIdTokenHint: string | null;
 }
 
 /** Pipeline statuses a builder can set on their leads. */
