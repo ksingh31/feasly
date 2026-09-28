@@ -33,6 +33,7 @@ const LEAD_A: AdminLeadListItem = {
   tenantKey: null,
   timeline: '6-12 months',
   sandbox: false,
+  quarantined: false,
   discarded: false,
   createdAt: '2026-09-20T10:00:00.000Z',
   contactConsent: 'in',
@@ -165,6 +166,8 @@ describe('AdminLeadsState', () => {
     const done = store.dispatch(new SetAdminLeadsTab('quarantine'));
     const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
     expect(req.request.params.get('includeQuarantined')).toBe('true');
+    // The tab lists ONLY honeypot-flagged rows — never the full lead list.
+    expect(req.request.params.get('quarantinedOnly')).toBe('true');
     req.flush(listResponse([], null, 0));
     await done.toPromise();
     expect(store.selectSnapshot(AdminLeadsState.tab)).toBe('quarantine');
