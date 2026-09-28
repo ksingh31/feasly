@@ -26,6 +26,8 @@ vi.mock('../src/index', () => ({
     ensureCorrelationId: () => 'corr-1',
     isProblemDetails: () => false,
     securityHeaders: () => ({}),
+    // auth/04: central registry enforcement — no-op in this wiring test.
+    enforceRoutePermissions: async () => {},
   },
 }));
 

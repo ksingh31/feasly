@@ -19,6 +19,7 @@ export async function builderAuthRequestHandler(
 ): Promise<void> {
   await dispatchBuilderAuth(context, req, (app) =>
     app.builderAuthRoute.request(req.body),
+    { path: '/api/v1/builder/auth/request' },
   );
 }
 

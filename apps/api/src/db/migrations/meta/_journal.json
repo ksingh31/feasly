@@ -246,6 +246,20 @@
       "when": 1790554921190,
       "tag": "0036_auth_user_model",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0037_auth_session_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0038_builder_session_builder_id",
+      "breakpoints": true
     }
   ]
 }

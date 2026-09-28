@@ -19,6 +19,7 @@ export async function adminLeadsHandler(
 ): Promise<void> {
   await dispatchAdminLeads(context, req, (app) =>
     app.adminLeadsRoute.list(req.headers ?? {}, req.query ?? {}),
+    { path: '/api/v1/admin/leads' },
   );
 }
 

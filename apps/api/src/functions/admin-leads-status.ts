@@ -22,6 +22,7 @@ export async function adminLeadsStatusHandler(
       context.bindingData?.['id'],
       req.body,
     ),
+    { path: '/api/v1/admin/leads/{id}/status' },
   );
 }
 

@@ -21,6 +21,7 @@ export async function billingInvoiceResolveHandler(
       context.bindingData?.['id'],
       req.body,
     ),
+    { path: '/api/v1/billing/invoices/{id}/resolve' },
   );
 }
 

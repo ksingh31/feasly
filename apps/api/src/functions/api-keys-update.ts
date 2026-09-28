@@ -26,6 +26,7 @@ export async function apiKeysUpdateHandler(
       typeof id === 'string' ? id : '',
       req.body,
     ),
+    { path: '/api/v1/admin/api-keys/{id}' },
   );
 }
 

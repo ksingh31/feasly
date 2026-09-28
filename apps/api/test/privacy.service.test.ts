@@ -171,6 +171,8 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       throw new Error('not used in these tests');
     },
     findById: async (id: string) => world.leads.find((l) => l.id === id) ?? null,
+    findByIdAndBuilderId: async () => null,
+    existsById: async () => false,
     findByEstimateId: async (estimateId: string) => world.leads.find((l) => l.estimateId === estimateId) ?? null,
     setUnsubscribedAt: async () => null,
     findNudgeCandidates: async () => [],
@@ -188,6 +190,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async () => null,
     updateOnRepeat: async () => {
       throw new Error('not used in these tests');

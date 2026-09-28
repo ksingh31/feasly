@@ -24,6 +24,7 @@ export async function adminLeadsAssignBuilderHandler(
       context.bindingData?.['id'],
       req.body,
     ),
+    { path: '/api/v1/admin/leads/{id}/assign-builder' },
   );
 }
 

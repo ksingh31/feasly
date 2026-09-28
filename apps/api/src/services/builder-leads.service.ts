@@ -201,28 +201,34 @@ export function createBuilderLeadsService(
         );
       }
 
-      const record = await leadStore.findById(id);
-      if (!record) {
-        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
-      }
-
       const builder = await requireBuilder(tenantKey);
 
-      // Builder isolation: a builder can only touch their assigned leads.
-      // This is a 403 (not 404) so the builder knows the lead exists but is
-      // out of scope — the same semantics as the admin cross-tenant guard.
-      if (record.builderId !== builder.id) {
-        await audit.log({
-          actorEmail: builderEmail,
-          action: 'builder_leads_cross_builder_denied',
-          detail: `leadId=${id} tenantKey=${tenantKey}`,
-        });
-        throw new HttpError(
-          403,
-          ErrorCodes.FORBIDDEN,
-          'This lead belongs to a different builder.',
-          false,
-        );
+      // auth/04 (iron rule): tenant scoping happens in SQL from session
+      // state. The read AND the write are both scoped by
+      // (id, builder_id) — a cross-tenant row is never pulled into the
+      // service, never honored, and never silently re-scoped.
+      const record = await leadStore.findByIdAndBuilderId({
+        id,
+        builderId: builder.id,
+      });
+      if (!record) {
+        // Distinguish "exists but isn't yours" (403 + audit) from
+        // "doesn't exist" (404) with a boolean probe — no row data.
+        const exists = await leadStore.existsById(id);
+        if (exists) {
+          await audit.log({
+            actorEmail: builderEmail,
+            action: 'builder_leads_cross_builder_denied',
+            detail: `leadId=${id} tenantKey=${tenantKey}`,
+          });
+          throw new HttpError(
+            403,
+            ErrorCodes.FORBIDDEN,
+            'This lead belongs to a different builder.',
+            false,
+          );
+        }
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
       }
 
       const oldStatus = record.status;
@@ -268,7 +274,13 @@ export function createBuilderLeadsService(
       }
 
       if (oldStatus !== newStatus) {
-        await leadStore.updateStatus({ id, status: newStatus });
+        // auth/04: the write is tenant-scoped in SQL too — even if the
+        // read above were bypassed, this updates zero rows cross-tenant.
+        await leadStore.updateStatusForBuilder({
+          id,
+          builderId: builder.id,
+          status: newStatus,
+        });
         await leadStore.appendStatusHistory({
           id: randomUUID(),
           leadId: id,

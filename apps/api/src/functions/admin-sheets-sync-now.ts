@@ -20,6 +20,7 @@ export async function adminSheetsSyncNowHandler(
 ): Promise<void> {
   await dispatchAdminSheets(context, req, (app) =>
     app.adminSheetsSyncNowRoute.trigger(req.headers ?? {}),
+    { path: '/api/v1/admin/ops/sheets-sync-now' },
   );
 }
 

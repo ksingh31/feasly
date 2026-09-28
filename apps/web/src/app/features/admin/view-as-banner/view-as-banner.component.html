@@ -1,0 +1,19 @@
+@if (banner(); as viewAs) {
+  <div class="view-as-banner" role="status" aria-live="polite">
+    <span class="view-as-banner__text">
+      Viewing as <strong>{{ viewAs.displayName }}</strong>
+      @if (viewAs.realEmail) {
+        <span class="view-as-banner__real"
+          >(signed in as {{ viewAs.realEmail }} — actions are logged)</span
+        >
+      }
+    </span>
+    <button
+      type="button"
+      class="view-as-banner__exit"
+      (click)="exitViewAs()"
+    >
+      Exit
+    </button>
+  </div>
+}

@@ -18,6 +18,8 @@
  * Pure module: no I/O, no env, no imports from db/routes/services.
  */
 
+import type { Permission } from '../auth/permissions';
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** Who may call the route. */
@@ -40,6 +42,14 @@ export interface ApiRouteEntry {
   /** Canonical path, e.g. '/api/v1/estimate'. `{param}` = path parameter. */
   readonly path: string;
   readonly auth: RouteAuth;
+  /**
+   * auth/04: permissions the route enforces via `requirePermission`.
+   * Empty = no permission check (public routes, or routes where the
+   * credential mechanism — magic token, API-key scopes, Stripe signature —
+   * IS the authorization). Every entry must declare this explicitly; a
+   * conformance test fails CI when one is missing.
+   */
+  readonly permissions: readonly Permission[];
   /** Frozen human-readable limit, e.g. '20/hr per IP'. */
   readonly rateLimit: string;
   readonly status: 'live' | 'planned';
@@ -52,6 +62,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/health',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary: 'Liveness + dependency checks (2s DB timeout).',
@@ -62,6 +73,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/estimate',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '20/hr per IP · 20/hr per tenant (embed)',
     status: 'live',
     summary:
@@ -72,6 +84,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/estimates/preview',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '20/hr per IP',
     status: 'live',
     summary:
@@ -82,6 +95,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/leads',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '10/min per IP (dedicated lead limiter)',
     status: 'live',
     summary:
@@ -92,6 +106,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/magic-link/verify',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary:
@@ -102,6 +117,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/magic-link/reissue',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '60s cooldown · 5/hr per email+IP',
     status: 'live',
     summary:
@@ -112,6 +128,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/reports/{reportToken}',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary:
@@ -122,6 +139,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/reports/{reportToken}/revisions',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '20/hr per IP',
     status: 'live',
     summary:
@@ -132,6 +150,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/callbacks',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary:
@@ -142,6 +161,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/shares',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary:
@@ -152,6 +172,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/shares/verify',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary:
@@ -164,6 +185,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/properties/autocomplete',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '60/min per IP',
     status: 'live',
     summary:
@@ -174,6 +196,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/properties/lookup',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '60/min per IP',
     status: 'live',
     summary:
@@ -186,6 +209,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/events',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '300/min per IP (dedicated analytics limiter)',
     status: 'live',
     summary:
@@ -196,6 +220,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/privacy/export',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary: 'PIPEDA data export for the token holder.',
@@ -204,6 +229,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/privacy/erase-requests',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary: 'Request erasure; returns a requestId for confirmation.',
@@ -212,6 +238,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/privacy/erase-requests/{requestId}/confirm',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary: 'Confirm an erasure request (second factor via email link).',
@@ -220,6 +247,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/estimates/{estimateId}/narrative',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP + 5/day per estimate (cost guard)',
     status: 'live',
     summary:
@@ -230,6 +258,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/unsubscribe/{token}',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary: 'Unsubscribe landing state (token IS the credential).',
@@ -238,6 +267,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/unsubscribe/{token}',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary: 'Record the opt-out (CASL).',
@@ -248,6 +278,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/communities/{slug}/stats',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary: 'Prerendered community page statistics (SEO content engine).',
@@ -256,6 +287,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '120/min per tenant key',
     status: 'live',
     summary:
@@ -266,6 +298,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/embed/session',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '30/min per tenant key',
     status: 'planned',
     summary:
@@ -276,6 +309,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/embed/relay/resend',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '60s per code · 30/min per IP',
     status: 'live',
     summary:
@@ -287,6 +321,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/chat/ask',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '20/hr per IP',
     status: 'planned',
     summary:
@@ -297,6 +332,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/openapi.json',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '100/min per IP (1h cache)',
     status: 'live',
     summary: 'Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design.',
@@ -307,6 +343,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/auth/me',
     auth: 'admin',
+    permissions: [] as const,
     rateLimit: '100/min per session',
     status: 'planned',
     summary: 'Return the current admin session identity (email).',
@@ -315,6 +352,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/auth/logout',
     auth: 'admin',
+    permissions: [] as const,
     rateLimit: '10/min per session',
     status: 'planned',
     summary: 'Revoke the admin session; clears the session cookie.',
@@ -323,6 +361,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/auth/entra/callback',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '10/15min per IP',
     status: 'live',
     summary:
@@ -330,11 +369,47 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       '(JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day ' +
       'admin session. Unknown account → 403, no enumeration.',
   },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/view-as',
+    auth: 'admin',
+    permissions: ['view_as'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Activate view-as (`{ builderId }` or `{ userId }`): the session ' +
+      'resolves permissions + tenant scoping to the target\u2019s view. ' +
+      'Never escalates; audit-logged under the real admin\u2019s identity.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/admin/view-as',
+    auth: 'admin',
+    permissions: [] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Exit view-as on the session. Session-only (exiting can never ' +
+      'escalate); audit-logged.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/auth/switch-builder',
+    auth: 'admin',
+    permissions: [] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Switch the session\u2019s active builder (org switcher). The builder ' +
+      'must be one of the caller\u2019s memberships — anything else is ' +
+      '403, never honored. Audit-logged.',
+  },
   // ── Builder v1 (session cookie; embed/09) ──────────────────────────
   {
     method: 'POST',
     path: '/api/v1/builder/auth/request',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '5/hr per email+IP',
     status: 'live',
     summary:
@@ -345,6 +420,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/builder/auth/verify',
     auth: 'magic-token',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'live',
     summary:
@@ -355,6 +431,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/builder/auth/me',
     auth: 'builder-session',
+    permissions: [] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary: 'Return the current builder session identity (email + tenant).',
@@ -363,6 +440,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/builder/auth/logout',
     auth: 'builder-session',
+    permissions: [] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Revoke the builder session; clears the session cookie.',
@@ -371,6 +449,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/builder/leads',
     auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -381,6 +460,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
+    permissions: ['builder:leads:manage'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -395,6 +475,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/api-keys',
     auth: 'admin',
+    permissions: ['api_keys:manage'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary: 'List API keys (masked, paginated).',
@@ -403,6 +484,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/api-keys',
     auth: 'admin',
+    permissions: ['api_keys:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary:
@@ -413,6 +495,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/api-keys/{id}/rotate',
     auth: 'admin',
+    permissions: ['api_keys:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Rotate a key (old key stays valid for a grace window).',
@@ -421,6 +504,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/api-keys/{id}/revoke',
     auth: 'admin',
+    permissions: ['api_keys:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Revoke a key immediately. Audit-logged.',
@@ -429,6 +513,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'PATCH',
     path: '/api/v1/admin/api-keys/{id}',
     auth: 'admin',
+    permissions: ['api_keys:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary:
@@ -439,6 +524,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/leads',
     auth: 'admin',
+    permissions: ['leads:read'] as const,
     rateLimit: '300/min per session',
     status: 'planned',
     summary:
@@ -449,6 +535,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/leads/{id}',
     auth: 'admin',
+    permissions: ['leads:read'] as const,
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Lead detail: estimate summary, timeline, consent, attribution.',
@@ -457,6 +544,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/notes',
     auth: 'admin',
+    permissions: ['leads:manage'] as const,
     rateLimit: '60/min per session',
     status: 'planned',
     summary: 'Append-only lead notes.',
@@ -465,6 +553,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'PATCH',
     path: '/api/v1/admin/leads/{id}/status',
     auth: 'admin',
+    permissions: ['leads:manage'] as const,
     rateLimit: '60/min per session',
     status: 'planned',
     summary:
@@ -475,6 +564,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/quarantine/approve',
     auth: 'admin',
+    permissions: ['leads:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -486,6 +576,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/quarantine/discard',
     auth: 'admin',
+    permissions: ['leads:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -497,6 +588,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/leads/export.csv',
     auth: 'admin',
+    permissions: ['leads:read'] as const,
     rateLimit: '10/min per session',
     status: 'planned',
     summary: 'CSV export of the filtered lead set.',
@@ -505,6 +597,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/assign-builder',
     auth: 'admin',
+    permissions: ['leads:assign'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -517,6 +610,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/builders',
     auth: 'admin',
+    permissions: ['builders:read'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary:
@@ -527,6 +621,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/builders',
     auth: 'admin',
+    permissions: ['builders:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -537,6 +632,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/builders/{id}',
     auth: 'admin',
+    permissions: ['builders:read'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary: 'Get one builder by id. 404 when unknown.',
@@ -545,6 +641,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'PATCH',
     path: '/api/v1/admin/builders/{id}',
     auth: 'admin',
+    permissions: ['builders:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -555,6 +652,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/estimates/{id}',
     auth: 'admin',
+    permissions: ['estimates:read'] as const,
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Estimate lookup for support/debugging.',
@@ -563,6 +661,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/funnels',
     auth: 'admin',
+    permissions: ['analytics:read'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary: 'Funnel dashboards (admin/07): step drop-off, gate conversion.',
@@ -572,6 +671,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/billing',
     auth: 'admin',
+    permissions: ['billing:read'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary:
@@ -585,6 +685,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
     auth: 'admin',
+    permissions: ['ops:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary:
@@ -595,6 +696,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/usage',
     auth: 'admin',
+    permissions: ['usage:read'] as const,
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Per-key usage metering (api-mcp/07).',
@@ -603,6 +705,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/calibration',
     auth: 'admin',
+    permissions: ['calibration:read'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary:
@@ -613,6 +716,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/ops/sheets-status',
     auth: 'admin',
+    permissions: ['ops:manage'] as const,
     rateLimit: '300/min per session',
     status: 'live',
     summary: 'Sheets sync worker status (admin/05).',
@@ -621,6 +725,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/ops/sheets-sync-now',
     auth: 'admin',
+    permissions: ['ops:manage'] as const,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Trigger an immediate Sheets sync (admin/05).',
@@ -631,6 +736,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/builder/agreement/accept',
     auth: 'none',
+    permissions: [] as const,
     rateLimit: '10/min per IP',
     status: 'planned',
     summary:
@@ -641,6 +747,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
     rateLimit: '300/min per session',
     status: 'planned',
     summary: 'Attributed lead detail (tenant-scoped).',
@@ -651,6 +758,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/mcp/v1',
     auth: 'api-key',
+    permissions: [] as const,
     rateLimit: '100/min per key',
     status: 'live',
     summary:
@@ -663,6 +771,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/stripe/webhooks',
     auth: 'stripe-signature',
+    permissions: [] as const,
     rateLimit: '100/min per IP',
     status: 'live',
     summary:
@@ -674,6 +783,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/billing/report-contract',
     auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -686,6 +796,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -696,6 +807,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/billing/invoices/{id}/dispute',
     auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -706,6 +818,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/billing/invoices/{id}/resolve',
     auth: 'admin',
+    permissions: ['billing:manage'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -717,6 +830,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/disputes',
     auth: 'admin',
+    permissions: ['billing:read'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -728,6 +842,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/disputes/{id}',
     auth: 'admin',
+    permissions: ['billing:read'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -738,6 +853,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/disputes/{id}/accept',
     auth: 'admin',
+    permissions: ['billing:manage'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -748,6 +864,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'POST',
     path: '/api/v1/admin/disputes/{id}/reject',
     auth: 'admin',
+    permissions: ['billing:manage'] as const,
     rateLimit: '100/min per session',
     status: 'live',
     summary:
@@ -801,12 +918,12 @@ export function resolveToRegistry(
 /** Render the frozen markdown table for TECH_PLAN.md §16. */
 export function renderRegistryTable(): string {
   const lines = [
-    '| Method | Path | Auth | Rate limit | Status | Summary |',
-    '|---|---|---|---|---|---|',
+    '| Method | Path | Auth | Permissions | Rate limit | Status | Summary |',
+    '|---|---|---|---|---|---|---|',
   ];
   for (const e of ROUTE_REGISTRY) {
     lines.push(
-      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
+      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${e.permissions.length > 0 ? e.permissions.join(', ') : '\u2014'} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
     );
   }
   return lines.join('\n');

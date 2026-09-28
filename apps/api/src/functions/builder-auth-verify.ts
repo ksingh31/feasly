@@ -16,6 +16,7 @@ export async function builderAuthVerifyHandler(
 ): Promise<void> {
   await dispatchBuilderAuth(context, req, (app) =>
     app.builderAuthRoute.verify(req.query ?? {}),
+    { path: '/api/v1/builder/auth/verify' },
   );
 }
 

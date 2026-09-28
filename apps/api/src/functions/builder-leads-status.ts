@@ -21,6 +21,7 @@ export async function builderLeadsStatusHandler(
       context.bindingData?.['id'],
       req.body,
     ),
+    { path: '/api/v1/builder/leads/{id}' },
   );
 }
 

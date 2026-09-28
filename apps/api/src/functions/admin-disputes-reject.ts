@@ -25,6 +25,7 @@ export async function adminDisputesRejectHandler(
       context.bindingData?.['id'],
       req.body,
     ),
+    { path: '/api/v1/admin/disputes/{id}/reject' },
   );
 }
 

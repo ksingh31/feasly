@@ -159,7 +159,15 @@ export const appConfig: ApplicationConfig = {
                     // error classification is reset — a reload must never
                     // repaint a stale failure (auth/02).
                     key === 'adminAuth'
-                    ? { ...obj, lastEntraError: null }
+                    ? {
+                        ...obj,
+                        lastEntraError: null,
+                        // auth/04: view-as is session-derived and re-probed
+                        // on boot — never repaint a stale banner.
+                        viewAs: null,
+                        viewAsDisplayName: null,
+                        viewAsRealEmail: null,
+                      }
                     : obj,
       }),
     ),

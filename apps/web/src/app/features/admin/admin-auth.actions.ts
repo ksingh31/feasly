@@ -15,6 +15,14 @@ export class LoadAdminSession {
   static readonly type = '[Admin Auth] Load session';
 }
 
+/**
+ * Exits view-as on the session (auth/04). Display-only affordance — the
+ * backend clears the session's view-as state and the session is re-probed.
+ */
+export class ExitViewAs {
+  static readonly type = '[Admin Auth] Exit view as';
+}
+
 /** Ends the admin session (logout). */
 export class LogoutAdmin {
   static readonly type = '[Admin Auth] Logout';

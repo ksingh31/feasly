@@ -19,6 +19,7 @@ export async function narrativeHandler(
       req.headers ?? {},
       typeof estimateId === 'string' ? estimateId : '',
     ),
+    { path: '/api/v1/estimates/{estimateId}/narrative' },
   );
 }
 

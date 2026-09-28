@@ -27,7 +27,7 @@ export async function adminAuthEntraCallbackHandler(
     context,
     req,
     (app) => app.entraCallbackRoute.callback(req.body ?? {}),
-    { pipeline: (app) => app.entraCallbackPipeline },
+    { pipeline: (app) => app.entraCallbackPipeline, path: '/api/v1/admin/auth/entra/callback'},
   );
 }
 

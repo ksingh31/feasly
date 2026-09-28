@@ -303,6 +303,44 @@ describe('UserService (Entra)', () => {
     expect(h.invitations[0]!.builderId).toBe('builder-1');
   });
 
+  it('invite: only a super_admin can grant the super_admin role (auth/04)', async () => {
+    const h = makeHarness();
+    // An admin inviting a super_admin is self-harm/escalation — 403.
+    await expectHttpError(
+      h.service.invite({
+        email: 'mallory@example.com',
+        name: 'Mallory',
+        role: 'super_admin',
+        actorStaffRole: 'admin',
+        actorEmail: 'admin@example.com',
+      }),
+      403,
+    );
+    // No role on the actor either — 403.
+    await expectHttpError(
+      h.service.invite({
+        email: 'mallory@example.com',
+        name: 'Mallory',
+        role: 'super_admin',
+      }),
+      403,
+    );
+    expect(h.invitations).toHaveLength(0);
+  });
+
+  it('invite: a super_admin can grant the super_admin role (auth/04)', async () => {
+    const h = makeHarness();
+    const { user } = await h.service.invite({
+      email: 'super@example.com',
+      name: 'Super Admin',
+      role: 'super_admin',
+      actorStaffRole: 'super_admin',
+      actorEmail: 'karanbirsingh667@gmail.com',
+    });
+    expect(user.staffRole).toBe('super_admin');
+    expect(h.invitations[0]!.role).toBe('super_admin');
+  });
+
   it('invite: rejects mismatched role/builder combinations', async () => {
     const h = makeHarness();
     await expectHttpError(
@@ -313,8 +351,7 @@ describe('UserService (Entra)', () => {
         builderId: 'builder-1',
       }),
       400,
-    );
-    await expectHttpError(
+    );    await expectHttpError(
       h.service.invite({
         email: 'b@example.com',
         name: 'B',

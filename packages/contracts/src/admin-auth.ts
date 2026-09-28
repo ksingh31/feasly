@@ -13,6 +13,32 @@ export interface AdminAuthMeResponse {
   readonly authenticated: true;
   /** Lowercased admin email the session was issued for. */
   readonly email: string;
+  /**
+   * auth/04: the session's authorization context. Optional so older
+   * backends stay compatible; the admin shell uses it for the view-as
+   * banner and the org switcher.
+   */
+  readonly authContext?: {
+    readonly userId: string | null;
+    readonly name: string;
+    readonly staffRole: 'super_admin' | 'admin' | 'viewer' | null;
+    readonly permissions: readonly string[];
+    readonly builderId: string | null;
+    readonly builderName: string | null;
+    readonly memberships: ReadonlyArray<{
+      readonly builderId: string;
+      readonly role: 'builder_admin' | 'builder_member';
+    }>;
+    readonly viewAs: {
+      readonly builderId?: string;
+      readonly userId?: string;
+    } | null;
+    readonly realUser: {
+      readonly userId: string | null;
+      readonly email: string;
+      readonly name: string;
+    } | null;
+  };
 }
 
 export interface AdminAuthLogoutResponse {
@@ -64,4 +90,40 @@ export interface AdminEntraCallbackResponse {
    * `Authorization: Bearer <token>` (cross-origin cookie never sticks).
    */
   readonly sessionToken: string;
+}
+
+/**
+ * View-as contracts (auth/04).
+ *
+ * `super_admin` / `admin` holders (anyone with the `view_as` permission)
+ * can view the product as a builder org or as another user. While active,
+ * effective permissions + tenant scoping resolve to the target's; every
+ * activation and exit is audit-logged under the REAL admin's identity.
+ */
+
+/** `POST /api/v1/admin/view-as` request body — exactly one target. */
+export type AdminViewAsRequestBody =
+  | { readonly builderId: string }
+  | { readonly userId: string };
+
+/** `POST /api/v1/admin/view-as` + `DELETE /api/v1/admin/view-as` response. */
+export interface AdminViewAsResponse {
+  readonly active: boolean;
+  /** Present while view-as is active (echo of the target). */
+  readonly target?: {
+    readonly kind: 'builder' | 'user';
+    readonly id: string;
+    readonly displayName: string;
+  };
+}
+
+/** `POST /api/v1/admin/auth/switch-builder` request body. */
+export interface AdminSwitchBuilderRequestBody {
+  /** Must be one of the caller's builder memberships — else 403. */
+  readonly builderId: string;
+}
+
+/** `POST /api/v1/admin/auth/switch-builder` response. */
+export interface AdminSwitchBuilderResponse {
+  readonly builderId: string;
 }

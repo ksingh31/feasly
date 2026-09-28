@@ -996,6 +996,21 @@ export const adminSessions = pgTable(
     userId: uuid('user_id').references(() => users.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * auth/04: the session's active builder tenant. Users with several
+     * builder memberships pick one (sign-in default or org switcher); the
+     * choice lives server-side in the session — tenant scoping reads this,
+     * never a client-supplied id.
+     */
+    activeBuilderId: uuid('active_builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * auth/04: view-as state — `{ builderId }` or `{ userId }` — while set,
+     * effective permissions + tenant scoping resolve to the target's. The
+     * real admin's identity is preserved for the audit trail.
+     */
+    viewAs: jsonb('view_as').$type<{ builderId?: string; userId?: string } | null>(),
     /** Null = active. Set on logout/expiry. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1049,6 +1064,14 @@ export const builderSessions = pgTable(
     tenantKey: text('tenant_key')
       .notNull()
       .references(() => tenants.tenantKey, { onDelete: 'cascade' }),
+    /**
+     * auth/04: the session's builder tenant, resolved server-side at
+     * sign-in. Tenant scoping reads this, never a request value. Nullable
+     * for legacy rows whose tenant_key has no builder row.
+     */
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'cascade',
+    }),
     /** SHA-256 hex of the opaque session token — the ONLY stored form. */
     sessionTokenHash: text('session_token_hash').notNull().unique(),
     /**

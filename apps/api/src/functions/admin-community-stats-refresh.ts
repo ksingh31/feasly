@@ -80,7 +80,17 @@ export async function adminCommunityStatsRefreshHandler(
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.communityStatsRefreshRoute.trigger(headers),
+    async () => {
+      // auth/04: registry permissions are REAL authorization — enforced
+      // here before the route runs.
+      await middleware.enforceRoutePermissions(
+        app.permissionGuard,
+        req.method,
+        '/api/v1/admin/community-stats/refresh',
+        headers,
+      );
+      return app.communityStatsRefreshRoute.trigger(headers);
+    },
   );
 
   if (middleware.isProblemDetails(result)) {

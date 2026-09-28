@@ -24,6 +24,8 @@ function toSessionRecord(
     id: row.id,
     email: row.email,
     tenantKey: row.tenantKey,
+    // auth/04: the session's builder tenant (server-side, not a request value).
+    builderId: row.builderId,
     sessionTokenHash: row.sessionTokenHash,
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,

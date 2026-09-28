@@ -20,6 +20,7 @@ export async function adminCalibrationHandler(
 ): Promise<void> {
   await dispatchAdminCalibration(context, req, (app) =>
     app.adminCalibrationRoute.get(req.headers ?? {}),
+    { path: '/api/v1/admin/calibration' },
   );
 }
 
