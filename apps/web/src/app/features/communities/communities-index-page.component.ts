@@ -9,16 +9,7 @@ import { SeoService } from '../../core/seo';
 import { buildItemListSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
-import ranges from '../../../content/data/community-ranges.json';
 import { toDisplayName } from './community-names';
-
-/** Minimal shape of SEO-04's community-ranges.json (only what the index needs). */
-interface CommunityRangesFile {
-  readonly communities: readonly {
-    readonly slug: string;
-    readonly tiers: { readonly standard: { readonly buildLow: number } };
-  }[];
-}
 
 /**
  * Community index (SEO-05): prerendered `/communities/` listing all 40
@@ -26,10 +17,16 @@ interface CommunityRangesFile {
  * page (`/communities/{slug}`); the page is the single crawl hub so no
  * community guide is orphaned.
  *
- * Data: `community-aggregates.json` and `community-ranges.json` are both
- * static imports — bundled at build time, so teasers render at prerender
- * with no runtime fetch (a dynamic import previously 404'd on the deployed
- * site because the JSON was never in `angular.json` assets).
+ * Data: `community-aggregates.json` is a static import — bundled at build
+ * time, so teasers render at prerender with no runtime fetch (a dynamic
+ * import previously 404'd on the deployed site because the JSON was never
+ * in `angular.json` assets).
+ *
+ * U1 (2026-09-28): cards no longer show a "New build from $X" teaser. The
+ * build-cost side of the ranges file is not community-specific (28 of 40
+ * communities shared one identical buildLow), so repeating it looked like
+ * placeholder data. Each card shows the community's own average assessed
+ * value instead; per-community build costs live on the guide pages.
  */
 @Component({
   selector: 'app-communities-index-page',
@@ -50,14 +47,6 @@ export class CommunitiesIndexPageComponent implements OnInit {
     aggregates as CommunityAggregatesFile
   ).communities;
 
-  /** Lowest-tier build-low by slug, from the bundled ranges file. */
-  protected readonly fromPrices: ReadonlyMap<string, number> = new Map(
-    (ranges as CommunityRangesFile).communities.map((c) => [
-      c.slug,
-      c.tiers.standard.buildLow,
-    ]),
-  );
-
   ngOnInit(): void {
     this.seo.setForRoute('communities');
     // SEO: ItemList of every community cost guide — crawlers discover all
@@ -72,12 +61,6 @@ export class CommunitiesIndexPageComponent implements OnInit {
         })),
       ),
     );
-  }
-
-  /** "from $X" teaser, or null when the ranges file lacks the community. */
-  fromPrice(community: CommunityAggregate): string | null {
-    const low = this.fromPrices.get(community.slug);
-    return low == null ? null : this.formatCad(low);
   }
 
   /** Formatted average assessed value, e.g. "$607,351". */

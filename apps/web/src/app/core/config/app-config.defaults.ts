@@ -180,7 +180,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       selectHint: 'Please choose your address from the suggestions above.',
-      noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
+      // U3 (2026-09-28): no-results is a guidance state, not a dead end —
+      // typing a complete address finds nothing; the working path is typing
+      // the street number and picking a suggestion from the list.
+      noResults:
+        "We couldn't find that address. Start typing the street number and pick your address from the list.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
@@ -657,8 +661,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
-      gateTitle: 'Feasly — Get your estimate',
-      gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
+      gateTitle: 'Feasly — Unlock your free estimate report',
+      gate: 'Enter your details to unlock your personalized Calgary infill estimate report.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
       renoComingSoonTitle: 'Feasly — Renovations are coming soon',
