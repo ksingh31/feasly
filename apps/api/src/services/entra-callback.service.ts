@@ -21,7 +21,10 @@
  * 6. Return `{ authenticated, user: { email, name, staffRole }, sessionToken }`
  *    — Entra tokens never leave the backend.
  *
- * Never logs the code, code verifier, or tokens.
+ * Never logs the code, code verifier, or tokens. Body-validation failures
+ * log only field NAMES and failure kinds (missing / wrong-type / empty /
+ * too-long) — never values — so a failing field can be identified from
+ * Application Insights without exposing secrets.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -68,6 +71,54 @@ const callbackBodySchema = z.object({
   codeVerifier: z.string().trim().min(1).max(10_000),
   redirectUri: z.string().trim().min(1).max(2_000),
 });
+
+/**
+ * Diagnostic cause for callback body-validation failures (diag lane, 2026-09-28).
+ *
+ * Records WHICH of `code` / `codeVerifier` / `redirectUri` failed and HOW —
+ * `missing`, `wrong-type:<type>`, `empty` (blank after trim), or `too-long`.
+ * NEVER includes field values: no authorization codes, no PKCE verifiers, no
+ * tokens, no secrets. Presence/shape only.
+ *
+ * Attached to the thrown 400 as `error.cause`, the same channel the token
+ * validator uses for `token_endpoint_invalid_grant` — the request pipeline
+ * logs it at error level with the correlation id, so it lands in
+ * Application Insights and identifies the failing field for a live retry.
+ */
+function bodyValidationCause(body: unknown): string {
+  const fields: ReadonlyArray<{ readonly name: string; readonly max: number }> =
+    [
+      { name: 'code', max: 10_000 },
+      { name: 'codeVerifier', max: 10_000 },
+      { name: 'redirectUri', max: 2_000 },
+    ];
+  const record =
+    typeof body === 'object' && body !== null
+      ? (body as Record<string, unknown>)
+      : null;
+  const reasons: string[] = [];
+  for (const { name, max } of fields) {
+    const value = record?.[name];
+    if (value === undefined || value === null) {
+      reasons.push(`${name}:missing`);
+    } else if (typeof value !== 'string') {
+      reasons.push(`${name}:wrong-type:${typeof value}`);
+    } else if (value.trim().length === 0) {
+      reasons.push(`${name}:empty`);
+    } else if (value.length > max) {
+      reasons.push(`${name}:too-long`);
+    }
+  }
+  const shape =
+    typeof body === 'object'
+      ? body === null
+        ? 'null'
+        : Array.isArray(body)
+          ? 'array'
+          : 'object'
+      : typeof body;
+  return `entra_callback_body_invalid shape=${shape} fields=${reasons.join(',') || 'none'}`;
+}
 
 /**
  * Buyer-grade denial for unknown (or disabled) accounts. Identical copy in
@@ -208,12 +259,18 @@ export function createEntraCallbackService(
     async handleCallback(body: unknown) {
       const parsed = callbackBodySchema.safeParse(body);
       if (!parsed.success) {
-        throw new HttpError(
+        // Outward behavior is unchanged (400 + VALIDATION_FAILED + same
+        // buyer-grade copy). The cause carries the field-level diagnostic —
+        // field names and failure kinds only, never values — and the request
+        // pipeline logs it to Application Insights with the correlation id.
+        const error = new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
           'Sign-in didn\u2019t complete — try again.',
           false,
         );
+        error.cause = new Error(bodyValidationCause(body));
+        throw error;
       }
       const { code, codeVerifier, redirectUri } = parsed.data;
 
