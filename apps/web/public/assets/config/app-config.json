@@ -26,9 +26,9 @@
       "heroSub": "A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.",
       "seoDescription": "Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.",
       "trustItems": [
-        "Range-based estimates",
-        "Real City of Calgary data",
-        "Transparent cost breakdown"
+        "600,000+ City of Calgary assessment records",
+        "Refreshed September 2026",
+        "Deterministic math — AI never invents prices"
       ],
       "howItWorksTitle": "Estimate in 2 minutes",
       "howItWorksSub": "No spam. We may reach out about your estimate — opt out anytime.",
@@ -217,7 +217,7 @@
       "lowLabel": "Low",
       "baseLabel": "Base",
       "highLabel": "High",
-      "uncalibratedNote": "Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.",
+      "uncalibratedNote": "How we're sharpening these numbers: we're calibrating against real Calgary builder quotes — your range already reflects current cost data and your City property record.",
       "lockedNote": "Locked — unlock to reveal the figures.",
       "unlockCta": "Unlock my free report →",
       "breakdownTitle": "Where the build budget goes",

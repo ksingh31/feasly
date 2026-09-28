@@ -95,7 +95,7 @@ describe('SampleReportPageComponent', () => {
     const landCard = fixture.nativeElement.querySelector('.land-card');
     expect(landCard).not.toBeNull();
     expect(landCard.textContent).toContain('$165,000');
-    expect(landCard.textContent).toContain('not a cost range');
+    expect(landCard.textContent).toContain('City of Calgary assessment · refreshed September 2026 · not a market price');
     // No range dash in the land figure.
     const figure = landCard.querySelector('.figure-single');
     expect(figure.textContent.trim()).toBe('$165,000');

@@ -511,6 +511,8 @@ export interface AppConfig {
       buildLabel: string;
       /** Clarifier under the highlighted build-cost figure. */
       buildCostNote: string;
+      /** Source label under the build-cost figure: data-driven trust. */
+      buildSourceNote: string;
       landLabel: string;
       /** Fixed-figure explainer: City assessment, never a range. */
       landFixedNote: string;
@@ -518,6 +520,9 @@ export interface AppConfig {
       baseLabel: string;
       highLabel: string;
       uncalibratedNote: string;
+      /** "How we calculate" expandable on the report — data-driven trust. */
+      howWeCalculateTitle: string;
+      howWeCalculateItems: string[];
       lockedNote: string;
       unlockCta: string;
       /** Post-gate confirmation line: the emailed link is return-access for other devices. */
@@ -644,6 +649,8 @@ export interface AppConfig {
     gate: {
       heading: string;
       sub: string;
+      /** Quiet trust line under the gate subheading — data-driven, not a calculator. */
+      trustLine: string;
       nameLabel: string;
       namePlaceholder: string;
       nameRequired: string;
