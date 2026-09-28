@@ -35,6 +35,7 @@
 import { z } from 'zod';
 import type {
   AdminUser,
+  AdminUserDeleteResponse,
   AdminUserInviteBody,
   AdminUserInviteResponse,
   AdminUserListResponse,
@@ -425,7 +426,7 @@ export function createAdminUsersRoute(
       return toAdminUser(result);
     },
 
-    async remove(headers, id): Promise<{ deleted: true }> {
+    async remove(headers, id): Promise<AdminUserDeleteResponse> {
       const ctx = await permissionGuard.requirePermission(
         'users:manage',
         headers,
