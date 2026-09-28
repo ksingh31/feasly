@@ -1,4 +1,16 @@
 <section class="builder-billing" aria-labelledby="builder-billing-heading">
+  <!-- Billing section tabs (shared with the invoices page). -->
+  <nav class="builder-billing__tabs" aria-label="Billing sections">
+    <a
+      routerLink="/builder/billing"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+      aria-current="page"
+      >{{ copy.billingTabCardLabel }}</a
+    >
+    <a routerLink="/builder/billing/invoices">{{ copy.billingTabInvoicesLabel }}</a>
+  </nav>
+
   <h1 id="builder-billing-heading">{{ copy.billingHeading }}</h1>
 
   <p class="builder-billing__explainer">{{ copy.billingExplainer }}</p>

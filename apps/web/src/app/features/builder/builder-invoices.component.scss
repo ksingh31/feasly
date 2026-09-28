@@ -1,0 +1,218 @@
+// Builder invoices page (BILL-04). Same card treatment as the billing
+// page — no redesign, same spacing and borders.
+.builder-invoices {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.builder-invoices__tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+  padding-bottom: 0.5rem;
+
+  a {
+    text-decoration: none;
+    color: var(--color-text-muted, #6b6257);
+    font-weight: 600;
+
+    &.active {
+      color: inherit;
+      border-bottom: 2px solid currentColor;
+      padding-bottom: 0.5rem;
+      margin-bottom: -0.5625rem;
+    }
+  }
+}
+
+.builder-invoices__explainer,
+.builder-invoices__note {
+  color: var(--color-text-muted, #6b6257);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.builder-invoices__loading {
+  margin: 0;
+}
+
+.builder-invoices__error {
+  color: var(--color-danger, #b3261e);
+}
+
+.builder-invoices__empty {
+  margin: 0;
+  color: var(--color-text-muted, #6b6257);
+}
+
+.builder-invoices__banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.builder-invoices__banner--error {
+  background: #fdecea;
+  color: var(--color-danger, #b3261e);
+  border: 1px solid #f5c6c0;
+}
+
+.builder-invoices__banner--success {
+  background: #e9f5ec;
+  color: var(--color-success, #1e7e34);
+  border: 1px solid #bfe3c8;
+}
+
+.builder-invoices__table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  overflow: hidden;
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-border, #e5e0d8);
+  }
+
+  th {
+    font-size: 0.85rem;
+    color: var(--color-text-muted, #6b6257);
+    font-weight: 600;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.builder-invoices__row-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.builder-invoices__pill {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.builder-invoices__pill--draft {
+  background: #f0ede8;
+  color: #6b6257;
+}
+
+.builder-invoices__pill--in_review {
+  background: #fff4d6;
+  color: #8a6d00;
+}
+
+.builder-invoices__pill--finalized {
+  background: #e3f0ff;
+  color: #1d4fa3;
+}
+
+.builder-invoices__pill--paid {
+  background: #e9f5ec;
+  color: #1e7e34;
+}
+
+.builder-invoices__pill--failed {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.builder-invoices__pill--disputed {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+.builder-invoices__pill--void {
+  background: #f0ede8;
+  color: #9a938a;
+}
+
+.builder-invoices__countdown {
+  font-weight: 600;
+}
+
+.builder-invoices__pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.builder-invoices__back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.builder-invoices__facts {
+  margin: 0;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  dt {
+    color: var(--color-text-muted, #6b6257);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+  }
+}
+
+.builder-invoices__timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-border, #e5e0d8);
+  }
+
+  li:last-child {
+    border-bottom: none;
+  }
+}
+
+.builder-invoices__timeline-label {
+  color: var(--color-text-muted, #6b6257);
+}

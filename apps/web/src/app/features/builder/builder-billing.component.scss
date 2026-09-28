@@ -6,6 +6,26 @@
   gap: 1.5rem;
 }
 
+.builder-billing__tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid var(--color-border, #e5e0d8);
+  padding-bottom: 0.5rem;
+
+  a {
+    text-decoration: none;
+    color: var(--color-text-muted, #6b6257);
+    font-weight: 600;
+
+    &.active {
+      color: inherit;
+      border-bottom: 2px solid currentColor;
+      padding-bottom: 0.5rem;
+      margin-bottom: -0.5625rem;
+    }
+  }
+}
+
 .builder-billing__explainer {
   color: var(--color-text-muted, #6b6257);
   font-size: 0.95rem;
