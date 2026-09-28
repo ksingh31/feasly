@@ -63,7 +63,7 @@ function makeDeps(opts?: {
   readonly configured?: boolean;
   readonly customers?: Map<string, string>;
   readonly cards?: Map<string, CardSummary[]>;
-}): { service: ReturnType<typeof createCommissionCardService>; state: FakeStripeState; audit: BillingAuditService } {
+}): { service: ReturnType<typeof createCommissionCardService>; state: FakeStripeState; audit: BillingAuditService; stripe: StripeService } {
   const state: FakeStripeState = {
     customers: opts?.customers ?? new Map(),
     cards: opts?.cards ?? new Map(),
@@ -75,22 +75,28 @@ function makeDeps(opts?: {
   const billing = {
     model: opts?.model ?? 'commission',
   } as BillingConfig;
+  const stripe = fakeStripe(state);
   const deps: CommissionCardServiceDeps = {
     billing,
     audit,
-    stripe: fakeStripe(state),
+    stripe,
   };
-  return { service: createCommissionCardService(deps), state, audit };
+  return { service: createCommissionCardService(deps), state, audit, stripe };
 }
 
 describe('commission card-on-file (BILL-02)', () => {
   it('ensureCustomer creates and persists a Stripe customer, idempotently', async () => {
-    const { service, state, audit } = makeDeps();
+    const { service, state, audit, stripe } = makeDeps();
     const first = await service.ensureCustomer('elite-craft', 'b@x.com');
     expect(first).toBe('cus_elite-craft');
     const second = await service.ensureCustomer('elite-craft', 'b@x.com');
     expect(second).toBe(first);
     expect(audit.append).toHaveBeenCalledTimes(1);
+    // Deterministic idempotency key guards the check-then-create race.
+    expect(stripe.createCustomer).toHaveBeenCalledWith(
+      { tenantKey: 'elite-craft', email: 'b@x.com' },
+      'feasly-customer-elite-craft',
+    );
     expect(audit.append).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantKey: 'elite-craft',

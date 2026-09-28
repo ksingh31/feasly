@@ -98,10 +98,13 @@ export function createFlatPlanService(
       requireFlatModel();
       const existing = await stripe.getCustomerId(tenantKey);
       if (existing) return existing;
-      const customer = await stripe.createCustomer({
-        tenantKey,
-        email: emailAddr,
-      });
+      const customer = await stripe.createCustomer(
+        {
+          tenantKey,
+          email: emailAddr,
+        },
+        `feasly-customer-${tenantKey}`,
+      );
       await stripe.saveCustomerId(tenantKey, customer.id);
       await audit.append({
         tenantKey,
