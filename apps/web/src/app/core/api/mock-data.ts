@@ -47,6 +47,8 @@ export function mockProperty(): PropertyRecord {
     assessedValue: 685000,
     assessmentYear: 2025,
     yearBuilt: 1962,
+    assessmentClass: 'R',
+    isNonResidential: false,
     dataAsOf: '2025-07-01',
     stale: false,
   };
@@ -123,6 +125,8 @@ export function mockPropertyFor(addressKey: string): PropertyRecord | undefined 
     assessedValue: details?.assessedValue ?? pickFor(addressKey, MOCK_ASSESSED),
     assessmentYear: 2025,
     yearBuilt: details?.yearBuilt ?? pickFor(addressKey, MOCK_YEAR_BUILT),
+    assessmentClass: 'R',
+    isNonResidential: false,
     dataAsOf: '2025-07-01',
     stale: false,
   };

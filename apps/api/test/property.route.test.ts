@@ -23,6 +23,8 @@ const RECORD: PropertyRecord = {
   assessedValue: 60150000,
   assessmentYear: 2026,
   yearBuilt: 1980,
+  assessmentClass: 'R',
+  isNonResidential: false,
   dataAsOf: '2026-01-15',
   stale: false,
 };

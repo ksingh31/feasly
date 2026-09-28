@@ -29,6 +29,8 @@ const ROW = {
   roll_year: '2026',
   address: '1600 90 AV SW',
   assessed_value: '60150000',
+  assessment_class: 'R',
+  assessment_class_description: 'Residential',
   comm_name: 'BAYVIEW',
   year_of_construction: '1980',
   land_use_designation: 'C-C2',
@@ -201,9 +203,50 @@ describe('property service', () => {
         assessedValue: 60150000,
         assessmentYear: 2026,
         yearBuilt: 1980,
+        assessmentClass: 'R',
+        isNonResidential: false,
         dataAsOf: '2026-01-15',
         stale: false,
       });
+    });
+
+    it('flags a non-residential (NR) row as isNonResidential', async () => {
+      mockFetchOnce([
+        {
+          ...ROW,
+          address: '12345 40 ST SE',
+          assessed_value: '61580000',
+          assessment_class: 'NR',
+          assessment_class_description: 'Non-Residential',
+          comm_name: 'EAST SHEPARD INDUSTRIAL',
+        },
+      ]);
+      const res = await service.getProperty('12345 40 ST SE');
+      expect(res.assessmentClass).toBe('NR');
+      expect(res.isNonResidential).toBe(true);
+    });
+
+    it('treats a non-residential description as NR even without the class code', async () => {
+      mockFetchOnce([
+        {
+          ...ROW,
+          assessment_class: undefined,
+          assessment_class_description: 'Non-Residential',
+        },
+      ]);
+      const res = await service.getProperty('1600 90 AV SW');
+      expect(res.assessmentClass).toBe('');
+      expect(res.isNonResidential).toBe(true);
+    });
+
+    it('requests the assessment-class columns in the detail $select', async () => {
+      mockFetchOnce([ROW]);
+      await service.getProperty('1600 90 AV SW');
+      const fetchMock = vi.mocked(fetch);
+      const url = new URL(String(fetchMock.mock.calls[0][0]));
+      const select = url.searchParams.get('$select') ?? '';
+      expect(select).toContain('assessment_class');
+      expect(select).toContain('assessment_class_description');
     });
 
     it('picks the highest assessed value for multi-parcel addresses', async () => {
