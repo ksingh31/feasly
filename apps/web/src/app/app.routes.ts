@@ -424,7 +424,6 @@ export const routes: Routes = [
           ),
       },
       {
-        {
           // Builder team (auth/05): org user management — builder_admin only
           // (builderTeamGuard). Lazy-loaded with the rest of the portal.
           path: 'team',
