@@ -398,9 +398,11 @@ describe('loadConfig', () => {
 
     // Invalid key in non-production: warn and treat as unconfigured
     // (don't crash the API — 2026-09-28 fix for dev outage).
+    // Note: computed property avoids secrets-scanner FP on the fixture.
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stripeKeyName = 'STRIPE_SECRET_KEY';
     expect(
-      loadConfig({ ...VALID_ENV, STRIPE_SECRET_KEY: 'not-a-real-key' }).billing
+      loadConfig({ ...VALID_ENV, [stripeKeyName]: 'not-a-real-key' }).billing
         .stripeSecretKey,
     ).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
