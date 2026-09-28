@@ -76,6 +76,27 @@ param narrativeEndpoint string = ''
 @description('Model slug for the narrative provider (e.g. gemini-3.8-flash). Empty = the app config default.')
 param narrativeModels string = ''
 
+@description('Microsoft Entra External ID: tenant subdomain — the ciamlogin.com host prefix (e.g. feaslyext). Empty = the admin sign-in callback fails closed (503).')
+param entraTenantSubdomain string = ''
+
+@description('Microsoft Entra External ID: tenant (directory) ID. Empty = the admin sign-in callback fails closed (503).')
+param entraTenantId string = ''
+
+@description('Microsoft Entra External ID: application (client) ID of the feasly-web SPA app registration. Empty = the admin sign-in callback fails closed (503).')
+param entraClientId string = ''
+
+@description('Microsoft Entra External ID: user flow (policy) name, e.g. feasly-signup-signin. Empty = the admin sign-in callback fails closed (503).')
+param entraUserFlow string = ''
+
+@description('Microsoft Entra External ID: issuer domain for local-account provisioning (e.g. feaslyext.onmicrosoft.com). Empty = Graph provisioning fails closed.')
+param entraIssuerDomain string = ''
+
+@description('Microsoft Entra External ID: Graph client (application) ID used for user provisioning. Empty = Graph provisioning fails closed.')
+param entraGraphClientId string = ''
+
+@description('Key Vault secret URI (versionless) for the Graph client secret used for user provisioning. Empty = not configured; provisioning fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
+param entraGraphClientSecretUri string = ''
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -295,6 +316,68 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'NARRATIVE_MODELS'
                 value: narrativeModels
+              }
+            ],
+        // Microsoft Entra External ID sign-in (admin/builder). Values are
+        // set per environment in main.bicep; empty = the app setting is
+        // omitted and the backend fails closed (503) naming the missing
+        // variable. The Graph client secret is a Key Vault reference — the
+        // value never lands in app settings.
+        empty(entraTenantSubdomain)
+          ? []
+          : [
+              {
+                name: 'ENTRA_TENANT_SUBDOMAIN'
+                value: entraTenantSubdomain
+              }
+            ],
+        empty(entraTenantId)
+          ? []
+          : [
+              {
+                name: 'ENTRA_TENANT_ID'
+                value: entraTenantId
+              }
+            ],
+        empty(entraClientId)
+          ? []
+          : [
+              {
+                name: 'ENTRA_CLIENT_ID'
+                value: entraClientId
+              }
+            ],
+        empty(entraUserFlow)
+          ? []
+          : [
+              {
+                name: 'ENTRA_USER_FLOW'
+                value: entraUserFlow
+              }
+            ],
+        empty(entraIssuerDomain)
+          ? []
+          : [
+              {
+                name: 'ENTRA_ISSUER_DOMAIN'
+                value: entraIssuerDomain
+              }
+            ],
+        empty(entraGraphClientId)
+          ? []
+          : [
+              {
+                name: 'ENTRA_GRAPH_CLIENT_ID'
+                value: entraGraphClientId
+              }
+            ],
+        empty(entraGraphClientSecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the client secret value never lands in app settings.
+                name: 'ENTRA_GRAPH_CLIENT_SECRET'
+                value: '@Microsoft.KeyVault(SecretUri=${entraGraphClientSecretUri})'
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls
