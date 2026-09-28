@@ -396,6 +396,7 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"finalized_at" timestamp with time zone,
 	"paid_at" timestamp with time zone,
 	"sla_breached" boolean DEFAULT false NOT NULL,
+	"retry_count" integer DEFAULT 0 NOT NULL,
 	"dispute_reason" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -414,6 +415,7 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "review_due_at" times
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "finalized_at" timestamp with time zone;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "paid_at" timestamp with time zone;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "sla_breached" boolean DEFAULT false NOT NULL;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "retry_count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "dispute_reason" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;

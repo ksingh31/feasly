@@ -32,8 +32,11 @@ const HEALTH: BillingHealthResponse = {
       commissionCents: 15_000,
       currency: 'CAD',
       pastDueSince: '2026-09-24T12:00:00.000Z',
+      retryCount: 1,
+      lastFailureReason: 'Your card was declined.',
     },
   ],
+  maxChargeRetries: 3,
   webhooks: {
     received24h: 3,
     lastReceivedAt: '2026-09-26T10:00:00.000Z',
@@ -49,6 +52,9 @@ describe('AdminBillingComponent (billing/03)', () => {
   beforeEach(async () => {
     const api = {
       getBillingHealth: vi.fn().mockReturnValue(of(HEALTH)),
+      retryInvoiceCharge: vi.fn().mockReturnValue(
+        of({ invoiceId: 'inv-1', status: 'finalized', retryCount: 2 }),
+      ),
     };
     await TestBed.configureTestingModule({
       imports: [AdminBillingComponent],
@@ -114,6 +120,67 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(text).toContain('Could not load billing health');
     expect(text).toContain('Retry');
   });
+
+  it('renders retry count, failure reason, and a Retry 2 of 3 button per failed invoice', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('1 of 3');
+    expect(text).toContain('Your card was declined.');
+    expect(text).toContain('Retry 2 of 3');
+  });
+
+  it('requires a confirm click before dispatching the retry', async () => {
+    const api = TestBed.inject(AdminBillingApiService) as unknown as {
+      retryInvoiceCharge: ReturnType<typeof vi.fn>;
+    };
+    const retryButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.includes('Retry 2 of 3'));
+    expect(retryButton).toBeDefined();
+    (retryButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // First click only arms the confirm state — no API call yet.
+    expect(api.retryInvoiceCharge).not.toHaveBeenCalled();
+    const confirmButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.includes('Confirm retry'));
+    expect(confirmButton).toBeDefined();
+    (confirmButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(api.retryInvoiceCharge).toHaveBeenCalledWith('inv-1');
+    // Durable success feedback.
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Charge re-attempted');
+  });
+
+  it('shows manual handling when retries are exhausted', async () => {
+    TestBed.resetTestingModule();
+    const exhausted = {
+      ...HEALTH,
+      dunning: [
+        { ...HEALTH.dunning[0], retryCount: 3 },
+      ],
+    };
+    const api = {
+      getBillingHealth: vi.fn().mockReturnValue(of(exhausted)),
+      retryInvoiceCharge: vi.fn(),
+    };
+    await TestBed.configureTestingModule({
+      imports: [AdminBillingComponent],
+      providers: [
+        provideRouter([]),
+        provideStore([BillingHealthState]),
+        { provide: AdminBillingApiService, useValue: api },
+      ],
+    }).compileComponents();
+    const f2 = TestBed.createComponent(AdminBillingComponent);
+    f2.detectChanges();
+    await f2.whenStable();
+    const text = f2.nativeElement.textContent as string;
+    expect(text).toContain('Manual handling');
+    expect(text).not.toContain('Retry charge');
+  });
 });
 
 /**
@@ -129,6 +196,7 @@ describe('AdminBillingComponent route-level state registration', () => {
     TestBed.resetTestingModule();
     const api = {
       getBillingHealth: vi.fn().mockReturnValue(of(HEALTH)),
+      retryInvoiceCharge: vi.fn(),
     };
     const { billingHealthStateProvider } = await import('./billing-health.state');
     await TestBed.configureTestingModule({

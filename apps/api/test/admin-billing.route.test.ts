@@ -36,6 +36,7 @@ const HEALTH_RESPONSE: BillingHealthResponse = {
   },
   disputed: { count: 0, commissionCents: 0 },
   dunning: [],
+  maxChargeRetries: 3,
   webhooks: {
     received24h: 3,
     lastReceivedAt: '2026-09-26T10:00:00.000Z',
@@ -70,6 +71,9 @@ function makeDeps(): AdminBillingRouteDeps {
         return 'karanbirsingh667@gmail.com';
       },
     },
+    commission: {
+      retryCharge: vi.fn(),
+    } as unknown as import('../src/services/billing/commission.service').CommissionService,
   };
 }
 
@@ -90,5 +94,50 @@ describe('admin-billing route', () => {
       code: ErrorCodes.UNAUTHENTICATED,
     });
     expect(deps.billingHealth.getHealth).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin-billing route retryCharge', () => {
+  const INVOICE_ID = '11111111-1111-4111-8111-111111111111';
+
+  it('retries the charge for an admin session', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const commission = deps.commission as unknown as {
+      retryCharge: ReturnType<typeof vi.fn>;
+    };
+    commission.retryCharge.mockResolvedValue({
+      id: INVOICE_ID,
+      status: 'finalized',
+      retryCount: 1,
+    });
+    const result = await route.retryCharge(ADMIN_HEADERS, INVOICE_ID);
+    expect(result).toEqual({
+      invoiceId: INVOICE_ID,
+      status: 'finalized',
+      retryCount: 1,
+    });
+    expect(commission.retryCharge).toHaveBeenCalledWith(INVOICE_ID);
+  });
+
+  it('rejects non-admin callers with 401 without calling the service', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const commission = deps.commission as unknown as {
+      retryCharge: ReturnType<typeof vi.fn>;
+    };
+    await expect(route.retryCharge({}, INVOICE_ID)).rejects.toMatchObject({
+      status: 401,
+      code: ErrorCodes.UNAUTHENTICATED,
+    });
+    expect(commission.retryCharge).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed invoice id', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.retryCharge(ADMIN_HEADERS, 'not-a-uuid'),
+    ).rejects.toThrow();
   });
 });

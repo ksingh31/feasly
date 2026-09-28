@@ -113,6 +113,7 @@ describe('loadConfig', () => {
         stripeWebhookSecret: undefined,
         stripeFlatPriceId: undefined,
         isProduction: false,
+        maxChargeRetries: 3,
       },
       sandboxPurge: {
         retentionDays: 30,
@@ -234,6 +235,7 @@ describe('loadConfig', () => {
       stripeWebhookSecret: undefined,
       stripeFlatPriceId: undefined,
       isProduction: false,
+      maxChargeRetries: 3,
     });
   });
 

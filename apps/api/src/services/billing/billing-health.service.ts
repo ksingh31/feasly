@@ -67,6 +67,7 @@ interface InvoiceRow {
   readonly status: string;
   readonly reviewDueAt: Date | null;
   readonly paidAt: Date | null;
+  readonly retryCount: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -137,16 +138,20 @@ export function createBillingHealthService(
   const now = deps.now ?? (() => new Date());
 
   /**
-   * `past_due_since` for one dunning invoice: the latest
-   * `invoice.charge_failed` audit row for the invoice; falls back to the
-   * invoice's `updatedAt` when the audit row is absent (legacy rows).
+   * Latest `invoice.charge_failed` audit row for one dunning invoice: the
+   * failure timestamp (as `past_due_since`) plus the recorded failure
+   * reason (BILL-03). Falls back to the invoice's `updatedAt` when the
+   * audit row is absent (legacy rows).
    */
-  async function pastDueSinceFor(
+  async function latestFailureFor(
     invoiceId: string,
     fallback: Date,
-  ): Promise<Date> {
+  ): Promise<{ at: Date; reason: string | null }> {
     const rows = await db
-      .select({ createdAt: billingEvents.createdAt })
+      .select({
+        createdAt: billingEvents.createdAt,
+        payload: billingEvents.payload,
+      })
       .from(billingEvents)
       .where(
         and(
@@ -157,7 +162,18 @@ export function createBillingHealthService(
       )
       .orderBy(desc(billingEvents.createdAt))
       .limit(1);
-    return rows[0]?.createdAt ?? fallback;
+    const latest = rows[0];
+    const payload =
+      latest?.payload !== null &&
+      latest?.payload !== undefined &&
+      typeof latest.payload === 'object'
+        ? (latest.payload as Record<string, unknown>)
+        : null;
+    const reason = payload?.['failureReason'];
+    return {
+      at: latest?.createdAt ?? fallback,
+      reason: typeof reason === 'string' && reason.length > 0 ? reason : null,
+    };
   }
 
   /**
@@ -233,6 +249,7 @@ export function createBillingHealthService(
         status: commissionInvoices.status,
         reviewDueAt: commissionInvoices.reviewDueAt,
         paidAt: commissionInvoices.paidAt,
+        retryCount: commissionInvoices.retryCount,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,
       })
@@ -287,14 +304,15 @@ export function createBillingHealthService(
 
     const dunning: BillingHealthDunningInvoice[] = [];
     for (const row of dunningRows) {
+      const failure = await latestFailureFor(row.id, row.updatedAt);
       dunning.push({
         id: row.id,
         tenantKey: row.tenantKey,
         commissionCents: row.commissionCents,
         currency: row.currency,
-        pastDueSince: (
-          await pastDueSinceFor(row.id, row.updatedAt)
-        ).toISOString(),
+        pastDueSince: failure.at.toISOString(),
+        retryCount: row.retryCount,
+        lastFailureReason: failure.reason,
       });
     }
     // Oldest past-due first — the dunning work queue order.
@@ -372,6 +390,8 @@ export function createBillingHealthService(
       inReview: { under48h, under7d, overdue },
       disputed,
       dunning,
+      // BILL-03: the dunning queue needs the retry cap for "Retry n of m".
+      maxChargeRetries: billing.maxChargeRetries ?? 3,
       webhooks: {
         received24h: eventRows.length,
         lastReceivedAt: lastReceivedAt?.toISOString() ?? null,

@@ -29,6 +29,12 @@ export interface NormalizedStripeEvent {
   readonly subscriptionId?: string;
   readonly invoiceId?: string;
   readonly paymentMethodId?: string;
+  /**
+   * payment_intent.payment_failed only: Stripe's `last_payment_error`
+   * message (e.g. "Your card was declined."). BILL-03 surfaces it in the
+   * dunning queue as the last failure reason.
+   */
+  readonly failureMessage?: string;
 }
 
 /**
@@ -137,6 +143,14 @@ function normalizeEvent(event: Stripe.Event): NormalizedStripeEvent {
   >;
   const str = (v: unknown): string | undefined =>
     typeof v === 'string' ? v : undefined;
+  // payment_intent.payment_failed carries the decline reason under
+  // data.object.last_payment_error.message (BILL-03).
+  const lastError =
+    event.type === 'payment_intent.payment_failed' &&
+    typeof data['last_payment_error'] === 'object' &&
+    data['last_payment_error'] !== null
+      ? (data['last_payment_error'] as Record<string, unknown>)
+      : null;
   return {
     id: event.id,
     type: event.type,
@@ -157,6 +171,7 @@ function normalizeEvent(event: Stripe.Event): NormalizedStripeEvent {
     paymentMethodId: event.type.startsWith('payment_method.')
       ? str(data['id'])
       : undefined,
+    failureMessage: lastError ? str(lastError['message']) : undefined,
   };
 }
 

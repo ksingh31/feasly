@@ -288,6 +288,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "POST /api/v1/admin/billing/invoices/{id}/retry": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/builders": [
     "super_admin",
     "admin",

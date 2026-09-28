@@ -266,6 +266,8 @@ const EnvSchema = z.object({
   BILLING_ATTRIBUTION_WINDOW_DAYS: z.coerce.number().int().positive().default(365),
   // Builder reporting SLA: days from contract signature to report it.
   BILLING_REPORTING_SLA_DAYS: z.coerce.number().int().positive().default(14),
+  // Max off-session charge retries per failed commission invoice (BILL-03).
+  BILLING_MAX_CHARGE_RETRIES: z.coerce.number().int().min(1).default(3),
   // Flat-plan fields — dormant until BILLING_MODEL=flat.
   BILLING_FLAT_PLAN_NAME: z.string().min(1).default('Builder Standard'),
   BILLING_FLAT_MONTHLY_CENTS: z.coerce.number().int().positive().default(30_000),
@@ -621,6 +623,8 @@ export interface BillingConfig {
   readonly attributionWindowDays: number;
   /** Builder reporting SLA in days from contract signature (14 days). */
   readonly reportingSlaDays: number;
+  /** Max off-session charge retries per failed commission invoice (3). */
+  readonly maxChargeRetries?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -1080,6 +1084,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       commissionRate: e.BILLING_COMMISSION_RATE,
       attributionWindowDays: e.BILLING_ATTRIBUTION_WINDOW_DAYS,
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
+      maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
