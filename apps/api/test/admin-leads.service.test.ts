@@ -591,5 +591,41 @@ describe('admin-leads service (admin/02)', () => {
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain('id,name,email');
     });
+
+    it('survives wrong-typed dates, undefined fields, and Invalid Dates (2026-09-28 hardening)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [
+          // A date arriving as a string (driver/data quirk) still serializes.
+          makeLeadRow({
+            id: 'lead-string-date',
+            consentTs: '2026-09-25T00:00:00.000Z' as unknown as Date,
+          }),
+          // undefined scalar fields render as empty cells.
+          makeLeadRow({
+            id: 'lead-undefined',
+            name: undefined as unknown as string,
+            phone: undefined as unknown as string,
+          }),
+          // An Invalid Date degrades to an empty cell, not a throw.
+          makeLeadRow({
+            id: 'lead-invalid-date',
+            consentTs: new Date('not-a-date'),
+          }),
+        ],
+        nextCursor: null,
+        totalCount: 3,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      const result = await service.exportCsv({}, ADMIN_EMAIL);
+      const lines = result.csv.split('\n');
+      expect(lines).toHaveLength(4);
+      expect(lines[1]).toContain('lead-string-date');
+      expect(lines[1]).toContain('2026-09-25T00:00:00.000Z');
+      expect(lines[2]).toContain('lead-undefined');
+      expect(lines[3]).toContain('lead-invalid-date');
+    });
   });
 });

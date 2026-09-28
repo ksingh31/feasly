@@ -12,6 +12,7 @@ import type {
   AdminLeadStatus,
 } from '@feasly/contracts';
 import { AdminLeadsApiService } from './admin-leads-api.service';
+import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
@@ -100,6 +101,7 @@ const defaults: AdminLeadsStateModel = {
 export class AdminLeadsState {
   private readonly api = inject(AdminLeadsApiService);
   private readonly document = inject(DOCUMENT);
+  private readonly config = inject(ConfigService);
 
   // ------------------------------------------------------------------ selectors
 
@@ -474,20 +476,25 @@ export class AdminLeadsState {
 
   // ------------------------------------------------------------------ download
 
-  /** Triggers a browser download for the exported CSV blob. */
+  /**
+   * Triggers a browser download for the exported CSV blob.
+   *
+   * The object URL is revoked on a delay, not synchronously: revoking it
+   * in the same task as the programmatic click aborts the download in
+   * Safari/WebKit (2026-09-28: Export CSV silently did nothing on iPhone).
+   */
   private downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
-    try {
-      const anchor = this.document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.rel = 'noopener';
-      this.document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    const anchor = this.document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    this.document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Give the browser a task to start the download before the URL dies.
+    const delayMs = this.config.get('api').downloadRevokeDelayMs;
+    setTimeout(() => URL.revokeObjectURL(url), delayMs);
   }
 }
 
