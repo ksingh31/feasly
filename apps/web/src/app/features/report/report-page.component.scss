@@ -416,6 +416,8 @@
 .bucket-label {
   font-size: 14px;
   color: var(--text);
+  /* B1: the label may shrink/wrap — the amount must never be pushed out. */
+  min-width: 0;
 }
 
 .bucket-amount {
@@ -425,6 +427,8 @@
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
+  /* B1: the amount never shrinks — all three stay fully visible. */
+  flex-shrink: 0;
 }
 
 /* AI NARRATIVE — deterministic text only. */
