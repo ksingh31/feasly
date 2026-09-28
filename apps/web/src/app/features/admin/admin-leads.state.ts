@@ -226,7 +226,8 @@ export class AdminLeadsState {
   /**
    * Merges tab/sandbox state into the effective backend filters.
    *
-   * The quarantine tab forces `includeQuarantined: true`; everywhere else
+   * The quarantine tab forces `quarantinedOnly: true` so it lists only
+   * honeypot-flagged rows (never the full lead list); everywhere else
    * quarantined rows stay hidden. Sandbox rows are excluded unless the
    * admin toggles them in (they're badged "Sandbox" in the table).
    */
@@ -238,6 +239,7 @@ export class AdminLeadsState {
     return {
       ...filters,
       includeQuarantined: tab === 'quarantine' ? true : undefined,
+      quarantinedOnly: tab === 'quarantine' ? true : undefined,
       includeSandbox: state.includeSandbox ? true : undefined,
     };
   }

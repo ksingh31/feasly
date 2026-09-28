@@ -159,6 +159,9 @@
                 @if (lead.sandbox) {
                   <span class="badge badge--sandbox">Sandbox</span>
                 }
+                @if (lead.quarantined) {
+                  <span class="badge badge--quarantine">Quarantine</span>
+                }
               </h2>
               <span class="badge badge--status-{{ lead.status }}">{{
                 statusLabel(lead.status)
