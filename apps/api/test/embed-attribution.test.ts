@@ -172,6 +172,9 @@ function fakeEmailService(): EmailService {
     sendPartnerShare: async () => result,
     sendCallbackConfirmation: async () => result,
     sendOpsAlert: async () => result,
+    sendCommissionInvoiceReady: async () => result,
+    sendCommissionPaymentReceived: async () => result,
+    sendCommissionPaymentFailed: async () => result,
   } as EmailService;
 }
 

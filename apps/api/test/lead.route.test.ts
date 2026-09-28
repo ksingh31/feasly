@@ -110,6 +110,9 @@ describe('lead route', () => {
         sendCallbackConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
         sendNudge: async () => ({ sent: true as const, provider: 'log' as const }),
         sendOpsAlert: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendCommissionInvoiceReady: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendCommissionPaymentReceived: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendCommissionPaymentFailed: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({
         leads: leadStore,
