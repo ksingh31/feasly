@@ -159,13 +159,17 @@ describe('route registry', () => {
       'GET /api/v1/admin/api-keys': ['super_admin', 'admin'],
       'GET /api/v1/admin/billing': ['super_admin', 'admin', 'viewer'],
       // auth/03 — admin user management.
-      'GET /api/v1/admin/users': ['super_admin', 'admin'],
+      'GET /api/v1/admin/users': ['super_admin', 'admin', 'builder_admin'],
       'POST /api/v1/admin/users/invite': [
         'super_admin',
         'admin',
         'builder_admin',
       ],
-      'GET /api/v1/admin/users/{id}': ['super_admin', 'admin'],
+      'GET /api/v1/admin/users/{id}': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+      ],
       'PATCH /api/v1/admin/users/{id}': [
         'super_admin',
         'admin',

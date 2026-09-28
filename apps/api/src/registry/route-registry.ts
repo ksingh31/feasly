@@ -406,12 +406,13 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/users',
     auth: 'admin',
-    permissions: ['users:manage'] as const,
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
       'Paginated user list with builder memberships (admin user ' +
-      'management).',
+      'management). Builder admins see only their own orgs.',
   },
   {
     method: 'POST',
@@ -430,10 +431,11 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     method: 'GET',
     path: '/api/v1/admin/users/{id}',
     auth: 'admin',
-    permissions: ['users:manage'] as const,
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
     rateLimit: '60/min per session',
     status: 'live',
-    summary: 'One user with builder memberships.',
+    summary: 'One user with builder memberships. Builder admins: own orgs only.',
   },
   {
     method: 'PATCH',
@@ -1002,8 +1004,10 @@ export function renderRegistryTable(): string {
     '|---|---|---|---|---|---|---|',
   ];
   for (const e of ROUTE_REGISTRY) {
+    // auth/03: permissionsAnyOf (OR) renders alongside permissions (AND).
+    const perms = [...e.permissions, ...(e.permissionsAnyOf ?? [])];
     lines.push(
-      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${e.permissions.length > 0 ? e.permissions.join(', ') : '\u2014'} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
+      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${perms.length > 0 ? perms.join(', ') : '\u2014'} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
     );
   }
   return lines.join('\n');

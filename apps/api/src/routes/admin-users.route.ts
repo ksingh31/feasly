@@ -103,7 +103,7 @@ const listQuerySchema = z.object({
 });
 
 const inviteBodySchema: z.ZodType<AdminUserInviteBody> = z.object({
-  email: z.string().trim().min(1).max(320),
+  email: z.string().trim().email().max(320),
   name: z.string().trim().min(1).max(200),
   role: z.enum([...STAFF_ROLE_VALUES, ...BUILDER_ROLE_VALUES]),
   builderId: z.string().trim().uuid().optional(),
@@ -191,6 +191,27 @@ function adminOrgIds(ctx: AuthContext): string[] {
     .map((m) => m.builderId);
 }
 
+/** Fail closed on unknown builders — never invite into a void org and
+ * never leak builder existence to non-members (404 → 403). */
+async function requireKnownBuilder(
+  builders: Pick<BuilderService, 'getBuilder'>,
+  builderId: string,
+): Promise<void> {
+  try {
+    await builders.getBuilder(builderId);
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 404) {
+      throw new HttpError(
+        403,
+        ErrorCodes.FORBIDDEN,
+        'Unknown organization.',
+        false,
+      );
+    }
+    throw err;
+  }
+}
+
 export function createAdminUsersRoute(
   deps: AdminUsersRouteDeps,
 ): AdminUsersRoute {
@@ -227,8 +248,8 @@ export function createAdminUsersRoute(
 
   return {
     async list(headers, query): Promise<AdminUserListResponse> {
-      await permissionGuard.requirePermission(
-        'users:manage',
+      const ctx = await permissionGuard.requirePermission(
+        ['users:manage', 'builder:users:manage'] as const,
         headers,
         'GET /api/v1/admin/users',
       );
@@ -242,9 +263,13 @@ export function createAdminUsersRoute(
         );
       }
       const { limit, offset } = parsed.data;
+      // auth/03: builder admins only see users in the orgs they administer.
+      const filter = ctx.permissions.includes('users:manage')
+        ? undefined
+        : { builderIds: adminOrgIds(ctx) };
       const [users, total] = await Promise.all([
-        userService.listUsers(limit, offset),
-        userService.countUsers(),
+        userService.listUsers(limit, offset, filter),
+        userService.countUsers(filter),
       ]);
       return {
         users: users.map(toAdminUser),
@@ -255,14 +280,17 @@ export function createAdminUsersRoute(
     },
 
     async get(headers, id): Promise<AdminUser> {
-      await permissionGuard.requirePermission(
-        'users:manage',
+      const ctx = await permissionGuard.requirePermission(
+        ['users:manage', 'builder:users:manage'] as const,
         headers,
         'GET /api/v1/admin/users/{id}',
       );
       const user = await userService.findById(parseUserId(id));
       if (!user) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.', false);
+      }
+      if (!ctx.permissions.includes('users:manage')) {
+        requireOrgMember(ctx, user);
       }
       return toAdminUser(user);
     },
@@ -297,8 +325,7 @@ export function createAdminUsersRoute(
       }
 
       if (parsed.builderId) {
-        // Fail closed on unknown builders — never invite into a void org.
-        await builders.getBuilder(parsed.builderId);
+        await requireKnownBuilder(builders, parsed.builderId);
       }
 
       const { user, emailSent } = await userService.invite({
@@ -344,7 +371,7 @@ export function createAdminUsersRoute(
         }
       } else if (parsed.memberships !== undefined) {
         for (const m of parsed.memberships) {
-          await builders.getBuilder(m.builderId);
+          await requireKnownBuilder(builders, m.builderId);
         }
       }
 
@@ -383,7 +410,7 @@ export function createAdminUsersRoute(
                 false,
               );
             }
-            await builders.getBuilder(m.builderId);
+            await requireKnownBuilder(builders, m.builderId);
           }
           const others = target.memberships.filter(
             (m) => !orgs.includes(m.builderId),

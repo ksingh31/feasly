@@ -111,6 +111,12 @@ export interface InviteInput {
   readonly actorStaffRole?: StaffRole | null;
 }
 
+/** auth/03: scoping for the admin user list. */
+export interface UserListFilter {
+  /** Only users holding a membership in one of these builders. */
+  readonly builderIds?: readonly string[];
+}
+
 export interface UserStore {
   insert(user: {
     readonly id: string;
@@ -133,9 +139,13 @@ export interface UserStore {
     },
     now: Date,
   ): Promise<UserRecord>;
-  list(limit: number, offset: number): Promise<UserRecord[]>;
+  list(
+    limit: number,
+    offset: number,
+    filter?: UserListFilter,
+  ): Promise<UserRecord[]>;
   /** Total user rows (for paginated list responses). */
-  count(): Promise<number>;
+  count(filter?: UserListFilter): Promise<number>;
   /**
    * auth/03: hard-delete a user row. Memberships cascade; invitation rows
    * stay as history (invited_by → null). Only the service calls this after
@@ -260,8 +270,12 @@ export interface UserService {
   deleteUser(id: string, opts?: ActorOpts): Promise<void>;
   findByEmail(email: string): Promise<PublicUser | null>;
   findById(id: string): Promise<PublicUser | null>;
-  listUsers(limit?: number, offset?: number): Promise<PublicUser[]>;
-  countUsers(): Promise<number>;
+  listUsers(
+    limit?: number,
+    offset?: number,
+    filter?: UserListFilter,
+  ): Promise<PublicUser[]>;
+  countUsers(filter?: UserListFilter): Promise<number>;
 }
 
 /** Lowercased, trimmed — the unique identity (allowlist discipline). */
@@ -883,13 +897,13 @@ export function createUserService(deps: UserServiceDeps): UserService {
       return user ? publicUser(user) : null;
     },
 
-    async listUsers(limit = 50, offset = 0) {
-      const rows = await users.list(limit, offset);
+    async listUsers(limit = 50, offset = 0, filter?: UserListFilter) {
+      const rows = await users.list(limit, offset, filter);
       return Promise.all(rows.map((row) => publicUser(row)));
     },
 
-    async countUsers() {
-      return users.count();
+    async countUsers(filter?: UserListFilter) {
+      return users.count(filter);
     },
   };
 }
