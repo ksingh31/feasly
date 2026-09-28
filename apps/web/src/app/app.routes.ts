@@ -22,6 +22,7 @@ import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 import { adminGuard } from './features/admin/admin.guard';
 import { builderGuard } from './features/builder/builder.guard';
+import { builderTeamGuard } from './features/builder/builder-team.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -367,10 +368,25 @@ export const routes: Routes = [
     data: { noindex: true },
   },
   {
-    path: 'builder/verify',
+    // Builder Entra callback (auth/05): the redirect_uri registered with
+    // the builder Entra app. Handles ?code=&state= (and ?error=).
+    path: 'builder/auth/callback',
     loadComponent: () =>
-      import('./features/builder/builder-verify.component').then((m) => m.BuilderVerifyComponent),
+      import('./features/builder/builder-entra-callback.component').then(
+        (m) => m.BuilderEntraCallbackComponent,
+      ),
     canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
+  {
+    // Builder org picker (auth/05): multi-org users choose their active
+    // organization after Entra sign-in.
+    path: 'builder/org-picker',
+    loadComponent: () =>
+      import('./features/builder/builder-org-picker.component').then(
+        (m) => m.BuilderOrgPickerComponent,
+      ),
+    canActivate: [robotsGuard, builderGuard],
     data: { noindex: true },
   },
   {
@@ -406,6 +422,16 @@ export const routes: Routes = [
           import('./features/builder/builder-invoices.component').then(
             (m) => m.BuilderInvoicesComponent,
           ),
+      },
+      {
+        // Builder team (auth/05): org user management — builder_admin only
+        // (builderTeamGuard). Lazy-loaded with the rest of the portal.
+        path: 'team',
+        loadComponent: () =>
+          import('./features/builder/builder-team.component').then(
+            (m) => m.BuilderTeamComponent,
+          ),
+        canActivate: [builderTeamGuard],
       },
     ],
   },

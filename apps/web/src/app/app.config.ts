@@ -23,6 +23,7 @@ import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
 import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { BuilderInvoicesState } from './features/builder/builder-invoices.state';
+import { BuilderTeamState } from './features/builder/builder-team.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -108,6 +109,7 @@ export const appConfig: ApplicationConfig = {
         BuilderState,
         BuilderBillingState,
         BuilderInvoicesState,
+        BuilderTeamState,
         AdminAuthState,
       ],
       withNgxsStoragePlugin({

@@ -31,6 +31,8 @@ export class BuilderShellComponent {
   protected readonly copy = inject(ConfigService).get('copy').builder;
 
   protected readonly session = this.store.selectSignal(BuilderState.session);
+  protected readonly activeOrgName = this.store.selectSignal(BuilderState.activeBuilderName);
+  protected readonly isBuilderAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
 
   constructor() {
     this.seo.setPage({

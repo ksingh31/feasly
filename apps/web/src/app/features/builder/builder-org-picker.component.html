@@ -1,0 +1,36 @@
+<main class="builder-login">
+  <div class="builder-login__card builder-org-picker">
+    <h1>{{ copy.orgPickerHeading }}</h1>
+    <p class="builder-login__intro">{{ copy.orgPickerIntro }}</p>
+
+    @if (loading()) {
+      <p class="builder-login__intro" role="status">{{ copy.orgPickerLoading }}</p>
+    } @else if (loadError()) {
+      <p class="builder-login__errorbox" role="alert">{{ copy.orgPickerError }}</p>
+      <button type="button" class="builder-login__submit" (click)="retry()">
+        {{ copy.orgPickerRetry }}
+      </button>
+    } @else {
+      <ul class="builder-org-picker__list">
+        @for (m of memberships(); track m.builderId) {
+          <li>
+            <button
+              type="button"
+              class="builder-org-picker__org"
+              (click)="choose(m)"
+              [disabled]="switchingId !== null"
+            >
+              <span class="builder-org-picker__name">{{ m.builderName }}</span>
+              <span class="builder-org-picker__role">{{ roleLabel(m) }}</span>
+            </button>
+          </li>
+        } @empty {
+          <li class="builder-login__intro">{{ copy.orgPickerError }}</li>
+        }
+      </ul>
+      @if (switchError) {
+        <p class="builder-login__errorbox" role="alert">{{ copy.teamActionError }}</p>
+      }
+    }
+  </div>
+</main>
