@@ -69,6 +69,23 @@ describe('loadConfig', () => {
         httpTimeoutMs: 15_000,
         callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
       },
+      // auth/05: builder-portal Entra sign-in — unprovisioned by default,
+      // fail-closed (placeholder until Karan provisions the builder app
+      // registration in the portal).
+      builderEntraSignIn: {
+        tenantSubdomain: '',
+        tenantId: '',
+        clientId: '',
+        clientSecret: '',
+        userFlow: '',
+        configured: false,
+        tokenEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/token',
+        jwksUri: 'https://.ciamlogin.com//discovery/v2.0/keys',
+        issuer: 'https://.ciamlogin.com//v2.0',
+        jwksCacheTtlMs: 600_000,
+        httpTimeoutMs: 15_000,
+        callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
+      },
       corsOrigins: [],
       siteUrl: 'https://feasly.dev',
       queues: { email: 'email-queue', pdf: 'pdf-queue', sheets: 'sheets-queue' },
