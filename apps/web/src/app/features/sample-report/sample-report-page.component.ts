@@ -40,8 +40,8 @@ export const SAMPLE_REPORT_PDF_NOTE =
  * of the section. Always rendered with an explicit "sample text" label.
  */
 export const SAMPLE_REPORT_NARRATIVE = [
-  'This is where your AI summary appears in a real report — a short, plain-language read of your estimate: what drives the total, where the budget goes, and what to confirm before you talk to a builder.',
-  'Your real summary is written from your property\u2019s actual figures and never invents numbers. Nothing on this page is a real assessment.',
+  'This is where your AI summary appears in a real report — a short, plain-language neighbourhood guide: why this area, how it rates in Calgary, nearby schools and markets, and getting around.',
+  'Your real guide is written for your property\u2019s community from City assessment data and never invents numbers. Nothing on this page is a real assessment.',
 ];
 
 /** The fictional dataset behind the sample page. All figures are invented and

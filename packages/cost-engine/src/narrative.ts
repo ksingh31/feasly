@@ -1,17 +1,24 @@
 /**
  * LLM narrative prompt construction + narrative validation (RENO-07).
  *
- * The cost engine is deterministic math; the LLM only writes the narrative
- * summary around engine outputs — it never produces dollar figures. This
- * module is the boundary between the two:
+ * The cost engine is deterministic math; the LLM only writes the
+ * neighbourhood guide around the property's community — it never sees or
+ * produces engine dollar figures. This module is the boundary between the
+ * two:
  *
  * - `buildNarrativePrompt()` assembles the prompt the narrative worker sends
- *   to the LLM. It interpolates ONLY the engine output (figures +
- *   assumptions), CityFacts, and CommunityFacts. Calibration numbers
- *   (CostData / CostParams) can never reach the prompt: the parameter type
- *   makes passing them a compile error, asserted by narrative.test.ts.
+ *   to the LLM. It interpolates ONLY the project context, CityFacts, and
+ *   CommunityFacts. Engine figures and assumptions are deliberately NOT in
+ *   the prompt: the narrative is about the neighbourhood only (the report
+ *   displays the cost breakdown separately), so the model cannot leak a
+ *   figure it never saw. Calibration numbers (CostData / CostParams) can
+ *   never reach the prompt: the parameter type makes passing them a
+ *   compile error, asserted by narrative.test.ts.
  * - `validateNarrative()` rejects any narrative containing a $-figure that
  *   did not come from the engine output (or the community average below).
+ *   It is the safety net for the one sanctioned figure and against invented
+ *   numbers — a model that disobeys the neighbourhood-only rule and invents
+ *   figures fails validation and the service falls back to the static guide.
  * - `ensureNarrativeFooter()` appends the verbatim compliance footer when the
  *   model omitted it — compliance text is applied deterministically, never
  *   left to model obedience (a model upgrade once dropped the footer and
@@ -21,6 +28,11 @@
  * the one sanctioned $-figure the LLM may echo (copied exactly, labeled as
  * City-assessed rather than market value). It is a published stat, not an
  * engine computation, and never a calibration number.
+ *
+ * The narrative is rendered as plain text on the frontend
+ * (`<p class="narrative">{{ narrative() }}</p>` — no markdown rendering),
+ * so the system prompt instructs plain paragraphs with no markdown
+ * formatting: raw `**`, tables, or `---` separators would show literally.
  *
  * Pure string building: no I/O, no clock, no env (covered by the
  * engine-purity scan).
@@ -77,7 +89,9 @@ export interface CommunityFacts {
 /**
  * The ONLY input `buildNarrativePrompt` accepts. CostData / CostParams is
  * not assignable to this type, so calibration numbers cannot be
- * interpolated into a prompt — a type-level guarantee (AC3).
+ * interpolated into a prompt — a type-level guarantee (AC3). The estimate
+ * is carried for `validateNarrative()` (the $-figure safety net); its
+ * figures are never interpolated into the prompt itself.
  */
 export interface NarrativePromptInput {
   readonly projectType: NarrativeProjectType;
@@ -136,21 +150,6 @@ function assumptionsOf(estimate: EstimateOutput): readonly string[] {
   return 'assumptions' in estimate ? estimate.assumptions : [];
 }
 
-/** Labeled figure lines for the user prompt (one line per priced row/total). */
-function figureLines(estimate: EstimateOutput): string[] {
-  const lines = estimate.rows.map(
-    (row) => `- ${row.label}: ${formatRange(row.range)} (low – base – high)`,
-  );
-  if ('totals' in estimate) {
-    lines.push(`- Build total: ${formatRange(estimate.totals.build)} (low – base – high)`);
-    lines.push(`- Land (assessed value, fixed): ${formatCadWhole(estimate.totals.land.value)}`);
-    lines.push(`- Project total: ${formatRange(estimate.totals.total)} (low – base – high)`);
-  } else {
-    lines.push(`- Renovation total: ${formatRange(estimate.total)} (low – base – high)`);
-  }
-  return lines;
-}
-
 /**
  * Every $-figure the engine produced, as exact strings. The validator
  * permits exactly these (plus figures quoted inside assumptions).
@@ -183,22 +182,14 @@ export function allowedNarrativeFigures(estimate: EstimateOutput): readonly stri
 
 /** Rules every narrative must obey — shared by new-build and reno prompts. */
 const SHARED_RULES: readonly string[] = [
-  'Never invent a dollar figure. Every $ figure you write must be one of the engine figures provided, copied exactly.',
+  'The summary is about the NEIGHBOURHOOD ONLY. Do NOT write a cost estimate summary. Do NOT include a cost table, cost breakdown, or any engine dollar figures — the report displays the cost breakdown separately.',
+  'The ONLY dollar figure you may write is the community average assessed value provided below. Copy it exactly, labeled as a City-assessed value (never a market price), or leave it out. Never write any other $-figure, and never invent a dollar figure.',
   'Never state per-square-foot rates, margin percentages, contingency percentages, or any calibration parameter.',
-  'Never present figures as quotes, guarantees, or appraisals. They are planning ranges from current cost data.',
+  'Never present figures as quotes, guarantees, or appraisals.',
   'Never claim what a specific builder will charge.',
+  'Do not discuss the specific property, its condition, or any renovation work — this summary is about the neighbourhood only.',
+  'Write in plain paragraphs. Do NOT use markdown formatting — no **bold**, no tables, no --- separators, no | pipes, no headings.',
   'Write for a homeowner, not a contractor. Be helpful and concrete, never surveillance-toned.',
-];
-
-/**
- * Reno-specific banned-list additions (RENO-07, AC1). Each is an explicit
- * "do not" instruction in the reno system prompt, pinned by test.
- */
-const RENO_RULES: readonly string[] = [
-  'Do not assert structural conditions of the existing home (foundation, framing, soil, drainage) beyond the facts given.',
-  'Do not assert that the existing home complies with current building code, or guarantee that permits will be approved.',
-  'Do not claim the renovation will increase the home\'s market value by a specific dollar amount.',
-  'Speak to renovation realities: existing-condition risk uncovered during demolition, permit timelines, and what it is like to live through construction.',
 ];
 
 function renderRules(rules: readonly string[]): string {
@@ -212,18 +203,12 @@ function buildSystemPrompt(
 ): string {
   const place = `${cityFacts.city}, ${cityFacts.province}`;
   const project =
-    projectType === 'renovation'
-      ? 'a home renovation cost estimate'
-      : 'a new home build cost estimate';
-  const rules =
-    projectType === 'renovation'
-      ? [...SHARED_RULES.slice(0, 4), ...RENO_RULES, SHARED_RULES[4]]
-      : SHARED_RULES;
+    projectType === 'renovation' ? 'a home renovation' : 'a new home build';
   const sections = [
-    `You are Feasly's estimate narrator. You write the plain-language summary of ${project} for a homeowner in ${place}.`,
+    `You are Feasly's neighbourhood guide. You write a plain-language neighbourhood guide for a homebuyer considering ${project} in ${place} — why this neighbourhood, how it rates within Calgary, schools, markets, and getting around.`,
     '',
     'Rules — do not break these:',
-    renderRules(rules),
+    renderRules(SHARED_RULES),
   ];
   if (communityFacts) {
     sections.push(
@@ -240,15 +225,16 @@ function buildSystemPrompt(
 }
 
 /**
- * Neighbourhood instruction block. The LLM covers schools and their
- * ratings, area character and how the community ranks within Calgary,
- * public transport access, and the average single-family home price —
- * hedged wherever its knowledge may be stale. No fake precision: never a
- * precise rating, score, or schedule stated as fact.
+ * Neighbourhood instruction block. The LLM covers why the area appeals, its
+ * schools and their ratings, how the community ranks within Calgary,
+ * nearby shops and markets, public transport access and nearby amenities,
+ * and the average single-family home price — hedged wherever its knowledge
+ * may be stale. No fake precision: never a precise rating, score, or
+ * schedule stated as fact.
  */
 function neighbourhoodRules(facts: CommunityFacts): string[] {
   const rules = [
-    'Cover the neighbourhood for a homebuyer: nearby schools and how they rate, the area\'s character and how it ranks within Calgary, public transport access, and the average single-family home price.',
+    'Cover the neighbourhood for a homebuyer: why this area appeals, nearby schools and how they rate, how the area ranks within Calgary, nearby shops and markets, public transport access and nearby amenities, and the average single-family home price.',
     'Where your knowledge may be stale — school ratings, transit routes, new developments — hedge explicitly ("as of my last update", "worth confirming with the school board") and never state a precise rating, score, or schedule as fact. Never invent school names or ratings.',
   ];
   if (facts.avgSingleFamilyAssessedValue != null) {
@@ -282,37 +268,30 @@ function neighbourhoodLines(facts: CommunityFacts | undefined): string[] {
 }
 
 function buildUserPrompt(input: NarrativePromptInput): string {
-  const { projectType, estimate, cityFacts, communityFacts } = input;
+  const { projectType, cityFacts, communityFacts } = input;
   const community = cityFacts.community
     ? `${cityFacts.community}, ${cityFacts.city}`
     : cityFacts.city;
   const project =
     projectType === 'renovation' ? 'Home renovation' : 'New home build';
-  // When the neighbourhood section carries the published community average,
-  // the figure header names it explicitly — otherwise it stays byte-identical.
-  const figureHeader =
-    communityFacts?.avgSingleFamilyAssessedValue != null
-      ? 'Engine figures — the ONLY dollar figures you may reference, plus the community average above:'
-      : 'Engine figures — the ONLY dollar figures you may reference:';
-  const lines = [
+  // Neighbourhood-only prompt: engine figures and assumptions are
+  // deliberately NOT interpolated — the narrative is about the
+  // neighbourhood, and the report displays the cost breakdown separately.
+  // The only $-figure the model ever sees is the published community
+  // average inside the neighbourhood stats below.
+  return [
     `Project: ${project} in ${community}`,
     ...neighbourhoodLines(communityFacts),
-    '',
-    figureHeader,
-    ...figureLines(estimate),
-  ];
-  const assumptions = assumptionsOf(estimate);
-  if (assumptions.length > 0) {
-    lines.push('', 'Engine assumptions:', ...assumptions.map((a) => `- ${a}`));
-  }
-  return lines.join('\n');
+  ].join('\n');
 }
 
 /**
  * Build the LLM prompt for an estimate narrative. Interpolates ONLY the
- * engine output (figures + assumptions), CityFacts, and CommunityFacts —
- * never CostData / CostParams (compile-time enforced by the parameter
- * type).
+ * project context (project type + place), CityFacts, and CommunityFacts —
+ * never engine figures or assumptions, and never CostData / CostParams
+ * (compile-time enforced by the parameter type). The narrative is about
+ * the neighbourhood only; the report displays the cost breakdown
+ * separately.
  */
 export function buildNarrativePrompt(input: NarrativePromptInput): NarrativePrompt {
   return {
