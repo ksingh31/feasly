@@ -13,9 +13,9 @@
  * provider's own clear error, which is the correct placeholder behavior
  * (no provisioning, no DNS changes, no spend in this story).
  *
- * Long-running send: beginSend + pollUntilDone with a bounded deadline
- * (deliveryPollTimeoutMs — the SDK poller accepts an abortSignal but no
- * timeout of its own). SDK errors are wrapped in
+ * Long-running send: beginSend + pollUntilDone under one operation deadline
+ * (sendTimeoutMs — the SDK accepts an abortSignal but no timeout of its
+ * own). SDK errors are wrapped in
  * EmailProviderError with the connection string and any recipient addresses
  * redacted out of the message — never leak credentials or PII in errors.
  *
@@ -43,20 +43,24 @@ export interface AcsEmailProviderDeps {
   /** Sender identity; must be an ACS-verified domain sender to deliver. */
   readonly fromAddress: string;
   /**
-   * Deadline for the delivery poll, in milliseconds. The send is
-   * synchronous in the HTTP request path, so an unbounded
-   * `pollUntilDone()` stalls the response when ACS's polling endpoint
-   * hangs (2026-09-27: lead-gate "Sending..." hang). Past the deadline the
-   * poll is aborted via the SDK's abortSignal and the send fails LOUD
-   * (EmailProviderError) — the lead row and token are already committed
-   * upstream, so a client retry is safe (dedupe live-link path, no
-   * duplicate email). Defaults to 6s.
+   * Deadline for the whole send operation (beginSend + delivery poll), in
+   * milliseconds. The send is synchronous in the HTTP request path, so an
+   * unbounded `beginSend()` OR `pollUntilDone()` stalls the response when
+   * ACS hangs (2026-09-27: bounded the poll after a lead-gate "Sending..."
+   * hang; 2026-09-28: the beginSend await had no bound at all and hung the
+   * same way). Past the deadline the send fails LOUD (EmailProviderError)
+   * — the lead row and token are already committed upstream, so a client
+   * retry is safe (dedupe live-link path, no duplicate email). What the
+   * timeout means depends on when it fires: before beginSend resolves the
+   * message never reached ACS (retryable); during the poll ACS already
+   * accepted it (non-retryable + sendAccepted — never re-send, P0
+   * 2026-09-27). Defaults to 7s.
    */
-  readonly deliveryPollTimeoutMs?: number;
+  readonly sendTimeoutMs?: number;
 }
 
-/** Default delivery-poll deadline when the dep is not supplied. */
-const DEFAULT_DELIVERY_POLL_TIMEOUT_MS = 6_000;
+/** Default whole-send deadline when the dep is not supplied. */
+const DEFAULT_SEND_TIMEOUT_MS = 7_000;
 
 /** Redact credential fragments, email addresses, and raw magic-link tokens from SDK error text. */
 function sanitizeErrorText(text: string): string {
@@ -231,53 +235,74 @@ export function createAcsEmailProvider(
         },
         ...(message.headers ? { headers: { ...message.headers } } : {}),
       };
-      let poller;
-      try {
-        poller = await client.beginSend(acsMessage);
-      } catch (error) {
-        throw toProviderError('send rejected', error);
-      }
       let result;
-      // The SDK's pollUntilDone() has no deadline of its own — bound it so
-      // a stalled ACS polling endpoint can't hold the HTTP response open
-      // forever (2026-09-27: lead-gate "Sending..." hang). Two mechanisms:
-      // (1) the abortSignal the SDK honors (core-lro cancels its poll
-      // loop), and (2) a Promise.race deadline that guarantees the bound
-      // even if the poller ignores the signal.
+      // One deadline for the WHOLE send operation — beginSend() AND the
+      // delivery poll. The 2026-09-27 fix bounded only pollUntilDone(), but
+      // beginSend() itself is an unbounded await: a stalled ACS send
+      // endpoint held the lead-submit HTTP response open with no backend
+      // completion row at all (2026-09-28: gate "Sending..." hang on a
+      // resubmit). Two mechanisms, as before: (1) the abortSignal the SDK
+      // honors, and (2) a Promise.race deadline that guarantees the bound
+      // even if the SDK ignores the signal.
       //
-      // P0 2026-09-27 (triple "estimate is ready" emails): beginSend() above
-      // already ACCEPTED the message — ACS owns delivery from here. A
-      // polling timeout therefore means "accepted, outcome unknown", NOT
-      // "send failed": throwing retryable re-ran beginSend() and duplicated
-      // an already-delivered email (deliver() retried twice → 3 emails).
-      // So the timeout is non-retryable with sendAccepted: true — the
-      // in-code loop never re-sends, and the caller records the
-      // accepted-but-unconfirmed send for resubmit suppression. The user
-      // still unlocks immediately and sees "check your inbox or try again
-      // later" — honest, because the email usually DID arrive.
-      const pollTimeoutMs =
-        deps.deliveryPollTimeoutMs ?? DEFAULT_DELIVERY_POLL_TIMEOUT_MS;
+      // What the deadline means depends on when it fires:
+      // - BEFORE beginSend resolves: the message never reached ACS — the
+      //   error is retryable (a retry cannot duplicate anything) with
+      //   'delivery-failed'. deliver() retries it in-code (2 retries).
+      // - DURING the poll: beginSend already ACCEPTED the message — ACS
+      //   owns delivery from here, so the timeout means "accepted, outcome
+      //   unknown", NOT "send failed". Non-retryable with sendAccepted:
+      //   true — retrying would re-run beginSend() and duplicate an
+      //   already-delivered email (P0 2026-09-27 triple "estimate is
+      //   ready"). The user still unlocks immediately and sees "check your
+      //   inbox or try again later" — honest, because the email usually
+      //   DID arrive.
+      const sendTimeoutMs = deps.sendTimeoutMs ?? DEFAULT_SEND_TIMEOUT_MS;
       const aborter = new AbortController();
+      let beginSendSettled = false;
       const failTimedOut = (): EmailProviderError => {
-        const detail = `delivery polling timed out after ${pollTimeoutMs}ms`;
-        logSendFailure('delivery polling timed out (accepted, unconfirmed)', detail);
-        // Accepted by ACS, confirmation lost — NEVER retry the send (it
-        // would duplicate a delivered email). Non-retryable + sendAccepted
-        // so deliver() returns sent:false immediately with
-        // acceptedByProvider: true.
+        if (beginSendSettled) {
+          const detail = `delivery polling timed out after ${sendTimeoutMs}ms`;
+          logSendFailure('delivery polling timed out (accepted, unconfirmed)', detail);
+          // Accepted by ACS, confirmation lost — NEVER retry the send (it
+          // would duplicate a delivered email). Non-retryable + sendAccepted
+          // so deliver() returns sent:false immediately with
+          // acceptedByProvider: true.
+          return new EmailProviderError(
+            `Azure Communication Services email failed (${detail}).`,
+            { retryable: false, failureCode: 'delivery-failed', sendAccepted: true },
+          );
+        }
+        const detail = `beginSend timed out after ${sendTimeoutMs}ms`;
+        logSendFailure('beginSend timed out (never reached provider)', detail);
+        // Never reached the provider — a retry cannot duplicate anything.
         return new EmailProviderError(
           `Azure Communication Services email failed (${detail}).`,
-          { retryable: false, failureCode: 'delivery-failed', sendAccepted: true },
+          { retryable: true, failureCode: 'delivery-failed' },
         );
       };
       let fireTimeout!: () => void;
-      const pollTimer = setTimeout(() => {
+      const timeoutPromise = (): Promise<never> =>
+        new Promise<never>((_, reject) => {
+          fireTimeout = () => reject(failTimedOut());
+        });
+      const sendTimer = setTimeout(() => {
         aborter.abort();
         fireTimeout();
-      }, pollTimeoutMs);
+      }, sendTimeoutMs);
       // Don't hold the process open on the timer in tests/local runs.
-      pollTimer.unref?.();
+      sendTimer.unref?.();
       try {
+        const poller = await Promise.race([
+          client.beginSend(acsMessage),
+          timeoutPromise(),
+        ]).catch((error: unknown) => {
+          // Our own deadline error passes through untouched — wrapping it
+          // in toProviderError would lose the sendAccepted flag.
+          if (error instanceof EmailProviderError) throw error;
+          throw toProviderError('send rejected', error);
+        });
+        beginSendSettled = true;
         result = await Promise.race([
           poller
             .pollUntilDone({ abortSignal: aborter.signal })
@@ -287,12 +312,10 @@ export function createAcsEmailProvider(
               if (aborter.signal.aborted) throw failTimedOut();
               throw toProviderError('delivery polling failed', error);
             }),
-          new Promise<never>((_, reject) => {
-            fireTimeout = () => reject(failTimedOut());
-          }),
+          timeoutPromise(),
         ]);
       } finally {
-        clearTimeout(pollTimer);
+        clearTimeout(sendTimer);
       }
       if (result.status !== 'Succeeded') {
         const detail = result.error?.message

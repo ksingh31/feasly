@@ -601,10 +601,10 @@ describe('email config', () => {
     expect(config.email.logLinks).toBe(false);
   });
 
-  it('email retry budget defaults to 3 attempts with a 6s ACS poll bound', () => {
+  it('email retry budget defaults to 3 attempts with a 7s ACS send bound', () => {
     const config = loadConfig({ ...baseEnv });
     expect(config.email.sendMaxAttempts).toBe(3);
-    expect(config.email.acsPollTimeoutMs).toBe(6_000);
+    expect(config.email.acsSendTimeoutMs).toBe(7_000);
   });
 
   it('EMAIL_SEND_MAX_ATTEMPTS overrides the retry budget', () => {
