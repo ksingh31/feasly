@@ -476,11 +476,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Final costs can move with inflation, your material choices, and project-specific conditions — the planning range above reflects how far they can swing.',
       exclusionsTitle: "What's not in this estimate",
       exclusions: [
-        'Demolition of any existing home on the lot',
-        'Unusual soil or servicing conditions',
-        'Permit and development fees beyond typical allowances',
-        'Financing costs',
-        'GST',
         'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
       ],
       tierTitle: 'What if you change the finish tier?',
@@ -531,7 +526,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
       timelineTitle: 'How long it takes',
       timelineLine:
-        'A typical Calgary infill takes roughly 10–14 months from permits to possession — confirm timing with your builder.',
+        'From permits to possession, timing depends on your lot, plans, and permits — your builder can confirm a timeline once plans are drawn.',
       shareTitle: 'Share with a partner',
       shareHint: 'Email this report to a partner — they receive their own secure link.',
       shareEmailLabel: 'Partner email',

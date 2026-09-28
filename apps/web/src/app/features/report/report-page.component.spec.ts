@@ -523,29 +523,26 @@ describe('ReportPageComponent', () => {
         expect(body).toContain('project-specific conditions');
       });
 
-      it('lists the honest exclusions — including landscaping budgeted separately', () => {
+      it('lists the honest exclusions — landscaping only, budgeted separately', () => {
         const body = text();
         expect(body).toContain("What's not in this estimate");
-        for (const item of [
-          'Demolition of any existing home',
-          'Unusual soil or servicing conditions',
-          'Permit and development fees beyond typical allowances',
-          'Financing costs',
-          'GST',
-          'Landscaping',
-        ]) {
-          expect(body).toContain(item);
-        }
+        // Karan's product lock (2026-09-28): the estimate covers the full
+        // build except landscaping — it is the only exclusion.
+        expect(body).toContain('Landscaping');
         expect(body).toContain('budget it separately with your builder');
+        expect(body).not.toContain('Demolition of any existing home');
+        expect(body).not.toContain('Financing costs');
       });
 
-      it('renders the planning-ahead card: financing honesty and the 10–14 month timeline', () => {
+      it('renders the planning-ahead card: financing honesty and a qualitative timeline', () => {
         const body = text();
         expect(body).toContain('Planning ahead');
         expect(body).toContain('construction loan, not a regular mortgage');
         expect(body).toContain('Talk to a lender early');
-        expect(body).toContain('10–14 months from permits to possession');
-        expect(body).toContain('confirm timing with your builder');
+        // No unverified month counts (Karan 2026-09-28): the timeline stays
+        // qualitative and defers to the builder.
+        expect(body).not.toContain('10–14 months');
+        expect(body).toContain('your builder can confirm a timeline');
       });
     });
 
