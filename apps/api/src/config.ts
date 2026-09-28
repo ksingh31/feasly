@@ -159,6 +159,17 @@ const EnvSchema = z.object({
   ENTRA_CALLBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   ENTRA_CALLBACK_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
 
+  // ── Builder Entra External ID sign-in (auth/05) ──────────────────────
+  // Separate app registration / user flow for the builder portal.
+  // PLACEHOLDER (2026-09-28): not yet provisioned in the Azure portal —
+  // the builder callback 503s fail-closed until Karan provisions it
+  // (same manual-portal pattern as the admin flow, AUTH-00).
+  BUILDER_ENTRA_TENANT_SUBDOMAIN: z.string().trim().default(''),
+  BUILDER_ENTRA_TENANT_ID: z.string().trim().default(''),
+  BUILDER_ENTRA_CLIENT_ID: z.string().trim().default(''),
+  BUILDER_ENTRA_USER_FLOW: z.string().trim().default(''),
+  BUILDER_ENTRA_CLIENT_SECRET: z.string().default(''),
+
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 
@@ -785,6 +796,12 @@ export interface ApiConfig {
   readonly entra: EntraConfig;
   /** Microsoft Entra External ID sign-in (auth/02). Fail-closed while unprovisioned. */
   readonly entraSignIn: EntraSignInConfig;
+  /**
+   * Builder-portal Entra External ID sign-in (auth/05). Separate app
+   * registration / user flow from the admin one. Fail-closed while
+   * unprovisioned (placeholder — Karan provisions via portal).
+   */
+  readonly builderEntraSignIn: EntraSignInConfig;
   readonly corsOrigins: readonly string[];
   /** Public site URL — production `servers` entry in the OpenAPI spec. */
   readonly siteUrl: string;
@@ -945,6 +962,46 @@ function resolveEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
 }
 
 /**
+ * Builder-portal Entra External ID sign-in (auth/05). Same shape as the
+ * admin sign-in config, sourced from BUILDER_ENTRA_* env vars.
+ *
+ * PLACEHOLDER (2026-09-28): the builder app registration / user flow is
+ * not yet provisioned in the Azure portal. `configured` stays false until
+ * Karan provisions it — the builder callback 503s fail-closed meanwhile.
+ */
+function resolveBuilderEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
+  const tenantSubdomain = e.BUILDER_ENTRA_TENANT_SUBDOMAIN;
+  const tenantId = e.BUILDER_ENTRA_TENANT_ID;
+  const clientId = e.BUILDER_ENTRA_CLIENT_ID;
+  const userFlow = e.BUILDER_ENTRA_USER_FLOW;
+  const clientSecret = e.BUILDER_ENTRA_CLIENT_SECRET;
+  const configured =
+    tenantSubdomain.length > 0 &&
+    tenantId.length > 0 &&
+    clientId.length > 0 &&
+    userFlow.length > 0 &&
+    clientSecret.length > 0;
+  const base = `https://${tenantSubdomain}.ciamlogin.com/${tenantId}`;
+  return {
+    tenantSubdomain,
+    tenantId,
+    clientId,
+    clientSecret,
+    userFlow,
+    configured,
+    tokenEndpoint: `${base}/oauth2/v2.0/token`,
+    jwksUri: `${base}/discovery/v2.0/keys`,
+    issuer: `https://${tenantId}.ciamlogin.com/${tenantId}/v2.0`,
+    jwksCacheTtlMs: e.ENTRA_JWKS_CACHE_TTL_MS,
+    httpTimeoutMs: e.ENTRA_HTTP_TIMEOUT_MS,
+    callbackRateLimit: {
+      windowMs: e.ENTRA_CALLBACK_RATE_LIMIT_WINDOW_MS,
+      maxRequests: e.ENTRA_CALLBACK_RATE_LIMIT_MAX_REQUESTS,
+    },
+  };
+}
+
+/**
  * Build the typed config. `env` is injectable so tests never touch the
  * real process environment. Empty-string values are treated as unset so
  * `VAR=` in a .env file falls back to the default instead of failing.
@@ -1047,6 +1104,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         e.ENTRA_ISSUER_DOMAIN !== '',
     },
     entraSignIn: resolveEntraSignInConfig(e),
+    builderEntraSignIn: resolveBuilderEntraSignInConfig(e),
     corsOrigins: resolveCorsOrigins(e),
     siteUrl: e.SITE_URL,
     queues: {

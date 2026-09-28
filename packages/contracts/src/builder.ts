@@ -159,3 +159,131 @@ export interface LeadAssignBuilderBody {
   /** Builder id to assign, or null to unassign. */
   readonly builderId: string | null;
 }
+
+/**
+ * Builder Entra sign-in contracts (auth/05 — builder org accounts).
+ *
+ * The builder portal replaces magic-link auth with Microsoft Entra
+ * External ID (email+password), mirroring the admin Entra flow. The
+ * backend resolves the user's `builder_memberships` (not staff roles);
+ * a user with no membership gets 403 with no enumeration.
+ *
+ * PLACEHOLDER (2026-09-28): the builder Entra External ID app
+ * registration / user flow is not yet provisioned in the Azure portal
+ * (like the admin flow needed). The backend codes against the expected
+ * `builderEntraSignIn` config; the callback 503s fail-closed until Karan
+ * provisions it.
+ */
+
+/** `POST /api/v1/builder/auth/entra/callback` request body. */
+export interface BuilderEntraCallbackBody {
+  /** Authorization code from the Entra redirect (`?code=…`). */
+  readonly code: string;
+  /** PKCE `code_verifier` generated before the authorize redirect. */
+  readonly codeVerifier: string;
+  /** Must byte-match the `redirect_uri` sent in the authorize request. */
+  readonly redirectUri: string;
+}
+
+/** A builder org membership returned with the callback. */
+export interface BuilderMembershipSummary {
+  /** Builder row id (uuid). */
+  readonly builderId: string;
+  /** Builder tenant key (e.g. `elite-craft`). */
+  readonly tenantKey: string;
+  /** Display name of the builder org. */
+  readonly builderName: string;
+  /** `builder_admin` | `builder_member`. */
+  readonly role: string;
+}
+
+/** `POST /api/v1/builder/auth/entra/callback` success response. */
+export interface BuilderEntraCallbackResponse {
+  readonly authenticated: true;
+  /** Identity of the signed-in builder user (from Entra claims). */
+  readonly user: {
+    /** Lowercased builder email. */
+    readonly email: string;
+    /** Display name. */
+    readonly name: string;
+    /** All of the user's builder org memberships. */
+    readonly memberships: readonly BuilderMembershipSummary[];
+  };
+  /**
+   * The builder id of the org this session is scoped to (the active org —
+   * first membership by default; switch via
+   * `POST /api/v1/builder/auth/active-org`).
+   */
+  readonly activeBuilderId: string;
+  /**
+   * The raw session token — the SPA stores it and sends it back as
+   * `Authorization: Bearer <token>` (cross-origin cookie never sticks).
+   */
+  readonly sessionToken: string;
+}
+
+/** `GET /api/v1/builder/auth/memberships` response. */
+export interface BuilderMembershipsResponse {
+  readonly memberships: readonly BuilderMembershipSummary[];
+  /** The builder id of the org the current session is scoped to. */
+  readonly activeBuilderId: string | null;
+}
+
+/** `POST /api/v1/builder/auth/active-org` request body. */
+export interface BuilderActiveOrgBody {
+  /** Builder id to make the session's active org. Must be a membership. */
+  readonly builderId: string;
+}
+
+/** `POST /api/v1/builder/auth/active-org` response. */
+export interface BuilderActiveOrgResponse {
+  readonly activeBuilderId: string;
+  readonly builderName: string;
+}
+
+/**
+ * Builder org user-management contracts (auth/05).
+ *
+ * All routes are org-scoped via the session's active builder id
+ * (`builder_admin` only). Roles are forced to builder roles; a
+ * client-supplied builder id is ignored.
+ */
+
+/** A builder org member. */
+export interface BuilderOrgUser {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  /** 'invited' | 'active' | 'disabled'. */
+  readonly status: string;
+  /** `builder_admin` | `builder_member`. */
+  readonly role: string;
+}
+
+/** `GET /api/v1/builder/users` response. */
+export interface BuilderOrgUserListResponse {
+  readonly users: readonly BuilderOrgUser[];
+}
+
+/** `POST /api/v1/builder/users/invite` request body. */
+export interface BuilderOrgUserInviteBody {
+  readonly email: string;
+  readonly name: string;
+  /** `builder_admin` | `builder_member` (defaults to `builder_member`). */
+  readonly role?: string;
+}
+
+/** `POST /api/v1/builder/users/invite` response. */
+export interface BuilderOrgUserInviteResponse {
+  readonly user: BuilderOrgUser;
+  readonly emailSent: boolean;
+}
+
+/** `PATCH /api/v1/builder/users/{id}` request body. */
+export interface BuilderOrgUserUpdateBody {
+  readonly name?: string;
+  /** `builder_admin` | `builder_member`. */
+  readonly role?: string;
+  /** 'active' | 'disabled' — disabling kills sessions immediately. */
+  readonly status?: string;
+}
