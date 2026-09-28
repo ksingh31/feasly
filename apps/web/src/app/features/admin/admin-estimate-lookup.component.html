@@ -146,12 +146,31 @@
       }
     </section>
 
-    <!-- NARRATIVE: shown only when generated (AC5). -->
-    @if (d.narrative) {
-      <section class="card" aria-label="AI summary">
-        <h2>AI summary</h2>
+    <!-- NARRATIVE (fix #287): always rendered. When the estimate has no
+         stored narrative (never generated or generation failed), show a
+         graceful fallback with an admin-gated top-up instead of omitting
+         the section silently. -->
+    <section class="card" aria-label="AI summary">
+      <h2>AI summary</h2>
+      @if (d.narrative) {
         <p class="narrative">{{ d.narrative }}</p>
-      </section>
-    }
+      } @else if (narrativeStatus() === 'generating') {
+        <p class="hint" role="status">Generating AI summary…</p>
+      } @else {
+        <p class="hint">No AI summary was generated for this estimate.</p>
+        @if (narrativeStatus() === 'error') {
+          <p class="hint" role="alert">
+            Generation failed — please try again.
+          </p>
+        }
+        <button
+          type="button"
+          class="generate-narrative"
+          (click)="generateNarrative()"
+        >
+          Generate AI summary
+        </button>
+      }
+    </section>
   }
 </div>
