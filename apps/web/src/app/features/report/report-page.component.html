@@ -181,9 +181,11 @@
       }
     </section>
 
-    <!-- AI SUMMARY: deterministic narrative only — engine figures, no LLM-invented numbers.
-         When every model failed (BE-9), the backend returns the static Calgary guide
-         labeled 'static-guide' — rendered under its own honest title, never as AI prose. -->
+    <!-- AI SUMMARY: neighbourhood guide only — no cost figures, no markdown.
+         Rendered as plain text (<p class="narrative">), so the prompt forbids
+         markdown formatting. When every model failed (BE-9), the backend
+         returns the static Calgary guide labeled 'static-guide' — rendered
+         under its own honest title, never as AI prose. -->
     <section class="card" [attr.aria-label]="isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle">
       <h2>{{ isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle }}</h2>
       @if (unlocked() && narrative()) {

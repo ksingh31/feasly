@@ -466,9 +466,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       narrativeTitle: 'AI summary',
       narrativeComingSoon:
         'An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.',
-      aiSummaryLocked: 'Unlock your report to read the AI summary of your estimate.',
+      aiSummaryLocked: 'Unlock your report to read the AI neighbourhood guide.',
       aiSummaryUnavailable:
-        'The AI summary is not available for this report right now — the figures above are the complete estimate.',
+        'The AI neighbourhood guide is not available for this report right now — the figures above are the complete estimate.',
       /** Shown when every narrative model failed: the static Calgary guide, honestly labeled. */
       staticGuideTitle: 'Building in Calgary',
       staticGuideNote:
