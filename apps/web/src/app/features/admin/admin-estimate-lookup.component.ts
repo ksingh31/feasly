@@ -17,6 +17,9 @@ import { AdminEstimatesApiService } from './admin-estimates-api.service';
 /** Lookup lifecycle for the admin estimate view. */
 type LookupStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error';
 
+/** Lifecycle of an on-demand narrative generation (fix #287). */
+type NarrativeStatus = 'idle' | 'generating' | 'error';
+
 /** Error codes that mean "no such estimate" for this lookup. */
 const NOT_FOUND_CODES = new Set([
   'ESTIMATE_NOT_FOUND', // valid UUID, unknown id (404)
@@ -53,9 +56,12 @@ const RENO_TYPE_LABELS: Record<string, string> = {
  *
  * Rendering mirrors the consumer report through the shared
  * {@link aggregateCostBuckets} helper (DRY — same bucket math, no invented
- * figures). Strictly read-only: the template has no editable controls and
- * the service exposes no mutation method (AC3). `outputs` deep-equals the
- * consumer `ReportSnapshot` figures by contract (AC1 — pinned server-side).
+ * figures). The estimate data itself is strictly read-only (AC3): the
+ * template has no editable controls. The one deliberate exception is the
+ * admin-gated narrative top-up (fix #287) — generating a missing AI
+ * summary through `POST /admin/estimates/{id}/narrative`, which never
+ * touches figures. `outputs` deep-equals the consumer `ReportSnapshot`
+ * figures by contract (AC1 — pinned server-side).
  */
 @Component({
   selector: 'app-admin-estimate-lookup',
@@ -78,6 +84,8 @@ export class AdminEstimateLookupComponent {
   protected readonly detail = signal<AdminEstimateDetail | null>(null);
   /** Lookup lifecycle. */
   protected readonly status = signal<LookupStatus>('idle');
+  /** On-demand narrative generation lifecycle (fix #287). */
+  protected readonly narrativeStatus = signal<NarrativeStatus>('idle');
 
   /**
    * Monotonic lookup token. Navigating between IDs reuses this component
@@ -202,6 +210,7 @@ export class AdminEstimateLookupComponent {
     const token = ++this.requestSeq;
     this.status.set('loading');
     this.detail.set(null);
+    this.narrativeStatus.set('idle');
     this.api
       .getEstimate(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -229,6 +238,36 @@ export class AdminEstimateLookupComponent {
   protected retry(): void {
     const id = this.lookupId();
     if (id) this.load(id);
+  }
+
+  /**
+   * Generate the AI narrative on demand (fix #287).
+   *
+   * The detail view is read-only for estimate data (AC3), but an admin may
+   * top up a missing narrative through the admin-gated generation endpoint
+   * — the same pipeline as the consumer report, never editing figures.
+   * On success the fresh narrative is patched into the loaded detail so
+   * the section renders without a refetch.
+   */
+  protected generateNarrative(): void {
+    const id = this.lookupId();
+    if (!id || this.narrativeStatus() === 'generating') return;
+    this.narrativeStatus.set('generating');
+    this.api
+      .generateNarrative(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const current = this.detail();
+          if (current && this.lookupId() === id) {
+            this.detail.set({ ...current, narrative: response.narrative });
+          }
+          this.narrativeStatus.set('idle');
+        },
+        error: () => {
+          this.narrativeStatus.set('error');
+        },
+      });
   }
 
   protected formatCad(value: number): string {

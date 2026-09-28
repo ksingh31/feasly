@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
-import type { AdminEstimateDetail } from '@feasly/contracts';
+import type { AdminEstimateDetail, NarrativeResponse } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -39,6 +39,24 @@ export class AdminEstimatesApiService {
     return this.http
       .get<AdminEstimateDetail>(
         `${this.estimatesBase}/${encodeURIComponent(id)}`,
+        {
+          withCredentials: true,
+        },
+      )
+      .pipe(timeout(timeoutMs), catchError(toApiError));
+  }
+
+  /**
+   * Generate (or return cached) the AI narrative for an estimate.
+   * Admin-gated top-up for estimates whose narrative was never generated
+   * or failed (fix #287) — same pipeline as the consumer endpoint.
+   */
+  generateNarrative(id: string): Observable<NarrativeResponse> {
+    const timeoutMs = this.config.get('api').timeoutMs;
+    return this.http
+      .post<NarrativeResponse>(
+        this.estimatesBase + '/' + encodeURIComponent(id) + '/narrative',
+        {},
         {
           withCredentials: true,
         },
