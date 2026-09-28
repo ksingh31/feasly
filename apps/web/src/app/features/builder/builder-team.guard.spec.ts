@@ -61,7 +61,7 @@ describe('builderTeamGuard (auth/05)', () => {
 
   it('redirects a builder_member to /builder', () => {
     const { router } = setup({ isAdmin: false, sessionLoaded: true });
-    const result = runGuard() as { redirectTo: string[] };
+    const result = runGuard() as unknown as { redirectTo: string[] };
     expect(router.createUrlTree).toHaveBeenCalledWith(['/builder']);
     expect(result.redirectTo).toEqual(['/builder']);
   });

@@ -57,7 +57,7 @@ export class BuilderTeamComponent implements OnInit {
   );
   protected readonly orgName = this.store.selectSignal(BuilderState.activeBuilderName);
 
-  protected readonly inviteForm = this.fb.nonNullable.group({
+  readonly inviteForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email]],
     role: ['builder_member' as 'builder_admin' | 'builder_member', Validators.required],

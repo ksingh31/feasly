@@ -145,6 +145,12 @@ export class BuilderState {
     return state.authStatus === 'authenticated';
   }
 
+  /** auth/05: true once the session has been probed (authenticated or not). */
+  @Selector()
+  static sessionLoaded(state: BuilderStateModel): boolean {
+    return state.authStatus !== 'unknown';
+  }
+
   /** auth/05: the user's builder memberships (org picker + switcher). */
   @Selector()
   static memberships(state: BuilderStateModel): readonly BuilderOrgMembership[] {

@@ -1,9 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, timeout } from 'rxjs';
+import { catchError, map, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   BuilderAuthLogoutResponse,
+  BuilderAuthMeResponse,
   BuilderAuthRequestBody,
   BuilderAuthRequestResponse,
   BuilderAuthVerifyResponse,
@@ -97,9 +98,23 @@ export class BuilderAuthApiService {
    */
   me(): Observable<BuilderSessionIdentity> {
     return this.call(
-      this.http.get<BuilderSessionIdentity>(`${this.authBase}/me`, {
-        withCredentials: true,
-      }),
+      this.http
+        .get<BuilderAuthMeResponse>(`${this.authBase}/me`, {
+          withCredentials: true,
+        })
+        .pipe(
+          map(
+            (response): BuilderSessionIdentity => ({
+              authenticated: true,
+              email: response.email,
+              name: null,
+              builderId: response.tenantKey,
+              builderName: null,
+              role: null,
+              memberships: [],
+            }),
+          ),
+        ),
     );
   }
 

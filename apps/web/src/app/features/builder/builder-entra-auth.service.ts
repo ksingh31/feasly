@@ -40,7 +40,7 @@ export class BuilderEntraAuthService {
    * flow must not start against those.
    */
   isConfigured(): boolean {
-    const entra = this.config.get('builder').entra;
+    const entra = this.config.get('copy').builder.entra;
     return [entra.tenantSubdomain, entra.tenantId, entra.clientId, entra.userFlow].every(
       (value) =>
         typeof value === 'string' &&
@@ -66,7 +66,7 @@ export class BuilderEntraAuthService {
     if (!this.isConfigured()) {
       throw new Error('Entra is not configured');
     }
-    const entra = this.config.get('builder').entra;
+    const entra = this.config.get('copy').builder.entra;
     const verifier = createCodeVerifier();
     const challenge = await createCodeChallenge(verifier);
     const state = createOAuthState();

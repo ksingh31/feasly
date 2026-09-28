@@ -109,7 +109,7 @@ describe('BuilderState (embed/09)', () => {
     expect(s.authStatus).toBe('authenticated');
     expect(s.sessionToken).toBe('s');
     expect(s.session?.email).toBe('builder@example.com');
-    expect(s.session?.tenantKey).toBe('elite-craft');
+    expect(s.session?.builderId).toBe('elite-craft');
     expect(store.selectSnapshot(BuilderState.sessionToken)).toBe('s');
     httpMock.verify();
   });

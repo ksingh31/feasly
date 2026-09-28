@@ -1107,6 +1107,122 @@ export interface AppConfig {
       invoicesTimelinePaid: string;
       /** Timeline event: charge failed. */
       invoicesTimelineFailed: string;
+      /**
+       * Microsoft Entra External ID for the builder portal (auth/05).
+       * Separate app registration from the admin portal's — the builder
+       * sign-in must never mint an admin session.
+       */
+      entra: {
+        /** Builder Entra tenant subdomain ({sub}.ciamlogin.com). */
+        tenantSubdomain: string;
+        /** Builder Entra tenant (directory) ID. */
+        tenantId: string;
+        /** Builder Entra app (client) ID. */
+        clientId: string;
+        /** Builder Entra user flow / policy name. */
+        userFlow: string;
+        /**
+         * OAuth2 authorize endpoint template; {tenantSubdomain} and
+         * {tenantId} are interpolated at runtime.
+         */
+        authorizeUrlTemplate: string;
+      };
+      /** auth/05: Entra sign-in button label. */
+      entraSignInLabel: string;
+      /** auth/05: Entra sign-in intro copy. */
+      entraSignInIntro: string;
+      /** auth/05: shown while redirecting to Microsoft. */
+      entraRedirecting: string;
+      /** auth/05: sign-in not configured (ENTRA_* placeholders). */
+      entraNotConfigured: string;
+      /** auth/05: callback "verifying" status. */
+      entraCallbackVerifying: string;
+      /** auth/05: callback generic failure (user cancelled). */
+      entraCallbackCancelled: string;
+      /** auth/05: callback OAuth state mismatch. */
+      entraCallbackStateMismatch: string;
+      /** auth/05: callback backend exchange failure. */
+      entraCallbackTransient: string;
+      /** auth/05: callback back-to-login button. */
+      entraCallbackBackToLogin: string;
+      /** auth/05: org picker heading. */
+      orgPickerHeading: string;
+      /** auth/05: org picker intro copy. */
+      orgPickerIntro: string;
+      /** auth/05: org picker loading state. */
+      orgPickerLoading: string;
+      /** auth/05: org picker load failure. */
+      orgPickerError: string;
+      /** auth/05: org picker retry label. */
+      orgPickerRetry: string;
+      /** auth/05: org switcher label. */
+      orgSwitcherLabel: string;
+      /** auth/05: "Administrator" role label. */
+      orgRoleAdmin: string;
+      /** auth/05: "Member" role label. */
+      orgRoleMember: string;
+      /** auth/05: Team nav label (builder_admin only). */
+      teamNavLabel: string;
+      /** auth/05: /builder/team heading. */
+      teamHeading: string;
+      /** auth/05: team page intro copy. */
+      teamIntro: string;
+      /** auth/05: team list loading state. */
+      teamLoading: string;
+      /** auth/05: team list load failure. */
+      teamLoadError: string;
+      /** auth/05: team list retry label. */
+      teamRetry: string;
+      /** auth/05: empty team copy. */
+      teamEmpty: string;
+      /** auth/05: Name column header. */
+      teamColName: string;
+      /** auth/05: Email column header. */
+      teamColEmail: string;
+      /** auth/05: Role column header. */
+      teamColRole: string;
+      /** auth/05: Status column header. */
+      teamColStatus: string;
+      /** auth/05: Actions column header. */
+      teamColActions: string;
+      /** auth/05: "Active" status pill. */
+      teamStatusActive: string;
+      /** auth/05: "Invited" status pill. */
+      teamStatusInvited: string;
+      /** auth/05: "Deactivated" status pill. */
+      teamStatusDeactivated: string;
+      /** auth/05: invite section heading. */
+      teamInviteHeading: string;
+      /** auth/05: invite name field label. */
+      teamInviteNameLabel: string;
+      /** auth/05: invalid name message. */
+      teamInviteNameInvalid: string;
+      /** auth/05: invite email field label. */
+      teamInviteEmailLabel: string;
+      /** auth/05: invite role field label. */
+      teamInviteRoleLabel: string;
+      /** auth/05: invite submit button. */
+      teamInviteSubmit: string;
+      /** auth/05: invite sent confirmation. */
+      teamInviteSent: string;
+      /** auth/05: invite failure copy. */
+      teamInviteError: string;
+      /** auth/05: deactivate button label. */
+      teamDeactivateLabel: string;
+      /** auth/05: reactivate button label. */
+      teamReactivateLabel: string;
+      /** auth/05: remove button label. */
+      teamRemoveLabel: string;
+      /** auth/05: deactivate confirm dialog copy. */
+      teamDeactivateConfirm: string;
+      /** auth/05: remove confirm dialog copy. */
+      teamRemoveConfirm: string;
+      /** auth/05: confirm dialog "yes". */
+      teamConfirmYes: string;
+      /** auth/05: confirm dialog "no". */
+      teamConfirmNo: string;
+      /** auth/05: generic row-action failure. */
+      teamActionError: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard

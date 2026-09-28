@@ -1001,6 +1001,75 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       invoicesTimelineFinalized: 'Finalized',
       invoicesTimelinePaid: 'Paid',
       invoicesTimelineFailed: 'Charge failed',
+      /**
+       * Builder Entra (auth/05). Placeholders — the backend team provides
+       * the real builder-tenant values in the deployed app-config.json.
+       * A separate app registration from the admin portal's: builder
+       * sign-in must never mint an admin session.
+       */
+      entra: {
+        tenantSubdomain: 'ENTRA_BUILDER_TENANT_SUBDOMAIN',
+        tenantId: 'ENTRA_BUILDER_TENANT_ID',
+        clientId: 'ENTRA_BUILDER_CLIENT_ID',
+        userFlow: 'ENTRA_BUILDER_USER_FLOW',
+        authorizeUrlTemplate:
+          'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
+      },
+      entraSignInLabel: 'Sign in with Microsoft →',
+      entraSignInIntro:
+        'Sign in with your work email to access your builder portal.',
+      entraRedirecting: 'Redirecting to Microsoft sign-in…',
+      entraNotConfigured:
+        'Builder sign-in is not configured yet — please contact us.',
+      entraCallbackVerifying: 'Completing sign in…',
+      entraCallbackCancelled: "Sign-in didn't complete — try again.",
+      entraCallbackStateMismatch: "Sign-in didn't complete — try again.",
+      entraCallbackTransient: 'Something went wrong. Please try again.',
+      entraCallbackBackToLogin: 'Back to sign in',
+      orgPickerHeading: 'Choose your organization',
+      orgPickerIntro:
+        'You belong to more than one builder organization. Pick the one you want to work in — you can switch anytime.',
+      orgPickerLoading: 'Loading your organizations…',
+      orgPickerError: 'Could not load your organizations. Please try again.',
+      orgPickerRetry: 'Retry',
+      orgSwitcherLabel: 'Organization',
+      orgRoleAdmin: 'Administrator',
+      orgRoleMember: 'Member',
+      teamNavLabel: 'Team',
+      teamHeading: 'Team',
+      teamIntro:
+        'Invite people to your organization and manage who can access it. Only administrators can change team settings.',
+      teamLoading: 'Loading your team…',
+      teamLoadError: 'Could not load your team. Please try again.',
+      teamRetry: 'Retry',
+      teamEmpty: 'No team members yet — invite your first teammate below.',
+      teamColName: 'Name',
+      teamColEmail: 'Email',
+      teamColRole: 'Role',
+      teamColStatus: 'Status',
+      teamColActions: 'Actions',
+      teamStatusActive: 'Active',
+      teamStatusInvited: 'Invited',
+      teamStatusDeactivated: 'Deactivated',
+      teamInviteHeading: 'Invite a teammate',
+      teamInviteNameLabel: 'Full name',
+      teamInviteNameInvalid: 'Enter their name.',
+      teamInviteEmailLabel: 'Work email',
+      teamInviteRoleLabel: 'Role',
+      teamInviteSubmit: 'Send invite',
+      teamInviteSent:
+        'Invite sent — they will get an email to set up their sign-in.',
+      teamInviteError: 'Could not send the invite. Please try again.',
+      teamDeactivateLabel: 'Deactivate',
+      teamReactivateLabel: 'Reactivate',
+      teamRemoveLabel: 'Remove',
+      teamDeactivateConfirm:
+        'Deactivate this person? They will lose access to the builder portal immediately and be signed out.',
+      teamRemoveConfirm:
+        'Remove this invite? They have not signed in yet, so this just cancels the invitation.',
+      teamConfirmYes: 'Yes, continue',
+      teamConfirmNo: 'Cancel',
+      teamActionError: 'Something went wrong. Please try again.',
     },
     admin: {
       apiKeys: {

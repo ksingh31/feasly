@@ -25,8 +25,8 @@ import { SeoService } from '../../core/seo/seo.service';
 import type { BuilderTeamUser } from './builder-auth.contracts';
 
 const USERS: BuilderTeamUser[] = [
-  { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active' },
-  { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_member', status: 'invited' },
+  { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+  { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_member', status: 'invited', createdAt: '2026-09-28T00:00:00.000Z' },
 ];
 
 function setup() {

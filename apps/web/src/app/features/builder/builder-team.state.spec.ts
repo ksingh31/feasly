@@ -28,6 +28,7 @@ const ALICE: BuilderTeamUser = {
   email: 'alice@example.com',
   role: 'builder_admin',
   status: 'active',
+  createdAt: '2026-09-28T00:00:00.000Z',
 };
 const BOB: BuilderTeamUser = {
   id: 'u2',
@@ -35,6 +36,7 @@ const BOB: BuilderTeamUser = {
   email: 'bob@example.com',
   role: 'builder_member',
   status: 'invited',
+  createdAt: '2026-09-28T00:00:00.000Z',
 };
 
 function setup(apiOverrides: Partial<Record<string, unknown>> = {}) {
@@ -49,6 +51,7 @@ function setup(apiOverrides: Partial<Record<string, unknown>> = {}) {
           email: 'cara@example.com',
           role: 'builder_member',
           status: 'invited',
+          createdAt: '2026-09-28T00:00:00.000Z',
         } satisfies BuilderTeamUser,
       }),
     ),

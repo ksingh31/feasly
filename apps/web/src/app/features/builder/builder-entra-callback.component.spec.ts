@@ -141,7 +141,7 @@ describe('BuilderEntraCallbackComponent (auth/05)', () => {
     const failure = dispatched.find(
       (a) => a instanceof FailBuilderEntraSignIn,
     ) as FailBuilderEntraSignIn;
-    expect(failure.kind).toBe('cancelled');
+    expect(failure.error).toBe('cancelled');
   });
 
   it('state mismatch dispatches state-mismatch without a backend call', () => {
@@ -154,7 +154,7 @@ describe('BuilderEntraCallbackComponent (auth/05)', () => {
     const failure = dispatched.find(
       (a) => a instanceof FailBuilderEntraSignIn,
     ) as FailBuilderEntraSignIn;
-    expect(failure.kind).toBe('state-mismatch');
+    expect(failure.error).toBe('state-mismatch');
   });
 
   it('single membership: completes sign-in, sets active org, routes to /builder', () => {
@@ -207,7 +207,7 @@ describe('BuilderEntraCallbackComponent (auth/05)', () => {
     const failure = dispatched.find(
       (a) => a instanceof FailBuilderEntraSignIn,
     ) as FailBuilderEntraSignIn;
-    expect(failure.kind).toBe('transient');
+    expect(failure.error).toBe('transient');
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain(TRANSIENT_COPY);
