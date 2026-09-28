@@ -20,6 +20,8 @@ const CONFIG: EntraUserConfig = {
   graphClientId: 'client-456',
   graphClientSecret: 'super-secret-value',
   issuerDomain: 'feaslyexternal.onmicrosoft.com',
+  loginBaseUrl: 'https://login.microsoftonline.com',
+  graphBaseUrl: 'https://graph.microsoft.com',
   configured: true,
 };
 

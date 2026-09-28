@@ -403,6 +403,13 @@ export interface EntraConfig {
   readonly graphClientId: string;
   readonly graphClientSecret: string;
   readonly issuerDomain: string;
+  /**
+   * Microsoft identity platform + Graph endpoints. Stable global
+   * endpoints, not per-tenant tunables — defaults live here (like
+   * postmarkEndpoint) rather than in the service.
+   */
+  readonly loginBaseUrl: string;
+  readonly graphBaseUrl: string;
   readonly configured: boolean;
 }
 
@@ -864,6 +871,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       graphClientId: e.ENTRA_GRAPH_CLIENT_ID,
       graphClientSecret: e.ENTRA_GRAPH_CLIENT_SECRET,
       issuerDomain: e.ENTRA_ISSUER_DOMAIN,
+      loginBaseUrl: 'https://login.microsoftonline.com',
+      graphBaseUrl: 'https://graph.microsoft.com',
       configured:
         e.ENTRA_TENANT_ID !== '' &&
         e.ENTRA_GRAPH_CLIENT_ID !== '' &&

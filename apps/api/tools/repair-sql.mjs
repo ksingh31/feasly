@@ -504,6 +504,64 @@ ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text 
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
+CREATE TABLE IF NOT EXISTS "users" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"name" text NOT NULL,
+	"status" text DEFAULT 'invited' NOT NULL,
+	"staff_role" text,
+	"entra_object_id" text,
+	"is_protected" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email"),
+	CONSTRAINT "users_entra_object_id_unique" UNIQUE("entra_object_id")
+);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'invited' NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "staff_role" text;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "entra_object_id" text;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "is_protected" boolean DEFAULT false NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "builder_memberships" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+	"builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE,
+	"role" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "invitations" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"invited_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+	"role" text NOT NULL,
+	"builder_id" uuid REFERENCES "builders"("id") ON DELETE CASCADE,
+	"entra_user_id" text,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "invited_by" uuid REFERENCES "users"("id") ON DELETE SET NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE CASCADE;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "entra_user_id" text;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "callback_requests" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -565,6 +623,7 @@ ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" tex
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 CREATE TABLE IF NOT EXISTS "embed_relay_codes" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

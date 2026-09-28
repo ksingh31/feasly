@@ -31,6 +31,12 @@ export interface EntraUserConfig {
    * `feaslyexternal.onmicrosoft.com` (from the tenant's domain list).
    */
   readonly issuerDomain: string;
+  /**
+   * Microsoft endpoints — stable global URLs injected from config (the
+   * boundaries test forbids URL literals in services/).
+   */
+  readonly loginBaseUrl: string;
+  readonly graphBaseUrl: string;
   readonly configured: boolean;
 }
 
@@ -57,7 +63,6 @@ export interface EntraUserServiceDeps extends EntraUserConfig {
   readonly clock?: () => Date;
 }
 
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const TOKEN_SKEW_MS = 60_000;
 
 interface TokenCache {
@@ -84,11 +89,14 @@ export function createEntraUserService(
     graphClientId,
     graphClientSecret,
     issuerDomain,
+    loginBaseUrl,
+    graphBaseUrl,
     configured,
   } = deps;
   const fetchImpl = deps.fetchImpl ?? fetch;
   const clock = deps.clock ?? (() => new Date());
   let tokenCache: TokenCache | null = null;
+  const graphApiBase = `${graphBaseUrl}/v1.0`;
 
   function ensureConfigured(): void {
     if (!configured) {
@@ -117,7 +125,7 @@ export function createEntraUserService(
     let response: Response;
     try {
       response = await fetchImpl(
-        `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+        `${loginBaseUrl}/${tenantId}/oauth2/v2.0/token`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -125,7 +133,7 @@ export function createEntraUserService(
             grant_type: 'client_credentials',
             client_id: graphClientId,
             client_secret: graphClientSecret,
-            scope: 'https://graph.microsoft.com/.default',
+            scope: `${graphBaseUrl}/.default`,
           }).toString(),
         },
       );
@@ -173,7 +181,7 @@ export function createEntraUserService(
     const token = await acquireToken();
     let response: Response;
     try {
-      response = await fetchImpl(`${GRAPH_BASE}${path}`, {
+      response = await fetchImpl(`${graphApiBase}${path}`, {
         method,
         headers: {
           Authorization: `Bearer ${token}`,
@@ -210,10 +218,9 @@ export function createEntraUserService(
       // Graph requires a password on create; Entra owns the credential from
       // here on — this random value is never stored, logged, or returned.
       const oneTimePassword = randomBytes(24).toString('base64url');
-      const mailNickname = input.email
-        .split('@')[0]!
-        .replace(/[^a-zA-Z0-9._-]/g, '')
-        .slice(0, 64);
+      const localPart = input.email.split('@')[0] ?? 'user';
+      const mailNickname =
+        localPart.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64) || 'user';
       const created = (await graph('POST', '/users', {
         displayName: input.displayName,
         mailNickname: mailNickname || 'user',

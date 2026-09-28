@@ -1028,6 +1028,8 @@ export function createComposition(
     graphClientId: config.entra.graphClientId,
     graphClientSecret: config.entra.graphClientSecret,
     issuerDomain: config.entra.issuerDomain,
+    loginBaseUrl: config.entra.loginBaseUrl,
+    graphBaseUrl: config.entra.graphBaseUrl,
     configured: config.entra.configured,
   });
   const userStore: UserStore =
