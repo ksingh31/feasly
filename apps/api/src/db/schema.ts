@@ -1073,14 +1073,15 @@ export const builderSessions = pgTable(
 );
 
 /**
- * Users (auth/01) — password-based identity for Feasly staff and builder
- * org members. Replaces the allowlist-as-identity model; the allowlist
- * tables stay until auth/06 migrates them.
+ * Users (auth/01 — Entra pivot) — identity for Feasly staff and builder org
+ * members. Replaces the allowlist-as-identity model; the allowlist tables
+ * stay until auth/06 migrates them.
  *
  * Email is unique, lowercased + trimmed (same discipline as the
- * allowlists). `passwordHash` is null until the invitation is accepted.
- * `staffRole` is null for pure builder-side users. `isProtected` marks
- * Karan's seed row — the API refuses edit/delete on protected rows.
+ * allowlists). Microsoft Entra External ID owns the credential — we store
+ * only `entraObjectId` (null until first sign-in). `staffRole` is null for
+ * pure builder-side users. `isProtected` marks Karan's seed row — the API
+ * refuses edit/delete on protected rows.
  */
 export const users = pgTable(
   'users',
@@ -1089,8 +1090,6 @@ export const users = pgTable(
     id: uuid('id').primaryKey(),
     /** Lowercased, trimmed — the unique identity. */
     email: text('email').notNull().unique(),
-    /** bcrypt hash — null until the invitation is accepted. Never logged. */
-    passwordHash: text('password_hash'),
     /** Display name. */
     name: text('name').notNull(),
     /** 'invited' | 'active' | 'disabled'. */
@@ -1100,6 +1099,12 @@ export const users = pgTable(
      * user (their access comes from builder_memberships).
      */
     staffRole: text('staff_role'),
+    /**
+     * Microsoft Entra External ID object id. Unique, null until the
+     * user's first sign-in (Karan's seed row links during Azure setup).
+     * Entra owns the credential — we store only this id.
+     */
+    entraObjectId: text('entra_object_id').unique(),
     /**
      * True only for Karan's seed row. Protected rows can't be edited or
      * deleted through the API.
@@ -1147,13 +1152,15 @@ export const builderMemberships = pgTable(
 );
 
 /**
- * Invitations (auth/01).
+ * Invitations (auth/01 — Entra pivot).
  *
- * Email invite → set-password flow. Only the SHA-256 hash of the opaque
- * token is stored (same discipline as sessions/magic links); the raw
- * token exists only in the issuance return value (destined for the email)
- * and is never logged. An invitation can grant a staff role, a builder
- * membership, or both.
+ * Admin invites → we create the Entra External ID account via Graph, store
+ * the invitation row, and email our branded invite linking to /admin/login.
+ * Entra owns the credential: there is no token and no password here — the
+ * invitation is a lifecycle record (pending → accepted | revoked) with a
+ * 7-day expiry. `role` is the single granted role: a staff role
+ * ('super_admin' | 'admin' | 'viewer') when builder_id is null, or a
+ * builder role ('builder_admin' | 'builder_member') when set.
  */
 export const invitations = pgTable(
   'invitations',
@@ -1162,33 +1169,32 @@ export const invitations = pgTable(
     id: uuid('id').primaryKey(),
     /** Lowercased, trimmed invitee email. */
     email: text('email').notNull(),
-    /** 'super_admin' | 'admin' | 'viewer' | null. */
-    staffRole: text('staff_role'),
-    /** Builder the invitee joins (null = no builder membership). */
-    builderId: uuid('builder_id').references(() => builders.id, {
-      onDelete: 'cascade',
-    }),
-    /** 'builder_admin' | 'builder_member' | null. */
-    builderRole: text('builder_role'),
-    /** SHA-256 hex of the opaque token — the ONLY stored form. */
-    tokenHash: text('token_hash').notNull().unique(),
-    /** Invitation lifetime (7 days per story) — from config. */
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    /** Set when the invitation is accepted. */
-    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
-    /** Set when an invite is re-issued or withdrawn. */
-    revokedAt: timestamp('revoked_at', { withTimezone: true }),
     /** The inviting user — null if they were since hard-deleted. */
     invitedBy: uuid('invited_by').references(() => users.id, {
       onDelete: 'set null',
     }),
+    /** Granted role — staff role or builder role (see header). */
+    role: text('role').notNull(),
+    /** Builder the invitee joins (null = staff-only invitation). */
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'cascade',
+    }),
+    /**
+     * Entra object id from the Graph create-user call — set immediately
+     * at invite time. Never logged, never emailed.
+     */
+    entraUserId: text('entra_user_id'),
+    /** 'pending' | 'accepted' | 'revoked'. */
+    status: text('status').notNull().default('pending'),
+    /** Invitation lifetime (7 days per story) — from config. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    index('invitations_token_hash_idx').on(t.tokenHash),
     index('invitations_email_idx').on(t.email),
+    index('invitations_entra_user_id_idx').on(t.entraUserId),
   ],
 );
 
