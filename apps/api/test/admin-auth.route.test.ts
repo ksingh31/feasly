@@ -26,6 +26,8 @@ function makeRoute() {
   const route = createAdminAuthRoute({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     adminAuth: adminAuth as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    permissionGuard: { getAuthContext: async () => null } as any,
   });
   return { route, adminAuth };
 }

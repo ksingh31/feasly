@@ -30,12 +30,19 @@ import type {
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email/email.service';
 import type { AdminAuditStore } from './admin-audit.store';
+import type { BuilderService } from './builder.service';
 import { hashMagicToken, type MagicLinkStore } from './magic-link.store';
 
 export interface BuilderSessionRecord {
   readonly id: string;
   readonly email: string;
   readonly tenantKey: string;
+  /**
+   * auth/04: the session's builder tenant, resolved server-side at
+   * sign-in. Tenant scoping reads this, never a request value. Null for
+   * legacy rows whose tenant_key has no builder row.
+   */
+  readonly builderId: string | null;
   /** SHA-256 hex — never the raw token. */
   readonly sessionTokenHash: string;
   readonly revokedAt: Date | null;
@@ -48,6 +55,7 @@ export interface BuilderSessionStore {
     readonly id: string;
     readonly email: string;
     readonly tenantKey: string;
+    readonly builderId: string | null;
     readonly sessionTokenHash: string;
     readonly expiresAt: Date;
   }): Promise<BuilderSessionRecord>;
@@ -77,6 +85,11 @@ export interface BuilderAllowlistStore {
 export interface BuilderSession {
   readonly email: string;
   readonly tenantKey: string;
+  /**
+   * auth/04: the session's builder tenant (server-side, never a request
+   * value). Null for legacy sessions.
+   */
+  readonly builderId: string | null;
 }
 
 export interface BuilderAuthService {
@@ -108,6 +121,12 @@ export interface BuilderAuthService {
 export interface BuilderAuthServiceDeps {
   readonly allowlist: BuilderAllowlistStore;
   readonly sessions: BuilderSessionStore;
+  /**
+   * auth/04: resolves the allowlisted tenant_key to the builders row at
+   * session creation, so the session carries its builder tenant
+   * server-side (never a request value).
+   */
+  readonly builders: Pick<BuilderService, 'getByTenantKey'>;
   readonly audit: AdminAuditStore;
   readonly magicLinks: MagicLinkStore;
   readonly email: EmailService;
@@ -150,6 +169,7 @@ export function createBuilderAuthService(
     builderSessionTtlSeconds,
     clock = () => new Date(),
     onEmailError = () => {},
+    builders,
   } = deps;
 
   return {
@@ -258,10 +278,15 @@ export function createBuilderAuthService(
         );
       }
       const sessionToken = randomBytes(32).toString('hex');
+      // auth/04: bind the session to the builders row server-side. A
+      // missing builder row leaves builderId null — the auth context then
+      // grants no tenant scope (fail closed).
+      const builder = await builders.getByTenantKey(tenantKey);
       await sessions.insert({
         id: randomUUID(),
         email: record.email,
         tenantKey,
+        builderId: builder?.id ?? null,
         sessionTokenHash: hashBuilderSessionToken(sessionToken),
         expiresAt: new Date(now.getTime() + builderSessionTtlSeconds * 1000),
       });
@@ -304,7 +329,11 @@ export function createBuilderAuthService(
         clock(),
       );
       return session
-        ? { email: session.email, tenantKey: session.tenantKey }
+        ? {
+            email: session.email,
+            tenantKey: session.tenantKey,
+            builderId: session.builderId,
+          }
         : null;
     },
 

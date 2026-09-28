@@ -20,11 +20,14 @@ import type {
 } from '@feasly/contracts';
 import { ADMIN_SESSION_COOKIE } from '../middleware/admin-guard';
 import { extractSessionToken } from '../middleware/session-token';
+import type { PermissionGuard } from '../middleware/permission-guard';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuthService } from '../services/admin-auth.service';
 
 export interface AdminAuthRouteDeps {
   readonly adminAuth: AdminAuthService;
+  /** auth/04: resolves the session to its authorization context. */
+  readonly permissionGuard: PermissionGuard;
 }
 
 export interface AdminAuthRoute {
@@ -75,15 +78,15 @@ export function buildClearSessionCookie(): string {
 export function createAdminAuthRoute(
   deps: AdminAuthRouteDeps,
 ): AdminAuthRoute {
-  const { adminAuth } = deps;
+  const { adminAuth, permissionGuard } = deps;
 
   return {
     async me(headers): Promise<AdminAuthMeResponse> {
-      const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
-      const email = await adminAuth.validateSession(token);
-      if (email === null) {
+      const ctx = await permissionGuard.getAuthContext(headers);
+      if (ctx === null) {
         // Distinguish expired from invalid so the frontend can show the
         // specific "session expired" copy. Both are 401.
+        const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
         const expired = await adminAuth.isSessionExpired(token);
         throw new HttpError(
           401,
@@ -92,7 +95,28 @@ export function createAdminAuthRoute(
           false,
         );
       }
-      return { authenticated: true as const, email };
+      // auth/04: expose the session's authorization context (permissions,
+      // active builder, view-as state) so the admin shell can render the
+      // view-as banner and the org switcher. Backend remains authoritative;
+      // the frontend uses this for display only.
+      return {
+        authenticated: true as const,
+        email: ctx.email,
+        authContext: {
+          userId: ctx.userId,
+          name: ctx.name,
+          staffRole: ctx.staffRole,
+          permissions: [...ctx.permissions],
+          builderId: ctx.builderId,
+          builderName: ctx.builderName,
+          memberships: ctx.memberships.map((m) => ({
+            builderId: m.builderId,
+            role: m.role,
+          })),
+          viewAs: ctx.viewAs,
+          realUser: ctx.realUser,
+        },
+      };
     },
 
     async logout(headers): Promise<AdminAuthLogoutResponse> {

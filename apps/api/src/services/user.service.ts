@@ -98,6 +98,11 @@ export interface InviteInput {
   readonly inviterName?: string;
   /** For the audit trail. */
   readonly actorEmail?: string | null;
+  /**
+   * auth/04: the inviting user's staff role. Only a super_admin may grant
+   * the super_admin role — anything else is 403.
+   */
+  readonly actorStaffRole?: StaffRole | null;
 }
 
 export interface UserStore {
@@ -247,6 +252,14 @@ function validateInviteInput(input: InviteInput): {
       400,
       ErrorCodes.VALIDATION_FAILED,
       `Unknown role "${input.role}".`,
+    );
+  }
+  // auth/04 AC4: super_admin is the only role that can grant super_admin.
+  if (input.role === 'super_admin' && input.actorStaffRole !== 'super_admin') {
+    throw new HttpError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      'Only a super admin can grant the super admin role.',
     );
   }
   const builderId = input.builderId ?? null;

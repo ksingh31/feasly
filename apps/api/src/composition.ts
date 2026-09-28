@@ -196,6 +196,22 @@ import {
   type BuilderGuard,
 } from './middleware/builder-guard';
 import {
+  createPermissionGuard,
+  type PermissionGuard,
+} from './middleware/permission-guard';
+import {
+  createAuthContextService,
+  type AuthContextService,
+} from './services/auth-context.service';
+import {
+  createViewAsService,
+  type ViewAsService,
+} from './services/view-as.service';
+import {
+  createAdminViewAsRoute,
+  type AdminViewAsRoute,
+} from './routes/admin-view-as.route';
+import {
   createAdminLeadsRoute,
   type AdminLeadsRoute,
 } from './routes/admin-leads.route';
@@ -526,6 +542,13 @@ export interface AppComposition {
   readonly entraCallbackService: EntraCallbackService;
   readonly entraCallbackRoute: AdminEntraCallbackRoute;
   readonly adminGuard: AdminGuard;
+  /** auth/04: session → user → effective permissions + tenant scoping. */
+  readonly authContextService: AuthContextService;
+  /** auth/04: requirePermission middleware (routes depend on this). */
+  readonly permissionGuard: PermissionGuard;
+  /** auth/04: view-as activation/exit + org switcher. */
+  readonly viewAsService: ViewAsService;
+  readonly adminViewAsRoute: AdminViewAsRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
@@ -1025,9 +1048,6 @@ export function createComposition(
     sessions: adminSessionStore,
     audit: adminAuditStore,
   });
-  const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
-    adminAuth: adminAuthService,
-  });
   // auth/02 — Entra External ID sign-in. The token validator owns the
   // code exchange + id_token verification (no passwords in our database).
   // The callback service itself is wired below, after auth/01's user
@@ -1106,6 +1126,8 @@ export function createComposition(
   const builderAuthService: BuilderAuthService = createBuilderAuthService({
     allowlist: builderAllowlistStore,
     sessions: builderSessionStore,
+    // auth/04: resolves tenant_key → builder row at session creation.
+    builders: builderService,
     audit: adminAuditStore,
     magicLinks: magicLinkStore,
     email: emailService,
@@ -1126,6 +1148,40 @@ export function createComposition(
   });
   const builderGuard: BuilderGuard = createSessionBuilderGuard({
     builderAuth: builderAuthService,
+  });
+  // auth/04 — permission model + enforcement. The AuthContextService is the
+  // single place that turns a session into effective permissions and the
+  // server-side builder tenant; the PermissionGuard enforces it in routes.
+  const authContextService: AuthContextService = createAuthContextService({
+    adminSessions: adminSessionStore,
+    builderAuth: builderAuthService,
+    builderSessions: builderSessionStore,
+    users: userStore,
+    memberships: membershipStore,
+    builders: builderService,
+    audit: adminAuditStore,
+  });
+  const permissionGuard: PermissionGuard = createPermissionGuard({
+    authContext: authContextService,
+  });
+  const viewAsService: ViewAsService = createViewAsService({
+    sessions: adminSessionStore,
+    users: userStore,
+    memberships: membershipStore,
+    builders: builderService,
+    authContext: authContextService,
+    audit: adminAuditStore,
+  });
+  const adminViewAsRoute: AdminViewAsRoute = createAdminViewAsRoute({
+    viewAs: viewAsService,
+    permissionGuard,
+    builders: builderService,
+    userService,
+  });
+  const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
+    adminAuth: adminAuthService,
+    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    permissionGuard,
   });
   // builderLeadsService/builderLeadsRoute are constructed after the billing
   // block (billing/01): the service's won transition needs the billing hook,
@@ -1571,6 +1627,10 @@ export function createComposition(
     entraCallbackService,
     entraCallbackRoute,
     adminGuard,
+    authContextService,
+    permissionGuard,
+    viewAsService,
+    adminViewAsRoute,
     userService,
     userStore,
     invitationStore,

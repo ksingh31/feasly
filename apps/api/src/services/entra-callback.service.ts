@@ -233,6 +233,9 @@ export function createEntraCallbackService(
         email: user.email,
         sessionTokenHash: hashSessionToken(sessionToken),
         userId: user.id,
+        // auth/04: sign-in default for the session's active builder — the
+        // org switcher can change it later. Tenant scoping reads this.
+        activeBuilderId: user.memberships[0]?.builderId ?? null,
         expiresAt: new Date(now.getTime() + adminSessionTtlSeconds * 1000),
       });
       await audit.log({

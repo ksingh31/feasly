@@ -82,6 +82,8 @@ function makeDeps(overrides?: {
     magicLinks,
     email,
     appBaseUrl: 'https://feasly.example.com',
+    // auth/04: resolves tenant_key → builder row at session creation.
+    builders: { getByTenantKey: async () => null },
     magicLinkTtlSeconds: 900,
     builderSessionTtlSeconds: 604800,
     onEmailError: overrides?.onEmailError,
