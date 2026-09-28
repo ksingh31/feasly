@@ -616,6 +616,13 @@ blocking) — the relay + in-memory JWT exists precisely because cookies can't.
 One auth primitive (email ownership proof) covers consumers, builders, and
 admins.
 
+> **Amendment 2026-09-28 (Karan):** the "no passwords" stance is superseded for
+> admin and builder sign-in. Admins and builders now sign in with **email +
+> password via Microsoft Entra External ID** (feaslyext tenant); passwords are
+> never stored by Feasly. The email-ownership-proof (magic link) primitive
+> remains only for **customer report return-access**. The session-cookie
+> mechanism (§3.4) is unchanged — it still follows Entra auth.
+
 ---
 
 ## 4. Embed architecture

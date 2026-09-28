@@ -17,7 +17,7 @@ Give Karan (P-D) one trustworthy view per concern — every lead, billing health
 
 ## Key decisions (locked)
 
-1. **Admin auth = magic link + allowlisted admin emails** (OPS-001). No passwords anywhere in the system (consistent with TECH_PLAN §3.5). Admin sessions reuse the first-party httpOnly cookie mechanism (TECH_PLAN §3.4); the allowlist is the authorization boundary.
+1. **Admin auth = Microsoft Entra External ID (email + password)** (OPS-001; Karan's 2026-09-28 call). Admins are invited by email and create a password; authorization = roles and permissions in Postgres. Admin sessions reuse the first-party httpOnly cookie mechanism (TECH_PLAN §3.4); the role/permission check is the authorization boundary. The old magic-link + allowlist flow is retired (2026-09-28).
 2. **Postgres is the source of truth; Google Sheets is a read-through sync** (SCHEMA.md). The Sheets worker never writes back; conflicts resolve to Postgres, always.
 3. **Commission invoices are internal `commission_invoices` + Stripe PaymentIntents** (epic 05 decision 6; canonical statuses `draft|in_review|finalized|paid|failed|disputed|voided`). All billing-health views read this table joined with Stripe, never Stripe alone.
 4. **Dunning timeline is canonical:** 7d grace / days 8–21 degraded embed / day 22+ suspended (epic 05 decision 9). Ops alerting and the billing dashboard use these boundaries.
@@ -27,16 +27,12 @@ Give Karan (P-D) one trustworthy view per concern — every lead, billing health
 
 ## Stories (dependency order)
 
-### OPS-001 — Admin auth (magic-link + allowlist)
-- **Description:** Feasly-internal authentication for Karan (and future ops staff). Email-ownership proof only; authorization = the admin allowlist. Guards every `/admin/*` route and all ops API endpoints in this epic.
+### OPS-001 — Admin auth (Entra External ID email + password) — DONE (2026-09-28; supersedes the earlier magic-link + allowlist design)
+- **Description:** Feasly-internal authentication for Karan (and future ops staff). Sign-in is email + password against the Feasly Entra External ID tenant (`feaslyext`); authorization = roles/permissions in Postgres. Guards every `/admin/*` route and all ops API endpoints in this epic.
 - **Acceptance criteria:**
-  - Admin login: enter email → if the email is on the admin allowlist, a magic-link email is sent; clicking it establishes a first-party `httpOnly; Secure; SameSite=Lax` session cookie (hashed session id in `builder_sessions`-style table with `role='admin'`), 24h sliding expiry. Non-allowlisted emails get the same "check your email" copy and no link is sent (no enumeration oracle).
-  - Allowlist stored in a Feasly-operated table (`admin_allowlist(email citext PK, added_by, added_at)`), seeded with Karan's address; changes are audit-logged.
+  - Admin login: email + password sign-in via Entra External ID (user flow `feasly-signup-signin`); successful auth establishes a first-party `httpOnly; Secure; SameSite=Lax` session cookie, 24h sliding expiry. Admin users are invited by email by an existing admin and create their own password.
+  - Roles/permissions stored in Postgres; admins manage users and roles. Changes are audit-logged.
   - Every ops API endpoint enforces the admin session (missing/invalid → 401; non-admin → 403). Tenant scoping is bypassed by design (cross-tenant reads) — each cross-tenant read is logged with the admin's email.
-  - **NEEDS-KARAN:** the initial allowlist (his email address; plus any delegate).
-- **Dependencies:** CAP-003 (magic-link issuance semantics); epic 00 session-table migration.
-- **Size:** S
-- **NEEDS-KARAN:** admin allowlist — which emails?
 
 ### OPS-002 — All-leads explorer (M4 admin dashboard)
 - **Description:** The cross-tenant lead view: every lead from every tenant, filterable, with a detail panel, notes, and history. This is BUILD_PLAN's M4 "admin dashboard" for leads. Distinct from ATT-007 (which is flag/SLA/dispute queues for attribution) — cross-referenced, not duplicated.
@@ -142,7 +138,7 @@ Give Karan (P-D) one trustworthy view per concern — every lead, billing health
 
 ## Assumptions log
 
-1. Karan is the sole admin at launch; the allowlist + audit logging is the whole access-control story until a second operator exists (then: roles, via ADR).
+1. Karan is the sole admin at launch; admin invite + roles/permissions + audit logging is the whole access-control story until a second operator exists (then: more roles, via ADR).
 2. Sheets sync, nudge, and unsubscribe are M4 scope (post-M1) — the consumer funnel ships without them; the 24h nudge gap (E8) is knowingly deferred, not dropped.
 3. Alert thresholds in OPS-006 start at the values listed and are tuned from real traffic; the rules are config so tuning needs no deploy.
 4. Ops dashboards are internal-only and carry `noindex`; they are never prerendered and never linked from public pages.
@@ -150,7 +146,7 @@ Give Karan (P-D) one trustworthy view per concern — every lead, billing health
 
 ## Open questions
 
-- **Q-OPS-1 (NEEDS-KARAN):** admin allowlist — which emails?
+- **Q-OPS-1:** admin invites — any additional admin emails Karan wants invited at launch? (Resolved for Karan himself; the old allowlist question is obsolete — Entra invite flow is live.)
 - **Q-OPS-2 (NEEDS-KARAN):** ops alert inbox address?
 - **Q-OPS-3 (NEEDS-KARAN):** destination Google Sheet + service-account sharing for the sync worker?
 - **Q-OPS-4:** should the builder-visible funnel subset (their own tenant only) ship with epic 05's dashboard or wait for this epic's aggregation queries? (Recommendation: ship the queries here, surface them in epic 05's dashboard when both are ready — one query implementation.)
