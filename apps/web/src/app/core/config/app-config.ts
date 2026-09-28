@@ -563,7 +563,7 @@ export interface AppConfig {
       costMovementNote: string;
       /** "What's not in this estimate" heading. */
       exclusionsTitle: string;
-      /** Compact exclusion list (demolition, soil, permits, financing, GST, landscaping). */
+      /** Honest exclusion list — landscaping only (Karan 2026-09-28: the estimate covers the full build except landscaping). */
       exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
