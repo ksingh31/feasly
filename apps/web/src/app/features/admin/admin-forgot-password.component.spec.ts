@@ -10,6 +10,7 @@ import { of, throwError } from 'rxjs';
 import { AdminAuthApiService } from './admin-auth-api.service';
 import { AdminForgotPasswordComponent } from './admin-forgot-password.component';
 import { SeoService } from '../../core/seo/seo.service';
+import { ConfigService } from '../../core/config/config.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const NO_ORACLE_COPY = 'If an account exists for that email';
@@ -20,12 +21,27 @@ async function setup() {
     requestPasswordReset: vi.fn().mockReturnValue(of({ sent: true as const })),
   };
   const seo = { setPage: vi.fn() };
+  const config = {
+    get: (section: string) =>
+      section === 'copy'
+        ? {
+            admin: {
+              auth: {
+                forgotPasswordIntro:
+                  "Enter your admin email and we'll send you a link to set a new password.",
+                forgotPasswordSent: "If an account exists for that email, we've sent a reset link.",
+              },
+            },
+          }
+        : {},
+  };
   TestBed.configureTestingModule({
     imports: [AdminForgotPasswordComponent],
     providers: [
       provideRouter([]),
       { provide: AdminAuthApiService, useValue: api },
       { provide: SeoService, useValue: seo },
+      { provide: ConfigService, useValue: config },
     ],
   });
   const fixture = TestBed.createComponent(AdminForgotPasswordComponent);
@@ -34,7 +50,9 @@ async function setup() {
   return { fixture, api, seo };
 }
 
-function componentApi(fixture: import('@angular/core/testing').ComponentFixture<AdminForgotPasswordComponent>) {
+function componentApi(
+  fixture: import('@angular/core/testing').ComponentFixture<AdminForgotPasswordComponent>,
+) {
   return fixture.componentInstance as unknown as {
     form: { controls: { email: { setValue: (v: string) => void } } };
     submit: () => void;
@@ -78,9 +96,7 @@ describe('AdminForgotPasswordComponent (auth/02)', () => {
 
   it('shows a retry error on failure', async () => {
     const { fixture, api } = await setup();
-    api.requestPasswordReset.mockReturnValue(
-      throwError(() => new Error('boom')),
-    );
+    api.requestPasswordReset.mockReturnValue(throwError(() => new Error('boom')));
     const component = componentApi(fixture);
     component.form.controls.email.setValue('admin@example.com');
     component.submit();

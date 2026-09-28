@@ -16,14 +16,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminLoginComponent } from './admin-login.component';
 import { AdminAuthApiService } from './admin-auth-api.service';
 import { LoginAdminWithPassword } from './admin-auth.actions';
-import {
-  AdminAuthState,
-  type LoginErrorKind,
-} from './admin-auth.state';
+import { AdminAuthState, type LoginErrorKind } from './admin-auth.state';
 import { SeoService } from '../../core/seo/seo.service';
+import { ConfigService } from '../../core/config/config.service';
 
-const INVALID_CREDENTIALS_COPY =
-  "We don't recognize that email/password combination.";
+const INVALID_CREDENTIALS_COPY = "We don't recognize that email/password combination.";
 const RATE_LIMITED_COPY = 'Too many attempts — try again in 15 minutes.';
 const TRANSIENT_COPY = 'Something went wrong. Please try again.';
 const EXPIRED_COPY = 'Your admin session expired. Sign in again.';
@@ -40,31 +37,43 @@ interface SetupOpts {
 
 async function setup(opts: SetupOpts = {}) {
   TestBed.resetTestingModule();
-  const loginErrorSignal = signal<LoginErrorKind | null>(
-    opts.loginError ?? null,
-  );
+  const loginErrorSignal = signal<LoginErrorKind | null>(opts.loginError ?? null);
   const store = {
     dispatch: vi.fn().mockReturnValue(of(null)),
-    selectSignal: vi.fn().mockImplementation((selector: unknown) =>
-      selector === AdminAuthState.lastLoginError
-        ? loginErrorSignal
-        : signal(null),
-    ),
-    selectSnapshot: vi.fn().mockImplementation((selector: unknown) =>
-      selector === AdminAuthState.authenticated
-        ? (opts.authenticated ?? false)
-        : null,
-    ),
+    selectSignal: vi
+      .fn()
+      .mockImplementation((selector: unknown) =>
+        selector === AdminAuthState.lastLoginError ? loginErrorSignal : signal(null),
+      ),
+    selectSnapshot: vi
+      .fn()
+      .mockImplementation((selector: unknown) =>
+        selector === AdminAuthState.authenticated ? (opts.authenticated ?? false) : null,
+      ),
   };
   const api = {
     requestMagicLink: vi.fn().mockReturnValue(of({ sent: true as const })),
   };
   const seo = { setPage: vi.fn() };
+  const config = {
+    get: (section: string) =>
+      section === 'copy'
+        ? {
+            admin: {
+              auth: {
+                loginExpired: EXPIRED_COPY,
+                loginInvalidCredentials: INVALID_CREDENTIALS_COPY,
+                loginRateLimited: RATE_LIMITED_COPY,
+                loginTransient: TRANSIENT_COPY,
+              },
+            },
+          }
+        : {},
+  };
   const route = {
     snapshot: {
       queryParamMap: {
-        get: (key: string): string | null =>
-          key === 'expired' && opts.expired ? '1' : null,
+        get: (key: string): string | null => (key === 'expired' && opts.expired ? '1' : null),
       },
     },
   };
@@ -79,6 +88,7 @@ async function setup(opts: SetupOpts = {}) {
       { provide: Store, useValue: store },
       { provide: AdminAuthApiService, useValue: api },
       { provide: SeoService, useValue: seo },
+      { provide: ConfigService, useValue: config },
       { provide: ActivatedRoute, useValue: route },
     ],
   });
@@ -262,8 +272,6 @@ describe('AdminLoginComponent (auth/02)', () => {
 
   it('sets SEO metadata for the login page', async () => {
     const { seo } = await setup();
-    expect(seo.setPage).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/admin/login' }),
-    );
+    expect(seo.setPage).toHaveBeenCalledWith(expect.objectContaining({ path: '/admin/login' }));
   });
 });

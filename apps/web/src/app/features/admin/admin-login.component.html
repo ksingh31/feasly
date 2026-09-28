@@ -2,13 +2,11 @@
   <div class="admin-login__card">
     <p class="admin-login__eyebrow">Admin portal</p>
     <h1>Welcome back</h1>
-    <p class="admin-login__intro">
-      Sign in to manage leads, builders and your team.
-    </p>
+    <p class="admin-login__intro">Sign in to manage leads, builders and your team.</p>
 
     @if (showExpired) {
       <p class="admin-login__notice" role="status">
-        Your admin session expired. Sign in again.
+        {{ copy.loginExpired }}
       </p>
     }
 
@@ -26,9 +24,7 @@
           />
         </label>
         @if (emailInvalid) {
-          <p class="admin-login__error" role="alert">
-            Enter a valid email address.
-          </p>
+          <p class="admin-login__error" role="alert">Enter a valid email address.</p>
         }
 
         <label class="admin-login__field">
@@ -52,9 +48,7 @@
           </span>
         </label>
         @if (passwordInvalid) {
-          <p class="admin-login__error" role="alert">
-            Enter your password.
-          </p>
+          <p class="admin-login__error" role="alert">Enter your password.</p>
         }
 
         @if (loginErrorText(); as errorText) {
@@ -68,9 +62,7 @@
             <input type="checkbox" formControlName="rememberMe" />
             Remember me on this device
           </label>
-          <a class="admin-login__link" routerLink="/admin/forgot-password">
-            Forgot password?
-          </a>
+          <a class="admin-login__link" routerLink="/admin/forgot-password"> Forgot password? </a>
         </div>
 
         <button
@@ -85,24 +77,14 @@
           }
         </button>
       </form>
-      <button
-        type="button"
-        class="admin-login__alt"
-        (click)="mode.set('magic-link')"
-      >
+      <button type="button" class="admin-login__alt" (click)="mode.set('magic-link')">
         Use a sign-in link instead
       </button>
     } @else {
       @if (magicLinkStatus() === 'sent') {
-        <p class="admin-login__sent" role="status">
-          Check your email for your sign-in link.
-        </p>
+        <p class="admin-login__sent" role="status">Check your email for your sign-in link.</p>
       } @else {
-        <form
-          [formGroup]="magicLinkForm"
-          (ngSubmit)="submitMagicLink()"
-          novalidate
-        >
+        <form [formGroup]="magicLinkForm" (ngSubmit)="submitMagicLink()" novalidate>
           <label class="admin-login__field">
             <span>Email address</span>
             <input
@@ -115,9 +97,7 @@
             />
           </label>
           @if (magicLinkEmailInvalid) {
-            <p class="admin-login__error" role="alert">
-              Enter a valid email address.
-            </p>
+            <p class="admin-login__error" role="alert">Enter a valid email address.</p>
           }
           @if (magicLinkStatus() === 'error') {
             <p class="admin-login__error" role="alert">
@@ -138,11 +118,7 @@
           </button>
         </form>
       }
-      <button
-        type="button"
-        class="admin-login__alt"
-        (click)="mode.set('password')"
-      >
+      <button type="button" class="admin-login__alt" (click)="mode.set('password')">
         Back to password sign in
       </button>
     }

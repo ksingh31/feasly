@@ -884,6 +884,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         conversionPrefix: 'Converted from previous step:',
         noConversion: '—',
       },
+      auth: {
+        loginExpired: 'Your admin session expired. Sign in again.',
+        loginInvalidCredentials:
+          "We don't recognize that email/password combination.",
+        loginRateLimited: 'Too many attempts — try again in 15 minutes.',
+        loginTransient: 'Something went wrong. Please try again.',
+        forgotPasswordIntro:
+          "Enter your admin email and we'll send you a link to set a new password.",
+        forgotPasswordSent:
+          "If an account exists for that email, we've sent a reset link.",
+      },
     },
     unsubscribe: {
       loadingLabel: 'Checking your link…',

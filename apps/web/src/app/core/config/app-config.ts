@@ -952,6 +952,26 @@ export interface AppConfig {
         lastUsedLabel: string;
         createdLabel: string;
       };
+      /**
+       * Admin auth pages (auth/02): login + forgot-password copy. All
+       * user-facing strings live here so the no-hardcode tripwire stays
+       * green and copy is deploy-tunable. The 401/429 wording is buyer-grade
+       * per the story — exact strings are pinned by the login specs.
+       */
+      auth: {
+        /** Session-expired notice on the login page. */
+        loginExpired: string;
+        /** 401: wrong email/password — no oracle, never reveals which. */
+        loginInvalidCredentials: string;
+        /** 429: rate-limited. */
+        loginRateLimited: string;
+        /** Network/5xx login failure. */
+        loginTransient: string;
+        /** Forgot-password page intro. */
+        forgotPasswordIntro: string;
+        /** Shown after the reset request (always — no oracle). */
+        forgotPasswordSent: string;
+      };
     };
     /**
      * Unsubscribe center (email/03) copy. The confirmation line

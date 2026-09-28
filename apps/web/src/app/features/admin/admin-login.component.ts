@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
+import { ConfigService } from '../../core/config/config.service';
 import { AdminAuthApiService } from './admin-auth-api.service';
 import { LoginAdminWithPassword } from './admin-auth.actions';
 import { AdminAuthState, type LoginErrorKind } from './admin-auth.state';
@@ -11,17 +12,6 @@ import { AdminAuthState, type LoginErrorKind } from './admin-auth.state';
 type PasswordStatus = 'idle' | 'submitting';
 type MagicLinkStatus = 'idle' | 'sending' | 'sent' | 'error';
 type LoginMode = 'password' | 'magic-link';
-
-/**
- * Buyer-grade inline copy for each password-login failure kind.
- * Exact wording from the auth/02 story — do not rephrase without a story
- * update. 401 never reveals whether the email exists (no oracle).
- */
-const LOGIN_ERROR_COPY: Record<LoginErrorKind, string> = {
-  'invalid-credentials': "We don't recognize that email/password combination.",
-  'rate-limited': 'Too many attempts — try again in 15 minutes.',
-  transient: 'Something went wrong. Please try again.',
-};
 
 /**
  * Admin login (auth/02): password-first sign in.
@@ -59,6 +49,12 @@ export class AdminLoginComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  /**
+   * Buyer-grade login copy (ConfigService, `copy.admin.auth`) — exact
+   * story wording, deploy-tunable, keeps the no-hardcode tripwire green.
+   * The 401 copy never reveals whether the email exists (no oracle).
+   */
+  protected readonly copy = inject(ConfigService).get('copy').admin.auth;
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -75,14 +71,12 @@ export class AdminLoginComponent {
   protected readonly passwordStatus = signal<PasswordStatus>('idle');
   protected readonly magicLinkStatus = signal<MagicLinkStatus>('idle');
   protected readonly showPassword = signal(false);
-  protected readonly lastLoginError =
-    this.store.selectSignal(AdminAuthState.lastLoginError);
+  protected readonly lastLoginError = this.store.selectSignal(AdminAuthState.lastLoginError);
 
   protected showExpired = false;
 
   constructor() {
-    this.showExpired =
-      this.route.snapshot.queryParamMap.get('expired') === '1';
+    this.showExpired = this.route.snapshot.queryParamMap.get('expired') === '1';
     this.seo.setPage({
       title: 'Admin sign in — Feasly',
       description: 'Feasly admin sign in.',
@@ -95,9 +89,7 @@ export class AdminLoginComponent {
     this.passwordStatus.set('submitting');
     const { email, password, rememberMe } = this.form.getRawValue();
     this.store
-      .dispatch(
-        new LoginAdminWithPassword(email.trim(), password, rememberMe),
-      )
+      .dispatch(new LoginAdminWithPassword(email.trim(), password, rememberMe))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.passwordStatus.set('idle');
@@ -110,8 +102,7 @@ export class AdminLoginComponent {
   }
 
   protected submitMagicLink(): void {
-    if (this.magicLinkForm.invalid || this.magicLinkStatus() === 'sending')
-      return;
+    if (this.magicLinkForm.invalid || this.magicLinkStatus() === 'sending') return;
     this.magicLinkStatus.set('sending');
     const email = this.magicLinkForm.controls.email.value.trim();
     this.api
@@ -137,7 +128,15 @@ export class AdminLoginComponent {
 
   protected loginErrorText(): string | null {
     const kind = this.lastLoginError();
-    return kind === null ? null : LOGIN_ERROR_COPY[kind];
+    if (kind === null) return null;
+    switch (kind) {
+      case 'invalid-credentials':
+        return this.copy.loginInvalidCredentials;
+      case 'rate-limited':
+        return this.copy.loginRateLimited;
+      case 'transient':
+        return this.copy.loginTransient;
+    }
   }
 
   protected get emailInvalid(): boolean {

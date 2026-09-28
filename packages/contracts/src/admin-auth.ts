@@ -94,9 +94,7 @@ export interface AdminPasswordLoginResponse {
  *   no enumeration oracle).
  * - 429 `TOO_MANY_ATTEMPTS` — rate limit tripped (5 attempts / 15 min).
  */
-export type AdminPasswordLoginErrorCode =
-  | 'INVALID_CREDENTIALS'
-  | 'TOO_MANY_ATTEMPTS';
+export type AdminPasswordLoginErrorCode = 'INVALID_CREDENTIALS' | 'TOO_MANY_ATTEMPTS';
 
 /** `POST /api/v1/admin/auth/forgot-password` request body. */
 export interface AdminForgotPasswordBody {

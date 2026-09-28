@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
+import { ConfigService } from '../../core/config/config.service';
 import { AdminAuthApiService } from './admin-auth-api.service';
 
 type ForgotStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -30,6 +31,8 @@ export class AdminForgotPasswordComponent {
   private readonly api = inject(AdminAuthApiService);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  /** Forgot-password copy (ConfigService, `copy.admin.auth`). */
+  protected readonly copy = inject(ConfigService).get('copy').admin.auth;
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],

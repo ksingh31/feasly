@@ -32,10 +32,7 @@ export type VerifyErrorKind = 'used' | 'transient' | 'invalid';
  * - 'rate-limited': 429 TOO_MANY_ATTEMPTS — 5 attempts per 15 min.
  * - 'transient': network timeout, 5xx — safe to retry.
  */
-export type LoginErrorKind =
-  | 'invalid-credentials'
-  | 'rate-limited'
-  | 'transient';
+export type LoginErrorKind = 'invalid-credentials' | 'rate-limited' | 'transient';
 
 export interface AdminAuthStateModel {
   /**
