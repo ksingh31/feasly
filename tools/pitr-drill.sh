@@ -238,8 +238,8 @@ main() {
   [[ -n "$my_ip" ]] || die "could not determine operator public IP (needed for the temp firewall rule)"
   log "adding temporary firewall rule for operator IP $my_ip (removed with the server)"
   az postgres flexible-server firewall-rule create \
-    -n "$DRILL_NAME" -g "$RG" \
-    --rule-name drill-tmp-operator \
+    --server-name "$DRILL_NAME" -g "$RG" \
+    --name drill-tmp-operator \
     --start-ip-address "$my_ip" --end-ip-address "$my_ip" >/dev/null
 
   # --- Credentials ----------------------------------------------------------------
