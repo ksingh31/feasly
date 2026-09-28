@@ -29,7 +29,9 @@ export async function adminBuildersDetailHandler(
       req.headers ?? {},
       context.bindingData?.['id'],
     );
-  });
+  },
+    { path: '/api/v1/admin/builders/{id}' },
+  );
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).

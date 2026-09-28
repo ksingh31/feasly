@@ -20,6 +20,7 @@ export async function unsubscribeGetHandler(
   const token = context.bindingData?.['token'];
   await dispatchUnsubscribe(context, req, (app) =>
     app.unsubscribeRoute.getState(typeof token === 'string' ? token : ''),
+    { path: '/api/v1/unsubscribe/{token}' },
   );
 }
 

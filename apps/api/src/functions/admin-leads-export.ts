@@ -21,7 +21,7 @@ export async function adminLeadsExportHandler(
     context,
     req,
     (app) => app.adminLeadsRoute.exportCsv(req.headers ?? {}, req.query ?? {}),
-    { csv: true },
+    { csv: true, path: '/api/v1/admin/leads/export.csv' },
   );
 }
 

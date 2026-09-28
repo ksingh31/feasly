@@ -49,7 +49,15 @@ export async function dispatchBuilderAuth(
   context: FunctionContext,
   req: FunctionRequest,
   invoke: (app: AppComposition) => Promise<unknown>,
-  opts?: { readonly requireAuth?: boolean },
+  opts?: {
+    readonly requireAuth?: boolean;
+  /**
+   * auth/04: registry path (e.g. '/api/v1/admin/leads'). When set, the
+   * route's registry `permissions` are enforced before the route runs.
+   * Adapters pass this; the registry is the single source of truth.
+   */
+    readonly path?: string;
+  },
 ): Promise<void> {
   const origin = req.headers?.['origin'];
   const corsHeaders = middleware.resolveCorsHeaders(
@@ -96,7 +104,19 @@ export async function dispatchBuilderAuth(
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => invoke(app),
+    async () => {
+      // auth/04: registry permissions are REAL authorization — enforced
+      // here, centrally, before the route runs.
+      if (opts?.path) {
+        await middleware.enforceRoutePermissions(
+          app.permissionGuard,
+          req.method,
+          opts.path,
+          headers,
+        );
+      }
+      return invoke(app);
+    },
   );
 
   if (middleware.isProblemDetails(result)) {

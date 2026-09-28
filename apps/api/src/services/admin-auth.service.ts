@@ -23,6 +23,12 @@ import type {
 } from '@feasly/contracts';
 import type { AdminAuditStore } from './admin-audit.store';
 
+export interface ViewAsState {
+  /** View-as target: exactly one of these is set. */
+  readonly builderId?: string;
+  readonly userId?: string;
+}
+
 export interface AdminSessionRecord {
   readonly id: string;
   readonly email: string;
@@ -31,6 +37,21 @@ export interface AdminSessionRecord {
   readonly revokedAt: Date | null;
   readonly expiresAt: Date;
   readonly createdAt: Date;
+  /**
+   * auth/02: the user this session belongs to. Null for magic-link-era
+   * sessions; always set for Entra sign-in sessions.
+   */
+  readonly userId: string | null;
+  /**
+   * auth/04: the session's active builder tenant (server-side org choice).
+   * Tenant scoping reads this — never a client-supplied id.
+   */
+  readonly activeBuilderId: string | null;
+  /**
+   * auth/04: view-as state (`{ builderId }` or `{ userId }`), or null.
+   * While set, effective permissions + scoping resolve to the target's.
+   */
+  readonly viewAs: ViewAsState | null;
 }
 
 export interface AdminSessionStore {
@@ -44,6 +65,11 @@ export interface AdminSessionStore {
      * magic-link-era sessions; always set for Entra sign-in sessions.
      */
     readonly userId?: string | null;
+    /**
+     * auth/04: initial active builder tenant (sign-in default: the user's
+     * first membership). The org switcher changes it via `updateState`.
+     */
+    readonly activeBuilderId?: string | null;
   }): Promise<AdminSessionRecord>;
   /** Active = not revoked and not expired. */
   findActiveByHash(
@@ -58,6 +84,17 @@ export interface AdminSessionStore {
   revokeByHash(sessionTokenHash: string, revokedAt: Date): Promise<void>;
   /** Revoke all sessions for an email (allowlist removal). Returns count. */
   revokeByEmail(email: string, revokedAt: Date): Promise<number>;
+  /**
+   * auth/04: update the session's server-side state (active builder choice,
+   * view-as). Only the listed fields may change — never the identity.
+   */
+  updateState(
+    sessionTokenHash: string,
+    patch: {
+      readonly activeBuilderId?: string | null;
+      readonly viewAs?: ViewAsState | null;
+    },
+  ): Promise<void>;
 }
 
 /**

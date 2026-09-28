@@ -51,6 +51,12 @@ export async function dispatchAdminAuth(
   req: FunctionRequest,
   invoke: (app: AppComposition) => Promise<unknown>,
   opts?: {
+  /**
+   * auth/04: registry path (e.g. '/api/v1/admin/leads'). When set, the
+   * route's registry `permissions` are enforced before the route runs.
+   * Adapters pass this; the registry is the single source of truth.
+   */
+  readonly path?: string;
     readonly requireAuth?: boolean;
     /**
      * Override the request pipeline (rate limiter). Used by endpoints with
@@ -107,7 +113,19 @@ export async function dispatchAdminAuth(
   const pipeline = opts?.pipeline ? opts.pipeline(app) : app.requestPipeline;
   const result = await pipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => invoke(app),
+    async () => {
+      // auth/04: registry permissions are REAL authorization — enforced
+      // here, centrally, before the route runs.
+      if (opts?.path) {
+        await middleware.enforceRoutePermissions(
+          app.permissionGuard,
+          req.method,
+          opts.path,
+          headers,
+        );
+      }
+      return invoke(app);
+    },
   );
 
   if (middleware.isProblemDetails(result)) {

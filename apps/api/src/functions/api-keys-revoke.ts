@@ -20,6 +20,7 @@ export async function apiKeysRevokeHandler(
   const id = context.bindingData?.['id'];
   await dispatchApiKeys(context, req, (app) =>
     app.apiKeyRoute.revoke(req.headers ?? {}, typeof id === 'string' ? id : ''),
+    { path: '/api/v1/admin/api-keys/{id}/revoke' },
   );
 }
 

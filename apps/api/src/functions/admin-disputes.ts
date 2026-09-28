@@ -19,6 +19,7 @@ export async function adminDisputesHandler(
 ): Promise<void> {
   await dispatchBilling(context, req, (app) =>
     app.adminDisputesRoute.listDisputes(req.headers ?? {}),
+    { path: '/api/v1/admin/disputes' },
   );
 }
 

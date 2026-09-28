@@ -21,7 +21,7 @@ export async function adminAuthMeHandler(
     context,
     req,
     (app) => app.adminAuthRoute.me(req.headers ?? {}),
-    { requireAuth: true },
+    { requireAuth: true, path: '/api/v1/admin/auth/me'},
   );
 }
 

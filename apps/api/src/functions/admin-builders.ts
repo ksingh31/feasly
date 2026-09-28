@@ -22,7 +22,9 @@ export async function adminBuildersHandler(
       return app.adminBuildersRoute.create(req.headers ?? {}, req.body);
     }
     return app.adminBuildersRoute.list(req.headers ?? {});
-  });
+  },
+    { path: '/api/v1/admin/builders' },
+  );
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).

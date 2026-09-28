@@ -1,0 +1,47 @@
+/**
+ * Registry-driven route enforcement (auth/04).
+ *
+ * Every Functions adapter declares its registry path; the shared dispatch
+ * calls `enforceRoutePermissions` before invoking the route. The route's
+ * `permissions` declaration from the registry becomes REAL authorization:
+ * - entry missing → 500 fail-closed (an adapter without a registry entry
+ *   must not serve traffic),
+ * - `permissions: []` → no session check here (public, single-use-token,
+ *   webhook-signature, API-key, or adapter-level-auth routes enforce
+ *   their own auth),
+ * - otherwise → `requirePermissions` (401 no session, 403 audit-logged
+ *   when any permission is missing).
+ *
+ * This is the DRY enforcement point: one helper, every adapter. Registry
+ * declarations alone are not security — this call is what makes them so.
+ */
+import { ROUTE_REGISTRY } from '../registry/route-registry';
+import { ErrorCodes, HttpError } from './errors';
+import type { PermissionGuard } from './permission-guard';
+
+export async function enforceRoutePermissions(
+  permissionGuard: PermissionGuard,
+  method: string | undefined,
+  path: string,
+  headers: Record<string, string | string[] | undefined>,
+): Promise<void> {
+  const httpMethod = (method ?? 'GET').toUpperCase();
+  const entry = ROUTE_REGISTRY.find(
+    (candidate) =>
+      candidate.method === httpMethod && candidate.path === path,
+  );
+  if (!entry) {
+    throw new HttpError(
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      'Route is not registered.',
+      true,
+    );
+  }
+  if (entry.permissions.length === 0) return;
+  await permissionGuard.requirePermissions(
+    entry.permissions,
+    headers,
+    `${httpMethod} ${path}`,
+  );
+}

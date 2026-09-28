@@ -90,6 +90,8 @@ function makeService(world: World) {
         throw new Error('not used');
       },
       findById: async () => null,
+      findByIdAndBuilderId: async () => null,
+      existsById: async () => false,
       findByEstimateId: async (estimateId: string) =>
         world.leads.find((l) => l.estimateId === estimateId) ?? null,
       setUnsubscribedAt: async (_args: { readonly id: string; readonly at: Date }) => null,
@@ -111,6 +113,7 @@ function makeService(world: World) {
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async () => null,
     },
   });

@@ -17,7 +17,7 @@ export async function builderAuthMeHandler(
     context,
     req,
     (app) => app.builderAuthRoute.me(req.headers ?? {}),
-    { requireAuth: true },
+    { requireAuth: true, path: '/api/v1/builder/auth/me'},
   );
 }
 

@@ -197,6 +197,19 @@ function fakeLeadStore(): FakeLeadStore {
       const found = inserted.find((l) => l.estimateId === estimateId);
       return found ? toFakeRecord(found) : null;
     },
+    findByIdAndBuilderId: async ({
+      id,
+      builderId,
+    }: {
+      id: string;
+      builderId: string;
+    }) => {
+      const found = inserted.find(
+        (l) => l.id === id && toFakeRecord(l).builderId === builderId,
+      );
+      return found ? toFakeRecord(found) : null;
+    },
+    existsById: async (id: string) => inserted.some((l) => l.id === id),
     setUnsubscribedAt: async (args: { id: string; at: Date }) => {
       const found = inserted.find((l) => l.id === args.id);
       if (!found) return null;
@@ -222,6 +235,7 @@ function fakeLeadStore(): FakeLeadStore {
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async () => null,
     insert: async (lead: NewLead) => {
       inserted.push(lead);

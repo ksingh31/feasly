@@ -11,6 +11,7 @@ import type {
   AdminAllowlistStore,
   AdminSessionRecord,
   AdminSessionStore,
+  ViewAsState,
 } from './admin-auth.service';
 
 export interface DrizzleAdminStoreDeps {
@@ -28,7 +29,28 @@ function toSessionRecord(
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+    userId: row.userId,
+    activeBuilderId: row.activeBuilderId,
+    viewAs: normalizeViewAs(row.viewAs),
   };
+}
+
+/**
+ * auth/04: the view_as jsonb column carries `{ builderId }` or `{ userId }`.
+ * Anything else (including legacy nulls) normalizes to null — a malformed
+ * value must never widen access.
+ */
+function normalizeViewAs(
+  raw: { builderId?: string; userId?: string } | null,
+): ViewAsState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.builderId === 'string' && raw.builderId.length > 0) {
+    return { builderId: raw.builderId };
+  }
+  if (typeof raw.userId === 'string' && raw.userId.length > 0) {
+    return { userId: raw.userId };
+  }
+  return null;
 }
 
 export function createDrizzleAdminSessionStore(
@@ -103,6 +125,18 @@ export function createDrizzleAdminSessionStore(
         )
         .returning({ id: adminSessions.id });
       return rows.length;
+    },
+
+    async updateState(sessionTokenHash, patch): Promise<void> {
+      await db
+        .update(adminSessions)
+        .set({
+          ...(patch.activeBuilderId !== undefined
+            ? { activeBuilderId: patch.activeBuilderId }
+            : {}),
+          ...(patch.viewAs !== undefined ? { viewAs: patch.viewAs } : {}),
+        })
+        .where(eq(adminSessions.sessionTokenHash, sessionTokenHash));
     },
   };
 }

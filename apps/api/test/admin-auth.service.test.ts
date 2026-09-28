@@ -28,12 +28,29 @@ function makeSessionStore(): AdminSessionStore & {
     sessions,
     insert: async (s) => {
       const record: AdminSessionRecord = {
-        ...s,
+        id: s.id,
+        email: s.email,
+        sessionTokenHash: s.sessionTokenHash,
+        userId: s.userId ?? null,
+        activeBuilderId: s.activeBuilderId ?? null,
+        viewAs: null,
+        expiresAt: s.expiresAt,
         revokedAt: null,
         createdAt: NOW,
       };
       sessions.push(record);
       return record;
+    },
+    updateState: async (hash, patch) => {
+      const idx = sessions.findIndex((x) => x.sessionTokenHash === hash);
+      if (idx < 0) return;
+      const r = sessions[idx]!;
+      sessions[idx] = {
+        ...r,
+        activeBuilderId:
+          'activeBuilderId' in patch ? (patch.activeBuilderId ?? null) : r.activeBuilderId,
+        viewAs: 'viewAs' in patch ? (patch.viewAs ?? null) : r.viewAs,
+      };
     },
     findActiveByHash: async (hash: string, now: Date) => {
       const s = sessions.find(

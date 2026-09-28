@@ -23,7 +23,9 @@ export async function apiKeysHandler(
       return app.apiKeyRoute.list(req.headers ?? {});
     }
     return app.apiKeyRoute.issue(req.headers ?? {}, req.body);
-  });
+  },
+    { path: '/api/v1/admin/api-keys' },
+  );
 }
 
 // Azure Functions v3 programming model entry point (bundled as CJS).

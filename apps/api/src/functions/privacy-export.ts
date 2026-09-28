@@ -14,6 +14,7 @@ export async function privacyExportHandler(
 ): Promise<void> {
   await dispatchPrivacy(context, req, (app) =>
     app.privacyRoute.exportData(req.headers ?? {}),
+    { path: '/api/v1/privacy/export' },
   );
 }
 

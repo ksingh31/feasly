@@ -14,6 +14,7 @@ export async function privacyEraseHandler(
 ): Promise<void> {
   await dispatchPrivacy(context, req, (app) =>
     app.privacyRoute.requestErasure(req.headers ?? {}),
+    { path: '/api/v1/privacy/erase-requests' },
   );
 }
 

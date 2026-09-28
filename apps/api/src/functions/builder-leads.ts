@@ -16,6 +16,7 @@ export async function builderLeadsHandler(
 ): Promise<void> {
   await dispatchBuilderLeads(context, req, (app) =>
     app.builderLeadsRoute.list(req.headers ?? {}),
+    { path: '/api/v1/builder/leads' },
   );
 }
 

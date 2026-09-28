@@ -71,7 +71,17 @@ export async function usageHandler(
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.usageRoute.getUsage(headers, req.query ?? {}),
+    async () => {
+      // auth/04: registry permissions are REAL authorization — enforced
+      // here before the route runs.
+      await middleware.enforceRoutePermissions(
+        app.permissionGuard,
+        req.method,
+        '/api/v1/admin/usage',
+        headers,
+      );
+      return app.usageRoute.getUsage(headers, req.query ?? {});
+    },
   );
 
   if (middleware.isProblemDetails(result)) {

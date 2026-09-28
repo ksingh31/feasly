@@ -22,6 +22,7 @@ export async function adminDisputesGetHandler(
       req.headers ?? {},
       context.bindingData?.['id'],
     ),
+    { path: '/api/v1/admin/disputes/{id}' },
   );
 }
 

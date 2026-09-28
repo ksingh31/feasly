@@ -1,0 +1,39 @@
+/* View-as banner (auth/04): persistent, impossible to miss while active. */
+.view-as-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: #3f2f10;
+  color: #fdf8ee;
+  font-size: 0.875rem;
+}
+
+.view-as-banner__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-as-banner__real {
+  opacity: 0.75;
+  font-size: 0.8125rem;
+}
+
+.view-as-banner__exit {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0.375rem 1rem;
+  border: 1px solid rgba(253, 248, 238, 0.5);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #fdf8ee;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.view-as-banner__exit:hover {
+  background: rgba(253, 248, 238, 0.12);
+}

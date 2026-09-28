@@ -21,6 +21,7 @@ export async function apiKeysRotateHandler(
   const id = context.bindingData?.['id'];
   await dispatchApiKeys(context, req, (app) =>
     app.apiKeyRoute.rotate(req.headers ?? {}, typeof id === 'string' ? id : ''),
+    { path: '/api/v1/admin/api-keys/{id}/rotate' },
   );
 }
 
