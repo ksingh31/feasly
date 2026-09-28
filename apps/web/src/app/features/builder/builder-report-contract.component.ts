@@ -14,7 +14,11 @@ import { Store } from '@ngxs/store';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { formatCentsToCad } from '../../shared/utils/money';
+import { formatCentsToCad, onePercentOfCents, parseCadDollarsToCents } from '../../shared/utils/money';
+import {
+  dateOnlyToIsoWithOffset,
+  todayLocalDateString,
+} from '../../shared/utils/datetime';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads } from './builder.actions';
 import {
@@ -32,40 +36,6 @@ interface ReportContractForm {
   contractValue: FormControl<string | null>;
   /** Date-only (yyyy-MM-dd) from the date picker. */
   contractSignedDate: FormControl<string | null>;
-}
-
-/**
- * Parse a CAD dollars string into integer cents with integer math only
- * (no float multiplication — "650000.50" -> 65000050).
- * Returns null when the input is not a valid dollars amount.
- */
-export function parseCadDollarsToCents(value: string | null): number | null {
-  if (value === null) {
-    return null;
-  }
-  const trimmed = value.trim().replace(/[$,\s]/g, '');
-  const match = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(trimmed);
-  if (!match) {
-    return null;
-  }
-  const dollars = Number(match[1]);
-  const frac = (match[2] ?? '').padEnd(2, '0');
-  return dollars * 100 + Number(frac);
-}
-
-/**
- * Compose a full ISO-8601 datetime with the LOCAL timezone offset from a
- * date-only picker value — the backend's zod schema requires an explicit
- * offset (`z.string().datetime({ offset: true })`).
- * "2026-09-28" -> "2026-09-28T00:00:00-06:00" (offset varies by locale).
- */
-export function dateOnlyToIsoWithOffset(dateOnly: string): string {
-  const probe = new Date(`${dateOnly}T00:00:00`);
-  const offsetMin = -probe.getTimezoneOffset();
-  const sign = offsetMin >= 0 ? '+' : '-';
-  const abs = Math.abs(offsetMin);
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  return `${dateOnly}T00:00:00${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 
 /**
@@ -133,7 +103,7 @@ export class BuilderReportContractComponent implements OnInit {
         if (!value) {
           return null;
         }
-        return value > todayLocalDate() ? { futureDate: true } : null;
+        return value > todayLocalDateString() ? { futureDate: true } : null;
       },
     ]),
   });
@@ -174,6 +144,33 @@ export class BuilderReportContractComponent implements OnInit {
     return this.submitStatus() === 'error';
   }
 
+  /** Whether a form field's error message should show. */
+  protected showFieldError(control: FormControl<string | null>): boolean {
+    return control.touched && control.invalid;
+  }
+
+  /** Resolved contract-value error copy, or null when none shows. */
+  protected contractValueError(): string | null {
+    const control = this.form.controls.contractValue;
+    if (!this.showFieldError(control)) {
+      return null;
+    }
+    return control.hasError('required')
+      ? this.copy.reportContractValueRequired
+      : this.copy.reportContractValueInvalid;
+  }
+
+  /** Resolved signing-date error copy, or null when none shows. */
+  protected contractSignedDateError(): string | null {
+    const control = this.form.controls.contractSignedDate;
+    if (!this.showFieldError(control)) {
+      return null;
+    }
+    return control.hasError('required')
+      ? this.copy.reportContractDateRequired
+      : this.copy.reportContractDateFuture;
+  }
+
   /** The 1% commission on the reported contract, formatted for display. */
   protected reportedCommission(): string {
     const cents = this.reportedValueCents();
@@ -181,7 +178,7 @@ export class BuilderReportContractComponent implements OnInit {
       return '';
     }
     // Display-only figure; the backend computes the billed amount.
-    return formatCentsToCad(Math.round(cents / 100));
+    return formatCentsToCad(onePercentOfCents(cents));
   }
 
   protected reportedAmount(): string {
@@ -244,11 +241,4 @@ export class BuilderReportContractComponent implements OnInit {
     this.form.reset();
     this.store.dispatch(new ResetReportContract());
   }
-}
-
-/** Today's local date as yyyy-MM-dd (for the no-future-date validator). */
-function todayLocalDate(): string {
-  const now = new Date();
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }

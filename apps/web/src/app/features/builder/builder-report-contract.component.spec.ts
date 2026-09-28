@@ -26,11 +26,9 @@ import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderState } from './builder.state';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
-import {
-  BuilderReportContractComponent,
-  dateOnlyToIsoWithOffset,
-  parseCadDollarsToCents,
-} from './builder-report-contract.component';
+import { BuilderReportContractComponent } from './builder-report-contract.component';
+import { dateOnlyToIsoWithOffset } from '../../shared/utils/datetime';
+import { parseCadDollarsToCents } from '../../shared/utils/money';
 import { BuilderReportContractState } from './builder-report-contract.state';
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';

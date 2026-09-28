@@ -31,7 +31,7 @@
               <option [value]="lead.id">{{ leadLabel(lead.id) }}</option>
             }
           </select>
-          @if (form.controls.leadId.touched && form.controls.leadId.invalid) {
+          @if (showFieldError(form.controls.leadId)) {
             <p class="report-contract__field-error" role="alert">
               {{ copy.reportContractLeadRequired }}
             </p>
@@ -50,14 +50,12 @@
           <p id="report-contract-value-hint" class="report-contract__hint">
             {{ copy.reportContractValueHint }}
           </p>
-          @if (form.controls.contractValue.touched && form.controls.contractValue.invalid) {
-            <p class="report-contract__field-error" role="alert">
-              @if (form.controls.contractValue.hasError('required')) {
-                {{ copy.reportContractValueRequired }}
-              } @else {
-                {{ copy.reportContractValueInvalid }}
-              }
-            </p>
+          @if (showFieldError(form.controls.contractValue)) {
+            @if (contractValueError(); as valueError) {
+              <p class="report-contract__field-error" role="alert">
+                {{ valueError }}
+              </p>
+            }
           }
         </div>
 
@@ -68,14 +66,12 @@
             type="date"
             formControlName="contractSignedDate"
           />
-          @if (form.controls.contractSignedDate.touched && form.controls.contractSignedDate.invalid) {
-            <p class="report-contract__field-error" role="alert">
-              @if (form.controls.contractSignedDate.hasError('required')) {
-                {{ copy.reportContractDateRequired }}
-              } @else {
-                {{ copy.reportContractDateFuture }}
-              }
-            </p>
+          @if (showFieldError(form.controls.contractSignedDate)) {
+            @if (contractSignedDateError(); as dateError) {
+              <p class="report-contract__field-error" role="alert">
+                {{ dateError }}
+              </p>
+            }
           }
         </div>
 
