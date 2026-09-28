@@ -701,6 +701,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminBuilders: 'Feasly admin builders management.',
       adminDisputesTitle: 'Disputes — Feasly Admin',
       adminDisputes: 'Feasly admin billing dispute console.',
+      adminUsersTitle: 'Users — Feasly Admin',
+      adminUsers: 'Feasly admin user management.',
       adminCalibrationTitle: 'Calibration — Feasly Admin',
       adminCalibration: 'Cost engine calibration console.',
       adminBillingTitle: 'Billing — Feasly Admin',

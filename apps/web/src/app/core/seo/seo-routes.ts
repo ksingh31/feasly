@@ -134,6 +134,7 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: 'admin/leads', titleKey: 'adminLeadsTitle', descriptionKey: 'adminLeads', noindex: true },
   { pattern: 'admin/builders', titleKey: 'adminBuildersTitle', descriptionKey: 'adminBuilders', noindex: true },
   { pattern: 'admin/disputes', titleKey: 'adminDisputesTitle', descriptionKey: 'adminDisputes', noindex: true },
+  { pattern: 'admin/users', titleKey: 'adminUsersTitle', descriptionKey: 'adminUsers', noindex: true },
   {
     pattern: 'admin/calibration',
     titleKey: 'adminCalibrationTitle',

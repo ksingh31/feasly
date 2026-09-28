@@ -59,6 +59,7 @@ describe('seo-routes', () => {
       ['admin/leads', 'adminLeadsTitle'],
       ['admin/builders', 'adminBuildersTitle'],
       ['admin/disputes', 'adminDisputesTitle'],
+      ['admin/users', 'adminUsersTitle'],
       ['admin/calibration', 'adminCalibrationTitle'],
       ['admin/billing', 'adminBillingTitle'],
       ['admin/ops/sheets', 'adminSheetsTitle'],
