@@ -65,12 +65,6 @@ export const ErrorCodes = {
   /** Narrative LLM provider failed or output failed validation (consumer/06). */
   NARRATIVE_FAILED: 'NARRATIVE_FAILED',
   /**
-   * Admin magic-link verify: the token was already consumed (single-use).
-   * Still a 401 — distinct from UNAUTHENTICATED so the verify page can
-   * show "already used" copy instead of the generic invalid/expired message.
-   */
-  MAGIC_LINK_USED: 'MAGIC_LINK_USED',
-  /**
    * auth/01 — invitation expired before first sign-in. 401 with the
    * "link expired" copy (no stack trace, no token echo).
    */

@@ -1,11 +1,12 @@
 /**
- * Admin auth state tests (admin/01 + auth/02 pivot).
+ * Admin auth state tests (auth/02).
  *
- * Verifies: token verify/load transitions (bearer token stored on
- * success, cleared on failure/logout), expired-session flagging for the
- * login copy, logout clearing, and the auth/02 Entra actions
- * (CompleteEntraSignIn bootstraps the session identity; FailEntraSignIn
- * classifies the callback failure for the callback page copy).
+ * Verifies: session bootstrap via CompleteEntraSignIn (Entra is the only
+ * admin sign-in since the magic-link flow was retired 2026-09-28),
+ * LoadAdminSession transitions (token kept on success, cleared on
+ * failure), expired-session flagging for the login copy, logout clearing,
+ * and FailEntraSignIn callback-failure classification for the callback
+ * page copy.
  */
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -22,17 +23,28 @@ import {
   FailEntraSignIn,
   LoadAdminSession,
   LogoutAdmin,
-  VerifyAdminToken,
 } from './admin-auth.actions';
 import { AdminAuthState, type AdminAuthStateModel } from './admin-auth.state';
 
-describe('AdminAuthState (admin/01)', () => {
+describe('AdminAuthState (auth/02)', () => {
   let store: Store;
   let httpMock: HttpTestingController;
 
   function snapshot(): AdminAuthStateModel {
     return store.selectSnapshot<AdminAuthStateModel>(
       (state) => state.adminAuth,
+    );
+  }
+
+  /** Bootstrap an authenticated session the way Entra sign-in does. */
+  async function signIn(): Promise<void> {
+    await store.dispatch(
+      new CompleteEntraSignIn(
+        'sess-entra-abc',
+        'admin@example.com',
+        'Admin User',
+        'super_admin',
+      ),
     );
   }
 
@@ -59,53 +71,23 @@ describe('AdminAuthState (admin/01)', () => {
     httpMock.verify();
   });
 
-  it('VerifyAdminToken stores the bearer token on success', async () => {
-    const done = store.dispatch(new VerifyAdminToken('magic-tok'));
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/admin/auth/verify'),
-    );
-    expect(req.request.params.get('token')).toBe('magic-tok');
-    req.flush({
-      authenticated: true,
-      email: 'admin@example.com',
-      sessionToken: 'sess-abc',
-      setCookie: 'c',
-    });
-    await done;
+  it('CompleteEntraSignIn bootstraps the session identity', async () => {
+    await signIn();
 
     const s = snapshot();
     expect(s.authStatus).toBe('authenticated');
-    expect(s.sessionToken).toBe('sess-abc');
+    expect(s.sessionToken).toBe('sess-entra-abc');
     expect(s.email).toBe('admin@example.com');
+    expect(s.name).toBe('Admin User');
+    expect(s.staffRole).toBe('super_admin');
+    expect(s.sessionExpired).toBe(false);
+    expect(s.lastEntraError).toBeNull();
     expect(store.selectSnapshot(AdminAuthState.authenticated)).toBe(true);
     httpMock.verify();
   });
 
-  it('VerifyAdminToken marks unauthenticated and clears the token on failure', async () => {
-    const done = store.dispatch(new VerifyAdminToken('bad-token'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({ message: 'invalid' }, { status: 401, statusText: 'Unauthorized' });
-    await done;
-
-    const s = snapshot();
-    expect(s.authStatus).toBe('unauthenticated');
-    expect(s.sessionToken).toBeNull();
-    expect(s.email).toBeNull();
-    httpMock.verify();
-  });
-
   it('LoadAdminSession re-authenticates without dropping the stored token', async () => {
-    const verify = store.dispatch(new VerifyAdminToken('magic-tok'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({
-        authenticated: true,
-        email: 'admin@example.com',
-        sessionToken: 'sess-abc',
-        setCookie: 'c',
-      });
-    await verify;
+    await signIn();
 
     const done = store.dispatch(new LoadAdminSession());
     httpMock
@@ -115,7 +97,7 @@ describe('AdminAuthState (admin/01)', () => {
 
     const s = snapshot();
     expect(s.authStatus).toBe('authenticated');
-    expect(s.sessionToken).toBe('sess-abc');
+    expect(s.sessionToken).toBe('sess-entra-abc');
     httpMock.verify();
   });
 
@@ -137,16 +119,7 @@ describe('AdminAuthState (admin/01)', () => {
   });
 
   it('LogoutAdmin clears the token', async () => {
-    const verify = store.dispatch(new VerifyAdminToken('magic-tok'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({
-        authenticated: true,
-        email: 'admin@example.com',
-        sessionToken: 'sess-abc',
-        setCookie: 'c',
-      });
-    await verify;
+    await signIn();
 
     const done = store.dispatch(new LogoutAdmin());
     const req = httpMock.expectOne((r) =>
@@ -164,109 +137,12 @@ describe('AdminAuthState (admin/01)', () => {
   });
 
   it('ClearAdminAuth resets the slice', async () => {
-    const verify = store.dispatch(new VerifyAdminToken('magic-tok'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({
-        authenticated: true,
-        email: 'admin@example.com',
-        sessionToken: 'sess-abc',
-        setCookie: 'c',
-      });
-    await verify;
+    await signIn();
 
     await store.dispatch(new ClearAdminAuth());
     const s = snapshot();
     expect(s.sessionToken).toBeNull();
     expect(s.authStatus).toBe('unknown');
-    httpMock.verify();
-  });
-
-  it("VerifyAdminToken classifies a consumed token as 'used'", async () => {
-    const done = store.dispatch(new VerifyAdminToken('used-token'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush(
-        { code: 'MAGIC_LINK_USED', message: 'already been used' },
-        { status: 401, statusText: 'Unauthorized' },
-      );
-    await done;
-
-    const s = snapshot();
-    expect(s.authStatus).toBe('unauthenticated');
-    expect(s.lastVerifyError).toBe('used');
-    expect(store.selectSnapshot(AdminAuthState.lastVerifyError)).toBe('used');
-    httpMock.verify();
-  });
-
-  it("VerifyAdminToken classifies a 5xx as 'transient' (retryable)", async () => {
-    const done = store.dispatch(new VerifyAdminToken('tok'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush(
-        { code: 'INTERNAL_ERROR', message: 'boom' },
-        { status: 500, statusText: 'Server Error' },
-      );
-    await done;
-
-    expect(snapshot().lastVerifyError).toBe('transient');
-    httpMock.verify();
-  });
-
-  it("VerifyAdminToken classifies an unknown/expired token as 'invalid'", async () => {
-    const done = store.dispatch(new VerifyAdminToken('bad-token'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush(
-        { code: 'UNAUTHENTICATED', message: 'invalid or expired' },
-        { status: 401, statusText: 'Unauthorized' },
-      );
-    await done;
-
-    expect(snapshot().lastVerifyError).toBe('invalid');
-    httpMock.verify();
-  });
-
-  it('VerifyAdminToken success resets lastVerifyError to null', async () => {
-    const fail = store.dispatch(new VerifyAdminToken('bad-token'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({ code: 'UNAUTHENTICATED' }, { status: 401, statusText: 'x' });
-    await fail;
-    expect(snapshot().lastVerifyError).toBe('invalid');
-
-    const ok = store.dispatch(new VerifyAdminToken('magic-tok'));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/verify'))
-      .flush({
-        authenticated: true,
-        email: 'admin@example.com',
-        sessionToken: 'sess-abc',
-      });
-    await ok;
-    expect(snapshot().lastVerifyError).toBeNull();
-    httpMock.verify();
-  });
-
-  it('CompleteEntraSignIn bootstraps the session identity', async () => {
-    await store.dispatch(
-      new CompleteEntraSignIn(
-        'sess-entra-abc',
-        'admin@example.com',
-        'Admin User',
-        'super_admin',
-      ),
-    );
-
-    const s = snapshot();
-    expect(s.authStatus).toBe('authenticated');
-    expect(s.sessionToken).toBe('sess-entra-abc');
-    expect(s.email).toBe('admin@example.com');
-    expect(s.name).toBe('Admin User');
-    expect(s.staffRole).toBe('super_admin');
-    expect(s.sessionExpired).toBe(false);
-    expect(s.lastEntraError).toBeNull();
-    expect(store.selectSnapshot(AdminAuthState.authenticated)).toBe(true);
     httpMock.verify();
   });
 

@@ -211,12 +211,13 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  // Admin (admin/01 + auth/02 pivot): Microsoft Entra External ID sign-in;
-  // the magic-link flow stays available behind the backend flag until
-  // AUTH-06 retires it. All admin routes are noindexed and excluded from
-  // prerendering (not in prerender-routes.txt). No public-page links point
-  // here. All admin views are lazy-loaded so they stay out of the initial
-  // bundle (bundle-budget regression, PR #159).
+  // Admin (auth/02): Microsoft Entra External ID sign-in is the only admin
+  // sign-in. The legacy magic-link flow was retired 2026-09-28 (Karan):
+  // `/admin/verify` no longer exists, so dead magic-link URLs fall through
+  // to the branded 404 page. All admin routes are noindexed and excluded
+  // from prerendering (not in prerender-routes.txt). No public-page links
+  // point here. All admin views are lazy-loaded so they stay out of the
+  // initial bundle (bundle-budget regression, PR #159).
   {
     path: 'admin/login',
     loadComponent: () =>
@@ -230,13 +231,6 @@ export const routes: Routes = [
       import('./features/admin/admin-entra-callback.component').then(
         (m) => m.AdminEntraCallbackComponent,
       ),
-    canActivate: [robotsGuard],
-    data: { noindex: true },
-  },
-  {
-    path: 'admin/verify',
-    loadComponent: () =>
-      import('./features/admin/admin-verify.component').then((m) => m.AdminVerifyComponent),
     canActivate: [robotsGuard],
     data: { noindex: true },
   },

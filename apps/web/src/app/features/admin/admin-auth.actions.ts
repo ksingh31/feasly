@@ -1,16 +1,14 @@
 /**
- * Admin auth actions (admin/01).
+ * Admin auth actions (auth/02).
  *
  * All admin session state lives in AdminAuthState — components dispatch and
  * render selectors, never call the API directly. Mirrors the builder
  * portal's action set (embed/09).
+ *
+ * The legacy magic-link `VerifyAdminToken` action was removed 2026-09-28
+ * (Karan retired the admin magic-link flow): Entra sign-in is the only
+ * admin sign-in.
  */
-
-/** Verifies an admin magic-link token (from the email URL). */
-export class VerifyAdminToken {
-  static readonly type = '[Admin Auth] Verify token';
-  constructor(public readonly token: string) {}
-}
 
 /** Probes the current admin session (bearer token). */
 export class LoadAdminSession {
@@ -33,7 +31,7 @@ export class ClearAdminAuth {
  * Dispatched by `/admin/auth/callback` after the backend
  * `POST /api/v1/admin/auth/entra/callback` redeems the authorization code
  * and returns our session. Bootstraps NGXS auth state (session token +
- * identity) exactly like the password/magic-link success paths did.
+ * identity) exactly like the legacy sign-in success path did.
  */
 export class CompleteEntraSignIn {
   static readonly type = '[Admin Auth] Complete Entra sign in';
