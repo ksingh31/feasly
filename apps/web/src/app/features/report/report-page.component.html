@@ -102,9 +102,13 @@
             }
             <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierLabel() }}</p>
             <!-- tier-blurb/tier-choices are semantic hooks (also test selectors);
-                 the visual note style is shared with .build-note (DRY). -->
-            <p class="build-note tier-blurb">{{ tierDescriptor() }}</p>
-            <p class="build-note tier-choices">{{ copy.tierChoicesNote }}</p>
+                 the visual note style is shared with .build-note (DRY).
+                 New-build only: the descriptors assume new construction
+                 (basement ceilings, full-build upgrades). -->
+            @if (!isReno()) {
+              <p class="build-note tier-blurb">{{ tierDescriptor() }}</p>
+              <p class="build-note tier-choices">{{ copy.tierChoicesNote }}</p>
+            }
           </div>
           @if (!isReno()) {
             <div class="figure-card land-card">
@@ -237,12 +241,13 @@
     </section>
 
     <!-- COVERAGE: what the estimate includes — and honestly excludes.
-         Shown post-gate: it's about YOUR number, and the exclusions are a
-         trust builder (no surprise "oh, that wasn't included" later). -->
-    @if (unlocked()) {
+         New-build only: the line-item framing, exclusions, financing and
+         timeline below are about new construction, not renovations. -->
+    @if (unlocked() && !isReno()) {
       <section class="card" [attr.aria-label]="copy.coverageTitle">
         <h2>{{ copy.coverageTitle }}</h2>
         <p class="hint">{{ copy.includedLine }}</p>
+        <p class="build-note">{{ copy.costMovementNote }}</p>
         <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
         @for (e of copy.exclusions; track e) {
           <p class="build-note exclusion">• {{ e }}</p>
@@ -265,9 +270,10 @@
     </section>
 
     <!-- PLANNING AHEAD: financing + timeline honesty for prospects.
-         No referrals, no promises, no specific lenders — plain-English
-         orientation for the biggest purchase of their life. -->
-    @if (unlocked()) {
+         New-build only (see coverage note above). No referrals, no
+         promises, no specific lenders — plain-English orientation for the
+         biggest purchase of their life. -->
+    @if (unlocked() && !isReno()) {
       <section class="card" [attr.aria-label]="copy.planningTitle">
         <h2>{{ copy.planningTitle }}</h2>
         <h3 class="subhead">{{ copy.financingTitle }}</h3>

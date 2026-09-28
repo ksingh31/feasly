@@ -461,24 +461,21 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       finishLevelLabel: 'Selected finish level',
       tierDescriptors: {
         standard:
-          'Quality finishes throughout, 9 ft basement ceilings — finishes are never compromised, with fewer premium upgrades.',
+          'Quality finishes throughout — finishes are never compromised, with fewer premium upgrades. Standard (non-oak) cabinetry, 9 ft basement ceilings.',
         premium:
           'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures.',
         luxury:
-          'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement.',
+          'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement — including the gym.',
       },
       tierChoicesNote:
         'Premium upgrades — like basement in-floor heating, marble countertops, or upgraded windows — are explicit choices you make in your finish tier, never costs hidden in the number.',
       coverageTitle: 'What your estimate covers',
       includedLine:
         'Built the way a real Calgary builder budgets — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Everything is in, except the exclusions below.',
+      costMovementNote:
+        'Final costs can move with inflation, your material choices, and project-specific conditions — the planning range above reflects how far they can swing.',
       exclusionsTitle: "What's not in this estimate",
       exclusions: [
-        'Demolition of any existing home on the lot',
-        'Unusual soil or servicing conditions',
-        'Permit and development fees beyond typical allowances',
-        'Financing costs',
-        'GST',
         'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
       ],
       tierTitle: 'What if you change the finish tier?',
@@ -529,7 +526,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
       timelineTitle: 'How long it takes',
       timelineLine:
-        'A typical Calgary infill takes roughly 10–14 months from permits to possession — confirm timing with your builder.',
+        'From permits to possession, timing depends on your lot, plans, and permits — your builder can confirm a timeline once plans are drawn.',
       shareTitle: 'Share with a partner',
       shareHint: 'Email this report to a partner — they receive their own secure link.',
       shareEmailLabel: 'Partner email',
