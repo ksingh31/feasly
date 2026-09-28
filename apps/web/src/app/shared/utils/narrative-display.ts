@@ -29,14 +29,19 @@ export function narrativeDisplayParagraphs(narrative: string): string[] {
 
   // Inline `---` separators become paragraph breaks before splitting, so a
   // legacy "...sq ft. --- **Cost estimate** | table..." run renders as
-  // separate paragraphs instead of one fused line.
-  text = text.replace(/[ \t]*-{3,}[ \t]*/g, '\n\n');
+  // separate paragraphs instead of one fused line. Only standalone
+  // separators (whitespace-bounded, never adjacent to a pipe) qualify —
+  // markdown table dividers like |------| are handled by the table
+  // cleanup below instead.
+  text = text.replace(/(^|\s)-{3,}(?=\s|$)/g, '\n\n');
 
   const blocks = text
     .split(/\n\s*\n/)
     .flatMap((block) => cleanLegacyMarkdown(block).split(/\n\s*\n/))
     .map((block) => block.trim())
-    .filter((block) => block.length > 0);
+    // Drop empties and blocks that are only pipes/dashes/colons (table
+    // divider residue) — never real prose.
+    .filter((block) => block.length > 0 && !/^[\s|:\-~]+$/.test(block));
 
   // B2: drop consecutive duplicate blocks (a partial re-emission of the
   // guide). A legitimate guide never repeats a paragraph back-to-back.

@@ -36,8 +36,7 @@ describe('narrativeDisplayParagraphs', () => {
     );
     expect(paras).toEqual([
       "Coventry Hills – What you'll love Coventry Hills is quiet.",
-      'Cost estimate',
-      'Item · Low',
+      'Cost estimate · Item · Low',
       'Land · $652,000',
     ]);
   });
