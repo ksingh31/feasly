@@ -97,8 +97,8 @@ describe('loadConfig', () => {
         postmarkServerToken: undefined,
         postmarkEndpoint: 'https://api.postmarkapp.com/email',
         acsConnectionString: undefined,
-        acsPollTimeoutMs: 6_000,
-        // Worst case with in-code retries: 6+1+6+1+6 ≈ 20s, inside the
+        acsSendTimeoutMs: 7_000,
+        // Worst case with in-code retries: 7+1+7+1+7 = 23s, inside the
         // frontend gate-submit timeout (25s).
         sendMaxAttempts: 3,
         appBaseUrl: 'https://feasly.example',
