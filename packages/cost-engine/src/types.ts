@@ -148,6 +148,12 @@ export interface ContingencySpec {
 export interface InputBounds {
   readonly minBuildSqft: number;
   readonly maxBuildSqft: number;
+  /**
+   * RESERVED for future bigger-lot calibration (Karan, 2026-09-28) — NOT
+   * enforced anywhere. The estimator never blocks on lot size; these keys
+   * exist so cost-sheet calibration can define bigger-lot handling later
+   * (possible uplift, landscaping notes) without a schema change.
+   */
   readonly minLotSizeSqft: number;
   readonly maxLotSizeSqft: number;
   readonly minAssessedLandValue: number;

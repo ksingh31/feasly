@@ -114,12 +114,14 @@ export interface AppConfig {
     /** Max address suggestions shown in autocomplete. */
     autocompleteSuggestionLimit: number;
     /**
-     * Estimate input bounds, mirrored from the cost-data file the API
-     * enforces (packages/cost-engine/cost-data inputBounds). The property
-     * record arrives direct from Socrata (propertyData.source 'live'), so
-     * the client needs these for the early coverage guard — before the
-     * estimate API ever sees the lot. estimate-input-bounds-drift.spec.ts
-     * fails CI if they diverge from the cost data.
+     * Estimate input bounds, mirrored from the cost-data file
+     * (packages/cost-engine/cost-data inputBounds). The property record
+     * arrives direct from Socrata (propertyData.source 'live'), so the
+     * client needs the assessed-value bounds for the early coverage guard.
+     * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot
+     * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the
+     * estimator never blocks on lot size. estimate-input-bounds-drift.spec.ts
+     * fails CI if the values diverge from the cost data.
      */
     minLotSizeSqft: number;
     maxLotSizeSqft: number;
@@ -460,13 +462,12 @@ export interface AppConfig {
       renoSqftLabel: string;
       /**
        * Validation-failure explainer (consumer/06): shown when the preview
-       * API rejects the request (e.g. lot size out of range). Retry cannot
-       * succeed, so no retry button — just a plain-English explanation and
-       * a way back. `{lot}`, `{min}`, `{max}` are interpolated from the
-       * API's error detail when it matches the lot-size shape.
+       * API rejects the request (e.g. assessed value out of range). Retry
+       * cannot succeed, so no retry button — just a plain-English
+       * explanation and a way back. Lot size NEVER blocks (Karan,
+       * 2026-09-28): the engine prices any lot.
        */
       validationHeading: string;
-      validationLotSizeBody: string;
       validationGenericBody: string;
       validationBackLabel: string;
     };

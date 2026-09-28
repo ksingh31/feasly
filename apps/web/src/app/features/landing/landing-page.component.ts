@@ -4,7 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
-import { formatLotSizeBody, pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
+import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
 import { ClearLead, GoToStep, SelectProperty } from '../wizard';
@@ -84,11 +84,12 @@ export class LandingPageComponent implements OnInit {
 
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */
   onSelected(property: PropertyRecord): void {
-    // Early coverage guard: the lot size is known the moment the address is
-    // picked. Stop the funnel HERE — before scope/details — when the engine
-    // could never price this lot, instead of wasting the user's effort and
-    // failing at preview. The preview page keeps its own guard as a backstop
-    // (deep links, API-driven flows).
+    // Early coverage guard: stop the funnel HERE — before scope/details —
+    // when the engine could never price this property (assessed value out
+    // of range), instead of wasting the user's effort and failing at
+    // preview. Lot size NEVER blocks (Karan, 2026-09-28): any lot prices,
+    // quoted off the house size. The preview page keeps its own guard as a
+    // backstop (deep links, API-driven flows).
     const issue = pricingCoverageIssue(property, this.config.get('limits'));
     if (issue !== null) {
       this.coverageBlock.set({ property, issue });
@@ -103,24 +104,15 @@ export class LandingPageComponent implements OnInit {
 
   /**
    * Property picked from autocomplete that the cost data can't price
-   * (lot size or assessed value out of range). Renders the honest
-   * can't-price card inline instead of routing into the wizard.
+   * (assessed value out of range). Renders the honest can't-price card
+   * inline instead of routing into the wizard.
    */
   readonly coverageBlock = signal<{ property: PropertyRecord; issue: PricingCoverageIssue } | null>(
     null,
   );
 
-  /** Buyer-grade explanation for the early coverage block (preview copy, same wording). */
+  /** Buyer-grade explanation for the early coverage block. */
   coverageMessage(block: { property: PropertyRecord; issue: PricingCoverageIssue }): string {
-    if (block.issue === 'lot-size') {
-      const limits = this.config.get('limits');
-      return formatLotSizeBody(
-        this.previewCopy.validationLotSizeBody,
-        block.property.lotSqft,
-        limits.minLotSizeSqft,
-        limits.maxLotSizeSqft,
-      );
-    }
     return this.previewCopy.validationGenericBody;
   }
 

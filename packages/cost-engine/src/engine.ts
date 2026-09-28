@@ -65,14 +65,12 @@ function checkBounds(input: EngineInput, data: CostData): void {
       `buildSqft ${scope.buildSqft} outside [${bounds.minBuildSqft}, ${bounds.maxBuildSqft}]`,
     );
   }
-  if (
-    !Number.isFinite(property.lotSizeSqft) ||
-    wholeDollars(property.lotSizeSqft) < bounds.minLotSizeSqft ||
-    wholeDollars(property.lotSizeSqft) > bounds.maxLotSizeSqft
-  ) {
-    throw new EngineInputError(
-      `lotSizeSqft ${property.lotSizeSqft} outside [${bounds.minLotSizeSqft}, ${bounds.maxLotSizeSqft}]`,
-    );
+  // Lot size is NEVER a blocking bound (Karan, 2026-09-28): any lot prices,
+  // quoted off the house size. Bigger-lot adjustments (uplift, landscaping
+  // notes) are decided at cost-sheet calibration time, not here. Only a
+  // non-finite value (missing/corrupt data) is rejected — it can't price.
+  if (!Number.isFinite(property.lotSizeSqft)) {
+    throw new EngineInputError('lotSizeSqft must be a finite number');
   }
   if (
     !Number.isFinite(property.assessedLandValue) ||
