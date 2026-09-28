@@ -62,4 +62,39 @@ describe('schema repair coverage', () => {
       }
     },
   );
+
+  it('creates every referenced table before its first foreign key (2026-09-28 P0)', () => {
+    // Postgres requires the referenced table to EXIST when a FOREIGN KEY /
+    // REFERENCES clause is created — `IF NOT EXISTS` on the column does not
+    // save you. The 2026-09-28 deploy-dev failure: repair-sql.mjs added
+    // admin_sessions.user_id REFERENCES users(id) BEFORE `users` was
+    // created, so every dev deploy crashed with 'relation "users" does not
+    // exist' and the users table never materialized.
+    const createPositions = new Map<string, number>();
+    for (const match of REPAIR.matchAll(
+      /CREATE TABLE IF NOT EXISTS "([^"]+)"/g,
+    )) {
+      if (!createPositions.has(match[1])) {
+        createPositions.set(match[1], match.index ?? -1);
+      }
+    }
+    const violations: string[] = [];
+    for (const match of REPAIR.matchAll(/REFERENCES "([^"]+)"/g)) {
+      const referenced = match[1];
+      const refPos = match.index ?? -1;
+      const createPos = createPositions.get(referenced);
+      if (createPos === undefined || createPos === -1) {
+        violations.push(
+          `REFERENCES "${referenced}" (offset ${refPos}) has no CREATE TABLE in the repair SQL`,
+        );
+      } else if (createPos > refPos) {
+        violations.push(
+          `REFERENCES "${referenced}" (offset ${refPos}) appears before ` +
+            `its CREATE TABLE (offset ${createPos}) — Postgres would fail ` +
+            `with 'relation "${referenced}" does not exist'`,
+        );
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });
