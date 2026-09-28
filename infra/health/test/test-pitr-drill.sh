@@ -60,6 +60,50 @@ guard_target_name "$name" "feasly-dev-pg-4fhkep" 2>/dev/null \
   && ok "format_duration: 45s -> 0m 45s" \
   || bad "format_duration: got '$(format_duration 45)'"
 
+# --- validate_restore_point: pure logic ---------------------------------------
+NOW_S="$(date +%s)"
+RP_EARLIEST="$(date -u -d "@$((NOW_S - 86400))" +%Y-%m-%dT%H:%M:%SZ)"   # 1 day ago
+RP_INSIDE="$(date -u -d "@$((NOW_S - 600))" +%Y-%m-%dT%H:%M:%SZ)"       # 10 min ago
+RP_TOO_OLD="$(date -u -d "@$((NOW_S - 172800))" +%Y-%m-%dT%H:%M:%SZ)"   # 2 days ago
+RP_FUTURE="$(date -u -d "@$((NOW_S + 600))" +%Y-%m-%dT%H:%M:%SZ)"       # 10 min ahead
+
+validate_restore_point "$RP_INSIDE" "$RP_EARLIEST" "$NOW_S" 2>/dev/null \
+  && ok "validate_restore_point: accepts a point inside the window" \
+  || bad "validate_restore_point: rejected a point inside the window"
+validate_restore_point "$RP_EARLIEST" "$RP_EARLIEST" "$NOW_S" 2>/dev/null \
+  && ok "validate_restore_point: accepts the earliest point itself (boundary)" \
+  || bad "validate_restore_point: rejected the earliest point itself"
+validate_restore_point "$RP_TOO_OLD" "$RP_EARLIEST" "$NOW_S" 2>/dev/null \
+  && bad "validate_restore_point: accepted a point older than earliest" \
+  || ok "validate_restore_point: refuses a point older than earliest"
+validate_restore_point "$RP_FUTURE" "$RP_EARLIEST" "$NOW_S" 2>/dev/null \
+  && bad "validate_restore_point: accepted a future point" \
+  || ok "validate_restore_point: refuses a future point"
+validate_restore_point "not-a-date" "$RP_EARLIEST" "$NOW_S" 2>/dev/null \
+  && bad "validate_restore_point: accepted an unparseable restore point" \
+  || ok "validate_restore_point: refuses an unparseable restore point"
+validate_restore_point "$RP_INSIDE" "not-a-date" "$NOW_S" 2>/dev/null \
+  && bad "validate_restore_point: accepted an unparseable earliest point" \
+  || ok "validate_restore_point: refuses an unparseable earliest point"
+
+# --- --dry-run self-consistency -------------------------------------------------
+grep -q -- '--dry-run' "$ROOT/tools/pitr-drill.sh" \
+  && ok "script: documents a --dry-run flag" \
+  || bad "script: missing --dry-run documentation"
+grep -q 'validate_restore_point "\$RESTORE_POINT" "\$earliest"' "$ROOT/tools/pitr-drill.sh" \
+  && ok "script: main() validates the restore point via validate_restore_point" \
+  || bad "script: main() does not use validate_restore_point"
+grep -q 'DRY_RUN' "$ROOT/tools/pitr-drill.sh" \
+  && ok "script: implements the dry-run path" \
+  || bad "script: no dry-run implementation found"
+# The dry-run path must exit before the restore command — it must be
+# read-only (no server creation). It appears before `flexible-server restore`.
+dryrun_line="$(grep -n 'DRY-RUN OK' "$ROOT/tools/pitr-drill.sh" | cut -d: -f1)"
+restore_line="$(grep -n 'flexible-server restore' "$ROOT/tools/pitr-drill.sh" | cut -d: -f1)"
+[[ -n "$dryrun_line" && -n "$restore_line" && "$dryrun_line" -lt "$restore_line" ]] \
+  && ok "script: dry-run exits before the restore command (read-only)" \
+  || bad "script: dry-run does not exit before the restore command"
+
 # --- script self-consistency: restore must use --restore-time ------------------
 # (verified against current Azure CLI docs 2026-09-26; --restore-point-in-time
 # is NOT a parameter of `az postgres flexible-server restore`).

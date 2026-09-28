@@ -67,7 +67,12 @@ guard (target must start with `feasly-drill-`, must differ from the source,
 source must not itself be a drill server) and refuses to run otherwise.
 Prefer the script over the manual steps below — it adds restore-point
 validation, RTO timing, the RPO cross-check against production, and automatic
-teardown:
+teardown. **Before the approved live run**, validate the drill is currently
+runnable with the read-only pre-flight (creates/modifies nothing):
+
+```bash
+bash tools/pitr-drill.sh --dry-run --source-server feasly-dev-pg-4fhkep
+```
 
 ```bash
 bash tools/pitr-drill.sh --source-server feasly-dev-pg-4fhkep \
@@ -176,7 +181,33 @@ update the "Proven by drill" cells in §2.
 
 | Date | Operator | Restore point | Measured RTO | RPO verified | Result |
 |---|---|---|---|---|---|
-| — | — | — | — | — | **Not yet run.** Needs approval to provision the short-lived drill server (torn down same session; burstable tier). `tools/pitr-drill.sh` prints the row to paste here when the drill runs. |
+| 2026-09-28 | Muse (agent) | 2026-09-28T19:47:40Z (dry-run pre-flight — no restore executed) | N/A (no restore run) | Chain verified fresh: retention 7d, earliest restore 2026-09-23T22:42Z, restore point in-window, staging-only guard passed | **FALLBACK PROOF** — live Azure PITR still needs one-time approval (see note) |
+| — | — | — | — | — | Live drill: **not yet run.** Needs approval to provision the short-lived drill server (torn down same session; burstable tier). `tools/pitr-drill.sh` prints the row to paste here when the drill runs. |
+
+### Why the live drill can't run on standing authorization
+
+Azure Database for PostgreSQL — Flexible Server PITR **always restores into a
+new server**; there is no in-place restore. A live drill therefore requires:
+(1) creating a billable `Standard_B1ms` server (hourly charge, even torn down
+same-session), (2) create/delete/write permissions on the resource group,
+(3) a temporary operator-IP firewall rule on the drill server, and
+(4) Key Vault secret reads — none of which standing authorization covers.
+The drill is fully scripted and pre-flighted; it just needs Karan's one-time
+approval to provision the short-lived `feasly-drill-*` server. Until then,
+the free-tier-safe fallback proof is:
+
+- `bash tools/pitr-drill.sh --dry-run` — read-only pre-flight against live
+  dev (2026-09-28: source `feasly-dev-pg-4fhkep`, retention 7d, chain fresh,
+  restore point validated in-window, staging-only guard passed; **zero**
+  Azure resources created/modified/deleted — verified by listing the RG's
+  servers afterwards).
+- The guard + restore-point validation are unit-tested without Azure
+  (`infra/health/test/test-pitr-drill.sh`, 22 tests, runs in CI) so the
+  script stays correct while waiting for the approved run.
+
+The fallback proof does **not** replace the live drill: the RTO ≤ 1h / RPO ≤
+5min targets in §2 stay "pending drill" until the approved run records
+measured values.
 
 ## 7. Policy
 
