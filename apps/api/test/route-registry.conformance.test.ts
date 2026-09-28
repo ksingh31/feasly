@@ -27,6 +27,13 @@ import {
   type HttpMethod,
 } from '../src/registry/route-registry';
 import { buildOpenApiSpec } from '../src/openapi/spec';
+import {
+  effectivePermissions,
+  hasPermission,
+  PERMISSIONS,
+  type Permission,
+} from '../src/auth/permissions';
+import type { BuilderRole, StaffRole } from '../src/services/user.service';
 
 const API_ROOT = join(__dirname, '..');
 const REPO_ROOT = join(API_ROOT, '..', '..');
@@ -77,6 +84,242 @@ describe('route registry', () => {
       expect(e.rateLimit, `${e.path} rateLimit`).toBeTruthy();
       expect(e.path, `${e.path} prefix`).toMatch(/^\/api\//);
     }
+  });
+
+  it('every entry explicitly declares permissions (auth/04 — CI fails when missing)', () => {
+    const known = new Set<string>(PERMISSIONS as readonly string[]);
+    for (const e of ROUTE_REGISTRY) {
+      // Deliberately strict: the property must exist and be an array.
+      // `[]` is the explicit "no permission check" declaration (public
+      // routes, or routes where the credential mechanism IS the
+      // authorization: magic token, API-key scopes, Stripe signature).
+      expect(
+        Array.isArray(e.permissions),
+        `${e.method} ${e.path} must declare permissions`,
+      ).toBe(true);
+      for (const p of e.permissions) {
+        expect(known.has(p), `${e.method} ${e.path} unknown permission ${p}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('role x route permission matrix (auth/04)', () => {
+    // Fixture users: staff role plus membership roles, resolved through
+    // the same effectivePermissions() the middleware uses.
+    const fixtures: Record<string, { staff: StaffRole | null; members: BuilderRole[] }> = {
+      super_admin: { staff: 'super_admin', members: [] },
+      admin: { staff: 'admin', members: [] },
+      viewer: { staff: 'viewer', members: [] },
+      builder_admin: { staff: null, members: ['builder_admin'] },
+      builder_member: { staff: null, members: ['builder_member'] },
+      none: { staff: null, members: [] },
+    };
+    const permsOf = (role: string): readonly Permission[] =>
+      effectivePermissions(fixtures[role]!.staff, fixtures[role]!.members);
+
+    // method, path → roles allowed through requirePermission.
+    const expected: Record<string, readonly string[]> = {
+      'GET /api/v1/admin/leads': ['super_admin', 'admin', 'viewer'],
+      'POST /api/v1/admin/leads/{id}/notes': ['super_admin', 'admin'],
+      'POST /api/v1/admin/leads/{id}/assign-builder': ['super_admin', 'admin'],
+      'GET /api/v1/admin/builders': ['super_admin', 'admin', 'viewer'],
+      'POST /api/v1/admin/builders': ['super_admin', 'admin'],
+      'GET /api/v1/admin/api-keys': ['super_admin', 'admin'],
+      'GET /api/v1/admin/billing': ['super_admin', 'admin', 'viewer'],
+      'POST /api/v1/billing/invoices/{id}/resolve': ['super_admin', 'admin'],
+      'GET /api/v1/admin/disputes': ['super_admin', 'admin', 'viewer'],
+      'POST /api/v1/admin/community-stats/refresh': ['super_admin', 'admin'],
+      'GET /api/v1/builder/leads': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+        'builder_member',
+      ],
+      'PATCH /api/v1/builder/leads/{id}': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+        'builder_member',
+      ],
+      'POST /api/v1/billing/report-contract': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+      ],
+      'POST /api/v1/admin/view-as': ['super_admin', 'admin'],
+      // No permission check — the credential mechanism is the authorization.
+      'POST /api/v1/estimate': [
+        'super_admin',
+        'admin',
+        'viewer',
+        'builder_admin',
+        'builder_member',
+        'none',
+      ],
+      'POST /api/v1/admin/auth/entra/callback': [
+        'super_admin',
+        'admin',
+        'viewer',
+        'builder_admin',
+        'builder_member',
+        'none',
+      ],
+      'POST /api/mcp/v1': [
+        'super_admin',
+        'admin',
+        'viewer',
+        'builder_admin',
+        'builder_member',
+        'none',
+      ],
+      'POST /api/v1/stripe/webhooks': [
+        'super_admin',
+        'admin',
+        'viewer',
+        'builder_admin',
+        'builder_member',
+        'none',
+      ],
+    };
+
+    for (const [key, allowedRoles] of Object.entries(expected)) {
+      const [method, path] = key.split(' ', 2);
+      const entry = ROUTE_REGISTRY.find(
+        (e) => e.method === method && e.path === path,
+      );
+      expect(entry, `registry entry for ${key}`).toBeDefined();
+      for (const role of Object.keys(fixtures)) {
+        const allowed = entry!.permissions.every((p) =>
+          hasPermission(permsOf(role), p),
+        );
+        expect(
+          allowed,
+          `${key}: role ${role}`,
+        ).toBe(allowedRoles.includes(role));
+      }
+    }
+  });
+
+  it('exhaustive role x route permission matrix (auth/04 acceptance criterion 1)', () => {
+    // Every registry entry x every role, generated from the registry.
+    // `permissions: []` routes sit outside role-permission authorization
+    // (credential mechanisms: magic links, webhooks, API keys, public
+    // reads) — every role passes the role check there.
+    const fixtures: Record<
+      string,
+      { staff: StaffRole | null; members: BuilderRole[] }
+    > = {
+      super_admin: { staff: 'super_admin', members: [] },
+      admin: { staff: 'admin', members: [] },
+      viewer: { staff: 'viewer', members: [] },
+      builder_admin: { staff: null, members: ['builder_admin'] },
+      builder_member: { staff: null, members: ['builder_member'] },
+      none: { staff: null, members: [] },
+    };
+    const roles = Object.keys(fixtures);
+    const permsOf = (role: string): readonly Permission[] =>
+      effectivePermissions(fixtures[role]!.staff, fixtures[role]!.members);
+
+    const matrix: Record<string, string[]> = {};
+    for (const e of ROUTE_REGISTRY) {
+      const key = `${e.method} ${e.path}`;
+      matrix[key] =
+        e.permissions.length === 0
+          ? [...roles]
+          : roles.filter((r) =>
+              e.permissions.every((p) => hasPermission(permsOf(r), p)),
+            );
+    }
+
+    // A valid user with no roles/memberships gets empty access: denied on
+    // every protected route.
+    for (const e of ROUTE_REGISTRY) {
+      if (e.permissions.length === 0) continue;
+      expect(
+        matrix[`${e.method} ${e.path}`],
+        `${e.method} ${e.path} must deny the role-less user`,
+      ).not.toContain('none');
+    }
+
+    // viewer is read-only: denied everywhere a write/manage permission is required.
+    for (const e of ROUTE_REGISTRY) {
+      if (e.permissions.some((p) => /:(manage|write)$/.test(p))) {
+        expect(
+          matrix[`${e.method} ${e.path}`],
+          `${e.method} ${e.path} must deny viewer (read-only)`,
+        ).not.toContain('viewer');
+      }
+    }
+
+    // super_admin can do everything the role model authorizes.
+    for (const e of ROUTE_REGISTRY) {
+      if (e.permissions.length === 0) continue;
+      expect(
+        matrix[`${e.method} ${e.path}`],
+        `${e.method} ${e.path} must allow super_admin`,
+      ).toContain('super_admin');
+    }
+
+    // Frozen matrix snapshot: any change to ROLE_PERMISSIONS or a route's
+    // declared permissions shows up here as a diff to review.
+    expect(matrix).toMatchSnapshot();
+  });
+
+  it('every protected HTTP adapter executes registry permission enforcement (auth/04)', () => {
+    // Registry declarations alone are not authorization: each protected
+    // route's adapter must hand its exact registry path to the central
+    // enforcement helper (via the shared dispatch `path` opt, or a direct
+    // enforceRoutePermissions call for bespoke adapters).
+    const failures: string[] = [];
+    for (const f of allFiles(join(API_ROOT, 'src', 'functions'), '.json')) {
+      if (!f.endsWith('function.json')) continue;
+      const doc = JSON.parse(readFileSync(f, 'utf8')) as {
+        bindings?: Array<{ type?: string; methods?: string[]; route?: string }>;
+      };
+      const adapter = `${f.slice(0, -'function.json'.length)}.ts`;
+      let code: string;
+      try {
+        code = readFileSync(adapter, 'utf8');
+      } catch {
+        failures.push(`${relative(API_ROOT, f)}: adapter source missing`);
+        continue;
+      }
+      for (const b of doc.bindings ?? []) {
+        if (b.type !== 'httpTrigger' || !b.route) continue;
+        for (const m of b.methods ?? []) {
+          if (m.toLowerCase() === 'options') continue;
+          const full =
+            b.route === 'health' ? '/api/health' : `/api/${b.route}`;
+          const key = resolveToRegistry(m.toUpperCase() as HttpMethod, full);
+          if (!key) continue; // covered by the binding-resolution test
+          const [method, path] = key.split(' ', 2);
+          const entry = ROUTE_REGISTRY.find(
+            (e) => e.method === method && e.path === path,
+          );
+          // Public/credential routes (permissions: []) keep their own auth.
+          if (!entry || entry.permissions.length === 0) continue;
+          const stripped = stripComments(code);
+          const viaDispatch =
+            stripped.includes(`path: '${path}'`) ||
+            stripped.includes(`path: "${path}"`);
+          const viaDirect =
+            stripped.includes('enforceRoutePermissions') &&
+            stripped.includes(path);
+          if (!viaDispatch && !viaDirect) {
+            failures.push(
+              `${m.toUpperCase()} ${full}: adapter does not pass '${path}' ` +
+                'to permission enforcement',
+            );
+          }
+        }
+      }
+    }
+    expect(
+      failures,
+      'HTTP adapters missing registry permission enforcement',
+    ).toEqual([]);
   });
 
   it('every deployed Function binding resolves to a registry entry', () => {

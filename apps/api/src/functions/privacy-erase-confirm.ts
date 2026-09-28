@@ -19,6 +19,7 @@ export async function privacyEraseConfirmHandler(
       req.headers ?? {},
       typeof requestId === 'string' ? requestId : '',
     ),
+    { path: '/api/v1/privacy/erase-requests/{requestId}/confirm' },
   );
 }
 

@@ -4,8 +4,10 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AdminAuthLogoutResponse,
+  AdminAuthMeResponse,
   AdminEntraCallbackBody,
   AdminEntraCallbackResponse,
+  AdminViewAsResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
@@ -81,8 +83,23 @@ export class AdminAuthApiService {
    * Probe the current session. Emits the identity on success; the 401
    * propagates (UNAUTHENTICATED or SESSION_EXPIRED) so the admin route guard
    * can show the right login copy.
+   *
+   * auth/04: carries the session's authorization context (permissions,
+   * active builder, view-as state) — the admin shell renders the view-as
+   * banner and org switcher from it. Display only; the backend stays
+   * authoritative.
    */
-  me(): Observable<{ email: string }> {
-    return this.call(this.http.get<{ email: string }>(`${this.authBase}/me`));
+  me(): Observable<AdminAuthMeResponse> {
+    return this.call(this.http.get<AdminAuthMeResponse>(`${this.authBase}/me`));
+  }
+
+  /**
+   * Exit view-as on the session (auth/04). Session-only — exiting can never
+   * escalate. The caller re-probes /me afterwards to refresh the banner.
+   */
+  exitViewAs(): Observable<AdminViewAsResponse> {
+    return this.call(
+      this.http.delete<AdminViewAsResponse>(`${this.base}/admin/view-as`),
+    );
   }
 }

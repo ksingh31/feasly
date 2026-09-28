@@ -6,6 +6,7 @@ import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { LogoutAdmin } from './admin-auth.actions';
+import { ViewAsBannerComponent } from './view-as-banner';
 
 /**
  * Admin shell (admin/01): layout for the guarded `/admin` route group.
@@ -17,7 +18,7 @@ import { LogoutAdmin } from './admin-auth.actions';
 @Component({
   selector: 'app-admin-shell',
   standalone: true,
-  imports: [BrandMarkComponent, RouterLink, RouterOutlet],
+  imports: [BrandMarkComponent, RouterLink, RouterOutlet, ViewAsBannerComponent],
   templateUrl: './admin-shell.component.html',
   styleUrls: ['./admin-shell.component.scss'],
 })

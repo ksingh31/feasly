@@ -19,6 +19,7 @@ export async function adminAuthLogoutHandler(
 ): Promise<void> {
   await dispatchAdminAuth(context, req, (app) =>
     app.adminAuthRoute.logout(req.headers ?? {}),
+    { path: '/api/v1/admin/auth/logout' },
   );
 }
 

@@ -1251,77 +1251,81 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 > `status: live` = Function binding exists on main. `status: planned` = a
 > story references it; implementation must use exactly this method + path.
 
-| Method | Path | Auth | Rate limit | Status | Summary |
-|---|---|---|---|---|---|
-| GET | `/api/health` | none | 100/min per IP | live | Liveness + dependency checks (2s DB timeout). |
-| POST | `/api/v1/estimate` | none | 20/hr per IP · 20/hr per tenant (embed) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
-| POST | `/api/v1/estimates/preview` | none | 20/hr per IP | live | Pre-gate estimate preview (same deterministic engine as /estimate; real figures — UI renders them blurred pre-gate — rows empty). |
-| POST | `/api/v1/leads` | none | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
-| GET | `/api/v1/magic-link/verify` | magic-token | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |
-| POST | `/api/v1/magic-link/reissue` | none | 60s cooldown · 5/hr per email+IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
-| GET | `/api/v1/reports/{reportToken}` | magic-token | 100/min per IP | live | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
-| POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | 20/hr per IP | live | Tier/sqft what-if: recompute through the deterministic engine and append a new immutable report snapshot version. Token IS the credential. |
-| POST | `/api/v1/callbacks` | magic-token | 10/min per IP | live | Record a callback request (name/phone/preferred window) for a report lead. Token IS the credential. |
-| POST | `/api/v1/shares` | magic-token | 10/min per IP | live | Email a report to a partner: mints a fresh partner-share magic link (never the owner token) and records the audit row. Token IS the credential. |
-| GET | `/api/v1/shares/verify` | magic-token | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
-| GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
-| GET | `/api/v1/properties/lookup` | none | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
-| POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
-| GET | `/api/v1/privacy/export` | magic-token | 100/min per IP | live | PIPEDA data export for the token holder. |
-| POST | `/api/v1/privacy/erase-requests` | magic-token | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
-| POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | 10/min per IP | live | Confirm an erasure request (second factor via email link). |
-| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | 100/min per IP + 5/day per estimate (cost guard) | live | Generate (or return cached) the AI narrative for an estimate. LLM writes narrative only; figures are deterministic. |
-| GET | `/api/v1/unsubscribe/{token}` | magic-token | 100/min per IP | live | Unsubscribe landing state (token IS the credential). |
-| POST | `/api/v1/unsubscribe/{token}` | magic-token | 10/min per IP | live | Record the opt-out (CASL). |
-| GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
-| GET | `/api/v1/embed/config` | none | 120/min per tenant key | live | Public embed config (?key=tenant). Logo, accent colour, contact fallback. Unknown keys → 404 UNKNOWN_TENANT. |
-| POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned | Exchange a single-use embed relay code for a 12h session token (embed/06). Replays/expired → 410. |
-| POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live | Re-issue a fresh relay code for an expired/used one (embed/06 AC3 — the "session expired" re-issue affordance). 410 on unknown/still-valid codes; 429 inside the 60s per-code cooldown. |
-| POST | `/api/v1/chat/ask` | none | 20/hr per IP | planned | Grounded chat assistant (consumer/05). Session-scoped, rate-limited, allowlisted. Deterministic engine owns all dollar figures. |
-| GET | `/api/v1/openapi.json` | none | 100/min per IP (1h cache) | live | Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design. |
-| GET | `/api/v1/admin/auth/me` | admin | 100/min per session | planned | Return the current admin session identity (email). |
-| POST | `/api/v1/admin/auth/logout` | admin | 10/min per session | planned | Revoke the admin session; clears the session cookie. |
-| POST | `/api/v1/admin/auth/entra/callback` | none | 10/15min per IP | live | Entra PKCE callback: exchange the code, validate the id_token (JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day admin session. Unknown account → 403, no enumeration. |
-| POST | `/api/v1/builder/auth/request` | none | 5/hr per email+IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
-| GET | `/api/v1/builder/auth/verify` | magic-token | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
-| GET | `/api/v1/builder/auth/me` | builder-session | 100/min per session | live | Return the current builder session identity (email + tenant). |
-| POST | `/api/v1/builder/auth/logout` | builder-session | 10/min per session | live | Revoke the builder session; clears the session cookie. |
-| GET | `/api/v1/builder/leads` | builder-session | 100/min per session | live | List the builder's leads (tenant-scoped, newest first) with a pipeline summary (new/contacted/quoted/won/lost). |
-| PATCH | `/api/v1/builder/leads/{id}` | builder-session | 100/min per session | live | Transition a builder lead's pipeline status. 403 when the lead belongs to a different tenant. A transition to "won" runs the billing/01 charge path: with contractValueCents + contractSignedAt it creates the draft commission invoice (auto-submitted into review); without them the invoice waits for POST /api/v1/billing/report-contract. |
-| GET | `/api/v1/admin/api-keys` | admin | 100/min per session | live | List API keys (masked, paginated). |
-| POST | `/api/v1/admin/api-keys` | admin | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
-| POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
-| POST | `/api/v1/admin/api-keys/{id}/revoke` | admin | 10/min per session | live | Revoke a key immediately. Audit-logged. |
-| PATCH | `/api/v1/admin/api-keys/{id}` | admin | 10/min per session | live | Update a key’s scopes and/or rate limit (api-mcp/02). Takes effect on the next request. Audit-logged. |
-| GET | `/api/v1/admin/leads` | admin | 300/min per session | planned | Leads explorer (admin/02): filters, free-text search, cursor pagination. |
-| GET | `/api/v1/admin/leads/{id}` | admin | 300/min per session | planned | Lead detail: estimate summary, timeline, consent, attribution. |
-| POST | `/api/v1/admin/leads/{id}/notes` | admin | 60/min per session | planned | Append-only lead notes. |
-| PATCH | `/api/v1/admin/leads/{id}/status` | admin | 60/min per session | planned | Lead status (new/contacted/quoting/won/lost). Writes lead_status_history; audit-logged. |
-| POST | `/api/v1/admin/leads/{id}/quarantine/approve` | admin | 60/min per session | live | Approve a quarantined lead: clears the honeypot/quarantine flag (and any discard flag); the lead returns to the normal pipeline. 422 when the lead is not quarantined; audit-logged. |
-| POST | `/api/v1/admin/leads/{id}/quarantine/discard` | admin | 60/min per session | live | Discard a quarantined lead: kept for audit, excluded from every listing and count. 422 when the lead is not quarantined; idempotent; audit-logged. |
-| GET | `/api/v1/admin/leads/export.csv` | admin | 10/min per session | planned | CSV export of the filtered lead set. |
-| POST | `/api/v1/admin/leads/{id}/assign-builder` | admin | 60/min per session | live | Assign a lead to a builder (builders table) by builder id, or unassign with builderId null. Null is the default and never affects the lead flow. 404 for unknown lead or builder; audit-logged with ids only, no contact PII. |
-| GET | `/api/v1/admin/builders` | admin | 300/min per session | live | List all builders (builders table): id, tenant_key, names, contact, plan, status, settings. |
-| POST | `/api/v1/admin/builders` | admin | 60/min per session | live | Create a builder. tenant_key is unique (409 on conflict); audit-logged with ids only, no contact PII. |
-| GET | `/api/v1/admin/builders/{id}` | admin | 300/min per session | live | Get one builder by id. 404 when unknown. |
-| PATCH | `/api/v1/admin/builders/{id}` | admin | 60/min per session | live | Update a builder. tenant_key is immutable; 404 when unknown; audit-logged with ids only, no contact PII. |
-| GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned | Estimate lookup for support/debugging. |
-| GET | `/api/v1/admin/funnels` | admin | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
-| GET | `/api/v1/admin/billing` | admin | 300/min per session | live | Billing-health dashboard (billing/03): MRR (flat model; null under the 1% commission model), trailing-30d commission collections, in-review invoice aging buckets (<48h / <7d / overdue), disputed totals, the dunning queue with past_due_since, and Stripe webhook health. Read-only — no charge/refund/void actions. |
-| POST | `/api/v1/admin/community-stats/refresh` | admin | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
-| GET | `/api/v1/admin/usage` | admin | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
-| GET | `/api/v1/admin/calibration` | admin | 300/min per session | live | Calibration console (admin/09): current cost-data version, calibration report, import history. Read-only. |
-| GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | live | Sheets sync worker status (admin/05). |
-| POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live | Trigger an immediate Sheets sync (admin/05). |
-| POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
-| GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
-| POST | `/api/mcp/v1` | api-key | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
-| POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
-| POST | `/api/v1/billing/report-contract` | builder-session | 100/min per session | live | Builder reports the signed construction contract (value excl. land) for one of their leads. Runs the commission charge path: attribution → draft invoice → auto-submitted into the 7-day review window. Idempotent: re-reporting returns the existing invoice. |
-| GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live | Read a commission invoice. Builders see only their own tenant's invoices; admins see all. |
-| POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | 100/min per session | live | Builder disputes their own invoice (reason required): the charge clock freezes and ops is alerted. 403 for another tenant's invoice. |
-| POST | `/api/v1/billing/invoices/{id}/resolve` | admin | 100/min per session | live | Admin resolves a billing dispute: "resume" returns the invoice to review with a fresh 7-day window, "void" cancels it. |
-| GET | `/api/v1/admin/disputes` | admin | 100/min per session | live | Dispute console: open disputes oldest-first with reason, immutable evidence snapshot reference, and the 5-business-day SLA countdown (America/Edmonton). Admin only. |
-| GET | `/api/v1/admin/disputes/{id}` | admin | 100/min per session | live | One dispute: immutable evidence snapshot, SLA state, and the billing audit trail. Admin only. |
-| POST | `/api/v1/admin/disputes/{id}/accept` | admin | 100/min per session | live | Accept a dispute: voids the invoice (Stripe refund first when it was already paid — the credit note). Audit-logged. Admin only. |
-| POST | `/api/v1/admin/disputes/{id}/reject` | admin | 100/min per session | live | Reject a dispute: the invoice returns to in_review with a fresh 7-day window. Audit-logged. Admin only. |
+| Method | Path | Auth | Permissions | Rate limit | Status | Summary |
+|---|---|---|---|---|---|---|
+| GET | `/api/health` | none | — | 100/min per IP | live | Liveness + dependency checks (2s DB timeout). |
+| POST | `/api/v1/estimate` | none | — | 20/hr per IP · 20/hr per tenant (embed) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
+| POST | `/api/v1/estimates/preview` | none | — | 20/hr per IP | live | Pre-gate estimate preview (same deterministic engine as /estimate; real figures — UI renders them blurred pre-gate — rows empty). |
+| POST | `/api/v1/leads` | none | — | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
+| GET | `/api/v1/magic-link/verify` | magic-token | — | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |
+| POST | `/api/v1/magic-link/reissue` | none | — | 60s cooldown · 5/hr per email+IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
+| GET | `/api/v1/reports/{reportToken}` | magic-token | — | 100/min per IP | live | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
+| POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | — | 20/hr per IP | live | Tier/sqft what-if: recompute through the deterministic engine and append a new immutable report snapshot version. Token IS the credential. |
+| POST | `/api/v1/callbacks` | magic-token | — | 10/min per IP | live | Record a callback request (name/phone/preferred window) for a report lead. Token IS the credential. |
+| POST | `/api/v1/shares` | magic-token | — | 10/min per IP | live | Email a report to a partner: mints a fresh partner-share magic link (never the owner token) and records the audit row. Token IS the credential. |
+| GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
+| GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
+| GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
+| POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
+| GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live | PIPEDA data export for the token holder. |
+| POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
+| POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | — | 10/min per IP | live | Confirm an erasure request (second factor via email link). |
+| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | — | 100/min per IP + 5/day per estimate (cost guard) | live | Generate (or return cached) the AI narrative for an estimate. LLM writes narrative only; figures are deterministic. |
+| GET | `/api/v1/unsubscribe/{token}` | magic-token | — | 100/min per IP | live | Unsubscribe landing state (token IS the credential). |
+| POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live | Record the opt-out (CASL). |
+| GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
+| GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public embed config (?key=tenant). Logo, accent colour, contact fallback. Unknown keys → 404 UNKNOWN_TENANT. |
+| POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Exchange a single-use embed relay code for a 12h session token (embed/06). Replays/expired → 410. |
+| POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live | Re-issue a fresh relay code for an expired/used one (embed/06 AC3 — the "session expired" re-issue affordance). 410 on unknown/still-valid codes; 429 inside the 60s per-code cooldown. |
+| POST | `/api/v1/chat/ask` | none | — | 20/hr per IP | planned | Grounded chat assistant (consumer/05). Session-scoped, rate-limited, allowlisted. Deterministic engine owns all dollar figures. |
+| GET | `/api/v1/openapi.json` | none | — | 100/min per IP (1h cache) | live | Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design. |
+| GET | `/api/v1/admin/auth/me` | admin | — | 100/min per session | planned | Return the current admin session identity (email). |
+| POST | `/api/v1/admin/auth/logout` | admin | — | 10/min per session | planned | Revoke the admin session; clears the session cookie. |
+| POST | `/api/v1/admin/auth/entra/callback` | none | — | 10/15min per IP | live | Entra PKCE callback: exchange the code, validate the id_token (JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day admin session. Unknown account → 403, no enumeration. |
+| POST | `/api/v1/admin/view-as` | admin | view_as | 60/min per session | live | Activate view-as (`{ builderId }` or `{ userId }`): the session resolves permissions + tenant scoping to the target’s view. Never escalates; audit-logged under the real admin’s identity. |
+| DELETE | `/api/v1/admin/view-as` | admin | — | 60/min per session | live | Exit view-as on the session. Session-only (exiting can never escalate); audit-logged. |
+| POST | `/api/v1/admin/auth/switch-builder` | admin | — | 60/min per session | live | Switch the session’s active builder (org switcher). The builder must be one of the caller’s memberships — anything else is 403, never honored. Audit-logged. |
+| POST | `/api/v1/builder/auth/request` | none | — | 5/hr per email+IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
+| GET | `/api/v1/builder/auth/verify` | magic-token | — | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
+| GET | `/api/v1/builder/auth/me` | builder-session | — | 100/min per session | live | Return the current builder session identity (email + tenant). |
+| POST | `/api/v1/builder/auth/logout` | builder-session | — | 10/min per session | live | Revoke the builder session; clears the session cookie. |
+| GET | `/api/v1/builder/leads` | builder-session | builder:leads:read | 100/min per session | live | List the builder's leads (tenant-scoped, newest first) with a pipeline summary (new/contacted/quoted/won/lost). |
+| PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live | Transition a builder lead's pipeline status. 403 when the lead belongs to a different tenant. A transition to "won" runs the billing/01 charge path: with contractValueCents + contractSignedAt it creates the draft commission invoice (auto-submitted into review); without them the invoice waits for POST /api/v1/billing/report-contract. |
+| GET | `/api/v1/admin/api-keys` | admin | api_keys:manage | 100/min per session | live | List API keys (masked, paginated). |
+| POST | `/api/v1/admin/api-keys` | admin | api_keys:manage | 10/min per session | live | Issue an API key. Plaintext returned once; only the SHA-256 hash is stored. Scopes + per-key rate limit. |
+| POST | `/api/v1/admin/api-keys/{id}/rotate` | admin | api_keys:manage | 10/min per session | live | Rotate a key (old key stays valid for a grace window). |
+| POST | `/api/v1/admin/api-keys/{id}/revoke` | admin | api_keys:manage | 10/min per session | live | Revoke a key immediately. Audit-logged. |
+| PATCH | `/api/v1/admin/api-keys/{id}` | admin | api_keys:manage | 10/min per session | live | Update a key’s scopes and/or rate limit (api-mcp/02). Takes effect on the next request. Audit-logged. |
+| GET | `/api/v1/admin/leads` | admin | leads:read | 300/min per session | planned | Leads explorer (admin/02): filters, free-text search, cursor pagination. |
+| GET | `/api/v1/admin/leads/{id}` | admin | leads:read | 300/min per session | planned | Lead detail: estimate summary, timeline, consent, attribution. |
+| POST | `/api/v1/admin/leads/{id}/notes` | admin | leads:manage | 60/min per session | planned | Append-only lead notes. |
+| PATCH | `/api/v1/admin/leads/{id}/status` | admin | leads:manage | 60/min per session | planned | Lead status (new/contacted/quoting/won/lost). Writes lead_status_history; audit-logged. |
+| POST | `/api/v1/admin/leads/{id}/quarantine/approve` | admin | leads:manage | 60/min per session | live | Approve a quarantined lead: clears the honeypot/quarantine flag (and any discard flag); the lead returns to the normal pipeline. 422 when the lead is not quarantined; audit-logged. |
+| POST | `/api/v1/admin/leads/{id}/quarantine/discard` | admin | leads:manage | 60/min per session | live | Discard a quarantined lead: kept for audit, excluded from every listing and count. 422 when the lead is not quarantined; idempotent; audit-logged. |
+| GET | `/api/v1/admin/leads/export.csv` | admin | leads:read | 10/min per session | planned | CSV export of the filtered lead set. |
+| POST | `/api/v1/admin/leads/{id}/assign-builder` | admin | leads:assign | 60/min per session | live | Assign a lead to a builder (builders table) by builder id, or unassign with builderId null. Null is the default and never affects the lead flow. 404 for unknown lead or builder; audit-logged with ids only, no contact PII. |
+| GET | `/api/v1/admin/builders` | admin | builders:read | 300/min per session | live | List all builders (builders table): id, tenant_key, names, contact, plan, status, settings. |
+| POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live | Create a builder. tenant_key is unique (409 on conflict); audit-logged with ids only, no contact PII. |
+| GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live | Get one builder by id. 404 when unknown. |
+| PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live | Update a builder. tenant_key is immutable; 404 when unknown; audit-logged with ids only, no contact PII. |
+| GET | `/api/v1/admin/estimates/{id}` | admin | estimates:read | 300/min per session | planned | Estimate lookup for support/debugging. |
+| GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live | Funnel dashboards (admin/07): step drop-off, gate conversion. |
+| GET | `/api/v1/admin/billing` | admin | billing:read | 300/min per session | live | Billing-health dashboard (billing/03): MRR (flat model; null under the 1% commission model), trailing-30d commission collections, in-review invoice aging buckets (<48h / <7d / overdue), disputed totals, the dunning queue with past_due_since, and Stripe webhook health. Read-only — no charge/refund/void actions. |
+| POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
+| GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
+| GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live | Calibration console (admin/09): current cost-data version, calibration report, import history. Read-only. |
+| GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live | Sheets sync worker status (admin/05). |
+| POST | `/api/v1/admin/ops/sheets-sync-now` | admin | ops:manage | 10/min per session | live | Trigger an immediate Sheets sync (admin/05). |
+| POST | `/api/v1/builder/agreement/accept` | none | — | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
+| GET | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:read | 300/min per session | planned | Attributed lead detail (tenant-scoped). |
+| POST | `/api/mcp/v1` | api-key | — | 100/min per key | live | MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> key + per-tool scopes; stateless JSON-RPC. |
+| POST | `/api/v1/stripe/webhooks` | stripe-signature | — | 100/min per IP | live | Stripe webhook receiver (billing track). Signature-verified; idempotent event handling. |
+| POST | `/api/v1/billing/report-contract` | builder-session | builder:billing | 100/min per session | live | Builder reports the signed construction contract (value excl. land) for one of their leads. Runs the commission charge path: attribution → draft invoice → auto-submitted into the 7-day review window. Idempotent: re-reporting returns the existing invoice. |
+| GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live | Read a commission invoice. Builders see only their own tenant's invoices; admins see all. |
+| POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | builder:billing | 100/min per session | live | Builder disputes their own invoice (reason required): the charge clock freezes and ops is alerted. 403 for another tenant's invoice. |
+| POST | `/api/v1/billing/invoices/{id}/resolve` | admin | billing:manage | 100/min per session | live | Admin resolves a billing dispute: "resume" returns the invoice to review with a fresh 7-day window, "void" cancels it. |
+| GET | `/api/v1/admin/disputes` | admin | billing:read | 100/min per session | live | Dispute console: open disputes oldest-first with reason, immutable evidence snapshot reference, and the 5-business-day SLA countdown (America/Edmonton). Admin only. |
+| GET | `/api/v1/admin/disputes/{id}` | admin | billing:read | 100/min per session | live | One dispute: immutable evidence snapshot, SLA state, and the billing audit trail. Admin only. |
+| POST | `/api/v1/admin/disputes/{id}/accept` | admin | billing:manage | 100/min per session | live | Accept a dispute: voids the invoice (Stripe refund first when it was already paid — the credit note). Audit-logged. Admin only. |
+| POST | `/api/v1/admin/disputes/{id}/reject` | admin | billing:manage | 100/min per session | live | Reject a dispute: the invoice returns to in_review with a fresh 7-day window. Audit-logged. Admin only. |
+

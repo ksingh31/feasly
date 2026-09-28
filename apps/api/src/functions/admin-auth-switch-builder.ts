@@ -25,7 +25,7 @@ export async function adminAuthSwitchBuilderHandler(
     context,
     req,
     (app) => app.adminViewAsRoute.switchBuilder(req.headers ?? {}, req.body),
-    { requireAuth: true },
+    { requireAuth: true, path: '/api/v1/admin/auth/switch-builder'},
   );
 }
 

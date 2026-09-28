@@ -38,7 +38,7 @@ export async function adminViewAsHandler(
         false,
       );
     },
-    { requireAuth: true },
+    { requireAuth: true, path: '/api/v1/admin/view-as' },
   );
 }
 

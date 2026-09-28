@@ -83,6 +83,8 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     getStatusHistory: vi.fn(),
     listLeads: vi.fn(),
     findById: vi.fn(),
+    findByIdAndBuilderId: vi.fn().mockResolvedValue(null),
+    existsById: vi.fn().mockResolvedValue(false),
     findByEstimateId: vi.fn().mockResolvedValue(null),
     setUnsubscribedAt: vi.fn(),
     findNudgeCandidates: vi.fn(),
@@ -95,6 +97,7 @@ function makeDeps(overrides: Partial<SheetsSyncServiceDeps> = {}) {
     listByTenantKey: vi.fn().mockResolvedValue([]),
     listByBuilderId: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(null),
+    updateStatusForBuilder: vi.fn().mockResolvedValue(null),
     updateConsentPreferences: vi.fn().mockResolvedValue(null),
   };
   const estimates: EstimateStore = {

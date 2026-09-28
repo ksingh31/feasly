@@ -17,6 +17,7 @@ export async function billingReportContractHandler(
 ): Promise<void> {
   await dispatchBilling(context, req, (app) =>
     app.billingRoute.reportContract(req.headers ?? {}, req.body),
+    { path: '/api/v1/billing/report-contract' },
   );
 }
 

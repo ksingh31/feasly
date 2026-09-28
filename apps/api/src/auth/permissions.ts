@@ -116,6 +116,8 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'calibration:read',
     'analytics:read',
     'estimates:read',
+    // auth/04: viewer is read-only — every read permission, no writes.
+    'usage:read',
   ],
   builder_admin: [
     'builder:leads:read',

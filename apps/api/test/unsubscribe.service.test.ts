@@ -68,6 +68,17 @@ function fakeStore(world: World): LeadStore {
     },
     findNewestEstimateIdByEmailAndAddress: async () => null,
     findById: async (id: string) => world.records.get(id) ?? null,
+    findByIdAndBuilderId: async ({
+      id,
+      builderId,
+    }: {
+      id: string;
+      builderId: string;
+    }) => {
+      const record = world.records.get(id) ?? null;
+      return record && record.builderId === builderId ? record : null;
+    },
+    existsById: async (id: string) => world.records.has(id),
     findByEstimateId: async () => null,
     setUnsubscribedAt: async (args: { id: string; at: Date }) => {
       world.setUnsubscribedAtCalls.push(args);
@@ -89,6 +100,7 @@ function fakeStore(world: World): LeadStore {
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async (args: {
         id: string;
         emailOptOut?: boolean;

@@ -16,6 +16,7 @@ export async function builderAuthLogoutHandler(
 ): Promise<void> {
   await dispatchBuilderAuth(context, req, (app) =>
     app.builderAuthRoute.logout(req.headers ?? {}),
+    { path: '/api/v1/builder/auth/logout' },
   );
 }
 

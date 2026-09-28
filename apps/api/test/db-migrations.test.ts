@@ -9,6 +9,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
+import { createDrizzleAdminSessionStore } from '../src/services/admin-auth.store';
 import { attributionEvents } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 
@@ -349,5 +350,156 @@ describe('migration 0002 — leads.quarantined', () => {
         status: 'introduced',
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('auth/04 session state migrations', () => {
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('adds active_builder_id and view_as to admin_sessions (0037)', async () => {
+    const cols = await testDb.rows<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'admin_sessions' and column_name in ('active_builder_id', 'view_as')`,
+    );
+    expect(cols.map((c) => c.column_name).sort()).toEqual([
+      'active_builder_id',
+      'view_as',
+    ]);
+    const idx = await testDb.rows<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'public' and tablename = 'admin_sessions'`,
+    );
+    expect(idx.map((i) => i.indexname)).toContain(
+      'admin_sessions_active_builder_idx',
+    );
+  });
+
+  it('adds builder_id to builder_sessions (0038)', async () => {
+    const cols = await testDb.rows<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'builder_sessions' and column_name = 'builder_id'`,
+    );
+    expect(cols).toHaveLength(1);
+    const idx = await testDb.rows<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'public' and tablename = 'builder_sessions'`,
+    );
+    expect(idx.map((i) => i.indexname)).toContain(
+      'builder_sessions_builder_id_idx',
+    );
+  });
+
+  it('admin session store round-trips activeBuilderId and viewAs', async () => {
+    const store = createDrizzleAdminSessionStore({ db: testDb.db });
+    const now = new Date();
+    await store.insert({
+      id: '11111111-1111-4111-8111-111111111111',
+      email: 'admin@example.com',
+      sessionTokenHash: 'hash-1',
+      expiresAt: new Date(now.getTime() + 3600_000),
+      userId: null, // magic-link-era sessions allow null user_id
+      activeBuilderId: null,
+    });
+    // active_builder_id references builders(id).
+    await testDb.db.execute(
+      `insert into builders (id, tenant_key, business_name, display_name) values ('33333333-3333-4333-8333-333333333333', 'elite-craft', 'Elite Craft', 'Elite Craft')`,
+    );
+    await store.updateState('hash-1', {
+      activeBuilderId: '33333333-3333-4333-8333-333333333333',
+      viewAs: { builderId: '33333333-3333-4333-8333-333333333333' },
+    });
+    const found = await store.findActiveByHash('hash-1', now);
+    expect(found?.activeBuilderId).toBe('33333333-3333-4333-8333-333333333333');
+    expect(found?.viewAs).toEqual({
+      builderId: '33333333-3333-4333-8333-333333333333',
+    });
+    // Clearing state works too (view-as exit path).
+    await store.updateState('hash-1', {
+      activeBuilderId: null,
+      viewAs: null,
+    });
+    const cleared = await store.findActiveByHash('hash-1', now);
+    expect(cleared?.activeBuilderId).toBeNull();
+    expect(cleared?.viewAs).toBeNull();
+  });
+});
+
+describe('auth/04 tenant-scoped lead access (PGlite)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  });
+
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('findByIdAndBuilderId and updateStatusForBuilder never touch another builder\'s rows', async () => {
+    const builderA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const builderB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const estimateId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    await testDb.db.execute(
+      `insert into builders (id, tenant_key, business_name, display_name) values
+       ('${builderA}', 'builder-a', 'Builder A', 'Builder A'),
+       ('${builderB}', 'builder-b', 'Builder B', 'Builder B')`,
+    );
+    // leads.estimate_id references estimates(id) — insert a minimal estimate.
+    await testDb.db.execute(
+      `insert into estimates (id, address_key, inputs, figures, rows, cost_data_version) values
+       ('${estimateId}', 'addr-1', '{}', '{}', '[]', 'test')`,
+    );
+    const store = createDrizzleLeadStore({ db: testDb.db });
+    const leadId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    await store.insert({
+      id: leadId,
+      estimateId,
+      addressKey: 'addr-1',
+      email: 'lead@example.com',
+      name: 'Test Lead',
+      timeline: 'soon',
+      marketingConsent: false,
+      consentTs: new Date(),
+      source: 'api',
+      builderId: builderA,
+    });
+
+    // Cross-tenant read returns nothing — the row is never pulled.
+    const crossRead = await store.findByIdAndBuilderId({
+      id: leadId,
+      builderId: builderB,
+    });
+    expect(crossRead).toBeNull();
+
+    // Cross-tenant write updates zero rows — the status is unchanged.
+    const crossWrite = await store.updateStatusForBuilder({
+      id: leadId,
+      builderId: builderB,
+      status: 'contacted',
+    });
+    expect(crossWrite).toBeNull();
+    const untouched = await store.findById(leadId);
+    expect(untouched?.status).toBe('new');
+
+    // The owning builder reads and writes normally.
+    const ownRead = await store.findByIdAndBuilderId({
+      id: leadId,
+      builderId: builderA,
+    });
+    expect(ownRead?.id).toBe(leadId);
+    const ownWrite = await store.updateStatusForBuilder({
+      id: leadId,
+      builderId: builderA,
+      status: 'contacted',
+    });
+    expect(ownWrite?.status).toBe('contacted');
+
+    // existsById is a boolean probe — no row data.
+    expect(await store.existsById(leadId)).toBe(true);
+    expect(await store.existsById('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')).toBe(
+      false,
+    );
   });
 });

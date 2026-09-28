@@ -120,6 +120,8 @@ function makeService(
     getStatusHistory: async () => [],
     listLeads: async () => [],
     findById: async (id: string) => world.leads.get(id) ?? null,
+    findByIdAndBuilderId: async () => null,
+    existsById: async () => false,
     findByEstimateId: async () => null,
     setUnsubscribedAt: async () => null,
     findNudgeCandidates: async (args) =>
@@ -145,6 +147,7 @@ function makeService(
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async () => null,
   };
 

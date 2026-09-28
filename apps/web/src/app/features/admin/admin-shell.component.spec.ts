@@ -5,7 +5,7 @@
  * opens/closes the nav (with aria-expanded), and the menu closes when a
  * nav link is clicked or navigation completes.
  */
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store } from '@ngxs/store';
@@ -22,7 +22,12 @@ async function setup() {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn() };
 
-  const store = { dispatch: vi.fn().mockReturnValue(of({})) };
+  // auth/04: the view-as banner reads via store.selectSignal — the mock
+  // returns a null banner (banner hidden).
+  const store = {
+    dispatch: vi.fn().mockReturnValue(of({})),
+    selectSignal: vi.fn().mockReturnValue(signal(null)),
+  };
 
   TestBed.configureTestingModule({
     imports: [AdminShellComponent, BlankComponent],

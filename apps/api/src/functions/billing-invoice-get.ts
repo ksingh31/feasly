@@ -18,6 +18,7 @@ export async function billingInvoiceGetHandler(
       req.headers ?? {},
       context.bindingData?.['id'],
     ),
+    { path: '/api/v1/billing/invoices/{id}' },
   );
 }
 

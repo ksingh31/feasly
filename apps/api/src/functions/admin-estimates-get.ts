@@ -24,6 +24,7 @@ export async function adminEstimatesGetHandler(
       req.headers ?? {},
       typeof id === 'string' ? id : '',
     ),
+    { path: '/api/v1/admin/estimates/{id}' },
   );
 }
 

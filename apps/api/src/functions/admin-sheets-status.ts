@@ -20,6 +20,7 @@ export async function adminSheetsStatusHandler(
 ): Promise<void> {
   await dispatchAdminSheets(context, req, (app) =>
     app.adminSheetsStatusRoute.getStatus(req.headers ?? {}),
+    { path: '/api/v1/admin/ops/sheets-status' },
   );
 }
 

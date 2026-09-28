@@ -123,6 +123,11 @@ function makeDeps() {
       throw new Error('not implemented');
     },
     findById: async (id) => leads.get(id) ?? null,
+    findByIdAndBuilderId: async ({ id, builderId }) => {
+      const lead = leads.get(id) ?? null;
+      return lead && lead.builderId === builderId ? lead : null;
+    },
+    existsById: async (id) => leads.has(id),
     findByEstimateId: async () => null,
     findNewestEstimateIdByEmailAndAddress: async () => null,
     updateOnRepeat: async () => {
@@ -132,6 +137,21 @@ function makeDeps() {
     updateStatus: async ({ id, status }: { id: string; status: string }) => {
       const lead = leads.get(id);
       if (!lead) return null;
+      const updated = { ...lead, status, updatedAt: new Date() };
+      leads.set(id, updated);
+      return updated;
+    },
+    updateStatusForBuilder: async ({
+      id,
+      builderId,
+      status,
+    }: {
+      id: string;
+      builderId: string;
+      status: string;
+    }) => {
+      const lead = leads.get(id);
+      if (!lead || lead.builderId !== builderId) return null;
       const updated = { ...lead, status, updatedAt: new Date() };
       leads.set(id, updated);
       return updated;
@@ -245,16 +265,27 @@ describe('builder-leads service (embed/09)', () => {
     expect(leads.get('lead-1')?.status).toBe('contacted');
   });
 
-  it('updateStatus on another builder lead throws 403 (AC1)', async () => {
-    const { service } = makeDeps();
-    await expect(
-      service.updateStatus(
+  it('updateStatus on another builder lead throws 403 and audits (auth/04 AC2)', async () => {
+    // Cross-tenant probing: a valid session for tenant elite-craft forges
+    // a lead id belonging to another builder. Expect a generic 403 and an
+    // audit row — the probe must not reveal anything about the lead.
+    const { service, audit } = makeDeps();
+    const err = await service
+      .updateStatus(
         'lead-2',
         { status: 'won' },
         'elite-craft',
         'builder@example.com',
-      ),
-    ).rejects.toMatchObject({ status: 403 });
+      )
+      .catch((e) => e);
+    expect(err).toMatchObject({ status: 403 });
+    expect(String(err.message ?? '')).not.toContain('lead-2');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'builder@example.com',
+        action: 'builder_leads_cross_builder_denied',
+      }),
+    );
   });
 
   it('updateStatus on an unassigned lead throws 403', async () => {

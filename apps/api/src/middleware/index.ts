@@ -21,5 +21,6 @@ export * from './pipeline';
 export * from './api-key-auth';
 export * from './admin-guard';
 export * from './permission-guard';
+export * from './enforce-route-permissions';
 export * from './security-headers';
 export * from './session-token';

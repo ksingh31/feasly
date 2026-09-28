@@ -21,6 +21,7 @@ export async function adminLeadsDetailHandler(
       req.headers ?? {},
       context.bindingData?.['id'],
     ),
+    { path: '/api/v1/admin/leads/{id}' },
   );
 }
 

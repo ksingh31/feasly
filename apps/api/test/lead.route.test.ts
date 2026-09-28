@@ -64,6 +64,8 @@ describe('lead route', () => {
         createdAt: new Date(),
       }),
       findById: async () => null,
+      findByIdAndBuilderId: async () => null,
+      existsById: async () => false,
       findByEstimateId: async () => null,
       setUnsubscribedAt: async () => null,
       findNudgeCandidates: async () => [],
@@ -84,6 +86,7 @@ describe('lead route', () => {
       listByTenantKey: async () => [],
       listByBuilderId: async () => [],
       updateStatus: async () => null,
+      updateStatusForBuilder: async () => null,
       updateConsentPreferences: async () => null,
     };
     const service = createLeadService({

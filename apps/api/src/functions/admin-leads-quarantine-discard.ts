@@ -24,6 +24,7 @@ export async function adminLeadsQuarantineDiscardHandler(
       req.headers ?? {},
       context.bindingData?.['id'],
     ),
+    { path: '/api/v1/admin/leads/{id}/quarantine/discard' },
   );
 }
 

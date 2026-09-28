@@ -200,11 +200,35 @@ export interface LeadStore {
   /** One lead by id, or null. */
   findById(id: string): Promise<LeadRecord | null>;
   /**
+   * auth/04 — tenant-scoped read: the lead only when it belongs to the
+   * given builder. Never returns another builder's row.
+   */
+  findByIdAndBuilderId(args: {
+    readonly id: string;
+    readonly builderId: string;
+  }): Promise<LeadRecord | null>;
+  /**
+   * auth/04 — existence probe (boolean only, no row data). Used to tell
+   * "cross-tenant" (403 + audit) apart from "not found" (404) without
+   * pulling another builder's data.
+   */
+  existsById(id: string): Promise<boolean>;
+  /**
    * embed/09 — update a lead's pipeline status. Used by the builder portal
    * (tenant-scoped at the service layer). Returns the updated record.
    */
   updateStatus(args: {
     readonly id: string;
+    readonly status: string;
+  }): Promise<LeadRecord | null>;
+  /**
+   * auth/04 — tenant-scoped write: updates only when the lead belongs to
+   * the given builder (`WHERE id = ? AND builder_id = ?`). Returns the
+   * updated record, or null when the lead doesn't exist or isn't theirs.
+   */
+  updateStatusForBuilder(args: {
+    readonly id: string;
+    readonly builderId: string;
     readonly status: string;
   }): Promise<LeadRecord | null>;
   /**
@@ -420,6 +444,16 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
       const row = rows[0];
       return row ? toRecord(row) : null;
     },
+
+    async updateStatusForBuilder(args): Promise<LeadRecord | null> {
+      const rows = await db
+        .update(leads)
+        .set({ status: args.status })
+        .where(and(eq(leads.id, args.id), eq(leads.builderId, args.builderId)))
+        .returning();
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
     async findById(id: string): Promise<LeadRecord | null> {
       const rows = await db
         .select()
@@ -428,6 +462,25 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .limit(1);
       const row = rows[0];
       return row ? toRecord(row) : null;
+    },
+
+    async findByIdAndBuilderId(args): Promise<LeadRecord | null> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(and(eq(leads.id, args.id), eq(leads.builderId, args.builderId)))
+        .limit(1);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async existsById(id: string): Promise<boolean> {
+      const rows = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(eq(leads.id, id))
+        .limit(1);
+      return rows.length > 0;
     },
 
     async findByEstimateId(estimateId: string): Promise<LeadRecord | null> {

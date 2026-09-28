@@ -22,6 +22,7 @@ export async function adminBillingHandler(
 ): Promise<void> {
   await dispatchAdminBilling(context, req, (app) =>
     app.adminBillingRoute.getHealth(req.headers ?? {}),
+    { path: '/api/v1/admin/billing' },
   );
 }
 

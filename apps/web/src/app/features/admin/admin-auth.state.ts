@@ -1,12 +1,13 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import { AdminAuthApiService } from './admin-auth-api.service';
 import {
   ClearAdminAuth,
   CompleteEntraSignIn,
+  ExitViewAs,
   FailEntraSignIn,
   LoadAdminSession,
   LogoutAdmin,
@@ -57,6 +58,19 @@ export interface AdminAuthStateModel {
    * callback succeeded or none has run). Read by the callback page.
    */
   lastEntraError: EntraCallbackErrorKind | null;
+  /**
+   * auth/04: view-as state from the /me authorization context. Display
+   * only — the backend is authoritative. Null when not viewing-as.
+   */
+  viewAs: { builderId?: string; userId?: string } | null;
+  /** Display name for the view-as banner ("Viewing as X"). */
+  viewAsDisplayName: string | null;
+  /** The real admin's email, for the banner's audit note. */
+  viewAsRealEmail: string | null;
+  /** Session's effective permissions (display only). */
+  permissions: string[];
+  /** Active builder tenant name (org switcher display). */
+  activeBuilderName: string | null;
 }
 
 const defaults: AdminAuthStateModel = {
@@ -67,6 +81,11 @@ const defaults: AdminAuthStateModel = {
   authStatus: 'unknown',
   sessionExpired: false,
   lastEntraError: null,
+  viewAs: null,
+  viewAsDisplayName: null,
+  viewAsRealEmail: null,
+  permissions: [],
+  activeBuilderName: null,
 };
 
 /**
@@ -128,14 +147,48 @@ export class AdminAuthState {
     return state.authStatus === 'authenticated';
   }
 
+  /** auth/04: true while the session is viewing-as another target. */
+  @Selector()
+  static viewingAs(state: AdminAuthStateModel): boolean {
+    return state.viewAs !== null;
+  }
+
+  /** auth/04: banner copy inputs, null when not viewing-as. */
+  @Selector()
+  static viewAsBanner(
+    state: AdminAuthStateModel,
+  ): { displayName: string; realEmail: string } | null {
+    if (!state.viewAs || !state.viewAsDisplayName) return null;
+    return {
+      displayName: state.viewAsDisplayName,
+      realEmail: state.viewAsRealEmail ?? '',
+    };
+  }
+
   @Action(LoadAdminSession)
   loadAdminSession(ctx: StateContext<AdminAuthStateModel>): Observable<unknown> {
     return this.authApi.me().pipe(
       tap((identity) => {
+        // auth/04: the /me authorization context drives the view-as
+        // banner and org switcher (display only — backend authoritative).
+        const authCtx = identity.authContext;
+        const viewAs = authCtx?.viewAs ?? null;
+        const viewAsDisplayName = viewAs
+          ? (viewAs.builderId
+              ? (authCtx?.builderName ?? viewAs.builderId)
+              : (authCtx?.name ?? viewAs.userId ?? ''))
+          : null;
         ctx.patchState({
           email: identity.email,
+          name: authCtx?.name ?? null,
+          staffRole: authCtx?.staffRole ?? null,
           authStatus: 'authenticated',
           sessionExpired: false,
+          viewAs,
+          viewAsDisplayName,
+          viewAsRealEmail: authCtx?.realUser?.email ?? null,
+          permissions: authCtx ? [...authCtx.permissions] : [],
+          activeBuilderName: authCtx?.builderName ?? null,
         });
       }),
       catchError((error: unknown) => {
@@ -148,6 +201,11 @@ export class AdminAuthState {
           email: null,
           authStatus: 'unauthenticated',
           sessionExpired: code === 'SESSION_EXPIRED',
+          viewAs: null,
+          viewAsDisplayName: null,
+          viewAsRealEmail: null,
+          permissions: [],
+          activeBuilderName: null,
         });
         return of(null);
       }),
@@ -201,5 +259,25 @@ export class AdminAuthState {
   @Action(ClearAdminAuth)
   clearAdminAuth(ctx: StateContext<AdminAuthStateModel>): void {
     ctx.setState({ ...defaults });
+  }
+
+  /**
+   * auth/04: exit view-as. The backend clears the session's view-as state
+   * (audit-logged under the real admin); the session is re-probed so the
+   * banner disappears and permissions revert. Display-only affordance —
+   * enforcement stays server-side.
+   */
+  @Action(ExitViewAs)
+  exitViewAs(ctx: StateContext<AdminAuthStateModel>): Observable<unknown> {
+    return this.authApi.exitViewAs().pipe(
+      catchError(() => {
+        // If the exit call fails, re-probe anyway: the guard fails closed
+        // and the banner reflects the server's actual state.
+        return of(null);
+      }),
+      // switchMap (not tap + nested dispatch) so the action completes only
+      // after the /me refresh lands.
+      switchMap(() => ctx.dispatch(new LoadAdminSession())),
+    );
   }
 }

@@ -15,15 +15,13 @@
  *   404, never a silent widen.
  */
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { hasPermission } from '../auth/permissions';
 import type { AdminAuditStore } from './admin-audit.store';
 import {
   hashSessionToken,
   type AdminSessionStore,
 } from './admin-auth.service';
-import type {
-  AuthContext,
-  AuthContextService,
-} from './auth-context.service';
+import type { AuthContext } from './auth-context.service';
 import type { BuilderService } from './builder.service';
 import type {
   MembershipStore,
@@ -65,7 +63,6 @@ export interface ViewAsServiceDeps {
   readonly users: UserStore;
   readonly memberships: MembershipStore;
   readonly builders: Pick<BuilderService, 'getBuilder'>;
-  readonly authContext: AuthContextService;
   readonly audit: AdminAuditStore;
 }
 
@@ -86,6 +83,22 @@ export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
 
   return {
     async activate(sessionToken, target, actor) {
+      // Defense in depth: the route already enforces `view_as` via
+      // requirePermission, but activation must never depend on a single
+      // check — verify the actor's resolved permissions here too.
+      if (!hasPermission(actor.permissions, 'view_as')) {
+        await audit.log({
+          actorEmail: actor.realUser?.email ?? actor.email,
+          action: 'authz.denied',
+          detail: 'route=view-as permission=view_as',
+        });
+        throw new HttpError(
+          403,
+          ErrorCodes.FORBIDDEN,
+          'You don\u2019t have access to this.',
+          false,
+        );
+      }
       const token = requireToken(sessionToken);
       const hash = hashSessionToken(token);
 

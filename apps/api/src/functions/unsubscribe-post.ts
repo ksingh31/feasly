@@ -25,6 +25,7 @@ export async function unsubscribePostHandler(
       typeof token === 'string' ? token : '',
       req.body,
     ),
+    { path: '/api/v1/unsubscribe/{token}' },
   );
 }
 

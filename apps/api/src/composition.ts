@@ -1155,7 +1155,6 @@ export function createComposition(
   const authContextService: AuthContextService = createAuthContextService({
     adminSessions: adminSessionStore,
     builderAuth: builderAuthService,
-    builderSessions: builderSessionStore,
     users: userStore,
     memberships: membershipStore,
     builders: builderService,
@@ -1169,7 +1168,6 @@ export function createComposition(
     users: userStore,
     memberships: membershipStore,
     builders: builderService,
-    authContext: authContextService,
     audit: adminAuditStore,
   });
   const adminViewAsRoute: AdminViewAsRoute = createAdminViewAsRoute({
@@ -1180,7 +1178,6 @@ export function createComposition(
   });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
-    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
     permissionGuard,
   });
   // builderLeadsService/builderLeadsRoute are constructed after the billing

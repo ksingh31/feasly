@@ -30,10 +30,7 @@ import type {
   ViewAsState,
 } from './admin-auth.service';
 import { hashSessionToken } from './admin-auth.service';
-import type {
-  BuilderAuthService,
-  BuilderSessionStore,
-} from './builder-auth.service';
+import type { BuilderAuthService } from './builder-auth.service';
 import type { BuilderService } from './builder.service';
 import type {
   BuilderMembership,
@@ -90,12 +87,21 @@ export interface AuthContextService {
     readonly permission: string;
     readonly route: string;
   }): Promise<void>;
+  /**
+   * Audit-log a successful protected action taken while view-as is
+   * active. The actor is always the REAL administrator (`ctx.realUser`),
+   * never the view-as target. No-op when view-as is not active — normal
+   * actions are not audit-logged at this layer.
+   */
+  auditViewAsAction(args: {
+    readonly ctx: AuthContext;
+    readonly route: string;
+  }): Promise<void>;
 }
 
 export interface AuthContextServiceDeps {
   readonly adminSessions: AdminSessionStore;
   readonly builderAuth: BuilderAuthService;
-  readonly builderSessions: BuilderSessionStore;
   readonly users: UserStore;
   readonly memberships: MembershipStore;
   readonly builders: Pick<BuilderService, 'getBuilder' | 'getByTenantKey'>;
@@ -113,7 +119,6 @@ export function createAuthContextService(
   const {
     adminSessions,
     builderAuth,
-    builderSessions,
     users,
     memberships,
     builders,
@@ -177,8 +182,23 @@ export function createAuthContextService(
 
     // View-as: the target's view only. Computed fresh from the target's
     // roles — never unioned with the real user's permissions (no
-    // escalation), and a missing target drops back to the real user's own
-    // context rather than failing open.
+    // escalation). An unknown/disabled target fails CLOSED: empty
+    // permissions and no builder context, never the real user's own
+    // context (which would silently restore elevated access). The real
+    // identity stays on `realUser` for the audit trail, and `viewAs`
+    // stays set so the shell can show "target unavailable" + an exit.
+    const closedViewAs = {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      staffRole: null,
+      permissions: [] as readonly Permission[],
+      builderId: null,
+      builderName: null,
+      memberships: [] as readonly BuilderMembership[],
+      viewAs: session.viewAs,
+      realUser,
+    };
     if (session.viewAs?.builderId) {
       try {
         const target = await builders.getBuilder(session.viewAs.builderId);
@@ -186,16 +206,16 @@ export function createAuthContextService(
           userId: user.id,
           email: user.email,
           name: user.name,
-          staffRole: user.staffRole,
+          staffRole: null,
           permissions: ROLE_PERMISSIONS.builder_admin,
           builderId: target.id,
           builderName: target.displayName,
-          memberships: userMemberships,
+          memberships: [] as readonly BuilderMembership[],
           viewAs: session.viewAs,
           realUser,
         };
       } catch {
-        // Unknown builder — fall through to the real user's context.
+        return closedViewAs;
       }
     }
     if (session.viewAs?.userId) {
@@ -229,7 +249,8 @@ export function createAuthContextService(
           realUser,
         };
       }
-      // Unknown/disabled target — fall through to the real user's context.
+      // Unknown/disabled target — fail closed (see above).
+      return closedViewAs;
     }
 
     return {
@@ -317,6 +338,15 @@ export function createAuthContextService(
         actorEmail: ctx?.realUser?.email ?? ctx?.email ?? null,
         action: 'authz.denied',
         detail: `route=${route} permission=${permission} view_as=${ctx?.viewAs ? '1' : '0'}`,
+      });
+    },
+
+    async auditViewAsAction({ ctx, route }): Promise<void> {
+      if (!ctx.viewAs) return;
+      await audit.log({
+        actorEmail: ctx.realUser?.email ?? ctx.email,
+        action: 'authz.view_as_action',
+        detail: `route=${route} view_as=1`,
       });
     },
   };

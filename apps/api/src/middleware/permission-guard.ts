@@ -40,6 +40,18 @@ export interface PermissionGuard {
     route: string,
   ): Promise<AuthContext>;
   /**
+   * auth/04: registry enforcement. Resolves the session ONCE and requires
+   * ALL listed permissions (empty array = no check — the route enforces
+   * its own auth: public, token, webhook, API-key, or adapter-level).
+   * Throws 401 when unauthenticated, 403 (audit-logged) when any
+   * permission is missing.
+   */
+  requirePermissions(
+    permissions: readonly Permission[],
+    headers: Record<string, string | string[] | undefined>,
+    route: string,
+  ): Promise<AuthContext>;
+  /**
    * Resolve without authorizing (for session-only routes like /auth/me).
    * Returns null when unauthenticated — the route maps it to 401.
    */
@@ -99,6 +111,26 @@ export function createPermissionGuard(
 
     async getAuthContext(headers) {
       return authContext.resolve(headers);
+    },
+
+    async requirePermissions(permissions, headers, route) {
+      const ctx = await authContext.resolve(headers);
+      if (!ctx) throw unauthenticated();
+      const missing = permissions.filter(
+        (p) => !hasPermission(ctx.permissions, p),
+      );
+      if (missing.length > 0) {
+        await authContext.auditDenied({
+          ctx,
+          permission: missing.join(','),
+          route,
+        });
+        throw forbidden();
+      }
+      // auth/04: every successful protected action while view-as is active
+      // is audit-logged under the REAL administrator.
+      await authContext.auditViewAsAction({ ctx, route });
+      return ctx;
     },
 
     async requireBuilderId(ctx, route) {
