@@ -196,3 +196,10 @@ apps/web/src/app/features/admin/admin-builders.component.ts
 # wire-protocol facts, not deploy tunables. Pinned by the RFC 7636 Appendix B
 # test vector in admin-entra-pkce.spec.ts.
 apps/web/src/app/features/admin/admin-entra-pkce.ts
+
+# API error-copy envelopes (core/api): user-facing failure copy ("Request
+# failed…", "Export failed (HTTP …)…") — the exact strings are pinned by
+# spec assertions and change by product decision, not by deploy tuning
+# (same category as the admin-login entry above). Copy-pinned by
+# api-error.spec.ts.
+apps/web/src/app/core/api/api-error.ts
