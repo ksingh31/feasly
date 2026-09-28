@@ -93,6 +93,12 @@ describe('ReportPageComponent', () => {
     /** Why the magic-link email failed — picks the invalid-recipient copy variant. */
     emailError?: 'invalid-recipient' | 'delivery-failed';
     /**
+     * Idempotent resubmit (P0 2026-09-27): no new email was sent because
+     * one already went out recently — picks the "already in your inbox"
+     * copy variant.
+     */
+    emailAlreadySent?: boolean;
+    /**
      * When false, the gate response carried no reportToken (quarantine
      * path): the report unlocks via LoadLeadEstimate (public estimate
      * endpoint) instead of the token. Defaults to true.
@@ -160,6 +166,7 @@ describe('ReportPageComponent', () => {
           magicLinkSent: options.magicLinkSent ?? true,
           expiresInDays: 7,
           emailError: options.emailError,
+          emailAlreadySent: options.emailAlreadySent,
         }),
       );
       // The gate stores the owner token from the lead response in a separate
@@ -409,17 +416,21 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    describe('post-gate lead unlock — no token (quarantine)', () => {
+    describe('post-gate lead unlock — idempotent resubmit (P0 2026-09-27)', () => {
       beforeEach(async () => {
-        await setup({ leadSubmitted: true, magicLinkSent: false, withReportToken: false });
+        // The gate POST was a resubmit: no new email went out because one
+        // already did recently — the note must say "already in your inbox",
+        // and the report still unlocks via the fresh token.
+        await setup({ leadSubmitted: true, magicLinkSent: true, emailAlreadySent: true });
       });
 
-      it('shows the "already in your inbox" variant when no new email was sent', () => {
+      it('shows the "already in your inbox" variant and keeps the report unlocked', () => {
         expect(store.selectSnapshot(ReportState.unlocked)).toBe(true);
         const note = fixture.nativeElement.querySelector('.lead-link-note');
         expect(note).not.toBeNull();
         expect(note.textContent).toContain('Report saved — your link is already in your inbox.');
         expect(note.textContent).not.toContain('emailed you a link');
+        expect(note.textContent).not.toContain("couldn't send");
       });
     });
   });

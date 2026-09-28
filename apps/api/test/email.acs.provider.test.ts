@@ -207,13 +207,22 @@ describe('acs provider failure classification (retry)', () => {
     }
   });
 
-  it('marks the delivery-poll timeout as retryable (transient stall)', async () => {
+  it('marks the delivery-poll timeout as non-retryable + sendAccepted (P0 2026-09-27)', async () => {
+    // beginSend() ACCEPTED the message; only the delivery poll stalled.
+    // Retrying would re-run beginSend() and duplicate an already-delivered
+    // email (Karan's triple "estimate is ready" emails). The timeout is
+    // therefore non-retryable with sendAccepted: true — deliver() returns
+    // sent:false immediately and the caller suppresses resubmits.
     mockBeginSend.mockResolvedValue({
       pollUntilDone: vi.fn(() => new Promise(() => {})),
     });
     const error = await providerWithTimeout(50).send(MESSAGE).catch((e) => e);
-    expect(error.retryable).toBe(true);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.retryable).toBe(false);
     expect(error.failureCode).toBe('delivery-failed');
+    expect(error.sendAccepted).toBe(true);
+    // Exactly one beginSend — the timeout never starts a second send.
+    expect(mockBeginSend).toHaveBeenCalledTimes(1);
   });
 
   it('marks a bounced delivery (550) as non-retryable invalid-recipient', async () => {

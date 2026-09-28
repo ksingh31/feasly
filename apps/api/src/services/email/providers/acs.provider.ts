@@ -243,22 +243,31 @@ export function createAcsEmailProvider(
       // forever (2026-09-27: lead-gate "Sending..." hang). Two mechanisms:
       // (1) the abortSignal the SDK honors (core-lro cancels its poll
       // loop), and (2) a Promise.race deadline that guarantees the bound
-      // even if the poller ignores the signal. On timeout the send fails
-      // LOUD (EmailProviderError + the send-failure log line the ops alert
-      // keys off) — the lead row and token are already committed upstream,
-      // so a client retry is safe (dedupe live-link path, no duplicate
-      // email).
+      // even if the poller ignores the signal.
+      //
+      // P0 2026-09-27 (triple "estimate is ready" emails): beginSend() above
+      // already ACCEPTED the message — ACS owns delivery from here. A
+      // polling timeout therefore means "accepted, outcome unknown", NOT
+      // "send failed": throwing retryable re-ran beginSend() and duplicated
+      // an already-delivered email (deliver() retried twice → 3 emails).
+      // So the timeout is non-retryable with sendAccepted: true — the
+      // in-code loop never re-sends, and the caller records the
+      // accepted-but-unconfirmed send for resubmit suppression. The user
+      // still unlocks immediately and sees "check your inbox or try again
+      // later" — honest, because the email usually DID arrive.
       const pollTimeoutMs =
         deps.deliveryPollTimeoutMs ?? DEFAULT_DELIVERY_POLL_TIMEOUT_MS;
       const aborter = new AbortController();
       const failTimedOut = (): EmailProviderError => {
         const detail = `delivery polling timed out after ${pollTimeoutMs}ms`;
-        logSendFailure('delivery polling timed out', detail);
-        // Transient stall (2026-09-27: the lead-gate "Sending..." hang) —
-        // retryable so the in-code retry loop gets another attempt.
+        logSendFailure('delivery polling timed out (accepted, unconfirmed)', detail);
+        // Accepted by ACS, confirmation lost — NEVER retry the send (it
+        // would duplicate a delivered email). Non-retryable + sendAccepted
+        // so deliver() returns sent:false immediately with
+        // acceptedByProvider: true.
         return new EmailProviderError(
           `Azure Communication Services email failed (${detail}).`,
-          { retryable: true, failureCode: 'delivery-failed' },
+          { retryable: false, failureCode: 'delivery-failed', sendAccepted: true },
         );
       };
       let fireTimeout!: () => void;

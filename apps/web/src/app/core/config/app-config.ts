@@ -628,6 +628,8 @@ export interface AppConfig {
       /** RENO-06: reno variant of the timeline question, selected by projectType. */
       timelineLabelReno: string;
       timelinePlaceholder: string;
+      /** Shown when the (required) timeline question is left unanswered. */
+      timelineRequired: string;
       /** `id`s must match the TimelineOption contract union. */
       timelineOptions: { id: TimelineOption; label: string }[];
       /**

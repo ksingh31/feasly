@@ -231,6 +231,8 @@ const fakeUnsubscribe = {
 const BASE_BODY = {
   email: 'homeowner@example.com',
   name: 'Homeowner',
+  // Timeline is REQUIRED (Karan 2026-09-27) — no silent default.
+  timeline: 'exploring' as const,
   marketingConsent: true,
   estimateId: ESTIMATE_ID,
 };

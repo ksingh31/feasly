@@ -216,6 +216,12 @@ export const LeadResponseSchema = z
       .describe(
         'Why the magic-link email failed — present only when magicLinkSent is false',
       ),
+    emailAlreadySent: z
+      .boolean()
+      .optional()
+      .describe(
+        'True when no new email was sent because one already went out recently for this email + property (idempotent resubmit)',
+      ),
   })
   .openapi('LeadResponse');
 

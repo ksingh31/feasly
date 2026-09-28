@@ -54,6 +54,15 @@ export interface LeadResponse {
    */
   readonly emailError?: 'invalid-recipient' | 'delivery-failed';
   /**
+   * Idempotent-resubmit marker (P0 2026-09-27): true when this request did
+   * NOT send a new magic-link email because a send for the same
+   * email + property already succeeded recently — the earlier link is still
+   * live, so "your link is already in your inbox" is literally true. The
+   * report still unlocks (reportToken is minted fresh every submission).
+   * Absent/false on backends that predate this field.
+   */
+  readonly emailAlreadySent?: boolean;
+  /**
    * 0–100 lead score computed server-side (embed/08). Optional: backends
    * that predate the embed bridge omit it; the bridge posts the
    * lead-created event regardless.
