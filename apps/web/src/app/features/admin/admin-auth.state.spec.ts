@@ -15,8 +15,9 @@ import {
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
+import { AdminEntraAuthService } from './admin-entra-auth.service';
 import {
   ClearAdminAuth,
   CompleteEntraSignIn,
@@ -126,13 +127,36 @@ describe('AdminAuthState (auth/02)', () => {
       r.url.endsWith('/api/v1/admin/auth/logout'),
     );
     expect(req.request.method).toBe('POST');
-    req.flush({ loggedOut: true, setCookie: 'cleared' });
+    req.flush({ loggedOut: true, setCookie: 'cleared', entraLogoutUrl: null });
     await done;
 
     const s = snapshot();
     expect(s.authStatus).toBe('unknown');
     expect(s.sessionToken).toBeNull();
     expect(s.email).toBeNull();
+    httpMock.verify();
+  });
+
+  it('LogoutAdmin triggers the Entra end-session redirect when the API returns a URL', async () => {
+    await signIn();
+    const entraAuth = TestBed.inject(AdminEntraAuthService);
+    const redirectSpy = vi
+      .spyOn(entraAuth, 'redirectToEntraLogout')
+      .mockReturnValue(true);
+
+    const done = store.dispatch(new LogoutAdmin());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/auth/logout')).flush({
+      loggedOut: true,
+      setCookie: 'cleared',
+      entraLogoutUrl: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    });
+    await done;
+
+    expect(redirectSpy).toHaveBeenCalledWith(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    );
+    // Local state is still cleared even when the IdP redirect fires.
+    expect(snapshot().sessionToken).toBeNull();
     httpMock.verify();
   });
 
