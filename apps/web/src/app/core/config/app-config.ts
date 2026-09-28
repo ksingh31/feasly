@@ -782,8 +782,6 @@ export interface AppConfig {
       adminUsers: string;
       adminDisputesTitle: string;
       adminDisputes: string;
-      adminUsersTitle: string;
-      adminUsers: string;
       adminCalibrationTitle: string;
       adminCalibration: string;
       adminBillingTitle: string;
