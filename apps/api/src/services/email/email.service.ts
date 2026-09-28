@@ -21,6 +21,9 @@ import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
 import {
   renderCallbackTeamEmail,
+  renderCommissionInvoiceReadyEmail,
+  renderCommissionPaymentFailedEmail,
+  renderCommissionPaymentReceivedEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
   renderNudgeEmail,
@@ -106,6 +109,39 @@ export interface InvitationEmailInput {
   readonly inviterName?: string;
 }
 
+/**
+ * BILL-04 inputs. Transactional account-billing mail — always sent, no
+ * unsubscribe footer (the builder is being charged real money; these are
+ * account notices, not marketing).
+ */
+export interface CommissionInvoiceReadyEmailInput {
+  readonly to: string;
+  /** Public invoice reference shown to the builder (short id). */
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly contractValueCents: number;
+  readonly currency: string;
+  /** End of the 7-day review window. */
+  readonly reviewDueAt: Date;
+}
+
+export interface CommissionPaymentReceivedEmailInput {
+  readonly to: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly paidAt: Date;
+}
+
+export interface CommissionPaymentFailedEmailInput {
+  readonly to: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** Days the builder has to update the card before collection steps. */
+  readonly updateWithinDays: number;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -115,6 +151,18 @@ export interface EmailService {
   ): Promise<EmailDelivery>;
   sendNudge(input: NudgeEmailInput): Promise<EmailDelivery>;
   sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailDelivery>;
+  /** BILL-04: invoice entered the 7-day review window. */
+  sendCommissionInvoiceReady(
+    input: CommissionInvoiceReadyEmailInput,
+  ): Promise<EmailDelivery>;
+  /** BILL-04: off-session charge succeeded (receipt). */
+  sendCommissionPaymentReceived(
+    input: CommissionPaymentReceivedEmailInput,
+  ): Promise<EmailDelivery>;
+  /** BILL-04: off-session charge failed (update-card CTA). */
+  sendCommissionPaymentFailed(
+    input: CommissionPaymentFailedEmailInput,
+  ): Promise<EmailDelivery>;
 }
 
 export interface EmailServiceDeps {
@@ -301,6 +349,43 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         summary: input.summary,
         detailsUrl: input.detailsUrl,
         firedAt: input.firedAt,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionInvoiceReady(
+      input: CommissionInvoiceReadyEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionInvoiceReadyEmail(ctx, {
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        contractValueCents: input.contractValueCents,
+        currency: input.currency,
+        reviewDueAt: input.reviewDueAt,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionPaymentReceived(
+      input: CommissionPaymentReceivedEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionPaymentReceivedEmail(ctx, {
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
+        paidAt: input.paidAt,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionPaymentFailed(
+      input: CommissionPaymentFailedEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionPaymentFailedEmail(ctx, {
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
+        updateWithinDays: input.updateWithinDays,
       });
       return deliver({ ...rendered, to: input.to });
     },

@@ -740,6 +740,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'Estimate lookup for support/debugging.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/estimates/{id}/narrative',
+    auth: 'admin',
+    permissions: ['estimates:read'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Generate (or return cached) the AI narrative for an estimate. ' +
+      'Same pipeline as the consumer endpoint, admin-gated instead of ' +
+      'magic-link-gated; LLM writes narrative only, figures are deterministic.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/funnels',
     auth: 'admin',
@@ -922,6 +934,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Read a commission invoice. Builders see only their own tenant\'s ' +
       'invoices; admins see all.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/invoices',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'BILL-04: paginated commission invoice list, newest first ' +
+      '(limit 1–100, default 20; offset default 0). Builders see only ' +
+      'their own tenant\'s invoices; admins see all.',
   },
   {
     method: 'POST',

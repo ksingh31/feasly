@@ -65,6 +65,11 @@ export interface BillingRoute {
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
   ): Promise<CommissionInvoiceRecord>;
+  /** GET /api/v1/billing/invoices — paginated, tenant-scoped list */
+  listInvoices(
+    headers: Record<string, string | string[] | undefined>,
+    query: Record<string, string | string[] | undefined>,
+  ): Promise<CommissionInvoiceRecord[]>;
   /** POST /api/v1/billing/invoices/{id}/dispute */
   disputeInvoice(
     headers: Record<string, string | string[] | undefined>,
@@ -80,6 +85,11 @@ export interface BillingRoute {
 }
 
 const uuidSchema = z.string().trim().uuid();
+
+const listInvoicesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 const reportContractBodySchema = z.object({
   leadId: uuidSchema,
@@ -107,6 +117,14 @@ function parseInvoiceId(id: unknown): string {
     );
   }
   return parsed.data;
+}
+
+/** First value of a query param (Azure passes string|string[]). */
+function firstQueryValue(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 async function requireBuilderSession(
@@ -177,6 +195,31 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
       }
       await adminGuard.requireAdmin(headers);
       return billing.getInvoice(invoiceId, null);
+    },
+
+    async listInvoices(
+      headers,
+      query,
+    ): Promise<CommissionInvoiceRecord[]> {
+      const parsed = listInvoicesQuerySchema.safeParse({
+        limit: firstQueryValue(query['limit']),
+        offset: firstQueryValue(query['offset']),
+      });
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid pagination: limit 1–100, offset ≥ 0.',
+          false,
+        );
+      }
+      // Admins see all invoices; builders are scoped to their tenant.
+      const builderSession = await builderGuard.getBuilderSession(headers);
+      if (builderSession) {
+        return billing.listInvoices(builderSession.tenantKey, parsed.data);
+      }
+      await adminGuard.requireAdmin(headers);
+      return billing.listInvoices(null, parsed.data);
     },
 
     async disputeInvoice(

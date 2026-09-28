@@ -24,11 +24,11 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, lte } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
-import { commissionInvoices } from '../../db/schema';
+import { builderAllowlist, builders, commissionInvoices } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
@@ -137,6 +137,14 @@ export interface CommissionService {
    */
   findByLead(leadId: string): Promise<CommissionInvoiceRecord | null>;
   getById(invoiceId: string): Promise<CommissionInvoiceRecord>;
+  /**
+   * BILL-04: paginated invoice list, newest first. Builders pass their
+   * tenantKey (scoped); admins pass null (all tenants).
+   */
+  listInvoices(
+    tenantKey: string | null,
+    opts: { limit: number; offset: number },
+  ): Promise<CommissionInvoiceRecord[]>;
 }
 
 export interface CommissionServiceDeps {
@@ -331,6 +339,93 @@ export function createCommissionService(
   }
 
   /**
+   * BILL-04: resolve the builder's billing contact email for a tenant.
+   *
+   * Source of truth is `builders.email` (the tenant contact email,
+   * captured at builder signup — nullable). Fallback is the
+   * `builder_allowlist` sign-in email for the tenant. Returns null when
+   * neither exists — the caller audits the skip instead of failing.
+   */
+  async function resolveBuilderEmail(tenantKey: string): Promise<string | null> {
+    const builder = await db.query.builders.findFirst({
+      where: eq(builders.tenantKey, tenantKey),
+      columns: { email: true },
+    });
+    if (builder?.email) return builder.email;
+    const allowlisted = await db.query.builderAllowlist.findFirst({
+      where: eq(builderAllowlist.tenantKey, tenantKey),
+      columns: { email: true },
+    });
+    return allowlisted?.email ?? null;
+  }
+
+  /**
+   * BILL-04: send a builder billing notification. Never throws — a failed
+   * notification is audited (the invoice transition already happened; the
+   * email is a notice, not the state change). No PII in the audit payload
+   * beyond the fact of the send.
+   */
+  async function notifyBuilder(
+    invoice: CommissionInvoiceRecord,
+    kind: 'invoice_ready' | 'payment_received' | 'payment_failed',
+  ): Promise<void> {
+    const to = await resolveBuilderEmail(invoice.tenantKey);
+    // Short public reference: first 8 of the uuid (stable, non-sensitive).
+    const invoiceRef = invoice.id.slice(0, 8);
+    if (to === null) {
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.email_skipped_no_contact',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: { kind },
+      });
+      return;
+    }
+    let delivery;
+    if (kind === 'invoice_ready') {
+      if (!invoice.reviewDueAt) return;
+      delivery = await email.sendCommissionInvoiceReady({
+        to,
+        invoiceRef,
+        commissionCents: invoice.commissionCents,
+        contractValueCents: invoice.contractValueCents,
+        currency: invoice.currency,
+        reviewDueAt: invoice.reviewDueAt,
+      });
+    } else if (kind === 'payment_received') {
+      if (!invoice.paidAt) return;
+      delivery = await email.sendCommissionPaymentReceived({
+        to,
+        invoiceRef,
+        commissionCents: invoice.commissionCents,
+        currency: invoice.currency,
+        paidAt: invoice.paidAt,
+      });
+    } else {
+      delivery = await email.sendCommissionPaymentFailed({
+        to,
+        invoiceRef,
+        commissionCents: invoice.commissionCents,
+        currency: invoice.currency,
+        updateWithinDays: 7,
+      });
+    }
+    await audit.append({
+      tenantKey: invoice.tenantKey,
+      eventType: delivery.sent
+        ? 'invoice.email_sent'
+        : 'invoice.email_failed',
+      entityType: 'commission_invoice',
+      entityId: invoice.id,
+      payload: {
+        kind,
+        ...(delivery.sent ? {} : { failureReason: delivery.failureReason }),
+      },
+    });
+  }
+
+  /**
    * Dispute freeze (P0, 2026-09-27): while an invoice is 'disputed', NO
    * charge-path movement may touch it — not paid, not failed. A Stripe
    * webhook arriving mid-dispute returns the unchanged invoice after
@@ -499,7 +594,7 @@ export function createCommissionService(
       const reviewDueAt = new Date(
         now().getTime() + reviewWindowDays * 86_400_000,
       );
-      return transition(
+      const invoice = await transition(
         invoiceId,
         'draft',
         'in_review',
@@ -507,6 +602,10 @@ export function createCommissionService(
         'invoice.status_changed',
         { from: 'draft', reviewDueAt: reviewDueAt.toISOString() },
       );
+      // BILL-04: the builder learns about the 7-day review window by
+      // email the moment the invoice enters it.
+      await notifyBuilder(invoice, 'invoice_ready');
+      return invoice;
     },
 
     async finalizeInvoice(
@@ -717,7 +816,7 @@ export function createCommissionService(
         // duplicate audit row.
         return toRecord(row);
       }
-      return transition(
+      const invoice = await transition(
         row.id,
         row.status as CommissionInvoiceStatus,
         'paid',
@@ -725,6 +824,9 @@ export function createCommissionService(
         'invoice.charge_succeeded',
         { paymentIntentId },
       );
+      // BILL-04: receipt email on successful charge.
+      await notifyBuilder(invoice, 'payment_received');
+      return invoice;
     },
 
     async markFailedByPaymentIntent(
@@ -758,6 +860,8 @@ export function createCommissionService(
           ? { paymentIntentId, failureReason }
           : { paymentIntentId },
       );
+      // BILL-04: "card declined — update it" email on failed charge.
+      await notifyBuilder(invoice, 'payment_failed');
       await alertOps(
         'Billing charge failed — dunning started',
         `Off-session charge for invoice ${invoice.id} ` +
@@ -799,6 +903,25 @@ export function createCommissionService(
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
       return toRecord(await requireInvoice(invoiceId));
+    },
+
+    async listInvoices(
+      tenantKey: string | null,
+      opts: { limit: number; offset: number },
+    ): Promise<CommissionInvoiceRecord[]> {
+      requireCommissionModel();
+      const limit = Math.min(Math.max(opts.limit, 1), 100);
+      const offset = Math.max(opts.offset, 0);
+      const rows = await db.query.commissionInvoices.findMany({
+        where:
+          tenantKey === null
+            ? undefined
+            : eq(commissionInvoices.tenantKey, tenantKey),
+        orderBy: desc(commissionInvoices.createdAt),
+        limit,
+        offset,
+      });
+      return rows.map(toRecord);
     },
   };
 }

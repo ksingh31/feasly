@@ -55,6 +55,14 @@ export interface BillingService {
     tenantKey: string | null,
   ): Promise<CommissionInvoiceRecord>;
   /**
+   * BILL-04: paginated invoice list, newest first. Builders pass their
+   * tenantKey (scoped to their own invoices); admins pass null (all).
+   */
+  listInvoices(
+    tenantKey: string | null,
+    opts: { limit: number; offset: number },
+  ): Promise<CommissionInvoiceRecord[]>;
+  /**
    * Dispute an invoice. Builders may only dispute their own tenant's
    * invoices (tenantKey required); admins pass null to skip the check.
    */
@@ -139,6 +147,15 @@ export function createBillingService(
       tenantKey: string | null,
     ): Promise<CommissionInvoiceRecord> {
       return requireTenantInvoice(invoiceId, tenantKey);
+    },
+
+    async listInvoices(
+      tenantKey: string | null,
+      opts: { limit: number; offset: number },
+    ): Promise<CommissionInvoiceRecord[]> {
+      // Tenant isolation is enforced inside commission.listInvoices:
+      // a non-null tenantKey scopes to that tenant's invoices only.
+      return commission.listInvoices(tenantKey, opts);
     },
 
     async disputeInvoice(

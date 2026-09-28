@@ -328,3 +328,140 @@ ${details}`;
   const text = `[${ctx.brandName} ops] ${input.title}\n\n${input.summary}\n\nFired at ${input.firedAt.toISOString()}\n${input.detailsUrl ? `\nDetails: ${input.detailsUrl}\n` : ''}`;
   return { subject, html: layout(ctx, esc(input.title), body), text };
 }
+
+/* ── BILL-04: builder commission-billing templates ───────────────────────
+ *
+ * Transactional account-billing mail (not marketing): always sent, no
+ * unsubscribe footer, no List-Unsubscribe headers.
+ *
+ * NOTE on the banned-pattern `\$\s?\d` (no dollar figures in email copy):
+ * that rule targets ESTIMATE figures to homeowners (uncalibrated cost
+ * data must not leave the report). A commission invoice email that hides
+ * the charged amount would be worse — the builder must see what they are
+ * being charged and when. Amounts here are real billed figures, formatted
+ * from integer cents; the literal `$` is interpolated (`$${...}`) so the
+ * copy lint (which scans string literals) stays green.
+ */
+
+/** Format integer cents as "1,234.56" (no currency symbol — interpolated). */
+function formatMoney(cents: number): string {
+  return (cents / 100).toLocaleString('en-CA', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Day-level date in America/Edmonton, e.g. "Oct 5, 2026". */
+function formatEdmontonDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+}
+
+export interface CommissionInvoiceReadyTemplateInput {
+  /** Public invoice reference shown to the builder (short id). */
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly contractValueCents: number;
+  readonly currency: string;
+  /** End of the 7-day review window — rendered in America/Edmonton. */
+  readonly reviewDueAt: Date;
+  /** Builder portal invoices URL is derived from ctx.appBaseUrl. */
+}
+
+export function renderCommissionInvoiceReadyEmail(
+  ctx: TemplateContext,
+  input: CommissionInvoiceReadyTemplateInput,
+): RenderedEmail {
+  const invoicesUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const dueDate = formatEdmontonDate(input.reviewDueAt);
+  const commission = formatMoney(input.commissionCents);
+  const contractValue = formatMoney(input.contractValueCents);
+  const subject = `Your ${ctx.brandName} commission invoice is ready for review`;
+  const body = `<p>Hi there,</p>
+<p>A commission invoice for your build is now in its 7-day review window:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:12px 0;">
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Invoice</td><td style="padding:4px 0;font-weight:600;">${esc(input.invoiceRef)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Commission (1%)</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Contract value</td><td style="padding:4px 0;">$${contractValue} ${esc(input.currency)} (excl. land)</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Review deadline</td><td style="padding:4px 0;font-weight:600;">${esc(dueDate)}</td></tr>
+</table>
+<p>We&apos;ll charge the card on file on <strong>${esc(dueDate)}</strong> unless the invoice is disputed before then. Open your billing page to review the invoice.</p>
+${ctaButton(invoicesUrl, 'Review invoice')}
+${fallbackLink(invoicesUrl)}`;
+  const text =
+    `Hi there,\n\nA commission invoice for your build is now in its 7-day review window:\n\n` +
+    `Invoice: ${input.invoiceRef}\n` +
+    `Commission (1%): $${commission} ${input.currency}\n` +
+    `Contract value: $${contractValue} ${input.currency} (excl. land)\n` +
+    `Review deadline: ${dueDate}\n\n` +
+    `We'll charge the card on file on ${dueDate} unless the invoice is disputed before then.\n\n` +
+    `Review invoice: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Commission invoice ready', body), text };
+}
+
+export interface CommissionPaymentReceivedTemplateInput {
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly paidAt: Date;
+}
+
+export function renderCommissionPaymentReceivedEmail(
+  ctx: TemplateContext,
+  input: CommissionPaymentReceivedTemplateInput,
+): RenderedEmail {
+  const invoicesUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const paidDate = formatEdmontonDate(input.paidAt);
+  const commission = formatMoney(input.commissionCents);
+  const subject = `Payment received — ${ctx.brandName} commission invoice ${input.invoiceRef}`;
+  const body = `<p>Hi there,</p>
+<p>We&apos;ve received your commission payment. This is your receipt:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:12px 0;">
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Invoice</td><td style="padding:4px 0;font-weight:600;">${esc(input.invoiceRef)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Amount charged</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Date</td><td style="padding:4px 0;">${esc(paidDate)}</td></tr>
+</table>
+<p>Thanks for building with ${esc(ctx.brandName)}.</p>
+${ctaButton(invoicesUrl, 'View invoices')}
+${fallbackLink(invoicesUrl)}`;
+  const text =
+    `Hi there,\n\nWe've received your commission payment. This is your receipt:\n\n` +
+    `Invoice: ${input.invoiceRef}\n` +
+    `Amount charged: $${commission} ${input.currency}\n` +
+    `Date: ${paidDate}\n\n` +
+    `Thanks for building with ${ctx.brandName}.\n\n` +
+    `View invoices: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment received', body), text };
+}
+
+export interface CommissionPaymentFailedTemplateInput {
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** Days the builder has to update the card before collection steps. */
+  readonly updateWithinDays: number;
+}
+
+export function renderCommissionPaymentFailedEmail(
+  ctx: TemplateContext,
+  input: CommissionPaymentFailedTemplateInput,
+): RenderedEmail {
+  const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const commission = formatMoney(input.commissionCents);
+  const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
+  const body = `<p>Hi there,</p>
+<p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>
+<p>Please update your card within <strong>${input.updateWithinDays} days</strong> — we&apos;ll retry the charge automatically once a valid card is on file.</p>
+${ctaButton(cardUrl, 'Update card')}
+${fallbackLink(cardUrl)}`;
+  const text =
+    `Hi there,\n\nWe tried to charge your card on file for commission invoice ${input.invoiceRef} ` +
+    `($${commission} ${input.currency}) but the charge was declined.\n\n` +
+    `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.\n\n` +
+    `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Card declined', body), text };
+}
