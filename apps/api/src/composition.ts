@@ -1661,6 +1661,7 @@ export function createComposition(
   const adminBillingRoute: AdminBillingRoute = createAdminBillingRoute({
     billingHealth: billingHealthService,
     commission: commissionService,
+    billing: billingService,
     adminGuard,
   });
   // Stripe webhook receiver: 100/min per IP (frozen registry). The signature

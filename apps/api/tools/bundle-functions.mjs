@@ -347,6 +347,11 @@ const targets = [
     entry: 'src/functions/admin-billing-retry.ts',
     out: 'admin-billing-retry/index.js',
   },
+  // Manual invoice creation (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-create-invoice.ts',
+    out: 'admin-billing-create-invoice/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',
