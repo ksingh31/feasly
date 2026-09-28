@@ -510,15 +510,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideTitle: 'Building in Calgary',
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
-      stepsTitle: 'Your next steps',
+      stepsTitle: 'Your next three steps',
       steps: [
         {
           title: 'Meet your matched builder',
-          body: 'When you’re ready, we can connect you with builders associated with us in Calgary, matched to your project and area. We’ll only reach out with your permission — opt out anytime.',
+          body: 'See your system-matched builders and their match scores — builders in Calgary whose work fits your project and area. When you’re ready, we can introduce you, only with your permission. Opt out anytime.',
         },
         {
           title: 'Refine your project brief',
-          body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
+          body: 'Adjust your inputs and re-run the estimate, compare the Standard and Luxury tiers, and lock in your must-haves — a clear brief is what turns this estimate into quotes you can actually compare.',
+        },
+        {
+          title: 'Save and share',
+          body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
       ],
       planningTitle: 'Planning ahead',

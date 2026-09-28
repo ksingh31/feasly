@@ -149,7 +149,7 @@ describe('SampleReportPageComponent', () => {
 
   it('renders next steps plus inert share/callback/PDF sections', () => {
     const text: string = fixture.nativeElement.textContent;
-    expect(text).toContain('Your next steps');
+    expect(text).toContain('Your next three steps');
     expect(text).toContain('Share with a partner');
     expect(text).toContain('Prefer to talk it through?');
     expect(text).toContain('Download PDF');
