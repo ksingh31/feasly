@@ -159,6 +159,14 @@ export interface AppConfig {
        */
       clientId: string;
       /**
+       * Sign-up/sign-in user flow name (e.g. `feasly-signup-signin`).
+       * Passed as the `p` query parameter on the authorize request so
+       * Entra External ID runs the right flow. Without it the authorize
+       * request is rejected.
+       * Placeholder key name: ENTRA_USER_FLOW.
+       */
+      userFlow: string;
+      /**
        * Microsoft-hosted authorize endpoint template. `{tenantSubdomain}`
        * and `{tenantId}` are substituted at sign-in time. Lives in config
        * (not code) so sovereign clouds (e.g. `ciamlogin.us`) or future

@@ -22,6 +22,7 @@ const ENTRA = {
   tenantSubdomain: 'feasly-dev',
   tenantId: 'tenant-id-123',
   clientId: 'client-id-456',
+  userFlow: 'feasly-signup-signin',
   authorizeUrlTemplate:
     'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
 };
@@ -74,6 +75,8 @@ describe('AdminEntraAuthService', () => {
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9\-_]+$/);
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9\-_]+$/);
+    // Entra External ID user flow — required so Entra runs the right flow.
+    expect(url.searchParams.get('p')).toBe(ENTRA.userFlow);
     httpMock.verify();
   });
 

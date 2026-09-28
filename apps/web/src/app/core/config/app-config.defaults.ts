@@ -97,12 +97,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     /**
      * Microsoft Entra External ID (auth/02 pivot). Placeholders — the
      * backend team provides the real tenant values (ENTRA_TENANT_SUBDOMAIN,
-     * ENTRA_TENANT_ID, ENTRA_CLIENT_ID) in the deployed app-config.json.
+     * ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_USER_FLOW) in the deployed
+     * app-config.json.
      */
     entra: {
       tenantSubdomain: 'ENTRA_TENANT_SUBDOMAIN',
       tenantId: 'ENTRA_TENANT_ID',
       clientId: 'ENTRA_CLIENT_ID',
+      userFlow: 'ENTRA_USER_FLOW',
       authorizeUrlTemplate:
         'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
     },
