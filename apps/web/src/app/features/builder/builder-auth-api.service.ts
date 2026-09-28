@@ -7,7 +7,6 @@ import type {
   BuilderAuthMeResponse,
   BuilderAuthRequestBody,
   BuilderAuthRequestResponse,
-  BuilderAuthVerifyResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
@@ -59,16 +58,6 @@ export class BuilderAuthApiService {
   requestMagicLink(body: BuilderAuthRequestBody): Observable<BuilderAuthRequestResponse> {
     return this.call(
       this.http.post<BuilderAuthRequestResponse>(`${this.authBase}/request`, body, {
-        withCredentials: true,
-      }),
-    );
-  }
-
-  /** Verify a magic-link token from the email. Returns the session token. */
-  verifyMagicLink(token: string): Observable<BuilderAuthVerifyResponse> {
-    return this.call(
-      this.http.get<BuilderAuthVerifyResponse>(`${this.authBase}/verify`, {
-        params: { token },
         withCredentials: true,
       }),
     );
