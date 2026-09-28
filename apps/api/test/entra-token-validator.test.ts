@@ -22,6 +22,7 @@ import { ErrorCodes } from '../src/middleware/errors';
 
 const ISSUER = 'https://tenant-123.ciamlogin.com/tenant-123/v2.0';
 const CLIENT_ID = 'client-abc';
+const CLIENT_SECRET = 'test-client-secret-value';
 const USER_FLOW = 'feasly-signup-signin';
 const TOKEN_ENDPOINT =
   'https://feaslytest.ciamlogin.com/tenant-123/oauth2/v2.0/token';
@@ -126,6 +127,7 @@ function validatorDeps(
     jwksUri: JWKS_URI,
     issuer: ISSUER,
     clientId: CLIENT_ID,
+    clientSecret: CLIENT_SECRET,
     userFlow: USER_FLOW,
     jwksCacheTtlMs: 600_000,
     httpTimeoutMs: 5_000,
@@ -170,6 +172,22 @@ describe('entra token validator — code exchange', () => {
     // The user flow rides on the token URL's `p` query param (mockFetch only
     // routes the URL with it) — it must NOT also be a form field.
     expect(seen!.has('p')).toBe(false);
+  });
+
+  it('sends client_secret in the token request body (confidential client)', async () => {
+    let seen: URLSearchParams | null = null;
+    const { fetchImpl } = mockFetch({
+      token: (body) => {
+        seen = body;
+        return jsonResponse({ id_token: 'unused' });
+      },
+    });
+    const v = createEntraTokenValidator(validatorDeps({ fetchImpl }));
+    await v.exchangeCode(EXCHANGE_INPUT);
+    // The redirect URI is on the "Web" platform, so the token endpoint
+    // treats the backend as a confidential client: without the secret the
+    // exchange is rejected with HTTP 401 invalid_client.
+    expect(seen!.get('client_secret')).toBe(CLIENT_SECRET);
   });
 
   it('carries the user flow as the p query param on the token URL', async () => {

@@ -117,6 +117,17 @@ var groqApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.ke
 var entraGraphClientSecretName = 'feasly-entra-graph-client-secret'
 var entraGraphClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${entraGraphClientSecretName}'
 
+// `feasly-web` client secret for the admin sign-in token exchange. The
+// callback redirect URI is registered on the "Web" platform, so the token
+// endpoint treats the backend as a confidential client and rejects the
+// exchange with HTTP 401 invalid_client when the secret is absent. The
+// secret is provisioned in Key Vault under its exact name below (created in
+// the portal on the app registration's Certificates & secrets blade) — the
+// URI below only references it; Bicep never writes the raw value. Dev-only
+// until Karan provisions the tenant identifiers for other environments.
+var entraClientSecretName = 'feasly-entra-client-secret'
+var entraClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${entraClientSecretName}'
+
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
@@ -254,6 +265,7 @@ module functionApp 'modules/function-app.bicep' = {
     entraIssuerDomain: environment == 'dev' ? 'feaslyext.onmicrosoft.com' : ''
     entraGraphClientId: environment == 'dev' ? '2fe45e0e-a3ae-4695-93db-eaf1a15ba4d0' : ''
     entraGraphClientSecretUri: environment == 'dev' ? entraGraphClientSecretUri : ''
+    entraClientSecretUri: environment == 'dev' ? entraClientSecretUri : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).

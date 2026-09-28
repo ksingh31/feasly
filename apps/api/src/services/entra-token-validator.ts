@@ -39,6 +39,14 @@ export interface EntraTokenValidatorConfig {
   /** Application (client) id — the expected `aud` claim. */
   readonly clientId: string;
   /**
+   * Client secret for the `feasly-web` app registration. Sent as
+   * `client_secret` in the token request body: the redirect URI is
+   * registered on the "Web" platform, so the token endpoint treats the
+   * backend as a confidential client and rejects the exchange with HTTP
+   * 401 `invalid_client` when the secret is absent. Never logged.
+   */
+  readonly clientSecret: string;
+  /**
    * Sign-in user flow name (e.g. `feasly-signup-signin`) — sent as the `p`
    * query parameter on the token endpoint URL, matching the frontend's
    * authorize request. From config, never hardcoded.
@@ -156,6 +164,7 @@ export function createEntraTokenValidator(
     jwksUri,
     issuer,
     clientId,
+    clientSecret,
     userFlow,
     jwksCacheTtlMs,
     httpTimeoutMs,
@@ -266,6 +275,9 @@ export function createEntraTokenValidator(
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           client_id: clientId,
+          // Confidential-client authentication: the redirect URI is on the
+          // "Web" platform, so the token endpoint requires the secret.
+          client_secret: clientSecret,
           code: input.code,
           redirect_uri: input.redirectUri,
           code_verifier: input.codeVerifier,

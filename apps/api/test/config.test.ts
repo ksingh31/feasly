@@ -58,6 +58,7 @@ describe('loadConfig', () => {
         tenantSubdomain: '',
         tenantId: '',
         clientId: '',
+        clientSecret: '',
         userFlow: '',
         configured: false,
         tokenEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/token',
@@ -175,12 +176,14 @@ describe('loadConfig', () => {
       ENTRA_TENANT_SUBDOMAIN: 'feaslyext',
       ENTRA_TENANT_ID: 'tenant-123',
       ENTRA_CLIENT_ID: 'client-abc',
+      ENTRA_CLIENT_SECRET: 'secret-xyz',
       ENTRA_USER_FLOW: 'feasly-signup-signin',
     });
     expect(config.entraSignIn).toEqual({
       tenantSubdomain: 'feaslyext',
       tenantId: 'tenant-123',
       clientId: 'client-abc',
+      clientSecret: 'secret-xyz',
       userFlow: 'feasly-signup-signin',
       configured: true,
       tokenEndpoint: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/token',
@@ -191,6 +194,21 @@ describe('loadConfig', () => {
       httpTimeoutMs: 15_000,
       callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
     });
+  });
+
+  it('keeps Entra sign-in unconfigured when the client secret is missing (auth/02)', () => {
+    // The redirect URI is on the "Web" platform: without the secret the
+    // token endpoint rejects the exchange with 401 invalid_client, so the
+    // callback must fail closed (503) until the secret is provisioned.
+    const config = loadConfig({
+      ...VALID_ENV,
+      ENTRA_TENANT_SUBDOMAIN: 'feaslyext',
+      ENTRA_TENANT_ID: 'tenant-123',
+      ENTRA_CLIENT_ID: 'client-abc',
+      ENTRA_USER_FLOW: 'feasly-signup-signin',
+    });
+    expect(config.entraSignIn.configured).toBe(false);
+    expect(config.entraSignIn.clientSecret).toBe('');
   });
 
   it('reads the billing model, rate, window, and SLA from env', () => {

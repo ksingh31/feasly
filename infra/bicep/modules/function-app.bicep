@@ -106,6 +106,9 @@ param entraGraphClientId string = ''
 @description('Key Vault secret URI (versionless) for the Graph client secret used for user provisioning. Empty = not configured; provisioning fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
 param entraGraphClientSecretUri string = ''
 
+@description('Key Vault secret URI (versionless) for the feasly-web client secret used in the admin sign-in token exchange (confidential client). Empty = not configured; the Entra callback fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
+param entraClientSecretUri string = ''
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -411,6 +414,15 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 // Key Vault reference — the client secret value never lands in app settings.
                 name: 'ENTRA_GRAPH_CLIENT_SECRET'
                 value: '@Microsoft.KeyVault(SecretUri=${entraGraphClientSecretUri})'
+              }
+            ],
+        empty(entraClientSecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the client secret value never lands in app settings.
+                name: 'ENTRA_CLIENT_SECRET'
+                value: '@Microsoft.KeyVault(SecretUri=${entraClientSecretUri})'
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls
