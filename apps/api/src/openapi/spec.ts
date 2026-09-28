@@ -367,7 +367,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       'Mints a FRESH partner-share magic link attached to the same lead ' +
       '(the owner\'s token is never reused or persisted), emails it to the ' +
       'partner address, and records the audit row. The report token IS the ' +
-      'credential.',
+      'credential. Abuse limits (CAP-008): max 5 shares per estimate per ' +
+      'day over a rolling 24h window (429 RATE_LIMITED when exceeded); the ' +
+      'partner email must differ from the owner\'s email (400). ' +
+      'Partner-share tokens cannot mint further shares (403).',
     // No named security scheme: the report token in the body IS the
     // credential (registry auth: magic-token). Explicit [] satisfies the
     // Redocly security-defined rule.
