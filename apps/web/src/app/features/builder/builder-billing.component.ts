@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe, StripeCardElement } from '@stripe/stripe-js';
@@ -40,6 +41,7 @@ import { BuilderBillingState } from './builder-billing.state';
 @Component({
   selector: 'app-builder-billing',
   standalone: true,
+  imports: [RouterLink, RouterLinkActive],
   templateUrl: './builder-billing.component.html',
   styleUrls: ['./builder-billing.component.scss'],
 })
