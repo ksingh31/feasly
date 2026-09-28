@@ -26,7 +26,11 @@ function makeService() {
       tenantKey: 'elite-craft',
     }),
     isSessionExpired: vi.fn().mockResolvedValue(false),
-    logout: vi.fn().mockResolvedValue({ loggedOut: true as const }),
+    logout: vi.fn().mockResolvedValue({
+      loggedOut: true as const,
+      entraLogoutUrl:
+        'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    }),
   };
 }
 
@@ -84,6 +88,9 @@ describe('builder auth route — bearer conformance (embed/09)', () => {
     const result = await route.logout({ authorization: 'Bearer bearer-tok' });
     expect(result.loggedOut).toBe(true);
     expect(result.setCookie).toContain('Max-Age=0');
+    expect(result.entraLogoutUrl).toBe(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    );
     expect(builderAuth.logout).toHaveBeenCalledWith('bearer-tok');
   });
 });

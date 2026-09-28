@@ -17,7 +17,11 @@ function makeService() {
   return {
     validateSession: vi.fn().mockResolvedValue('admin@example.com'),
     isSessionExpired: vi.fn().mockResolvedValue(false),
-    logout: vi.fn().mockResolvedValue({ loggedOut: true as const }),
+    logout: vi.fn().mockResolvedValue({
+      loggedOut: true as const,
+      entraLogoutUrl:
+        'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    }),
   };
 }
 
@@ -116,6 +120,9 @@ describe('admin auth route (auth/02)', () => {
     });
     expect(result.loggedOut).toBe(true);
     expect(result.setCookie).toContain('Max-Age=0');
+    expect(result.entraLogoutUrl).toBe(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    );
     expect(adminAuth.logout).toHaveBeenCalledWith('tok123');
   });
 
