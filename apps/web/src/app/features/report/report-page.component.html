@@ -161,7 +161,11 @@
     <section class="card" [attr.aria-label]="copy.breakdownTitle">
       <h2>{{ copy.breakdownTitle }}</h2>
       @if (unlocked()) {
-        <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
+        <!-- Purely visual stacked bar: aria-hidden because the legend list
+             immediately below exposes the same three labels + amounts to
+             assistive tech (a single 100+ char img label gets truncated
+             mid-number by some AT/QA tools). -->
+        <div class="buckets-bar" aria-hidden="true">
           @for (b of buckets(); track b.key) {
             <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
           }
@@ -181,11 +185,13 @@
       }
     </section>
 
-    <!-- AI SUMMARY: neighbourhood guide only — no cost figures, no markdown.
-         Rendered as plain text, so the prompt forbids markdown formatting.
-         When every model failed (BE-9), the backend returns the static
-         Calgary guide labeled 'static-guide' — rendered under its own
-         honest title, never as AI prose. -->
+    <!-- AI SUMMARY: neighbourhood guide only — no cost figures.
+         Rendered one paragraph per block: the prompt emits plain text for
+         new narratives, and narrativeParagraphs() degrades older stored
+         markdown narratives gracefully. When every model failed (BE-9),
+         the backend returns the static Calgary guide labeled
+         'static-guide' — rendered under its own honest title, never as
+         AI prose. -->
     <section class="card" [attr.aria-label]="isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle">
       <h2>{{ isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle }}</h2>
       @if (unlocked() && narrative()) {
@@ -195,7 +201,13 @@
             <p class="narrative">{{ para }}</p>
           }
         } @else {
-          <p class="narrative">{{ narrative() }}</p>
+          <!-- One paragraph per block: new narratives are blank-line
+               separated plain text; legacy stored narratives (markdown,
+               duplicated or truncated) are cleaned by narrativeParagraphs()
+               so the footer never fuses with the last line of prose. -->
+          @for (para of narrativeParagraphs(); track $index) {
+            <p class="narrative">{{ para }}</p>
+          }
         }
       } @else if (unlocked()) {
         <p class="hint">{{ copy.aiSummaryUnavailable }}</p>

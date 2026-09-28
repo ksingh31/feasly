@@ -11,6 +11,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
+import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
@@ -386,11 +387,15 @@ export class ReportPageComponent implements OnInit {
     return value.toLocaleString('en-CA') + ' ' + this.copy.adjustUnit;
   }
 
-  protected bucketsAriaLabel(): string {
-    return this.buckets()
-      .map((b) => `${b.label}: ${this.formatCad(b.range.base)}`)
-      .join(', ');
-  }
+  /**
+   * AI-summary display paragraphs. New narratives are plain-text
+   * neighbourhood guides (blank-line-separated) and pass through as-is;
+   * older stored narratives with markdown, duplication, or a fused footer
+   * degrade gracefully via the shared display helper.
+   */
+  protected readonly narrativeParagraphs = computed(() =>
+    narrativeDisplayParagraphs(this.narrative()),
+  );
 
   protected get shareEmailInvalid(): boolean {
     const control = this.shareForm.controls.email;
