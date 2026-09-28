@@ -456,7 +456,8 @@ export function createUserService(deps: UserServiceDeps): UserService {
     const delivery = await emailService.sendInvitation({
       to: args.user.email,
       name: args.name,
-      signInUrl: `${appBaseUrl}/admin/login`,
+      // Builder invitees must land on the builder sign-in, not the admin one.
+      signInUrl: args.builderId ? `${appBaseUrl}/builder/login` : `${appBaseUrl}/admin/login`,
       expiresInDays: Math.round(invitationTtlSeconds / 86_400),
       accessDescription,
       inviterName: args.inviterName,

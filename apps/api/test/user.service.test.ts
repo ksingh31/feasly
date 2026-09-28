@@ -322,6 +322,9 @@ describe('UserService (Entra)', () => {
     expect(user.memberships[0]!.role).toBe('builder_member');
     expect(h.invitations[0]!.role).toBe('builder_member');
     expect(h.invitations[0]!.builderId).toBe('builder-1');
+    // Builder invitees land on the builder sign-in, not the admin one.
+    expect(h.sentEmails).toHaveLength(1);
+    expect(h.sentEmails[0]!.signInUrl).toBe('https://app.example/builder/login');
   });
 
   it('invite: only a super_admin can grant the super_admin role (auth/04)', async () => {
