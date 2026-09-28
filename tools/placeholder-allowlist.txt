@@ -28,6 +28,12 @@ app-config.defaults.ts :: PLACEHOLDER :: production domain undecided, blocked on
 # Ops inbox — standing test email until Karan names the ops inbox (admin/06).
 apps/api/src/config.ts :: test email :: OPS_INBOX_EMAIL default, blocked on Karan naming the ops inbox
 
+# Protected super-admin account — Karan's real standing email (auth/01).
+# NOT a placeholder: seeded as the protected super_admin in migration 0036
+# and guarded by PROTECTED_EMAIL in UserService. Permanent by design —
+# never remove this entry.
+apps/api/src/services/user.service.ts :: test email :: PROTECTED_EMAIL is Karan's real account (seeded protected super_admin), permanent by design
+
 # Secrets hygiene (hardening/07): PLACEHOLDER_* constants are the detection
 # patterns for placeholder secrets, not unfinished placeholders themselves.
 tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder secrets (hardening/07)
