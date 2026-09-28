@@ -1055,6 +1055,10 @@ export interface AppConfig {
       /** Pagination status; {page} and {pages} are interpolated. */
       invoicesPageOf: string;
       invoicesPage: string;
+      /** Invoices per page in the builder invoice list. */
+      invoicesPageSize: number;
+      /** SEO description for the builder invoices page. */
+      invoicesSeoDescription: string;
       /** Timeline event: invoice created. */
       invoicesTimelineCreated: string;
       /** Timeline event: review window ends. */

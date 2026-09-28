@@ -75,7 +75,8 @@
 
       <h2>{{ copy.invoicesTimelineHeading }}</h2>
       <ol class="builder-invoices__timeline">
-        @for (entry of timeline(invoice); track entry.date + entry.label) {
+        @for (entry of timeline(invoice);
+          track entry.date + entry.label) {
           <li>
             <span class="builder-invoices__timeline-label">{{ entry.label }}</span>
             <time>{{ formatEdmontonDate(entry.date) }}</time>

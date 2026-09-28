@@ -936,6 +936,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       invoicesNextPage: 'Next',
       invoicesPageOf: 'Page {page} of {pages}',
       invoicesPage: 'Page {page}',
+      invoicesPageSize: 10,
+      invoicesSeoDescription:
+        'Commission invoices for your Feasly builder account.',
       invoicesTimelineCreated: 'Invoice created',
       invoicesTimelineReviewEnds: 'Review window ends',
       invoicesTimelineFinalized: 'Finalized',

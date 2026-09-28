@@ -220,3 +220,9 @@ apps/web/src/app/features/admin/admin-users-api.service.ts
 apps/web/src/app/features/admin/admin-users.component.html
 apps/web/src/app/features/admin/admin-users.component.ts
 apps/web/src/app/features/admin/admin-users.state.ts
+
+# Builder invoices API placeholder (billing/04): the delay(150) mock-latency
+# literals live in the PLACEHOLDER branch only — deleted on cutover when the
+# real GET /api/v1/billing/invoices endpoint lands (see the CUTOVER comment
+# in the file). Not tunables; the mock never ships to production.
+apps/web/src/app/features/builder/builder-invoices-api.service.ts

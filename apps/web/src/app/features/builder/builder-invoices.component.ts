@@ -86,7 +86,7 @@ export class BuilderInvoicesComponent implements OnInit {
   constructor() {
     this.seo.setPage({
       title: 'Invoices — Feasly builder portal',
-      description: 'Commission invoices for your Feasly builder account.',
+      description: this.copy.invoicesSeoDescription,
       path: '/builder/billing/invoices',
     });
     this.destroyRef.onDestroy(() => {

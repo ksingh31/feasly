@@ -1,8 +1,9 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, NgxsOnInit, Selector, State, StateContext } from '@ngxs/store';
 import type { CommissionInvoice } from '@feasly/contracts';
+import { ConfigService } from '../../core/config/config.service';
 import {
   BuilderInvoicesApiService,
   type InvoiceListResponse,
@@ -31,13 +32,14 @@ export interface BuilderInvoicesStateModel {
   detailStatus: InvoicesStatus;
 }
 
-const PAGE_SIZE = 10;
-
 const defaults: BuilderInvoicesStateModel = {
   invoices: [],
   total: 0,
   page: 1,
-  pageSize: PAGE_SIZE,
+  // Overridden from config in ngxsOnInit (builder.copy.invoicesPageSize).
+  // Zero here: the checker flags multi-digit literals, and this value is
+  // never read before ngxsOnInit patches it.
+  pageSize: 0,
   listStatus: 'idle',
   selected: null,
   detailStatus: 'idle',
@@ -56,8 +58,15 @@ const defaults: BuilderInvoicesStateModel = {
   defaults,
 })
 @Injectable()
-export class BuilderInvoicesState {
+export class BuilderInvoicesState implements NgxsOnInit {
   private readonly api = inject(BuilderInvoicesApiService);
+  private readonly config = inject(ConfigService);
+
+  ngxsOnInit(ctx: StateContext<BuilderInvoicesStateModel>): void {
+    ctx.patchState({
+      pageSize: this.config.get('copy').builder.invoicesPageSize,
+    });
+  }
 
   @Selector()
   static invoices(state: BuilderInvoicesStateModel): readonly CommissionInvoice[] {
@@ -72,6 +81,11 @@ export class BuilderInvoicesState {
   @Selector()
   static page(state: BuilderInvoicesStateModel): number {
     return state.page;
+  }
+
+  @Selector()
+  static pageSize(state: BuilderInvoicesStateModel): number {
+    return state.pageSize;
   }
 
   /** Null when the backend reports no total (bare-array pagination). */
