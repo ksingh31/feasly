@@ -37,7 +37,7 @@ export class AdminEntraAuthService {
    */
   isConfigured(): boolean {
     const entra = this.config.get('admin').entra;
-    return [entra.tenantSubdomain, entra.tenantId, entra.clientId].every(
+    return [entra.tenantSubdomain, entra.tenantId, entra.clientId, entra.userFlow].every(
       (value) =>
         typeof value === 'string' &&
         value.length > 0 &&
@@ -76,6 +76,9 @@ export class AdminEntraAuthService {
       code_challenge: challenge,
       code_challenge_method: 'S256',
       state,
+      // Entra External ID user flow — without `p` Entra doesn't know which
+      // sign-up/sign-in flow to run and rejects the request.
+      p: entra.userFlow,
     });
     const authorizeUrl = entra.authorizeUrlTemplate
       .replace('{tenantSubdomain}', entra.tenantSubdomain)
