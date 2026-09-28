@@ -51,3 +51,8 @@ export class AssignLeadBuilder {
 export class DismissAssignBuilderError {
   static readonly type = '[AdminBuilders] Dismiss assign error';
 }
+
+/** Dismiss the inline assign success confirmation on the lead detail. */
+export class DismissAssignBuilderSuccess {
+  static readonly type = '[AdminBuilders] Dismiss assign success';
+}

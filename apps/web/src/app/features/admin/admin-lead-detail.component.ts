@@ -19,7 +19,9 @@ import { initials } from '../../shared/utils/initials';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
+  DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
+  DismissAdminLeadStatusSuccess,
   SelectAdminLead,
   UpdateAdminLeadStatus,
 } from './admin-leads.actions';
@@ -27,6 +29,7 @@ import { AdminLeadsState } from './admin-leads.state';
 import {
   AssignLeadBuilder,
   DismissAssignBuilderError,
+  DismissAssignBuilderSuccess,
   LoadBuilders,
 } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
@@ -62,7 +65,9 @@ const FOCUSABLE_SELECTOR =
  * builder in the dropdown, then Apply Builder. The button stays disabled
  * until the selection differs from the lead's current assignment, and the
  * detail is refetched after apply so the modal reflects the updated
- * assignment.
+ * assignment. Both applies show an inline success confirmation; the refetch
+ * keeps the open detail on screen (no loading flash), and refresh failures
+ * surface inline instead of wiping the modal.
  */
 @Component({
   selector: 'app-admin-lead-detail',
@@ -83,15 +88,23 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly detail = this.store.selectSignal(AdminLeadsState.detail);
   protected readonly detailStatus = this.store.selectSignal(AdminLeadsState.detailStatus);
   protected readonly detailError = this.store.selectSignal(AdminLeadsState.detailError);
+  protected readonly detailRefreshError = this.store.selectSignal(
+    AdminLeadsState.detailRefreshError,
+  );
   protected readonly notePosting = this.store.selectSignal(AdminLeadsState.notePosting);
+  protected readonly noteError = this.store.selectSignal(AdminLeadsState.noteError);
   protected readonly statusUpdating = this.store.selectSignal(AdminLeadsState.statusUpdating);
   protected readonly statusUpdateError = this.store.selectSignal(AdminLeadsState.statusUpdateError);
+  protected readonly statusUpdateSuccess = this.store.selectSignal(
+    AdminLeadsState.statusUpdateSuccess,
+  );
 
   /** Builders table (for the assign dropdown). */
   protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
   protected readonly buildersStatus = this.store.selectSignal(AdminBuildersState.listStatus);
   protected readonly assigning = this.store.selectSignal(AdminBuildersState.assigning);
   protected readonly assignError = this.store.selectSignal(AdminBuildersState.assignError);
+  protected readonly assignSuccess = this.store.selectSignal(AdminBuildersState.assignSuccess);
 
   protected readonly noteControl = new FormControl('', {
     nonNullable: true,
@@ -145,6 +158,20 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
     return this.builders().find((b) => b.id === detail.builderId)?.displayName ?? null;
   });
 
+  /** Inline confirmation after a successful status apply. */
+  protected readonly statusSuccessMessage = computed(() => {
+    const detail = this.detail();
+    return detail
+      ? `Status updated to ${this.statusLabel(detail.status)}.`
+      : 'Status updated.';
+  });
+
+  /** Inline confirmation after a successful builder apply. */
+  protected readonly assignSuccessMessage = computed(() => {
+    const name = this.assignedBuilderName();
+    return name ? `Assigned to ${name}.` : 'Builder unassigned.';
+  });
+
   /** Element that had focus before the modal opened — restored on close. */
   private previousFocus: Element | null = null;
 
@@ -173,9 +200,12 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((status) => {
         this.selectedStatus.set(status);
-        // A fresh pick dismisses the previous apply error.
+        // A fresh pick dismisses the previous apply feedback.
         if (this.statusUpdateError()) {
           this.store.dispatch(new DismissAdminLeadStatusError());
+        }
+        if (this.statusUpdateSuccess()) {
+          this.store.dispatch(new DismissAdminLeadStatusSuccess());
         }
       });
 
@@ -183,9 +213,21 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((builderId) => {
         this.selectedBuilderId.set(builderId);
-        // A fresh pick dismisses the previous apply error.
+        // A fresh pick dismisses the previous apply feedback.
         if (this.assignError()) {
           this.store.dispatch(new DismissAssignBuilderError());
+        }
+        if (this.assignSuccess()) {
+          this.store.dispatch(new DismissAssignBuilderSuccess());
+        }
+      });
+
+    // Typing a new note dismisses the previous note-post error.
+    this.noteControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.noteError()) {
+          this.store.dispatch(new DismissAdminLeadNoteError());
         }
       });
   }
@@ -265,6 +307,10 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
     if (!detail || status === detail.status || this.statusUpdating()) {
       return;
     }
+    // Keep the pipeline feedback focused on the latest action.
+    if (this.assignSuccess()) {
+      this.store.dispatch(new DismissAssignBuilderSuccess());
+    }
     this.store.dispatch(new UpdateAdminLeadStatus(detail.id, status));
   }
 
@@ -281,9 +327,12 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
     if (!detail || next === (detail.builderId ?? null) || this.assigning()) {
       return;
     }
-    // A fresh apply dismisses the previous assign error.
+    // A fresh apply dismisses the previous assign feedback.
     if (this.assignError()) {
       this.store.dispatch(new DismissAssignBuilderError());
+    }
+    if (this.statusUpdateSuccess()) {
+      this.store.dispatch(new DismissAdminLeadStatusSuccess());
     }
     this.store
       .dispatch(new AssignLeadBuilder(detail.id, next))

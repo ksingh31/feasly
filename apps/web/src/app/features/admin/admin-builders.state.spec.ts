@@ -8,6 +8,7 @@ import {
   AssignLeadBuilder,
   CreateBuilder,
   DismissAssignBuilderError,
+  DismissAssignBuilderSuccess,
   DismissBuildersSaveError,
   DismissBuildersSaved,
   LoadBuilders,
@@ -199,5 +200,27 @@ describe('AdminBuildersState', () => {
 
     store.dispatch(new DismissAssignBuilderError());
     expect(store.selectSnapshot(AdminBuildersState.assignError)).toBeNull();
+  });
+
+  it('sets assignSuccess on success and clears it on dismiss or a new attempt', async () => {
+    let done = store.dispatch(new AssignLeadBuilder('lead-1', 'b1'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/lead-1/assign-builder'))
+      .flush({ ok: true });
+    await done.toPromise();
+
+    expect(store.selectSnapshot(AdminBuildersState.assignSuccess)).toBe(true);
+
+    store.dispatch(new DismissAssignBuilderSuccess());
+    expect(store.selectSnapshot(AdminBuildersState.assignSuccess)).toBe(false);
+
+    // A new attempt also clears a stale confirmation.
+    done = store.dispatch(new AssignLeadBuilder('lead-1', 'b1'));
+    expect(store.selectSnapshot(AdminBuildersState.assignSuccess)).toBe(false);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/lead-1/assign-builder'))
+      .flush({ ok: true });
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminBuildersState.assignSuccess)).toBe(true);
   });
 });

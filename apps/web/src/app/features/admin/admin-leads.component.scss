@@ -398,7 +398,9 @@
 .lead-modal {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* Above the admin mobile nav dropdown (z-index 100) — the modal must own
+     the screen while open. */
+  z-index: 150;
   display: flex;
   align-items: center;
   justify-content: center;

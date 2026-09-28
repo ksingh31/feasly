@@ -16,7 +16,9 @@ import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
+  DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
+  DismissAdminLeadStatusSuccess,
   DismissExportError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
@@ -54,9 +56,15 @@ export interface AdminLeadsStateModel {
   detailStatus: AdminLeadDetailStatus;
   detailError: string | null;
   notePosting: boolean;
+  /** Last failed note-post message; null when the last note posted. */
+  noteError: string | null;
   statusUpdating: boolean;
   /** Last failed status-update message; null when the last apply succeeded. */
   statusUpdateError: string | null;
+  /** True after a status apply until dismissed (drives the inline confirmation). */
+  statusUpdateSuccess: boolean;
+  /** Last failed detail-refresh message; null when the last refresh succeeded. */
+  detailRefreshError: string | null;
   exporting: boolean;
   /** Last failed CSV-export message; null when the last export succeeded. */
   exportError: string | null;
@@ -77,8 +85,11 @@ const defaults: AdminLeadsStateModel = {
   detailStatus: 'idle',
   detailError: null,
   notePosting: false,
+  noteError: null,
   statusUpdating: false,
   statusUpdateError: null,
+  statusUpdateSuccess: false,
+  detailRefreshError: null,
   exporting: false,
   exportError: null,
 };
@@ -176,6 +187,11 @@ export class AdminLeadsState {
   }
 
   @Selector()
+  static noteError(state: AdminLeadsStateModel): string | null {
+    return state.noteError;
+  }
+
+  @Selector()
   static statusUpdating(state: AdminLeadsStateModel): boolean {
     return state.statusUpdating;
   }
@@ -183,6 +199,16 @@ export class AdminLeadsState {
   @Selector()
   static statusUpdateError(state: AdminLeadsStateModel): string | null {
     return state.statusUpdateError;
+  }
+
+  @Selector()
+  static statusUpdateSuccess(state: AdminLeadsStateModel): boolean {
+    return state.statusUpdateSuccess;
+  }
+
+  @Selector()
+  static detailRefreshError(state: AdminLeadsStateModel): string | null {
+    return state.detailRefreshError;
   }
 
   @Selector()
@@ -279,12 +305,21 @@ export class AdminLeadsState {
     ctx: StateContext<AdminLeadsStateModel>,
     action: SelectAdminLead,
   ): Observable<AdminLeadDetail> {
+    const before = ctx.getState();
+    // A re-select of the open lead (e.g. after apply-status / apply-builder /
+    // add-note) is a refresh, not a fresh open: keep the stale detail on
+    // screen so the modal doesn't flash through the loading state.
+    const isRefresh = before.selectedLeadId === action.id && before.detail !== null;
     ctx.patchState({
       selectedLeadId: action.id,
-      detail: null,
+      detail: isRefresh ? before.detail : null,
       detailStatus: 'loading',
       detailError: null,
+      detailRefreshError: null,
       statusUpdateError: null,
+      // A refresh keeps the success confirmation visible; a fresh selection
+      // clears it.
+      statusUpdateSuccess: isRefresh ? before.statusUpdateSuccess : false,
     });
     return this.api.getLead(action.id).pipe(
       tap({
@@ -293,10 +328,25 @@ export class AdminLeadsState {
           if (ctx.getState().selectedLeadId !== action.id) {
             return;
           }
-          ctx.patchState({ detail, detailStatus: 'idle', detailError: null });
+          ctx.patchState({
+            detail,
+            detailStatus: 'idle',
+            detailError: null,
+            detailRefreshError: null,
+          });
         },
         error: (err: { message?: string }) => {
           if (ctx.getState().selectedLeadId !== action.id) {
+            return;
+          }
+          if (isRefresh) {
+            // Keep the stale detail visible and surface the refresh failure
+            // inline instead of wiping the modal.
+            ctx.patchState({
+              detailStatus: 'idle',
+              detailRefreshError:
+                err?.message ?? 'Could not refresh lead detail. Please try again.',
+            });
             return;
           }
           ctx.patchState({
@@ -315,7 +365,10 @@ export class AdminLeadsState {
       detail: null,
       detailStatus: 'idle',
       detailError: null,
+      detailRefreshError: null,
+      noteError: null,
       statusUpdateError: null,
+      statusUpdateSuccess: false,
     });
   }
 
@@ -328,17 +381,20 @@ export class AdminLeadsState {
     if (note.length === 0) {
       return;
     }
-    ctx.patchState({ notePosting: true });
+    ctx.patchState({ notePosting: true, noteError: null });
     return this.api.addNote(action.id, note).pipe(
       tap({
         next: () => {
           // Notes are append-only and server-owned — refetch the detail so
           // the thread reflects exactly what's stored.
-          ctx.patchState({ notePosting: false });
+          ctx.patchState({ notePosting: false, noteError: null });
           ctx.dispatch(new SelectAdminLead(action.id));
         },
-        error: () => {
-          ctx.patchState({ notePosting: false });
+        error: (err: { message?: string }) => {
+          ctx.patchState({
+            notePosting: false,
+            noteError: err?.message ?? 'Could not add the note. Please try again.',
+          });
         },
       }),
     );
@@ -369,6 +425,7 @@ export class AdminLeadsState {
     ctx.patchState({
       statusUpdating: true,
       statusUpdateError: null,
+      statusUpdateSuccess: false,
       leads: state.leads.map((lead) =>
         lead.id === action.id ? { ...lead, status: action.status } : lead,
       ),
@@ -382,8 +439,10 @@ export class AdminLeadsState {
     return this.api.updateStatus(action.id, action.status).pipe(
       tap({
         next: () => {
-          ctx.patchState({ statusUpdating: false });
+          ctx.patchState({ statusUpdating: false, statusUpdateSuccess: true });
           // Refetch the detail for the fresh status history + audit trail.
+          // The select is a refresh (same id), so the modal keeps its
+          // content and the confirmation stays visible.
           ctx.dispatch(new SelectAdminLead(action.id));
         },
         error: (err: { message?: string }) => {
@@ -409,6 +468,16 @@ export class AdminLeadsState {
   @Action(DismissAdminLeadStatusError)
   dismissStatusError(ctx: StateContext<AdminLeadsStateModel>): void {
     ctx.patchState({ statusUpdateError: null });
+  }
+
+  @Action(DismissAdminLeadStatusSuccess)
+  dismissStatusSuccess(ctx: StateContext<AdminLeadsStateModel>): void {
+    ctx.patchState({ statusUpdateSuccess: false });
+  }
+
+  @Action(DismissAdminLeadNoteError)
+  dismissNoteError(ctx: StateContext<AdminLeadsStateModel>): void {
+    ctx.patchState({ noteError: null });
   }
 
   @Action(ExportAdminLeadsCsv)
