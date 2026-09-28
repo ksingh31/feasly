@@ -36,6 +36,7 @@ interface Harness {
   sentEmails: InvitationEmailInput[];
   auditLog: { action: string; actorEmail: string | null; detail?: string }[];
   invitations: InvitationRecord[];
+  revokedSessionEmails: string[];
   failGraphCreate: boolean;
   failGraphToggle: boolean;
   seedUser: UserStore['insert'];
@@ -53,6 +54,7 @@ function makeHarness(): Harness {
     sentEmails: [],
     auditLog: [],
     invitations: [],
+    revokedSessionEmails: [],
     failGraphCreate: false,
     failGraphToggle: false,
     seedUser: null as unknown as UserStore['insert'],
@@ -82,6 +84,19 @@ function makeHarness(): Harness {
     },
     async list(limit, offset) {
       return [...userRows.values()].slice(offset, offset + limit);
+    },
+    async count() {
+      return userRows.size;
+    },
+    async delete(id) {
+      return userRows.delete(id);
+    },
+    async countActiveByStaffRole(role) {
+      let n = 0;
+      for (const row of userRows.values()) {
+        if (row.staffRole === role && row.status === 'active') n++;
+      }
+      return n;
     },
   };
   h.seedUser = users.insert.bind(users);
@@ -183,6 +198,12 @@ function makeHarness(): Harness {
       sendInvitation: async (input: InvitationEmailInput) => {
         h.sentEmails.push(input);
         return { sent: true, provider: 'log' };
+      },
+    },
+    sessions: {
+      async revokeByEmail(email: string) {
+        h.revokedSessionEmails.push(email);
+        return 1;
       },
     },
     audit: {
@@ -537,10 +558,9 @@ describe('UserService (Entra)', () => {
     const user = (await h.service.findByEmail('temp@example.com'))!;
     await h.service.completeInvitation('temp@example.com', 'entra-linked-id');
 
-    const disabled = await h.service.disableUser(
-      user.id,
-      'karanbirsingh667@gmail.com',
-    );
+    const disabled = await h.service.disableUser(user.id, {
+      actorEmail: 'karanbirsingh667@gmail.com',
+    });
     expect(disabled.status).toBe('disabled');
     expect(h.entraCalls.filter((c) => c.op === 'setEnabled')).toEqual([
       { op: 'setEnabled', id: 'entra-linked-id', enabled: false },
@@ -622,5 +642,257 @@ describe('UserService (Entra)', () => {
       h.service.completeInvitation('karanbirsingh667@gmail.com', 'entra-karan'),
       403,
     );
+  });
+});
+
+describe('UserService (auth/03 — admin user management guards)', () => {
+  async function seedActive(
+    h: Harness,
+    email: string,
+    role: 'super_admin' | 'admin' | 'viewer',
+  ) {
+    // auth/04 AC4: granting super_admin requires a super_admin actor.
+    await h.service.invite({
+      email,
+      name: email,
+      role,
+      actorStaffRole: 'super_admin',
+    });
+    await h.service.completeInvitation(email, `entra-${email}`);
+    return (await h.service.findByEmail(email))!;
+  }
+
+  it('disableUser: cannot deactivate yourself (403, plain-English)', async () => {
+    const h = makeHarness();
+    const me = await seedActive(h, 'me@example.com', 'admin');
+    const error = await expectHttpError(
+      h.service.disableUser(me.id, {
+        actorId: me.id,
+        actorEmail: 'me@example.com',
+      }),
+      403,
+    );
+    expect(error.message).toContain('your own account');
+    expect((await h.service.findById(me.id))!.status).toBe('active');
+  });
+
+  it('disableUser: cannot deactivate the last active super_admin', async () => {
+    const h = makeHarness();
+    const only = await seedActive(h, 'only@example.com', 'super_admin');
+    const error = await expectHttpError(h.service.disableUser(only.id), 403);
+    expect(error.message).toContain('last super admin');
+
+    // A second super_admin unblocks the first one's deactivation.
+    const second = await seedActive(h, 'second@example.com', 'super_admin');
+    const disabled = await h.service.disableUser(only.id, {
+      actorId: second.id,
+      actorEmail: 'second@example.com',
+    });
+    expect(disabled.status).toBe('disabled');
+  });
+
+  it('disableUser: revokes admin sessions server-side immediately', async () => {
+    const h = makeHarness();
+    const user = await seedActive(h, 'gone2@example.com', 'admin');
+    await h.service.disableUser(user.id, { actorEmail: 'boss@example.com' });
+    expect(h.revokedSessionEmails).toEqual(['gone2@example.com']);
+    expect(
+      h.auditLog.some(
+        (e) =>
+          e.action === 'user.disabled' && e.actorEmail === 'boss@example.com',
+      ),
+    ).toBe(true);
+  });
+
+  it('changeStaffRole: self-demotion and last-super_admin demotion are blocked', async () => {
+    const h = makeHarness();
+    const me = await seedActive(h, 'boss2@example.com', 'super_admin');
+
+    const selfError = await expectHttpError(
+      h.service.changeStaffRole(me.id, 'admin', {
+        actorId: me.id,
+        actorEmail: 'boss2@example.com',
+        actorStaffRole: 'super_admin',
+      }),
+      403,
+    );
+    expect(selfError.message).toContain('your own account');
+
+    const lastError = await expectHttpError(
+      h.service.changeStaffRole(me.id, 'admin', {
+        actorId: 'someone-else',
+        actorEmail: 'other@example.com',
+        actorStaffRole: 'super_admin',
+      }),
+      403,
+    );
+    expect(lastError.message).toContain('last super admin');
+
+    // Only a super_admin may grant super_admin.
+    const admin = await seedActive(h, 'pleb@example.com', 'admin');
+    await expectHttpError(
+      h.service.changeStaffRole(admin.id, 'super_admin', {
+        actorId: me.id,
+        actorEmail: 'boss2@example.com',
+        actorStaffRole: 'admin',
+      }),
+      403,
+    );
+
+    // A legit promotion works and is audit-logged.
+    const promoted = await h.service.changeStaffRole(admin.id, 'super_admin', {
+      actorId: me.id,
+      actorEmail: 'boss2@example.com',
+      actorStaffRole: 'super_admin',
+    });
+    expect(promoted.staffRole).toBe('super_admin');
+    expect(
+      h.auditLog.some(
+        (e) =>
+          e.action === 'user.role_changed' &&
+          e.detail === 'email=pleb@example.com from=admin to=super_admin',
+      ),
+    ).toBe(true);
+  });
+
+  it('changeStaffRole: protected rows refuse', async () => {
+    const h = makeHarness();
+    await seedProtected(h);
+    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
+    const error = await expectHttpError(
+      h.service.changeStaffRole(karan.id, 'viewer', {
+        actorStaffRole: 'super_admin',
+      }),
+      403,
+    );
+    expect(error.code).toBe('PROTECTED_ACCOUNT');
+  });
+
+  it('renameUser: renames and audit-logs; protected rows refuse', async () => {
+    const h = makeHarness();
+    const user = await seedActive(h, 'rename@example.com', 'viewer');
+    const renamed = await h.service.renameUser(user.id, 'New Name', {
+      actorEmail: 'boss@example.com',
+    });
+    expect(renamed.name).toBe('New Name');
+    expect(
+      h.auditLog.some(
+        (e) =>
+          e.action === 'user.renamed' && e.actorEmail === 'boss@example.com',
+      ),
+    ).toBe(true);
+
+    await seedProtected(h);
+    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
+    await expectHttpError(h.service.renameUser(karan.id, 'Hacker'), 403);
+  });
+
+  it('setMemberships: replaces the membership set; self + protected blocked', async () => {
+    const h = makeHarness();
+    const user = await seedActive(h, 'member@example.com', 'viewer');
+    const updated = await h.service.setMemberships(
+      user.id,
+      [
+        { builderId: 'builder-a', role: 'builder_admin' },
+        { builderId: 'builder-b', role: 'builder_member' },
+      ],
+      { actorEmail: 'boss@example.com' },
+    );
+    expect(updated.memberships).toHaveLength(2);
+
+    // Role change on an existing membership: remove + re-add.
+    const changed = await h.service.setMemberships(
+      user.id,
+      [{ builderId: 'builder-a', role: 'builder_member' }],
+      { actorEmail: 'boss@example.com' },
+    );
+    expect(changed.memberships).toEqual([
+      expect.objectContaining({ builderId: 'builder-a', role: 'builder_member' }),
+    ]);
+
+    await expectHttpError(
+      h.service.setMemberships(user.id, [], { actorId: user.id }),
+      403,
+    );
+    await seedProtected(h);
+    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
+    await expectHttpError(h.service.setMemberships(karan.id, []), 403);
+  });
+
+  it('deleteUser: hard-deletes a never-accepted user (Graph account first)', async () => {
+    const h = makeHarness();
+    await h.service.invite({
+      email: 'never@example.com',
+      name: 'Never',
+      role: 'viewer',
+    });
+    const user = (await h.service.findByEmail('never@example.com'))!;
+
+    await h.service.deleteUser(user.id, { actorEmail: 'boss@example.com' });
+    expect(await h.service.findById(user.id)).toBeNull();
+    expect(
+      h.entraCalls.some(
+        (c) => c.op === 'delete' && c.id === 'entra-never@example.com',
+      ),
+    ).toBe(true);
+    expect(
+      h.auditLog.some(
+        (e) =>
+          e.action === 'user.deleted' && e.actorEmail === 'boss@example.com',
+      ),
+    ).toBe(true);
+  });
+
+  it('deleteUser: refuses active users, self, protected, and missing rows', async () => {
+    const h = makeHarness();
+    const active = await seedActive(h, 'lived@example.com', 'admin');
+
+    const activeError = await expectHttpError(
+      h.service.deleteUser(active.id, { actorEmail: 'boss@example.com' }),
+      400,
+    );
+    expect(activeError.message).toContain('deactivate them instead');
+    expect(await h.service.findById(active.id)).not.toBeNull();
+
+    const selfError = await expectHttpError(
+      h.service.deleteUser(active.id, {
+        actorId: active.id,
+        actorEmail: 'lived@example.com',
+      }),
+      403,
+    );
+    expect(selfError.message).toContain('your own account');
+
+    await seedProtected(h);
+    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
+    await expectHttpError(h.service.deleteUser(karan.id), 403);
+
+    await expectHttpError(h.service.deleteUser('no-such-id'), 404);
+  });
+
+  it('deleteUser: deleting a never-accepted super_admin invite does not trip the last-super_admin guard', async () => {
+    const h = makeHarness();
+    const only = await seedActive(h, 'solitary@example.com', 'super_admin');
+    await h.service.invite({
+      email: 'pending-sa@example.com',
+      name: 'Pending',
+      role: 'super_admin',
+      actorStaffRole: 'super_admin',
+    });
+    const pending = (await h.service.findByEmail('pending-sa@example.com'))!;
+    // Never accepted → status invited → hard delete is fine even though
+    // there is only one ACTIVE super_admin.
+    await h.service.deleteUser(pending.id, { actorId: only.id });
+    expect(await h.service.findById(pending.id)).toBeNull();
+  });
+
+  it('listUsers/countUsers: paginated list with totals', async () => {
+    const h = makeHarness();
+    await h.service.invite({ email: 'a@example.com', name: 'A', role: 'viewer' });
+    await h.service.invite({ email: 'b@example.com', name: 'B', role: 'admin' });
+    expect(await h.service.countUsers()).toBe(2);
+    const page = await h.service.listUsers(1, 0);
+    expect(page).toHaveLength(1);
+    expect(page[0]!.memberships).toEqual([]);
   });
 });

@@ -50,6 +50,15 @@ export interface ApiRouteEntry {
    * conformance test fails CI when one is missing.
    */
   readonly permissions: readonly Permission[];
+  /**
+   * auth/03: alternative permissions — the caller needs ANY ONE of these
+   * (OR), in addition to ALL of `permissions` (AND). For routes two
+   * different roles may call under different permission strings (staff
+   * `users:manage` vs builder `builder:users:manage`); the route then
+   * applies role-specific scoping on top. Optional; validated as known
+   * permission strings by the conformance test.
+   */
+  readonly permissionsAnyOf?: readonly Permission[];
   /** Frozen human-readable limit, e.g. '20/hr per IP'. */
   readonly rateLimit: string;
   readonly status: 'live' | 'planned';
@@ -391,6 +400,79 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Exit view-as on the session. Session-only (exiting can never ' +
       'escalate); audit-logged.',
+  },
+  // ── Admin user management (auth/03) ───────────────────────────────
+  {
+    method: 'GET',
+    path: '/api/v1/admin/users',
+    auth: 'admin',
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Paginated user list with builder memberships (admin user ' +
+      'management). Builder admins see only their own orgs.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/users/invite',
+    auth: 'admin',
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Invite a user by email: Graph account + invitation row + branded ' +
+      'email. Staff may grant any role; builder admins only builder roles ' +
+      'into their own orgs (cross-builder → 403).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/users/{id}',
+    auth: 'admin',
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary: 'One user with builder memberships. Builder admins: own orgs only.',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/users/{id}',
+    auth: 'admin',
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Update name, staff role, status (deactivate revokes sessions), or ' +
+      'memberships. Builder admins are scoped to their own orgs and ' +
+      'cannot touch staff roles.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/admin/users/{id}',
+    auth: 'admin',
+    permissions: ['users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Hard delete — only users who never accepted (status invited); ' +
+      'anyone who signed in is deactivated via PATCH instead. Deletes ' +
+      'the Graph account first. Protected/self/last-super_admin guarded.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/users/{id}/resend-invite',
+    auth: 'admin',
+    permissions: [] as const,
+    permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Re-issue a pending invitation (retries the Graph account create ' +
+      'when the first attempt failed). Same scoping as invite.',
   },
   {
     method: 'POST',
@@ -937,8 +1019,10 @@ export function renderRegistryTable(): string {
     '|---|---|---|---|---|---|---|',
   ];
   for (const e of ROUTE_REGISTRY) {
+    // auth/03: permissionsAnyOf (OR) renders alongside permissions (AND).
+    const perms = [...e.permissions, ...(e.permissionsAnyOf ?? [])];
     lines.push(
-      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${e.permissions.length > 0 ? e.permissions.join(', ') : '\u2014'} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
+      `| ${e.method} | \`${e.path}\` | ${e.auth} | ${perms.length > 0 ? perms.join(', ') : '\u2014'} | ${e.rateLimit} | ${e.status} | ${e.summary} |`,
     );
   }
   return lines.join('\n');

@@ -210,3 +210,13 @@ apps/web/src/app/features/admin/admin-entra-pkce.ts
 # (same category as the admin-login entry above). Copy-pinned by
 # api-error.spec.ts.
 apps/web/src/app/core/api/api-error.ts
+
+# Admin user management (auth/03): user-facing copy and notice text pinned by
+# the story's acceptance criteria — changes by product decision, not deploy
+# tuning. The maxLength(200) validation limits mirror the backend zod schema
+# (API contract, not tunables), and the page-size default (50) matches the
+# backend list default. Copy-pinned by admin-users.component.spec.ts.
+apps/web/src/app/features/admin/admin-users-api.service.ts
+apps/web/src/app/features/admin/admin-users.component.html
+apps/web/src/app/features/admin/admin-users.component.ts
+apps/web/src/app/features/admin/admin-users.state.ts

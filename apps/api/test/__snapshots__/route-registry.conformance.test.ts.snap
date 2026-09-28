@@ -2,6 +2,10 @@
 
 exports[`route registry > exhaustive role x route permission matrix (auth/04 acceptance criterion 1) 1`] = `
 {
+  "DELETE /api/v1/admin/users/{id}": [
+    "super_admin",
+    "admin",
+  ],
   "DELETE /api/v1/admin/view-as": [
     "super_admin",
     "admin",
@@ -93,6 +97,16 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "viewer",
+  ],
+  "GET /api/v1/admin/users": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "GET /api/v1/admin/users/{id}": [
+    "super_admin",
+    "admin",
+    "builder_admin",
   ],
   "GET /api/v1/billing/invoices/{id}": [
     "super_admin",
@@ -219,6 +233,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "PATCH /api/v1/admin/users/{id}": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "PATCH /api/v1/builder/leads/{id}": [
     "super_admin",
     "admin",
@@ -308,6 +327,16 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
   "POST /api/v1/admin/ops/sheets-sync-now": [
     "super_admin",
     "admin",
+  ],
+  "POST /api/v1/admin/users/invite": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/admin/users/{id}/resend-invite": [
+    "super_admin",
+    "admin",
+    "builder_admin",
   ],
   "POST /api/v1/admin/view-as": [
     "super_admin",

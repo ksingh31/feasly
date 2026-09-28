@@ -1,0 +1,391 @@
+/**
+ * Admin user management (auth/03) — the team-user table.
+ *
+ * Cream background, charcoal text, brass accents — same admin family as the
+ * builders page. Table of users on top; invite/edit/delete open as modal
+ * dialogs. The table scrolls horizontally on narrow screens (375px).
+ */
+
+.users-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--cream);
+  color: var(--text);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  min-height: 100%;
+}
+
+.users-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.users-page__header h1 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.users-page__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.users-page__primary {
+  align-self: center;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--accent-deep);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.users-page__primary:hover {
+  filter: brightness(0.95);
+}
+
+.users-page__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.users-page__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  background: #e8f3e4;
+  border: 1px solid #b9d8b2;
+  color: #2c5b25;
+}
+
+.users-page__banner--error {
+  background: #fbe9e7;
+  border-color: #e8a49c;
+  color: #8c2f26;
+}
+
+.users-page__banner button {
+  flex-shrink: 0;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.users-page__state {
+  color: var(--muted);
+}
+
+.users-page__state--error {
+  color: #8c2f26;
+}
+
+.users-page__retry {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.users-page__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.users-page__table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.users-page__caption {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  caption-side: top;
+}
+
+.users-page__table th,
+.users-page__table td {
+  text-align: left;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.users-page__table thead th {
+  border-top: none;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.users-page__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.users-page__you {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.users-page__muted {
+  color: var(--muted);
+}
+
+.users-page__status {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: #e8f3e4;
+  color: #2c5b25;
+}
+
+.users-page__status--invited {
+  background: #fdf3e0;
+  color: #8a5a13;
+}
+
+.users-page__status--disabled {
+  background: #f1f1f1;
+  color: #666;
+}
+
+.users-page__actions {
+  white-space: nowrap;
+}
+
+.users-page__actions button {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--accent-deep);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.users-page__actions button:hover {
+  text-decoration: underline;
+}
+
+.users-page__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.users-page__danger-link {
+  color: #8c2f26;
+}
+
+.users-page__empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem;
+}
+
+/* ------------------------------------------------------------ modals */
+
+.users-page__overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the admin mobile nav dropdown (z-index 100) — same rule as the
+     lead-detail and api-keys modals (see PR #286). */
+  z-index: 150;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.users-page__modal {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--cream);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.25);
+}
+
+.users-page__modal h2 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 1.375rem;
+}
+
+.users-page__modal-sub {
+  margin: 0.5rem 0 1rem;
+  color: var(--muted);
+}
+
+.users-page__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.users-page__field input,
+.users-page__field select {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.users-page__field-error {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #8c2f26;
+}
+
+.users-page__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.users-page__modal-actions button {
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.users-page__modal-actions .users-page__primary {
+  border: none;
+}
+
+.users-page__danger {
+  background: #8c2f26;
+  border-color: #8c2f26;
+  color: #fff;
+}
+
+.users-page__danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.users-page__drawer-sub {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.users-page__memberships {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.users-page__membership {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.users-page__membership label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.users-page__membership select {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+/* ---------------------------------------------------------- responsive */
+
+@media (max-width: 640px) {
+  .users-page {
+    padding: 1rem;
+  }
+
+  .users-page__header h1 {
+    font-size: 1.5rem;
+  }
+
+  .users-page__primary {
+    width: 100%;
+  }
+
+  .users-page__modal {
+    padding: 1.25rem;
+  }
+
+  .users-page__overlay {
+    padding: 1rem 0.5rem;
+    align-items: flex-start;
+  }
+
+  .users-page__membership {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
