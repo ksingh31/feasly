@@ -21,6 +21,7 @@ import type {
   AdminAuthLogoutResponse,
   AdminAuthMeResponse,
 } from '@feasly/contracts';
+import type { EntraSignInConfig } from '../config';
 import type { AdminAuditStore } from './admin-audit.store';
 
 export interface ViewAsState {
@@ -110,7 +111,16 @@ export interface AdminAllowlistStore {
 
 export interface AdminAuthService {
   /** POST /api/v1/admin/auth/logout — revokes the session. */
-  logout(sessionToken: string | null): Promise<{ readonly loggedOut: true }>;
+  logout(sessionToken: string | null): Promise<{
+    readonly loggedOut: true;
+    /**
+     * Entra end-session endpoint, or null when Entra is unprovisioned.
+     * The frontend navigates here (full page) after logout so the IdP
+     * session dies too — otherwise the next "Sign in" silently
+     * re-authenticates via the surviving Entra cookie (Karan, 2026-09-28).
+     */
+    readonly entraLogoutUrl: string | null;
+  }>;
   /** Guard hook: returns the admin email for a valid session, else null. */
   validateSession(sessionToken: string | null): Promise<string | null>;
   /**
@@ -124,6 +134,11 @@ export interface AdminAuthService {
 export interface AdminAuthServiceDeps {
   readonly sessions: AdminSessionStore;
   readonly audit: AdminAuditStore;
+  /**
+   * Entra sign-in wiring (tenant values). Only `configured` and
+   * `logoutEndpoint` are read — the service never embeds URL literals.
+   */
+  readonly entraSignIn: Pick<EntraSignInConfig, 'configured' | 'logoutEndpoint'>;
   readonly clock?: () => Date;
 }
 
@@ -135,12 +150,12 @@ export function hashSessionToken(token: string): string {
 export function createAdminAuthService(
   deps: AdminAuthServiceDeps,
 ): AdminAuthService {
-  const { sessions, audit, clock = () => new Date() } = deps;
+  const { sessions, audit, entraSignIn, clock = () => new Date() } = deps;
 
   return {
     async logout(
       sessionToken: string | null,
-    ): Promise<{ readonly loggedOut: true }> {
+    ): Promise<{ readonly loggedOut: true; readonly entraLogoutUrl: string | null }> {
       if (sessionToken) {
         await sessions.revokeByHash(hashSessionToken(sessionToken), clock());
         await audit.log({
@@ -149,7 +164,10 @@ export function createAdminAuthService(
           detail: 'admin_logout',
         });
       }
-      return { loggedOut: true };
+      return {
+        loggedOut: true,
+        entraLogoutUrl: entraSignIn.configured ? entraSignIn.logoutEndpoint : null,
+      };
     },
 
     async validateSession(sessionToken: string | null): Promise<string | null> {

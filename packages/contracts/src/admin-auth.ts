@@ -45,6 +45,14 @@ export interface AdminAuthLogoutResponse {
   readonly loggedOut: true;
   /** The clearing Set-Cookie header value the adapter must emit. */
   readonly setCookie: string;
+  /**
+   * Entra end-session endpoint, or null when Entra is unprovisioned.
+   * The frontend navigates here (full page, appending
+   * `?post_logout_redirect_uri={app}/admin/login`) after clearing local
+   * state — without this the Entra cookie survives and the next "Sign in"
+   * silently re-authenticates (Karan, 2026-09-28).
+   */
+  readonly entraLogoutUrl: string | null;
 }
 
 /**

@@ -28,6 +28,7 @@ import type {
   BuilderAuthVerifyResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { EntraSignInConfig } from '../config';
 import type { EmailService } from './email/email.service';
 import type { AdminAuditStore } from './admin-audit.store';
 import type { BuilderService } from './builder.service';
@@ -107,7 +108,11 @@ export interface BuilderAuthService {
     readonly sessionToken: string;
   }>;
   /** POST /api/v1/builder/auth/logout — revokes the session. */
-  logout(sessionToken: string | null): Promise<{ readonly loggedOut: true }>;
+  logout(sessionToken: string | null): Promise<{
+    readonly loggedOut: true;
+    /** Entra end-session endpoint, or null when Entra is unprovisioned. */
+    readonly entraLogoutUrl: string | null;
+  }>;
   /** Guard hook: returns the session identity for a valid session, else null. */
   validateSession(sessionToken: string | null): Promise<BuilderSession | null>;
   /**
@@ -136,6 +141,14 @@ export interface BuilderAuthServiceDeps {
   readonly magicLinkTtlSeconds: number;
   /** Builder session TTL in seconds (7 days, same as admin) — from config. */
   readonly builderSessionTtlSeconds: number;
+  /**
+   * Entra sign-in wiring (shared tenant). Returned on logout so the
+   * builder frontend can kill the IdP session once builder Entra lands
+   * (AUTH #74); null while Entra is unprovisioned. The frontend ignores
+   * it until then — builder sessions are magic-link today, no IdP
+   * session exists.
+   */
+  readonly entraSignIn: Pick<EntraSignInConfig, 'configured' | 'logoutEndpoint'>;
   readonly clock?: () => Date;
   /** Log sink for fire-and-forget email failures (never the token). */
   readonly onEmailError?: (error: unknown) => void;
@@ -170,6 +183,7 @@ export function createBuilderAuthService(
     clock = () => new Date(),
     onEmailError = () => {},
     builders,
+    entraSignIn,
   } = deps;
 
   return {
@@ -305,7 +319,7 @@ export function createBuilderAuthService(
 
     async logout(
       sessionToken: string | null,
-    ): Promise<{ readonly loggedOut: true }> {
+    ): Promise<{ readonly loggedOut: true; readonly entraLogoutUrl: string | null }> {
       if (sessionToken) {
         await sessions.revokeByHash(
           hashBuilderSessionToken(sessionToken),
@@ -317,7 +331,10 @@ export function createBuilderAuthService(
           detail: 'builder_logout',
         });
       }
-      return { loggedOut: true };
+      return {
+        loggedOut: true,
+        entraLogoutUrl: entraSignIn.configured ? entraSignIn.logoutEndpoint : null,
+      };
     },
 
     async validateSession(

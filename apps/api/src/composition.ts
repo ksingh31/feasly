@@ -1059,6 +1059,8 @@ export function createComposition(
   const adminAuthService: AdminAuthService = createAdminAuthService({
     sessions: adminSessionStore,
     audit: adminAuditStore,
+    // Entra end-session URL for logout (kills the IdP session too).
+    entraSignIn: config.entraSignIn,
   });
   // auth/02 — Entra External ID sign-in. The token validator owns the
   // code exchange + id_token verification (no passwords in our database).
@@ -1148,6 +1150,9 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    // Entra end-session URL for logout (kills the IdP session too once
+    // builder Entra lands in AUTH #74; ignored by the frontend until then).
+    entraSignIn: config.entraSignIn,
     // P0-class visibility guard: same fire-and-forget send as admin auth —
     // a failed builder sign-in email must be loud, never swallowed.
     // Sanitized: no tokens, no emails, no keys.

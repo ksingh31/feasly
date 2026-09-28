@@ -94,6 +94,55 @@ export class AdminEntraAuthService {
   }
 
   /**
+   * Build the full Entra end-session URL for sign-out. Pure (no
+   * navigation) so it is unit-testable; `redirectToEntraLogout` performs
+   * the navigation.
+   */
+  buildEntraLogoutUrl(entraLogoutUrl: string): string {
+    const postLogoutRedirectUri = `${window.location.origin}/admin/login`;
+    return (
+      `${entraLogoutUrl}?post_logout_redirect_uri=` +
+      encodeURIComponent(postLogoutRedirectUri)
+    );
+  }
+
+  /**
+   * Full-page navigation to the Entra end-session endpoint, killing the
+   * IdP session. The `post_logout_redirect_uri` brings the browser back
+   * to /admin/login afterwards — it must be registered as a logout URL
+   * on the app registration (portal step, recorded in the logout PR).
+   *
+   * Without this, the Entra cookie survives our session revocation and
+   * the next "Sign in" silently re-authenticates (Karan, 2026-09-28).
+   *
+   * Returns true when a redirect was initiated — the caller must skip
+   * its own in-app navigation in that case (the page is unloading).
+   * Null/empty URL (Entra unprovisioned) → no redirect, returns false.
+   */
+  redirectToEntraLogout(entraLogoutUrl: string | null): boolean {
+    if (!entraLogoutUrl) {
+      return false;
+    }
+    window.location.href = this.buildEntraLogoutUrl(entraLogoutUrl);
+    this.signOutRedirectInitiated = true;
+    return true;
+  }
+
+  /**
+   * True when the last sign-out triggered the Entra end-session redirect.
+   * Consumed once by the sign-out caller to decide whether its own
+   * navigation is still needed.
+   */
+  consumeSignOutRedirect(): boolean {
+    const initiated = this.signOutRedirectInitiated;
+    this.signOutRedirectInitiated = false;
+    return initiated;
+  }
+
+  /** Set when `redirectToEntraLogout` fires; read via `consumeSignOutRedirect`. */
+  private signOutRedirectInitiated = false;
+
+  /**
    * Read and clear the stored PKCE verifier + state. The callback page
    * consumes this exactly once: clearing on read means a replayed
    * callback URL can't be exchanged twice.

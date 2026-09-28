@@ -6,6 +6,7 @@ import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { LogoutAdmin } from './admin-auth.actions';
+import { AdminEntraAuthService } from './admin-entra-auth.service';
 import { ViewAsBannerComponent } from './view-as-banner';
 
 /**
@@ -27,6 +28,7 @@ export class AdminShellComponent {
   private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly entraAuth = inject(AdminEntraAuthService);
 
   /** Mobile nav menu open state. Desktop shows the nav inline. */
   protected readonly menuOpen = signal(false);
@@ -64,7 +66,14 @@ export class AdminShellComponent {
       .dispatch(new LogoutAdmin())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => void this.router.navigate(['/admin/login']),
+        next: () => {
+          // When the Entra end-session redirect fired, the browser is
+          // already leaving for the IdP (which redirects back to
+          // /admin/login) — skip the in-app navigation.
+          if (!this.entraAuth.consumeSignOutRedirect()) {
+            void this.router.navigate(['/admin/login']);
+          }
+        },
         error: () => void this.router.navigate(['/admin/login']),
       });
   }
