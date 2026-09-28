@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels } from '../src/config';
 
@@ -396,9 +396,15 @@ describe('loadConfig', () => {
     });
     expect(config.billing.stripeSecretKey).toBe('sk_test_123');
 
-    expect(() =>
-      loadConfig({ ...VALID_ENV, STRIPE_SECRET_KEY: 'sk_live_123' }),
-    ).toThrow(/non-production requires an sk_test_ key/);
+    // Invalid key in non-production: warn and treat as unconfigured
+    // (don't crash the API — 2026-09-28 fix for dev outage).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const badConfig = loadConfig({ ...VALID_ENV, STRIPE_SECRET_KEY: 'sk_live_123' });
+    expect(badConfig.billing.stripeSecretKey).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('not an sk_test_ key'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('requires sk_live_ Stripe keys in production', () => {
