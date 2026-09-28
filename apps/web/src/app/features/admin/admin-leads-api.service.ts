@@ -81,6 +81,7 @@ export class AdminLeadsApiService {
     set('createdBefore', filters.createdBefore);
     set('search', filters.search);
     set('includeQuarantined', filters.includeQuarantined);
+    set('quarantinedOnly', filters.quarantinedOnly);
     set('includeSandbox', filters.includeSandbox);
     set('consent', filters.consent);
     set('cursor', cursor);

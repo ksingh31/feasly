@@ -217,6 +217,54 @@ describe('admin-leads service (admin/02)', () => {
         limit: 25,
       });
     });
+
+    it('passes quarantinedOnly to the store for the quarantine tab', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [],
+        nextCursor: null,
+        totalCount: 0,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      await service.listLeads({ quarantinedOnly: true }, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.objectContaining({ quarantinedOnly: true }),
+        cursor: null,
+        limit: 25,
+      });
+
+      // Default: no quarantine-only filtering on the all-leads tab.
+      await service.listLeads({}, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.not.objectContaining({
+          quarantinedOnly: expect.anything(),
+        }),
+        cursor: null,
+        limit: 25,
+      });
+    });
+
+    it('exposes the quarantined flag on list items', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [
+          makeLeadRow({ id: 'lead-q', quarantined: true }),
+          makeLeadRow({ id: 'lead-ok' }),
+        ],
+        nextCursor: null,
+        totalCount: 2,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      const result = await service.listLeads({ quarantinedOnly: true }, ADMIN_EMAIL);
+      expect(result.leads.map((l) => [l.id, l.quarantined])).toEqual([
+        ['lead-q', true],
+        ['lead-ok', false],
+      ]);
+    });
   });
 
   describe('getLead', () => {

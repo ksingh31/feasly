@@ -34,6 +34,7 @@ describe('AdminLeadsApiService', () => {
         createdBefore: '2026-09-25T23:59:59.999Z',
         search: 'beltline',
         includeQuarantined: true,
+        quarantinedOnly: true,
         includeSandbox: true,
       },
       'cursor-abc',
@@ -49,6 +50,7 @@ describe('AdminLeadsApiService', () => {
     expect(params.get('createdBefore')).toBe('2026-09-25T23:59:59.999Z');
     expect(params.get('search')).toBe('beltline');
     expect(params.get('includeQuarantined')).toBe('true');
+    expect(params.get('quarantinedOnly')).toBe('true');
     expect(params.get('includeSandbox')).toBe('true');
     expect(params.get('cursor')).toBe('cursor-abc');
     expect(params.get('limit')).toBe('25');
