@@ -28,7 +28,7 @@ import { and, desc, eq, lte } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
-import { builderAllowlist, builders, commissionInvoices } from '../../db/schema';
+import { builderAllowlist, builders, commissionInvoices, tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
@@ -341,10 +341,12 @@ export function createCommissionService(
   /**
    * BILL-04: resolve the builder's billing contact email for a tenant.
    *
-   * Source of truth is `builders.email` (the tenant contact email,
-   * captured at builder signup — nullable). Fallback is the
-   * `builder_allowlist` sign-in email for the tenant. Returns null when
-   * neither exists — the caller audits the skip instead of failing.
+   * Resolution order (first non-empty wins):
+   *   1. `builders.email` — the tenant contact email (admin-managed).
+   *   2. `tenants.fallback_email` — the embed fallback contact.
+   *   3. `builder_allowlist` sign-in email for the tenant.
+   * Returns null when none exists — the caller audits the skip instead
+   * of failing.
    */
   async function resolveBuilderEmail(tenantKey: string): Promise<string | null> {
     const builder = await db.query.builders.findFirst({
@@ -352,6 +354,11 @@ export function createCommissionService(
       columns: { email: true },
     });
     if (builder?.email) return builder.email;
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(tenants.tenantKey, tenantKey),
+      columns: { fallbackEmail: true },
+    });
+    if (tenant?.fallbackEmail) return tenant.fallbackEmail;
     const allowlisted = await db.query.builderAllowlist.findFirst({
       where: eq(builderAllowlist.tenantKey, tenantKey),
       columns: { email: true },

@@ -77,6 +77,15 @@ function makeDeps(opts?: {
       tenantKey: 'elite-craft',
       status: 'in_review',
     })),
+    listInvoices: vi.fn(async (tenantKey: string | null) => {
+      const all = [
+        { id: 'inv-1', tenantKey: 'elite-craft', status: 'in_review' },
+        { id: 'inv-2', tenantKey: 'other-builder', status: 'paid' },
+      ];
+      return tenantKey === null
+        ? all
+        : all.filter((i) => i.tenantKey === tenantKey);
+    }),
   } as unknown as BillingService;
 
   const model = opts?.billingModel ?? 'commission';
@@ -319,5 +328,55 @@ describe('GET /api/v1/billing/card (BILL-02)', () => {
       status: 409,
       code: 'BILLING_MODEL_MISMATCH',
     });
+  });
+});
+
+describe('GET /api/v1/billing/invoices (BILL-04)', () => {
+  it('builder session scopes the list to their tenant', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.listInvoices({}, { limit: '20', offset: '0' });
+
+    expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
+      limit: 20,
+      offset: 0,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].tenantKey).toBe('elite-craft');
+  });
+
+  it('admin (no builder session) sees all tenants', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: true });
+    const result = await route.listInvoices({}, {});
+
+    expect(billing.listInvoices).toHaveBeenCalledWith(null, {
+      limit: 20,
+      offset: 0,
+    });
+    expect(result).toHaveLength(2);
+  });
+
+  it('applies limit/offset defaults and clamps', async () => {
+    const { route, billing } = makeDeps();
+    await route.listInvoices({}, { limit: '500', offset: '-5' });
+
+    expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
+      limit: 100,
+      offset: 0,
+    });
+  });
+
+  it('rejects a non-numeric limit with 400', async () => {
+    const { route } = makeDeps();
+    await expect(route.listInvoices({}, { limit: 'abc' })).rejects.toMatchObject(
+      { status: 400 },
+    );
+  });
+
+  it('requires auth (401 without a session and without admin)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: false });
+    await expect(route.listInvoices({}, {})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(billing.listInvoices).not.toHaveBeenCalled();
   });
 });
