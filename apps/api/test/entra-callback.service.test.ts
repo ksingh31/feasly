@@ -298,7 +298,7 @@ describe('entra callback service', () => {
     expect(result.authenticated).toBe(true);
     expect(fakes.userService.completeInvitation).not.toHaveBeenCalled();
     expect(fakes.users.updated).toEqual([
-      { id: 'user-1', patch: { entraObjectId: 'entra-oid-1' } },
+      { id: 'user-1', patch: { status: 'active', entraObjectId: 'entra-oid-1' } },
     ]);
     expect(fakes.sessions.inserted).toHaveLength(1);
   });
