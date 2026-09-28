@@ -102,6 +102,7 @@ describe('lead route', () => {
       },
       email: {
         sendMagicLink: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendInvitation: async () => ({ sent: true as const, provider: 'log' as const }),
         sendPartnerShare: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCallbackConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
         sendNudge: async () => ({ sent: true as const, provider: 'log' as const }),

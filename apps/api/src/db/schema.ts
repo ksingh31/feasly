@@ -989,6 +989,13 @@ export const adminSessions = pgTable(
     email: text('email').notNull(),
     /** SHA-256 hex of the opaque session token — the ONLY stored form. */
     sessionTokenHash: text('session_token_hash').notNull().unique(),
+    /**
+     * The user this session belongs to (auth/01). Nullable during the
+     * magic-link → password transition; always set for password sessions.
+     */
+    userId: uuid('user_id').references(() => users.id, {
+      onDelete: 'cascade',
+    }),
     /** Null = active. Set on logout/expiry. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1044,6 +1051,13 @@ export const builderSessions = pgTable(
       .references(() => tenants.tenantKey, { onDelete: 'cascade' }),
     /** SHA-256 hex of the opaque session token — the ONLY stored form. */
     sessionTokenHash: text('session_token_hash').notNull().unique(),
+    /**
+     * The user this session belongs to (auth/01). Nullable during the
+     * magic-link → password transition; always set for password sessions.
+     */
+    userId: uuid('user_id').references(() => users.id, {
+      onDelete: 'cascade',
+    }),
     /** Null = active. Set on logout. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1055,6 +1069,126 @@ export const builderSessions = pgTable(
     index('builder_sessions_token_hash_idx').on(t.sessionTokenHash),
     index('builder_sessions_email_idx').on(t.email),
     index('builder_sessions_tenant_key_idx').on(t.tenantKey),
+  ],
+);
+
+/**
+ * Users (auth/01) — password-based identity for Feasly staff and builder
+ * org members. Replaces the allowlist-as-identity model; the allowlist
+ * tables stay until auth/06 migrates them.
+ *
+ * Email is unique, lowercased + trimmed (same discipline as the
+ * allowlists). `passwordHash` is null until the invitation is accepted.
+ * `staffRole` is null for pure builder-side users. `isProtected` marks
+ * Karan's seed row — the API refuses edit/delete on protected rows.
+ */
+export const users = pgTable(
+  'users',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Lowercased, trimmed — the unique identity. */
+    email: text('email').notNull().unique(),
+    /** bcrypt hash — null until the invitation is accepted. Never logged. */
+    passwordHash: text('password_hash'),
+    /** Display name. */
+    name: text('name').notNull(),
+    /** 'invited' | 'active' | 'disabled'. */
+    status: text('status').notNull().default('invited'),
+    /**
+     * 'super_admin' | 'admin' | 'viewer' | null. Null = pure builder-side
+     * user (their access comes from builder_memberships).
+     */
+    staffRole: text('staff_role'),
+    /**
+     * True only for Karan's seed row. Protected rows can't be edited or
+     * deleted through the API.
+     */
+    isProtected: boolean('is_protected').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('users_email_idx').on(t.email)],
+);
+
+/**
+ * Builder memberships (auth/01).
+ *
+ * A user can belong to multiple builders (rare, but built for). The role
+ * is per-membership: builder_admin manages the org's users, builder_member
+ * works the lead pipeline. Both FKs cascade — deleting a user or a builder
+ * removes the membership, never orphans it.
+ */
+export const builderMemberships = pgTable(
+  'builder_memberships',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    /** 'builder_admin' | 'builder_member'. */
+    role: text('role').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('builder_memberships_user_builder_idx').on(t.userId, t.builderId),
+    index('builder_memberships_builder_idx').on(t.builderId),
+  ],
+);
+
+/**
+ * Invitations (auth/01).
+ *
+ * Email invite → set-password flow. Only the SHA-256 hash of the opaque
+ * token is stored (same discipline as sessions/magic links); the raw
+ * token exists only in the issuance return value (destined for the email)
+ * and is never logged. An invitation can grant a staff role, a builder
+ * membership, or both.
+ */
+export const invitations = pgTable(
+  'invitations',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** Lowercased, trimmed invitee email. */
+    email: text('email').notNull(),
+    /** 'super_admin' | 'admin' | 'viewer' | null. */
+    staffRole: text('staff_role'),
+    /** Builder the invitee joins (null = no builder membership). */
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'cascade',
+    }),
+    /** 'builder_admin' | 'builder_member' | null. */
+    builderRole: text('builder_role'),
+    /** SHA-256 hex of the opaque token — the ONLY stored form. */
+    tokenHash: text('token_hash').notNull().unique(),
+    /** Invitation lifetime (7 days per story) — from config. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** Set when the invitation is accepted. */
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    /** Set when an invite is re-issued or withdrawn. */
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /** The inviting user — null if they were since hard-deleted. */
+    invitedBy: uuid('invited_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('invitations_token_hash_idx').on(t.tokenHash),
+    index('invitations_email_idx').on(t.email),
   ],
 );
 

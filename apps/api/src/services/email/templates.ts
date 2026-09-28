@@ -156,6 +156,47 @@ ${fallbackLink(input.magicLinkUrl)}`;
   };
 }
 
+export interface InvitationTemplateInput {
+  readonly name?: string;
+  /** Fully-formed single-use set-password URL, minted by the caller. */
+  readonly inviteUrl: string;
+  /** Days until the invitation expires — rendered from config, never hardcoded. */
+  readonly expiresInDays: number;
+  /** Human-readable access grant, e.g. "an admin" or "a team member for Elite Craft Builders". */
+  readonly accessDescription: string;
+  /** Name of the person who sent the invite, if known. */
+  readonly inviterName?: string;
+}
+
+/**
+ * Invitation emails are team credentials (like admin/builder sign-in
+ * links) — transactional, no unsubscribe footer.
+ */
+export function renderInvitationEmail(
+  ctx: TemplateContext,
+  input: InvitationTemplateInput,
+): RenderedEmail {
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const inviter = input.inviterName
+    ? `${esc(input.inviterName)} invited you`
+    : `You've been invited`;
+  const body = `<p>${greeting}</p>
+<p>${inviter} to join ${esc(ctx.brandName)} as ${esc(input.accessDescription)}.</p>
+<p>Create your password to get started. This invitation expires in ${input.expiresInDays} days and can only be used once.</p>
+${ctaButton(input.inviteUrl, 'Create your password')}
+${fallbackLink(input.inviteUrl)}`;
+  const text =
+    `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\n` +
+    `${input.inviterName ? `${input.inviterName} invited you` : `You've been invited`} to join ${ctx.brandName} as ${input.accessDescription}.\n\n` +
+    `Create your password to get started. This invitation expires in ${input.expiresInDays} days and can only be used once.\n\n` +
+    `Create your password: ${input.inviteUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return {
+    subject: `You've been invited to ${ctx.brandName}`,
+    html: layout(ctx, `You've been invited to ${esc(ctx.brandName)}`, body),
+    text,
+  };
+}
+
 export interface ShareTemplateInput {
   readonly ownerName?: string;
   readonly partnerName?: string;

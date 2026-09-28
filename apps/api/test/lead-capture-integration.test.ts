@@ -25,6 +25,7 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
   return {
     sent,
     sendMagicLink: async (input) => { sent.push(input); return ok; },
+    sendInvitation: async (input) => { sent.push(input); return ok; },
     sendPartnerShare: async (input) => { sent.push(input); return ok; },
     sendCallbackConfirmation: async (input) => { sent.push(input); return ok; },
     sendNudge: async (input) => { sent.push(input); return ok; },

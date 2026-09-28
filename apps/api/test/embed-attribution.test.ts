@@ -166,6 +166,7 @@ function fakeEmailService(): EmailService {
   const result: EmailDelivery = { sent: true, provider: 'log' };
   return {
     sendMagicLink: async () => result,
+    sendInvitation: async () => result,
     sendNudge: async () => result,
     sendUnsubscribeConfirmation: async () => result,
     sendPartnerShare: async () => result,

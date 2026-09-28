@@ -119,6 +119,13 @@ const EnvSchema = z.object({
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
   // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
   ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // auth/01: invitation-link lifetime — 7 days, same discipline as the
+  // magic links it replaces.
+  INVITATION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // auth/01: bcrypt cost factor for password hashing. bcryptjs (pure JS —
+  // native argon2 does not survive the esbuild Function bundles) does
+  // ~250ms at 10 rounds; 12 rounds is ~1s. 10 is the OWASP minimum.
+  PASSWORD_BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
 
   // A hanging dependency must not hang the health endpoint (BE0-003).
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
@@ -375,6 +382,10 @@ export interface AuthConfig {
   readonly adminApiKey: string | undefined;
   /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
   readonly adminSessionTtlSeconds: number;
+  /** Lifetime of a password-invitation link (auth/01: 7 days). */
+  readonly invitationTtlSeconds: number;
+  /** bcrypt cost factor for password hashing (auth/01). */
+  readonly passwordBcryptRounds: number;
 }
 
 export interface QueueConfig {
@@ -827,6 +838,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
+      invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
+      passwordBcryptRounds: e.PASSWORD_BCRYPT_ROUNDS,
     },
     corsOrigins: resolveCorsOrigins(e),
     siteUrl: e.SITE_URL,

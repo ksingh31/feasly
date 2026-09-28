@@ -70,6 +70,22 @@ export const ErrorCodes = {
    * show "already used" copy instead of the generic invalid/expired message.
    */
   MAGIC_LINK_USED: 'MAGIC_LINK_USED',
+  /**
+   * auth/01 — invitation token invalid (unknown or revoked). 401, same as
+   * an expired invitation's distinct code so the accept page can show
+   * "ask your admin for a new invite" copy.
+   */
+  INVITATION_INVALID: 'INVITATION_INVALID',
+  /**
+   * auth/01 — invitation token was valid but expired. 401 with the
+   * "link expired" copy (no stack trace, no token echo).
+   */
+  INVITATION_EXPIRED: 'INVITATION_EXPIRED',
+  /**
+   * auth/01 — invitation already accepted. 409: the account exists, just
+   * sign in.
+   */
+  INVITATION_ACCEPTED: 'INVITATION_ACCEPTED',
 } as const;
 
 /**

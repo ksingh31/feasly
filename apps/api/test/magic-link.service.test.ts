@@ -164,6 +164,7 @@ function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
       sends.push(input);
       return ok;
     },
+    sendInvitation: async () => ok,
     sendPartnerShare: async () => ok,
     sendCallbackConfirmation: async () => ok,
     sendNudge: async () => ok,
