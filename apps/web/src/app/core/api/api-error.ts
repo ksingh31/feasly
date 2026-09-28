@@ -1,5 +1,6 @@
 import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
-import { throwError, TimeoutError } from 'rxjs';
+import { from, of, switchMap, throwError, TimeoutError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import type { ApiError } from '@feasly/contracts';
 
@@ -34,4 +35,44 @@ export function toApiError(error: unknown): Observable<never> {
   return throwError(
     (): ApiError => ({ code: 'unknown', message: 'Request failed. Please try again.', retryable: false }),
   );
+}
+
+/**
+ * Blob-aware variant of {@link toApiError} for `responseType: 'blob'`
+ * downloads (admin CSV export).
+ *
+ * When the backend rejects a blob request the error body arrives as a Blob
+ * containing the problem+json payload — `toApiError` can't read `code` /
+ * `message` off a Blob, so every failure degrades to the generic
+ * "Request failed. Please try again." and the real status/message is lost
+ * (2026-09-28: masked a transient failure as a broken export feature).
+ * This reads the blob as text first and surfaces the server's message.
+ * Non-blob errors delegate to {@link toApiError}.
+ */
+export function toBlobApiError(error: unknown): Observable<never> {
+  if (error instanceof HttpErrorResponse && error.error instanceof Blob) {
+    return from(error.error.text()).pipe(
+      catchError(() => of('')),
+      switchMap((text) => {
+        let body: Partial<ApiError> | undefined;
+        try {
+          body = text ? (JSON.parse(text) as Partial<ApiError>) : undefined;
+        } catch {
+          body = undefined;
+        }
+        const message =
+          typeof body?.message === 'string' && body.message.length > 0
+            ? body.message
+            : `Export failed (HTTP ${error.status}). Please try again.`;
+        const code =
+          typeof body?.code === 'string' ? body.code : `http_${error.status}`;
+        const retryable =
+          error.status === 0 || error.status >= HttpStatusCode.InternalServerError;
+        return throwError(
+          (): ApiError => ({ code, message, retryable }),
+        );
+      }),
+    );
+  }
+  return toApiError(error);
 }
