@@ -1,5 +1,6 @@
-/* Estimate report page — redesigned: one clear total, fixed land, 3-bucket breakdown.
-   Mobile-first; mirrors the wizard shell. */
+// Estimate report page — redesigned: one clear total, fixed land, 3-bucket breakdown.
+// Mobile-first; mirrors the wizard shell. (Line comment: stripped from the
+// compiled bundle — this file sits 70 bytes under the 8 kB component-style budget.)
 
 // Shared blurred-figure pattern (also used by the preview page).
 @use '../../shared/locked-figures' as *;
