@@ -1002,6 +1002,7 @@ function resolveBuilderEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
     tokenEndpoint: `${base}/oauth2/v2.0/token`,
     jwksUri: `${base}/discovery/v2.0/keys`,
     issuer: `https://${tenantId}.ciamlogin.com/${tenantId}/v2.0`,
+    logoutEndpoint: `${base}/oauth2/v2.0/logout`,
     jwksCacheTtlMs: e.ENTRA_JWKS_CACHE_TTL_MS,
     httpTimeoutMs: e.ENTRA_HTTP_TIMEOUT_MS,
     callbackRateLimit: {

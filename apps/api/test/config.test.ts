@@ -82,6 +82,7 @@ describe('loadConfig', () => {
         tokenEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/token',
         jwksUri: 'https://.ciamlogin.com//discovery/v2.0/keys',
         issuer: 'https://.ciamlogin.com//v2.0',
+        logoutEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/logout',
         jwksCacheTtlMs: 600_000,
         httpTimeoutMs: 15_000,
         callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
