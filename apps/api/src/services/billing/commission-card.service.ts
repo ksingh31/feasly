@@ -83,7 +83,13 @@ export function createCommissionCardService(
       }
       const existing = await stripe.getCustomerId(tenantKey);
       if (existing) return existing;
-      const customer = await stripe.createCustomer({ tenantKey, email });
+      // Deterministic idempotency key: concurrent ensureCustomer calls for the
+      // same tenant collapse into one Stripe customer instead of creating
+      // duplicates (check-then-create race, 2026-09-28).
+      const customer = await stripe.createCustomer(
+        { tenantKey, email },
+        `feasly-customer-${tenantKey}`,
+      );
       await stripe.saveCustomerId(tenantKey, customer.id);
       await audit.append({
         tenantKey,

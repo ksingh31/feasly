@@ -53,10 +53,13 @@ export interface NormalizedStripeEvent {  readonly id: string;
  * types leak past this interface.
  */
 export interface StripeClient {
-  createCustomer(input: {
-    tenantKey: string;
-    email?: string;
-  }): Promise<{ id: string }>;
+  createCustomer(
+    input: {
+      tenantKey: string;
+      email?: string;
+    },
+    idempotencyKey: string,
+  ): Promise<{ id: string }>;
   createSetupIntent(customerId: string): Promise<{
     id: string;
     clientSecret: string;
@@ -101,10 +104,13 @@ export interface StripeService {
   readonly isConfigured: boolean;
   /** True when the configured key is a test key (`sk_test_…`). */
   readonly testMode: boolean;
-  createCustomer(input: {
-    tenantKey: string;
-    email?: string;
-  }): Promise<{ id: string }>;
+  createCustomer(
+    input: {
+      tenantKey: string;
+      email?: string;
+    },
+    idempotencyKey: string,
+  ): Promise<{ id: string }>;
   createSetupIntent(customerId: string): Promise<{
     id: string;
     clientSecret: string;
@@ -199,11 +205,14 @@ function normalizeEvent(event: Stripe.Event): NormalizedStripeEvent {
 export function createStripeSdkClient(secretKey: string): StripeClient {
   const stripe = new Stripe(secretKey);
   return {
-    async createCustomer(input) {
-      const customer = await stripe.customers.create({
-        email: input.email,
-        metadata: { feasly_tenant_key: input.tenantKey },
-      });
+    async createCustomer(input, idempotencyKey) {
+      const customer = await stripe.customers.create(
+        {
+          email: input.email,
+          metadata: { feasly_tenant_key: input.tenantKey },
+        },
+        { idempotencyKey },
+      );
       return { id: customer.id };
     },
     async createSetupIntent(customerId) {
@@ -315,7 +324,8 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
     isConfigured: client !== null,
     testMode: (billing.stripeSecretKey ?? '').startsWith('sk_test_'),
 
-    createCustomer: (input) => requireClient().createCustomer(input),
+    createCustomer: (input, idempotencyKey) =>
+      requireClient().createCustomer(input, idempotencyKey),
     createSetupIntent: (customerId) =>
       requireClient().createSetupIntent(customerId),
     listPaymentMethods: (customerId) =>
