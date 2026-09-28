@@ -72,8 +72,3 @@ apps/api/src/config.ts :: PLACEHOLDER :: Entra tenant values empty until AUTH-00
 # (mirrors migration 0036), NOT a placeholder. Permanent by design; the
 # account itself is protected from edit/delete by application logic.
 apps/api/tools/repair-sql.mjs :: test email :: protected super_admin seed mirroring migration 0036, permanent by design
-
-# BILL-04 builder invoices mock (billing/04): serves mock invoices until the
-# backend GET /api/v1/billing/invoices endpoint is deployed. Unblock: set
-# USE_PLACEHOLDER_INVOICES=false and delete the mock branch in the service.
-apps/web/src/app/features/builder/builder-invoices-api.service.ts :: PLACEHOLDER :: BILL-04 mock invoice data, unblock when backend list endpoint is live

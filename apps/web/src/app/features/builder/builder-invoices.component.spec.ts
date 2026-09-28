@@ -5,9 +5,8 @@
  * review-deadline countdown, status pills, the failed-charge banner with
  * its "update your card" CTA, the paid-invoice receipt, and pagination.
  *
- * The invoice API is placeholder-backed (mock data) until the backend
- * `GET /api/v1/billing/invoices` endpoint lands — these tests assert the
- * UI contract against the documented wire shape, not the mock itself.
+ * The invoice API is stubbed with fixture invoices — these tests assert
+ * the UI contract against the documented wire shape, not the backend.
  *
  * Note: async/await with real timers (not fakeAsync) — zone.js is not
  * installed in this repo, so the fakeAsync helper cannot run here.
@@ -27,27 +26,110 @@ import { BuilderInvoicesState } from './builder-invoices.state';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
-async function setup() {
-  TestBed.resetTestingModule();
-  TestBed.configureTestingModule({
-    imports: [BuilderInvoicesComponent],
-    providers: [
-      provideRouter([]),
-      provideHttpClient(),
-      provideHttpClientTesting(),
-      provideStore([BuilderBillingState, BuilderInvoicesState]),
-      { provide: ConfigService, useValue: { get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s] } },
-    ],
-  });
-  const fixture: ComponentFixture<BuilderInvoicesComponent> =
-    TestBed.createComponent(BuilderInvoicesComponent);
-  const store = TestBed.inject(Store);
-  return { fixture, store };
+/** Fixture invoices mirroring the live wire shape (one per visible status). */
+function testInvoices(): CommissionInvoice[] {
+  const day = 86_400_000;
+  const now = Date.now();
+  const iso = (t: number): string => new Date(t).toISOString();
+  const base = {
+    tenantKey: 't1',
+    currency: 'CAD',
+    stripePaymentIntentId: null,
+    finalizedAt: null,
+    paidAt: null,
+    slaBreached: false,
+    disputeReason: null,
+  } as const;
+  return [
+    {
+      ...base,
+      id: 'inv-test-001',
+      attributionId: 'a1',
+      leadId: 'l1',
+      contractValueCents: 68500000,
+      commissionCents: 685000,
+      status: 'in_review',
+      reviewDueAt: iso(now + 3 * day),
+      createdAt: iso(now - 4 * day),
+      updatedAt: iso(now - 4 * day),
+    },
+    {
+      ...base,
+      id: 'inv-test-002',
+      attributionId: 'a2',
+      leadId: 'l2',
+      contractValueCents: 74250000,
+      commissionCents: 742500,
+      stripePaymentIntentId: 'pi_test_paid_001',
+      status: 'paid',
+      reviewDueAt: iso(now - 9 * day),
+      finalizedAt: iso(now - 2 * day),
+      paidAt: iso(now - 2 * day),
+      createdAt: iso(now - 9 * day),
+      updatedAt: iso(now - 2 * day),
+    },
+    {
+      ...base,
+      id: 'inv-test-003',
+      attributionId: 'a3',
+      leadId: 'l3',
+      contractValueCents: 59800000,
+      commissionCents: 598000,
+      stripePaymentIntentId: 'pi_test_failed_001',
+      status: 'failed',
+      reviewDueAt: iso(now - 3 * day),
+      finalizedAt: iso(now - 3 * day),
+      createdAt: iso(now - 10 * day),
+      updatedAt: iso(now - 1 * day),
+    },
+    {
+      ...base,
+      id: 'inv-test-004',
+      attributionId: 'a4',
+      leadId: 'l4',
+      contractValueCents: 81000000,
+      commissionCents: 810000,
+      status: 'disputed',
+      reviewDueAt: iso(now - 5 * day),
+      slaBreached: true,
+      disputeReason: 'Contract value disputed',
+      createdAt: iso(now - 12 * day),
+      updatedAt: iso(now - 5 * day),
+    },
+    {
+      ...base,
+      id: 'inv-test-005',
+      attributionId: 'a5',
+      leadId: 'l5',
+      contractValueCents: 65500000,
+      commissionCents: 655000,
+      stripePaymentIntentId: 'pi_test_paid_002',
+      status: 'paid',
+      reviewDueAt: iso(now - 16 * day),
+      finalizedAt: iso(now - 9 * day),
+      paidAt: iso(now - 9 * day),
+      createdAt: iso(now - 16 * day),
+      updatedAt: iso(now - 9 * day),
+    },
+    {
+      ...base,
+      id: 'inv-test-006',
+      attributionId: 'a6',
+      leadId: 'l6',
+      contractValueCents: 70300000,
+      commissionCents: 703000,
+      status: 'finalized',
+      reviewDueAt: iso(now - 1 * day),
+      finalizedAt: iso(now - 1 * day),
+      createdAt: iso(now - 8 * day),
+      updatedAt: iso(now - 1 * day),
+    },
+  ];
 }
 
-/** Wait out the placeholder mock delay(150) + NGXS dispatch microtasks. */
+/** Wait out NGXS dispatch microtasks after the stubbed API resolves. */
 async function flushMock(fixture: ComponentFixture<BuilderInvoicesComponent>) {
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 50));
   fixture.detectChanges();
   await fixture.whenStable();
 }
@@ -59,10 +141,15 @@ async function setupWithInvoices(response: {
   pageSize: number;
 }) {
   TestBed.resetTestingModule();
+  const invoices = [...response.invoices];
   const apiMock = {
     listInvoices: () => of(response),
-    getInvoice: () => {
-      throw new Error('not used');
+    getInvoice: (id: string) => {
+      const found = invoices.find((inv) => inv.id === id);
+      if (!found) {
+        throw new Error(`Test invoice not found: ${id}`);
+      }
+      return of(found);
     },
   };
   TestBed.configureTestingModule({
@@ -78,7 +165,18 @@ async function setupWithInvoices(response: {
   });
   const fixture: ComponentFixture<BuilderInvoicesComponent> =
     TestBed.createComponent(BuilderInvoicesComponent);
-  return { fixture };
+  const store = TestBed.inject(Store);
+  return { fixture, store };
+}
+
+async function setup() {
+  const invoices = testInvoices();
+  return setupWithInvoices({
+    invoices,
+    total: invoices.length,
+    page: 1,
+    pageSize: 10,
+  });
 }
 
 describe('BuilderInvoicesComponent (BILL-04)', () => {
@@ -94,7 +192,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Invoices');
-    // Mock data: one in-review, two paid, one failed, one disputed, one finalized.
+    // Fixtures: one in-review, two paid, one failed, one disputed, one finalized.
     expect(text).toContain('In review');
     expect(text).toContain('Paid');
     expect(text).toContain('Failed');
@@ -109,7 +207,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     await flushMock(fixture);
 
     const text = fixture.nativeElement.textContent as string;
-    // Mock in-review invoice has reviewDueAt 3 days out (Edmonton calendar).
+    // Fixture in-review invoice has reviewDueAt 3 days out (Edmonton calendar).
     expect(text).toContain('Auto-charges in 3 days');
   });
 
@@ -118,7 +216,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     fixture.detectChanges();
     await flushMock(fixture);
 
-    // Click the failed invoice's date button (third row in mock order).
+    // Click the failed invoice's date button (third row in fixture order).
     const buttons: HTMLButtonElement[] = Array.from(
       fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
     );
@@ -156,7 +254,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     fixture.detectChanges();
     await flushMock(fixture);
 
-    // 6 mock invoices, page size 10 → single page.
+    // 6 fixture invoices, page size 10 → single page.
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Page 1 of 1');
     const next = fixture.nativeElement.querySelector(
