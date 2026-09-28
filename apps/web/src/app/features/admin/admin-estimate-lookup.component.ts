@@ -12,7 +12,6 @@ import {
   aggregateCostBuckets,
   type CostBucket,
 } from '../../shared/cost-buckets';
-import { SeoService } from '../../core/seo/seo.service';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
 
 /** Lookup lifecycle for the admin estimate view. */
@@ -62,7 +61,6 @@ export class AdminEstimateLookupComponent {
   private readonly api = inject(AdminEstimatesApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Estimate ID being looked up (from the `:id` route param). */
@@ -160,11 +158,6 @@ export class AdminEstimateLookupComponent {
   );
 
   constructor() {
-    this.seo.setPage({
-      title: 'Estimate lookup — Feasly Admin',
-      description: 'Read-only admin estimate lookup.',
-      path: '/admin/estimates',
-    });
     // Subscribe to paramMap (not the constructor-time snapshot): both
     // /admin/estimates and /admin/estimates/:id render this component, so
     // navigating between IDs reuses the instance and the constructor never

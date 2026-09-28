@@ -14,7 +14,6 @@ import type {
   BuilderStatus,
   BuilderUpdateBody,
 } from '@feasly/contracts';
-import { SeoService } from '../../core/seo/seo.service';
 import { initials } from '../../shared/utils/initials';
 import {
   CreateBuilder,
@@ -72,7 +71,6 @@ function jsonValidator(control: AbstractControl): ValidationErrors | null {
 })
 export class AdminBuildersComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly seo = inject(SeoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -112,8 +110,6 @@ export class AdminBuildersComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Matches the `admin/**` noindex pattern in seo-routes.ts.
-    this.seo.setForRoute('admin/builders');
     this.store.dispatch(new LoadBuilders());
   }
 
