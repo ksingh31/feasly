@@ -76,6 +76,15 @@ param narrativeEndpoint string = ''
 @description('Model slug for the narrative provider (e.g. gemini-3.8-flash). Empty = the app config default.')
 param narrativeModels string = ''
 
+@description('Base URL of the fallback OpenAI-compatible narrative endpoint (Groq). Empty = the app config default.')
+param narrativeFallbackEndpoint string = ''
+
+@description('Key Vault secret URI (versionless) for the fallback narrative LLM API key (Groq). Empty = not configured; the Groq step is skipped gracefully. Karan provisions the key in Key Vault himself — Bicep only references it, never writes it.')
+param narrativeFallbackApiKeySecretUri string = ''
+
+@description('Model slug(s) for the fallback narrative provider (e.g. llama-3.3-70b-versatile). Empty = the app config default.')
+param narrativeFallbackModels string = ''
+
 @description('Microsoft Entra External ID: tenant subdomain — the ciamlogin.com host prefix (e.g. feaslyext). Empty = the admin sign-in callback fails closed (503).')
 param entraTenantSubdomain string = ''
 
@@ -316,6 +325,30 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'NARRATIVE_MODELS'
                 value: narrativeModels
+              }
+            ],
+        empty(narrativeFallbackEndpoint)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_FALLBACK_ENDPOINT'
+                value: narrativeFallbackEndpoint
+              }
+            ],
+        empty(narrativeFallbackApiKeySecretUri)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_FALLBACK_API_KEY'
+                value: '@Microsoft.KeyVault(SecretUri=${narrativeFallbackApiKeySecretUri})'
+              }
+            ],
+        empty(narrativeFallbackModels)
+          ? []
+          : [
+              {
+                name: 'NARRATIVE_FALLBACK_MODELS'
+                value: narrativeFallbackModels
               }
             ],
         // Microsoft Entra External ID sign-in (admin/builder). Values are

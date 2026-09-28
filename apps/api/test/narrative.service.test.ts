@@ -418,8 +418,7 @@ describe('log narrative provider', () => {
 describe('openai-compatible narrative provider', () => {
   it('fails closed without API key', async () => {
     const provider = createOpenAiCompatibleNarrativeProvider({
-      models: ['test-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
     });
     const prompt: NarrativePrompt = {
       system: 'System',
@@ -430,9 +429,7 @@ describe('openai-compatible narrative provider', () => {
 
   it('does not leak API key in error messages', async () => {
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'secret-key-12345',
-      models: ['test-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: 'secret-key-12345', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
       fetchImpl: async () => {
         throw new Error('Network failed with secret-key-12345 in message');
       },
@@ -451,16 +448,14 @@ describe('openai-compatible narrative provider', () => {
 
   it('fails closed naming NARRATIVE_ENDPOINT when no endpoint is configured', () => {
     expect(() =>
-      createOpenAiCompatibleNarrativeProvider({ models: ['test-model'] }),
+      createOpenAiCompatibleNarrativeProvider({ targets: [{ label: 'test', models: ['test-model'] }] }),
     ).toThrow(/NARRATIVE_ENDPOINT is not configured/);
   });
 
   it('appends /chat/completions to a bare base URL', async () => {
     const seen: string[] = [];
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models: ['gemini-3.8-flash'],
-      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['gemini-3.8-flash'], endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/' }],
       fetchImpl: (async (url: string | URL | Request) => {
         seen.push(String(url));
         return new Response(
@@ -485,9 +480,7 @@ describe('openai-compatible narrative provider', () => {
     // Regression: a bare "HTTP 400" told nobody whether the key or the
     // request was bad. The provider now carries the upstream message.
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models: ['gemini-3.8-flash'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['gemini-3.8-flash'], endpoint: 'https://example.com/v1/chat/completions' }],
       fetchImpl: (async () =>
         new Response(
           JSON.stringify([
@@ -512,9 +505,7 @@ describe('openai-compatible narrative provider', () => {
 
   it('falls back to the status-only message when the error body is unusable', async () => {
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models: ['test-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
       fetchImpl: (async () =>
         new Response('not json', {
           status: 503,
@@ -532,9 +523,7 @@ describe('openai-compatible narrative provider', () => {
   it('trims whitespace pasted around the API key', async () => {
     const seen: string[] = [];
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: '  test-key\n',
-      models: ['test-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: '  test-key\n', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
       fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
         seen.push(
           (init?.headers as Record<string, string>)?.['authorization'] ?? '',
@@ -553,9 +542,7 @@ describe('openai-compatible narrative provider', () => {
 
   it('fails closed on a whitespace-only API key', async () => {
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: '   \n ',
-      models: ['test-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: '   \n ', models: ['test-model'], endpoint: 'https://example.com/v1/chat/completions' }],
     });
     await expect(
       provider.generate({ system: 'System', user: 'User' }),
@@ -784,9 +771,7 @@ describe('narrative model chain (BE-9)', () => {
     models: readonly string[] = ['primary-model', 'backup-model'],
   ) {
     return createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models,
-      endpoint: ENDPOINT,
+      targets: [{ label: 'test', apiKey: 'test-key', models, endpoint: ENDPOINT }],
       fetchImpl,
     });
   }
@@ -826,9 +811,7 @@ describe('narrative model chain (BE-9)', () => {
 
   it('chains when the primary times out', async () => {
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models: ['primary-model', 'backup-model'],
-      endpoint: ENDPOINT,
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['primary-model', 'backup-model'], endpoint: ENDPOINT }],
       timeoutMs: 50,
       fetchImpl: (async (_url, init) => {
         if (seenModel(init) === 'primary-model') {
@@ -877,6 +860,113 @@ describe('narrative model chain (BE-9)', () => {
     expect(error).toBeInstanceOf(NarrativeProviderError);
     expect(error.message).toContain('HTTP 503');
     expect(error.message).toContain('model-two');
+  });
+
+  it('throws when no provider targets are configured', () => {
+    expect(() => createOpenAiCompatibleNarrativeProvider({ targets: [] })).toThrow(
+      /No narrative provider targets/,
+    );
+  });
+
+  describe('cross-provider fallback (Gemini -> Groq)', () => {
+    const GEMINI_URL = 'https://gemini.example/v1/chat/completions';
+    const GROQ_URL = 'https://groq.example/v1/chat/completions';
+
+    function twoTargetProvider(
+      fetchImpl: typeof fetch,
+      groqApiKey: string | undefined,
+    ) {
+      return createOpenAiCompatibleNarrativeProvider({
+        targets: [
+          {
+            label: 'gemini',
+            apiKey: 'gemini-key',
+            models: ['gemini-3.8-flash'],
+            endpoint: 'https://gemini.example/v1',
+          },
+          {
+            label: 'groq',
+            apiKey: groqApiKey,
+            models: ['llama-3.3-70b-versatile'],
+            endpoint: 'https://groq.example/v1',
+          },
+        ],
+        fetchImpl,
+      });
+    }
+
+    it('falls through to the Groq fallback target on 429 from Gemini', async () => {
+      const seenUrls: string[] = [];
+      const seenModels: string[] = [];
+      const provider = twoTargetProvider((async (url, init) => {
+        seenUrls.push(String(url));
+        const model = seenModel(init);
+        seenModels.push(model);
+        return model === 'gemini-3.8-flash'
+          ? errBody(429, 'Rate limit exceeded')
+          : okBody('Groq fallback prose.');
+      }) as typeof fetch,
+        'groq-key',
+      );
+
+      const result = await provider.generate(PROMPT);
+
+      expect(seenUrls).toEqual([GEMINI_URL, GROQ_URL]);
+      expect(seenModels).toEqual([
+        'gemini-3.8-flash',
+        'llama-3.3-70b-versatile',
+      ]);
+      expect(result.text).toBe('Groq fallback prose.');
+      expect(result.model).toBe('llama-3.3-70b-versatile');
+    });
+
+    it('falls through to Groq on 503 from Gemini', async () => {
+      const provider = twoTargetProvider((async (_url, init) => {
+        return seenModel(init) === 'gemini-3.8-flash'
+          ? errBody(503, 'The model is overloaded')
+          : okBody('Groq fallback prose.');
+      }) as typeof fetch,
+        'groq-key',
+      );
+
+      const result = await provider.generate(PROMPT);
+
+      expect(result.model).toBe('llama-3.3-70b-versatile');
+    });
+
+    it('skips the Groq fallback target gracefully when its key is absent', async () => {
+      const seenUrls: string[] = [];
+      const provider = twoTargetProvider(
+        (async (url) => {
+          seenUrls.push(String(url));
+          return errBody(429, 'Rate limit exceeded');
+        }) as typeof fetch,
+        undefined, // no Groq key yet — Karan provisions it later
+      );
+
+      const error = await provider.generate(PROMPT).catch((e) => e);
+
+      // Only Gemini was attempted; the keyless Groq step was skipped, not failed.
+      expect(seenUrls).toEqual([GEMINI_URL]);
+      expect(error).toBeInstanceOf(NarrativeProviderError);
+      expect(error.message).toContain('HTTP 429');
+    });
+
+    it('fails fast on 404 without trying the fallback target', async () => {
+      const seenUrls: string[] = [];
+      const provider = twoTargetProvider((async (url) => {
+        seenUrls.push(String(url));
+        return errBody(404, 'Model not found');
+      }) as typeof fetch,
+        'groq-key',
+      );
+
+      const error = await provider.generate(PROMPT).catch((e) => e);
+
+      // Unknown-model is a config error — fail fast, don't burn the fallback.
+      expect(seenUrls).toEqual([GEMINI_URL]);
+      expect(error.status).toBe(404);
+    });
   });
 });
 
@@ -948,9 +1038,7 @@ describe('narrative static-guide fallback (BE-9)', () => {
     // calls inside a single service request.
     let calls = 0;
     const provider = createOpenAiCompatibleNarrativeProvider({
-      apiKey: 'test-key',
-      models: ['primary-model', 'backup-model'],
-      endpoint: 'https://example.com/v1/chat/completions',
+      targets: [{ label: 'test', apiKey: 'test-key', models: ['primary-model', 'backup-model'], endpoint: 'https://example.com/v1/chat/completions' }],
       fetchImpl: (async () => {
         calls++;
         return calls % 2 === 1

@@ -98,6 +98,12 @@ var unsubscribeTokenSecretUri = 'https://${keyVaultName}${az.environment().suffi
 var narrativeSecretName = 'feasly-${environment}-narrative-api-key'
 var narrativeApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${narrativeSecretName}'
 
+// Fallback narrative provider (Groq): Karan provisioned feasly-dev-groq-api-key
+// in the dev vault himself (Bicep only references it, never writes it). Empty
+// in other environments = the Groq step is skipped gracefully.
+var groqSecretName = 'feasly-${environment}-groq-api-key'
+var groqApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${groqSecretName}'
+
 // Microsoft Entra External ID sign-in (admin/builder, auth/02): the tenant,
 // app registrations, and user flow are provisioned once in the portal (see
 // docs/auth/entra-manual-changes.md) — Entra External ID resources are not
@@ -227,7 +233,15 @@ module functionApp 'modules/function-app.bicep' = {
     narrativeProvider: environment == 'dev' ? 'openai-compatible' : 'log'
     narrativeApiKeySecretUri: environment == 'dev' ? narrativeApiKeySecretUri : ''
     narrativeEndpoint: environment == 'dev' ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : ''
-    narrativeModels: environment == 'dev' ? 'gemini-2.5-flash,gemini-2.5-flash-lite' : ''
+    narrativeModels: environment == 'dev' ? 'gemini-3.8-flash' : ''
+    // Fallback narrative provider (Groq): endpoint/models fall back to
+    // the app config defaults (empty = setting omitted). The API key is
+    // a Key Vault reference in dev (Karan provisioned
+    // feasly-dev-groq-api-key himself); empty elsewhere = the Groq step
+    // is skipped gracefully and the static guide remains the last resort.
+    narrativeFallbackEndpoint: ''
+    narrativeFallbackApiKeySecretUri: environment == 'dev' ? groqApiKeySecretUri : ''
+    narrativeFallbackModels: ''
     // Microsoft Entra External ID sign-in (auth/02): dev-only until Karan
     // provisions the tenant identifiers for other environments. Elsewhere
     // the settings stay empty and the backend callback fails closed (503)

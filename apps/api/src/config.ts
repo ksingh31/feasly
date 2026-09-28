@@ -179,22 +179,38 @@ const EnvSchema = z.object({
   // LLM API key (Gemini) — from Key Vault, never in repo/env files. Empty
   // with provider='openai-compatible' = fail-closed generation naming this var.
   NARRATIVE_API_KEY: z.string().default(''),
-  // LLM model for narratives. Default is Gemini 2.5 Flash + 2.5 Flash-Lite
-  // (both free-tier eligible per ai.google.dev as of 2026-09-27);
-  // overridable without a code change.
+  // LLM model for narratives. Default is Gemini 3.8 Flash — the model
+  // in Karan's Google project (verified 2026-09-28 against the Gemini
+  // dashboard and ai.google.dev OpenAI-compat docs; the old
+  // gemini-2.5-flash / gemini-2.5-flash-lite IDs return HTTP 404).
+  // Overridable without a code change.
   /**
    * Ordered narrative model list, primary first — config-owned so Karan
    * can reorder or swap models without a code change. The provider tries
    * the next model on capacity errors (408/429/5xx), timeouts, and
    * network failures, and fails fast on other 4xx.
    */
-  NARRATIVE_MODELS: z.string().default('gemini-2.5-flash,gemini-2.5-flash-lite'),
+  NARRATIVE_MODELS: z.string().default('gemini-3.8-flash'),
   /** Per-attempt timeout (ms) for each model in the narrative chain. */
   NARRATIVE_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
   // Base URL of the OpenAI-compatible endpoint. Overridable for tests;
   // default is Google's Gemini OpenAI-compatibility base. The provider
   // appends /chat/completions when the value does not already end with it.
   NARRATIVE_ENDPOINT: z.string().default('https://generativelanguage.googleapis.com/v1beta/openai/'),
+  // --- Fallback narrative provider (Groq, OpenAI-compatible) ---
+  // Tried after the primary (Gemini) chain is exhausted on capacity
+  // errors (408/429/5xx), timeouts, or network failures. Base URL of the
+  // fallback endpoint; default is Groq's OpenAI-compatibility base.
+  NARRATIVE_FALLBACK_ENDPOINT: z.string().default('https://api.groq.com/openai/v1'),
+  // Fallback LLM API key (Groq) — from Key Vault, never in repo/env
+  // files. Empty = the Groq step is skipped gracefully (logged, key
+  // never logged); the static guide remains the last resort. Karan
+  // provisions the key in Key Vault himself (free signup, no card).
+  NARRATIVE_FALLBACK_API_KEY: z.string().default(''),
+  // Comma-separated fallback model list, primary first. Default is
+  // Llama 3.3 70B via Groq (current per console.groq.com/docs/models as
+  // of 2026-09-28); overridable without a code change.
+  NARRATIVE_FALLBACK_MODELS: z.string().default('llama-3.3-70b-versatile'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -699,6 +715,20 @@ export interface NarrativeConfig {
   readonly timeoutMs: number;
   /** Base URL of the OpenAI-compatible endpoint (chat/completions appended if missing). */
   readonly endpoint: string;
+  /**
+   * Fallback provider step (Groq, OpenAI-compatible). Tried after the
+   * primary chain on capacity errors (408/429/5xx), timeouts, and
+   * network failures; skipped gracefully when apiKey is empty. The
+   * static guide remains the final resilience tier.
+   */
+  readonly fallback: {
+    /** Base URL of the fallback OpenAI-compatible endpoint. */
+    readonly endpoint: string;
+    /** Fallback API key (Key Vault, never in repo). Empty = step skipped. */
+    readonly apiKey: string;
+    /** Ordered fallback model list, primary first. Always non-empty. */
+    readonly models: readonly string[];
+  };
 }
 
 /**
@@ -1060,6 +1090,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       models: parseNarrativeModels(e.NARRATIVE_MODELS),
       timeoutMs: e.NARRATIVE_TIMEOUT_MS,
       endpoint: e.NARRATIVE_ENDPOINT,
+      fallback: {
+        endpoint: e.NARRATIVE_FALLBACK_ENDPOINT,
+        apiKey: e.NARRATIVE_FALLBACK_API_KEY,
+        models: parseNarrativeModels(e.NARRATIVE_FALLBACK_MODELS),
+      },
     },
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,

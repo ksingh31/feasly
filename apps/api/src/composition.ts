@@ -1254,15 +1254,29 @@ export function createComposition(
   });
   // Narrative worker (consumer/06): provider selected by config.
   // 'log' is the dev/test default (refuses production);
-  // 'openai-compatible' is the remote OpenAI-protocol LLM (Gemini,
-  // Karan's pick) — fails closed until the API key is in Key Vault.
+  // 'openai-compatible' is the remote OpenAI-protocol LLM chain —
+  // primary Gemini (Karan's pick) then fallback Groq, then the
+  // static-guide tier in the narrative service. Fails closed until the
+  // API key is in Key Vault; the Groq step stays dormant (skipped
+  // gracefully) until its key is provisioned.
   const narrativeProvider: NarrativeProvider =
     config.narrative.provider === 'openai-compatible'
       ? createOpenAiCompatibleNarrativeProvider({
-          apiKey: config.narrative.apiKey || undefined,
-          models: config.narrative.models,
+          targets: [
+            {
+              label: 'gemini',
+              apiKey: config.narrative.apiKey || undefined,
+              models: config.narrative.models,
+              endpoint: config.narrative.endpoint,
+            },
+            {
+              label: 'groq',
+              apiKey: config.narrative.fallback.apiKey || undefined,
+              models: config.narrative.fallback.models,
+              endpoint: config.narrative.fallback.endpoint,
+            },
+          ],
           timeoutMs: config.narrative.timeoutMs,
-          endpoint: config.narrative.endpoint,
         })
       : createLogNarrativeProvider();
   if (config.env === 'production' && config.narrative.provider === 'log') {
