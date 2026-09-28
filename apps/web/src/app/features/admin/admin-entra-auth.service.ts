@@ -100,10 +100,11 @@ export class AdminEntraAuthService {
    *
    * `idTokenHint` is the id_token captured at sign-in (returned by the
    * backend on logout). Passing it as `id_token_hint` tells Entra exactly
-   * which session to end, so it skips the "Pick an account" picker and
-   * signs out directly (logout UX, Karan 2026-09-28). Null (pre-change
-   * sessions, non-Entra sessions) — the picker fallback is no worse
-   * than before.
+   * which session to end. NOTE: Entra External ID (CIAM) currently ignores
+   * `id_token_hint` and shows the "Pick an account" picker anyway
+   * (verified 2026-09-28); we keep sending it so the picker disappears
+   * automatically if Microsoft adds support. Null (pre-change sessions,
+   * non-Entra sessions) — the picker fallback is no worse than before.
    */
   buildEntraLogoutUrl(
     entraLogoutUrl: string,
