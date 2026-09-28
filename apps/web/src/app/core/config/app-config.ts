@@ -908,38 +908,18 @@ export interface AppConfig {
     /**
      * Builder portal (embed/09). All user-facing builder-portal copy lives
      * here so the no-hardcode tripwire stays green and copy is
-     * deploy-tunable. Mirrors the admin login semantics (magic link, no
-     * enumeration oracle, session expiry).
+     * deploy-tunable. Mirrors the admin login semantics (Entra sign-in,
+     * session expiry).
      */
     builder: {
       /** `/builder/login` heading. */
       loginHeading: string;
       /** Session-expired notice on the login page. */
       loginExpired: string;
-      /** Shown after the magic-link request (always — no oracle). */
-      loginSent: string;
-      /** Email field label. */
-      emailLabel: string;
-      /** Email field placeholder. */
-      emailPlaceholder: string;
-      /** Invalid-email validation message. */
+      /** Invalid-email validation message (team invites). */
       emailInvalid: string;
-      /** Submit button label. */
-      submitLabel: string;
-      /** Submit button label while the request is in flight. */
-      sendingLabel: string;
-      /** Generic submit-failure message. */
-      submitError: string;
-      /** Retry button label (submit failure). */
+      /** Retry button label (load failures). */
       retryLabel: string;
-      /** `/builder/verify` heading. */
-      verifyHeading: string;
-      /** Verify in-progress copy. */
-      verifyProgress: string;
-      /** Verify-failed copy (expired/used/invalid token). */
-      verifyError: string;
-      /** Back-to-login button label on the verify error. */
-      backToLoginLabel: string;
       /** Builder shell brand text. */
       shellBrand: string;
       /** Builder shell nav: dashboard link label. */
