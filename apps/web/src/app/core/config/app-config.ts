@@ -978,6 +978,92 @@ export interface AppConfig {
       billingCancel: string;
       /** Explains the 1% commission charge timing. */
       billingExplainer: string;
+      /** Builder billing tab: card-on-file section label. */
+      billingTabCardLabel: string;
+      /** Builder billing tab: invoices section label. */
+      billingTabInvoicesLabel: string;
+      /** `/builder/billing/invoices` heading. */
+      invoicesHeading: string;
+      /** Invoices list explainer. */
+      invoicesExplainer: string;
+      /** Invoices loading copy. */
+      invoicesLoading: string;
+      /** Invoices load-failure copy. */
+      invoicesLoadError: string;
+      /** Empty invoices list copy. */
+      invoicesEmpty: string;
+      /** Table header: invoice date. */
+      invoicesColDate: string;
+      /** Table header: signed contract value. */
+      invoicesColContract: string;
+      /** Table header: commission amount. */
+      invoicesColCommission: string;
+      /** Table header: invoice status. */
+      invoicesColStatus: string;
+      /** Table header: review deadline. */
+      invoicesColDue: string;
+      /** Status pill: draft. */
+      invoiceStatusDraft: string;
+      /** Status pill: in review. */
+      invoiceStatusInReview: string;
+      /** Status pill: finalized. */
+      invoiceStatusFinalized: string;
+      /** Status pill: paid. */
+      invoiceStatusPaid: string;
+      /** Status pill: failed. */
+      invoiceStatusFailed: string;
+      /** Status pill: disputed. */
+      invoiceStatusDisputed: string;
+      /** Status pill: void. */
+      invoiceStatusVoid: string;
+      /** Review-deadline countdown; {days} is interpolated. */
+      invoicesAutoChargeIn: string;
+      /** Review deadline is tomorrow. */
+      invoicesAutoChargeTomorrow: string;
+      /** Review deadline is today. */
+      invoicesAutoChargeToday: string;
+      /** Failed-charge banner copy. */
+      invoicesPaymentFailed: string;
+      /** Successful-charge banner copy. */
+      invoicesPaymentReceived: string;
+      /** "Update your card" CTA label. */
+      invoicesUpdateCardCta: string;
+      /** Back-to-list link label. */
+      invoicesBackToList: string;
+      /** Invoice detail: receipt section heading. */
+      invoicesReceiptHeading: string;
+      /** Invoice detail: line-items section heading. */
+      invoicesLineItemsHeading: string;
+      /** Invoice detail: status timeline heading. */
+      invoicesTimelineHeading: string;
+      /** Line-item row: signed contract value (excl. land). */
+      invoicesContractRow: string;
+      /** Line-item row: commission row label; {rate} is interpolated. */
+      invoicesCommissionRow: string;
+      /** Receipt row: amount charged. */
+      invoicesReceiptAmount: string;
+      /** Receipt row: charge date. */
+      invoicesReceiptDate: string;
+      /** Receipt row: card used. */
+      invoicesReceiptCard: string;
+      /** Review-window explainer on the detail view; {date} interpolated. */
+      invoicesReviewNote: string;
+      /** Pagination: previous page. */
+      invoicesPrevPage: string;
+      /** Pagination: next page. */
+      invoicesNextPage: string;
+      /** Pagination status; {page} and {pages} are interpolated. */
+      invoicesPageOf: string;
+      /** Timeline event: invoice created. */
+      invoicesTimelineCreated: string;
+      /** Timeline event: review window ends. */
+      invoicesTimelineReviewEnds: string;
+      /** Timeline event: finalized. */
+      invoicesTimelineFinalized: string;
+      /** Timeline event: paid. */
+      invoicesTimelinePaid: string;
+      /** Timeline event: charge failed. */
+      invoicesTimelineFailed: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard
