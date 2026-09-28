@@ -125,12 +125,14 @@
   margin-bottom: 0.375rem;
 }
 
-.lead-modal-card__status-row {
+.lead-modal-card__status-row,
+.lead-modal-card__assign-row {
   display: flex;
   gap: 0.625rem;
 }
 
-.lead-modal-card__status-row select {
+.lead-modal-card__status-row select,
+.lead-modal-card__assign-row select {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0.625rem 0.75rem;
@@ -167,17 +169,6 @@
   background: #fdecea;
   color: #8a1f1a;
   font-size: 0.875rem;
-}
-
-.lead-modal-card__assign select {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  font: inherit;
-  font-size: 0.9375rem;
-  background: var(--card);
-  color: var(--muted);
 }
 
 .lead-modal-card__assign-state {
@@ -357,7 +348,8 @@
     grid-template-columns: 1fr;
   }
 
-  .lead-modal-card__status-row {
+  .lead-modal-card__status-row,
+  .lead-modal-card__assign-row {
     flex-direction: column;
   }
 
