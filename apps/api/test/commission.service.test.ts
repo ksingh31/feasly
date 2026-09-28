@@ -646,10 +646,11 @@ describe('commission service', () => {
     const invoiceEvents = rows.filter(
       (r) => r.entityId === draft.id && r.entityType === 'commission_invoice',
     );
-    // created + submitted for review.
-    expect(invoiceEvents.length).toBe(2);
+    // created + submitted for review + BILL-04 email audit (no contact).
+    expect(invoiceEvents.length).toBe(3);
     expect(invoiceEvents.map((r) => r.eventType).sort()).toEqual([
       'invoice.created',
+      'invoice.email_skipped_no_contact',
       'invoice.status_changed',
     ]);
     // Every event carries the tenant key.
@@ -854,7 +855,13 @@ describe('listInvoices (BILL-04)', () => {
     tenantKey: string,
   ): Promise<{ id: string; createdAt: Date }> {
     const { commission, attribution } = newServices(testDb);
-    await seedTenant(testDb, tenantKey);
+    // seedTenant is not idempotent — only insert once per key.
+    const existing = await testDb.db.query.tenants.findFirst({
+      where: eq(tenants.tenantKey, tenantKey),
+    });
+    if (!existing) {
+      await seedTenant(testDb, tenantKey);
+    }
     const attributionId = await seedAttribution(
       testDb,
       attribution,
@@ -947,14 +954,24 @@ describe('builder billing emails (BILL-04)', () => {
     tenantKey: string,
     email: string,
   ): Promise<void> {
-    await seedTenant(testDb, tenantKey);
-    await testDb.db.insert(builders).values({
-      id: randomUUID(),
-      tenantKey,
-      businessName: 'Email Builder Inc',
-      displayName: 'Email Builder',
-      email,
+    const existing = await testDb.db.query.tenants.findFirst({
+      where: eq(tenants.tenantKey, tenantKey),
     });
+    if (!existing) {
+      await seedTenant(testDb, tenantKey);
+    }
+    const existingBuilder = await testDb.db.query.builders.findFirst({
+      where: eq(builders.tenantKey, tenantKey),
+    });
+    if (!existingBuilder) {
+      await testDb.db.insert(builders).values({
+        id: randomUUID(),
+        tenantKey,
+        businessName: 'Email Builder Inc',
+        displayName: 'Email Builder',
+        email,
+      });
+    }
   }
 
   it('emails the builder when an invoice enters review', async () => {
