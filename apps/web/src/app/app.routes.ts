@@ -135,7 +135,10 @@ export const routes: Routes = [
   {
     path: 'estimate/details',
     component: DetailsPageComponent,
-    canActivate: [robotsGuard],
+    // Deep links without a selected property bounce to the address step —
+    // same as scope/preview (FE-2). The empty-state template stays as a
+    // belt-and-suspenders fallback.
+    canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
   // Report (M1): needs a completed estimate basis (property + sqft), else the address step.
