@@ -131,7 +131,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.',
       seoDescription:
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
-      trustItems: ['Range-based estimates', 'Real City of Calgary data', 'Transparent cost breakdown'],
+      trustItems: [
+        '600,000+ City of Calgary assessment records',
+        'Refreshed September 2026',
+        'Deterministic math — AI never invents prices',
+      ],
       trustItemsMock: [
         'Range-based estimates',
         'Sample property data — live City records coming soon',
@@ -414,13 +418,21 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       planningRangeLabel: 'Likely planning range',
       buildLabel: 'Build cost',
       buildCostNote: 'Construction only — excludes land.',
+      buildSourceNote: 'Current construction cost data · deterministic math',
       landLabel: 'Land (assessed value)',
-      landFixedNote: 'City of Calgary assessment · not a cost range',
+      landFixedNote: 'City of Calgary assessment · refreshed September 2026 · not a market price',
       lowLabel: 'Low',
       baseLabel: 'Base',
       highLabel: 'High',
       uncalibratedNote:
-        'Uncalibrated planning figures — our cost model is not yet calibrated to real builder quotes.',
+        "How we're sharpening these numbers: we're calibrating against real Calgary builder quotes — your range already reflects current cost data and your City property record.",
+      howWeCalculateTitle: 'How we calculate your estimate',
+      howWeCalculateItems: [
+        'Your City of Calgary property record — lot size, zoning, and assessed land value.',
+        'Current construction cost data for Calgary builds.',
+        'Deterministic math — our AI writes the summary only; it never invents prices.',
+        'A planning range, not a single number — because your finish choices move the number.',
+      ],
       lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my free report →',
       // Post-gate confirmation line (Karan directive 2026-09-27): the
@@ -561,6 +573,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     gate: {
       heading: 'Where should we send your estimate?',
       sub: 'One quick step and your personalized cost report is on its way. No spam — we may reach out about your estimate, and you can opt out anytime.',
+      trustLine: 'Built from your City of Calgary property record — no guesswork.',
       nameLabel: 'Full name',
       namePlaceholder: 'Jane Doe',
       nameRequired: 'Please enter your name.',

@@ -27,7 +27,6 @@
     }
     <p class="report-sub">{{ unlocked() ? copy.subPostGate : copy.subPreGate }}</p>
     @if (unlocked()) {
-      <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
       @if (showLeadLinkNote()) {
         <!-- Karan directive 2026-09-27: persistent (not a toast) confirmation
              that the emailed link is return-access for other devices — the
@@ -95,6 +94,7 @@
             <h2>{{ copy.buildLabel }}</h2>
             <p class="figure-single">{{ formatCad(f.build.base) }}</p>
             <p class="build-note">{{ copy.buildCostNote }}</p>
+            <p class="build-note" role="note">{{ copy.buildSourceNote }}</p>
             @if (perSqft(); as psqft) {
               <p class="per-sqft">
                 {{ formatCad(psqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(snapshotSqft()) }}
@@ -188,6 +188,22 @@
         <div class="blur-teaser" aria-hidden="true"></div>
       }
     </section>
+
+    <!-- HOW WE CALCULATE: data-driven trust — compact expandable so the
+         skeptic can see exactly where every number comes from. -->
+    @if (unlocked()) {
+      <section class="card howcalc" [attr.aria-label]="copy.howWeCalculateTitle">
+        <details>
+          <summary><h2>{{ copy.howWeCalculateTitle }}</h2></summary>
+          <ul>
+            @for (item of copy.howWeCalculateItems; track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        </details>
+        <p class="uncalibrated-note" role="note">{{ copy.uncalibratedNote }}</p>
+      </section>
+    }
 
     <!-- AI SUMMARY: neighbourhood guide only — no cost figures.
          Rendered one paragraph per block: the prompt emits plain text for

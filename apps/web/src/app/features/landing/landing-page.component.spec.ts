@@ -125,7 +125,11 @@ describe('LandingPageComponent', () => {
     const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(items).toEqual(['Range-based estimates', 'Real City of Calgary data', 'Transparent cost breakdown']);
+    expect(items).toEqual([
+      '600,000+ City of Calgary assessment records',
+      'Refreshed September 2026',
+      'Deterministic math — AI never invents prices',
+    ]);
   });
 
   it('hides the sample-report slot while the flag is off', () => {

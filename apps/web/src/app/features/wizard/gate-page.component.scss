@@ -15,6 +15,15 @@
   margin: 0 0 8px;
 }
 
+/* Quiet trust line under the gate subheading — data-driven, not a calculator. */
+.gate-trust {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0 0 4px;
+  font-style: italic;
+}
+
 .gate-form {
   margin-top: 20px;
   padding: 24px;

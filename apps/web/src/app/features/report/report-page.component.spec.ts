@@ -291,8 +291,8 @@ describe('ReportPageComponent', () => {
         expect(heroValue?.textContent?.trim()).toMatch(/^\$[\d,]+$/);
         // The cost breakdown renders real rows.
         expect(fixture.nativeElement.querySelectorAll('.bucket-legend li').length).toBeGreaterThan(0);
-        // The uncalibrated disclaimer stays visible.
-        expect(text()).toContain('Uncalibrated planning figures');
+        // The calibration-transparency note stays visible (reframed, below the breakdown).
+        expect(text()).toContain("How we're sharpening these numbers");
       });
 
       it('size stepper is active immediately (enabled buttons)', () => {
@@ -491,7 +491,7 @@ describe('ReportPageComponent', () => {
       // The mock mirrors the real backend: land is the fixture property's
       // City assessed value ($823,000), not a canned constant.
       expect(landCard.textContent).toContain('$823,000');
-      expect(landCard.textContent).toContain('City of Calgary assessment · not a cost range');
+      expect(landCard.textContent).toContain('City of Calgary assessment · refreshed September 2026 · not a market price');
       expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
     });
 
