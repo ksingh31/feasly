@@ -2,7 +2,7 @@
  * Drizzle stores for auth/01 (users, invitations, builder memberships).
  * Implements the store interfaces from user.service.ts against Postgres.
  */
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   builderMemberships,
@@ -99,14 +99,70 @@ export function createDrizzleUserStore(deps: DrizzleUserStoreDeps): UserStore {
       return toUserRecord(row);
     },
 
-    async list(limit: number, offset: number) {
+    async list(
+      limit: number,
+      offset: number,
+      filter?: { builderIds?: readonly string[] },
+    ) {
+      // auth/03: builder admins only see users in the orgs they administer.
+      const orgFilter =
+        filter?.builderIds?.length
+          ? inArray(
+              users.id,
+              database
+                .select({ userId: builderMemberships.userId })
+                .from(builderMemberships)
+                .where(
+                  inArray(builderMemberships.builderId, [...filter.builderIds]),
+                ),
+            )
+          : undefined;
       const rows = await database
         .select()
         .from(users)
+        .where(orgFilter)
         .orderBy(desc(users.createdAt))
         .limit(limit)
         .offset(offset);
       return rows.map(toUserRecord);
+    },
+
+    async count(filter?: { builderIds?: readonly string[] }) {
+      const orgFilter =
+        filter?.builderIds?.length
+          ? inArray(
+              users.id,
+              database
+                .select({ userId: builderMemberships.userId })
+                .from(builderMemberships)
+                .where(
+                  inArray(builderMemberships.builderId, [...filter.builderIds]),
+                ),
+            )
+          : undefined;
+      const rows = await database
+        .select({ value: sql<number>`count(*)` })
+        .from(users)
+        .where(orgFilter);
+      return Number(rows[0]?.value ?? 0);
+    },
+
+    async delete(id: string) {
+      const rows = await database
+        .delete(users)
+        .where(eq(users.id, id))
+        .returning({ id: users.id });
+      return rows.length > 0;
+    },
+
+    async countActiveByStaffRole(role: StaffRole) {
+      const rows = await database
+        .select({ value: sql<number>`count(*)` })
+        .from(users)
+        .where(
+          and(eq(users.staffRole, role), eq(users.status, 'active')),
+        );
+      return Number(rows[0]?.value ?? 0);
     },
   };
 }

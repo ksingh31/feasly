@@ -1,0 +1,348 @@
+<div class="users-page">
+  <div class="users-page__header">
+    <div>
+      <h1>Users</h1>
+      <p class="users-page__subtitle">
+        Invite team members by email, manage roles and builder organizations,
+        and deactivate accounts. Every change is audit-logged.
+      </p>
+    </div>
+    <button
+      type="button"
+      class="users-page__primary"
+      (click)="openInvite()"
+    >
+      Invite user
+    </button>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="users-page__banner"
+      [class.users-page__banner--error]="n.kind === 'error'"
+      role="status"
+    >
+      <span>{{ n.message }}</span>
+      <button type="button" (click)="dismissNotice()" aria-label="Dismiss">
+        Dismiss
+      </button>
+    </div>
+  }
+
+  @if (listStatus() === 'loading') {
+    <p class="users-page__state">Loading users…</p>
+  } @else if (listStatus() === 'error') {
+    <p class="users-page__state users-page__state--error">
+      {{ listError() }}
+      <button type="button" class="users-page__retry" (click)="reload()">
+        Try again
+      </button>
+    </p>
+  } @else {
+    <div class="users-page__table-wrap">
+      <table class="users-page__table">
+        <caption class="users-page__caption">
+          {{ total() }} {{ total() === 1 ? 'user' : 'users' }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Email</th>
+            <th scope="col">Role</th>
+            <th scope="col">Organizations</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="users-page__sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr>
+              <td>
+                {{ user.name }}
+                @if (isSelf(user)) {
+                  <span class="users-page__you">You</span>
+                }
+              </td>
+              <td>{{ user.email }}</td>
+              <td>{{ roleLabel(user) }}</td>
+              <td>
+                @if (user.memberships.length === 0) {
+                  <span class="users-page__muted">—</span>
+                } @else {
+                  @for (m of user.memberships; track m.builderId; let last = $last) {
+                    {{ builderName(m.builderId) }}{{ last ? '' : ', ' }}
+                  }
+                }
+              </td>
+              <td>
+                <span
+                  class="users-page__status"
+                  [class.users-page__status--invited]="user.status === 'invited'"
+                  [class.users-page__status--disabled]="user.status === 'disabled'"
+                >
+                  {{ statusLabel(user.status) }}
+                </span>
+              </td>
+              <td class="users-page__actions">
+                @if (canEdit(user)) {
+                  <button type="button" (click)="openEdit(user)">Edit</button>
+                }
+                @if (canToggleActive(user)) {
+                  @if (user.status === 'disabled') {
+                    <button
+                      type="button"
+                      (click)="reactivate(user)"
+                      [disabled]="updating()"
+                    >
+                      Reactivate
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="users-page__danger-link"
+                      (click)="deactivate(user)"
+                      [disabled]="updating()"
+                    >
+                      Deactivate
+                    </button>
+                  }
+                }
+                @if (user.status === 'invited' && canEdit(user)) {
+                  <button
+                    type="button"
+                    (click)="resendInvite(user)"
+                    [disabled]="resendingId() === user.id"
+                  >
+                    {{ resendingId() === user.id ? 'Sending…' : 'Resend invite' }}
+                  </button>
+                }
+                @if (canDelete(user)) {
+                  <button
+                    type="button"
+                    class="users-page__danger-link"
+                    (click)="openDelete(user)"
+                  >
+                    Delete
+                  </button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="users-page__empty">
+                No users yet. Invite the first team member to get started.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (updateError()) {
+      <p class="users-page__state users-page__state--error">{{ updateError() }}</p>
+    }
+  }
+</div>
+
+<!-- Invite modal -->
+@if (inviteOpen()) {
+  <div class="users-page__overlay" (click)="closeInvite()">
+    <div
+      class="users-page__modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="invite-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="invite-title">Invite user</h2>
+      <p class="users-page__modal-sub">
+        They'll get an email invite and sign in with their Microsoft account —
+        Feasly never sees a password.
+      </p>
+      <form [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
+        <label class="users-page__field">
+          <span>Email</span>
+          <input type="email" formControlName="email" autocomplete="off" />
+          @if (inviteForm.controls.email.touched && inviteForm.controls.email.invalid) {
+            <span class="users-page__field-error">Enter a valid email address.</span>
+          }
+        </label>
+        <label class="users-page__field">
+          <span>Name</span>
+          <input type="text" formControlName="name" autocomplete="off" />
+          @if (inviteForm.controls.name.touched && inviteForm.controls.name.invalid) {
+            <span class="users-page__field-error">Enter the person's name.</span>
+          }
+        </label>
+        <label class="users-page__field">
+          <span>Role</span>
+          <select formControlName="role">
+            <optgroup label="Staff">
+              @for (role of staffRoles; track role) {
+                <option [value]="role">
+                  {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
+                </option>
+              }
+            </optgroup>
+            <optgroup label="Builder">
+              @for (role of builderRoles; track role) {
+                <option [value]="role">
+                  {{ role === 'builder_admin' ? 'Builder admin' : 'Builder member' }}
+                </option>
+              }
+            </optgroup>
+          </select>
+        </label>
+        @if (inviteRoleIsBuilder()) {
+          <label class="users-page__field">
+            <span>Organization</span>
+            <select formControlName="builderId">
+              <option value="">Choose an organization…</option>
+              @for (b of builders(); track b.id) {
+                <option [value]="b.id">{{ b.displayName }}</option>
+              }
+            </select>
+            @if (inviteForm.controls.builderId.touched && inviteForm.controls.builderId.invalid) {
+              <span class="users-page__field-error">Choose the builder organization.</span>
+            }
+          </label>
+        }
+        @if (inviteError()) {
+          <p class="users-page__state users-page__state--error">{{ inviteError() }}</p>
+        }
+        <div class="users-page__modal-actions">
+          <button type="button" (click)="closeInvite()">Cancel</button>
+          <button
+            type="submit"
+            class="users-page__primary"
+            [disabled]="inviting()"
+          >
+            {{ inviting() ? 'Sending…' : 'Send invite' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Edit drawer -->
+@if (editingUser(); as editing) {
+  <div class="users-page__overlay" (click)="closeEdit()">
+    <div
+      class="users-page__modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="edit-title">Edit {{ editing.email }}</h2>
+      <form [formGroup]="editForm" (ngSubmit)="submitEdit()">
+        <label class="users-page__field">
+          <span>Name</span>
+          <input type="text" formControlName="name" autocomplete="off" />
+          @if (editForm.controls.name.touched && editForm.controls.name.invalid) {
+            <span class="users-page__field-error">Enter the person's name.</span>
+          }
+        </label>
+        <label class="users-page__field">
+          <span>Staff role</span>
+          <select formControlName="role">
+            <option value="">No staff role (builder organizations only)</option>
+            @for (role of staffRoles; track role) {
+              <option [value]="role">
+                {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
+              </option>
+            }
+          </select>
+        </label>
+        @if (updateError()) {
+          <p class="users-page__state users-page__state--error">{{ updateError() }}</p>
+        }
+        <div class="users-page__modal-actions">
+          <button type="button" (click)="closeEdit()">Cancel</button>
+          <button
+            type="submit"
+            class="users-page__primary"
+            [disabled]="updating()"
+          >
+            {{ updating() ? 'Saving…' : 'Save changes' }}
+          </button>
+        </div>
+      </form>
+
+      <h3 class="users-page__drawer-sub">Builder organizations</h3>
+      <div class="users-page__memberships">
+        @for (b of builders(); track b.id) {
+          <div class="users-page__membership">
+            <label>
+              <input
+                type="checkbox"
+                [formControl]="membershipControl(b.id)"
+              />
+              {{ b.displayName }}
+            </label>
+            @if (membershipControl(b.id).value) {
+              <select
+                [formControl]="membershipRoleControl(b.id)"
+                aria-label="Role in {{ b.displayName }}"
+              >
+                <option value="builder_admin">Builder admin</option>
+                <option value="builder_member">Builder member</option>
+              </select>
+            }
+          </div>
+        } @empty {
+          <p class="users-page__muted">No builder organizations yet.</p>
+        }
+      </div>
+      <div class="users-page__modal-actions">
+        <button
+          type="button"
+          class="users-page__primary"
+          (click)="submitMemberships()"
+          [disabled]="updating()"
+        >
+          {{ updating() ? 'Saving…' : 'Save organizations' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirmation -->
+@if (deletingUser(); as deletingUser) {
+  <div class="users-page__overlay" (click)="closeDelete()">
+    <div
+      class="users-page__modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="delete-title">Delete {{ deletingUser.email }}?</h2>
+      <p class="users-page__modal-sub">
+        They never accepted their invite, so deleting removes the invitation
+        and their sign-in account permanently. This can't be undone. Users who
+        already signed in can't be deleted — deactivate them instead.
+      </p>
+      <form [formGroup]="deleteForm" (ngSubmit)="confirmDelete()">
+        <label class="users-page__field">
+          <span>Type <strong>{{ deletingUser.email }}</strong> to confirm</span>
+          <input type="text" formControlName="confirmation" autocomplete="off" />
+        </label>
+        @if (deleteError()) {
+          <p class="users-page__state users-page__state--error">{{ deleteError() }}</p>
+        }
+        <div class="users-page__modal-actions">
+          <button type="button" (click)="closeDelete()">Cancel</button>
+          <button
+            type="submit"
+            class="users-page__danger"
+            [disabled]="!deleteConfirmationMatches() || deleting()"
+          >
+            {{ deleting() ? 'Deleting…' : 'Delete user' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
