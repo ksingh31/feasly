@@ -303,7 +303,7 @@ module functionApp 'modules/function-app.bicep' = {
     builderEntraTenantId: ''
     builderEntraClientId: ''
     builderEntraUserFlow: ''
-    builderEntraClientSecretUri: ''
+    builderEntraClientSecretUri: environment == 'dev' ? builderEntraClientSecretUri : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).
