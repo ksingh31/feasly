@@ -31,8 +31,17 @@ function makeDeps(): AdminLeadsRouteDeps {
     discardQuarantine: vi.fn().mockResolvedValue({ ok: true as const }),
     exportCsv: vi.fn().mockResolvedValue({ csv: 'id\n', filename: 'test.csv' }),
   };
+  const builders = {
+    listBuilders: vi.fn(),
+    getBuilder: vi.fn(),
+    getByTenantKey: vi.fn(),
+    createBuilder: vi.fn(),
+    updateBuilder: vi.fn(),
+    assignLead: vi.fn().mockResolvedValue({ ok: true as const }),
+  };
   return {
     adminLeads: service,
+    builders,
     adminGuard: {
       async requireAdmin(
         headers: Record<string, string | string[] | undefined>,

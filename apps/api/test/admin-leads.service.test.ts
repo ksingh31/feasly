@@ -47,6 +47,7 @@ function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
     nudgeSentAt: null,
     createdAt: new Date('2026-09-25T00:00:00Z'),
     projectType: 'new_build',
+    builderId: null,
     ...overrides,
   };
 }
@@ -245,6 +246,8 @@ describe('admin-leads service (admin/02)', () => {
       expect(result.estimate).not.toBeNull();
       expect(result.estimate?.totalRangeCents).toEqual([50000000, 60000000]);
       expect(result.magicLinkStatus).toBe('sent');
+      // builderId surfaced from the row (null when unassigned).
+      expect(result.builderId).toBeNull();
       // AC6: audit row for the read.
       expect(deps.audit.log).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -47,6 +47,7 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     sandbox: false,
     leadScore: 50,
     status: 'new',
+    builderId: null,
     unsubscribedAt: null,
     contactOptOutAt: null,
     consentUpdatedAt: NOW,
@@ -142,6 +143,7 @@ function makeService(
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
+      listByBuilderId: async () => [],
       updateStatus: async () => null,
       updateConsentPreferences: async () => null,
   };

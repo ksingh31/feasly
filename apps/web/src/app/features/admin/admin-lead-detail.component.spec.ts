@@ -8,7 +8,8 @@ import { ConfigService } from '../../core/config/config.service';
 import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import { ClearSelectedAdminLead, SelectAdminLead } from './admin-leads.actions';
 import { AdminLeadsState } from './admin-leads.state';
-import type { AdminLeadDetail } from '@feasly/contracts';
+import { AdminBuildersState } from './admin-builders.state';
+import type { AdminLeadDetail, Builder } from '@feasly/contracts';
 
 const DETAIL: AdminLeadDetail = {
   id: 'a1',
@@ -46,8 +47,26 @@ const DETAIL: AdminLeadDetail = {
   magicLinkStatus: 'sent',
   sheetsSyncedAt: null,
   snapshotCount: 1,
+  builderId: null,
   notes: [],
   statusHistory: [],
+};
+
+const BUILDER_X: Builder = {
+  id: 'b1',
+  tenantKey: 'elite-craft',
+  businessName: 'Elite Craft Builders',
+  displayName: 'Elite Craft',
+  email: 'hello@elite.example',
+  phone: null,
+  logoUrl: null,
+  accentColor: '#C8A24B',
+  allowedOrigins: ['elite.example'],
+  plan: 'flat',
+  status: 'active',
+  settings: {},
+  createdAt: '2026-09-27T00:00:00.000Z',
+  updatedAt: '2026-09-27T00:00:00.000Z',
 };
 
 /**
@@ -67,7 +86,7 @@ describe('AdminLeadDetailComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminLeadsState]),
+        provideStore([AdminLeadsState, AdminBuildersState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
@@ -90,6 +109,66 @@ describe('AdminLeadDetailComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  }
+
+  /**
+   * Opens the lead and flushes the builders GET the modal dispatches on
+   * init (drives the assign-to-builder dropdown).
+   */
+  async function openLeadWithBuilders(
+    detail: AdminLeadDetail = DETAIL,
+    builders: Builder[] = [BUILDER_X],
+  ): Promise<void> {
+    await openLead(detail);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'GET')
+      .flush({ builders });
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  /** Poll an async UI condition until it holds (or the deadline passes). */
+  async function waitFor(
+    condition: () => boolean,
+    label: string,
+    timeoutMs = 5000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      fixture.detectChanges();
+      if (condition()) {
+        return;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`timed out waiting for: ${label}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  function assignSelect(): HTMLSelectElement {
+    return fixture.debugElement.query(By.css('.lead-modal-card__assign select'))
+      .nativeElement;
+  }
+
+  function pickBuilder(value: string): void {
+    const select = assignSelect();
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  /** Flushes the assign POST plus the detail refetch the component triggers. */
+  function flushAssign(builderId: string | null, detail: AdminLeadDetail): void {
+    const post = httpMock.expectOne((r) =>
+      r.url.endsWith(`/api/v1/admin/leads/${detail.id}/assign-builder`),
+    );
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ builderId });
+    post.flush({ ok: true });
+    httpMock
+      .expectOne((r) => r.url.endsWith(`/api/v1/admin/leads/${detail.id}`) && r.method === 'GET')
+      .flush({ ...detail, builderId });
   }
 
   function applyButton(): HTMLButtonElement {
@@ -183,14 +262,74 @@ describe('AdminLeadDetailComponent', () => {
     expect(error.nativeElement.getAttribute('role')).toBe('alert');
   });
 
-  it('renders assign-to-builder as a disabled visual-only placeholder', async () => {
+  it('renders the assign-to-builder dropdown with the builders list', async () => {
     await setup();
-    await openLead();
+    await openLeadWithBuilders();
 
-    const assign = fixture.debugElement.query(By.css('.lead-modal-card__assign select'))
-      .nativeElement as HTMLSelectElement;
-    expect(assign.disabled).toBe(true);
-    expect(assign.value).toBe('Unassigned');
+    const assign = assignSelect();
+    expect(assign.disabled).toBe(false);
+    expect(assign.value).toBe('');
+    const labels = Array.from(assign.options).map((o) => o.textContent?.trim());
+    expect(labels).toEqual(['Unassigned', 'Elite Craft']);
+  });
+
+  it('assigns the lead on change and shows the builder display name', async () => {
+    await setup();
+    await openLeadWithBuilders();
+
+    pickBuilder('b1');
+    flushAssign('b1', DETAIL);
+
+    // The detail refetch updates the assignment; the dropdown and caption
+    // follow the server-side builderId (never the optimistic pick).
+    await waitFor(
+      () => store.selectSnapshot(AdminLeadsState.detail)?.builderId === 'b1',
+      'assigned builderId',
+    );
+    expect(assignSelect().value).toBe('b1');
+    const caption = fixture.debugElement.query(By.css('.lead-modal-card__assign-state'));
+    expect(caption.nativeElement.textContent).toContain('Currently with Elite Craft');
+    expect(store.selectSnapshot(AdminBuildersState.assignError)).toBeNull();
+  });
+
+  it('unassigns the lead when Unassigned is picked', async () => {
+    await setup();
+    await openLeadWithBuilders({ ...DETAIL, builderId: 'b1' });
+
+    expect(assignSelect().value).toBe('b1');
+
+    pickBuilder('');
+    flushAssign(null, { ...DETAIL, builderId: 'b1' });
+
+    await waitFor(
+      () => store.selectSnapshot(AdminLeadsState.detail)?.builderId === null,
+      'unassigned builderId',
+    );
+    expect(assignSelect().value).toBe('');
+  });
+
+  it('rolls the dropdown back and shows an inline error when assign fails', async () => {
+    await setup();
+    await openLeadWithBuilders();
+
+    pickBuilder('b1');
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/assign-builder'))
+      .error(new ProgressEvent('error'));
+    // The component still refetches the detail, rolling the dropdown back
+    // to the server-side (unassigned) value.
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush(DETAIL);
+
+    await waitFor(
+      () => store.selectSnapshot(AdminBuildersState.assignError) !== null,
+      'assign error',
+    );
+    expect(assignSelect().value).toBe('');
+    const error = fixture.debugElement.query(By.css('.lead-modal-card__error'));
+    expect(error).toBeTruthy();
+    expect(error.nativeElement.getAttribute('role')).toBe('alert');
   });
 
   it('traps Tab focus inside the modal', async () => {

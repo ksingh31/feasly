@@ -1,9 +1,10 @@
 /**
- * Builder-config service tests (EMB-02).
+ * Builder-config service tests (EMB-02, builders table).
  *
- * Covers: repo-JSON (in-memory) hit, DB `tenants` fallback when the key
- * is not in memory, 404 UNKNOWN_TENANT when neither has it, and startup
- * validation failing loud on a broken injected config.
+ * Resolution order (embed/02 admin-UI migration): DB `builders` row first
+ * (the runtime source of truth), repo JSON (`config/builders/*.json`)
+ * as the fallback when no DB row exists. Unknown key → 404
+ * UNKNOWN_TENANT. Inactive DB builders → 404 (they can't embed).
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -12,7 +13,7 @@ import {
   createBuilderConfigService,
   type BuilderConfigService,
 } from '../src/services/builder-config.service';
-import { tenants } from '../src/db/schema';
+import { builders } from '../src/db/schema';
 import type { AppDb } from '../src/db/client';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
@@ -29,12 +30,11 @@ const FILE_CONFIG = {
   plan: null,
 };
 
-const NO_DB = {} as AppDb;
 const QUIET = { onWarning: () => {} };
 
 function serviceWith(
   configs: Record<string, unknown>,
-  db: AppDb = NO_DB,
+  db: AppDb,
 ): BuilderConfigService {
   return createBuilderConfigService({
     db,
@@ -56,9 +56,72 @@ describe('builder-config service', () => {
     await testDb.close();
   });
 
-  it('serves the in-memory repo JSON without touching the DB', async () => {
-    const service = serviceWith({ 'elite-craft-builders': FILE_CONFIG });
-    const config = await service.getByKey('elite-craft-builders');
+  it('serves the DB builders row first (DB is the source of truth)', async () => {
+    await testDb.db.insert(builders).values({
+      id: '11111111-1111-4111-8111-111111111111',
+      tenantKey: 'db-builders',
+      businessName: 'DB Builders',
+      displayName: 'DB',
+      email: '',
+      phone: '',
+      logoUrl: '',
+      accentColor: '#123456',
+      allowedOrigins: ['https://db.example.com'],
+      plan: 'flat',
+      status: 'active',
+      settings: {},
+    });
+    const service = serviceWith(
+      { 'elite-craft-builders': FILE_CONFIG },
+      testDb.db,
+    );
+    const config = await service.getByKey('db-builders');
+    expect(config.business_name).toBe('DB Builders');
+    expect(config.plan).toBe('flat');
+    expect(config.allowed_origins).toEqual(['https://db.example.com']);
+  });
+
+  it('prefers the DB builders row over the repo JSON for the same key', async () => {
+    await testDb.db.insert(builders).values({
+      id: '22222222-2222-4222-8222-222222222222',
+      tenantKey: 'db-wins-builder',
+      businessName: 'DB Wins Builder',
+      displayName: 'DB Wins',
+      email: '',
+      phone: '',
+      logoUrl: '',
+      accentColor: '#000000',
+      allowedOrigins: ['https://db.example.com'],
+      plan: 'commission',
+      status: 'active',
+      settings: {},
+    });
+    const service = serviceWith(
+      {
+        'db-wins-builder': {
+          ...FILE_CONFIG,
+          tenant_key: 'db-wins-builder',
+          business_name: 'Stale JSON Name',
+        },
+      },
+      testDb.db,
+    );
+    const config = await service.getByKey('db-wins-builder');
+    // DB wins — the JSON is only a fallback when no DB row exists.
+    expect(config.business_name).toBe('DB Wins Builder');
+  });
+
+  it('falls back to the repo JSON when the DB has no row', async () => {
+    const service = serviceWith(
+      { 'elite-craft-builders': FILE_CONFIG },
+      testDb.db,
+    );
+    // 'json-only-builder' has no DB row — the JSON fallback serves it.
+    const serviceWithJson = serviceWith(
+      { 'json-only-builder': { ...FILE_CONFIG, tenant_key: 'json-only-builder' } },
+      testDb.db,
+    );
+    const config = await serviceWithJson.getByKey('json-only-builder');
     expect(config).toEqual({
       business_name: 'Elite Craft Builders',
       display_name: 'Elite Craft Builders',
@@ -71,51 +134,34 @@ describe('builder-config service', () => {
     });
     // tenant_key is internal — never on the wire.
     expect(config).not.toHaveProperty('tenant_key');
+    expect(service).toBeDefined();
   });
 
-  it('falls back to the DB tenants row when the key is not in memory', async () => {
-    await testDb.db.insert(tenants).values({
-      tenantKey: 'db-only-builders',
-      businessName: 'DB Only Builders',
-      displayName: 'DB Only',
-      logoUrl: '',
-      accentColor: '#123456',
-      allowedOrigins: ['https://dbonly.example.com'],
-      fallbackPhone: '',
-      fallbackEmail: '',
-      plan: 'flat',
-    });
-    const service = serviceWith(
-      { 'elite-craft-builders': FILE_CONFIG },
-      testDb.db,
-    );
-    const config = await service.getByKey('db-only-builders');
-    expect(config.business_name).toBe('DB Only Builders');
-    expect(config.plan).toBe('flat');
-    expect(config.allowed_origins).toEqual(['https://dbonly.example.com']);
-  });
-
-  it('prefers the repo JSON over the DB row for the same key', async () => {
-    await testDb.db.insert(tenants).values({
-      tenantKey: 'elite-craft-builders',
-      businessName: 'Stale DB Name',
-      displayName: 'Stale DB',
+  it('rejects an inactive DB builder as unknown (404)', async () => {
+    await testDb.db.insert(builders).values({
+      id: '33333333-3333-4333-8333-333333333333',
+      tenantKey: 'inactive-builder',
+      businessName: 'Inactive Builder',
+      displayName: 'Inactive',
+      email: '',
+      phone: '',
       logoUrl: '',
       accentColor: '#000000',
-      allowedOrigins: ['https://stale.example.com'],
-      fallbackPhone: '',
-      fallbackEmail: '',
-      plan: 'commission',
+      allowedOrigins: [],
+      plan: null,
+      status: 'inactive',
+      settings: {},
     });
-    const service = serviceWith(
-      { 'elite-craft-builders': FILE_CONFIG },
-      testDb.db,
-    );
-    const config = await service.getByKey('elite-craft-builders');
-    expect(config.business_name).toBe('Elite Craft Builders');
+    const service = serviceWith({}, testDb.db);
+    const error = await service
+      .getByKey('inactive-builder')
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect((error as HttpError).status).toBe(404);
+    expect((error as HttpError).code).toBe(ErrorCodes.UNKNOWN_TENANT);
   });
 
-  it('throws 404 UNKNOWN_TENANT when neither has the key', async () => {
+  it('throws 404 UNKNOWN_TENANT when neither DB nor JSON has the key', async () => {
     const service = serviceWith(
       { 'elite-craft-builders': FILE_CONFIG },
       testDb.db,
@@ -130,9 +176,12 @@ describe('builder-config service', () => {
 
   it('fails loud at startup on a broken injected config', () => {
     expect(() =>
-      serviceWith({
-        'broken.json': { ...FILE_CONFIG, accent_color: 'not-a-hex' },
-      }),
+      serviceWith(
+        {
+          'broken.json': { ...FILE_CONFIG, accent_color: 'not-a-hex' },
+        },
+        testDb.db,
+      ),
     ).toThrow('field "accent_color"');
   });
 
@@ -144,7 +193,8 @@ describe('builder-config service', () => {
       'utf8',
     );
     const data = JSON.parse(raw) as Record<string, unknown>;
-    const service = serviceWith({ demo: data });
+    // No 'demo' row in the DB — the JSON fallback serves it.
+    const service = serviceWith({ demo: data }, testDb.db);
     const config = await service.getByKey('demo');
     expect(config).toEqual({
       business_name: 'Demo Builder',

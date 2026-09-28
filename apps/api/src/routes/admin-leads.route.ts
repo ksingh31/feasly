@@ -29,9 +29,11 @@ import type {
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { AdminLeadsService } from '../services/admin-leads.service';
+import type { BuilderService } from '../services/builder.service';
 
 export interface AdminLeadsRouteDeps {
   readonly adminLeads: AdminLeadsService;
+  readonly builders: BuilderService;
   readonly adminGuard: AdminGuard;
 }
 
@@ -73,6 +75,12 @@ export interface AdminLeadsRoute {
     headers: Record<string, string | string[] | undefined>,
     query: unknown,
   ): Promise<{ readonly csv: string; readonly filename: string }>;
+  /** POST /api/v1/admin/leads/{id}/assign-builder */
+  assignBuilder(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    body: unknown,
+  ): Promise<{ readonly ok: true }>;
 }
 
 const leadIdParamSchema = z.string().trim().uuid();
@@ -86,7 +94,7 @@ function parseLeadId(id: unknown): string {
 }
 
 export function createAdminLeadsRoute(deps: AdminLeadsRouteDeps): AdminLeadsRoute {
-  const { adminLeads, adminGuard } = deps;
+  const { adminLeads, builders, adminGuard } = deps;
 
   return {
     async list(headers, query): Promise<AdminLeadListResponse> {
@@ -126,8 +134,35 @@ export function createAdminLeadsRoute(deps: AdminLeadsRouteDeps): AdminLeadsRout
       const adminEmail = await requireAdminEmail(adminGuard, headers);
       return adminLeads.exportCsv(query, adminEmail);
     },
+
+    async assignBuilder(
+      headers,
+      id,
+      body,
+    ): Promise<{ readonly ok: true }> {
+      const adminEmail = await requireAdminEmail(adminGuard, headers);
+      const parsed = assignBuilderBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid assign-builder body.',
+          false,
+        );
+      }
+      return builders.assignLead(
+        parseLeadId(id),
+        parsed.data.builderId,
+        adminEmail,
+      );
+    },
   };
 }
+
+const assignBuilderBodySchema = z.object({
+  /** Builder id to assign, or null to unassign. */
+  builderId: z.string().trim().uuid().nullable(),
+});
 
 /**
  * Require admin auth and return the admin's email for audit rows.

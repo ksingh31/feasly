@@ -195,6 +195,18 @@ const targets = [
     out: 'admin-leads-quarantine-discard/index.js',
   },
   {
+    entry: 'src/functions/admin-builders.ts',
+    out: 'admin-builders/index.js',
+  },
+  {
+    entry: 'src/functions/admin-builders-detail.ts',
+    out: 'admin-builders-detail/index.js',
+  },
+  {
+    entry: 'src/functions/admin-leads-assign-builder.ts',
+    out: 'admin-leads-assign-builder/index.js',
+  },
+  {
     entry: 'src/functions/admin-estimates-get.ts',
     out: 'admin-estimates-get/index.js',
   },

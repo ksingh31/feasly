@@ -33,6 +33,11 @@ export interface LeadRecord {
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
   readonly status: string;
+  /**
+   * Admin-assigned builder (builders table). Null = unassigned; the lead
+   * flow never depends on it. The builder portal scopes to this column.
+   */
+  readonly builderId: string | null;
   /** email/03: CASL opt-out timestamp; null = still subscribed. */
   readonly unsubscribedAt: Date | null;
   /**
@@ -63,6 +68,14 @@ export interface NewLead {
   readonly consentTs: Date;
   readonly tenantKey?: string;
   readonly source: string;
+  /**
+   * Embed dual-write (builders table): when the lead carries a tenant key,
+   * the service resolves the builder row and stamps its id here in the
+   * same insert, so the lead is visible in the builder portal
+   * immediately. tenant_key stays populated too (billing/attribution
+   * still reads it). Null = unassigned; the lead flow never depends on it.
+   */
+  readonly builderId?: string | null;
   /** Set by the service when the honeypot field arrives filled. */
   readonly quarantined?: boolean;
   /** Set when captured via a sandbox API key (api-mcp/01). */
@@ -102,6 +115,14 @@ export interface LeadStore {
     readonly timeline: string;
     readonly leadScore: number;
     readonly estimateId: string;
+    /**
+     * Embed dual-write repair: when a repeat submission resolves a tenant
+     * whose builder row exists but the stored lead still has a null
+     * builder_id (e.g. captured before the builders-table backfill), stamp
+     * it now so the lead shows in the builder portal. Undefined = leave
+     * the column untouched.
+     */
+    readonly builderId?: string | null;
   }): Promise<LeadRecord>;
   /**
    * consumer/02 — the newest estimate row for this email + property
@@ -165,6 +186,15 @@ export interface LeadStore {
    */
   listByTenantKey(args: {
     readonly tenantKey: string;
+    readonly limit?: number;
+  }): Promise<LeadRecord[]>;
+  /**
+   * Returns only leads assigned to the given builder, newest first.
+   * Quarantined rows are EXCLUDED (spam never reaches the builder).
+   * This is the builder-portal scoping query (builders table migration).
+   */
+  listByBuilderId(args: {
+    readonly builderId: string;
     readonly limit?: number;
   }): Promise<LeadRecord[]>;
   /** One lead by id, or null. */
@@ -286,6 +316,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     contactOptOutAt: row.contactOptOutAt,
     consentUpdatedAt: row.consentUpdatedAt,
     nudgeSentAt: row.nudgeSentAt,
+    builderId: row.builderId,
     sheetsSyncedAt: row.sheetsSyncedAt,
     updatedAt: row.updatedAt,
     createdAt: row.createdAt,
@@ -335,6 +366,7 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           // new lead — set explicitly, never rely on the DB default.
           consentUpdatedAt: lead.consentTs,
           tenantKey: lead.tenantKey ?? null,
+          builderId: lead.builderId ?? null,
           source: lead.source,
           quarantined: lead.quarantined ?? false,
           sandbox: lead.sandbox ?? false,
@@ -363,6 +395,17 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .from(leads)
         .where(
           and(eq(leads.tenantKey, args.tenantKey), eq(leads.quarantined, false)),
+        )
+        .orderBy(desc(leads.createdAt))
+        .limit(args.limit ?? 100);
+      return rows.map(toRecord);
+    },
+    async listByBuilderId(args): Promise<LeadRecord[]> {
+      const rows = await db
+        .select()
+        .from(leads)
+        .where(
+          and(eq(leads.builderId, args.builderId), eq(leads.quarantined, false)),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
@@ -508,6 +551,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           timeline: args.timeline,
           leadScore: args.leadScore,
           estimateId: args.estimateId,
+          // Embed dual-write repair (see interface): only stamped when the
+          // caller resolved a builder; otherwise the column is untouched.
+          ...(args.builderId !== undefined ? { builderId: args.builderId } : {}),
         })
         .where(eq(leads.id, args.id))
         .returning();

@@ -511,6 +511,56 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'CSV export of the filtered lead set.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/leads/{id}/assign-builder',
+    auth: 'admin',
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Assign a lead to a builder (builders table) by builder id, or ' +
+      'unassign with builderId null. Null is the default and never ' +
+      'affects the lead flow. 404 for unknown lead or builder; ' +
+      'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders',
+    auth: 'admin',
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'List all builders (builders table): id, tenant_key, names, ' +
+      'contact, plan, status, settings.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/builders',
+    auth: 'admin',
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Create a builder. tenant_key is unique (409 on conflict); ' +
+      'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders/{id}',
+    auth: 'admin',
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'Get one builder by id. 404 when unknown.',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/builders/{id}',
+    auth: 'admin',
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Update a builder. tenant_key is immutable; 404 when unknown; ' +
+      'audit-logged with ids only, no contact PII.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/estimates/{id}',
     auth: 'admin',

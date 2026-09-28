@@ -95,3 +95,67 @@ export interface BuilderLeadListResponse {
 export interface BuilderLeadStatusUpdateBody {
   readonly status: BuilderLeadStatus;
 }
+
+/**
+ * Builder management contracts (embed/02 admin-UI migration).
+ *
+ * The `builders` table is the runtime source of truth for builder config.
+ * `tenantKey` is the builder ID used everywhere (embed config, sessions,
+ * billing joins). Only admins manage these rows.
+ */
+
+export type BuilderStatus = 'active' | 'inactive';
+
+export interface Builder {
+  readonly id: string;
+  readonly tenantKey: string;
+  readonly businessName: string;
+  readonly displayName: string;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly logoUrl: string | null;
+  readonly accentColor: string | null;
+  readonly allowedOrigins: readonly string[];
+  /** 'flat' | 'commission' | null (undecided). */
+  readonly plan: string | null;
+  readonly status: BuilderStatus;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface BuilderListResponse {
+  readonly builders: readonly Builder[];
+}
+
+export interface BuilderCreateBody {
+  readonly tenantKey: string;
+  readonly businessName: string;
+  readonly displayName: string;
+  readonly email?: string | null;
+  readonly phone?: string | null;
+  readonly logoUrl?: string | null;
+  readonly accentColor?: string | null;
+  readonly allowedOrigins?: readonly string[];
+  readonly plan?: string | null;
+  readonly status?: BuilderStatus;
+  readonly settings?: Readonly<Record<string, unknown>>;
+}
+
+export interface BuilderUpdateBody {
+  readonly businessName?: string;
+  readonly displayName?: string;
+  readonly email?: string | null;
+  readonly phone?: string | null;
+  readonly logoUrl?: string | null;
+  readonly accentColor?: string | null;
+  readonly allowedOrigins?: readonly string[];
+  readonly plan?: string | null;
+  readonly status?: BuilderStatus;
+  readonly settings?: Readonly<Record<string, unknown>>;
+}
+
+export interface LeadAssignBuilderBody {
+  /** Builder id to assign, or null to unassign. */
+  readonly builderId: string | null;
+}

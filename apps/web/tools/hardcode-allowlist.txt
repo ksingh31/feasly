@@ -180,3 +180,13 @@ apps/web/src/app/features/report/report-pdf.service.ts
 # Brand mark default size (fix/admin-header): a presentational default for
 # the logo's px size — it is design, not a deploy-tunable threshold.
 apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts
+
+# Builders management page (embed/02 admin-UI migration): admin support-view
+# copy — the exact strings are pinned by the story's acceptance criteria,
+# they change by product decision not by deploy tuning (same category as
+# the admin estimate-lookup entry above). The validation limits and
+# tenant-key/accent-color patterns mirror the backend zod schema
+# (API contract, not tunables). Copy-pinned by
+# admin-builders.component.spec.ts.
+apps/web/src/app/features/admin/admin-builders.component.html
+apps/web/src/app/features/admin/admin-builders.component.ts

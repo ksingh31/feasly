@@ -54,6 +54,7 @@ describe('lead route', () => {
         sandbox: false,
         leadScore: 0,
         status: 'new',
+        builderId: null,
         unsubscribedAt: null,
         contactOptOutAt: null,
         consentUpdatedAt: new Date(),
@@ -81,6 +82,7 @@ describe('lead route', () => {
       setSheetsSyncedAt: async () => null,
       countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
+      listByBuilderId: async () => [],
       updateStatus: async () => null,
       updateConsentPreferences: async () => null,
     };

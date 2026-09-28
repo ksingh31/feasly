@@ -153,6 +153,7 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     sandbox: lead.sandbox ?? false,
     leadScore: 0,
     status: 'new',
+    builderId: null,
     unsubscribedAt: null,
     contactOptOutAt: null,
     consentUpdatedAt: NOW,
@@ -218,6 +219,7 @@ function fakeLeadStore(): FakeLeadStore {
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
+      listByBuilderId: async () => [],
       updateStatus: async () => null,
       updateConsentPreferences: async () => null,
     insert: async (lead: NewLead) => {
@@ -284,6 +286,7 @@ function existingLeadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
     sandbox: false,
     leadScore: 0,
     status: 'new',
+    builderId: null,
     unsubscribedAt: null,
     contactOptOutAt: null,
     consentUpdatedAt: NOW,

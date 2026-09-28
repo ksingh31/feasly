@@ -68,6 +68,7 @@ const DETAIL_A: AdminLeadDetail = {
   magicLinkStatus: 'sent',
   sheetsSyncedAt: null,
   snapshotCount: 1,
+  builderId: null,
   notes: [],
   statusHistory: [],
 };

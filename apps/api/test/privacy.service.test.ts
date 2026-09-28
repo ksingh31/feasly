@@ -69,6 +69,7 @@ function lead(id: string, email: string, estimateId: string): LeadRecord {
     sandbox: false,
     leadScore: 0,
     status: 'new',
+    builderId: null,
     unsubscribedAt: null,
     contactOptOutAt: null,
     consentUpdatedAt: NOW,
@@ -185,6 +186,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     setSheetsSyncedAt: async () => null,
     countNeverSynced: async () => 0,
       listByTenantKey: async () => [],
+      listByBuilderId: async () => [],
       updateStatus: async () => null,
       updateConsentPreferences: async () => null,
     updateOnRepeat: async () => {

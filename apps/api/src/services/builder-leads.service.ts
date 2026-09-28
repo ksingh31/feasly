@@ -1,18 +1,22 @@
 /**
  * Builder leads service (embed/09).
  *
- * Tenant-scoped lead pipeline for the builder portal:
- * - `listLeads(tenantKey)` — all leads for the builder's tenant, newest
- *   first, with a won/lost summary. Quarantined rows are excluded.
+ * Builder-scoped lead pipeline for the builder portal:
+ * - `listLeads(tenantKey)` — resolves the builder row for the session's
+ *   tenant key, then lists leads assigned to that builder (`builder_id`),
+ *   newest first, with a won/lost summary. Quarantined rows are excluded.
+ *   A builder sees ONLY their assigned leads.
  * - `updateStatus(id, body, tenantKey, builderEmail)` — pipeline status
- *   transition. The lead MUST belong to the builder's tenant, otherwise
- *   403 (AC1: cross-tenant reads are forbidden). Writes
+ *   transition. The lead MUST be assigned to the builder, otherwise
+ *   403 (AC1: cross-builder reads are forbidden). Writes
  *   `lead_status_history` (append-only, for the attribution track) + audit
  *   row with the builder's email.
  *
- * Tenant isolation is enforced at the service layer: every read filters by
- * tenant_key at the database level, and every write re-verifies the lead's
- * tenant before touching it.
+ * Builder isolation is enforced at the service layer: every read filters by
+ * builder_id at the database level, and every write re-verifies the lead's
+ * assignment before touching it. Billing still keys on tenant_key (the
+ * join key the billing/attribution code uses), resolved from the builder
+ * row.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -27,6 +31,7 @@ import type {
   BillableEventResult,
   EmbedBillingHookService,
 } from './billing/embed-billing-hook.service';
+import type { BuilderService } from './builder.service';
 import type { LeadStore } from './lead.store';
 
 export const BuilderLeadStatusSchema = z.enum([
@@ -52,13 +57,13 @@ export const BuilderLeadStatusBodySchema = z.object({
 
 export interface BuilderLeadsService {
   /**
-   * List the builder's leads (tenant-scoped) with a pipeline summary.
-   * Only leads with matching tenant_key are returned.
+   * List the builder's assigned leads with a pipeline summary.
+   * Only leads with a matching builder_id are returned.
    */
   listLeads(tenantKey: string): Promise<BuilderLeadListResponse>;
   /**
    * Transition a lead's pipeline status. Throws 404 when the lead doesn't
-   * exist, 403 when it belongs to a different tenant. Writes
+   * exist, 403 when it isn't assigned to this builder. Writes
    * `lead_status_history` + audit row with the builder's email.
    *
    * When the transition is to 'won', the billing charge path runs first
@@ -78,6 +83,8 @@ export interface BuilderLeadsService {
 export interface BuilderLeadsServiceDeps {
   readonly leadStore: LeadStore;
   readonly audit: AdminAuditStore;
+  /** Resolves the session tenant key to the builder row (builders table). */
+  readonly builders: BuilderService;
   readonly clock?: () => Date;
   /**
    * Billing charge path (billing/01). Invoked when a lead transitions to
@@ -122,11 +129,27 @@ function toListItem(record: {
 export function createBuilderLeadsService(
   deps: BuilderLeadsServiceDeps,
 ): BuilderLeadsService {
-  const { leadStore, audit, billingHook } = deps;
+  const { leadStore, audit, builders, billingHook } = deps;
+
+  /**
+   * Resolve the session's tenant key to the builder row. Every portal
+   * call goes through here so a builder always acts as exactly one
+   * builder. Unknown tenant key → 404 (no builder to scope to).
+   */
+  async function requireBuilder(tenantKey: string) {
+    const builder = await builders.getByTenantKey(tenantKey);
+    if (builder === null || builder.status !== 'active') {
+      throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
+    }
+    return builder;
+  }
 
   return {
     async listLeads(tenantKey: string): Promise<BuilderLeadListResponse> {
-      const records = await leadStore.listByTenantKey({ tenantKey });
+      const builder = await requireBuilder(tenantKey);
+      const records = await leadStore.listByBuilderId({
+        builderId: builder.id,
+      });
 
       const summary = {
         total: records.length,
@@ -183,13 +206,15 @@ export function createBuilderLeadsService(
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
       }
 
-      // Tenant isolation: a builder can only touch their own tenant's leads.
+      const builder = await requireBuilder(tenantKey);
+
+      // Builder isolation: a builder can only touch their assigned leads.
       // This is a 403 (not 404) so the builder knows the lead exists but is
       // out of scope — the same semantics as the admin cross-tenant guard.
-      if (record.tenantKey !== tenantKey) {
+      if (record.builderId !== builder.id) {
         await audit.log({
           actorEmail: builderEmail,
-          action: 'builder_leads_cross_tenant_denied',
+          action: 'builder_leads_cross_builder_denied',
           detail: `leadId=${id} tenantKey=${tenantKey}`,
         });
         throw new HttpError(
@@ -229,13 +254,17 @@ export function createBuilderLeadsService(
       // builder can retry; the hook is idempotent against double-won.
       let billing: BillableEventResult | undefined;
       if (newStatus === 'won' && oldStatus !== 'won' && billingHook !== undefined) {
-        billing = await billingHook.recordBillableEvent(tenantKey, 'lead_won', {
-          leadId: id,
-          introducedAt: record.createdAt,
-          contractValueCents,
-          contractSignedAt:
-            contractSignedAt === undefined ? undefined : new Date(contractSignedAt),
-        });
+        billing = await billingHook.recordBillableEvent(
+          builder.tenantKey,
+          'lead_won',
+          {
+            leadId: id,
+            introducedAt: record.createdAt,
+            contractValueCents,
+            contractSignedAt:
+              contractSignedAt === undefined ? undefined : new Date(contractSignedAt),
+          },
+        );
       }
 
       if (oldStatus !== newStatus) {

@@ -255,6 +255,14 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/sheets-sync.state')).sheetsSyncStateProvider,
       ),
+      // Builders management (embed/02 admin-UI migration): registered on
+      // the /admin PARENT route because the lead-detail modal (rendered
+      // under /admin/leads) needs the builders list for its
+      // assign-to-builder dropdown.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-builders.state')).adminBuildersStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -263,6 +271,13 @@ export const routes: Routes = [
         path: 'leads',
         loadComponent: () =>
           import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
+      },
+      // Builders management (embed/02 admin-UI migration): the builders
+      // table — branding, sign-in keys, allowed embed origins, plans.
+      {
+        path: 'builders',
+        loadComponent: () =>
+          import('./features/admin/admin-builders.component').then((m) => m.AdminBuildersComponent),
       },
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day

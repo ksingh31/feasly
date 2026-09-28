@@ -7,6 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import { AdminLeadsComponent } from './admin-leads.component';
 import { AdminLeadsState } from './admin-leads.state';
+// The lead-detail modal (rendered by this page) reads AdminBuildersState
+// for its assign-to-builder dropdown — registered at the /admin route in
+// production, so the TestBed mirrors that here.
+import { AdminBuildersState } from './admin-builders.state';
 import type { AdminLeadListItem } from '@feasly/contracts';
 
 const LEAD_A: AdminLeadListItem = {
@@ -50,7 +54,7 @@ describe('AdminLeadsComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminLeadsState]),
+        provideStore([AdminLeadsState, AdminBuildersState]),
       ],
     });
     const config = TestBed.inject(ConfigService);

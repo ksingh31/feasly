@@ -41,6 +41,25 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "nudge_sent_at" timestamp with time
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "builder_id" uuid;
+CREATE TABLE IF NOT EXISTS "builders" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"tenant_key" text NOT NULL,
+	"business_name" text NOT NULL,
+	"display_name" text NOT NULL,
+	"email" text,
+	"phone" text,
+	"logo_url" text,
+	"accent_color" text,
+	"allowed_origins" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"plan" text,
+	"status" text DEFAULT 'active' NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "builders_tenant_key_unique" UNIQUE("tenant_key")
+);
 CREATE TABLE IF NOT EXISTS "magic_links" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
