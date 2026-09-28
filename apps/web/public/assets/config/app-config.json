@@ -119,8 +119,9 @@
       "detailsEmptyCta": "Find your address to start →"
     },
     "gate": {
-      "heading": "Where should we send your estimate report?",
-      "sub": "One quick step to unlock your personalized estimate report. No spam — we may reach out about your estimate, and you can opt out anytime.",
+      "heading": "Where should we send your estimate?",
+      "sub": "One quick step and your personalized cost report is on its way. No spam — we may reach out about your estimate, and you can opt out anytime.",
+      "trustLine": "Built from your City of Calgary property record — no guesswork.",
       "nameLabel": "Full name",
       "namePlaceholder": "Jane Doe",
       "nameRequired": "Please enter your name.",

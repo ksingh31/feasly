@@ -401,7 +401,7 @@ describe('GatePageComponent', () => {
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('.gate-heading')?.textContent).toContain(
-        'Where should we send your estimate report?',
+        'Where should we send your estimate?',
       );
       const box = el.querySelector('.consent input[type="checkbox"]') as HTMLInputElement;
       expect(box.checked).toBe(false);
