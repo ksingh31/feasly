@@ -175,7 +175,9 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Email a report to a partner: mints a fresh partner-share magic link ' +
-      '(never the owner token) and records the audit row. Token IS the credential.',
+      '(never the owner token) and records the audit row. Token IS the credential. ' +
+      'Abuse limits: max 5 shares per estimate per day; partner email must ' +
+      'differ from the owner\'s email.',
   },
   {
     method: 'GET',

@@ -11,20 +11,29 @@ import { ErrorCodes } from '../src/middleware/errors';
 import { createAdminEstimatesRoute } from '../src/routes/admin-estimates.route';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 import type { AdminEstimatesService } from '../src/services/admin-estimates.service';
+import type { NarrativeService } from '../src/services/narrative.service';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function makeRoute(overrides?: {
   guard?: Partial<AdminGuard>;
   service?: Partial<AdminEstimatesService>;
+  narrative?: Partial<NarrativeService>;
 }) {
   const requireAdmin = vi.fn(async () => {});
   const getEstimate = vi.fn(async () => ({ id: ESTIMATE_ID }) as never);
+  const generateNarrativeForAdmin = vi.fn(
+    async () => ({ estimateId: ESTIMATE_ID, narrative: 'x' }) as never,
+  );
   const route = createAdminEstimatesRoute({
     adminGuard: { requireAdmin, ...(overrides?.guard ?? {}) } as AdminGuard,
     adminEstimates: { getEstimate, ...(overrides?.service ?? {}) } as AdminEstimatesService,
+    narrative: {
+      generateNarrativeForAdmin,
+      ...(overrides?.narrative ?? {}),
+    } as NarrativeService,
   });
-  return { route, requireAdmin, getEstimate };
+  return { route, requireAdmin, getEstimate, generateNarrativeForAdmin };
 }
 
 describe('admin/03 estimate lookup route', () => {
@@ -87,5 +96,32 @@ describe('admin/03 estimate lookup route', () => {
     });
 
     await expect(route.get({}, ESTIMATE_ID)).rejects.toBe(notFound);
+  });
+
+  it('generates the narrative via the admin-gated endpoint (fix #287)', async () => {
+    const { route, requireAdmin, generateNarrativeForAdmin } = makeRoute();
+    const headers = { cookie: 'admin_session=abc' };
+
+    const result = await route.generateNarrative(headers, ESTIMATE_ID);
+
+    expect(requireAdmin).toHaveBeenCalledTimes(1);
+    expect(requireAdmin).toHaveBeenCalledWith(headers);
+    expect(generateNarrativeForAdmin).toHaveBeenCalledTimes(1);
+    expect(generateNarrativeForAdmin).toHaveBeenCalledWith(ESTIMATE_ID);
+    expect(result).toMatchObject({ estimateId: ESTIMATE_ID });
+  });
+
+  it('rejects a malformed id on narrative generation with 400', async () => {
+    const { route, generateNarrativeForAdmin } = makeRoute();
+
+    const error = await route
+      .generateNarrative({}, 'not-a-uuid')
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+    expect(generateNarrativeForAdmin).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,92 @@
+<section class="report-contract" aria-labelledby="report-contract-heading">
+  <h1 id="report-contract-heading">{{ copy.reportContractHeading }}</h1>
+  <p class="report-contract__explainer">{{ copy.reportContractExplainer }}</p>
+
+  @if (isSuccess()) {
+    <div class="report-contract__result" role="status">
+      <h2>{{ copy.reportContractSuccessTitle }}</h2>
+      <p>{{ outcomeCopy() }}</p>
+      <button type="button" (click)="reportAnother()">
+        {{ copy.reportContractReportAnother }}
+      </button>
+    </div>
+  } @else {
+    @if (leadsStatus() === 'loading') {
+      <p class="report-contract__status">{{ copy.reportContractLeadsLoading }}</p>
+    } @else if (leadsStatus() === 'error') {
+      <p class="report-contract__error" role="alert">
+        {{ copy.reportContractLeadsError }}
+      </p>
+    } @else if (leads().length === 0) {
+      <p class="report-contract__status">{{ copy.reportContractLeadsEmpty }}</p>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="report-contract__field">
+          <label for="report-contract-lead">{{ copy.reportContractLeadLabel }}</label>
+          <select id="report-contract-lead" formControlName="leadId">
+            <option value="" disabled>
+              {{ copy.reportContractLeadLabel }}
+            </option>
+            @for (lead of leads(); track lead.id) {
+              <option [value]="lead.id">{{ leadLabel(lead.id) }}</option>
+            }
+          </select>
+          @if (showFieldError(form.controls.leadId)) {
+            <p class="report-contract__field-error" role="alert">
+              {{ copy.reportContractLeadRequired }}
+            </p>
+          }
+        </div>
+
+        <div class="report-contract__field">
+          <label for="report-contract-value">{{ copy.reportContractValueLabel }}</label>
+          <input
+            id="report-contract-value"
+            type="text"
+            inputmode="decimal"
+            formControlName="contractValue"
+            [attr.aria-describedby]="'report-contract-value-hint'"
+          />
+          <p id="report-contract-value-hint" class="report-contract__hint">
+            {{ copy.reportContractValueHint }}
+          </p>
+          @if (showFieldError(form.controls.contractValue)) {
+            @if (contractValueError(); as valueError) {
+              <p class="report-contract__field-error" role="alert">
+                {{ valueError }}
+              </p>
+            }
+          }
+        </div>
+
+        <div class="report-contract__field">
+          <label for="report-contract-date">{{ copy.reportContractDateLabel }}</label>
+          <input
+            id="report-contract-date"
+            type="date"
+            formControlName="contractSignedDate"
+          />
+          @if (showFieldError(form.controls.contractSignedDate)) {
+            @if (contractSignedDateError(); as dateError) {
+              <p class="report-contract__field-error" role="alert">
+                {{ dateError }}
+              </p>
+            }
+          }
+        </div>
+
+        @if (isError() && submitError(); as apiError) {
+          <p class="report-contract__error" role="alert">{{ apiError.message }}</p>
+        }
+
+        <button type="submit" [disabled]="isSubmitting()">
+          @if (isSubmitting()) {
+            {{ copy.reportContractSubmitting }}
+          } @else {
+            {{ copy.reportContractSubmit }}
+          }
+        </button>
+      </form>
+    }
+  }
+</section>

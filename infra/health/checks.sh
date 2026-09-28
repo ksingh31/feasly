@@ -73,13 +73,15 @@ else
   fi
 fi
 
-# 4. Latest main-branch CI: alert only on completed non-success
+# 4. Latest main-branch CI workflow conclusion: alert only on completed non-success
 # (in_progress/queued are normal during active dev).
+# NOTE: filter to the CI workflow specifically — the latest run overall is often
+# the CD workflow's phantom-cancelled preview-close job, which must not page.
 if [[ "$HEALTH_CHECK_CI" == "true" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     report "main_ci" fail "gh CLI unavailable"
   else
-    run_json="$(gh run list --repo "$REPO" --branch main --limit 1 \
+    run_json="$(gh run list --repo "$REPO" --workflow CI --branch main --limit 1 \
       --json status,conclusion 2>/dev/null || echo "")"
     if [[ -z "$run_json" || "$run_json" == "[]" ]]; then
       report "main_ci" fail "could not query CI runs"
@@ -89,9 +91,9 @@ if [[ "$HEALTH_CHECK_CI" == "true" ]]; then
       case "$rstatus" in
         completed)
           if [[ "$rconcl" == "success" ]]; then
-            report "main_ci" ok "latest main run succeeded"
+            report "main_ci" ok "CI workflow on main succeeded"
           else
-            report "main_ci" fail "latest main run concluded '${rconcl:-none}'"
+            report "main_ci" fail "CI workflow on main concluded '${rconcl:-none}'"
           fi
           ;;
         in_progress|queued|waiting|requested|pending)

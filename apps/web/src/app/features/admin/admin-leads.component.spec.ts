@@ -94,6 +94,48 @@ describe('AdminLeadsComponent', () => {
     expect(labels.join('|')).toContain('Assigned');
   });
 
+  it('selecting a builder in the Assigned filter sends builderId to the backend', async () => {
+    await setup();
+    fixture.detectChanges();
+    // Initial leads load + builders load (the Assigned filter options).
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+      .flush(listResponse([LEAD_A], 1));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders'))
+      .flush({
+        builders: [
+          { id: '123e4567-e89b-12d3-a456-426614174000', displayName: 'Elite Craft' },
+        ],
+      });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const selects = fixture.debugElement.queryAll(
+      By.css('.leads-page__filter select'),
+    );
+    const assignedSelect = selects[1].nativeElement as HTMLSelectElement;
+    assignedSelect.value = '123e4567-e89b-12d3-a456-426614174000';
+    assignedSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
+    expect(req.request.params.get('builderId')).toBe(
+      '123e4567-e89b-12d3-a456-426614174000',
+    );
+    req.flush(listResponse([], 0));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // "Unassigned" sends the sentinel the backend maps to IS NULL.
+    assignedSelect.value = 'unassigned';
+    assignedSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    const req2 = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
+    expect(req2.request.params.get('builderId')).toBe('unassigned');
+    req2.flush(listResponse([], 0));
+  });
+
   it('renders pipeline totals from statusCounts', async () => {
     await setup();
     await loadList([LEAD_A], 3, { new: 1, contacted: 2, quoting: 0, won: 0, lost: 0 });

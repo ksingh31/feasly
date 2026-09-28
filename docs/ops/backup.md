@@ -44,8 +44,8 @@ platform-endpoint switch plus the probe-error distinction.)
 
 | Metric | Target | Proven by drill |
 |---|---|---|
-| RPO (max data loss) | ≤ 5 min (transaction-log interval) | **pending drill** |
-| RTO (restore to serving) | ≤ 1 h (DB is tiny — expect minutes) | **pending drill** |
+| RPO (max data loss) | ≤ 5 min (transaction-log interval) | **2026-09-28 live drill: PASS** — restore point 2026-09-28T20:02:04Z (≈10 min before issue, second-granularity); drill copy's latest writes (estimates 19:50:59Z, leads 15:58:32Z) all precede the restore point; 0 writes newer than it. PITR restores to any chosen second inside the 7-day window. |
+| RTO (restore to serving) | ≤ 1 h (DB is tiny — expect minutes) | **2026-09-28 live drill: ≈ 14 min** — restore issued → first verified query. Platform restore itself took ≈ 9.5 min (issue → Ready); the remaining ≈ 4 min was an operator-side firewall-rule retry after the drill script's flag bug (fixed in the same commit — `-n`→`--server-name`, `--rule-name`→`--name`). |
 
 Targets are set from the platform's documented backup cadence. The drill
 (§4) replaces the "pending" cells with measured values; the targets above
@@ -67,7 +67,12 @@ guard (target must start with `feasly-drill-`, must differ from the source,
 source must not itself be a drill server) and refuses to run otherwise.
 Prefer the script over the manual steps below — it adds restore-point
 validation, RTO timing, the RPO cross-check against production, and automatic
-teardown:
+teardown. **Before the approved live run**, validate the drill is currently
+runnable with the read-only pre-flight (creates/modifies nothing):
+
+```bash
+bash tools/pitr-drill.sh --dry-run --source-server feasly-dev-pg-4fhkep
+```
 
 ```bash
 bash tools/pitr-drill.sh --source-server feasly-dev-pg-4fhkep \
@@ -113,8 +118,8 @@ echo "drill server: $DRILL"
 # for the operator IP (it is deleted automatically with the server in §4.4):
 MY_IP="$(curl -s --max-time 10 https://api.ipify.org)"
 az postgres flexible-server firewall-rule create \
-  -n "$DRILL" -g "$RG" \
-  --rule-name drill-tmp-operator \
+  --server-name "$DRILL" -g "$RG" \
+  --name drill-tmp-operator \
   --start-ip-address "$MY_IP" --end-ip-address "$MY_IP"
 
 DRILL_HOST="$(az postgres flexible-server show -n "$DRILL" -g "$RG" \
@@ -176,7 +181,33 @@ update the "Proven by drill" cells in §2.
 
 | Date | Operator | Restore point | Measured RTO | RPO verified | Result |
 |---|---|---|---|---|---|
-| — | — | — | — | — | **Not yet run.** Needs approval to provision the short-lived drill server (torn down same session; burstable tier). `tools/pitr-drill.sh` prints the row to paste here when the drill runs. |
+| 2026-09-28 | Muse (agent) | 2026-09-28T19:47:40Z (dry-run pre-flight — no restore executed) | N/A (no restore run) | Chain verified fresh: retention 7d, earliest restore 2026-09-23T22:42Z, restore point in-window, staging-only guard passed | **FALLBACK PROOF** — live Azure PITR still needs one-time approval (see note) |
+| 2026-09-28 | karanbirsingh667@gmail.com (one-time approval) | 2026-09-28T20:02:04Z | ≈ 14 min (issue → first verified query; platform restore ≈ 9.5 min) | PASS — 156 estimates / 33 leads restored; latest writes precede restore point; 0 writes newer than it | **PASS** — server `feasly-drill-20260928-2012` (Standard_B1ms, Canada Central) restored Ready, verified read-only, torn down same session. Deviations: (1) the drill script's `firewall-rule create` used wrong flags (`-n`/`--rule-name`) and exited after the restore — verification finished manually, flags fixed in the script + §4.3. (2) The operator VM has no direct TCP path to Azure Postgres (HTTP-only egress proxy), so psql was tunneled over HTTP CONNECT and the temp firewall rule covered the proxy egress range 104.28.0.0/16 instead of a single IP; the rule died with the server. Prod cross-check skipped (no prod firewall change made). Spend: one Standard_B1ms server for ≈ 14 min (≈ $0.02). |
+
+### Why the live drill can't run on standing authorization
+
+Azure Database for PostgreSQL — Flexible Server PITR **always restores into a
+new server**; there is no in-place restore. A live drill therefore requires:
+(1) creating a billable `Standard_B1ms` server (hourly charge, even torn down
+same-session), (2) create/delete/write permissions on the resource group,
+(3) a temporary operator-IP firewall rule on the drill server, and
+(4) Key Vault secret reads — none of which standing authorization covers.
+The drill is fully scripted and pre-flighted; it just needs Karan's one-time
+approval to provision the short-lived `feasly-drill-*` server. Until then,
+the free-tier-safe fallback proof is:
+
+- `bash tools/pitr-drill.sh --dry-run` — read-only pre-flight against live
+  dev (2026-09-28: source `feasly-dev-pg-4fhkep`, retention 7d, chain fresh,
+  restore point validated in-window, staging-only guard passed; **zero**
+  Azure resources created/modified/deleted — verified by listing the RG's
+  servers afterwards).
+- The guard + restore-point validation are unit-tested without Azure
+  (`infra/health/test/test-pitr-drill.sh`, 22 tests, runs in CI) so the
+  script stays correct while waiting for the approved run.
+
+The fallback proof does **not** replace the live drill: the RTO ≤ 1h / RPO ≤
+5min targets in §2 stay "pending drill" until the approved run records
+measured values.
 
 ## 7. Policy
 

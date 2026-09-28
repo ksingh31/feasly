@@ -230,3 +230,15 @@ apps/web/src/app/features/admin/admin-users.state.ts
 # real GET /api/v1/billing/invoices endpoint lands (see the CUTOVER comment
 # in the file). Not tunables; the mock never ships to production.
 apps/web/src/app/features/builder/builder-invoices-api.service.ts
+
+# Report-contract datetime helpers (billing/01 builder lane): the `60`
+# minutes-per-hour and `T00:00:00` day-boundary literals are ISO-8601
+# formatting facts, not deploy tunables. Pinned by
+# builder-report-contract.component.spec.ts.
+apps/web/src/app/shared/utils/datetime.ts
+
+# D-03 shared entry-point test harness: drives the shared address-autocomplete
+# gate from the landing/embed specs. Pins the story's exact copy like the
+# *.spec.ts files (excluded from this check by rule) and carries its own
+# poll/deadline timing constants — test scaffolding, not app tunables.
+apps/web/src/app/shared/test-helpers/entry-gate.harness.ts

@@ -13,7 +13,7 @@ export interface ReportPdfInput {
   readonly preparedLine: string;
   /** Version label already formatted, e.g. "Report version 3". */
   readonly versionLine: string;
-  /** "Your next steps" — title/body pairs from report copy. */
+  /** "Your next three steps" — title/body pairs from report copy. */
   readonly steps: ReadonlyArray<{ title: string; body: string }>;
   /** The deterministic-figures disclaimer line. */
   readonly disclaimer: string;
@@ -177,15 +177,18 @@ export class ReportPdfService {
 
     // What's not in this estimate — the same honest exclusions as the
     // on-screen report. Trust builder: no surprise "that wasn't included".
-    text(reportCopy.exclusionsTitle, { size: 13, bold: true, gap: 6 });
-    text(reportCopy.includedLine, { size: 10, gap: 4 });
-    for (const item of reportCopy.exclusions) {
-      text(`• ${item}`, { size: 10, gap: 4 });
+    // New-build only: the line items assume new construction.
+    if (snap.projectType !== 'renovation') {
+      text(reportCopy.exclusionsTitle, { size: 13, bold: true, gap: 6 });
+      text(reportCopy.includedLine, { size: 10, gap: 4 });
+      for (const item of reportCopy.exclusions) {
+        text(`• ${item}`, { size: 10, gap: 4 });
+      }
+      rule();
     }
-    rule();
 
     // Next steps.
-    text('Your next steps', { size: 13, bold: true, gap: 6 });
+    text('Your next three steps', { size: 13, bold: true, gap: 6 });
     input.steps.forEach((step, i) => {
       text(`${i + 1}. ${step.title}`, { size: 10, bold: true, gap: 2 });
       text(step.body, { size: 10, gap: 8 });

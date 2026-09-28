@@ -180,7 +180,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       selectHint: 'Please choose your address from the suggestions above.',
-      noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
+      // U3 (2026-09-28): no-results is a guidance state, not a dead end —
+      // typing a complete address finds nothing; the working path is typing
+      // the street number and picking a suggestion from the list.
+      noResults:
+        "We couldn't find that address. Start typing the street number and pick your address from the list.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
@@ -405,6 +409,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       validationHeading: 'We can’t price this property yet',
       validationGenericBody:
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
+      validationNonResidentialBody:
+        'This looks like a commercial or industrial property — Feasly only prices residential Calgary homes right now.',
       validationBackLabel: '← Try a different address',
     },
     propertyCard: {
@@ -459,24 +465,21 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       finishLevelLabel: 'Selected finish level',
       tierDescriptors: {
         standard:
-          'Quality finishes throughout, 9 ft basement ceilings — finishes are never compromised, with fewer premium upgrades.',
+          'Quality finishes throughout — finishes are never compromised, with fewer premium upgrades. Standard (non-oak) cabinetry, 9 ft basement ceilings.',
         premium:
           'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures.',
         luxury:
-          'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement.',
+          'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement — including the gym.',
       },
       tierChoicesNote:
         'Premium upgrades — like basement in-floor heating, marble countertops, or upgraded windows — are explicit choices you make in your finish tier, never costs hidden in the number.',
       coverageTitle: 'What your estimate covers',
       includedLine:
         'Built the way a real Calgary builder budgets — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Everything is in, except the exclusions below.',
+      costMovementNote:
+        'Final costs can move with inflation, your material choices, and project-specific conditions — the planning range above reflects how far they can swing.',
       exclusionsTitle: "What's not in this estimate",
       exclusions: [
-        'Demolition of any existing home on the lot',
-        'Unusual soil or servicing conditions',
-        'Permit and development fees beyond typical allowances',
-        'Financing costs',
-        'GST',
         'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
       ],
       tierTitle: 'What if you change the finish tier?',
@@ -507,15 +510,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideTitle: 'Building in Calgary',
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
-      stepsTitle: 'Your next steps',
+      stepsTitle: 'Your next three steps',
       steps: [
         {
           title: 'Meet your matched builder',
-          body: 'When you’re ready, we can connect you with builders associated with us in Calgary, matched to your project and area. We’ll only reach out with your permission — opt out anytime.',
+          body: 'See your system-matched builders and their match scores — builders in Calgary whose work fits your project and area. When you’re ready, we can introduce you, only with your permission. Opt out anytime.',
         },
         {
           title: 'Refine your project brief',
-          body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
+          body: 'Adjust your inputs and re-run the estimate, compare the Standard and Luxury tiers, and lock in your must-haves — a clear brief is what turns this estimate into quotes you can actually compare.',
+        },
+        {
+          title: 'Save and share',
+          body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
       ],
       planningTitle: 'Planning ahead',
@@ -527,7 +534,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
       timelineTitle: 'How long it takes',
       timelineLine:
-        'A typical Calgary infill takes roughly 10–14 months from permits to possession — confirm timing with your builder.',
+        'From permits to possession, timing depends on your lot, plans, and permits — your builder can confirm a timeline once plans are drawn.',
       shareTitle: 'Share with a partner',
       shareHint: 'Email this report to a partner — they receive their own secure link.',
       shareEmailLabel: 'Partner email',
@@ -647,9 +654,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
       renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
-      detailsTitle: 'Feasly — Review your build details',
+      detailsTitle: 'Feasly — Configure your build details',
       details:
-        'Review your property and build details before previewing your Calgary infill estimate — step 3 of 3.',
+        'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
         'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
@@ -658,8 +665,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
-      gateTitle: 'Feasly — Get your estimate',
-      gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
+      gateTitle: 'Feasly — Unlock your free estimate report',
+      gate: 'Enter your details to unlock your personalized Calgary infill estimate report.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
       renoComingSoonTitle: 'Feasly — Renovations are coming soon',
@@ -699,6 +706,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminLeads: 'Feasly admin leads explorer.',
       adminBuildersTitle: 'Builders — Feasly Admin',
       adminBuilders: 'Feasly admin builders management.',
+      adminUsersTitle: 'Users — Feasly Admin',
+      adminUsers: 'Feasly admin user management.',
       adminDisputesTitle: 'Disputes — Feasly Admin',
       adminDisputes: 'Feasly admin billing dispute console.',
       adminCalibrationTitle: 'Calibration — Feasly Admin',
@@ -869,7 +878,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is not included in these figures?',
-          a: 'The ranges exclude demolition of an existing structure, unusual soil or servicing work, permit and development fees beyond typical allowances, financing costs, and GST. Your full report itemizes what is and is not covered.',
+          a: 'Only landscaping — it varies too much from lot to lot to price, so budget it separately with your builder. Everything else (demolition, soil and servicing, permits and fees, financing, GST) is part of the estimate range.',
         },
         {
           q: 'What is the next step?',
@@ -884,20 +893,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     builder: {
       loginHeading: 'Builder sign in',
       loginExpired:
-        'Your builder session expired. Enter your email for a fresh sign-in link.',
-      loginSent: 'Check your email for your sign-in link.',
-      emailLabel: 'Email',
-      emailPlaceholder: 'you@example.com',
+        'Your builder session expired. Please sign in again with your Microsoft account.',
       emailInvalid: 'Enter a valid email address.',
-      submitLabel: 'Send sign-in link',
-      sendingLabel: 'Sending…',
-      submitError: 'Something went wrong. Please try again.',
       retryLabel: 'Retry',
-      verifyHeading: 'Verifying sign in',
-      verifyProgress: 'Verifying your sign-in link…',
-      verifyError:
-        'This sign-in link is invalid or has expired. Request a fresh one below.',
-      backToLoginLabel: 'Back to sign in',
       shellBrand: 'Feasly Builder',
       shellNavDashboard: 'Leads',
       signOutLabel: 'Sign out',
@@ -930,6 +928,43 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
       shellNavBilling: 'Billing',
+      shellNavReportContract: 'Report contract',
+      reportContractSeoDescription:
+        'Report a signed build contract in the Feasly builder portal.',
+      reportContractHeading: 'Report a signed contract',
+      reportContractExplainer:
+        'When a Feasly lead signs a build contract, report it here. We take a 1% commission on the signed contract value, excluding land. Please report within 14 days of signing.',
+      reportContractLeadLabel: 'Which lead signed?',
+      reportContractLeadRequired: 'Choose the lead that signed the contract.',
+      reportContractLeadsLoading: 'Loading your leads…',
+      reportContractLeadsError:
+        'We couldn’t load your leads. Please try again.',
+      reportContractLeadsEmpty:
+        'You don’t have any leads yet. Once Feasly sends you leads, you can report signed contracts here.',
+      reportContractValueLabel: 'Contract value (CAD, excluding land)',
+      reportContractValueHint:
+        'The signed construction contract amount — land cost stays out. Example: 650000',
+      reportContractValueRequired: 'Enter the contract value.',
+      reportContractValueInvalid: 'Enter a valid amount, like 650000.',
+      reportContractDateLabel: 'Date the contract was signed',
+      reportContractDateRequired: 'Enter the signing date.',
+      reportContractDateFuture: 'The signing date can’t be in the future.',
+      reportContractSubmit: 'Report contract',
+      reportContractSubmitting: 'Reporting…',
+      reportContractSuccessTitle: 'Contract reported — thank you',
+      reportContractSuccessBody:
+        'You reported a {amount} contract. Your 1% commission is {commission}. It enters a 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+      reportContractAlreadyReported:
+        'This contract is already reported — nothing more to do.',
+      reportContractDisputed:
+        'This contract already has an invoice under dispute. The charge is paused while we review it — nothing more for you to do.',
+      reportContractFlatCovered:
+        'You’re on the flat plan, so this contract is already covered — no commission is due.',
+      reportContractNotEnabled:
+        'Billing isn’t enabled for your account yet. We saved your report and our team will follow up.',
+      reportContractAwaitingDetails:
+        'We received your report but need more details before we can create the invoice. Our team will follow up.',
+      reportContractReportAnother: 'Report another contract',
       billingHeading: 'Billing',
       billingLoading: 'Loading your billing details…',
       billingLoadError: 'We couldn’t load your billing details. Please try again.',
