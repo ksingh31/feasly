@@ -221,6 +221,10 @@
 
 .howcalc summary{cursor:pointer}.howcalc ul{margin:12px 0 16px;padding-left:20px;font-size:14px}.howcalc li+li{margin-top:6px}
 
+/* Mobile: keep the disclosure marker on the same line as the heading — the
+   block-level h2 inside the summary used to drop below the native marker. */
+@media (max-width:639px){.howcalc summary{display:flex;align-items:baseline;gap:8px;list-style:none}.howcalc summary::-webkit-details-marker{display:none}.howcalc summary::before{content:'▶';flex:none;font-size:12px;transform:translateY(-1px)}.howcalc details[open]>summary::before{transform:translateY(-1px) rotate(90deg)}.howcalc summary h2{margin:0}}
+
 .per-sqft {
   font-size: 13px;
   color: var(--muted);

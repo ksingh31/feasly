@@ -26,10 +26,10 @@
   .footer {
     display: grid;
     grid-template-columns: repeat(2, auto);
-    justify-content: center;
+    justify-content: start;
     column-gap: 40px;
     row-gap: 14px;
-    text-align: center;
+    text-align: left;
   }
   .footer-brand {
     grid-column: 1 / -1;

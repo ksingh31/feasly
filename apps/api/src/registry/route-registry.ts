@@ -877,6 +877,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin manually creates a commission invoice for a builder\'s ' +
+      'converted lead. Mirrors the builder-reported contract shape ' +
+      '(leadId, contractValueCents excl. land, ISO contractSignedAt with ' +
+      'offset) plus tenantKey. Same charge path: 12-month attribution → ' +
+      'draft invoice → auto-submitted into the 7-day review window. ' +
+      'Idempotent: re-reporting returns the existing invoice.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
     auth: 'admin',
     permissions: ['ops:manage'] as const,

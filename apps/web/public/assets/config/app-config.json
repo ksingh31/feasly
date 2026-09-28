@@ -26,10 +26,11 @@
       "heroSub": "A free range-based estimate for your Calgary infill project — land, build, and total investment — in under 2 minutes.",
       "seoDescription": "Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.",
       "trustItems": [
-        "600,000+ City of Calgary assessment records",
-        "Refreshed September 2026",
-        "Deterministic math — AI never invents prices"
+        { "value": "600,000+", "label": "City of Calgary assessment records" },
+        { "value": "September 2026", "valueShort": "Sep 2026", "label": "Latest data refresh" },
+        { "value": "Deterministic math", "label": "AI never invents prices", "badge": true }
       ],
+      "trustEyebrow": "Why Feasly",
       "howItWorksTitle": "Estimate in 2 minutes",
       "howItWorksSub": "No spam. We may reach out about your estimate — opt out anytime.",
       "steps": [
@@ -76,17 +77,17 @@
         {
           "id": "standard",
           "name": "Standard",
-          "blurb": "Durable, builder-grade finishes: quartz-look counters, LVP or carpet flooring, and standard lighting and plumbing packages."
+          "blurb": "Quality finishes throughout — finishes are never compromised, with fewer premium upgrades. Standard (non-oak) cabinetry, 9 ft basement ceilings."
         },
         {
           "id": "premium",
           "name": "Premium",
-          "blurb": "A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer lighting and plumbing fixtures."
+          "blurb": "A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures."
         },
         {
           "id": "luxury",
           "name": "Luxury",
-          "blurb": "Top shelf throughout: custom millwork, natural stone, premium appliances, spa-style bathrooms, and smart-home rough-ins."
+          "blurb": "Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement — including the gym."
         }
       ],
       "scopeBackLabel": "← Back to address",
@@ -361,6 +362,14 @@
     "legal": {
       "reviewBannerHeading": "Draft — pending legal review",
       "reviewBannerBody": "This legal copy is a draft awaiting review by our lawyer. It is shown for evaluation only and is not the final policy."
+    },
+    "builder": {
+      "entra": {
+        "tenantSubdomain": "feaslyext",
+        "tenantId": "e8f46aab-2491-4389-8e39-ae78ee12db6a",
+        "clientId": "5e87b5ee-7ff7-4a70-a056-b0bab5715622",
+        "userFlow": "feasly-signup-signin"
+      }
     }
   },
   "features": {

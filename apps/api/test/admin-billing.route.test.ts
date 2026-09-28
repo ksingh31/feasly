@@ -73,7 +73,11 @@ function makeDeps(): AdminBillingRouteDeps {
     },
     commission: {
       retryCharge: vi.fn(),
+      getById: vi.fn(),
     } as unknown as import('../src/services/billing/commission.service').CommissionService,
+    billing: {
+      reportContract: vi.fn(),
+    } as unknown as import('../src/services/billing/billing.service').BillingService,
   };
 }
 
@@ -139,5 +143,161 @@ describe('admin-billing route retryCharge', () => {
     await expect(
       route.retryCharge(ADMIN_HEADERS, 'not-a-uuid'),
     ).rejects.toThrow();
+  });
+});
+
+describe('admin-billing route createInvoice', () => {
+  const LEAD_ID = '22222222-2222-4222-8222-222222222222';
+  const INVOICE_ID = '33333333-3333-4333-8333-333333333333';
+  const VALID_BODY = {
+    tenantKey: 'test-builder',
+    leadId: LEAD_ID,
+    contractValueCents: 850_000_00,
+    contractSignedAt: '2026-09-20T14:30:00-06:00',
+  };
+
+  const INVOICE_RECORD = {
+    id: INVOICE_ID,
+    tenantKey: 'test-builder',
+    attributionId: '44444444-4444-4444-8444-444444444444',
+    leadId: LEAD_ID,
+    contractValueCents: 850_000_00,
+    commissionCents: 8_500_00,
+    currency: 'CAD',
+    stripePaymentIntentId: null,
+    status: 'in_review',
+    reviewDueAt: new Date('2026-09-27T14:30:00.000Z'),
+    finalizedAt: null,
+    paidAt: null,
+    slaBreached: false,
+    disputeReason: null,
+    retryCount: 0,
+    createdAt: new Date('2026-09-20T14:30:00.000Z'),
+    updatedAt: new Date('2026-09-20T14:30:00.000Z'),
+  };
+
+  function mockBilled() {
+    const deps = makeDeps();
+    const billing = deps.billing as unknown as {
+      reportContract: ReturnType<typeof vi.fn>;
+    };
+    const commission = deps.commission as unknown as {
+      getById: ReturnType<typeof vi.fn>;
+    };
+    billing.reportContract.mockResolvedValue({
+      billed: true,
+      invoiceId: INVOICE_ID,
+      invoiceStatus: 'in_review',
+    });
+    commission.getById.mockResolvedValue(INVOICE_RECORD);
+    return { deps, billing, commission };
+  }
+
+  it('creates the invoice through the shared charge path and returns the invoice detail', async () => {
+    const { deps, billing, commission } = mockBilled();
+    const route = createAdminBillingRoute(deps);
+    const result = await route.createInvoice(ADMIN_HEADERS, VALID_BODY);
+    expect(billing.reportContract).toHaveBeenCalledTimes(1);
+    expect(billing.reportContract).toHaveBeenCalledWith({
+      tenantKey: 'test-builder',
+      leadId: LEAD_ID,
+      contractValueCents: 850_000_00,
+      contractSignedAt: new Date('2026-09-20T14:30:00-06:00'),
+    });
+    expect(commission.getById).toHaveBeenCalledWith(INVOICE_ID);
+    expect(result).toEqual({
+      invoiceId: INVOICE_ID,
+      status: 'in_review',
+      tenantKey: 'test-builder',
+      leadId: LEAD_ID,
+      contractValueCents: 850_000_00,
+      commissionCents: 8_500_00,
+      currency: 'CAD',
+      reviewDueAt: '2026-09-27T14:30:00.000Z',
+    });
+  });
+
+  it('rejects non-admin callers with 401 without calling the service', async () => {
+    const { deps, billing } = mockBilled();
+    const route = createAdminBillingRoute(deps);
+    await expect(route.createInvoice({}, VALID_BODY)).rejects.toMatchObject({
+      status: 401,
+      code: ErrorCodes.UNAUTHENTICATED,
+    });
+    expect(billing.reportContract).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['bad leadId', { ...VALID_BODY, leadId: 'not-a-uuid' }],
+    ['empty tenantKey', { ...VALID_BODY, tenantKey: '  ' }],
+    ['zero contract value', { ...VALID_BODY, contractValueCents: 0 }],
+    ['negative contract value', { ...VALID_BODY, contractValueCents: -5 }],
+    [
+      'fractional cents',
+      { ...VALID_BODY, contractValueCents: 100.5 },
+    ],
+    [
+      'datetime without offset',
+      { ...VALID_BODY, contractSignedAt: '2026-09-20T14:30:00' },
+    ],
+    ['plain date', { ...VALID_BODY, contractSignedAt: '2026-09-20' }],
+  ])('rejects %s with 400', async (_label, body) => {
+    const { deps, billing } = mockBilled();
+    const route = createAdminBillingRoute(deps);
+    await expect(route.createInvoice(ADMIN_HEADERS, body)).rejects.toMatchObject(
+      {
+        status: 400,
+        code: ErrorCodes.VALIDATION_FAILED,
+      },
+    );
+    expect(billing.reportContract).not.toHaveBeenCalled();
+  });
+
+  it('propagates the 404 when the lead does not exist', async () => {
+    const { deps, billing } = mockBilled();
+    billing.reportContract.mockRejectedValue(
+      new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false),
+    );
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.createInvoice(ADMIN_HEADERS, VALID_BODY),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: ErrorCodes.NOT_FOUND,
+    });
+  });
+
+  it('propagates the 403 when the lead belongs to a different builder', async () => {
+    const { deps, billing } = mockBilled();
+    billing.reportContract.mockRejectedValue(
+      new HttpError(
+        403,
+        ErrorCodes.FORBIDDEN,
+        'This lead belongs to a different builder.',
+        false,
+      ),
+    );
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.createInvoice(ADMIN_HEADERS, VALID_BODY),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: ErrorCodes.FORBIDDEN,
+    });
+  });
+
+  it('returns 422 when the billing model refuses per-event invoicing', async () => {
+    const { deps, billing } = mockBilled();
+    billing.reportContract.mockResolvedValue({
+      billed: false,
+      reason: 'flat_subscription_covers',
+    });
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.createInvoice(ADMIN_HEADERS, VALID_BODY),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: ErrorCodes.BILLING_MODEL_MISMATCH,
+    });
   });
 });

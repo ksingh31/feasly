@@ -1,0 +1,178 @@
+<section class="create-invoice" aria-labelledby="create-invoice-title">
+  <h2 id="create-invoice-title">Create invoice</h2>
+
+  @if (confirmedInvoice(); as invoice) {
+    <!-- Success confirmation: the server's authoritative figures. -->
+    <div class="create-invoice__feedback create-invoice__feedback--ok" role="status">
+      <p>
+        <strong>Invoice created.</strong>
+        {{ invoice.invoiceId }} · status {{ invoice.status }} ·
+        commission {{ formatCad(invoice.commissionCents) }}
+        @if (invoice.reviewDueAt) {
+          · review window ends {{ invoice.reviewDueAt | date: 'medium' }}
+        }
+      </p>
+      <p class="create-invoice__muted">
+        The invoice is in review — the builder's card on file is charged
+        automatically when the review window passes.
+      </p>
+      <button type="button" class="create-invoice__btn" (click)="close()">
+        Done
+      </button>
+    </div>
+  } @else {
+    @if (createFeedback(); as feedback) {
+      @if (!feedback.ok) {
+        <div class="create-invoice__feedback create-invoice__feedback--error" role="alert">
+          {{ feedback.message }}
+        </div>
+      }
+    }
+
+    @if (reviewing()) {
+      <!-- Review/confirm step: calculated 1% figure + 7-day review note. -->
+      <div class="create-invoice__review" role="region" aria-label="Review invoice">
+        <h3>Review invoice</h3>
+        <dl>
+          <div>
+            <dt>Builder</dt>
+            <dd>{{ form.controls.builder.value }}</dd>
+          </div>
+          <div>
+            <dt>Lead</dt>
+            <dd>{{ form.controls.leadId.value }}</dd>
+          </div>
+          <div>
+            <dt>Contract value</dt>
+            <dd>
+              {{ formatCad(contractValueCents() ?? 0) }}
+              <span class="create-invoice__muted">(excluding land)</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Signed</dt>
+            <dd>{{ form.controls.signedDate.value }}</dd>
+          </div>
+          <div>
+            <dt>Estimated commission (1%)</dt>
+            <dd>
+              <strong>{{ formatCad(estimatedCommissionCents() ?? 0) }}</strong>
+            </dd>
+          </div>
+        </dl>
+        <p class="create-invoice__note">
+          The invoice enters the <strong>7-day builder review window</strong> —
+          the card on file is charged automatically when the window passes.
+        </p>
+        <div class="create-invoice__actions">
+          <button
+            type="button"
+            class="create-invoice__btn create-invoice__btn--primary"
+            (click)="confirmCreate()"
+            [disabled]="createStatus() === 'submitting'"
+          >
+            @if (createStatus() === 'submitting') {
+              Creating…
+            } @else {
+              Confirm create invoice
+            }
+          </button>
+          <button
+            type="button"
+            class="create-invoice__btn"
+            (click)="backToForm()"
+            [disabled]="createStatus() === 'submitting'"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="startReview()" novalidate>
+        <div class="create-invoice__field">
+          <label for="create-invoice-builder">Builder</label>
+          <select
+            id="create-invoice-builder"
+            formControlName="builder"
+            [attr.aria-invalid]="form.controls.builder.invalid && form.controls.builder.touched"
+          >
+            <option value="" disabled>Select a builder…</option>
+            @for (builder of builders(); track builder.tenantKey) {
+              <option [value]="builder.tenantKey">
+                {{ builderLabel(builder) }}
+              </option>
+            }
+          </select>
+          @if (form.controls.builder.touched && form.controls.builder.invalid) {
+            <p class="create-invoice__error">Choose the builder being invoiced.</p>
+          }
+        </div>
+
+        <div class="create-invoice__field">
+          <label for="create-invoice-lead">Lead ID</label>
+          <input
+            id="create-invoice-lead"
+            type="text"
+            formControlName="leadId"
+            placeholder="UUID of the converted lead"
+            autocomplete="off"
+            spellcheck="false"
+            [attr.aria-invalid]="form.controls.leadId.invalid && form.controls.leadId.touched"
+          />
+          <p class="create-invoice__hint">
+            The Feasly lead this contract came from. Attribution is lead-keyed.
+          </p>
+          @if (form.controls.leadId.touched && form.controls.leadId.invalid) {
+            <p class="create-invoice__error">Enter the lead's UUID.</p>
+          }
+        </div>
+
+        <div class="create-invoice__field">
+          <label for="create-invoice-value">Contract value (CAD)</label>
+          <input
+            id="create-invoice-value"
+            type="number"
+            formControlName="contractDollars"
+            min="0.01"
+            step="0.01"
+            placeholder="850000.00"
+            [attr.aria-invalid]="
+              form.controls.contractDollars.invalid && form.controls.contractDollars.touched
+            "
+          />
+          <p class="create-invoice__hint">
+            Gross construction contract value, <strong>excluding land</strong>.
+          </p>
+          @if (form.controls.contractDollars.touched && form.controls.contractDollars.invalid) {
+            <p class="create-invoice__error">Enter a contract value above $0.</p>
+          }
+        </div>
+
+        <div class="create-invoice__field">
+          <label for="create-invoice-date">Contract signing date</label>
+          <input
+            id="create-invoice-date"
+            type="date"
+            formControlName="signedDate"
+            [max]="maxSignedDate"
+            [attr.aria-invalid]="
+              form.controls.signedDate.invalid && form.controls.signedDate.touched
+            "
+          />
+          @if (form.controls.signedDate.touched && form.controls.signedDate.invalid) {
+            <p class="create-invoice__error">Enter the date the contract was signed.</p>
+          }
+        </div>
+
+        <div class="create-invoice__actions">
+          <button type="submit" class="create-invoice__btn create-invoice__btn--primary">
+            Review invoice
+          </button>
+          <button type="button" class="create-invoice__btn" (click)="close()">
+            Cancel
+          </button>
+        </div>
+      </form>
+    }
+  }
+</section>

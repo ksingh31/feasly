@@ -38,7 +38,7 @@
   <!-- ── Entry cards (NBH-04 / SEO-05): side-by-side on tablet/desktop, stacked on mobile ── -->
   <div class="entry-pair">
     <section class="compare-entry" aria-labelledby="compare-entry-title">
-      <a class="compare-card" routerLink="/estimate/compare">
+      <a class="compare-card" routerLink="/estimate/compare" [queryParams]="{ fresh: 1 }">
         <div>
           <h2 id="compare-entry-title">{{ compareCopy.landingTitle }}</h2>
           <p>{{ compareCopy.landingBody }}</p>
@@ -59,18 +59,30 @@
   </div>
 
   <!-- ── Trust strip (never ±, %, or accuracy claims — copy-linted) ── -->
-  <section class="trust" aria-label="Why Feasly">
-    <ul class="trust-list">
-      @for (item of trustItems; track item) {
-        <li class="trust-item">{{ item }}</li>
-      }
-    </ul>
-    <!-- UX audit 2026-09-28: sample report is the lowest-friction trust
-         builder for skeptics — "show me what I'd get" — so it renders
-         right under the trust strip (was copy-only, never in the template). -->
-    <p class="sample-report-link">
-      <a routerLink="/sample-report">{{ copy.sampleReportLabel }}</a>
-    </p>
+  <section class="trust" aria-labelledby="trust-eyebrow">
+    <div class="trust-inner">
+      <p class="trust-eyebrow" id="trust-eyebrow">{{ copy.trustEyebrow }}</p>
+      <ul class="trust-list">
+        @for (stat of trustStats; track stat.value) {
+          <li class="trust-item" [class.trust-item-badge]="stat.badge">
+            @if (stat.badge) {
+              <span class="trust-badge" aria-hidden="true">✓</span>
+            }
+            <span class="trust-text">
+              <span class="trust-value trust-value-full">{{ stat.value }}</span>
+              <span class="trust-value trust-value-short">{{ stat.valueShort ?? stat.value }}</span>
+              <span class="trust-label">{{ stat.label }}</span>
+            </span>
+          </li>
+        }
+      </ul>
+      <!-- UX audit 2026-09-28: sample report is the lowest-friction trust
+           builder for skeptics — "show me what I'd get" — so it renders
+           right under the trust strip (was copy-only, never in the template). -->
+      <p class="sample-report-link">
+        <a routerLink="/sample-report">{{ copy.sampleReportLabel }}</a>
+      </p>
+    </div>
   </section>
 
   <!-- ── Cost factors (SEO pass 4: keyword-bearing substance for "cost to build" intent) ── -->
