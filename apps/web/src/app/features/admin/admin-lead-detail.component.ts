@@ -391,4 +391,24 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
         return 'None';
     }
   }
+
+  /**
+   * Support hint for the magic-link status. The bearer token is stored
+   * hashed (never recoverable), so the link itself can't be shown or
+   * copied here — a fresh link is issued by email when the customer
+   * requests one. This hint tells the admin what each status means for
+   * support.
+   */
+  protected magicLinkHint(status: string): string {
+    switch (status) {
+      case 'sent':
+        return 'The customer can open their report with the link in their email.';
+      case 'used':
+        return 'The customer already opened their report with this link.';
+      case 'expired':
+        return 'The link has expired — the customer can request a fresh one.';
+      default:
+        return 'No link has been sent for this lead yet.';
+    }
+  }
 }

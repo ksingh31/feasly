@@ -17,6 +17,13 @@ import { AdminEstimatesApiService } from './admin-estimates-api.service';
 /** Lookup lifecycle for the admin estimate view. */
 type LookupStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error';
 
+/** Error codes that mean "no such estimate" for this lookup. */
+const NOT_FOUND_CODES = new Set([
+  'ESTIMATE_NOT_FOUND', // valid UUID, unknown id (404)
+  'VALIDATION_FAILED', // malformed id — the route validates UUIDs (400)
+  'http_400', // same, when the backend omits the envelope code
+]);
+
 /** Human-readable input rows for the ops view. */
 interface InputRow {
   readonly label: string;
@@ -210,7 +217,10 @@ export class AdminEstimateLookupComponent {
             typeof error === 'object' && error !== null && 'code' in error
               ? (error as ApiError).code
               : null;
-          this.status.set(code === 'ESTIMATE_NOT_FOUND' ? 'not-found' : 'error');
+          // A malformed id (400) can never match an estimate — treat it
+          // like a miss, not a system failure. Genuine errors (5xx,
+          // network, timeout) keep the generic error state with Retry.
+          this.status.set(code !== null && NOT_FOUND_CODES.has(code) ? 'not-found' : 'error');
         },
       });
   }
