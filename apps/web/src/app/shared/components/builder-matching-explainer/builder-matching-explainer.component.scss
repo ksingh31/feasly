@@ -1,0 +1,32 @@
+/* Builder-matching explainer: subtle disclosure that sits under consent copy
+   and next-step lists. Uses the site's text tokens so it reads as help text,
+   not a warning. */
+.bm-explainer {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.bm-summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bm-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.bm-body p {
+  margin: 0.5rem 0;
+  line-height: 1.55;
+}
+
+.bm-body p:last-child {
+  margin-bottom: 0;
+}

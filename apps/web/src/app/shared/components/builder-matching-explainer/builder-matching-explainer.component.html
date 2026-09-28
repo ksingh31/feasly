@@ -1,0 +1,8 @@
+<details class="bm-explainer">
+  <summary class="bm-summary">{{ copy.summary }}</summary>
+  <div class="bm-body">
+    @for (para of copy.paragraphs; track $index) {
+      <p>{{ para }}</p>
+    }
+  </div>
+</details>

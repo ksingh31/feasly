@@ -8,7 +8,7 @@ import type { CallbackWindow, CostRange } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
@@ -63,7 +63,7 @@ type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
 @Component({
   selector: 'app-report-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [ReactiveFormsModule, RouterLink, BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent],
   templateUrl: './report-page.component.html',
   styleUrls: ['../wizard/wizard-shell.scss', './report-page.component.scss'],
 })

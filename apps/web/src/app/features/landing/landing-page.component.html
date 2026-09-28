@@ -65,6 +65,12 @@
         <li class="trust-item">{{ item }}</li>
       }
     </ul>
+    <!-- UX audit 2026-09-28: sample report is the lowest-friction trust
+         builder for skeptics — "show me what I'd get" — so it renders
+         right under the trust strip (was copy-only, never in the template). -->
+    <p class="sample-report-link">
+      <a routerLink="/sample-report">{{ copy.sampleReportLabel }}</a>
+    </p>
   </section>
 
   <!-- ── Cost factors (SEO pass 4: keyword-bearing substance for "cost to build" intent) ── -->

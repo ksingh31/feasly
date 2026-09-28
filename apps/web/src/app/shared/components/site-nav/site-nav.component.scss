@@ -29,3 +29,118 @@
   letter-spacing: -0.01em;
   color: var(--on-dark);
 }
+
+/* ── Primary nav links (UX audit 2026-09-28) ── */
+.nav-links {
+  display: none;
+  margin-left: auto;
+  align-items: center;
+  gap: 4px;
+}
+.nav-link {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--on-dark-muted);
+  text-decoration: none;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+.nav-link:hover {
+  color: var(--on-dark);
+  background: rgba(255, 255, 255, 0.06);
+}
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Mobile hamburger (UX audit 2026-09-28) ── */
+.nav-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.nav-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.nav-menu-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nav-menu-icon {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--on-dark);
+  border-radius: 2px;
+}
+.nav-menu-icon::before,
+.nav-menu-icon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 2px;
+  background: var(--on-dark);
+  border-radius: 2px;
+}
+.nav-menu-icon::before {
+  top: -7px;
+}
+.nav-menu-icon::after {
+  top: 7px;
+}
+
+/* Mobile dropdown panel — fixed under the nav bar (nav ≈ 60px tall). */
+.nav-menu {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  z-index: 199;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 16px;
+  background: var(--canvas);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.nav-menu-link {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--on-dark);
+  text-decoration: none;
+  padding: 0.85rem 0.5rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.nav-menu-link:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 640px) {
+  .nav-links {
+    display: flex;
+  }
+  .nav-menu-btn,
+  .nav-menu {
+    display: none;
+  }
+}

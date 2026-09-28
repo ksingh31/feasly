@@ -826,6 +826,19 @@ export interface AppConfig {
       };
     };
     /**
+     * Builder-matching explainer (UX audit 2026-09-28). The phrases
+     * "builders associated with us" / "matched builder" appear on the gate,
+     * report, and FAQ — this honest, buyer-grade explainer defines them in
+     * one place so every surface links the same definition. No marketplace
+     * promises: Feasly is an independent estimator.
+     */
+    builderMatching: {
+      /** Expander summary, e.g. `What does "builders associated with us" mean?` */
+      summary: string;
+      /** Explainer paragraphs, rendered in order. */
+      paragraphs: string[];
+    };
+    /**
      * Consent banner (story consumer/01). All user-facing banner copy lives
      * here so the no-hardcode tripwire stays green and copy is
      * deploy-tunable. No dark patterns: accept and decline are worded as

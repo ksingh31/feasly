@@ -204,6 +204,33 @@
   border-left: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+/* Sample-report link under the trust strip (UX audit 2026-09-28). */
+.sample-report-link {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px 32px;
+  text-align: center;
+}
+.sample-report-link a {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.sample-report-link a:hover {
+  color: var(--on-dark);
+}
+.sample-report-link a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ── Entry card pair (NBH-04 / SEO-05) ── */
 /* Single column on mobile (the previous stacked layout, same 32px rhythm);
    two equal columns on tablet and up. The wrapper carries the section

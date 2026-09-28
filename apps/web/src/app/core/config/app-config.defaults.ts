@@ -176,7 +176,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     search: {
       label: 'Your Calgary address',
-      placeholder: 'Start typing your street address…',
+      placeholder: 'Start typing your street number…',
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       selectHint: 'Please choose your address from the suggestions above.',
@@ -197,7 +197,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       missingKeyHeading: 'This estimator needs a builder link',
       missingKeyBody:
         'This embed link is missing its builder key. Please open the estimator from your builder’s website instead of visiting this page directly.',
-      ctaLabel: 'Get my estimate →',
+      ctaLabel: 'Get My Estimate →',
       contactPrefix: 'Questions?',
       poweredBy: 'Powered by Feasly',
       sessionExpiredHeading: 'This link has expired',
@@ -384,7 +384,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       totalMathTemplate: '{assessed} + {buildRange}',
       lowestLandBadge: 'Lowest land cost',
       lockedNote: 'Available after email verification',
-      unlockCta: 'Unlock my free numbers →',
+      unlockCta: 'Unlock my free report →',
       editLabel: '← Edit communities',
       chartTitle: 'Total cost comparison',
       chartAxisNote: 'Bars show the likely total range per community.',
@@ -610,7 +610,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       privacyNote:
         'We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our',
       privacyLinkLabel: 'Privacy Policy',
-      submitLabel: 'Unlock my free preview →',
+      submitLabel: 'Unlock my free report →',
       submittingLabel: 'Sending…',
       submitError: 'We couldn’t save your details. Please check your connection and try again.',
       retryLabel: 'Try again',
@@ -793,6 +793,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             a: 'Feasly and builders associated with us may see your information so we can contact you about your estimate. Your email is also how we send you a link to reopen your report; we never sell your information, and you can opt out anytime. See our Privacy Policy for the full details.',
           },
           {
+            q: 'How does builder matching work?',
+            a: 'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you. When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement. It’s free, and only ever with your permission. You can opt out anytime.',
+          },
+          {
             q: 'Do you support addresses outside Calgary?',
             a: 'Not yet — Feasly only supports Calgary addresses right now, because our cost data and property records are Calgary-specific. Enter a non-Calgary address and we’ll tell you plainly instead of guessing.',
           },
@@ -809,6 +813,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         intro:
           'Every community, one page: average assessed values, lot sizes, and estimated new-build cost ranges by finish tier — built from City of Calgary assessment data and current construction costs. Pick a community to see the full cost guide.',
       },
+    },
+    builderMatching: {
+      summary: 'What does "builders associated with us" mean?',
+      paragraphs: [
+        'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you.',
+        'When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement.',
+        'It’s free, and only ever with your permission. You can opt out anytime.',
+      ],
     },
     consent: {
       title: 'A quick word on analytics.',
