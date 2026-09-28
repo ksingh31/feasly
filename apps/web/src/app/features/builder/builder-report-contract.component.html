@@ -24,11 +24,11 @@
         <div class="report-contract__field">
           <label for="report-contract-lead">{{ copy.reportContractLeadLabel }}</label>
           <select id="report-contract-lead" formControlName="leadId">
-            <option [ngValue]="null" disabled>
+            <option value="" disabled>
               {{ copy.reportContractLeadLabel }}
             </option>
             @for (lead of leads(); track lead.id) {
-              <option [ngValue]="lead.id">{{ leadLabel(lead.id) }}</option>
+              <option [value]="lead.id">{{ leadLabel(lead.id) }}</option>
             }
           </select>
           @if (form.controls.leadId.touched && form.controls.leadId.invalid) {

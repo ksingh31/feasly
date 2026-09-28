@@ -7,6 +7,9 @@
  * offset datetime, the success view shows the reported amount and the 1%
  * figure, and failures show the RFC 7807 server message.
  *
+ * The component is driven through the DOM (no protected-member access),
+ * like the other builder-portal component specs.
+ *
  * Note: async/await with real timers (not fakeAsync) — zone.js is not
  * installed in this repo, so the fakeAsync helper cannot run here.
  */
@@ -14,12 +17,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { provideStore } from '@ngxs/store';
+import { describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
-import type {
-  BuilderLeadListResponse,
-} from '@feasly/contracts';
+import type { BuilderLeadListResponse } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderState } from './builder.state';
@@ -59,6 +60,11 @@ async function setup(
   ) => ReturnType<BuilderBillingApiService['reportContract']>,
 ) {
   TestBed.resetTestingModule();
+  const calls: unknown[] = [];
+  const reportContract = vi.fn((body: unknown) => {
+    calls.push(body);
+    return reportContractImpl(body);
+  });
   TestBed.configureTestingModule({
     imports: [BuilderReportContractComponent],
     providers: [
@@ -78,7 +84,7 @@ async function setup(
       },
       {
         provide: BuilderBillingApiService,
-        useValue: { reportContract: vi.fn(reportContractImpl) },
+        useValue: { reportContract },
       },
     ],
   });
@@ -86,7 +92,54 @@ async function setup(
     TestBed.createComponent(BuilderReportContractComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, store: TestBed.inject(Store) };
+  fixture.detectChanges();
+  return { fixture, calls };
+}
+
+function setSelect(
+  fixture: ComponentFixture<BuilderReportContractComponent>,
+  value: string,
+): void {
+  const select = fixture.nativeElement.querySelector(
+    '#report-contract-lead',
+  ) as HTMLSelectElement;
+  select.value = value;
+  select.dispatchEvent(new Event('input'));
+  select.dispatchEvent(new Event('change'));
+  fixture.detectChanges();
+}
+
+function setInput(
+  fixture: ComponentFixture<BuilderReportContractComponent>,
+  id: string,
+  value: string,
+): void {
+  const input = fixture.nativeElement.querySelector(
+    `#${id}`,
+  ) as HTMLInputElement;
+  input.value = value;
+  input.dispatchEvent(new Event('input'));
+  fixture.detectChanges();
+}
+
+async function submitForm(
+  fixture: ComponentFixture<BuilderReportContractComponent>,
+): Promise<void> {
+  const form = fixture.nativeElement.querySelector(
+    'form',
+  ) as HTMLFormElement;
+  form.dispatchEvent(new Event('submit'));
+  await fixture.whenStable();
+  fixture.detectChanges();
+  await fixture.whenStable();
+}
+
+function fillValidForm(
+  fixture: ComponentFixture<BuilderReportContractComponent>,
+): void {
+  setSelect(fixture, LEAD_ID);
+  setInput(fixture, 'report-contract-value', '650000');
+  setInput(fixture, 'report-contract-date', '2026-09-20');
 }
 
 describe('parseCadDollarsToCents', () => {
@@ -122,59 +175,61 @@ describe('dateOnlyToIsoWithOffset', () => {
 });
 
 describe('BuilderReportContractComponent', () => {
-  it('rejects an empty form', async () => {
+  it('shows the leads picker once leads load', async () => {
     const { fixture } = await setup(() =>
       of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
     );
-    const component = fixture.componentInstance;
-    expect(component.form.invalid).toBe(true);
-    await component.submit();
-    // No API call on an invalid form.
-    const api = TestBed.inject(BuilderBillingApiService);
-    expect(api.reportContract).not.toHaveBeenCalled();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Jane Homeowner');
+    expect(text).toContain('123 Main St SW');
+  });
+
+  it('rejects an empty form without calling the API', async () => {
+    const { fixture, calls } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    await submitForm(fixture);
+    expect(calls).toHaveLength(0);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Choose the lead that signed the contract.');
   });
 
   it('rejects a future signing date', async () => {
-    const { fixture } = await setup(() =>
+    const { fixture, calls } = await setup(() =>
       of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
     );
-    const component = fixture.componentInstance;
-    const now = new Date();
-    const future = `${now.getFullYear() + 1}-01-15`;
-    component.form.controls.leadId.setValue(LEAD_ID);
-    component.form.controls.contractValue.setValue('650000');
-    component.form.controls.contractSignedDate.setValue(future);
-    expect(component.form.controls.contractSignedDate.invalid).toBe(true);
-    expect(component.form.invalid).toBe(true);
+    const future = `${new Date().getFullYear() + 1}-01-15`;
+    setSelect(fixture, LEAD_ID);
+    setInput(fixture, 'report-contract-value', '650000');
+    setInput(fixture, 'report-contract-date', future);
+    await submitForm(fixture);
+    expect(calls).toHaveLength(0);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('can’t be in the future');
   });
 
   it('rejects an invalid contract amount', async () => {
-    const { fixture } = await setup(() =>
+    const { fixture, calls } = await setup(() =>
       of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
     );
-    const component = fixture.componentInstance;
-    component.form.controls.contractValue.setValue('not-a-number');
-    expect(component.form.controls.contractValue.invalid).toBe(true);
+    setSelect(fixture, LEAD_ID);
+    setInput(fixture, 'report-contract-value', 'not-a-number');
+    setInput(fixture, 'report-contract-date', '2026-09-20');
+    await submitForm(fixture);
+    expect(calls).toHaveLength(0);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Enter a valid amount');
   });
 
   it('posts converted cents + an offset datetime, then shows the 1% figure', async () => {
-    const api = { calls: [] as unknown[] };
-    const { fixture } = await setup((body) => {
-      api.calls.push(body);
-      return of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
-    });
-    const component = fixture.componentInstance;
-    component.form.controls.leadId.setValue(LEAD_ID);
-    component.form.controls.contractValue.setValue('650000');
-    component.form.controls.contractSignedDate.setValue('2026-09-20');
-    expect(component.form.valid).toBe(true);
+    const { fixture, calls } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    fillValidForm(fixture);
+    await submitForm(fixture);
 
-    await component.submit();
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    expect(api.calls).toHaveLength(1);
-    const body = api.calls[0] as {
+    expect(calls).toHaveLength(1);
+    const body = calls[0] as {
       leadId: string;
       contractValueCents: number;
       contractSignedAt: string;
@@ -201,14 +256,8 @@ describe('BuilderReportContractComponent', () => {
         retryable: false,
       })),
     );
-    const component = fixture.componentInstance;
-    component.form.controls.leadId.setValue(LEAD_ID);
-    component.form.controls.contractValue.setValue('650000');
-    component.form.controls.contractSignedDate.setValue('2026-09-20');
-
-    await component.submit();
-    fixture.detectChanges();
-    await fixture.whenStable();
+    fillValidForm(fixture);
+    await submitForm(fixture);
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Invalid contract report body.');
@@ -218,16 +267,26 @@ describe('BuilderReportContractComponent', () => {
     const { fixture } = await setup(() =>
       of({ billed: false, reason: 'flat_subscription_covers' }),
     );
-    const component = fixture.componentInstance;
-    component.form.controls.leadId.setValue(LEAD_ID);
-    component.form.controls.contractValue.setValue('650000');
-    component.form.controls.contractSignedDate.setValue('2026-09-20');
-
-    await component.submit();
-    fixture.detectChanges();
-    await fixture.whenStable();
+    fillValidForm(fixture);
+    await submitForm(fixture);
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('flat plan');
+  });
+
+  it('shows already-reported copy on an idempotent duplicate', async () => {
+    const { fixture } = await setup(() =>
+      of({
+        billed: true,
+        invoiceId: 'inv-1',
+        invoiceStatus: 'in_review',
+        reason: 'existing_invoice',
+      }),
+    );
+    fillValidForm(fixture);
+    await submitForm(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('already reported');
   });
 });
