@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
+  DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
+  DismissAdminLeadStatusSuccess,
   DismissExportError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
@@ -198,6 +200,81 @@ describe('AdminLeadsState', () => {
     await done.toPromise().catch(() => undefined);
     expect(store.selectSnapshot(AdminLeadsState.detailStatus)).toBe('error');
     expect(store.selectSnapshot(AdminLeadsState.detailError)).toBeTruthy();
+  });
+
+  it('keeps the open detail on screen during a refresh instead of flashing', async () => {
+    let done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1')).flush(DETAIL_A);
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.id).toBe('a1');
+
+    // Re-selecting the open lead is a refresh: the stale detail stays
+    // visible while the refetch is in flight.
+    done = store.dispatch(new SelectAdminLead('a1'));
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.id).toBe('a1');
+    expect(store.selectSnapshot(AdminLeadsState.detailStatus)).toBe('loading');
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1'))
+      .flush({ ...DETAIL_A, leadScore: 90 });
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.leadScore).toBe(90);
+    expect(store.selectSnapshot(AdminLeadsState.detailStatus)).toBe('idle');
+  });
+
+  it('keeps the stale detail and surfaces an inline error when a refresh fails', async () => {
+    let done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1')).flush(DETAIL_A);
+    await done.toPromise();
+
+    done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1'))
+      .error(new ProgressEvent('error'));
+    await done.toPromise().catch(() => undefined);
+
+    // The modal is not wiped; the failure shows inline instead.
+    expect(store.selectSnapshot(AdminLeadsState.detail)?.id).toBe('a1');
+    expect(store.selectSnapshot(AdminLeadsState.detailStatus)).toBe('idle');
+    expect(store.selectSnapshot(AdminLeadsState.detailRefreshError)).toBeTruthy();
+  });
+
+  it('sets statusUpdateSuccess on apply and clears it on dismiss', async () => {
+    let done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1')).flush(DETAIL_A);
+    await done.toPromise();
+
+    done = store.dispatch(new UpdateAdminLeadStatus('a1', 'contacted'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status'))
+      .flush({ ok: true });
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush({ ...DETAIL_A, status: 'contacted' });
+    await done.toPromise();
+
+    // The confirmation survives the post-apply refresh.
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateSuccess)).toBe(true);
+
+    store.dispatch(new DismissAdminLeadStatusSuccess());
+    expect(store.selectSnapshot(AdminLeadsState.statusUpdateSuccess)).toBe(false);
+  });
+
+  it('surfaces the note-post error instead of failing silently', async () => {
+    let done = store.dispatch(new SelectAdminLead('a1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1')).flush(DETAIL_A);
+    await done.toPromise();
+
+    done = store.dispatch(new AddAdminLeadNote('a1', 'Hello?'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/notes'))
+      .error(new ProgressEvent('error'));
+    await done.toPromise().catch(() => undefined);
+
+    expect(store.selectSnapshot(AdminLeadsState.notePosting)).toBe(false);
+    expect(store.selectSnapshot(AdminLeadsState.noteError)).toBeTruthy();
+
+    store.dispatch(new DismissAdminLeadNoteError());
+    expect(store.selectSnapshot(AdminLeadsState.noteError)).toBeNull();
   });
 
   it('posts a note then refetches the detail', async () => {

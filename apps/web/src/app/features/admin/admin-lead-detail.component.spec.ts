@@ -246,6 +246,61 @@ describe('AdminLeadDetailComponent', () => {
     expect(store.selectSnapshot(AdminLeadsState.statusUpdateError)).toBeNull();
   });
 
+  it('shows an inline success confirmation after apply without flashing the loading state', async () => {
+    await setup();
+    await openLead();
+
+    pickStatus('won');
+    applyButton().click();
+    fixture.detectChanges();
+
+    // While the PATCH is in flight the modal keeps its content.
+    expect(
+      fixture.debugElement.query(By.css('.lead-modal-card__identity h2')),
+    ).toBeTruthy();
+
+    const patch = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status'));
+    patch.flush({ ok: true });
+    // The post-apply refresh must not wipe the modal either.
+    fixture.detectChanges();
+    expect(
+      fixture.debugElement.query(By.css('.lead-modal-card__identity h2')),
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('.lead-modal-card__state')),
+    ).toBeNull();
+
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush({ ...DETAIL, status: 'won' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const success = fixture.debugElement.query(By.css('.lead-modal-card__success'));
+    expect(success).toBeTruthy();
+    expect(success.nativeElement.getAttribute('role')).toBe('status');
+    expect(success.nativeElement.textContent).toContain('Status updated to Won.');
+  });
+
+  it('dismisses the status confirmation when a new status is picked', async () => {
+    await setup();
+    await openLead();
+
+    pickStatus('won');
+    applyButton().click();
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/status')).flush({ ok: true });
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
+      .flush({ ...DETAIL, status: 'won' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.css('.lead-modal-card__success'))).toBeTruthy();
+
+    pickStatus('contacted');
+    expect(fixture.debugElement.query(By.css('.lead-modal-card__success'))).toBeNull();
+  });
+
   it('rolls back the dropdown and shows an inline error when apply fails', async () => {
     await setup();
     await openLead();
@@ -354,6 +409,26 @@ describe('AdminLeadDetailComponent', () => {
     expect(assignSelect().value).toBe('');
   });
 
+  it('shows an inline success confirmation after Apply Builder', async () => {
+    await setup();
+    await openLeadWithBuilders();
+
+    pickBuilder('b1');
+    applyBuilderButton().click();
+    fixture.detectChanges();
+    flushAssign('b1', DETAIL);
+
+    await waitFor(
+      () => store.selectSnapshot(AdminLeadsState.detail)?.builderId === 'b1',
+      'assigned builderId',
+    );
+
+    const success = fixture.debugElement.query(By.css('.lead-modal-card__success'));
+    expect(success).toBeTruthy();
+    expect(success.nativeElement.getAttribute('role')).toBe('status');
+    expect(success.nativeElement.textContent).toContain('Assigned to Elite Craft.');
+  });
+
   it('rolls the dropdown back and shows an inline error when builder apply fails', async () => {
     await setup();
     await openLeadWithBuilders();
@@ -378,6 +453,36 @@ describe('AdminLeadDetailComponent', () => {
     expect(assignSelect().value).toBe('');
     expect(applyBuilderButton().disabled).toBe(true);
     const error = fixture.debugElement.query(By.css('.lead-modal-card__error'));
+    expect(error).toBeTruthy();
+    expect(error.nativeElement.getAttribute('role')).toBe('alert');
+  });
+
+  it('shows an inline error when adding a note fails', async () => {
+    await setup();
+    await openLead();
+
+    const textarea = fixture.debugElement.query(
+      By.css('.lead-modal-card__note-form textarea'),
+    ).nativeElement as HTMLTextAreaElement;
+    textarea.value = 'Called — wants premium.';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const addButton = fixture.debugElement.query(
+      By.css('.lead-modal-card__note-form button'),
+    ).nativeElement as HTMLButtonElement;
+    addButton.click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/notes'))
+      .error(new ProgressEvent('error'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const error = fixture.debugElement.query(
+      By.css('.lead-modal-card__note-form + .lead-modal-card__error'),
+    );
     expect(error).toBeTruthy();
     expect(error.nativeElement.getAttribute('role')).toBe('alert');
   });
