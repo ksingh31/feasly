@@ -140,6 +140,18 @@ var entraGraphClientSecretUri = 'https://${keyVaultName}${az.environment().suffi
 var entraClientSecretName = 'feasly-entra-client-secret'
 var entraClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${entraClientSecretName}'
 
+// Builder-portal Entra External ID sign-in (auth/05): separate app
+// registration from the admin `feasly-web` app (builder sign-in must never
+// mint an admin session). UNPROVISIONED as of 2026-09-28 — Karan creates the
+// app registration in the portal (see docs/auth/builder-entra-status.md),
+// then fills the identifiers below and creates the client secret in Key
+// Vault under its exact name here. Until then the settings stay empty and
+// the builder callback fails closed (503) naming the missing variables.
+// The user flow can be the existing `feasly-signup-signin` (tenant-level,
+// not per-app) unless Karan wants a separate builder flow.
+var builderEntraClientSecretName = 'feasly-builder-entra-client-secret'
+var builderEntraClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${builderEntraClientSecretName}'
+
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
@@ -283,6 +295,15 @@ module functionApp 'modules/function-app.bicep' = {
     entraGraphClientId: environment == 'dev' ? '2fe45e0e-a3ae-4695-93db-eaf1a15ba4d0' : ''
     entraGraphClientSecretUri: environment == 'dev' ? entraGraphClientSecretUri : ''
     entraClientSecretUri: environment == 'dev' ? entraClientSecretUri : ''
+    // Builder-portal Entra External ID sign-in (auth/05): UNPROVISIONED
+    // (2026-09-28) — empty until Karan creates the builder app registration
+    // and fills these in (see docs/auth/builder-entra-status.md). Empty =
+    // the builder callback fails closed (503) naming the missing variables.
+    builderEntraTenantSubdomain: ''
+    builderEntraTenantId: ''
+    builderEntraClientId: ''
+    builderEntraUserFlow: ''
+    builderEntraClientSecretUri: environment == 'dev' ? builderEntraClientSecretUri : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).
