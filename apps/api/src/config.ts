@@ -832,9 +832,16 @@ function enforceStripeTestMode(
     );
   }
   if (nodeEnv !== 'production' && !isTestKey) {
-    throw new Error(
-      'Invalid configuration:\n  - STRIPE_SECRET_KEY: non-production requires an sk_test_ key (no real charges in dev/staging)',
+    // Don't crash the entire API for a bad Stripe key in dev/staging —
+    // warn and treat Stripe as unconfigured. Stripe operations will fail
+    // with "not configured" errors, but the API stays up.
+    // (2026-09-28: the throw here took down all functions when dev had a
+    // placeholder key; fail-open for availability, fail-closed for charges.)
+    console.warn(
+      `[config] STRIPE_SECRET_KEY is not an sk_test_ key in ${nodeEnv}; ` +
+        'treating Stripe as unconfigured (no real charges possible).',
     );
+    return undefined;
   }
   return secretKey;
 }
