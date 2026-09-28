@@ -376,6 +376,7 @@ describe('AdminLeadsState', () => {
       }
       return el;
     }) as typeof document.createElement);
+    vi.useFakeTimers();
 
     const done = store.dispatch(new LoadAdminLeads({ source: 'web' }));
     httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads')).flush(listResponse([], null, 0));
@@ -388,8 +389,14 @@ describe('AdminLeadsState', () => {
     await exportDone.toPromise();
 
     expect(click).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalled();
+    // The object URL must NOT be revoked synchronously: revoking it in the
+    // same task as the programmatic click aborts the download in
+    // Safari/WebKit (2026-09-28: Export CSV silently did nothing on iPhone).
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
     expect(store.selectSnapshot(AdminLeadsState.exporting)).toBe(false);
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
