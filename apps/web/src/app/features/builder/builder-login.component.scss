@@ -1,8 +1,74 @@
 /**
- * Builder login (embed/09) — reuses the admin login card styling via
- * styleUrls; the `.builder-login` hook exists for builder-specific
- * overrides only.
+ * Builder login (auth/05) — builder-portal design language (warm cream
+ * page, centered white card), NOT the admin theme.
  */
-.builder-login .admin-login__card {
-  /* Inherits the admin card; builder theming can extend here. */
+.builder-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--color-background, #faf9f7);
+}
+
+.builder-login__card {
+  width: 100%;
+  max-width: 26rem;
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.builder-login__eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted, #6b6257);
+  margin: 0 0 0.5rem;
+}
+
+.builder-login__card h1 {
+  font-size: 1.5rem;
+  margin: 0 0 1rem;
+}
+
+.builder-login__notice {
+  background: #fff8e6;
+  border: 1px solid #f0dfae;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+
+.builder-login__intro {
+  color: var(--color-text-muted, #6b6257);
+  margin: 0 0 1.5rem;
+}
+
+.builder-login__submit {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary, #1a1a1a);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.builder-login__submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.builder-login__errorbox {
+  background: #fdecec;
+  border: 1px solid #f5c6c6;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
 }

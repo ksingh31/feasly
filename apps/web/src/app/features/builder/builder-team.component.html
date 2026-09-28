@@ -1,0 +1,135 @@
+<div class="builder-team">
+  <h1>{{ copy.teamHeading }}</h1>
+  @if (orgName(); as org) {
+    <p class="builder-team__org">{{ org }}</p>
+  }
+  <p class="builder-team__intro">{{ copy.teamIntro }}</p>
+
+  @if (status() === 'loading') {
+    <p role="status">{{ copy.teamLoading }}</p>
+  } @else if (status() === 'error') {
+    <p class="builder-team__errorbox" role="alert">{{ copy.teamLoadError }}</p>
+    <button type="button" class="builder-team__button" (click)="retry()">
+      {{ copy.teamRetry }}
+    </button>
+  } @else {
+    @if (actionError()) {
+      <p class="builder-team__errorbox" role="alert">
+        {{ copy.teamActionError }}
+        <button type="button" (click)="dismissFeedback()">{{ copy.teamConfirmNo }}</button>
+      </p>
+    }
+
+    @if (users().length === 0) {
+      <p>{{ copy.teamEmpty }}</p>
+    } @else {
+      <table class="builder-team__table">
+        <thead>
+          <tr>
+            <th>{{ copy.teamColName }}</th>
+            <th>{{ copy.teamColEmail }}</th>
+            <th>{{ copy.teamColRole }}</th>
+            <th>{{ copy.teamColStatus }}</th>
+            <th>{{ copy.teamColActions }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr>
+              <td>{{ user.name }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <select
+                  [value]="user.role"
+                  (change)="changeRole(user, $any($event.target).value)"
+                  [disabled]="updatingUserId() === user.id"
+                  [attr.aria-label]="copy.teamColRole"
+                >
+                  <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
+                  <option value="builder_member">{{ copy.orgRoleMember }}</option>
+                </select>
+              </td>
+              <td>
+                <span class="builder-team__pill builder-team__pill--{{ user.status }}">
+                  {{ statusLabel(user.status) }}
+                </span>
+              </td>
+              <td>
+                @if (updatingUserId() === user.id) {
+                  <span>…</span>
+                } @else if (user.status === 'deactivated') {
+                  <button type="button" (click)="reactivate(user)">
+                    {{ copy.teamReactivateLabel }}
+                  </button>
+                } @else {
+                  <button type="button" (click)="askDeactivate(user)">
+                    {{ copy.teamDeactivateLabel }}
+                  </button>
+                  @if (user.status === 'invited') {
+                    <button type="button" (click)="askRemove(user)">
+                      {{ copy.teamRemoveLabel }}
+                    </button>
+                  }
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <section class="builder-team__invite">
+      <h2>{{ copy.teamInviteHeading }}</h2>
+      @if (inviteFeedback() === 'sent') {
+        <p class="builder-team__notice" role="status">
+          {{ copy.teamInviteSent }}
+          <button type="button" (click)="dismissFeedback()">{{ copy.teamConfirmNo }}</button>
+        </p>
+      }
+      @if (inviteFeedback() === 'failed') {
+        <p class="builder-team__errorbox" role="alert">{{ copy.teamInviteError }}</p>
+      }
+      <form [formGroup]="inviteForm" (ngSubmit)="invite()" novalidate>
+        <label class="builder-team__field">
+          <span>{{ copy.teamInviteNameLabel }}</span>
+          <input type="text" formControlName="name" autocomplete="name" />
+        </label>
+        @if (nameInvalid) {
+          <p class="builder-team__fielderror" role="alert">{{ copy.teamInviteNameInvalid }}</p>
+        }
+        <label class="builder-team__field">
+          <span>{{ copy.teamInviteEmailLabel }}</span>
+          <input
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            inputmode="email"
+          />
+        </label>
+        @if (emailInvalid) {
+          <p class="builder-team__fielderror" role="alert">{{ copy.emailInvalid }}</p>
+        }
+        <label class="builder-team__field">
+          <span>{{ copy.teamInviteRoleLabel }}</span>
+          <select formControlName="role">
+            <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
+            <option value="builder_member">{{ copy.orgRoleMember }}</option>
+          </select>
+        </label>
+        <button type="submit" class="builder-team__button" [disabled]="inviteForm.invalid">
+          {{ copy.teamInviteSubmit }}
+        </button>
+      </form>
+    </section>
+  }
+
+  @if (confirmAction) {
+    <div class="builder-team__confirm" role="alertdialog" aria-modal="true">
+      <p>{{ confirmText() }}</p>
+      <button type="button" class="builder-team__button" (click)="confirmDialog()">
+        {{ copy.teamConfirmYes }}
+      </button>
+      <button type="button" (click)="cancelConfirm()">{{ copy.teamConfirmNo }}</button>
+    </div>
+  }
+</div>

@@ -1,83 +1,52 @@
-import { Component, DestroyRef, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
-import { BuilderAuthApiService } from './builder-auth-api.service';
-
-type LoginStatus = 'idle' | 'sending' | 'sent' | 'error';
+import { BuilderEntraAuthService } from './builder-entra-auth.service';
 
 /**
- * Builder login (embed/09): email → magic link. No passwords.
+ * Builder login page (auth/05, builder org accounts).
  *
- * Mirrors the admin/01 login. The request always returns `{ sent: true }` —
- * the UI shows the "check your email" copy whether or not the address is
- * allowlisted (no enumeration oracle).
+ * Route: `/builder/login`. The magic-link form is gone — sign-in runs
+ * through Microsoft Entra External ID: a single "Sign in with Microsoft →"
+ * button starts the Microsoft-hosted flow (PKCE + state via
+ * `BuilderEntraAuthService`), and Entra returns to
+ * `/builder/auth/callback`.
  *
- * Query params:
- * - `expired=1` — shows the session-expired copy.
+ * While the app-config still carries ENTRA_BUILDER_* placeholders
+ * (`entra.isConfigured()` false), the button is replaced with the
+ * buyer-grade `entraNotConfigured` line — the portal never renders a
+ * sign-in control it can't honor. `?expired=1` shows the exact
+ * session-expired copy.
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
 @Component({
   selector: 'app-builder-login',
   standalone: true,
-  imports: [ReactiveFormsModule],
   templateUrl: './builder-login.component.html',
-  styleUrls: ['../admin/admin-login.component.scss', './builder-login.component.scss'],
+  styleUrls: ['./builder-login.component.scss'],
 })
 export class BuilderLoginComponent {
-  private readonly fb = inject(FormBuilder);
-  private readonly api = inject(BuilderAuthApiService);
-  private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
-  private readonly seo = inject(SeoService);
-  private readonly destroyRef = inject(DestroyRef);
-
+  protected readonly entra = inject(BuilderEntraAuthService);
+  protected readonly seo = inject(SeoService);
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(ConfigService).get('copy').builder;
 
-  protected readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-  });
-
-  protected status: LoginStatus = 'idle';
-  protected showExpired = false;
+  protected readonly showExpired =
+    inject(ActivatedRoute).snapshot.queryParamMap.get('expired') === '1';
+  protected readonly redirecting = signal(false);
 
   constructor() {
-    this.showExpired =
-      this.route.snapshot.queryParamMap.get('expired') === '1';
     this.seo.setPage({
       title: 'Builder sign in — Feasly',
-      description: 'Feasly builder portal sign in.',
+      description: 'Sign in to your Feasly builder portal.',
       path: '/builder/login',
     });
   }
 
-  protected submit(): void {
-    if (this.form.invalid || this.status === 'sending') return;
-    this.status = 'sending';
-    const email = this.form.controls.email.value.trim();
-    this.api
-      .requestMagicLink({ email })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.status = 'sent';
-        },
-        error: () => {
-          this.status = 'error';
-        },
-      });
-  }
-
-  protected retry(): void {
-    this.status = 'idle';
-  }
-
-  protected get emailInvalid(): boolean {
-    const control = this.form.controls.email;
-    return control.invalid && (control.dirty || control.touched);
+  protected signIn(): void {
+    this.redirecting.set(true);
+    void this.entra.startSignIn();
   }
 }

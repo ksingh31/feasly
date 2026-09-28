@@ -1,0 +1,20 @@
+<main class="builder-login">
+  <div class="builder-login__card">
+    @if (status() === 'verifying') {
+      <p class="builder-login__intro" role="status">
+        {{ copy.entraCallbackVerifying }}
+      </p>
+    } @else {
+      <p class="builder-login__errorbox" role="alert">
+        {{ errorText() }}
+      </p>
+      <button
+        type="button"
+        class="builder-login__submit"
+        (click)="backToLogin()"
+      >
+        {{ copy.entraCallbackBackToLogin }}
+      </button>
+    }
+  </div>
+</main>
