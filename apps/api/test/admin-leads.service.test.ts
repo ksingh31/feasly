@@ -230,7 +230,13 @@ describe('admin-leads service (admin/02)', () => {
         projectType: 'new_build',
         addressKey: '123 Main St NW, Calgary, AB',
         inputs: { sqft: 2000, tier: 'standard' },
-        figures: { total: [50000000, 60000000], build: [40000000, 50000000], land: 10000000 },
+        // Persisted figures follow the EstimateResponse contract in WHOLE
+        // DOLLARS: { build: CostRange, total: CostRange, land: FixedFigure }.
+        figures: {
+          total: { low: 1442500, base: 1492500, high: 1542500 },
+          build: { low: 450000, base: 500000, high: 550000 },
+          land: { value: 992500 },
+        },
         rows: [],
         costDataVersion: 'v1',
         createdAt: new Date('2026-09-25T00:00:00Z'),
@@ -244,7 +250,10 @@ describe('admin-leads service (admin/02)', () => {
 
       expect(result.id).toBe('lead-1');
       expect(result.estimate).not.toBeNull();
-      expect(result.estimate?.totalRangeCents).toEqual([50000000, 60000000]);
+      // Admin summary reports INTEGER CENTS converted from stored dollars.
+      expect(result.estimate?.totalRangeCents).toEqual([144250000, 154250000]);
+      expect(result.estimate?.buildRangeCents).toEqual([45000000, 55000000]);
+      expect(result.estimate?.landCents).toBe(99250000);
       expect(result.magicLinkStatus).toBe('sent');
       // builderId surfaced from the row (null when unassigned).
       expect(result.builderId).toBeNull();
@@ -256,6 +265,58 @@ describe('admin-leads service (admin/02)', () => {
           detail: 'leadId=lead-1',
         }),
       );
+    });
+
+    it('reads zero ranges (not $0 display bug) for comparison estimates', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      // Comparison estimates persist { rowSets }, not build/total/land —
+      // the summary legitimately reports zeros for those.
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue({
+        id: 'est-2',
+        projectType: 'comparison',
+        addressKey: 'comparison:brentwood+varsity',
+        inputs: { sqft: 2000, tier: 'standard' },
+        figures: { rowSets: [] },
+        rows: [],
+        costDataVersion: 'v1',
+        createdAt: new Date('2026-09-25T00:00:00Z'),
+        narrative: null,
+        narrativeGeneratedAt: null,
+        assumptions: null,
+      });
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(result.estimate?.totalRangeCents).toEqual([0, 0]);
+      expect(result.estimate?.buildRangeCents).toEqual([0, 0]);
+      expect(result.estimate?.landCents).toBe(0);
+    });
+
+    it('degrades to zeros (no crash) on malformed figures', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue({
+        id: 'est-3',
+        projectType: 'new_build',
+        addressKey: '123 Main St NW, Calgary, AB',
+        inputs: { sqft: 2000, tier: 'standard' },
+        figures: { total: 'garbage', build: null, land: { value: Number.NaN } },
+        rows: [],
+        costDataVersion: 'v1',
+        createdAt: new Date('2026-09-25T00:00:00Z'),
+        narrative: null,
+        narrativeGeneratedAt: null,
+        assumptions: null,
+      });
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(result.estimate?.totalRangeCents).toEqual([0, 0]);
+      expect(result.estimate?.buildRangeCents).toEqual([0, 0]);
+      expect(result.estimate?.landCents).toBe(0);
     });
 
     it('throws 404 for unknown lead', async () => {
