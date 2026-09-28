@@ -778,6 +778,8 @@ export interface AppConfig {
       adminLeads: string;
       adminBuildersTitle: string;
       adminBuilders: string;
+      adminUsersTitle: string;
+      adminUsers: string;
       adminDisputesTitle: string;
       adminDisputes: string;
       adminUsersTitle: string;

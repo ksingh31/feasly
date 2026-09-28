@@ -8,7 +8,6 @@ import type {
   AdminLeadStatus,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { SeoService } from '../../core/seo/seo.service';
 import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import {
   ClearSelectedAdminLead,
@@ -71,7 +70,6 @@ export class AdminLeadsComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
 
   protected readonly leads = this.store.selectSignal(AdminLeadsState.leads);
@@ -100,14 +98,6 @@ export class AdminLeadsComponent implements OnInit {
     /** '' = all, 'unassigned' = no builder assigned, otherwise a builder UUID (sent as builderId). */
     assigned: ['' as '' | 'unassigned' | string],
   });
-
-  constructor() {
-    this.seo.setPage({
-      title: 'Leads — Feasly Admin',
-      description: 'Feasly admin leads explorer.',
-      path: '/admin/leads',
-    });
-  }
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminLeads());

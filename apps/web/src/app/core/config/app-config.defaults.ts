@@ -702,6 +702,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminLeads: 'Feasly admin leads explorer.',
       adminBuildersTitle: 'Builders — Feasly Admin',
       adminBuilders: 'Feasly admin builders management.',
+      adminUsersTitle: 'Users — Feasly Admin',
+      adminUsers: 'Feasly admin user management.',
       adminDisputesTitle: 'Disputes — Feasly Admin',
       adminDisputes: 'Feasly admin billing dispute console.',
       adminUsersTitle: 'Users — Feasly Admin',
