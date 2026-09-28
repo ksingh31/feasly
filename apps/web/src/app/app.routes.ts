@@ -424,26 +424,26 @@ export const routes: Routes = [
           ),
       },
       {
-          // Builder team (auth/05): org user management — builder_admin only
-          // (builderTeamGuard). Lazy-loaded with the rest of the portal.
-          path: 'team',
-          loadComponent: () =>
-            import('./features/builder/builder-team.component').then(
-              (m) => m.BuilderTeamComponent,
-            ),
-          canActivate: [builderTeamGuard],
-        },
-        {
-          // Builder report-contract (billing/01 charge path UI): the builder
-          // reports a signed contract for one of their leads. Lazy-loaded
-          // with the rest of the builder portal.
-          path: 'report-contract',
-          loadComponent: () =>
-            import('./features/builder/builder-report-contract.component').then(
-              (m) => m.BuilderReportContractComponent,
-            ),
-        },
+        // Builder team (auth/05): org user management — builder_admin only
+        // (builderTeamGuard). Lazy-loaded with the rest of the portal.
+        path: 'team',
+        loadComponent: () =>
+          import('./features/builder/builder-team.component').then(
+            (m) => m.BuilderTeamComponent,
+          ),
+        canActivate: [builderTeamGuard],
       },
+      {
+        // Builder report-contract (billing/01 charge path UI): the builder
+        // reports a signed contract for one of their leads. Lazy-loaded
+        // with the rest of the builder portal.
+        path: 'report-contract',
+        loadComponent: () =>
+          import('./features/builder/builder-report-contract.component').then(
+            (m) => m.BuilderReportContractComponent,
+          ),
+      },
+
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
