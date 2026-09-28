@@ -230,3 +230,9 @@ apps/web/src/app/features/admin/admin-users.state.ts
 # real GET /api/v1/billing/invoices endpoint lands (see the CUTOVER comment
 # in the file). Not tunables; the mock never ships to production.
 apps/web/src/app/features/builder/builder-invoices-api.service.ts
+
+# D-03 shared entry-point test harness: drives the shared address-autocomplete
+# gate from the landing/embed specs. Pins the story's exact copy like the
+# *.spec.ts files (excluded from this check by rule) and carries its own
+# poll/deadline timing constants — test scaffolding, not app tunables.
+apps/web/src/app/shared/test-helpers/entry-gate.harness.ts

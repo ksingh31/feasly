@@ -12,6 +12,7 @@ import { EmbedState } from './embed.state';
 import { WizardState } from '../wizard';
 import type { PropertyRecord } from '@feasly/contracts';
 import { EmbedShellComponent } from './embed-shell.component';
+import { expectSharedCalgaryGate } from '../../shared/test-helpers/entry-gate.harness';
 
 /**
  * EMB-01: embed shell — fallback states, branding application, badge
@@ -228,5 +229,27 @@ describe('EmbedShellComponent', () => {
     component.onPropertySelected({ lotSqft: 5000, assessedValue: 729000 } as PropertyRecord);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.embed-coverage-note')).toBeNull();
+  });
+
+  describe('Calgary-only gate (D-03)', () => {
+    it('shows the shared Calgary-only gate on an out-of-coverage query', async () => {
+      // Entry-point integration: the embed funnel must surface the exact
+      // same gate as the landing hero (new-build + reno) — one shared
+      // component, one message, asserted at each entry point.
+      const fixture = setup('elite-craft');
+      flushConfig(fixture);
+      // This spec never loads app-config.json, so the compiled default
+      // ('live' City API) would hang the search on an unmatched request.
+      // Point the property-data seam at the mock harness first; resolution
+      // is per-call, so loading after component creation is honored.
+      const pending = config.load();
+      httpMock.expectOne('/assets/config/app-config.json').flush({
+        api: { useMockApi: true },
+        timings: { debounceMs: 1, mockLatencyMinMs: 1, mockLatencyMaxMs: 1 },
+        propertyData: { source: 'mock' },
+      });
+      await pending;
+      await expectSharedCalgaryGate(fixture);
+    });
   });
 });
