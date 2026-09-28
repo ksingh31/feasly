@@ -1,13 +1,12 @@
 /**
- * Thin admin-auth route (admin/01). Routes are adapters, not logic:
+ * Thin admin-auth route (auth/02). Routes are adapters, not logic:
  * validate input → call exactly one service method → return the result.
  *
- * - `POST /api/v1/admin/auth/request` — email → magic link (or identical
- *   no-op for non-allowlisted). No auth required (public by design).
- * - `GET /api/v1/admin/auth/verify?token=…` — consumes the magic link,
- *   creates the session. Returns the session token in the JSON body (the
- *   SPA bearer flow — the cross-origin cookie never sticks) plus the
- *   `Set-Cookie` value for the adapter (kept for a same-origin future).
+ * The legacy magic-link endpoints (`POST /api/v1/admin/auth/request`,
+ * `GET /api/v1/admin/auth/verify`) were retired 2026-09-28 (Karan) —
+ * Entra email+password is the only admin sign-in. Remaining:
+ * - `GET /api/v1/admin/auth/me` — returns the session identity.
+ *   Requires a valid session (guarded by the adapter).
  * - `POST /api/v1/admin/auth/logout` — revokes the session cookie.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
@@ -15,12 +14,9 @@
  * - a route NEVER reads process.env (config arrives via the service)
  * - a route depends on the service *interface*, never the implementation
  */
-import { z } from 'zod';
 import type {
   AdminAuthLogoutResponse,
   AdminAuthMeResponse,
-  AdminAuthRequestResponse,
-  AdminAuthVerifyResponse,
 } from '@feasly/contracts';
 import { ADMIN_SESSION_COOKIE } from '../middleware/admin-guard';
 import { extractSessionToken } from '../middleware/session-token';
@@ -29,19 +25,9 @@ import type { AdminAuthService } from '../services/admin-auth.service';
 
 export interface AdminAuthRouteDeps {
   readonly adminAuth: AdminAuthService;
-  /** Session TTL seconds — for the Max-Age cookie attribute. From config. */
-  readonly adminSessionTtlSeconds: number;
 }
 
 export interface AdminAuthRoute {
-  /** POST /api/v1/admin/auth/request */
-  request(body: unknown): Promise<AdminAuthRequestResponse>;
-  /**
-   * GET /api/v1/admin/auth/verify?token=… — returns the response (including
-   * the raw session token for the SPA bearer flow) plus the `Set-Cookie`
-   * header value for the adapter to set.
-   */
-  verify(query: unknown): Promise<AdminAuthVerifyResponse>;
   /**
    * GET /api/v1/admin/auth/me — returns the session identity.
    * Requires a valid session (guarded by the adapter).
@@ -58,10 +44,6 @@ export interface AdminAuthRoute {
   ): Promise<AdminAuthLogoutResponse>;
 }
 
-const verifyQuerySchema = z.object({
-  token: z.string().trim().min(1).max(500),
-});
-
 /**
  * Build the `Set-Cookie` value for the admin session. `Secure` is safe:
  * browsers treat http://localhost as a secure context, and production is
@@ -72,7 +54,7 @@ const verifyQuerySchema = z.object({
  *
  * Kept as a same-origin fallback: modern browsers block this third-party
  * cookie cross-origin, so the SPA primarily authenticates with the bearer
- * token returned in the verify JSON body.
+ * token returned in the callback JSON body.
  */
 export function buildSessionCookie(
   sessionToken: string,
@@ -93,27 +75,9 @@ export function buildClearSessionCookie(): string {
 export function createAdminAuthRoute(
   deps: AdminAuthRouteDeps,
 ): AdminAuthRoute {
-  const { adminAuth, adminSessionTtlSeconds } = deps;
+  const { adminAuth } = deps;
 
   return {
-    request: (body: unknown): Promise<AdminAuthRequestResponse> =>
-      adminAuth.requestMagicLink(body),
-
-    async verify(query: unknown): Promise<AdminAuthVerifyResponse> {
-      const parsed = verifyQuerySchema.safeParse(query);
-      // Malformed input gets the same denial as an invalid token — the
-      // service throws the uniform 401 for empty/unknown tokens.
-      const token = parsed.success ? parsed.data.token : '';
-      const { authenticated, email, sessionToken } =
-        await adminAuth.verifyMagicLink(token);
-      return {
-        authenticated,
-        email,
-        sessionToken,
-        setCookie: buildSessionCookie(sessionToken, adminSessionTtlSeconds),
-      };
-    },
-
     async me(headers): Promise<AdminAuthMeResponse> {
       const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
       const email = await adminAuth.validateSession(token);

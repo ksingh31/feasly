@@ -304,26 +304,6 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
 
   // ── Admin v1 (session cookie; interim X-Admin-Key) ────────────────
   {
-    method: 'POST',
-    path: '/api/v1/admin/auth/request',
-    auth: 'none',
-    rateLimit: '5/hr per email+IP',
-    status: 'planned',
-    summary:
-      'Request an admin magic link. Identical response for allowlisted and ' +
-      'non-allowlisted emails (no enumeration oracle).',
-  },
-  {
-    method: 'GET',
-    path: '/api/v1/admin/auth/verify',
-    auth: 'magic-token',
-    rateLimit: '10/min per IP',
-    status: 'planned',
-    summary:
-      'Consume the admin magic link (?token=…) → httpOnly Secure SameSite=None ' +
-      'session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe).',
-  },
-  {
     method: 'GET',
     path: '/api/v1/admin/auth/me',
     auth: 'admin',

@@ -78,7 +78,9 @@ describe('GatePageComponent', () => {
     setInput('#gate-name', 'Jane Doe');
     setInput('#gate-email', 'jane@example.com');
     setInput('#gate-phone', '');
-    setSelect('');
+    // Timeline is REQUIRED (Karan 2026-09-27) — an unchosen timeline blocks
+    // submit; the API no longer defaults it to 'exploring'.
+    setSelect('3-6mo');
     // Contact consent is REQUIRED to submit (Karan 2026-09-27).
     (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
     fixture.detectChanges();
@@ -141,6 +143,7 @@ describe('GatePageComponent', () => {
       // Required (Karan 2026-09-27): name + email alone cannot submit.
       setInput('#gate-name', 'Jane Doe');
       setInput('#gate-email', 'jane@example.com');
+      setSelect('3-6mo');
       submit();
       expect(fixture.nativeElement.querySelector('#gate-consent-error')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
@@ -229,15 +232,40 @@ describe('GatePageComponent', () => {
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('gate_convert');
     });
 
-    it('defaults an unchosen timeline to exploring', async () => {
+    it('blocks submit when the timeline is unchosen — timeline is required (Karan 2026-09-27)', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      // Fill everything EXCEPT the timeline.
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      setInput('#gate-phone', '');
+      setSelect('');
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+      fixture.detectChanges();
+      submit();
+      // No POST, no navigation — the inline required error shows instead.
+      expect(submitSpy).not.toHaveBeenCalled();
+      expect(router.url).not.toBe('/estimate/analyzing');
+      const error = fixture.nativeElement.querySelector('#gate-timeline-error');
+      expect(error).toBeTruthy();
+      expect(error.textContent).toContain('Please choose');
+      // The timeline label no longer carries the "(optional)" marker.
+      const label = fixture.nativeElement.querySelector('label[for="gate-timeline"]');
+      expect(label.textContent).not.toContain('(optional)');
+    });
+
+    it('disables the submit button while sending — a double tap submits once (P0 2026-09-27)', async () => {
       const mockApi = TestBed.inject(MockApiService);
       const submitSpy = vi.spyOn(mockApi, 'submitLead');
       fillValidForm();
       submit();
+      // Still in flight (mock latency 1–2ms): the button must be disabled
+      // and the second click must be ignored by the status guard.
+      const button = fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      submit();
       await pollUrl('/estimate/analyzing');
       expect(submitSpy).toHaveBeenCalledOnce();
-      expect(submitSpy.mock.calls[0][0].timeline).toBe('exploring');
-      expect(store.selectSnapshot(LeadState.leadId)).toMatch(/^lead-mock-/);
     });
 
     it('HRD-03: sends an empty honeypot value for human submissions', async () => {

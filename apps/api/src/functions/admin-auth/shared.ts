@@ -3,8 +3,8 @@
  *
  * Follows the api-keys/shared.ts adapter pattern: CORS at the edge,
  * composition cached module-level, correlation ID on every response.
- * Additionally handles the `Set-Cookie` header for session establishment
- * (verify) and clearing (logout) — the route returns it as `setCookie`.
+ * Additionally handles the `Set-Cookie` header for session clearing
+ * (logout) — the route returns it as `setCookie`.
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -83,7 +83,8 @@ export async function dispatchAdminAuth(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   // Authenticated endpoints (e.g. /me) require a valid session before
-  // invoking the route. Public endpoints (request, verify) skip this.
+  // invoking the route. Public endpoints (e.g. the Entra callback) skip
+  // this.
   if (opts?.requireAuth === true) {
     try {
       await app.adminGuard.requireAdmin(headers);
@@ -123,10 +124,9 @@ export async function dispatchAdminAuth(
     return;
   }
 
-  // The verify/logout routes return `setCookie` for the session cookie
-  // (kept as a same-origin fallback — the SPA bearer flow reads the
-  // `sessionToken` from the JSON body instead, because modern browsers
-  // block the third-party Set-Cookie cross-origin).
+  // The logout route returns `setCookie` for the clearing session cookie.
+  // The adapter strips it from the JSON body and emits it as the real
+  // `Set-Cookie` header.
   const record =
     typeof result === 'object' && result !== null
       ? (result as Record<string, unknown>)

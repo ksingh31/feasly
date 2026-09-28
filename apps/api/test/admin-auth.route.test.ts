@@ -1,8 +1,9 @@
 /**
- * Admin auth route tests (admin/01).
+ * Admin auth route tests (auth/02).
  *
  * The route is thin: validate input → call the service → shape the result
- * (including the Set-Cookie value for the adapter).
+ * (including the Set-Cookie value for the adapter). The legacy magic-link
+ * endpoints were retired 2026-09-28, Karan.
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -12,18 +13,8 @@ import {
 } from '../src/routes/admin-auth.route';
 import { ADMIN_SESSION_COOKIE } from '../src/middleware/admin-guard';
 
-const SESSION_TTL = 604_800;
-
 function makeService() {
   return {
-    requestMagicLink: vi.fn().mockResolvedValue({ sent: true }),
-    verifyMagicLink: vi
-      .fn()
-      .mockResolvedValue({
-        authenticated: true as const,
-        email: 'admin@example.com',
-        sessionToken: 'raw-session-token',
-      }),
     validateSession: vi.fn().mockResolvedValue('admin@example.com'),
     isSessionExpired: vi.fn().mockResolvedValue(false),
     logout: vi.fn().mockResolvedValue({ loggedOut: true as const }),
@@ -35,43 +26,11 @@ function makeRoute() {
   const route = createAdminAuthRoute({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     adminAuth: adminAuth as any,
-    adminSessionTtlSeconds: SESSION_TTL,
   });
   return { route, adminAuth };
 }
 
-describe('admin auth route (admin/01)', () => {
-  it('request → delegates to service, returns { sent: true }', async () => {
-    const { route, adminAuth } = makeRoute();
-    const result = await route.request({ email: 'admin@example.com' });
-    expect(result).toEqual({ sent: true });
-    expect(adminAuth.requestMagicLink).toHaveBeenCalledWith({
-      email: 'admin@example.com',
-    });
-  });
-
-  it('verify → returns authenticated + sessionToken + Set-Cookie value', async () => {
-    const { route, adminAuth } = makeRoute();
-    const result = await route.verify({ token: 'tok' });
-    expect(result.authenticated).toBe(true);
-    expect(result.email).toBe('admin@example.com');
-    expect(result.sessionToken).toBe('raw-session-token');
-    expect(result.setCookie).toContain(`${ADMIN_SESSION_COOKIE}=`);
-    expect(result.setCookie).toContain('HttpOnly');
-    expect(result.setCookie).toContain('SameSite=None');
-    expect(result.setCookie).toContain(`Max-Age=${SESSION_TTL}`);
-    expect(adminAuth.verifyMagicLink).toHaveBeenCalledWith('tok');
-  });
-
-  it('verify with malformed query → service throws (uniform 401)', async () => {
-    const { route, adminAuth } = makeRoute();
-    adminAuth.verifyMagicLink.mockRejectedValue(
-      Object.assign(new Error('denied'), { status: 401 }),
-    );
-    await expect(route.verify({})).rejects.toMatchObject({ status: 401 });
-    expect(adminAuth.verifyMagicLink).toHaveBeenCalledWith('');
-  });
-
+describe('admin auth route (auth/02)', () => {
   it('me → returns session identity', async () => {
     const { route, adminAuth } = makeRoute();
     const result = await route.me({

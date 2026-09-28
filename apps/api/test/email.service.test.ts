@@ -360,6 +360,40 @@ describe('in-code retry (deliver)', () => {
     }
   });
 
+  it('never re-sends an accepted-but-unconfirmed message — one attempt, acceptedByProvider set (P0 2026-09-27)', async () => {
+    // ACS beginSend accepted the message, the delivery poll timed out:
+    // re-sending would likely duplicate an already-delivered email
+    // (Karan's triple "estimate is ready" emails). deliver() must NOT
+    // retry, and must flag the acceptance so the lead service suppresses
+    // resubmits.
+    const attempts: number[] = [];
+    const provider: EmailProvider = {
+      name: 'acs',
+      async send() {
+        attempts.push(Date.now());
+        throw new EmailProviderError(
+          'Azure Communication Services email failed (delivery polling timed out after 6000ms).',
+          { retryable: false, failureCode: 'delivery-failed', sendAccepted: true },
+        );
+      },
+    };
+    const service = createEmailService({
+      provider,
+      fromAddress: 'noreply@feasly.example',
+      fromName: 'Feasly',
+      appBaseUrl: CTX.appBaseUrl,
+      unsubscribeBaseUrl: CTX.unsubscribeBaseUrl,
+      opsInbox: 'ops@feasly.example',
+    });
+    const delivery = await service.sendMagicLink(MAGIC_INPUT);
+    expect(attempts).toHaveLength(1);
+    expect(delivery.sent).toBe(false);
+    if (!delivery.sent) {
+      expect(delivery.emailError).toBe('delivery-failed');
+      expect(delivery.acceptedByProvider).toBe(true);
+    }
+  });
+
   it('retries unknown (non-provider) errors by default — never silently dropped as permanent', async () => {
     const { service, attempts } = scriptedService(['unknown']);
     const delivery = await service.sendMagicLink(MAGIC_INPUT);

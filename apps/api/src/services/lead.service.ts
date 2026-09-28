@@ -10,9 +10,10 @@
  *  4. 90-day dedup: same email + same property address (address_key
  *     denormalized from the estimate) inside the configured window returns
  *     the existing lead — no duplicate row. A fresh estimate for the same
- *     address is still the same household. The email is ALWAYS sent on a
- *     genuine submission (Karan directive 2026-09-27): dedupe never
- *     suppresses the send.
+ *     address is still the same household. A repeat submission sends a new
+ *     magic-link email ONLY when no send for that email + property
+ *     succeeded recently (P0 2026-09-27: double-taps, client-timeout
+ *     retries, and resubmits must never duplicate the email).
  *  5. Otherwise insert and return the contract `LeadResponse`.
  *
  * PII discipline: error messages reference field *paths* ('email'), never
@@ -26,11 +27,16 @@
  *   consent, consent_ts, status, notes, and status history are never
  *   touched (the store's `updateOnRepeat` column list is the guarantee).
  * - Every genuine submission sends the magic-link email (Karan directive
- *   2026-09-27): a dedupe hit still mints a fresh token AND emails it.
- *   The old AC4 rule (live link → zero new sends) is gone — it stranded
- *   users whose first email never arrived, because the token is issued
- *   before the send, so a failed first send still left a live link that
- *   suppressed every later retry.
+ *   2026-09-27) — EXCEPT an idempotent resubmit: when a send for the same
+ *   email + address (+ tenant) already succeeded (or was accepted by the
+ *   provider but unconfirmed) within the magic-link TTL, the repeat path
+ *   mints a fresh token for the in-tab client but sends NO new email and
+ *   returns `emailAlreadySent: true`. The earlier link is still live, so
+ *   "your link is already in your inbox" is literally true. A FAILED send
+ *   is never recorded — "try again" resubmits genuinely retry the send, so
+ *   the user is never stranded by the old AC4 live-link suppression (the
+ *   token is issued before the send, so a failed first send still leaves a
+ *   live link — suppressing on link liveness alone would block retries).
  * - New capture: the magic-link email is sent immediately (this wires the
  *   BE-5/email seam — `magicLinkSent` is true on success). A FAILED send
  *   degrades gracefully: the request still returns 200 with the lead saved,
@@ -59,12 +65,14 @@ import type { MagicLinkStore } from './magic-link.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 
 /**
- * Contract-shaped validation. `timeline` defaults to 'exploring' and
- * `marketingConsent` is required-but-possibly-false — historically the UI
- * sent false when the (then-optional) CASL checkbox was unchecked, and the
- * service must honor that. Since 2026-09-27 the frontend requires the
- * contact-consent checkbox to submit, so new leads always arrive with it
- * true; the schema still accepts false for back-compat.
+ * Contract-shaped validation. `timeline` is REQUIRED (Karan 2026-09-27: it
+ * determines the best leads) — no silent default; the UI validates before
+ * submit and the API rejects a missing value. `marketingConsent` is
+ * required-but-possibly-false — historically the UI sent false when the
+ * (then-optional) CASL checkbox was unchecked, and the service must honor
+ * that. Since 2026-09-27 the frontend requires the contact-consent checkbox
+ * to submit, so new leads always arrive with it true; the schema still
+ * accepts false for back-compat.
  *
  * `website` is the HRD-03 honeypot: the UI renders it as a visually-hidden
  * input no real user fills. A non-empty value does NOT fail validation —
@@ -75,7 +83,7 @@ export const LeadRequestSchema = z.object({
   email: z.string().trim().min(1).max(254).email(),
   name: z.string().trim().min(1).max(120),
   phone: z.string().trim().min(1).max(40).optional(),
-  timeline: z.enum(['0-3mo', '3-6mo', '6-12mo', '12+mo', 'exploring']).default('exploring'),
+  timeline: z.enum(['0-3mo', '3-6mo', '6-12mo', '12+mo', 'exploring']),
   marketingConsent: z.boolean(),
   estimateId: z.string().uuid(),
   tenantKey: z.string().trim().min(1).max(120).optional(),
@@ -141,6 +149,45 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
   const clock = deps.clock ?? (() => new Date());
 
   /**
+   * P0 2026-09-27 — idempotent resubmit suppression. Keyed by
+   * email + address + tenant: a magic-link send recorded here means "a
+   * link for this email + property was sent (or accepted by the provider
+   * but unconfirmed) within the magic-link TTL". A repeat submission while
+   * the record is fresh skips the email — the earlier link is still live —
+   * but still mints a fresh token for the in-tab client. Only successful
+   * or accepted-but-unconfirmed sends are recorded; a FAILED send leaves
+   * no record so "try again" resubmits genuinely retry.
+   *
+   * In-memory like the HRD-03 reissue cooldown: a cold start loses the
+   * records, but the worst case is one extra email on a resubmit racing a
+   * restart — the duplicate-email P0 (in-request retries, double taps,
+   * client-timeout retries) is fully covered because those hit the same
+   * warm instance.
+   */
+  const lastSendAtMs = new Map<string, number>();
+  /** Bound the suppression map — oldest entries evicted first. */
+  const MAX_SEND_RECORDS = 5_000;
+  function sendRecordKey(
+    email: string,
+    addressKey: string,
+    tenantKey: string | null,
+  ): string {
+    return `${email}|${addressKey}|${tenantKey ?? ''}`;
+  }
+  function recordSend(key: string): void {
+    if (lastSendAtMs.size >= MAX_SEND_RECORDS) {
+      const oldest = lastSendAtMs.keys().next();
+      if (!oldest.done) lastSendAtMs.delete(oldest.value);
+    }
+    lastSendAtMs.set(key, clock().getTime());
+  }
+  function hasRecentSend(key: string): boolean {
+    const at = lastSendAtMs.get(key);
+    if (at === undefined) return false;
+    return clock().getTime() - at < deps.magicLinkTtlSeconds * 1_000;
+  }
+
+  /**
    * EMB-03: resolve and validate the embed tenant key server-side.
    * An unknown key is a 400 — the client must not invent tenants.
    */
@@ -187,6 +234,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     readonly estimate: { readonly figures: unknown };
     readonly email: string;
     readonly expiresInDays: number;
+    /** Tenant-scoped suppression key — embeds dedupe per tenant. */
+    readonly tenantKey: string | null;
     /**
      * Embed dual-write repair: the builder id resolved for this tenant.
      * Stamped only when the stored lead still has a null builder_id.
@@ -223,12 +272,19 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     } catch (error) {
       throw new Error('lead dedupe update failed', { cause: error });
     }
-    // Every submission sends: mint a fresh owner token AND email it. The
-    // in-tab client needs the fresh raw token for the token-gated extras
-    // (share, callback, narrative, revise) — the stored hash is
-    // unrecoverable — and the email is the return-access path for other
-    // devices. A live link from an earlier submission never suppresses
-    // this send.
+    // Every submission mints a fresh owner token — the in-tab client needs
+    // the fresh raw token for the token-gated extras (share, callback,
+    // narrative, revise); the stored hash is unrecoverable. The EMAIL is
+    // sent unless this is an idempotent resubmit: a send for the same
+    // email + property (+ tenant) already succeeded (or was accepted by
+    // the provider but unconfirmed) within the magic-link TTL. P0
+    // 2026-09-27: double-taps, client-timeout retries, and resubmits must
+    // never duplicate the "estimate is ready" email — the earlier link is
+    // still live, so the client says "your link is already in your inbox".
+    // A failed send is never recorded, so "try again" resubmits genuinely
+    // retry (suppressing on link liveness alone would strand users: the
+    // token is issued BEFORE the send, so a failed first send still leaves
+    // a live link).
     //
     // Karan directive 2026-09-27 (send-failure UX): the lead row is
     // already saved and the token is issued BEFORE the send, so a failed
@@ -241,6 +297,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     // is never stranded. (The email provider already logs email.send-failed
     // for the ops alert; the message here is sanitized — provider errors
     // can echo PII.)
+    const sendKey = sendRecordKey(email, existing.addressKey, args.tenantKey);
+    const resubmitSuppressed = hasRecentSend(sendKey);
     let issued;
     try {
       issued = await issueOwnerMagicLinkToken({
@@ -252,6 +310,17 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     } catch (error) {
       throw new Error('magic link reissue failed', { cause: error });
     }
+    if (resubmitSuppressed) {
+      // Idempotent resubmit: no new email, fresh token for the in-tab
+      // client, honest "already in your inbox" signal for the UI.
+      return {
+        leadId: updated.id,
+        magicLinkSent: true,
+        expiresInDays,
+        reportToken: issued.token,
+        emailAlreadySent: true,
+      };
+    }
     const delivery = await sendOwnerMagicLinkEmail({
       email: deps.email,
       unsubscribe: deps.unsubscribe,
@@ -262,6 +331,12 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
       token: issued.token,
     });
+    if (delivery.sent || delivery.acceptedByProvider) {
+      // Record accepted-but-unconfirmed too: re-sending would likely
+      // duplicate a delivered email (P0 2026-09-27), so a resubmit must
+      // stay suppressed even though this response reports the failure.
+      recordSend(sendKey);
+    }
     if (!delivery.sent) {
       // Send failed (after in-code retries) — degrade, don't 500: the lead
       // is saved and the token is issued, so the report still unlocks.
@@ -363,6 +438,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           estimate,
           email,
           expiresInDays,
+          tenantKey: tenantKey ?? null,
           builderId,
         });
       }
@@ -443,6 +519,15 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             );
             magicLinkSent = false;
             emailError = delivery.emailError;
+          }
+          if (delivery.sent || delivery.acceptedByProvider) {
+            // P0 2026-09-27: record the send so a rapid resubmit (double
+            // tap, client-timeout retry) doesn't duplicate the email.
+            // Accepted-but-unconfirmed counts too: re-sending would likely
+            // duplicate a delivered email, so resubmits stay suppressed.
+            recordSend(
+              sendRecordKey(email, estimate.addressKey, tenantKey ?? null),
+            );
           }
         }
       } catch (error) {

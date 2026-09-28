@@ -44,18 +44,30 @@ export class EmailProviderError extends Error {
    * "check their inbox". Everything else is 'delivery-failed'.
    */
   readonly failureCode: EmailFailureCode;
+  /**
+   * True when the provider ACCEPTED the message (e.g. ACS beginSend
+   * succeeded) but the outcome couldn't be confirmed — delivery polling
+   * timed out or errored. Re-sending would likely duplicate an already
+   * delivered email (P0 2026-09-27: triple "estimate is ready" emails), so
+   * this error is never retried and callers should treat the send as "maybe
+   * delivered" (record it for resubmit suppression, tell the user to check
+   * their inbox). False/undefined = nothing was accepted — retry is safe.
+   */
+  readonly sendAccepted?: boolean;
   constructor(
     message: string,
     options?: {
       cause?: unknown;
       retryable?: boolean;
       failureCode?: EmailFailureCode;
+      sendAccepted?: boolean;
     },
   ) {
     super(message, options);
     this.name = 'EmailProviderError';
     this.retryable = options?.retryable ?? true;
     this.failureCode = options?.failureCode ?? 'delivery-failed';
+    this.sendAccepted = options?.sendAccepted;
   }
 }
 

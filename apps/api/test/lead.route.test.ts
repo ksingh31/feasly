@@ -119,11 +119,13 @@ describe('lead route', () => {
       magicLinkTtlSeconds: 900,
     });
     const route = createLeadRoute({ leads: service });
-    // Unknown estimate → the service's 400, proving delegation.
+    // Unknown estimate → the service's 400, proving delegation. (Timeline is
+    // included so the 400 comes from the estimate lookup, not validation.)
     const error = await route
       .handle({
         email: 'sam@example.com',
         name: 'Sam',
+        timeline: 'exploring',
         marketingConsent: false,
         estimateId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       })
@@ -168,6 +170,9 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
   const validBody = () => ({
     email: 'sam@example.com',
     name: 'Sam',
+    // Timeline is REQUIRED (Karan 2026-09-27) — no silent 'exploring'
+    // default; the API rejects a missing value.
+    timeline: 'exploring' as const,
     marketingConsent: true,
     estimateId,
   });
@@ -203,7 +208,7 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     const email = 'fresh-estimate@example.com';
     const first = await app.leadPipeline.run(
       { headers: {}, clientIp: '10.0.0.4' },
-      () => app.leadRoute.handle({ email, name: 'Sam', marketingConsent: false, estimateId }),
+      () => app.leadRoute.handle({ email, name: 'Sam', timeline: 'exploring', marketingConsent: false, estimateId }),
     );
     if (isProblemDetails(first)) throw new Error('unexpected problem on first capture');
     // Same property, brand-new estimate record.
@@ -223,6 +228,7 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
         app.leadRoute.handle({
           email,
           name: 'Sam',
+          timeline: 'exploring',
           marketingConsent: false,
           estimateId: fresh.estimateId,
         }),
@@ -246,8 +252,21 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     }
   });
 
-  it('rate-limits the gate: 429 after the tight budget is spent', async () => {
-    const ip = '10.0.0.99';
+  it('rejects a missing timeline — it is required (Karan 2026-09-27)', async () => {
+    const { timeline: _omitted, ...noTimeline } = validBody();
+    void _omitted;
+    const outcome = await app.leadPipeline.run(
+      { headers: {}, clientIp: '10.0.0.5' },
+      () => app.leadRoute.handle(noTimeline),
+    );
+    expect(isProblemDetails(outcome)).toBe(true);
+    if (isProblemDetails(outcome)) {
+      expect(outcome.status).toBe(400);
+      expect(outcome.code).toBe('VALIDATION_FAILED');
+    }
+  });
+
+  it('rate-limits the gate: 429 after the tight budget is spent', async () => {    const ip = '10.0.0.99';
     const post = () =>
       app.leadPipeline.run({ headers: {}, clientIp: ip }, () =>
         app.leadRoute.handle({ ...validBody(), email: `rl-${Math.random()}@example.com` }),

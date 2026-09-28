@@ -99,6 +99,8 @@ export class ReportPageComponent implements OnInit {
   protected readonly leadEmail = this.store.selectSignal(LeadState.email);
   /** True when the last gate POST triggered a fresh magic-link email. */
   protected readonly magicLinkSent = this.store.selectSignal(LeadState.magicLinkSent);
+  /** Idempotent resubmit (P0 2026-09-27): no new email — one already went out recently. */
+  protected readonly emailAlreadySent = this.store.selectSignal(LeadState.emailAlreadySent);
   /** Why the magic-link email failed — undefined when it was sent. */
   protected readonly emailError = this.store.selectSignal(LeadState.emailError);
   /**
@@ -171,6 +173,9 @@ export class ReportPageComponent implements OnInit {
    * devices now, not the unlock key — the report above is already unlocked.
    * Four variants:
    * - sent (magicLinkSent): "we emailed you a link…"
+   * - idempotent resubmit (emailAlreadySent): "your link is already in your
+   *   inbox" — no new email went out because one already did recently
+   *   (P0 2026-09-27: double-taps and retries never duplicate the email).
    * - send failed but unlocked, transient (magicLinkSent === false with a
    *   report token, emailError 'delivery-failed' or absent): "couldn't send
    *   the email link — check your inbox or try again later". An earlier
@@ -178,7 +183,7 @@ export class ReportPageComponent implements OnInit {
    *   directive 2026-09-27).
    * - send failed, bad address (emailError === 'invalid-recipient'): "check
    *   it for typos" — no "check your inbox", it will never arrive.
-   * - duplicate/quarantine (magicLinkSent === false, no token): the
+   * - quarantine (magicLinkSent === false, no token): the
    *   "already in your inbox" line.
    * Never shown in partner view (partners didn't submit the lead).
    */
@@ -186,6 +191,7 @@ export class ReportPageComponent implements OnInit {
     () => this.leadSubmitted() && !this.partnerView(),
   );
   protected readonly leadLinkNote = computed(() => {
+    if (this.emailAlreadySent()) return this.copy.leadLinkNoteDuplicate;
     if (this.magicLinkSent()) return this.copy.leadLinkNote;
     if (!this.reportToken()) return this.copy.leadLinkNoteDuplicate;
     return this.emailError() === 'invalid-recipient'

@@ -10,20 +10,10 @@ import {
   FailEntraSignIn,
   LoadAdminSession,
   LogoutAdmin,
-  VerifyAdminToken,
 } from './admin-auth.actions';
 
 /** Auth lifecycle for the admin area. */
 export type AdminAuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
-
-/**
- * Classification of the last VerifyAdminToken failure, so the verify page
- * can show the right error copy instead of one generic message.
- * - 'used': the single-use token was already consumed (re-click / prefetch).
- * - 'transient': network timeout, 5xx — safe to retry the same token.
- * - 'invalid': unknown, expired or revoked token.
- */
-export type VerifyErrorKind = 'used' | 'transient' | 'invalid';
 
 /**
  * Classification of the last Entra callback failure, so the callback page
@@ -63,11 +53,6 @@ export interface AdminAuthStateModel {
   /** True when the last /me probe failed with SESSION_EXPIRED (login copy). */
   sessionExpired: boolean;
   /**
-   * Classification of the last VerifyAdminToken failure (null when the last
-   * verify succeeded or none has run). Read by the verify page's error state.
-   */
-  lastVerifyError: VerifyErrorKind | null;
-  /**
    * Classification of the last Entra callback failure (null when the last
    * callback succeeded or none has run). Read by the callback page.
    */
@@ -81,28 +66,11 @@ const defaults: AdminAuthStateModel = {
   staffRole: null,
   authStatus: 'unknown',
   sessionExpired: false,
-  lastVerifyError: null,
   lastEntraError: null,
 };
 
 /**
- * Maps a verify failure onto the error kind the verify page renders.
- * The API service already normalizes failures to the ApiError envelope
- * (`toApiError`): `retryable` covers timeouts, network failures and 5xx;
- * the backend returns code `MAGIC_LINK_USED` for consumed single-use
- * tokens. Anything else (unknown/expired/revoked token) is 'invalid'.
- */
-function classifyVerifyError(error: unknown): VerifyErrorKind {
-  if (typeof error === 'object' && error !== null) {
-    const { code, retryable } = error as { code?: unknown; retryable?: unknown };
-    if (retryable === true) return 'transient';
-    if (code === 'MAGIC_LINK_USED') return 'used';
-  }
-  return 'invalid';
-}
-
-/**
- * Admin auth state (admin/01): the single source of truth for the
+ * Admin auth state (auth/02): the single source of truth for the
  * `/admin/*` session. Mirrors the builder portal's auth slice (embed/09).
  *
  * Only the token + email + status flags live here — no admin data — so
@@ -151,11 +119,6 @@ export class AdminAuthState {
   }
 
   @Selector()
-  static lastVerifyError(state: AdminAuthStateModel): VerifyErrorKind | null {
-    return state.lastVerifyError;
-  }
-
-  @Selector()
   static lastEntraError(state: AdminAuthStateModel): EntraCallbackErrorKind | null {
     return state.lastEntraError;
   }
@@ -163,33 +126,6 @@ export class AdminAuthState {
   @Selector()
   static authenticated(state: AdminAuthStateModel): boolean {
     return state.authStatus === 'authenticated';
-  }
-
-  @Action(VerifyAdminToken)
-  verifyAdminToken(
-    ctx: StateContext<AdminAuthStateModel>,
-    action: VerifyAdminToken,
-  ): Observable<unknown> {
-    return this.authApi.verifyMagicLink(action.token).pipe(
-      tap((identity) => {
-        ctx.patchState({
-          sessionToken: identity.sessionToken,
-          email: identity.email,
-          authStatus: 'authenticated',
-          sessionExpired: false,
-          lastVerifyError: null,
-        });
-      }),
-      catchError((error: unknown) => {
-        ctx.patchState({
-          sessionToken: null,
-          email: null,
-          authStatus: 'unauthenticated',
-          lastVerifyError: classifyVerifyError(error),
-        });
-        return of(null);
-      }),
-    );
   }
 
   @Action(LoadAdminSession)
@@ -231,7 +167,6 @@ export class AdminAuthState {
       authStatus: 'authenticated',
       sessionExpired: false,
       lastEntraError: null,
-      lastVerifyError: null,
     });
   }
 

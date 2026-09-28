@@ -11,6 +11,11 @@ export class StoreLeadResult {
       expiresInDays: number;
       /** Why the magic-link email failed — present only when magicLinkSent is false. */
       emailError?: 'invalid-recipient' | 'delivery-failed';
+      /**
+       * Idempotent resubmit (P0 2026-09-27): no new email was sent because
+       * one already went out recently for this email + property.
+       */
+      emailAlreadySent?: boolean;
     },
   ) {}
 }
