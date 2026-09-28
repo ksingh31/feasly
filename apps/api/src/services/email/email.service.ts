@@ -93,8 +93,11 @@ export interface OpsAlertEmailInput {
 export interface InvitationEmailInput {
   readonly to: string;
   readonly name?: string;
-  /** Fully-formed single-use set-password URL, minted by the caller. */
-  readonly inviteUrl: string;
+  /**
+   * Sign-in URL (e.g. /admin/login) — Entra External ID owns the
+   * credential, so the email carries no token and no password.
+   */
+  readonly signInUrl: string;
   /** Days until the invitation expires — rendered from config, never hardcoded. */
   readonly expiresInDays: number;
   /** Human-readable access grant, e.g. "an admin" or "a team member for Elite Craft Builders". */

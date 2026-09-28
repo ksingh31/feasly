@@ -158,8 +158,11 @@ ${fallbackLink(input.magicLinkUrl)}`;
 
 export interface InvitationTemplateInput {
   readonly name?: string;
-  /** Fully-formed single-use set-password URL, minted by the caller. */
-  readonly inviteUrl: string;
+  /**
+   * Sign-in URL (e.g. /admin/login) — Entra owns the credential, so the
+   * email carries no token and no password.
+   */
+  readonly signInUrl: string;
   /** Days until the invitation expires — rendered from config, never hardcoded. */
   readonly expiresInDays: number;
   /** Human-readable access grant, e.g. "an admin" or "a team member for Elite Craft Builders". */
@@ -182,14 +185,14 @@ export function renderInvitationEmail(
     : `You've been invited`;
   const body = `<p>${greeting}</p>
 <p>${inviter} to join ${esc(ctx.brandName)} as ${esc(input.accessDescription)}.</p>
-<p>Create your password to get started. This invitation expires in ${input.expiresInDays} days and can only be used once.</p>
-${ctaButton(input.inviteUrl, 'Create your password')}
-${fallbackLink(input.inviteUrl)}`;
+<p>Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.</p>
+${ctaButton(input.signInUrl, 'Sign in to Feasly')}
+${fallbackLink(input.signInUrl)}`;
   const text =
     `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\n` +
     `${input.inviterName ? `${input.inviterName} invited you` : `You've been invited`} to join ${ctx.brandName} as ${input.accessDescription}.\n\n` +
-    `Create your password to get started. This invitation expires in ${input.expiresInDays} days and can only be used once.\n\n` +
-    `Create your password: ${input.inviteUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+    `Your sign-in account is ready — sign in with your email to get started. This invitation expires in ${input.expiresInDays} days.\n\n` +
+    `Sign in to Feasly: ${input.signInUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return {
     subject: `You've been invited to ${ctx.brandName}`,
     html: layout(ctx, `You've been invited to ${esc(ctx.brandName)}`, body),

@@ -1,62 +1,56 @@
 /**
- * User service (auth/01) — password identity + invitations.
+ * UserService (auth/01 — Entra pivot) — admin user lifecycle.
  *
- * The backend foundation for the password-auth track. No routes in this
- * story: auth/02 (admin sign-in) and auth/03 (user management) build the
- * HTTP layer on these methods.
+ * Karan's decision (2026-09-27): Feasly stores NO passwords. Microsoft
+ * Entra External ID owns the credential; we keep only the Entra object id
+ * on the user row. There are no login/password endpoints here — that is
+ * #71. This service owns:
  *
- * Flow:
- * 1. `invite({ email, ... })` — find-or-create the user (status `invited`),
- *    revoke prior pending invitations, mint an opaque token (only its
- *    SHA-256 is stored), email the set-password link.
- * 2. `acceptInvitation(token, { password })` — validate the token + the
- *    password (12 chars min, blocklist), bcrypt the password, flip the
- *    user to `active`, create the builder membership when the invitation
- *    grants one, mark the invitation used.
- * 3. `verifyPassword(email, password)` — credential check for the sign-in
- *    routes. Unknown email, missing password, wrong password, and
- *    non-active status all return null after an identical-cost bcrypt
- *    compare (no enumeration oracle, no timing oracle).
+ *   invite            admin invites → Graph create-user → invitation row →
+ *                     branded email linking to /admin/login
+ *   resendInvite      re-issue a pending invitation (retries Graph if the
+ *                     first create failed)
+ *   revokeInvitation  withdraw a pending invitation (disables the Entra
+ *                     account first — access must actually stop)
+ *   disableUser / enableUser   staff lifecycle (protected-account guarded)
+ *   completeInvitation  #71 calls this on first sign-in: links the Entra
+ *                     object id, flips invited → active, accepts the invite
  *
- * Security: password hashes never leave this service — every outward
- * shape is {@link PublicUser} (no hash field exists on it). Raw tokens
- * exist only in the `invite`/`resendInvite` return value (destined for the
- * email) and are never logged. No PII in logs.
+ * Thin by design: all DB access goes through the injected stores, all
+ * Entra access through EntraUserService, all mail through EmailService.
+ * The public user shape never carries the Entra object id.
  */
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { ErrorCodes, HttpError } from '../middleware/errors';
-import type {
-  EmailService,
-  InvitationEmailInput,
-} from './email/email.service';
-import { isCommonPassword } from './user-password-blocklist';
-import {
-  DUMMY_PASSWORD_HASH,
-  hashPassword,
-  verifyPasswordHash,
-} from './user-password';
+import type { AdminAuditStore } from './admin-audit.store';
+import type { EmailService } from './email';
+import type { EntraUserService } from './entra-user.service';
 
-export const STAFF_ROLES = ['super_admin', 'admin', 'viewer'] as const;
-export type StaffRole = (typeof STAFF_ROLES)[number];
+export type UserStatus = 'invited' | 'active' | 'disabled';
+export type StaffRole = 'super_admin' | 'admin' | 'viewer';
+export type BuilderRole = 'builder_admin' | 'builder_member';
+export type InvitationStatus = 'pending' | 'accepted' | 'revoked';
 
-export const BUILDER_ROLES = ['builder_admin', 'builder_member'] as const;
-export type BuilderRole = (typeof BUILDER_ROLES)[number];
+export const STAFF_ROLES: readonly StaffRole[] = [
+  'super_admin',
+  'admin',
+  'viewer',
+];
+export const BUILDER_ROLES: readonly BuilderRole[] = [
+  'builder_admin',
+  'builder_member',
+];
 
-export const USER_STATUSES = ['invited', 'active', 'disabled'] as const;
-export type UserStatus = (typeof USER_STATUSES)[number];
+/** The one account the API refuses to edit or delete. */
+export const PROTECTED_EMAIL = 'karanbirsingh667@gmail.com';
 
-/** Minimum password length (auth/01) — from the story, not config. */
-export const MIN_PASSWORD_LENGTH = 12;
-
-/** Internal record — includes the hash. Never leaves the service. */
 export interface UserRecord {
   readonly id: string;
   readonly email: string;
-  readonly passwordHash: string | null;
   readonly name: string;
   readonly status: UserStatus;
   readonly staffRole: StaffRole | null;
+  readonly entraObjectId: string | null;
   readonly isProtected: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -68,7 +62,7 @@ export interface BuilderMembership {
   readonly createdAt: Date;
 }
 
-/** The outward user shape — there is deliberately no passwordHash field. */
+/** The only user shape that leaves this service — no Entra ids. */
 export interface PublicUser {
   readonly id: string;
   readonly email: string;
@@ -76,23 +70,34 @@ export interface PublicUser {
   readonly status: UserStatus;
   readonly staffRole: StaffRole | null;
   readonly isProtected: boolean;
-  readonly memberships: readonly BuilderMembership[];
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  readonly memberships: readonly BuilderMembership[];
 }
 
 export interface InvitationRecord {
   readonly id: string;
   readonly email: string;
-  readonly staffRole: StaffRole | null;
-  readonly builderId: string | null;
-  readonly builderRole: BuilderRole | null;
-  readonly tokenHash: string;
-  readonly expiresAt: Date;
-  readonly acceptedAt: Date | null;
-  readonly revokedAt: Date | null;
   readonly invitedBy: string | null;
+  readonly role: StaffRole | BuilderRole;
+  readonly builderId: string | null;
+  readonly entraUserId: string | null;
+  readonly status: InvitationStatus;
+  readonly expiresAt: Date;
   readonly createdAt: Date;
+}
+
+export interface InviteInput {
+  readonly email: string;
+  readonly name: string;
+  readonly role: StaffRole | BuilderRole;
+  /** Builder grant — when set, `role` must be a builder role. */
+  readonly builderId?: string | null;
+  /** Inviting user id (for the invited_by column). */
+  readonly invitedBy?: string | null;
+  readonly inviterName?: string;
+  /** For the audit trail. */
+  readonly actorEmail?: string | null;
 }
 
 export interface UserStore {
@@ -102,47 +107,39 @@ export interface UserStore {
     readonly name: string;
     readonly status: UserStatus;
     readonly staffRole: StaffRole | null;
+    readonly entraObjectId: string | null;
     readonly isProtected: boolean;
   }): Promise<UserRecord>;
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
-  /**
-   * Set the password hash; flips status invited → active. Also used for
-   * password changes (status stays as-is when already active).
-   */
-  setPasswordHash(
-    id: string,
-    passwordHash: string,
-    now: Date,
-  ): Promise<UserRecord>;
   updateUser(
     id: string,
     patch: {
       readonly name?: string;
-      readonly staffRole?: StaffRole | null;
       readonly status?: UserStatus;
+      readonly staffRole?: StaffRole | null;
+      readonly entraObjectId?: string | null;
     },
     now: Date,
   ): Promise<UserRecord>;
-  list(limit: number, offset: number): Promise<readonly UserRecord[]>;
+  list(limit: number, offset: number): Promise<UserRecord[]>;
 }
 
 export interface InvitationStore {
   insert(invitation: {
     readonly id: string;
     readonly email: string;
-    readonly staffRole: StaffRole | null;
-    readonly builderId: string | null;
-    readonly builderRole: BuilderRole | null;
-    readonly tokenHash: string;
-    readonly expiresAt: Date;
     readonly invitedBy: string | null;
+    readonly role: StaffRole | BuilderRole;
+    readonly builderId: string | null;
+    readonly entraUserId: string | null;
+    readonly status: InvitationStatus;
+    readonly expiresAt: Date;
   }): Promise<InvitationRecord>;
-  findByTokenHash(tokenHash: string): Promise<InvitationRecord | null>;
-  /** Pending = not accepted, not revoked (expiry checked by the caller). */
-  findPendingByEmail(email: string): Promise<readonly InvitationRecord[]>;
-  markAccepted(id: string, acceptedAt: Date): Promise<void>;
-  revokePendingByEmail(email: string, revokedAt: Date): Promise<number>;
+  findPendingByEmail(email: string): Promise<InvitationRecord[]>;
+  findLatestByEmail(email: string): Promise<InvitationRecord | null>;
+  markStatus(id: string, status: InvitationStatus): Promise<void>;
+  revokePendingByEmail(email: string): Promise<number>;
 }
 
 export interface MembershipStore {
@@ -151,138 +148,133 @@ export interface MembershipStore {
     builderId: string,
     role: BuilderRole,
   ): Promise<BuilderMembership>;
-  listByUserId(userId: string): Promise<readonly BuilderMembership[]>;
+  listByUserId(userId: string): Promise<BuilderMembership[]>;
   remove(userId: string, builderId: string): Promise<boolean>;
-}
-
-const EmailSchema = z.string().trim().toLowerCase().email().max(254);
-
-function normalizeEmail(email: string): string {
-  return EmailSchema.parse(email);
-}
-
-const InviteInputSchema = z
-  .object({
-    email: EmailSchema,
-    name: z.string().trim().min(1).max(200),
-    staffRole: z.enum(STAFF_ROLES).nullable().optional(),
-    builderId: z.string().uuid().nullable().optional(),
-    builderRole: z.enum(BUILDER_ROLES).nullable().optional(),
-    /** Display name of the builder — for the invite email copy. */
-    builderName: z.string().trim().min(1).max(200).nullable().optional(),
-    /** Name of the inviter — for the invite email copy. */
-    inviterName: z.string().trim().min(1).max(200).nullable().optional(),
-    invitedBy: z.string().uuid().nullable().optional(),
-  })
-  .refine(
-    (v) =>
-      v.staffRole != null || (v.builderId != null && v.builderRole != null),
-    {
-      message:
-        'An invitation must grant a staff role or a builder membership.',
-    },
-  )
-  .refine(
-    (v) =>
-      (v.builderId != null) === (v.builderRole != null) ||
-      (v.builderId == null && v.builderRole == null),
-    { message: 'builderId and builderRole must be provided together.' },
-  );
-
-export type InviteInput = z.infer<typeof InviteInputSchema>;
-
-const AcceptInputSchema = z.object({
-  password: z.string(),
-  name: z.string().trim().min(1).max(200).optional(),
-});
-
-export interface UserService {
-  /**
-   * Invite (or re-invite) a user. Creates the user row when needed,
-   * revokes prior pending invitations, mints a fresh token, and emails
-   * the set-password link. Returns the raw token exactly once (for the
-   * email) — it is never stored or logged.
-   */
-  invite(input: InviteInput): Promise<{
-    readonly user: PublicUser;
-    readonly invitationToken: string;
-    readonly emailSent: boolean;
-  }>;
-  /**
-   * Mint a fresh invitation for an already-invited user (auth/02's
-   * "resend" path and Karan's own first invite).
-   */
-  resendInvite(
-    email: string,
-    invitedBy?: { readonly id: string; readonly name?: string },
-  ): Promise<{
-    readonly user: PublicUser;
-    readonly invitationToken: string;
-    readonly emailSent: boolean;
-  }>;
-  /**
-   * Accept an invitation: validate the token, set the password, activate
-   * the user, grant the builder membership when the invitation carries
-   * one. Expired → 401 INVITATION_EXPIRED with the "ask your admin"
-   * copy; invalid/revoked → 401 INVITATION_INVALID; already accepted →
-   * 409 INVITATION_ACCEPTED.
-   */
-  acceptInvitation(
-    token: string,
-    input: { readonly password: string; readonly name?: string },
-  ): Promise<PublicUser>;
-  /**
-   * Credential check for the sign-in routes. Returns the public user on
-   * success, null on any failure — unknown email, no password set,
-   * wrong password, and non-active status are indistinguishable, and all
-   * cost one bcrypt compare.
-   */
-  verifyPassword(email: string, password: string): Promise<PublicUser | null>;
-  /** Throw a 400 with buyer-grade copy when the password is rejected. */
-  assertPasswordValid(password: string): void;
-  findByEmail(email: string): Promise<PublicUser | null>;
-  findById(id: string): Promise<PublicUser | null>;
-  listUsers(limit: number, offset: number): Promise<readonly PublicUser[]>;
 }
 
 export interface UserServiceDeps {
   readonly users: UserStore;
   readonly invitations: InvitationStore;
   readonly memberships: MembershipStore;
-  readonly email: EmailService;
-  /** e.g. https://feasly.ca — from config, never hardcoded. */
-  readonly appBaseUrl: string;
-  /** Invitation link TTL in seconds — from config (7 days). */
-  readonly invitationTtlSeconds: number;
-  /** bcrypt cost factor — from config. */
-  readonly bcryptRounds: number;
+  readonly entra: EntraUserService;
+  readonly email: Pick<EmailService, 'sendInvitation'>;
+  readonly audit: AdminAuditStore;
   readonly clock?: () => Date;
-  /** Log sink for email failures (never the token or the password). */
-  readonly onEmailError?: (error: unknown) => void;
+  readonly uuid?: () => string;
+  readonly invitationTtlSeconds?: number;
+  readonly appBaseUrl: string;
 }
 
-function hashToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
+export interface UserService {
+  invite(input: InviteInput): Promise<{ user: PublicUser; emailSent: boolean }>;
+  resendInvite(
+    email: string,
+    opts?: {
+      readonly invitedBy?: string | null;
+      readonly inviterName?: string;
+      readonly actorEmail?: string | null;
+    },
+  ): Promise<{ user: PublicUser; emailSent: boolean }>;
+  revokeInvitation(email: string, actorEmail?: string | null): Promise<void>;
+  disableUser(id: string, actorEmail?: string | null): Promise<PublicUser>;
+  enableUser(id: string, actorEmail?: string | null): Promise<PublicUser>;
+  /** #71: first sign-in — link the Entra account, accept the invitation. */
+  completeInvitation(
+    email: string,
+    entraObjectId: string,
+  ): Promise<PublicUser>;
+  findByEmail(email: string): Promise<PublicUser | null>;
+  findById(id: string): Promise<PublicUser | null>;
+  listUsers(limit?: number, offset?: number): Promise<PublicUser[]>;
 }
 
-function describeAccess(input: {
-  readonly staffRole?: StaffRole | null;
-  readonly builderRole?: BuilderRole | null;
-  readonly builderName?: string | null;
-}): string {
-  const parts: string[] = [];
-  if (input.staffRole === 'super_admin') parts.push('a super admin');
-  else if (input.staffRole === 'admin') parts.push('an admin');
-  else if (input.staffRole === 'viewer') parts.push('a viewer (read-only)');
-  if (input.builderRole != null) {
-    const org = input.builderName ?? 'their builder organization';
-    parts.push(
-      input.builderRole === 'builder_admin'
-        ? `an admin for ${org}`
-        : `a team member for ${org}`,
+/** Lowercased, trimmed — the unique identity (allowlist discipline). */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function isStaffRole(role: string): role is StaffRole {
+  return (STAFF_ROLES as readonly string[]).includes(role);
+}
+
+function isBuilderRole(role: string): role is BuilderRole {
+  return (BUILDER_ROLES as readonly string[]).includes(role);
+}
+
+function toPublicUser(
+  user: UserRecord,
+  memberships: readonly BuilderMembership[],
+): PublicUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    status: user.status,
+    staffRole: user.staffRole,
+    isProtected: user.isProtected,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    memberships,
+  };
+}
+
+function validateEmail(email: string): void {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'That email address doesn\u2019t look right — check it for typos and try again.',
     );
   }
-  return parts.join(' and ') || 'a team member';
+}
+
+function validateInviteInput(input: InviteInput): {
+  email: string;
+  builderId: string | null;
+} {
+  const email = normalizeEmail(input.email);
+  validateEmail(email);
+  const name = input.name.trim();
+  if (name.length === 0 || name.length > 200) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'Give the invitee a name (up to 200 characters).',
+    );
+  }
+  if (!isStaffRole(input.role) && !isBuilderRole(input.role)) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      `Unknown role "${input.role}".`,
+    );
+  }
+  const builderId = input.builderId ?? null;
+  if (builderId && !isBuilderRole(input.role)) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'A builder invitation needs a builder role (builder_admin or builder_member).',
+    );
+  }
+  if (!builderId && !isStaffRole(input.role)) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'A staff invitation needs a staff role (super_admin, admin, or viewer).',
+    );
+  }
+  return { email, builderId };
+}
+
+function rejectProtected(user: UserRecord): void {
+  if (user.isProtected) {
+    throw new HttpError(
+      403,
+      ErrorCodes.PROTECTED_ACCOUNT,
+      'This account is protected and can\u2019t be changed here.',
+    );
+  }
 }
 
 export function createUserService(deps: UserServiceDeps): UserService {
@@ -290,316 +282,348 @@ export function createUserService(deps: UserServiceDeps): UserService {
     users,
     invitations,
     memberships,
-    email,
+    entra,
+    email: emailService,
+    audit,
     appBaseUrl,
-    invitationTtlSeconds,
-    bcryptRounds,
-    onEmailError,
   } = deps;
   const clock = deps.clock ?? (() => new Date());
+  const uuid = deps.uuid ?? randomUUID;
+  const invitationTtlSeconds = deps.invitationTtlSeconds ?? 604_800;
 
-  async function toPublic(record: UserRecord): Promise<PublicUser> {
-    const ms = await memberships.listByUserId(record.id);
-    return {
-      id: record.id,
-      email: record.email,
-      name: record.name,
-      status: record.status,
-      staffRole: record.staffRole,
-      isProtected: record.isProtected,
-      memberships: ms,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-    };
-  }
-
-  function assertPasswordValid(password: string): void {
-    // Blocklist first: "password123" deserves the "too common" guidance,
-    // not "add one more character" (which yields "password1234" — also common).
-    if (isCommonPassword(password)) {
-      throw new HttpError(
-        400,
-        ErrorCodes.VALIDATION_FAILED,
-        'That password is too common — try something more unique.',
-        false,
-      );
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      throw new HttpError(
-        400,
-        ErrorCodes.VALIDATION_FAILED,
-        `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`,
-        false,
-      );
-    }
+  async function publicUser(user: UserRecord): Promise<PublicUser> {
+    return toPublicUser(user, await memberships.listByUserId(user.id));
   }
 
   async function sendInviteEmail(args: {
-    readonly to: string;
-    readonly name: string;
-    readonly token: string;
-    readonly staffRole: StaffRole | null;
-    readonly builderRole: BuilderRole | null;
-    readonly builderName: string | null;
-    readonly inviterName: string | null;
+    user: UserRecord;
+    name: string;
+    role: StaffRole | BuilderRole;
+    builderId: string | null;
+    inviterName?: string;
   }): Promise<boolean> {
-    const inviteUrl = `${appBaseUrl}/accept-invite?token=${args.token}`;
-    const input: InvitationEmailInput = {
-      to: args.to,
+    const accessDescription = args.builderId
+      ? `Builder access to the Feasly portal as ${args.role === 'builder_admin' ? 'a builder admin' : 'a builder team member'}`
+      : `Admin access to the Feasly dashboard as ${args.role.replace('_', ' ')}`;
+    const delivery = await emailService.sendInvitation({
+      to: args.user.email,
       name: args.name,
-      inviteUrl,
+      signInUrl: `${appBaseUrl}/admin/login`,
       expiresInDays: Math.round(invitationTtlSeconds / 86_400),
-      accessDescription: describeAccess(args),
-      inviterName: args.inviterName ?? undefined,
-    };
-    try {
-      const result = await email.sendInvitation(input);
-      return result.sent;
-    } catch (error) {
-      onEmailError?.(error);
-      return false;
-    }
-  }
-
-  async function mintInvitation(args: {
-    readonly email: string;
-    readonly name: string;
-    readonly staffRole: StaffRole | null;
-    readonly builderId: string | null;
-    readonly builderRole: BuilderRole | null;
-    readonly builderName: string | null;
-    readonly inviterName: string | null;
-    readonly invitedBy: string | null;
-  }): Promise<{ readonly token: string; readonly emailSent: boolean }> {
-    const now = clock();
-    await invitations.revokePendingByEmail(args.email, now);
-    const token = randomBytes(32).toString('hex');
-    await invitations.insert({
-      id: randomUUID(),
-      email: args.email,
-      staffRole: args.staffRole,
-      builderId: args.builderId,
-      builderRole: args.builderRole,
-      tokenHash: hashToken(token),
-      expiresAt: new Date(now.getTime() + invitationTtlSeconds * 1000),
-      invitedBy: args.invitedBy,
-    });
-    const emailSent = await sendInviteEmail({
-      to: args.email,
-      name: args.name,
-      token,
-      staffRole: args.staffRole,
-      builderRole: args.builderRole,
-      builderName: args.builderName,
+      accessDescription,
       inviterName: args.inviterName,
     });
-    return { token, emailSent };
+    return delivery.sent;
+  }
+
+  async function insertInvitation(args: {
+    email: string;
+    invitedBy: string | null;
+    role: StaffRole | BuilderRole;
+    builderId: string | null;
+    entraUserId: string | null;
+    now: Date;
+  }): Promise<InvitationRecord> {
+    return invitations.insert({
+      id: uuid(),
+      email: args.email,
+      invitedBy: args.invitedBy,
+      role: args.role,
+      builderId: args.builderId,
+      entraUserId: args.entraUserId,
+      status: 'pending',
+      expiresAt: new Date(args.now.getTime() + invitationTtlSeconds * 1000),
+    });
+  }
+
+  async function createEntraAccount(
+    email: string,
+    name: string,
+  ): Promise<string> {
+    // Graph owns the credential from here on. Failures surface as 502 so
+    // the admin knows the sign-in account was NOT created — the user row
+    // stays (status invited) and resendInvite retries Graph.
+    const created = await entra.createExternalUser({
+      email,
+      displayName: name,
+    });
+    return created.id;
   }
 
   return {
-    assertPasswordValid,
-
-    async invite(rawInput: InviteInput) {
-      const input = InviteInputSchema.parse(rawInput);
+    async invite(input) {
+      const { email, builderId } = validateInviteInput(input);
+      const name = input.name.trim();
       const now = clock();
-      const staffRole = input.staffRole ?? null;
-      const builderId = input.builderId ?? null;
-      const builderRole = input.builderRole ?? null;
-
-      let record = await users.findByEmail(input.email);
-      if (record) {
-        if (record.status === 'active') {
+      const existing = await users.findByEmail(email);
+      if (existing) {
+        rejectProtected(existing);
+        if (existing.status === 'active') {
           throw new HttpError(
             409,
             ErrorCodes.CONFLICT,
-            'This person already has an account — no invitation needed.',
-            false,
+            'This person already has access — no need to invite them again.',
           );
         }
-        if (record.status === 'disabled') {
+        if (existing.status === 'disabled') {
           throw new HttpError(
             409,
             ErrorCodes.CONFLICT,
-            'This account has been deactivated — reactivate it instead of inviting.',
-            false,
+            'This account is disabled — re-enable it instead of inviting again.',
           );
         }
-        if (record.isProtected) {
-          throw new HttpError(
-            403,
-            ErrorCodes.FORBIDDEN,
-            'This account is managed by the system and cannot be re-invited.',
-            false,
-          );
-        }
-        record = await users.updateUser(
-          record.id,
-          { name: input.name, staffRole },
-          now,
-        );
-      } else {
-        record = await users.insert({
-          id: randomUUID(),
-          email: input.email,
-          name: input.name,
-          status: 'invited',
-          staffRole,
-          isProtected: false,
-        });
       }
 
-      const { token, emailSent } = await mintInvitation({
-        email: record.email,
-        name: record.name,
-        staffRole,
-        builderId,
-        builderRole,
-        builderName: input.builderName ?? null,
-        inviterName: input.inviterName ?? null,
+      const user = existing
+        ? await users.updateUser(
+            existing.id,
+            {
+              name,
+              staffRole: isStaffRole(input.role)
+                ? input.role
+                : existing.staffRole,
+            },
+            now,
+          )
+        : await users.insert({
+            id: uuid(),
+            email,
+            name,
+            status: 'invited',
+            staffRole: isStaffRole(input.role) ? input.role : null,
+            entraObjectId: null,
+            isProtected: false,
+          });
+
+      if (builderId) {
+        await memberships.add(user.id, builderId, input.role as BuilderRole);
+      }
+
+      // Idempotency: if a pending invitation already carries a Graph account
+      // (e.g. the first invite's DB write failed after Graph succeeded),
+      // reuse it instead of creating a duplicate Entra account.
+      const pendingInvites = await invitations.findPendingByEmail(email);
+      const entraUserId =
+        pendingInvites.find((i) => i.entraUserId)?.entraUserId ??
+        (await createEntraAccount(email, name));
+
+      await invitations.revokePendingByEmail(email);
+      await insertInvitation({
+        email,
         invitedBy: input.invitedBy ?? null,
+        role: input.role,
+        builderId,
+        entraUserId,
+        now,
       });
-      return { user: await toPublic(record), invitationToken: token, emailSent };
+
+      const emailSent = await sendInviteEmail({
+        user,
+        name,
+        role: input.role,
+        builderId,
+        inviterName: input.inviterName,
+      });
+
+      await audit.log({
+        actorEmail: input.actorEmail ?? null,
+        action: 'user.invited',
+        detail: `email=${email} role=${input.role}`,
+      });
+      return { user: await publicUser(user), emailSent };
     },
 
-    async resendInvite(rawEmail: string, invitedBy) {
-      const emailAddr = normalizeEmail(rawEmail);
-      const record = await users.findByEmail(emailAddr);
-      if (!record || record.status !== 'invited') {
+    async resendInvite(email, opts) {
+      const normalized = normalizeEmail(email);
+      validateEmail(normalized);
+      const now = clock();
+      const user = await users.findByEmail(normalized);
+      if (!user) {
         throw new HttpError(
           404,
           ErrorCodes.NOT_FOUND,
-          'No pending invitation for this email.',
-          false,
+          'No user found for that email — invite them first.',
         );
       }
-      if (record.isProtected) {
-        throw new HttpError(
-          403,
-          ErrorCodes.FORBIDDEN,
-          'This account is managed by the system.',
-          false,
-        );
-      }
-      const pending = await invitations.findPendingByEmail(emailAddr);
-      const latest = pending[0] ?? null;
-      const { token, emailSent } = await mintInvitation({
-        email: record.email,
-        name: record.name,
-        staffRole: latest?.staffRole ?? record.staffRole,
-        builderId: latest?.builderId ?? null,
-        builderRole: latest?.builderRole ?? null,
-        builderName: null,
-        inviterName: invitedBy?.name ?? null,
-        invitedBy: invitedBy?.id ?? null,
-      });
-      return { user: await toPublic(record), invitationToken: token, emailSent };
-    },
-
-    async acceptInvitation(token: string, rawInput) {
-      const input = AcceptInputSchema.parse(rawInput);
-      const now = clock();
-      const invitation = await invitations.findByTokenHash(hashToken(token));
-      if (!invitation || invitation.revokedAt !== null) {
-        throw new HttpError(
-          401,
-          ErrorCodes.INVITATION_INVALID,
-          "This invitation link isn't valid. Ask your admin for a new invite.",
-          false,
-        );
-      }
-      if (invitation.acceptedAt !== null) {
+      rejectProtected(user);
+      if (user.status === 'active') {
         throw new HttpError(
           409,
-          ErrorCodes.INVITATION_ACCEPTED,
-          'This invitation was already used — try signing in instead.',
-          false,
+          ErrorCodes.CONFLICT,
+          'This person already has access — no need to invite them again.',
         );
       }
-      if (invitation.expiresAt.getTime() <= now.getTime()) {
+      if (user.status === 'disabled') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          'This account is disabled — re-enable it instead of inviting again.',
+        );
+      }
+      const latest = await invitations.findLatestByEmail(normalized);
+      if (!latest) {
+        throw new HttpError(
+          404,
+          ErrorCodes.NOT_FOUND,
+          'No invitation found for that email — invite them first.',
+        );
+      }
+      // If the first Graph create failed, retry it now.
+      const entraUserId =
+        latest.entraUserId ??
+        (await createEntraAccount(normalized, user.name));
+      await invitations.revokePendingByEmail(normalized);
+      await insertInvitation({
+        email: normalized,
+        invitedBy: opts?.invitedBy ?? latest.invitedBy,
+        role: latest.role,
+        builderId: latest.builderId,
+        entraUserId,
+        now,
+      });
+      const emailSent = await sendInviteEmail({
+        user,
+        name: user.name,
+        role: latest.role,
+        builderId: latest.builderId,
+        inviterName: opts?.inviterName,
+      });
+      await audit.log({
+        actorEmail: opts?.actorEmail ?? null,
+        action: 'user.invitation_resent',
+        detail: `email=${normalized}`,
+      });
+      return { user: await publicUser(user), emailSent };
+    },
+
+    async revokeInvitation(email, actorEmail) {
+      const normalized = normalizeEmail(email);
+      validateEmail(normalized);
+      const pending = await invitations.findPendingByEmail(normalized);
+      if (pending.length === 0) {
+        throw new HttpError(
+          404,
+          ErrorCodes.NOT_FOUND,
+          'No pending invitation for that email.',
+        );
+      }
+      // Disable the Entra account FIRST: if Graph fails the admin must know
+      // access may still be live, so nothing changes locally on failure.
+      for (const invitation of pending) {
+        if (invitation.entraUserId) {
+          await entra.setAccountEnabled(invitation.entraUserId, false);
+        }
+      }
+      await invitations.revokePendingByEmail(normalized);
+      await audit.log({
+        actorEmail: actorEmail ?? null,
+        action: 'user.invitation_revoked',
+        detail: `email=${normalized}`,
+      });
+    },
+
+    async disableUser(id, actorEmail) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      if (user.status === 'disabled') {
+        return publicUser(user);
+      }
+      if (user.entraObjectId) {
+        await entra.setAccountEnabled(user.entraObjectId, false);
+      }
+      const updated = await users.updateUser(
+        id,
+        { status: 'disabled' },
+        clock(),
+      );
+      await audit.log({
+        actorEmail: actorEmail ?? null,
+        action: 'user.disabled',
+        detail: `email=${user.email}`,
+      });
+      return publicUser(updated);
+    },
+
+    async enableUser(id, actorEmail) {
+      const user = await users.findById(id);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      if (user.entraObjectId) {
+        await entra.setAccountEnabled(user.entraObjectId, true);
+      }
+      const updated = await users.updateUser(
+        id,
+        { status: user.status === 'disabled' ? 'active' : user.status },
+        clock(),
+      );
+      await audit.log({
+        actorEmail: actorEmail ?? null,
+        action: 'user.enabled',
+        detail: `email=${user.email}`,
+      });
+      return publicUser(updated);
+    },
+
+    async completeInvitation(email, entraObjectId) {
+      const normalized = normalizeEmail(email);
+      validateEmail(normalized);
+      const now = clock();
+      const user = await users.findByEmail(normalized);
+      if (!user) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.');
+      }
+      rejectProtected(user);
+      const pending = await invitations.findPendingByEmail(normalized);
+      if (pending.length === 0) {
+        throw new HttpError(
+          404,
+          ErrorCodes.NOT_FOUND,
+          'No pending invitation for that email.',
+        );
+      }
+      const latest = pending[0]!;
+      if (latest.expiresAt.getTime() <= now.getTime()) {
         throw new HttpError(
           401,
           ErrorCodes.INVITATION_EXPIRED,
           'This invitation link has expired. Ask your admin for a new invite.',
-          false,
         );
       }
-      assertPasswordValid(input.password);
-
-      const record = await users.findByEmail(invitation.email);
-      if (!record) {
-        throw new HttpError(
-          500,
-          ErrorCodes.INTERNAL_ERROR,
-          'Invitation is missing its user account.',
-          false,
-        );
+      await invitations.markStatus(latest.id, 'accepted');
+      for (const stale of pending.slice(1)) {
+        await invitations.markStatus(stale.id, 'revoked');
       }
-      if (record.status === 'disabled') {
-        throw new HttpError(
-          403,
-          ErrorCodes.FORBIDDEN,
-          'This account has been deactivated.',
-          false,
-        );
-      }
-      const passwordHash = await hashPassword(input.password, bcryptRounds);
-      const updated = await users.setPasswordHash(record.id, passwordHash, now);
-      if (input.name !== undefined && input.name !== updated.name) {
-        await users.updateUser(record.id, { name: input.name }, now);
-      }
-      if (invitation.builderId !== null && invitation.builderRole !== null) {
-        await memberships.add(
-          record.id,
-          invitation.builderId,
-          invitation.builderRole,
-        );
-      }
-      await invitations.markAccepted(invitation.id, now);
-      const fresh = await users.findById(record.id);
-      if (!fresh) {
-        throw new HttpError(
-          500,
-          ErrorCodes.INTERNAL_ERROR,
-          'User account disappeared during invitation acceptance.',
-          false,
-        );
-      }
-      return toPublic(fresh);
+      const updated = await users.updateUser(
+        user.id,
+        { status: 'active', entraObjectId },
+        now,
+      );
+      await audit.log({
+        actorEmail: null,
+        action: 'user.invitation_accepted',
+        detail: `email=${normalized}`,
+      });
+      return publicUser(updated);
     },
 
-    async verifyPassword(rawEmail: string, password: string) {
-      let record: UserRecord | null = null;
-      try {
-        record = await users.findByEmail(normalizeEmail(rawEmail));
-      } catch {
-        record = null;
-      }
-      const candidate =
-        record !== null &&
-        record.status === 'active' &&
-        record.passwordHash !== null
-          ? record.passwordHash
-          : DUMMY_PASSWORD_HASH;
-      const match = await verifyPasswordHash(password, candidate);
-      if (!match || record === null || record.status !== 'active') {
-        return null;
-      }
-      return toPublic(record);
+    async findByEmail(email) {
+      const user = await users.findByEmail(normalizeEmail(email));
+      return user ? publicUser(user) : null;
     },
 
-    async findByEmail(rawEmail: string) {
-      const record = await users.findByEmail(normalizeEmail(rawEmail));
-      return record ? toPublic(record) : null;
+    async findById(id) {
+      const user = await users.findById(id);
+      return user ? publicUser(user) : null;
     },
 
-    async findById(id: string) {
-      const record = await users.findById(id);
-      return record ? toPublic(record) : null;
-    },
-
-    async listUsers(limit: number, offset: number) {
-      const records = await users.list(limit, offset);
-      return Promise.all(records.map((r) => toPublic(r)));
+    async listUsers(limit = 50, offset = 0) {
+      const rows = await users.list(limit, offset);
+      return Promise.all(rows.map((row) => publicUser(row)));
     },
   };
 }

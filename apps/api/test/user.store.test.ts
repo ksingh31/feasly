@@ -1,10 +1,13 @@
 /**
- * Migration 0036 + Drizzle user-store tests (auth/01).
+ * Migration 0036 + Drizzle user-store tests (auth/01 — Entra pivot).
  *
  * Runs the real migration SQL against PGlite, then asserts the schema
  * shape (tables, columns, indexes, FKs, cascade rules, unique constraints,
  * Karan's protected seed) and exercises the Drizzle store implementations
  * end to end — no fakes below the service layer here.
+ *
+ * Entra owns the credential: there is no password_hash column, no
+ * token_hash column, and no password anywhere in this file.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -18,7 +21,7 @@ import { createTestDb, type TestDb } from './pglite-db';
 
 const KARAN_EMAIL = 'karanbirsingh667@gmail.com';
 
-describe('migration 0036 — auth user model', () => {
+describe('migration 0036 — auth user model (Entra)', () => {
   let testDb: TestDb;
   beforeAll(async () => {
     testDb = await createTestDb();
@@ -38,7 +41,7 @@ describe('migration 0036 — auth user model', () => {
     ]);
   });
 
-  it('gives users the auth columns with the right nullability and defaults', async () => {
+  it('gives users the Entra columns — no password_hash anywhere', async () => {
     const rows = await testDb.rows<{
       column_name: string;
       is_nullable: string;
@@ -48,18 +51,34 @@ describe('migration 0036 — auth user model', () => {
     );
     const byName = new Map(rows.map((r) => [r.column_name, r]));
     expect(byName.get('email')?.is_nullable).toBe('NO');
-    expect(byName.get('password_hash')?.is_nullable).toBe('YES');
+    expect(byName.get('entra_object_id')?.is_nullable).toBe('YES');
     expect(byName.get('staff_role')?.is_nullable).toBe('YES');
     expect(byName.get('is_protected')?.is_nullable).toBe('NO');
     expect(byName.get('status')?.column_default).toContain('invited');
-    // Unique email.
+    expect(byName.has('password_hash')).toBe(false);
+    // Unique email AND unique entra_object_id.
     const uniq = await testDb.rows<{ conname: string }>(
       `select conname from pg_constraint where conrelid = 'users'::regclass and contype = 'u'`,
     );
-    expect(uniq.length).toBeGreaterThanOrEqual(1);
+    expect(uniq.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('creates the lookup indexes and the unique membership pair', async () => {
+  it('gives invitations the Entra shape — no token_hash anywhere', async () => {
+    const rows = await testDb.rows<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_name = 'invitations'`,
+    );
+    const names = rows.map((r) => r.column_name);
+    expect(names).toContain('role');
+    expect(names).toContain('builder_id');
+    expect(names).toContain('entra_user_id');
+    expect(names).toContain('status');
+    expect(names).toContain('expires_at');
+    expect(names).not.toContain('token_hash');
+    expect(names).not.toContain('staff_role');
+    expect(names).not.toContain('builder_role');
+  });
+
+  it('creates the lookup indexes', async () => {
     const rows = await testDb.rows<{ indexname: string }>(
       `select indexname from pg_indexes where schemaname = 'public' and tablename in ('users', 'builder_memberships', 'invitations')`,
     );
@@ -67,8 +86,8 @@ describe('migration 0036 — auth user model', () => {
     expect(names).toContain('users_email_idx');
     expect(names).toContain('builder_memberships_user_builder_idx');
     expect(names).toContain('builder_memberships_builder_idx');
-    expect(names).toContain('invitations_token_hash_idx');
     expect(names).toContain('invitations_email_idx');
+    expect(names).toContain('invitations_entra_user_id_idx');
   });
 
   it('wires the foreign keys with cascade deletes', async () => {
@@ -94,15 +113,15 @@ describe('migration 0036 — auth user model', () => {
     }
   });
 
-  it('seeds Karan as the protected super_admin (invited, no password)', async () => {
+  it('seeds Karan as the protected super_admin with no Entra id yet', async () => {
     const rows = await testDb.rows<{
       id: string;
       status: string;
       staff_role: string;
       is_protected: boolean;
-      password_hash: string | null;
+      entra_object_id: string | null;
     }>(
-      `select id, status, staff_role, is_protected, password_hash from users where email = '${KARAN_EMAIL}'`,
+      `select id, status, staff_role, is_protected, entra_object_id from users where email = '${KARAN_EMAIL}'`,
     );
     expect(rows).toHaveLength(1);
     const seed = rows[0]!;
@@ -110,11 +129,12 @@ describe('migration 0036 — auth user model', () => {
     expect(seed.status).toBe('invited');
     expect(seed.staff_role).toBe('super_admin');
     expect(seed.is_protected).toBe(true);
-    expect(seed.password_hash).toBeNull();
+    // Linked during the Azure tenant setup — NULL until then.
+    expect(seed.entra_object_id).toBeNull();
   });
 });
 
-describe('drizzle user stores', () => {
+describe('drizzle user stores (Entra)', () => {
   let testDb: TestDb;
   beforeAll(async () => {
     testDb = await createTestDb();
@@ -135,7 +155,7 @@ describe('drizzle user stores', () => {
     });
   });
 
-  it('user store round-trips insert → findByEmail', async () => {
+  it('user store round-trips insert → findByEmail → updateUser', async () => {
     const store = createDrizzleUserStore({ db: testDb.db });
     const created = await store.insert({
       id: USER_ID,
@@ -143,15 +163,27 @@ describe('drizzle user stores', () => {
       name: 'Ada',
       status: 'invited',
       staffRole: 'admin',
+      entraObjectId: null,
       isProtected: false,
     });
-    expect(created.passwordHash).toBeNull();
+    expect(created.entraObjectId).toBeNull();
+
     const found = await store.findByEmail('ada@example.com');
     expect(found?.id).toBe(USER_ID);
     expect(await store.findByEmail('missing@example.com')).toBeNull();
+
+    // #71 links the Entra id on first sign-in.
+    const linked = await store.updateUser(
+      USER_ID,
+      { status: 'active', entraObjectId: 'entra-ada' },
+      new Date(),
+    );
+    expect(linked.status).toBe('active');
+    expect(linked.entraObjectId).toBe('entra-ada');
+    expect((await store.findById(USER_ID))?.entraObjectId).toBe('entra-ada');
   });
 
-  it('rejects a duplicate email (unique identity)', async () => {
+  it('rejects a duplicate email and a duplicate Entra id (nulls allowed)', async () => {
     const store = createDrizzleUserStore({ db: testDb.db });
     await expect(
       store.insert({
@@ -160,63 +192,65 @@ describe('drizzle user stores', () => {
         name: 'Ada Clone',
         status: 'invited',
         staffRole: null,
+        entraObjectId: null,
         isProtected: false,
       }),
     ).rejects.toThrow();
-  });
-
-  it('setPasswordHash flips invited → active but never disabled → active', async () => {
-    const store = createDrizzleUserStore({ db: testDb.db });
-    const flipped = await store.setPasswordHash(
-      USER_ID,
-      '$2b$04$dummyhashfortestingonly..................',
-      new Date(),
-    );
-    expect(flipped.status).toBe('active');
-    expect(flipped.passwordHash).toContain('$2b$04$');
-
-    const disabledId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    // Multiple NULL entra ids are fine (unique indexes ignore NULLs).
     await store.insert({
-      id: disabledId,
-      email: 'disabled@example.com',
-      name: 'Dis',
-      status: 'disabled',
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      email: 'nulls@example.com',
+      name: 'Nulls',
+      status: 'invited',
       staffRole: null,
+      entraObjectId: null,
       isProtected: false,
     });
-    const stillDisabled = await store.setPasswordHash(
-      disabledId,
-      '$2b$04$dummyhashfortestingonly..................',
-      new Date(),
-    );
-    expect(stillDisabled.status).toBe('disabled');
+    // A second row with the same non-null Entra id is not.
+    await expect(
+      store.updateUser(
+        'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        { entraObjectId: 'entra-ada' },
+        new Date(),
+      ),
+    ).rejects.toThrow();
   });
 
-  it('invitation store tracks pending excluding accepted and revoked', async () => {
+  it('invitation store tracks pending → accepted/revoked with the new shape', async () => {
     const store = createDrizzleInvitationStore({ db: testDb.db });
     const email = 'invite@example.com';
-    const mk = (tokenHash: string) =>
-      store.insert({
-        id: tokenHash.slice(0, 8) + '-0000-4000-8000-000000000000',
-        email,
-        staffRole: 'viewer',
-        builderId: null,
-        builderRole: null,
-        tokenHash,
-        expiresAt: new Date(Date.now() + 3600_000),
-        invitedBy: null,
-      });
-    const first = await mk('a'.repeat(64));
-    await mk('b'.repeat(64));
-    expect(await store.findPendingByEmail(email)).toHaveLength(2);
-    expect(await store.findByTokenHash('a'.repeat(64))).not.toBeNull();
+    const first = await store.insert({
+      id: '11111111-1111-4111-8111-111111111111',
+      email,
+      invitedBy: null,
+      role: 'builder_member',
+      builderId: BUILDER_ID,
+      entraUserId: 'entra-invite',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    await store.insert({
+      id: '22222222-2222-4222-8222-222222222222',
+      email,
+      invitedBy: null,
+      role: 'viewer',
+      builderId: null,
+      entraUserId: 'entra-invite',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
 
-    await store.markAccepted(first.id, new Date());
+    expect(await store.findPendingByEmail(email)).toHaveLength(2);
+    const latest = await store.findLatestByEmail(email);
+    expect(latest?.role).toBe('viewer');
+
+    await store.markStatus(first.id, 'accepted');
     expect(await store.findPendingByEmail(email)).toHaveLength(1);
 
-    const revoked = await store.revokePendingByEmail(email, new Date());
+    const revoked = await store.revokePendingByEmail(email);
     expect(revoked).toBe(1);
     expect(await store.findPendingByEmail(email)).toHaveLength(0);
+    expect(await store.findLatestByEmail(email)).not.toBeNull();
   });
 
   it('membership store is idempotent and cascades on user delete', async () => {
@@ -246,6 +280,7 @@ describe('drizzle user stores', () => {
       name: 'Pair',
       status: 'active',
       staffRole: null,
+      entraObjectId: 'entra-pair',
       isProtected: false,
     });
     await memberships.add(uid, BUILDER_ID, 'builder_member');

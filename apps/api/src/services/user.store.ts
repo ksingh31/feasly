@@ -2,7 +2,7 @@
  * Drizzle stores for auth/01 (users, invitations, builder memberships).
  * Implements the store interfaces from user.service.ts against Postgres.
  */
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   builderMemberships,
@@ -13,6 +13,7 @@ import type {
   BuilderMembership,
   BuilderRole,
   InvitationRecord,
+  InvitationStatus,
   InvitationStore,
   MembershipStore,
   StaffRole,
@@ -34,10 +35,10 @@ function toUserRecord(row: UserRow): UserRecord {
   return {
     id: row.id,
     email: row.email,
-    passwordHash: row.passwordHash,
     name: row.name,
     status: row.status as UserStatus,
     staffRole: row.staffRole as StaffRole | null,
+    entraObjectId: row.entraObjectId,
     isProtected: row.isProtected,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -48,14 +49,12 @@ function toInvitationRecord(row: InvitationRow): InvitationRecord {
   return {
     id: row.id,
     email: row.email,
-    staffRole: row.staffRole as StaffRole | null,
-    builderId: row.builderId,
-    builderRole: row.builderRole as BuilderRole | null,
-    tokenHash: row.tokenHash,
-    expiresAt: row.expiresAt,
-    acceptedAt: row.acceptedAt,
-    revokedAt: row.revokedAt,
     invitedBy: row.invitedBy,
+    role: row.role as StaffRole | BuilderRole,
+    builderId: row.builderId,
+    entraUserId: row.entraUserId,
+    status: row.status as InvitationStatus,
+    expiresAt: row.expiresAt,
     createdAt: row.createdAt,
   };
 }
@@ -87,24 +86,6 @@ export function createDrizzleUserStore(deps: DrizzleUserStoreDeps): UserStore {
         .limit(1);
       const row = rows[0];
       return row ? toUserRecord(row) : null;
-    },
-
-    async setPasswordHash(id: string, passwordHash: string, now: Date) {
-      const rows = await database
-        .update(users)
-        .set({
-          passwordHash,
-          // invited → active on first password set. Any other status
-          // (active, disabled) is preserved — setting a password must
-          // never reactivate a deactivated account.
-          status: sql`CASE WHEN ${users.status} = 'invited' THEN 'active' ELSE ${users.status} END`,
-          updatedAt: now,
-        })
-        .where(eq(users.id, id))
-        .returning();
-      const row = rows[0];
-      if (!row) throw new Error(`user not found: ${id}`);
-      return toUserRecord(row);
     },
 
     async updateUser(id: string, patch, now: Date) {
@@ -144,48 +125,43 @@ export function createDrizzleInvitationStore(
       return toInvitationRecord(row);
     },
 
-    async findByTokenHash(tokenHash: string) {
-      const rows = await database
-        .select()
-        .from(invitations)
-        .where(eq(invitations.tokenHash, tokenHash))
-        .limit(1);
-      const row = rows[0];
-      return row ? toInvitationRecord(row) : null;
-    },
-
     async findPendingByEmail(email: string) {
       const rows = await database
         .select()
         .from(invitations)
         .where(
-          and(
-            eq(invitations.email, email),
-            isNull(invitations.acceptedAt),
-            isNull(invitations.revokedAt),
-          ),
+          and(eq(invitations.email, email), eq(invitations.status, 'pending')),
         )
         .orderBy(desc(invitations.createdAt));
       return rows.map(toInvitationRecord);
     },
 
-    async markAccepted(id: string, acceptedAt: Date) {
-      await database
-        .update(invitations)
-        .set({ acceptedAt })
-        .where(eq(invitations.id, id));
+    async findLatestByEmail(email: string) {
+      const rows = await database
+        .select()
+        .from(invitations)
+        .where(eq(invitations.email, email))
+        .orderBy(desc(invitations.createdAt))
+        .limit(1);
+      const row = rows[0];
+      return row ? toInvitationRecord(row) : null;
     },
 
-    async revokePendingByEmail(email: string, revokedAt: Date) {
+    async markStatus(id: string, status: InvitationStatus) {
       const rows = await database
         .update(invitations)
-        .set({ revokedAt })
+        .set({ status })
+        .where(eq(invitations.id, id))
+        .returning();
+      if (!rows[0]) throw new Error(`invitation not found: ${id}`);
+    },
+
+    async revokePendingByEmail(email: string) {
+      const rows = await database
+        .update(invitations)
+        .set({ status: 'revoked' })
         .where(
-          and(
-            eq(invitations.email, email),
-            isNull(invitations.acceptedAt),
-            isNull(invitations.revokedAt),
-          ),
+          and(eq(invitations.email, email), eq(invitations.status, 'pending')),
         )
         .returning({ id: invitations.id });
       return rows.length;

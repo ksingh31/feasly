@@ -71,21 +71,15 @@ export const ErrorCodes = {
    */
   MAGIC_LINK_USED: 'MAGIC_LINK_USED',
   /**
-   * auth/01 — invitation token invalid (unknown or revoked). 401, same as
-   * an expired invitation's distinct code so the accept page can show
-   * "ask your admin for a new invite" copy.
-   */
-  INVITATION_INVALID: 'INVITATION_INVALID',
-  /**
-   * auth/01 — invitation token was valid but expired. 401 with the
+   * auth/01 — invitation expired before first sign-in. 401 with the
    * "link expired" copy (no stack trace, no token echo).
    */
   INVITATION_EXPIRED: 'INVITATION_EXPIRED',
   /**
-   * auth/01 — invitation already accepted. 409: the account exists, just
-   * sign in.
+   * auth/01 — the protected super-admin account (Karan's). The API refuses
+   * to edit or delete it; link it during the Azure tenant setup instead.
    */
-  INVITATION_ACCEPTED: 'INVITATION_ACCEPTED',
+  PROTECTED_ACCOUNT: 'PROTECTED_ACCOUNT',
 } as const;
 
 /**
