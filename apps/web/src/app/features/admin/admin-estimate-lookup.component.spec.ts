@@ -107,8 +107,29 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       id: 'missing-id',
       error: { code: 'ESTIMATE_NOT_FOUND', message: 'No estimate.', retryable: false },
     });
-    expect(textOf(fixture)).toContain('No estimate found for ID');
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).toContain('check the link and try again');
     expect(textOf(fixture)).toContain('missing-id');
+  });
+
+  it('shows the not-found copy for a malformed id (400 VALIDATION_FAILED)', async () => {
+    // The route validates the id as a UUID; a non-UUID id can never match
+    // an estimate, so it reads as a miss — not a system error.
+    const { fixture } = await setup({
+      id: 'not-a-uuid',
+      error: { code: 'VALIDATION_FAILED', message: 'Invalid estimate id.', retryable: false },
+    });
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).not.toContain('Something went wrong');
+    expect(textOf(fixture)).not.toContain('Retry');
+  });
+
+  it('shows the not-found copy for a bare http_400', async () => {
+    const { fixture } = await setup({
+      id: 'not-a-uuid',
+      error: { code: 'http_400', message: 'Request failed.', retryable: false },
+    });
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
   });
 
   it('shows a retryable error for transient failures', async () => {

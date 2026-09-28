@@ -41,6 +41,30 @@ describe('SeoService', () => {
         notFound: 'Not found description.',
         magicLinkTitle: 'Feasly — Opening your estimate',
         magicLink: 'Opening description.',
+        adminHomeTitle: 'Admin — Feasly',
+        adminHome: 'Admin home description.',
+        adminLeadsTitle: 'Leads — Feasly Admin',
+        adminLeads: 'Leads description.',
+        adminBuildersTitle: 'Builders — Feasly Admin',
+        adminBuilders: 'Builders description.',
+        adminDisputesTitle: 'Disputes — Feasly Admin',
+        adminDisputes: 'Disputes description.',
+        adminCalibrationTitle: 'Calibration — Feasly Admin',
+        adminCalibration: 'Calibration description.',
+        adminBillingTitle: 'Billing — Feasly Admin',
+        adminBilling: 'Billing description.',
+        adminSheetsTitle: 'Sheets sync — Feasly Admin',
+        adminSheets: 'Sheets description.',
+        adminEstimatesTitle: 'Estimate lookup — Feasly Admin',
+        adminEstimates: 'Estimates description.',
+        adminApiKeysTitle: 'API keys — Feasly Admin',
+        adminApiKeys: 'API keys description.',
+        adminFunnelsTitle: 'Funnels — Feasly Admin',
+        adminFunnels: 'Funnels description.',
+        adminLoginTitle: 'Admin sign in — Feasly',
+        adminLogin: 'Login description.',
+        adminCallbackTitle: 'Completing sign in — Feasly',
+        adminCallback: 'Callback description.',
       },
     },
   };
@@ -163,6 +187,36 @@ describe('SeoService', () => {
     expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href).toBe(
       'https://feasly.com/estimate/scope/',
     );
+  });
+
+  it('setForRoute resolves each admin section to its own title (admin/07)', () => {
+    // Regression: /admin/billing inherited "Disputes — Feasly Admin",
+    // /admin/ops/sheets inherited the calibration title, /admin/builders
+    // fell through to the 404 title.
+    const cases: Array<[string, string]> = [
+      ['admin', 'Admin — Feasly'],
+      ['admin/leads', 'Leads — Feasly Admin'],
+      ['admin/builders', 'Builders — Feasly Admin'],
+      ['admin/disputes', 'Disputes — Feasly Admin'],
+      ['admin/calibration', 'Calibration — Feasly Admin'],
+      ['admin/billing', 'Billing — Feasly Admin'],
+      ['admin/ops/sheets', 'Sheets sync — Feasly Admin'],
+      ['admin/estimates', 'Estimate lookup — Feasly Admin'],
+      ['admin/api-keys', 'API keys — Feasly Admin'],
+      ['admin/funnels', 'Funnels — Feasly Admin'],
+      ['admin/login', 'Admin sign in — Feasly'],
+      ['admin/auth/callback', 'Completing sign in — Feasly'],
+    ];
+    for (const [path, title] of cases) {
+      service.setForRoute(path);
+      expect(TestBed.inject(Title).getTitle(), path).toBe(title);
+      expect(TestBed.inject(Meta).getTag('name="robots"')?.content, path).toBe(
+        'noindex,nofollow',
+      );
+    }
+    // Unknown admin sub-paths get the generic admin title, not the 404 one.
+    service.setForRoute('admin/unknown-section');
+    expect(TestBed.inject(Title).getTitle()).toBe('Admin — Feasly');
   });
 
   it('covers every story-required noindex pattern', () => {
