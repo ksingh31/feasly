@@ -113,7 +113,9 @@ export class LandingPageComponent implements OnInit {
 
   /** Buyer-grade explanation for the early coverage block. */
   coverageMessage(block: { property: PropertyRecord; issue: PricingCoverageIssue }): string {
-    return this.previewCopy.validationGenericBody;
+    return block.issue === 'non-residential'
+      ? this.previewCopy.validationNonResidentialBody
+      : this.previewCopy.validationGenericBody;
   }
 
   /**

@@ -237,6 +237,10 @@ export const PropertyRecordSchema = z
     assessedValue: z.number().int().describe('City-assessed value, integer CAD'),
     assessmentYear: z.number().int(),
     yearBuilt: z.number().int().nullable(),
+    assessmentClass: z.string().describe("City assessment class code, verbatim (e.g. 'R', 'NR')"),
+    isNonResidential: z
+      .boolean()
+      .describe('True when the City classifies the parcel non-residential (commercial/industrial)'),
     dataAsOf: z.string().describe('When the City data was fetched (ISO date)'),
     stale: z
       .boolean()

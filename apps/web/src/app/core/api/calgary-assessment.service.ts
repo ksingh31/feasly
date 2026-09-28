@@ -22,6 +22,8 @@ interface AssessmentRow {
   readonly roll_year?: string | number;
   readonly address?: string;
   readonly assessed_value?: string | number;
+  readonly assessment_class?: string;
+  readonly assessment_class_description?: string;
   readonly comm_name?: string;
   readonly year_of_construction?: string | number;
   readonly land_use_designation?: string;
@@ -36,6 +38,8 @@ const DETAIL_FIELDS = [
   'roll_year',
   'address',
   'assessed_value',
+  'assessment_class',
+  'assessment_class_description',
   'comm_name',
   'year_of_construction',
   'land_use_designation',
@@ -159,6 +163,19 @@ function isApiError(value: unknown): value is ApiError {
     typeof value === 'object' &&
     value !== null &&
     typeof (value as ApiError).code === 'string'
+  );
+}
+
+/**
+ * True when the City classifies the parcel non-residential
+ * (commercial/industrial). Mirrors the backend mapper in
+ * apps/api/src/services/property.service.ts — keep them in sync.
+ */
+function isNonResidentialRow(row: AssessmentRow): boolean {
+  if (row.assessment_class?.trim().toUpperCase() === 'NR') return true;
+  const description = row.assessment_class_description?.toLowerCase() ?? '';
+  return (
+    description.includes('non-residential') || description.includes('non residential')
   );
 }
 
@@ -389,6 +406,8 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
     assessedValue: Math.round(assessedValue),
     assessmentYear,
     yearBuilt: toNumber(row.year_of_construction),
+    assessmentClass: row.assessment_class?.trim() ?? '',
+    isNonResidential: isNonResidentialRow(row),
     dataAsOf: modDate || new Date().toISOString().split('T')[0],
     stale: assessmentYear < new Date().getFullYear(),
   };

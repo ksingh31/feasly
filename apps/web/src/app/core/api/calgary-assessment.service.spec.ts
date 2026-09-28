@@ -27,6 +27,8 @@ describe('CalgaryAssessmentService', () => {
     roll_year: String(THIS_YEAR),
     address: '918 16 AVE NW',
     assessed_value: '823000',
+    assessment_class: 'R',
+    assessment_class_description: 'Residential',
     comm_name: 'Mount Pleasant',
     year_of_construction: '1974',
     land_use_designation: 'R-C1',
@@ -319,9 +321,28 @@ describe('CalgaryAssessmentService', () => {
         assessedValue: 823000,
         assessmentYear: THIS_YEAR,
         yearBuilt: 1974,
+        assessmentClass: 'R',
+        isNonResidential: false,
         dataAsOf: '2026-07-01',
         stale: false,
       });
+    });
+
+    it('flags a non-residential (NR) row as isNonResidential', async () => {
+      const pending = firstValueFrom(service.getProperty('12345 40 ST SE'));
+      expectDetail('12345 40 ST SE').flush([
+        {
+          ...ROW_918,
+          address: '12345 40 ST SE',
+          assessed_value: '61580000',
+          assessment_class: 'NR',
+          assessment_class_description: 'Non-Residential',
+          comm_name: 'EAST SHEPARD INDUSTRIAL',
+        },
+      ]);
+      const property = await pending;
+      expect(property.assessmentClass).toBe('NR');
+      expect(property.isNonResidential).toBe(true);
     });
 
     it('accepts numeric (non-string) column values', async () => {
