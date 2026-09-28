@@ -155,6 +155,14 @@ const targets = [
     out: 'admin-auth-entra-callback/index.js',
   },
   {
+    entry: 'src/functions/admin-auth-switch-builder.ts',
+    out: 'admin-auth-switch-builder/index.js',
+  },
+  {
+    entry: 'src/functions/admin-view-as.ts',
+    out: 'admin-view-as/index.js',
+  },
+  {
     entry: 'src/functions/mcp.ts',
     out: 'mcp/index.js',
   },
