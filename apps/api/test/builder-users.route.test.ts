@@ -35,7 +35,7 @@ function publicUser(overrides: Partial<PublicUser> = {}): PublicUser {
     isProtected: false,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
-    memberships: [{ builderId: BUILDER_ID, role: 'builder_member' }],
+    memberships: [{ builderId: BUILDER_ID, role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') }],
     ...overrides,
   } as PublicUser;
 }
@@ -49,7 +49,7 @@ function makeDeps() {
     permissions: ['builder:users:manage'],
     builderId: BUILDER_ID,
     builderName: 'Elite Craft Builders',
-    memberships: [{ builderId: BUILDER_ID, role: 'builder_admin' }],
+    memberships: [{ builderId: BUILDER_ID, role: 'builder_admin', createdAt: new Date('2026-01-01T00:00:00Z') }],
     viewAs: null,
     realUser: null,
   } as unknown as AuthContext;
@@ -146,7 +146,7 @@ describe('builder users route', () => {
     vi.mocked(d.userService.findById).mockResolvedValue(
       publicUser({
         memberships: [
-          { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_member' },
+          { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
         ],
       }),
     );
