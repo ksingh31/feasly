@@ -57,7 +57,12 @@
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
-              <td>{{ user.name }}</td>
+              <td>
+                {{ user.name }}
+                @if (isSelf(user)) {
+                  <span class="users-page__you">You</span>
+                }
+              </td>
               <td>{{ user.email }}</td>
               <td>{{ roleLabel(user) }}</td>
               <td>

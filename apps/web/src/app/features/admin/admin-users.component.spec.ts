@@ -7,6 +7,7 @@ import type { AdminUser } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { OpenInviteAdminUser } from './admin-users.actions';
 import { AdminUsersComponent } from './admin-users.component';
+import { AdminAuthState } from './admin-auth.state';
 import { AdminBuildersState } from './admin-builders.state';
 import { AdminUsersState } from './admin-users.state';
 
@@ -49,7 +50,7 @@ describe('AdminUsersComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminUsersState, AdminBuildersState]),
+        provideStore([AdminUsersState, AdminBuildersState, AdminAuthState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
@@ -104,6 +105,20 @@ describe('AdminUsersComponent', () => {
     // Invited (never accepted) users can't be deactivated — only deleted.
     expect(buttons).not.toContain('Deactivate');
     expect(buttons).not.toContain('Reactivate');
+  });
+
+  it('marks the signed-in admin row with a You badge', () => {
+    flushInit([PROTECTED, INVITED]);
+    // Simulate the session email matching the protected Karan seed row.
+    store.reset({
+      adminUsers: store.selectSnapshot((s) => s.adminUsers),
+      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+      adminAuth: { ...store.selectSnapshot((s) => s.adminAuth), email: 'karan@feasly.example' },
+    });
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll('tbody tr');
+    expect((rows[0] as HTMLElement).querySelector('.users-page__you')).not.toBeNull();
+    expect((rows[1] as HTMLElement).querySelector('.users-page__you')).toBeNull();
   });
 
   it('opens and closes the invite dialog', () => {

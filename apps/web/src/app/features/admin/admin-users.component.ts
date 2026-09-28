@@ -32,6 +32,7 @@ import {
   UpdateAdminUser,
 } from './admin-users.actions';
 import { AdminUsersState } from './admin-users.state';
+import { AdminAuthState } from './admin-auth.state';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
 
@@ -84,6 +85,8 @@ export class AdminUsersComponent implements OnInit {
   protected readonly deleting = this.store.selectSignal(AdminUsersState.deleting);
   protected readonly deleteError = this.store.selectSignal(AdminUsersState.deleteError);
   protected readonly resendingId = this.store.selectSignal(AdminUsersState.resendingId);
+  /** Lowercased email the admin session was issued for — marks the self row. */
+  protected readonly selfEmail = this.store.selectSignal(AdminAuthState.email);
   protected readonly notice = this.store.selectSignal(AdminUsersState.notice);
   protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
 
@@ -340,6 +343,12 @@ export class AdminUsersComponent implements OnInit {
 
   protected canToggleActive(user: AdminUser): boolean {
     return !user.isProtected && user.status !== 'invited';
+  }
+
+  /** Whether this row is the signed-in admin (self-harm is blocked server-side). */
+  protected isSelf(user: AdminUser): boolean {
+    const self = this.selfEmail();
+    return self !== null && user.email.toLowerCase() === self;
   }
 
   protected canDelete(user: AdminUser): boolean {
