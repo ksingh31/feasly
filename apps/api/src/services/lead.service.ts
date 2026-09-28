@@ -47,6 +47,7 @@ import type { LeadResponse } from '@feasly/contracts';
 import { computeLeadScore } from '../lib/lead-score';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderConfigService } from './builder-config.service';
+import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
@@ -109,6 +110,14 @@ export interface LeadServiceDeps {
   readonly magicLinkTtlSeconds: number;
   /** Validates embed tenant keys (EMB-03). Optional — embeds disabled when absent. */
   readonly builderConfigs?: BuilderConfigService;
+  /**
+   * Embed dual-write (builders table): when a lead carries a tenant key,
+   * the builder row is resolved here so `builder_id` is stamped in the
+   * same insert and the lead shows in the builder portal immediately.
+   * Optional — when absent the lead is captured with a null builder_id
+   * (the migration backfill covers pre-existing rows).
+   */
+  readonly builders?: BuilderService;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -178,6 +187,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     readonly estimate: { readonly figures: unknown };
     readonly email: string;
     readonly expiresInDays: number;
+    /**
+     * Embed dual-write repair: the builder id resolved for this tenant.
+     * Stamped only when the stored lead still has a null builder_id.
+     */
+    readonly builderId?: string | null;
   }): Promise<LeadResponse> {
     const { existing, input, estimate, email, expiresInDays } = args;
     if (existing.quarantined) {
@@ -200,6 +214,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         timeline: input.timeline,
         leadScore,
         estimateId: input.estimateId,
+        // Embed dual-write repair: stamp the resolved builder only when
+        // the stored lead predates the builders-table backfill.
+        ...(existing.builderId === null && args.builderId != null
+          ? { builderId: args.builderId }
+          : {}),
       });
     } catch (error) {
       throw new Error('lead dedupe update failed', { cause: error });
@@ -304,6 +323,20 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         source = 'embed';
       }
 
+      // Embed dual-write (builders table): resolve the builder row for the
+      // validated tenant key so builder_id is stamped in the same insert.
+      // tenant_key stays populated too — billing/attribution still reads
+      // it. A missing builder row (shouldn't happen: the key just
+      // validated) degrades to a null builder_id. A lookup *failure* is
+      // NOT swallowed: the builder row lives in the same database as the
+      // lead insert, so a failed lookup means the insert would fail too —
+      // surfacing the error keeps the failure loud and retryable instead
+      // of silently capturing a portal-invisible lead.
+      let builderId: string | null = null;
+      if (tenantKey !== undefined && deps.builders) {
+        builderId = (await deps.builders.getByTenantKey(tenantKey))?.id ?? null;
+      }
+
       // PII guard: store failures are rethrown sanitized (the original is
       // chained as `cause` for programmatic inspection but never reaches
       // logs — driver errors can echo submitted values).
@@ -330,6 +363,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           estimate,
           email,
           expiresInDays,
+          builderId,
         });
       }
 
@@ -351,6 +385,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           marketingConsent: input.marketingConsent,
           consentTs: now,
           tenantKey,
+          builderId,
           source,
           quarantined,
         });

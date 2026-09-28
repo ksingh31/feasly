@@ -22,6 +22,7 @@ import type {
 import type { AppDb } from '../db/client';
 import { builders, leads } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { isUniqueViolation } from './pg-errors';
 import type { AdminAuditStore } from './admin-audit.store';
 
 export interface BuilderService {
@@ -49,6 +50,10 @@ export interface BuilderService {
     builderId: string | null,
     adminEmail: string,
   ): Promise<{ readonly ok: true }>;
+  // FUTURE (builder onboarding story): portal-access management hooks in
+  // here — list/grant/revoke builder_allowlist emails per builder. The
+  // builder_allowlist table and the /builder/login magic-link flow already
+  // exist; this is where the admin API will manage them.
 }
 
 export interface BuilderServiceDeps {
@@ -140,23 +145,41 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           false,
         );
       }
-      const [row] = await db
-        .insert(builders)
-        .values({
-          id: randomUUID(),
-          tenantKey: input.tenantKey.trim(),
-          businessName: input.businessName.trim(),
-          displayName: input.displayName.trim(),
-          email: input.email?.trim() || null,
-          phone: input.phone?.trim() || null,
-          logoUrl: input.logoUrl?.trim() || null,
-          accentColor: input.accentColor?.trim() || null,
-          allowedOrigins: normalizeOrigins(input.allowedOrigins),
-          plan: input.plan?.trim() || null,
-          status,
-          settings: { ...(input.settings ?? {}) },
-        })
-        .returning();
+      // Check-then-insert race: the pre-check above catches the common
+      // case, but two concurrent creates can both pass it. Map the
+      // insert-time unique violation to the same 409 as the pre-check
+      // instead of leaking a 500.
+      let row;
+      try {
+        [row] = await db
+          .insert(builders)
+          .values({
+            id: randomUUID(),
+            tenantKey: input.tenantKey.trim(),
+            businessName: input.businessName.trim(),
+            displayName: input.displayName.trim(),
+            email: input.email?.trim() || null,
+            phone: input.phone?.trim() || null,
+            logoUrl: input.logoUrl?.trim() || null,
+            accentColor: input.accentColor?.trim() || null,
+            allowedOrigins: normalizeOrigins(input.allowedOrigins),
+            plan: input.plan?.trim() || null,
+            status,
+            settings: { ...(input.settings ?? {}) },
+          })
+          .returning();
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            `A builder with tenant key "${input.tenantKey.trim()}" already exists.`,
+            false,
+          );
+        }
+        throw error;
+      }
+      if (!row) throw new Error('builder insert returned no row');
       await audit.log({
         actorEmail: adminEmail,
         action: 'admin_builder_created',

@@ -830,6 +830,17 @@ export function createComposition(
     tokenSecret: config.email.unsubscribeTokenSecret,
     tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
   });
+  // Builders table (embed/02 admin-UI migration): runtime source of truth
+  // for builder config. tenant_key stays the join key for billing,
+  // sessions, and the embed config lookup. Created before the lead
+  // service so embed lead capture can dual-write builder_id in the same
+  // insert (the lead is visible in the builder portal immediately).
+  const adminAuditStore: AdminAuditStore =
+    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  const builderService: BuilderService = createBuilderService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
@@ -840,6 +851,7 @@ export function createComposition(
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     builderConfigs: builderConfigService,
+    builders: builderService,
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -959,15 +971,7 @@ export function createComposition(
   const adminAllowlistStore: AdminAllowlistStore =
     options.adminAllowlistStore ??
     createDrizzleAdminAllowlistStore({ db: db.db });
-  const adminAuditStore: AdminAuditStore =
-    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
-  // Builders table (embed/02 admin-UI migration): runtime source of truth
-  // for builder config. tenant_key stays the join key for billing,
-  // sessions, and the embed config lookup.
-  const builderService: BuilderService = createBuilderService({
-    db: db.db,
-    audit: adminAuditStore,
-  });
+  // (adminAuditStore is defined above with the builders-table setup.)
   const adminAuthService: AdminAuthService = createAdminAuthService({
     allowlist: adminAllowlistStore,
     sessions: adminSessionStore,
@@ -1140,7 +1144,7 @@ export function createComposition(
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
   // Two consecutive timer failures fire the community_stats_failed ops
   // alert (admin/06); recovery sends the all-clear and re-arms.
-  // (adminAuditStore is defined above with the admin/01 session auth setup.)
+  // (adminAuditStore is defined above with the builders-table setup.)
   const communityStatsRefreshService: CommunityStatsRefreshService =
     createCommunityStatsRefreshService({
       stats: communityStatsService,
