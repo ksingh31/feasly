@@ -3,10 +3,11 @@
  *
  * Two responsibilities, no database:
  * 1. `exchangeCode` — POST the PKCE authorization code to the tenant's
- *    OAuth2 token endpoint and return the `id_token`. The request carries
- *    the sign-in user flow as the `p` form param (Entra External ID rejects
- *    the exchange without it); the access token is discarded: we never
- *    call Graph on the user's behalf.
+ *    OAuth2 token endpoint and return the `id_token`. The user flow travels
+ *    as the `p` query parameter on the token endpoint URL — the same
+ *    placement the authorize request uses (Entra External ID rejects the
+ *    exchange when it can't select the flow); the access token is
+ *    discarded: we never call Graph on the user's behalf.
  * 2. `validateIdToken` — verify the id_token's RS256 signature against the
  *    tenant JWKS (cached, short TTL), then check `iss`, `aud` (= our client
  *    id) and `exp`. Returns the verified identity claims (`oid`, email,
@@ -39,8 +40,8 @@ export interface EntraTokenValidatorConfig {
   readonly clientId: string;
   /**
    * Sign-in user flow name (e.g. `feasly-signup-signin`) — sent as the `p`
-   * form param on the token exchange, matching the frontend's authorize
-   * request. From config, never hardcoded.
+   * query parameter on the token endpoint URL, matching the frontend's
+   * authorize request. From config, never hardcoded.
    */
   readonly userFlow: string;
   /** How long a fetched JWKS may be reused (ms). */
@@ -199,11 +200,25 @@ export function createEntraTokenValidator(
 
   /** Map the token endpoint's error to a buyer-grade HttpError. */
   function tokenEndpointError(status: number, body: unknown): HttpError {
-    const code =
+    const payload =
       typeof body === 'object' && body !== null
-        ? (body as { error?: unknown }).error
-        : undefined;
+        ? (body as Record<string, unknown>)
+        : {};
+    const code = payload.error;
     const errorCode = typeof code === 'string' ? code : '';
+    // Upstream diagnostics: Entra returns AADSTS numeric codes plus a
+    // Microsoft-generated description. Those never contain our
+    // authorization code, verifier, or tokens, so they are safe to carry on
+    // error.cause — which lands in server logs via the request pipeline but
+    // never in the client response. Without them a rejected exchange is
+    // undebuggable (we only saw the bare `invalid_request` category).
+    const errorCodes = Array.isArray(payload.error_codes)
+      ? payload.error_codes.filter(
+          (c): c is number => typeof c === 'number' && Number.isFinite(c),
+        )
+      : [];
+    const upstreamSuffix =
+      errorCodes.length > 0 ? `:aadsts_${errorCodes.join('_')}` : '';
     // invalid_grant = expired, already-redeemed, or mismatched code/verifier/
     // redirect_uri. invalid_request = malformed request. Neither is retryable
     // as-is; the user must start sign-in again.
@@ -213,7 +228,7 @@ export function createEntraTokenValidator(
         ErrorCodes.UNAUTHENTICATED,
         'Sign-in didn\u2019t complete — try again.',
         false,
-        'token_endpoint_invalid_grant',
+        `token_endpoint_invalid_grant${upstreamSuffix}`,
       );
     }
     if (errorCode === 'invalid_request') {
@@ -222,7 +237,7 @@ export function createEntraTokenValidator(
         ErrorCodes.VALIDATION_FAILED,
         'Sign-in didn\u2019t complete — try again.',
         false,
-        'token_endpoint_invalid_request',
+        `token_endpoint_invalid_request${upstreamSuffix}`,
       );
     }
     return fail(
@@ -238,9 +253,14 @@ export function createEntraTokenValidator(
     input: EntraCodeExchangeInput,
   ): Promise<{ readonly idToken: string }> {
     ensureConfigured();
+    // Entra External ID selects the sign-in user flow from the `p` query
+    // parameter — the same placement the authorize request uses. A `p` form
+    // field is non-standard here and the exchange was rejected with
+    // invalid_request, so the flow rides on the URL, not the body.
+    const tokenUrl = `${tokenEndpoint}?p=${encodeURIComponent(userFlow)}`;
     let response: Response;
     try {
-      response = await fetchWithTimeout(tokenEndpoint, {
+      response = await fetchWithTimeout(tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -249,9 +269,6 @@ export function createEntraTokenValidator(
           code: input.code,
           redirect_uri: input.redirectUri,
           code_verifier: input.codeVerifier,
-          // Entra External ID selects the user flow from `p`; without it
-          // the exchange is rejected.
-          p: userFlow,
         }).toString(),
       });
     } catch (error) {

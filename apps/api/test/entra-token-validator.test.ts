@@ -25,6 +25,8 @@ const CLIENT_ID = 'client-abc';
 const USER_FLOW = 'feasly-signup-signin';
 const TOKEN_ENDPOINT =
   'https://feaslytest.ciamlogin.com/tenant-123/oauth2/v2.0/token';
+/** The exchange must carry the user flow as `p` on the token URL (query). */
+const TOKEN_URL_WITH_FLOW = `${TOKEN_ENDPOINT}?p=${encodeURIComponent(USER_FLOW)}`;
 const JWKS_URI = 'https://feaslytest.ciamlogin.com/tenant-123/discovery/v2.0/keys';
 
 function b64url(input: string | Buffer): string {
@@ -101,7 +103,7 @@ function mockFetch(handlers: {
   const fetchImpl = vi.fn(async (url: unknown, init?: RequestInit) => {
     const u = String(url);
     calls.push(u);
-    if (u === TOKEN_ENDPOINT) {
+    if (u === TOKEN_URL_WITH_FLOW) {
       const body = new URLSearchParams(String((init as { body?: string }).body ?? ''));
       return (handlers.token ?? (() => jsonResponse({ id_token: 'unused' })))(body);
     }
@@ -150,7 +152,7 @@ describe('entra token validator — code exchange', () => {
     expect(result).toEqual({ idToken });
   });
 
-  it('sends the PKCE form fields to the token endpoint', async () => {
+  it('sends the PKCE form fields to the token endpoint (no p in the body)', async () => {
     let seen: URLSearchParams | null = null;
     const { fetchImpl } = mockFetch({
       token: (body) => {
@@ -165,8 +167,40 @@ describe('entra token validator — code exchange', () => {
     expect(seen!.get('code')).toBe('auth-code');
     expect(seen!.get('code_verifier')).toBe('verifier');
     expect(seen!.get('redirect_uri')).toBe('https://app.example/admin/auth/callback');
-    // Entra External ID needs the user-flow policy or it rejects the exchange.
-    expect(seen!.get('p')).toBe(USER_FLOW);
+    // The user flow rides on the token URL's `p` query param (mockFetch only
+    // routes the URL with it) — it must NOT also be a form field.
+    expect(seen!.has('p')).toBe(false);
+  });
+
+  it('carries the user flow as the p query param on the token URL', async () => {
+    const { fetchImpl, calls } = mockFetch({
+      token: () => jsonResponse({ id_token: 't' }),
+    });
+    const v = createEntraTokenValidator(validatorDeps({ fetchImpl }));
+    await v.exchangeCode(EXCHANGE_INPUT);
+    expect(calls).toContain(TOKEN_URL_WITH_FLOW);
+  });
+
+  it('invalid_request carries the upstream AADSTS codes on the server cause', async () => {
+    const { fetchImpl } = mockFetch({
+      token: () =>
+        new Response(
+          JSON.stringify({
+            error: 'invalid_request',
+            error_description: 'AADSTS90023: malformed',
+            error_codes: [90023],
+          }),
+          { status: 400 },
+        ),
+    });
+    const v = createEntraTokenValidator(validatorDeps({ fetchImpl }));
+    const error = await v.exchangeCode(EXCHANGE_INPUT).catch((e) => e);
+    expect(error.status).toBe(400);
+    expect(error.code).toBe(ErrorCodes.VALIDATION_FAILED);
+    expect(error.message).toBe('Sign-in didn\u2019t complete — try again.');
+    // Buyer-grade message stays clean; the AADSTS code lands in server logs.
+    expect(error.message).not.toContain('90023');
+    expect(String((error.cause as Error | undefined)?.message)).toContain('aadsts_90023');
   });
 
   it('invalid_grant (replayed/expired code) → 401 buyer-grade', async () => {
