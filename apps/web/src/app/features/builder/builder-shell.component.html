@@ -8,6 +8,9 @@
       <a routerLink="/builder/billing" routerLinkActive="active">
         {{ copy.shellNavBilling }}
       </a>
+      <a routerLink="/builder/report-contract" routerLinkActive="active">
+        {{ copy.shellNavReportContract }}
+      </a>
       @if (session(); as s) {
         <span class="builder-shell__email">{{ s.email }}</span>
       }
