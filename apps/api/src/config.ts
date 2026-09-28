@@ -214,9 +214,11 @@ const EnvSchema = z.object({
   // provisions the key in Key Vault himself (free signup, no card).
   NARRATIVE_FALLBACK_API_KEY: z.string().default(''),
   // Comma-separated fallback model list, primary first. Default is
-  // Llama 3.3 70B via Groq (current per console.groq.com/docs/models as
-  // of 2026-09-28); overridable without a code change.
-  NARRATIVE_FALLBACK_MODELS: z.string().default('llama-3.3-70b-versatile'),
+  // OpenAI gpt-oss-120b via Groq — Groq's official replacement for the
+  // retired llama-3.3-70b-versatile (retired 2026-08-16; current per
+  // console.groq.com/docs/models as of 2026-09-28). Overridable without
+  // a code change.
+  NARRATIVE_FALLBACK_MODELS: z.string().default('openai/gpt-oss-120b'),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
