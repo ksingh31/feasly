@@ -373,6 +373,65 @@ describe('entra callback service', () => {
     expect(fakes.tokenValidator.exchangeCode).not.toHaveBeenCalled();
   });
 
+  it('400 cause names the failing fields — never secret values', async () => {
+    const fakes = makeFakes();
+    const service = makeService(fakes);
+    const cases: Array<{
+      readonly body: unknown;
+      readonly expected: string;
+    }> = [
+      {
+        body: {},
+        expected:
+          'entra_callback_body_invalid shape=object fields=code:missing,codeVerifier:missing,redirectUri:missing',
+      },
+      {
+        body: { code: 'x' },
+        expected:
+          'entra_callback_body_invalid shape=object fields=codeVerifier:missing,redirectUri:missing',
+      },
+      {
+        // empty-after-trim code, wrong-type codeVerifier, over-long redirectUri
+        body: {
+          code: '   ',
+          codeVerifier: 42,
+          redirectUri: `https://x/${'y'.repeat(2_000)}`,
+        },
+        expected:
+          'entra_callback_body_invalid shape=object fields=code:empty,codeVerifier:wrong-type:number,redirectUri:too-long',
+      },
+      { body: null, expected: 'entra_callback_body_invalid shape=null' },
+      { body: 'nope', expected: 'entra_callback_body_invalid shape=string' },
+    ];
+    for (const { body, expected } of cases) {
+      const error = await service.handleCallback(body).catch((e) => e);
+      expect(error).toBeInstanceOf(HttpError);
+      expect(error.status).toBe(400);
+      expect(error.code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect(error.message).toBe('Sign-in didn\u2019t complete — try again.');
+      expect(error.retryable).toBe(false);
+      const cause = (error as { cause?: unknown }).cause;
+      expect(cause).toBeInstanceOf(Error);
+      const text = (cause as Error).message;
+      expect(text).toContain(expected);
+      // The diagnostic must never carry secret material: no (non-trivial)
+      // string value from the raw body may appear in it, whatever the
+      // caller sent. Short values are pinned by the exact-match assertion
+      // above; here we guard the secret-shaped ones (e.g. the 2000-char
+      // redirectUri).
+      const rawStrings: string[] =
+        typeof body === 'object' && body !== null
+          ? Object.values(body as Record<string, unknown>).filter(
+              (v): v is string => typeof v === 'string' && v.length >= 8,
+            )
+          : typeof body === 'string' && body.length >= 8
+            ? [body]
+            : [];
+      for (const secret of rawStrings) expect(text).not.toContain(secret);
+    }
+    expect(fakes.tokenValidator.exchangeCode).not.toHaveBeenCalled();
+  });
+
   it('exchange failure propagates (no session minted)', async () => {
     const fakes = makeFakes();
     fakes.tokenValidator.exchangeCode = vi.fn(async () => {
