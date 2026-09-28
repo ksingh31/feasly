@@ -145,6 +145,22 @@ describe('AdminCreateInvoiceComponent (manual invoice creation)', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('lead id was not found');
   });
+
+  it('shows a friendly error when the signing date is outside the attribution window', async () => {
+    billingApi.createManualInvoice.mockReturnValue(
+      throwError(() => ({
+        status: 422,
+        error: { code: 'VALIDATION_FAILED' },
+      })),
+    );
+    fillValidForm(component);
+    component.startReview();
+    component.confirmCreate();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('outside the 12-month attribution window');
+  });
 });
 
 describe('toIsoWithOffset', () => {

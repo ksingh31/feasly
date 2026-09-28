@@ -243,9 +243,20 @@ function friendlyCreateError(err: unknown): string {
     typeof err === 'object' && err !== null && 'status' in err
       ? (err as { status?: unknown }).status
       : undefined;
+  const code =
+    typeof err === 'object' &&
+    err !== null &&
+    'error' in err &&
+    typeof (err as { error?: unknown }).error === 'object' &&
+    (err as { error?: unknown }).error !== null
+      ? ((err as { error: { code?: unknown } }).error.code as
+          | string
+          | undefined)
+      : undefined;
   if (status === 404) return 'That lead id was not found — check it and try again.';
   if (status === 403) return 'That lead belongs to a different builder — pick the matching one.';
-  if (status === 409) return 'This report is outside the 12-month attribution window.';
+  if (status === 422 && code === 'VALIDATION_FAILED')
+    return 'The signing date is outside the 12-month attribution window.';
   if (status === 422)
     return 'The current billing model does not support per-event invoices.';
   return 'Invoice creation failed — check the details and try again.';
