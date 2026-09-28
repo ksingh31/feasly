@@ -8,6 +8,7 @@ import {
   AssignLeadBuilder,
   CreateBuilder,
   DismissAssignBuilderError,
+  DismissAssignBuilderSuccess,
   DismissBuildersError,
   DismissBuildersSaved,
   DismissBuildersSaveError,
@@ -33,6 +34,8 @@ export interface AdminBuildersStateModel {
   assigning: boolean;
   /** Last failed assign message; null when the last assign succeeded. */
   assignError: string | null;
+  /** True after an assign until dismissed (drives the inline confirmation). */
+  assignSuccess: boolean;
 }
 
 const defaults: AdminBuildersStateModel = {
@@ -44,6 +47,7 @@ const defaults: AdminBuildersStateModel = {
   saved: false,
   assigning: false,
   assignError: null,
+  assignSuccess: false,
 };
 
 /**
@@ -104,6 +108,11 @@ export class AdminBuildersState {
   @Selector()
   static assignError(state: AdminBuildersStateModel): string | null {
     return state.assignError;
+  }
+
+  @Selector()
+  static assignSuccess(state: AdminBuildersStateModel): boolean {
+    return state.assignSuccess;
   }
 
   // ------------------------------------------------------------------ actions
@@ -191,17 +200,18 @@ export class AdminBuildersState {
     ctx: StateContext<AdminBuildersStateModel>,
     action: AssignLeadBuilder,
   ): Observable<{ ok: true }> {
-    ctx.patchState({ assigning: true, assignError: null });
+    ctx.patchState({ assigning: true, assignError: null, assignSuccess: false });
     return this.api.assignLeadBuilder(action.leadId, action.builderId).pipe(
       tap({
         next: () => {
-          ctx.patchState({ assigning: false, assignError: null });
+          ctx.patchState({ assigning: false, assignError: null, assignSuccess: true });
         },
         error: (err: { message?: string }) => {
           ctx.patchState({
             assigning: false,
             assignError:
               err?.message ?? 'Could not assign the lead. Please try again.',
+            assignSuccess: false,
           });
         },
       }),
@@ -226,6 +236,11 @@ export class AdminBuildersState {
   @Action(DismissAssignBuilderError)
   dismissAssignError(ctx: StateContext<AdminBuildersStateModel>): void {
     ctx.patchState({ assignError: null });
+  }
+
+  @Action(DismissAssignBuilderSuccess)
+  dismissAssignSuccess(ctx: StateContext<AdminBuildersStateModel>): void {
+    ctx.patchState({ assignSuccess: false });
   }
 }
 

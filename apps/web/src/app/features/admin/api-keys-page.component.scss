@@ -184,7 +184,9 @@
   background: rgb(0 0 0 / 0.5);
   display: grid;
   place-items: center;
-  z-index: 50;
+  /* Above the admin mobile nav dropdown (z-index 100) — same rule as the
+     lead-detail modal. */
+  z-index: 150;
 }
 
 .api-keys__dialog {
