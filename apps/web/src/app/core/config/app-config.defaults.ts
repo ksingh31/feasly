@@ -103,6 +103,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       tenantSubdomain: 'ENTRA_TENANT_SUBDOMAIN',
       tenantId: 'ENTRA_TENANT_ID',
       clientId: 'ENTRA_CLIENT_ID',
+      authorizeUrlTemplate:
+        'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
     },
   },
   copy: {

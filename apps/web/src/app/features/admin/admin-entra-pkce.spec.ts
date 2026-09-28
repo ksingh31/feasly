@@ -17,8 +17,8 @@ const VERIFIER_CHARSET = /^[A-Za-z0-9\-_~.]+$/;
 
 describe('admin-entra-pkce', () => {
   it('base64UrlEncode produces unpadded base64url', () => {
-    // 0xfb 0xef 0xbe -> "+/++" in base64 -> "-_--" base64url, no padding.
-    expect(base64UrlEncode(new Uint8Array([0xfb, 0xef, 0xbe]))).toBe('-___');
+    // 0xfb 0xef 0xbe -> "++++" in base64 -> "----" base64url, no padding.
+    expect(base64UrlEncode(new Uint8Array([0xfb, 0xef, 0xbe]))).toBe('----');
     expect(base64UrlEncode(new Uint8Array([0x00]))).toBe('AA');
   });
 

@@ -158,6 +158,13 @@ export interface AppConfig {
        * Placeholder key name: ENTRA_CLIENT_ID.
        */
       clientId: string;
+      /**
+       * Microsoft-hosted authorize endpoint template. `{tenantSubdomain}`
+       * and `{tenantId}` are substituted at sign-in time. Lives in config
+       * (not code) so sovereign clouds (e.g. `ciamlogin.us`) or future
+       * endpoint versions need no code change.
+       */
+      authorizeUrlTemplate: string;
     };
   };
   copy: {

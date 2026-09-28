@@ -77,10 +77,10 @@ export class AdminEntraAuthService {
       code_challenge_method: 'S256',
       state,
     });
-    return (
-      `https://${entra.tenantSubdomain}.ciamlogin.com/` +
-      `${entra.tenantId}/oauth2/v2.0/authorize?${params.toString()}`
-    );
+    const authorizeUrl = entra.authorizeUrlTemplate
+      .replace('{tenantSubdomain}', entra.tenantSubdomain)
+      .replace('{tenantId}', entra.tenantId);
+    return `${authorizeUrl}?${params.toString()}`;
   }
 
   /** Persist the PKCE pair and redirect the browser to Entra. */

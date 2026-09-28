@@ -22,6 +22,8 @@ const ENTRA = {
   tenantSubdomain: 'feasly-dev',
   tenantId: 'tenant-id-123',
   clientId: 'client-id-456',
+  authorizeUrlTemplate:
+    'https://{tenantSubdomain}.ciamlogin.com/{tenantId}/oauth2/v2.0/authorize',
 };
 
 describe('AdminEntraAuthService', () => {
