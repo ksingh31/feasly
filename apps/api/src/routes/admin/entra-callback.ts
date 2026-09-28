@@ -18,27 +18,13 @@
  */
 
 // ---------------------------------------------------------------------------
-// Local contract shapes — TEMPORARY.
-// `@feasly/contracts` does not define AdminEntraCallbackBody /
-// AdminEntraCallbackResponse yet (the frontend lane's PR is unmerged), so
-// the exact shapes from the story contract are defined here. DEDUPE AT
-// MERGE: import both types from '@feasly/contracts' and delete these.
+// Contract shapes — imported from `@feasly/contracts` (PR #269), the single
+// source of truth shared with the frontend lane.
 // ---------------------------------------------------------------------------
-export interface AdminEntraCallbackBody {
-  readonly code: string;
-  readonly codeVerifier: string;
-  readonly redirectUri: string;
-}
-
-export interface AdminEntraCallbackResponse {
-  readonly authenticated: true;
-  readonly user: {
-    readonly email: string;
-    readonly name: string;
-    readonly staffRole: string;
-  };
-  readonly sessionToken: string;
-}
+import type {
+  AdminEntraCallbackBody,
+  AdminEntraCallbackResponse,
+} from '@feasly/contracts';
 // ---------------------------------------------------------------------------
 
 import { buildSessionCookie } from '../admin-auth.route';

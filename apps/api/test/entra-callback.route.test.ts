@@ -12,10 +12,8 @@
  * local shapes should be deleted (see the DEDUPE comment in the route).
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createAdminEntraCallbackRoute,
-  type AdminEntraCallbackResponse,
-} from '../src/routes/admin/entra-callback';
+import type { AdminEntraCallbackResponse } from '@feasly/contracts';
+import { createAdminEntraCallbackRoute } from '../src/routes/admin/entra-callback';
 import { ADMIN_SESSION_COOKIE } from '../src/middleware/admin-guard';
 
 const SESSION_TTL = 604_800;

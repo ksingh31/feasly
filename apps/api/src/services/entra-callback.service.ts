@@ -25,6 +25,7 @@
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import type { AdminEntraCallbackResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
 import {
@@ -43,16 +44,9 @@ export interface EntraCallbackService {
    * Handle the PKCE callback. Returns the session identity plus the raw
    * session token exactly once (the adapter sets it as the httpOnly
    * cookie and returns it in the JSON body for the SPA bearer flow).
+   * The shape is `AdminEntraCallbackResponse` from `@feasly/contracts`.
    */
-  handleCallback(body: unknown): Promise<{
-    readonly authenticated: true;
-    readonly user: {
-      readonly email: string;
-      readonly name: string;
-      readonly staffRole: string;
-    };
-    readonly sessionToken: string;
-  }>;
+  handleCallback(body: unknown): Promise<AdminEntraCallbackResponse>;
 }
 
 export interface EntraCallbackServiceDeps {
