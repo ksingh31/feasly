@@ -512,6 +512,15 @@ export interface EntraSignInConfig {
    * openid-configuration.
    */
   readonly issuer: string;
+  /**
+   * Derived: the OAuth2 end-session endpoint that terminates the Entra
+   * IdP session on logout. Without a full-page navigation here, the
+   * Entra cookie survives our session revocation and the next "Sign in"
+   * silently re-authenticates (Karan, 2026-09-28). The caller appends
+   * `?post_logout_redirect_uri={app}/admin/login` — that URL must be
+   * registered as a logout URL on the app registration (portal step).
+   */
+  readonly logoutEndpoint: string;
   /** JWKS cache TTL in milliseconds. */
   readonly jwksCacheTtlMs: number;
   /** HTTP timeout (ms) for the Entra token/JWKS calls. */
@@ -952,6 +961,7 @@ function resolveEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
     tokenEndpoint: `${base}/oauth2/v2.0/token`,
     jwksUri: `${base}/discovery/v2.0/keys`,
     issuer: `https://${tenantId}.ciamlogin.com/${tenantId}/v2.0`,
+    logoutEndpoint: `${base}/oauth2/v2.0/logout`,
     jwksCacheTtlMs: e.ENTRA_JWKS_CACHE_TTL_MS,
     httpTimeoutMs: e.ENTRA_HTTP_TIMEOUT_MS,
     callbackRateLimit: {
@@ -992,6 +1002,7 @@ function resolveBuilderEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
     tokenEndpoint: `${base}/oauth2/v2.0/token`,
     jwksUri: `${base}/discovery/v2.0/keys`,
     issuer: `https://${tenantId}.ciamlogin.com/${tenantId}/v2.0`,
+    logoutEndpoint: `${base}/oauth2/v2.0/logout`,
     jwksCacheTtlMs: e.ENTRA_JWKS_CACHE_TTL_MS,
     httpTimeoutMs: e.ENTRA_HTTP_TIMEOUT_MS,
     callbackRateLimit: {
