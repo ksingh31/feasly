@@ -53,7 +53,7 @@
     },
     "search": {
       "label": "Your Calgary address",
-      "placeholder": "Start typing your street address…",
+      "placeholder": "Start typing your street number…",
       "submitLabel": "Get My Estimate →",
       "emptyHint": "Enter your Calgary address above to get started.",
       "selectHint": "Please choose your address from the suggestions above.",
@@ -161,7 +161,7 @@
       "consentRequired": "Please agree to the contact consent above to continue.",
       "privacyNote": "We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our",
       "privacyLinkLabel": "Privacy Policy",
-      "submitLabel": "Unlock my free preview →",
+      "submitLabel": "Unlock my free report →",
       "submittingLabel": "Sending…",
       "submitError": "We couldn’t save your details. Please check your connection and try again.",
       "retryLabel": "Try again",
