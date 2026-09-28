@@ -116,6 +116,9 @@
         @for (a of assignedOptions; track a) {
           <option [value]="a">{{ a === '' ? 'All' : 'Unassigned' }}</option>
         }
+        @for (b of builders(); track b.id) {
+          <option [value]="b.id">{{ b.displayName }}</option>
+        }
       </select>
     </label>
     <button type="button" class="leads-page__clear" (click)="clearFilters()">

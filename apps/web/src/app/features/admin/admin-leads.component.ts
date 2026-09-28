@@ -22,6 +22,8 @@ import {
   type AdminLeadsTab,
 } from './admin-leads.actions';
 import { AdminLeadsState } from './admin-leads.state';
+import { LoadBuilders } from './admin-builders.actions';
+import { AdminBuildersState } from './admin-builders.state';
 
 const STATUS_OPTIONS: readonly ('' | AdminLeadStatus)[] = [
   '',
@@ -43,9 +45,11 @@ const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
 
 /**
  * Assignment filter options. There is no assign-to-builder backend yet, so
- * every lead is unassigned — both options show the full list. The control
- * exists to match the approved mockup's three filters; it becomes a real
- * filter when the backend lands.
+ * every lead is unassigned — the static options show the full list. Builder
+ * options are appended dynamically from AdminBuildersState; selecting one is
+ * visual-only until the backend lands. The control exists to match the
+ * approved mockup's three filters; it becomes a real filter when the backend
+ * lands.
  */
 const ASSIGNED_OPTIONS: readonly ('' | 'unassigned')[] = ['', 'unassigned'];
 
@@ -89,6 +93,7 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pipelineStatuses = PIPELINE_STATUSES;
   protected readonly assignedOptions = ASSIGNED_OPTIONS;
+  protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
 
   /** Mobile filter disclosure (filters collapse behind a toggle at 390px). */
   protected readonly filtersOpen = signal(false);
@@ -96,8 +101,8 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly filtersForm = this.fb.nonNullable.group({
     search: [''],
     status: ['' as '' | AdminLeadStatus],
-    /** Visual-only until the assign-to-builder backend exists (see ASSIGNED_OPTIONS). */
-    assigned: ['' as '' | 'unassigned'],
+    /** Visual-only until the assign-to-builder backend exists (see ASSIGNED_OPTIONS). Builder IDs are allowed as values for the dynamic options. */
+    assigned: ['' as '' | 'unassigned' | string],
   });
 
   constructor() {
@@ -110,6 +115,7 @@ export class AdminLeadsComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminLeads());
+    this.store.dispatch(new LoadBuilders());
 
     // Free-text search is debounced (shared timings.debounceMs); every other
     // filter applies on change.
