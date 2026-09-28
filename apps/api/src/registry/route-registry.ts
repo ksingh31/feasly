@@ -888,7 +888,6 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'draft invoice → auto-submitted into the 7-day review window. ' +
       'Idempotent: re-reporting returns the existing invoice.',
   },
-  },
   {
     method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
