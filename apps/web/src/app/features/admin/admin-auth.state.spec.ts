@@ -1,9 +1,11 @@
 /**
- * Admin auth state tests (admin/01).
+ * Admin auth state tests (admin/01 + auth/02).
  *
  * Verifies: token verify/load transitions (bearer token stored on
  * success, cleared on failure/logout), expired-session flagging for the
- * login copy, and logout clearing.
+ * login copy, logout clearing, and the auth/02 password-login action
+ * (identity stored on success; 401/429/transient classified and surfaced
+ * as lastLoginError; error cleared on retry and on success).
  */
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -17,6 +19,7 @@ import { ConfigService } from '../../core/config/config.service';
 import {
   ClearAdminAuth,
   LoadAdminSession,
+  LoginAdminWithPassword,
   LogoutAdmin,
   VerifyAdminToken,
 } from './admin-auth.actions';
@@ -241,6 +244,126 @@ describe('AdminAuthState (admin/01)', () => {
       });
     await ok;
     expect(snapshot().lastVerifyError).toBeNull();
+    httpMock.verify();
+  });
+
+  it('LoginAdminWithPassword posts the trimmed payload and stores identity on success', async () => {
+    const done = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 's3cret-password!', true),
+    );
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith('/api/v1/admin/auth/login'),
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      email: 'admin@example.com',
+      password: 's3cret-password!',
+      rememberMe: true,
+    });
+    req.flush({
+      authenticated: true,
+      user: {
+        email: 'admin@example.com',
+        name: 'Admin User',
+        staffRole: 'super_admin',
+      },
+      sessionToken: 'sess-login-abc',
+    });
+    await done;
+
+    const s = snapshot();
+    expect(s.authStatus).toBe('authenticated');
+    expect(s.sessionToken).toBe('sess-login-abc');
+    expect(s.email).toBe('admin@example.com');
+    expect(s.name).toBe('Admin User');
+    expect(s.staffRole).toBe('super_admin');
+    expect(s.sessionExpired).toBe(false);
+    expect(s.lastLoginError).toBeNull();
+    httpMock.verify();
+  });
+
+  it('LoginAdminWithPassword classifies 401 INVALID_CREDENTIALS and clears session', async () => {
+    const done = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 'wrong', false),
+    );
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/login'))
+      .flush(
+        { code: 'INVALID_CREDENTIALS', message: 'invalid credentials' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await done;
+
+    const s = snapshot();
+    expect(s.authStatus).toBe('unauthenticated');
+    expect(s.sessionToken).toBeNull();
+    expect(s.email).toBeNull();
+    expect(s.name).toBeNull();
+    expect(s.staffRole).toBeNull();
+    expect(s.lastLoginError).toBe('invalid-credentials');
+    httpMock.verify();
+  });
+
+  it('LoginAdminWithPassword classifies 429 TOO_MANY_ATTEMPTS', async () => {
+    const done = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 'wrong', false),
+    );
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/login'))
+      .flush(
+        { code: 'TOO_MANY_ATTEMPTS', message: 'rate limited' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
+    await done;
+
+    expect(snapshot().lastLoginError).toBe('rate-limited');
+    httpMock.verify();
+  });
+
+  it('LoginAdminWithPassword classifies timeouts as transient', async () => {
+    const done = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 'wrong', false),
+    );
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/login'))
+      .error(new ProgressEvent('timeout'), { status: 0 });
+    await done;
+
+    expect(snapshot().lastLoginError).toBe('transient');
+    httpMock.verify();
+  });
+
+  it('LoginAdminWithPassword clears a previous error on retry and on success', async () => {
+    const fail = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 'wrong', false),
+    );
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/login'))
+      .flush(
+        { code: 'INVALID_CREDENTIALS' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await fail;
+    expect(snapshot().lastLoginError).toBe('invalid-credentials');
+
+    const ok = store.dispatch(
+      new LoginAdminWithPassword('admin@example.com', 'right-password!', false),
+    );
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/auth/login'))
+      .flush({
+        authenticated: true,
+        user: {
+          email: 'admin@example.com',
+          name: 'Admin User',
+          staffRole: 'admin',
+        },
+        sessionToken: 'sess-retry-ok',
+      });
+    await ok;
+
+    expect(snapshot().authStatus).toBe('authenticated');
+    expect(snapshot().lastLoginError).toBeNull();
     httpMock.verify();
   });
 });

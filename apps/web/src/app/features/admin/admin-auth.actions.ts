@@ -26,3 +26,21 @@ export class LogoutAdmin {
 export class ClearAdminAuth {
   static readonly type = '[Admin Auth] Clear auth';
 }
+
+/**
+ * Signs in with email + password (auth/02, AUTH-02 frontend).
+ *
+ * CONTRACT-DRIVEN: handled by AdminAuthState against the
+ * `POST /api/v1/admin/auth/login` contract; the backend route lands
+ * separately. On success the state stores the session token + identity;
+ * on failure it classifies the error for the login page's inline copy
+ * (401 → invalid credentials, 429 → rate-limited).
+ */
+export class LoginAdminWithPassword {
+  static readonly type = '[Admin Auth] Login with password';
+  constructor(
+    public readonly email: string,
+    public readonly password: string,
+    public readonly rememberMe: boolean,
+  ) {}
+}

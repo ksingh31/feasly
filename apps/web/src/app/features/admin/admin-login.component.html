@@ -1,25 +1,25 @@
 <main class="admin-login">
   <div class="admin-login__card">
-    <h1>Admin sign in</h1>
+    <p class="admin-login__eyebrow">Admin portal</p>
+    <h1>Welcome back</h1>
+    <p class="admin-login__intro">
+      Sign in to manage leads, builders and your team.
+    </p>
 
     @if (showExpired) {
       <p class="admin-login__notice" role="status">
-        Your admin session expired. Enter your email for a fresh sign-in link.
+        Your admin session expired. Sign in again.
       </p>
     }
 
-    @if (status() === 'sent') {
-      <p class="admin-login__sent" role="status">
-        Check your email for your sign-in link.
-      </p>
-    } @else {
-      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    @if (mode() === 'password') {
+      <form [formGroup]="form" (ngSubmit)="submitPassword()" novalidate>
         <label class="admin-login__field">
-          <span>Email</span>
+          <span>Email address</span>
           <input
             type="email"
             formControlName="email"
-            autocomplete="email"
+            autocomplete="username"
             inputmode="email"
             [attr.aria-invalid]="emailInvalid"
             placeholder="you@example.com"
@@ -30,24 +30,121 @@
             Enter a valid email address.
           </p>
         }
-        @if (status() === 'error') {
+
+        <label class="admin-login__field">
+          <span>Password</span>
+          <span class="admin-login__password-wrap">
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              [attr.aria-invalid]="passwordInvalid"
+              placeholder="Your password"
+            />
+            <button
+              type="button"
+              class="admin-login__toggle"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+            >
+              {{ showPassword() ? 'Hide' : 'Show' }}
+            </button>
+          </span>
+        </label>
+        @if (passwordInvalid) {
           <p class="admin-login__error" role="alert">
-            Something went wrong. Please try again.
-            <button type="button" (click)="retry()">Retry</button>
+            Enter your password.
           </p>
         }
+
+        @if (loginErrorText(); as errorText) {
+          <p class="admin-login__errorbox" role="alert">
+            {{ errorText }}
+          </p>
+        }
+
+        <div class="admin-login__meta">
+          <label class="admin-login__remember">
+            <input type="checkbox" formControlName="rememberMe" />
+            Remember me on this device
+          </label>
+          <a class="admin-login__link" routerLink="/admin/forgot-password">
+            Forgot password?
+          </a>
+        </div>
+
         <button
           type="submit"
           class="admin-login__submit"
-          [disabled]="form.invalid || status() === 'sending'"
+          [disabled]="form.invalid || passwordStatus() === 'submitting'"
         >
-          @if (status() === 'sending') {
-            Sending…
+          @if (passwordStatus() === 'submitting') {
+            Signing in…
           } @else {
-            Send sign-in link
+            Sign in
           }
         </button>
       </form>
+      <button
+        type="button"
+        class="admin-login__alt"
+        (click)="mode.set('magic-link')"
+      >
+        Use a sign-in link instead
+      </button>
+    } @else {
+      @if (magicLinkStatus() === 'sent') {
+        <p class="admin-login__sent" role="status">
+          Check your email for your sign-in link.
+        </p>
+      } @else {
+        <form
+          [formGroup]="magicLinkForm"
+          (ngSubmit)="submitMagicLink()"
+          novalidate
+        >
+          <label class="admin-login__field">
+            <span>Email address</span>
+            <input
+              type="email"
+              formControlName="email"
+              autocomplete="email"
+              inputmode="email"
+              [attr.aria-invalid]="magicLinkEmailInvalid"
+              placeholder="you@example.com"
+            />
+          </label>
+          @if (magicLinkEmailInvalid) {
+            <p class="admin-login__error" role="alert">
+              Enter a valid email address.
+            </p>
+          }
+          @if (magicLinkStatus() === 'error') {
+            <p class="admin-login__error" role="alert">
+              Something went wrong. Please try again.
+              <button type="button" (click)="retryMagicLink()">Retry</button>
+            </p>
+          }
+          <button
+            type="submit"
+            class="admin-login__submit"
+            [disabled]="magicLinkForm.invalid || magicLinkStatus() === 'sending'"
+          >
+            @if (magicLinkStatus() === 'sending') {
+              Sending…
+            } @else {
+              Send sign-in link
+            }
+          </button>
+        </form>
+      }
+      <button
+        type="button"
+        class="admin-login__alt"
+        (click)="mode.set('password')"
+      >
+        Back to password sign in
+      </button>
     }
   </div>
 </main>
