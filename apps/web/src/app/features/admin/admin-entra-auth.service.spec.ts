@@ -119,4 +119,27 @@ describe('AdminEntraAuthService', () => {
     );
     httpMock.verify();
   });
+
+  it('buildEntraLogoutUrl appends the encoded post_logout_redirect_uri', () => {
+    const endpoint = `https://${ENTRA.tenantSubdomain}.ciamlogin.com/${ENTRA.tenantId}/oauth2/v2.0/logout`;
+    const url = new URL(service.buildEntraLogoutUrl(endpoint));
+    expect(`${url.origin}${url.pathname}`).toBe(endpoint);
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe(
+      `${window.location.origin}/admin/login`,
+    );
+    httpMock.verify();
+  });
+
+  it('redirectToEntraLogout returns false and does not navigate without a URL', () => {
+    expect(service.redirectToEntraLogout(null)).toBe(false);
+    expect(service.consumeSignOutRedirect()).toBe(false);
+    httpMock.verify();
+  });
+
+  it('consumeSignOutRedirect is one-shot', () => {
+    // No redirect happened: stays false and does not stick.
+    expect(service.consumeSignOutRedirect()).toBe(false);
+    expect(service.consumeSignOutRedirect()).toBe(false);
+    httpMock.verify();
+  });
 });

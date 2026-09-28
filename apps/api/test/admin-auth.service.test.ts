@@ -98,12 +98,20 @@ function makeAudit(): AdminAuditStore & { entries: unknown[] } {
   };
 }
 
-function makeService(overrides?: { clock?: () => Date }) {
+function makeService(overrides?: {
+  clock?: () => Date;
+  entraConfigured?: boolean;
+}) {
   const sessions = makeSessionStore();
   const audit = makeAudit();
   const service = createAdminAuthService({
     sessions,
     audit,
+    entraSignIn: {
+      configured: overrides?.entraConfigured ?? true,
+      logoutEndpoint:
+        'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    },
     clock: overrides?.clock ?? (() => NOW),
   });
   return { service, sessions, audit };
@@ -137,7 +145,11 @@ describe('admin auth service (auth/02)', () => {
       // Valid before logout
       expect(await service.validateSession('sess-token')).toBe(ADMIN_EMAIL);
       const result = await service.logout('sess-token');
-      expect(result).toEqual({ loggedOut: true });
+      expect(result).toEqual({
+        loggedOut: true,
+        entraLogoutUrl:
+          'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      });
       // Invalid after logout
       expect(await service.validateSession('sess-token')).toBeNull();
       const revoked = audit.entries.filter(
@@ -149,7 +161,17 @@ describe('admin auth service (auth/02)', () => {
     it('null token → still returns success (idempotent)', async () => {
       const { service } = makeService();
       const result = await service.logout(null);
-      expect(result).toEqual({ loggedOut: true });
+      expect(result).toEqual({
+        loggedOut: true,
+        entraLogoutUrl:
+          'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+      });
+    });
+
+    it('entraLogoutUrl is null when Entra is unprovisioned', async () => {
+      const { service } = makeService({ entraConfigured: false });
+      const result = await service.logout(null);
+      expect(result).toEqual({ loggedOut: true, entraLogoutUrl: null });
     });
   });
 

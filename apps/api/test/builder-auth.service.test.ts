@@ -86,6 +86,11 @@ function makeDeps(overrides?: {
     builders: { getByTenantKey: async () => null },
     magicLinkTtlSeconds: 900,
     builderSessionTtlSeconds: 604800,
+    entraSignIn: {
+      configured: true,
+      logoutEndpoint:
+        'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    },
     onEmailError: overrides?.onEmailError,
   });
 
@@ -164,5 +169,8 @@ describe('builder-auth service (embed/09)', () => {
     const { service } = makeDeps();
     const result = await service.logout(null);
     expect(result.loggedOut).toBe(true);
+    expect(result.entraLogoutUrl).toBe(
+      'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
+    );
   });
 });

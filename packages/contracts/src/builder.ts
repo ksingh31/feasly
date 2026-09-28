@@ -55,6 +55,13 @@ export interface BuilderAuthLogoutResponse {
   readonly loggedOut: true;
   /** The clearing Set-Cookie header value the adapter must emit. */
   readonly setCookie: string;
+  /**
+   * Entra end-session endpoint, or null when Entra is unprovisioned.
+   * For the builder frontend to consume once builder Entra lands
+   * (AUTH #74) — ignored until then (magic-link sessions have no IdP
+   * session to kill).
+   */
+  readonly entraLogoutUrl: string | null;
 }
 
 /** Pipeline statuses a builder can set on their leads. */

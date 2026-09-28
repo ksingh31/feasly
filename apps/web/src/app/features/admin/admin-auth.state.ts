@@ -4,6 +4,7 @@ import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import { AdminAuthApiService } from './admin-auth-api.service';
+import { AdminEntraAuthService } from './admin-entra-auth.service';
 import {
   ClearAdminAuth,
   CompleteEntraSignIn,
@@ -106,6 +107,7 @@ const defaults: AdminAuthStateModel = {
 @Injectable()
 export class AdminAuthState {
   private readonly authApi = inject(AdminAuthApiService);
+  private readonly entraAuth = inject(AdminEntraAuthService);
 
   @Selector()
   static sessionToken(state: AdminAuthStateModel): string | null {
@@ -246,7 +248,14 @@ export class AdminAuthState {
   @Action(LogoutAdmin)
   logoutAdmin(ctx: StateContext<AdminAuthStateModel>): Observable<unknown> {
     return this.authApi.logout().pipe(
-      tap(() => ctx.setState({ ...defaults })),
+      tap((res) => {
+        ctx.setState({ ...defaults });
+        // Kill the Entra IdP session too: without the end-session
+        // redirect the Entra cookie survives and the next "Sign in"
+        // silently re-authenticates (Karan, 2026-09-28). Null when
+        // Entra is unprovisioned — then there is no IdP session.
+        this.entraAuth.redirectToEntraLogout(res.entraLogoutUrl ?? null);
+      }),
       catchError(() => {
         // Even if the server call fails, drop the local token — the guard
         // re-probes on next navigation and fails closed.

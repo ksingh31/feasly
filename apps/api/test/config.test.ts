@@ -64,6 +64,7 @@ describe('loadConfig', () => {
         tokenEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/token',
         jwksUri: 'https://.ciamlogin.com//discovery/v2.0/keys',
         issuer: 'https://.ciamlogin.com//v2.0',
+        logoutEndpoint: 'https://.ciamlogin.com//oauth2/v2.0/logout',
         jwksCacheTtlMs: 600_000,
         httpTimeoutMs: 15_000,
         callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },
@@ -191,6 +192,7 @@ describe('loadConfig', () => {
       jwksUri: 'https://feaslyext.ciamlogin.com/tenant-123/discovery/v2.0/keys',
       // id_token iss uses the tenant id as host (tenant openid-configuration).
       issuer: 'https://tenant-123.ciamlogin.com/tenant-123/v2.0',
+      logoutEndpoint: 'https://feaslyext.ciamlogin.com/tenant-123/oauth2/v2.0/logout',
       jwksCacheTtlMs: 600_000,
       httpTimeoutMs: 15_000,
       callbackRateLimit: { windowMs: 900_000, maxRequests: 10 },

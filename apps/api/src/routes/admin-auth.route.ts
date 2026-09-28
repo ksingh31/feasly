@@ -7,7 +7,9 @@
  * Entra email+password is the only admin sign-in. Remaining:
  * - `GET /api/v1/admin/auth/me` — returns the session identity.
  *   Requires a valid session (guarded by the adapter).
- * - `POST /api/v1/admin/auth/logout` — revokes the session cookie.
+ * - `POST /api/v1/admin/auth/logout` — revokes the session cookie and
+ *   returns the Entra end-session URL so the frontend can kill the IdP
+ *   session too.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -121,8 +123,8 @@ export function createAdminAuthRoute(
 
     async logout(headers): Promise<AdminAuthLogoutResponse> {
       const token = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
-      const { loggedOut } = await adminAuth.logout(token);
-      return { loggedOut, setCookie: buildClearSessionCookie() };
+      const { loggedOut, entraLogoutUrl } = await adminAuth.logout(token);
+      return { loggedOut, setCookie: buildClearSessionCookie(), entraLogoutUrl };
     },
   };
 }
