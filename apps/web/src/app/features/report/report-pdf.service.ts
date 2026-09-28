@@ -175,6 +175,15 @@ export class ReportPdfService {
     );
     rule();
 
+    // What's not in this estimate — the same honest exclusions as the
+    // on-screen report. Trust builder: no surprise "that wasn't included".
+    text(reportCopy.exclusionsTitle, { size: 13, bold: true, gap: 6 });
+    text(reportCopy.includedLine, { size: 10, gap: 4 });
+    for (const item of reportCopy.exclusions) {
+      text(`• ${item}`, { size: 10, gap: 4 });
+    }
+    rule();
+
     // Next steps.
     text('Your next steps', { size: 13, bold: true, gap: 6 });
     input.steps.forEach((step, i) => {

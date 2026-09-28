@@ -495,6 +495,48 @@ describe('ReportPageComponent', () => {
       expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
     });
 
+    describe('report trust content (2026-09-28)', () => {
+      it('explains the selected finish tier and that upgrades are explicit choices', () => {
+        const tierBlurb = fixture.nativeElement.querySelector('.tier-blurb');
+        expect(tierBlurb?.textContent).toContain('hardwood and tile, stone counters');
+        const choices = fixture.nativeElement.querySelector('.tier-choices');
+        expect(choices?.textContent).toContain('explicit choices');
+        expect(choices?.textContent).toContain('in-floor heating');
+      });
+
+      it('frames coverage as builder-grade granularity with the 60+ line-item credibility line', () => {
+        const body = text();
+        expect(body).toContain("What your estimate covers");
+        expect(body).toContain('60+ line items');
+        expect(body).toContain('the way a real Calgary builder budgets');
+      });
+
+      it('lists the honest exclusions — including landscaping budgeted separately', () => {
+        const body = text();
+        expect(body).toContain("What's not in this estimate");
+        for (const item of [
+          'Demolition of any existing home',
+          'Unusual soil or servicing conditions',
+          'Permit and development fees beyond typical allowances',
+          'Financing costs',
+          'GST',
+          'Landscaping',
+        ]) {
+          expect(body).toContain(item);
+        }
+        expect(body).toContain('budget it separately with your builder');
+      });
+
+      it('renders the planning-ahead card: financing honesty and the 10–14 month timeline', () => {
+        const body = text();
+        expect(body).toContain('Planning ahead');
+        expect(body).toContain('construction loan, not a regular mortgage');
+        expect(body).toContain('Talk to a lender early');
+        expect(body).toContain('10–14 months from permits to possession');
+        expect(body).toContain('confirm timing with your builder');
+      });
+    });
+
     it('renders exactly the three D-01 buckets in the breakdown (land excluded)', () => {      const items = [...fixture.nativeElement.querySelectorAll('.bucket-legend li')];
       expect(items.length).toBe(3);
       const labels = items.map((li: Element) => li.querySelector('.bucket-label')?.textContent?.trim());

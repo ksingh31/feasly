@@ -101,6 +101,10 @@
               </p>
             }
             <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierLabel() }}</p>
+            <!-- tier-blurb/tier-choices are semantic hooks (also test selectors);
+                 the visual note style is shared with .build-note (DRY). -->
+            <p class="build-note tier-blurb">{{ tierDescriptor() }}</p>
+            <p class="build-note tier-choices">{{ copy.tierChoicesNote }}</p>
           </div>
           @if (!isReno()) {
             <div class="figure-card land-card">
@@ -216,6 +220,20 @@
       }
     </section>
 
+    <!-- COVERAGE: what the estimate includes — and honestly excludes.
+         Shown post-gate: it's about YOUR number, and the exclusions are a
+         trust builder (no surprise "oh, that wasn't included" later). -->
+    @if (unlocked()) {
+      <section class="card" [attr.aria-label]="copy.coverageTitle">
+        <h2>{{ copy.coverageTitle }}</h2>
+        <p class="hint">{{ copy.includedLine }}</p>
+        <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
+        @for (e of copy.exclusions; track e) {
+          <p class="build-note exclusion">• {{ e }}</p>
+        }
+      </section>
+    }
+
     <!-- NEXT 3 STEPS -->
     <section class="card" [attr.aria-label]="copy.stepsTitle">
       <h2>{{ copy.stepsTitle }}</h2>
@@ -228,6 +246,21 @@
         }
       </ol>
     </section>
+
+    <!-- PLANNING AHEAD: financing + timeline honesty for prospects.
+         No referrals, no promises, no specific lenders — plain-English
+         orientation for the biggest purchase of their life. -->
+    @if (unlocked()) {
+      <section class="card" [attr.aria-label]="copy.planningTitle">
+        <h2>{{ copy.planningTitle }}</h2>
+        <h3 class="subhead">{{ copy.financingTitle }}</h3>
+        @for (line of copy.financingLines; track line) {
+          <p class="planning-text">{{ line }}</p>
+        }
+        <h3 class="subhead">{{ copy.timelineTitle }}</h3>
+        <p class="planning-text">{{ copy.timelineLine }}</p>
+      </section>
+    }
 
     @if (unlocked()) {
       <!-- PARTNER SHARE: the backend sends the structured Feasly email and

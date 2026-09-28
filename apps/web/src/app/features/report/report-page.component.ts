@@ -222,6 +222,13 @@ export class ReportPageComponent implements OnInit {
     return this.tierOptions.find((t) => t.id === tier)?.name ?? tier;
   });
 
+  /** Honest one-line descriptor of the selected finish tier (no prices). */
+  protected readonly tierDescriptor = computed(() => {
+    const tier = this.snapshot()?.inputs.tier ?? this.wizardInputs().tier;
+    const d = this.copy.tierDescriptors;
+    return tier === 'luxury' ? d.luxury : tier === 'premium' ? d.premium : d.standard;
+  });
+
   /**
    * Hero figures post-gate; null pre-gate (blurred cards render instead).
    * Land is the FIXED City assessed value — never a range.

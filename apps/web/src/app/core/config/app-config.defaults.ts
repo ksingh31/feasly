@@ -445,6 +445,28 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       breakdownTitle: 'Where the build budget goes',
       breakdownLocked: 'The breakdown unlocks with your full report.',
       finishLevelLabel: 'Selected finish level',
+      tierDescriptors: {
+        standard:
+          'Quality finishes throughout, 9 ft basement ceilings — finishes are never compromised, with fewer premium upgrades.',
+        premium:
+          'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures.',
+        luxury:
+          'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement.',
+      },
+      tierChoicesNote:
+        'Premium upgrades — like basement in-floor heating, marble countertops, or upgraded windows — are explicit choices you make in your finish tier, never costs hidden in the number.',
+      coverageTitle: 'What your estimate covers',
+      includedLine:
+        'Built the way a real Calgary builder budgets — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Everything is in, except the exclusions below.',
+      exclusionsTitle: "What's not in this estimate",
+      exclusions: [
+        'Demolition of any existing home on the lot',
+        'Unusual soil or servicing conditions',
+        'Permit and development fees beyond typical allowances',
+        'Financing costs',
+        'GST',
+        'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
+      ],
       tierTitle: 'What if you change the finish tier?',
       tierLockedNote: 'Unlock your report to see the full cost breakdown and next steps.',
       adjustTitle: 'Adjust the size',
@@ -484,6 +506,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
         },
       ],
+      planningTitle: 'Planning ahead',
+      financingTitle: 'Financing this build',
+      financingLines: [
+        'A new build is usually financed with a construction loan, not a regular mortgage — your lender releases money in draws as each stage of the build is completed.',
+        'Lenders typically want to see your plans, your builder contract, and a cost breakdown like this report before they approve anything.',
+        'Talk to a lender early — financing terms shape what you can build, so it pays to know your numbers before final drawings.',
+      ],
+      timelineTitle: 'How long it takes',
+      timelineLine:
+        'A typical Calgary infill takes roughly 10–14 months from permits to possession — confirm timing with your builder.',
       shareTitle: 'Share with a partner',
       shareHint: 'Email this report to a partner — they receive their own secure link.',
       shareEmailLabel: 'Partner email',

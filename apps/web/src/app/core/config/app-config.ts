@@ -540,6 +540,18 @@ export interface AppConfig {
       breakdownLocked: string;
       /** Display-only finish tier on the report ("Selected finish level — Standard"). */
       finishLevelLabel: string;
+      /** Short honest descriptor of the selected finish tier (no prices). */
+      tierDescriptors: { standard: string; premium: string; luxury: string };
+      /** Upgrades-are-explicit-choices note under the tier descriptor. */
+      tierChoicesNote: string;
+      /** "What your estimate covers" — honest included/excluded framing. */
+      coverageTitle: string;
+      /** One-line "full build" framing above the exclusions list. */
+      includedLine: string;
+      /** "What's not in this estimate" heading. */
+      exclusionsTitle: string;
+      /** Compact exclusion list (demolition, soil, permits, financing, GST, landscaping). */
+      exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
       adjustTitle: string;
@@ -572,6 +584,12 @@ export interface AppConfig {
       staticGuideNote: string;
       stepsTitle: string;
       steps: { title: string; body: string }[];
+      /** "Planning ahead" card: financing + timeline honesty for prospects. */
+      planningTitle: string;
+      financingTitle: string;
+      financingLines: string[];
+      timelineTitle: string;
+      timelineLine: string;
       shareTitle: string;
       shareHint: string;
       shareEmailLabel: string;

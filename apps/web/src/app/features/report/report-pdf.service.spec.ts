@@ -62,4 +62,22 @@ describe('ReportPdfService', () => {
     const raw = await blob.text();
     expect(raw).toContain('the figures above are the complete estimate');
   });
+
+  it('includes the coverage framing and the honest exclusions list', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    const blob = await service.generate(input());
+    const raw = await blob.text();
+    // jsPDF WinAnsi-encodes body text; assert on ASCII-safe substrings.
+    expect(raw).toContain('60+ line items');
+    expect(raw).toContain('not in this estimate');
+    for (const item of [
+      'Demolition of any existing home',
+      'Unusual soil or servicing conditions',
+      'Financing costs',
+      'GST',
+      'Landscaping',
+    ]) {
+      expect(raw).toContain(item);
+    }
+  });
 });
