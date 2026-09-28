@@ -398,6 +398,15 @@ export const routes: Routes = [
             (m) => m.BuilderBillingComponent,
           ),
       },
+      {
+        // Builder invoices (BILL-04): commission invoice list + detail.
+        // Lazy-loaded with the rest of the builder portal.
+        path: 'billing/invoices',
+        loadComponent: () =>
+          import('./features/builder/builder-invoices.component').then(
+            (m) => m.BuilderInvoicesComponent,
+          ),
+      },
     ],
   },
   // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —

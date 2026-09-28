@@ -1,0 +1,180 @@
+<section class="builder-invoices" aria-labelledby="builder-invoices-heading">
+  <!-- Billing section tabs (shared with the card-on-file page). -->
+  <nav class="builder-invoices__tabs" aria-label="Billing sections">
+    <a routerLink="/builder/billing">{{ copy.billingTabCardLabel }}</a>
+    <a
+      routerLink="/builder/billing/invoices"
+      routerLinkActive="active"
+      aria-current="page"
+      >{{ copy.billingTabInvoicesLabel }}</a
+    >
+  </nav>
+
+  <h1 id="builder-invoices-heading">{{ copy.invoicesHeading }}</h1>
+  <p class="builder-invoices__explainer">{{ copy.invoicesExplainer }}</p>
+
+  @if (selected(); as invoice) {
+    <!-- Detail view -->
+    <button type="button" class="builder-invoices__back" (click)="closeDetail()">
+      ← {{ copy.invoicesBackToList }}
+    </button>
+
+    @if (detailStatus() === 'loading') {
+      <p class="builder-invoices__loading" role="status">
+        {{ copy.invoicesLoading }}
+      </p>
+    } @else if (detailStatus() === 'error') {
+      <p class="builder-invoices__error" role="alert">
+        {{ copy.invoicesLoadError }}
+        <button type="button" (click)="openInvoice(invoice.id)">
+          {{ copy.retryLabel }}
+        </button>
+      </p>
+    } @else {
+      @if (invoice.status === 'failed') {
+        <p class="builder-invoices__banner builder-invoices__banner--error" role="alert">
+          {{ copy.invoicesPaymentFailed }}
+          <a routerLink="/builder/billing">{{ copy.invoicesUpdateCardCta }}</a>
+        </p>
+      }
+      @if (invoice.status === 'paid') {
+        <p
+          class="builder-invoices__banner builder-invoices__banner--success"
+          role="status"
+        >
+          {{ copy.invoicesPaymentReceived }}
+        </p>
+      }
+
+      <h2>{{ copy.invoicesLineItemsHeading }}</h2>
+      <dl class="builder-invoices__facts">
+        <div>
+          <dt>{{ copy.invoicesContractRow }}</dt>
+          <dd>{{ money(invoice.contractValueCents) }}</dd>
+        </div>
+        <div>
+          <dt>{{ commissionRateLabel() }}</dt>
+          <dd>{{ money(invoice.commissionCents) }}</dd>
+        </div>
+        <div>
+          <dt>{{ copy.invoicesColStatus }}</dt>
+          <dd>
+            <span
+              class="builder-invoices__pill builder-invoices__pill--{{
+                invoice.status
+              }}"
+              >{{ statusLabel(invoice.status) }}</span
+            >
+          </dd>
+        </div>
+      </dl>
+
+      @if (reviewNote(invoice); as note) {
+        <p class="builder-invoices__note" role="note">{{ note }}</p>
+      }
+
+      <h2>{{ copy.invoicesTimelineHeading }}</h2>
+      <ol class="builder-invoices__timeline">
+        @for (entry of timeline(invoice);
+          track entry.date + entry.label) {
+          <li>
+            <span class="builder-invoices__timeline-label">{{ entry.label }}</span>
+            <time>{{ formatEdmontonDate(entry.date) }}</time>
+          </li>
+        }
+      </ol>
+
+      @if (invoice.status === 'paid') {
+        <h2>{{ copy.invoicesReceiptHeading }}</h2>
+        <dl class="builder-invoices__facts">
+          <div>
+            <dt>{{ copy.invoicesReceiptAmount }}</dt>
+            <dd>{{ money(invoice.commissionCents) }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.invoicesReceiptDate }}</dt>
+            <dd>{{ formatEdmontonDate(invoice.paidAt) }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.invoicesReceiptCard }}</dt>
+            <dd>{{ receiptCardLabel() }}</dd>
+          </div>
+        </dl>
+      }
+    }
+  } @else if (listStatus() === 'loading') {
+    <p class="builder-invoices__loading" role="status">
+      {{ copy.invoicesLoading }}
+    </p>
+  } @else if (listStatus() === 'error') {
+    <p class="builder-invoices__error" role="alert">
+      {{ copy.invoicesLoadError }}
+      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
+    </p>
+  } @else if (invoices().length === 0) {
+    <p class="builder-invoices__empty" role="status">{{ copy.invoicesEmpty }}</p>
+  } @else {
+    <!-- Invoice list -->
+    <table class="builder-invoices__table">
+      <thead>
+        <tr>
+          <th scope="col">{{ copy.invoicesColDate }}</th>
+          <th scope="col">{{ copy.invoicesColContract }}</th>
+          <th scope="col">{{ copy.invoicesColCommission }}</th>
+          <th scope="col">{{ copy.invoicesColStatus }}</th>
+          <th scope="col">{{ copy.invoicesColDue }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (invoice of invoices(); track invoice.id) {
+          <tr>
+            <td>
+              <button
+                type="button"
+                class="builder-invoices__row-link"
+                (click)="openInvoice(invoice.id)"
+              >
+                {{ formatEdmontonDate(invoice.createdAt) }}
+              </button>
+            </td>
+            <td>{{ money(invoice.contractValueCents) }}</td>
+            <td>{{ money(invoice.commissionCents) }}</td>
+            <td>
+              <span
+                class="builder-invoices__pill builder-invoices__pill--{{
+                  invoice.status
+                }}"
+                >{{ statusLabel(invoice.status) }}</span
+              >
+            </td>
+            <td>
+              @if (reviewCountdown(invoice); as countdown) {
+                <span class="builder-invoices__countdown">{{ countdown }}</span>
+              } @else {
+                {{ formatEdmontonDate(invoice.reviewDueAt) }}
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <nav class="builder-invoices__pagination" aria-label="Invoice pages">
+      <button
+        type="button"
+        (click)="prevPage()"
+        [disabled]="page() <= 1"
+      >
+        {{ copy.invoicesPrevPage }}
+      </button>
+      <span role="status">{{ pageLabel() }}</span>
+      <button
+        type="button"
+        (click)="nextPage()"
+        [disabled]="isLastPage()"
+      >
+        {{ copy.invoicesNextPage }}
+      </button>
+    </nav>
+  }
+</section>
