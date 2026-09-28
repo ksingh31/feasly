@@ -87,6 +87,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     testMode: true,
     createCustomer: async () => ({ id: 'cus_test' }),
     createSetupIntent: async () => ({ id: 'seti_test', clientSecret: 's' }),
+    listPaymentMethods: async () => [],
     createOffSessionPaymentIntent: async (input) => {
       if (failOnAmount !== undefined && input.amountCents === failOnAmount) {
         throw new Error('card declined (simulated)');

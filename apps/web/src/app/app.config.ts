@@ -21,6 +21,7 @@ import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
+import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -104,6 +105,7 @@ export const appConfig: ApplicationConfig = {
         // bundle: AdminLeadsState, AdminDisputesState, CalibrationState,
         // SheetsSyncState.
         BuilderState,
+        BuilderBillingState,
         AdminAuthState,
       ],
       withNgxsStoragePlugin({

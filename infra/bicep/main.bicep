@@ -104,6 +104,18 @@ var narrativeApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffix
 var groqSecretName = 'feasly-${environment}-groq-api-key'
 var groqApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${groqSecretName}'
 
+// Stripe billing (billing/02, BILL-02): Karan provisions the Stripe TEST-mode
+// keys in Key Vault himself (this is NOT deployed by Bicep — a Bicep-deployed
+// secret would overwrite his value). The URIs below only reference them; the
+// secrets must exist in the vault before the app first resolves the Key Vault
+// references at startup. Until then the settings stay empty and billing
+// stays dormant (BILLING_NOT_CONFIGURED). Config enforces test keys outside
+// production, so no real charge is possible in dev.
+var stripeSecretKeyName = 'feasly-${environment}-stripe-secret-key'
+var stripeSecretKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${stripeSecretKeyName}'
+var stripeWebhookSecretName = 'feasly-${environment}-stripe-webhook-secret'
+var stripeWebhookSecretSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${stripeWebhookSecretName}'
+
 // Microsoft Entra External ID sign-in (admin/builder, auth/02): the tenant,
 // app registrations, and user flow are provisioned once in the portal (see
 // docs/auth/entra-manual-changes.md) — Entra External ID resources are not
@@ -253,6 +265,11 @@ module functionApp 'modules/function-app.bicep' = {
     narrativeFallbackEndpoint: ''
     narrativeFallbackApiKeySecretUri: environment == 'dev' ? groqApiKeySecretUri : ''
     narrativeFallbackModels: ''
+    // Stripe billing (billing/02, BILL-02): dev-only until Karan provisions
+    // the test-mode keys in the vault. Elsewhere the settings stay empty
+    // and billing stays dormant (BILLING_NOT_CONFIGURED).
+    stripeSecretKeySecretUri: environment == 'dev' ? stripeSecretKeySecretUri : ''
+    stripeWebhookSecretUri: environment == 'dev' ? stripeWebhookSecretSecretUri : ''
     // Microsoft Entra External ID sign-in (auth/02): dev-only until Karan
     // provisions the tenant identifiers for other environments. Elsewhere
     // the settings stay empty and the backend callback fails closed (503)

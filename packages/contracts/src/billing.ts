@@ -59,6 +59,25 @@ export interface StripeWebhookResult {
 }
 
 /**
+ * Card-on-file status — GET /api/v1/billing/card (billing/02, BILL-02).
+ * Display-safe summary only: brand/last4/expiry. The PAN never leaves
+ * Stripe.
+ */
+export interface CardOnFileStatus {
+  readonly hasCard: boolean;
+  readonly brand?: string;
+  readonly last4?: string;
+  readonly expMonth?: number;
+  readonly expYear?: number;
+}
+
+/** Result of POST /api/v1/billing/setup-intent (billing/02, BILL-02). */
+export interface SetupIntentResponse {
+  readonly setupIntentId: string;
+  readonly clientSecret: string;
+}
+
+/**
  * Dispute console contracts (billing/01 follow-on, was OPS-009).
  *
  * Wire shapes for `/api/v1/admin/disputes/*`. Dates are ISO-8601 strings.

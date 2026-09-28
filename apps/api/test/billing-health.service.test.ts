@@ -62,6 +62,7 @@ const fakeStripe: StripeService = {
     id: 'seti_test_123',
     clientSecret: 'seti_test_secret',
   }),
+  listPaymentMethods: async () => [],
   createOffSessionPaymentIntent: async () => ({
     id: 'pi_test_123',
     status: 'requires_capture',

@@ -6,6 +6,10 @@
  * - `POST /api/v1/billing/report-contract` — builder reports the signed
  *   contract for one of their leads (won-without-details retry path, or a
  *   standalone report). Builder-gated; tenant-scoped.
+ * - `POST /api/v1/billing/setup-intent` — builder creates a SetupIntent to
+ *   save a card on file (commission model). Builder-gated; tenant-scoped.
+ * - `GET /api/v1/billing/card` — builder reads their card-on-file status
+ *   (brand/last4/expiry only, never the PAN). Builder-gated; tenant-scoped.
  * - `GET /api/v1/billing/invoices/{id}` — read a commission invoice.
  *   Builders see only their own tenant's invoices; admins see all.
  * - `POST /api/v1/billing/invoices/{id}/dispute` — builder disputes their
@@ -29,10 +33,15 @@ import type {
   BillingService,
   ReportContractInput,
 } from '../services/billing/billing.service';
+import type {
+  CommissionCardService,
+  CommissionCardStatus,
+} from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
 
 export interface BillingRouteDeps {
   readonly billing: BillingService;
+  readonly commissionCard: CommissionCardService;
   readonly builderGuard: BuilderGuard;
   readonly adminGuard: AdminGuard;
 }
@@ -43,6 +52,14 @@ export interface BillingRoute {
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
   ): Promise<BillableEventResult>;
+  /** POST /api/v1/billing/setup-intent */
+  createSetupIntent(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<{ setupIntentId: string; clientSecret: string }>;
+  /** GET /api/v1/billing/card */
+  getCard(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<CommissionCardStatus>;
   /** GET /api/v1/billing/invoices/{id} */
   getInvoice(
     headers: Record<string, string | string[] | undefined>,
@@ -109,7 +126,7 @@ async function requireBuilderSession(
 }
 
 export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
-  const { billing, builderGuard, adminGuard } = deps;
+  const { billing, commissionCard, builderGuard, adminGuard } = deps;
 
   return {
     async reportContract(headers, body): Promise<BillableEventResult> {
@@ -130,6 +147,25 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
         contractSignedAt: new Date(parsed.data.contractSignedAt),
       };
       return billing.reportContract(input);
+    },
+
+    async getCard(
+      headers: Record<string, string | string[] | undefined>,
+    ): Promise<CommissionCardStatus> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return commissionCard.getCard(session.tenantKey);
+    },
+
+    async createSetupIntent(
+      headers: Record<string, string | string[] | undefined>,
+    ): Promise<{ setupIntentId: string; clientSecret: string }> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      // Idempotent: ensures the tenant has a Stripe customer first, so the
+      // portal needs only one call to start the card form. ensureCustomer
+      // throws 503 BILLING_NOT_CONFIGURED when Stripe is not wired; the
+      // service converts that to the 422 copy below via its own check.
+      await commissionCard.ensureCustomer(session.tenantKey, session.email);
+      return commissionCard.createSetupIntent(session.tenantKey);
     },
 
     async getInvoice(headers, id): Promise<CommissionInvoiceRecord> {

@@ -82,6 +82,12 @@ param narrativeFallbackEndpoint string = ''
 @description('Key Vault secret URI (versionless) for the fallback narrative LLM API key (Groq). Empty = not configured; the Groq step is skipped gracefully. Karan provisions the key in Key Vault himself — Bicep only references it, never writes it.')
 param narrativeFallbackApiKeySecretUri string = ''
 
+@description('Key Vault secret URI (versionless) for the Stripe secret key (test mode in dev). Empty = billing stays dormant (BILLING_NOT_CONFIGURED). Karan provisions the key in Key Vault himself from Stripe test-mode keys — Bicep only references it, never writes it.')
+param stripeSecretKeySecretUri string = ''
+
+@description('Key Vault secret URI (versionless) for the Stripe webhook signing secret. Empty = webhook verification fails closed. Karan provisions the secret in Key Vault himself — Bicep only references it, never writes it.')
+param stripeWebhookSecretUri string = ''
+
 @description('Model slug(s) for the fallback narrative provider (e.g. openai/gpt-oss-120b). Empty = the app config default.')
 param narrativeFallbackModels string = ''
 
@@ -352,6 +358,26 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'NARRATIVE_FALLBACK_MODELS'
                 value: narrativeFallbackModels
+              }
+            ],
+        // Stripe (billing/02, BILL-02): dev-only until Karan provisions the
+        // test-mode keys in the vault. Empty = the settings are omitted and
+        // billing stays dormant (BILLING_NOT_CONFIGURED). Config enforces
+        // test keys outside production, so no real charge is possible in dev.
+        empty(stripeSecretKeySecretUri)
+          ? []
+          : [
+              {
+                name: 'STRIPE_SECRET_KEY'
+                value: '@Microsoft.KeyVault(SecretUri=${stripeSecretKeySecretUri})'
+              }
+            ],
+        empty(stripeWebhookSecretUri)
+          ? []
+          : [
+              {
+                name: 'STRIPE_WEBHOOK_SECRET'
+                value: '@Microsoft.KeyVault(SecretUri=${stripeWebhookSecretUri})'
               }
             ],
         // Microsoft Entra External ID sign-in (admin/builder). Values are
