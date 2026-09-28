@@ -1,12 +1,5 @@
 <div class="lead-modal-card" role="dialog" aria-modal="true" aria-label="Lead detail">
-  @if (detailStatus() === 'loading') {
-    <p class="lead-modal-card__state">Loading lead…</p>
-  } @else if (detailStatus() === 'error') {
-    <div class="lead-modal-card__state lead-modal-card__state--error">
-      <p>{{ detailError() }}</p>
-      <button type="button" (click)="retry()">Try again</button>
-    </div>
-  } @else if (detail(); as lead) {
+  @if (detail(); as lead) {
     <header class="lead-modal-card__header">
       <div class="lead-modal-card__avatar" aria-hidden="true">{{ initials(lead.name) }}</div>
       <div class="lead-modal-card__identity">
@@ -30,6 +23,13 @@
         ✕
       </button>
     </header>
+
+    @if (detailStatus() === 'loading') {
+      <p class="lead-modal-card__refresh" role="status">Refreshing…</p>
+    }
+    @if (detailRefreshError(); as refreshErr) {
+      <p class="lead-modal-card__error" role="alert">{{ refreshErr }}</p>
+    }
 
     <section class="lead-modal-card__pipeline" aria-label="Pipeline">
       <div class="lead-modal-card__pipeline-head">
@@ -62,6 +62,9 @@
       @if (statusUpdateError(); as err) {
         <p class="lead-modal-card__error" role="alert">{{ err }}</p>
       }
+      @if (statusUpdateSuccess()) {
+        <p class="lead-modal-card__success" role="status">✓ {{ statusSuccessMessage() }}</p>
+      }
 
       <label class="lead-modal-card__assign">
         <span class="lead-modal-card__field-label">Assign to builder</span>
@@ -93,6 +96,9 @@
       </label>
       @if (assignError(); as err) {
         <p class="lead-modal-card__error" role="alert">{{ err }}</p>
+      }
+      @if (assignSuccess()) {
+        <p class="lead-modal-card__success" role="status">✓ {{ assignSuccessMessage() }}</p>
       }
     </section>
 
@@ -199,6 +205,9 @@
           {{ notePosting() ? 'Adding…' : 'Add note' }}
         </button>
       </div>
+      @if (noteError(); as noteErr) {
+        <p class="lead-modal-card__error" role="alert">{{ noteErr }}</p>
+      }
       <p class="lead-modal-card__hint">Notes are append-only — they can't be edited or deleted.</p>
     </section>
 
@@ -213,5 +222,12 @@
         <div><dt>Nudge sent</dt><dd>{{ formatDate(lead.nudgeSentAt) }}</dd></div>
       </dl>
     </section>
+  } @else if (detailStatus() === 'loading') {
+    <p class="lead-modal-card__state">Loading lead…</p>
+  } @else if (detailStatus() === 'error') {
+    <div class="lead-modal-card__state lead-modal-card__state--error">
+      <p>{{ detailError() }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
   }
 </div>

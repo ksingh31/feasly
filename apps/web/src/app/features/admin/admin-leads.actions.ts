@@ -51,6 +51,16 @@ export class DismissAdminLeadStatusError {
   static readonly type = '[AdminLeads] Dismiss status error';
 }
 
+/** Dismiss the inline status-update success confirmation in the lead modal. */
+export class DismissAdminLeadStatusSuccess {
+  static readonly type = '[AdminLeads] Dismiss status success';
+}
+
+/** Dismiss the inline note-post error in the lead modal. */
+export class DismissAdminLeadNoteError {
+  static readonly type = '[AdminLeads] Dismiss note error';
+}
+
 /** Download the CSV export of the current filtered set. */
 export class ExportAdminLeadsCsv {
   static readonly type = '[AdminLeads] Export CSV';
