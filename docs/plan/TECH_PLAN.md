@@ -1279,8 +1279,6 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live | Re-issue a fresh relay code for an expired/used one (embed/06 AC3 — the "session expired" re-issue affordance). 410 on unknown/still-valid codes; 429 inside the 60s per-code cooldown. |
 | POST | `/api/v1/chat/ask` | none | 20/hr per IP | planned | Grounded chat assistant (consumer/05). Session-scoped, rate-limited, allowlisted. Deterministic engine owns all dollar figures. |
 | GET | `/api/v1/openapi.json` | none | 100/min per IP (1h cache) | live | Generated OpenAPI 3.1 spec (api-mcp/03). No auth by design. |
-| POST | `/api/v1/admin/auth/request` | none | 5/hr per email+IP | planned | Request an admin magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
-| GET | `/api/v1/admin/auth/verify` | magic-token | 10/min per IP | planned | Consume the admin magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
 | GET | `/api/v1/admin/auth/me` | admin | 100/min per session | planned | Return the current admin session identity (email). |
 | POST | `/api/v1/admin/auth/logout` | admin | 10/min per session | planned | Revoke the admin session; clears the session cookie. |
 | POST | `/api/v1/admin/auth/entra/callback` | none | 10/15min per IP | live | Entra PKCE callback: exchange the code, validate the id_token (JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day admin session. Unknown account → 403, no enumeration. |

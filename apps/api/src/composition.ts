@@ -140,7 +140,6 @@ import {
 import {
   createAdminAuthService,
   type AdminAuthService,
-  type AdminAllowlistStore,
   type AdminSessionStore,
 } from './services/admin-auth.service';
 import {
@@ -174,7 +173,6 @@ import {
   type BuilderService,
 } from './services/builder.service';
 import {
-  createDrizzleAdminAllowlistStore,
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import {
@@ -645,7 +643,6 @@ export interface CompositionOptions {
   readonly apiKeyStore?: ApiKeyStore;
   readonly apiKeyAuditStore?: ApiKeyAuditStore;
   readonly adminSessionStore?: AdminSessionStore;
-  readonly adminAllowlistStore?: AdminAllowlistStore;
   readonly builderSessionStore?: BuilderSessionStore;
   readonly builderAllowlistStore?: BuilderAllowlistStore;
   readonly userStore?: UserStore;
@@ -1017,36 +1014,19 @@ export function createComposition(
           armBaseUrl: config.backupCheck.armBaseUrl,
         })
       : undefined;
-  // admin/01 — magic-link + allowlist session auth. The session guard
-  // replaces the interim pre-shared-key guard; routes are untouched (they
-  // depend on the AdminGuard interface).
+  // auth/02 — admin session auth (Entra sign-in mints the sessions).
+  // The session guard replaces the interim pre-shared-key guard; routes
+  // are untouched (they depend on the AdminGuard interface).
   const adminSessionStore: AdminSessionStore =
     options.adminSessionStore ??
     createDrizzleAdminSessionStore({ db: db.db });
-  const adminAllowlistStore: AdminAllowlistStore =
-    options.adminAllowlistStore ??
-    createDrizzleAdminAllowlistStore({ db: db.db });
   // (adminAuditStore is defined above with the builders-table setup.)
   const adminAuthService: AdminAuthService = createAdminAuthService({
-    allowlist: adminAllowlistStore,
     sessions: adminSessionStore,
     audit: adminAuditStore,
-    magicLinks: magicLinkStore,
-    email: emailService,
-    appBaseUrl: config.email.appBaseUrl,
-    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
-    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
-    // P0-class visibility guard: the admin magic-link send is fire-and-forget
-    // (no timing oracle), so a failed send must be loud — never swallowed by
-    // the service's no-op default. Sanitized: no tokens, no emails, no keys.
-    onEmailError: (error) =>
-      console.error(
-        `admin-auth: magic-link email send failed (error=${sanitizeErrorMessage(error)})`,
-      ),
   });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
-    adminSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
   });
   // auth/02 — Entra External ID sign-in. The token validator owns the
   // code exchange + id_token verification (no passwords in our database).

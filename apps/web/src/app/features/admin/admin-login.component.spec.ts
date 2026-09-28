@@ -1,19 +1,17 @@
 /**
- * Admin login component specs (auth/02 pivot).
+ * Admin login component specs (auth/02).
  *
  * Verifies: the branded Entra card (single "Sign in →" button starts the
  * Microsoft-hosted flow via AdminEntraAuthService), the not-configured
  * copy while the app-config still carries ENTRA_* placeholders, the
- * expired-session copy, and the preserved magic-link fallback toggle
- * (request → sent/error states, email validation).
+ * expired-session copy, and that no magic-link fallback remains (retired
+ * 2026-09-28 — Karan).
  */
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminLoginComponent } from './admin-login.component';
-import { AdminAuthApiService } from './admin-auth-api.service';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
@@ -30,18 +28,10 @@ class BlankComponent {}
 interface SetupOpts {
   entraConfigured?: boolean;
   expired?: boolean;
-  magicLinkOk?: boolean;
 }
 
 async function setup(opts: SetupOpts = {}) {
   TestBed.resetTestingModule();
-  const api = {
-    requestMagicLink: vi.fn().mockReturnValue(
-      opts.magicLinkOk === false
-        ? throwError(() => ({ retryable: true }))
-        : of({ sent: true as const }),
-    ),
-  };
   const entra = {
     isConfigured: () => opts.entraConfigured ?? true,
     startSignIn: vi.fn().mockResolvedValue(undefined),
@@ -78,7 +68,6 @@ async function setup(opts: SetupOpts = {}) {
     imports: [AdminLoginComponent],
     providers: [
       provideRouter([{ path: 'admin', component: BlankComponent }]),
-      { provide: AdminAuthApiService, useValue: api },
       { provide: AdminEntraAuthService, useValue: entra },
       { provide: SeoService, useValue: seo },
       { provide: ConfigService, useValue: config },
@@ -89,7 +78,7 @@ async function setup(opts: SetupOpts = {}) {
     TestBed.createComponent(AdminLoginComponent);
   fixture.detectChanges();
   await fixture.whenStable();
-  return { fixture, api, entra };
+  return { fixture, entra };
 }
 
 function textOf(fixture: ComponentFixture<AdminLoginComponent>): string {
@@ -151,46 +140,16 @@ describe('AdminLoginComponent (Entra)', () => {
     expect(textOf(fixture)).toContain(EXPIRED_COPY);
   });
 
-  it('keeps the magic-link fallback behind the toggle', async () => {
-    const { fixture, api } = await setup();
-    const toggle = fixture.nativeElement.querySelector(
-      '.admin-login__alt',
-    ) as HTMLButtonElement;
-    expect(toggle.textContent).toContain('Use a sign-in link instead');
-    toggle.click();
-    fixture.detectChanges();
-
-    const email = fixture.nativeElement.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
-    email.value = 'admin@example.com';
-    email.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    const send = fixture.nativeElement.querySelector(
-      '.admin-login__submit',
-    ) as HTMLButtonElement;
-    send.click();
-    await fixture.whenStable();
-    expect(api.requestMagicLink).toHaveBeenCalledWith({
-      email: 'admin@example.com',
-    });
-    fixture.detectChanges();
-    expect(textOf(fixture)).toContain('Check your email for your sign-in link.');
-  });
-
-  it('shows the magic-link error state with a retry', async () => {
-    const { fixture } = await setup({ magicLinkOk: false });
-    (fixture.nativeElement.querySelector('.admin-login__alt') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    const email = fixture.nativeElement.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
-    email.value = 'admin@example.com';
-    email.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    (fixture.nativeElement.querySelector('.admin-login__submit') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(textOf(fixture)).toContain('Something went wrong. Please try again.');
+  it('offers no magic-link fallback (retired 2026-09-28)', async () => {
+    const { fixture } = await setup();
+    const text = textOf(fixture);
+    expect(text).not.toContain('Use a sign-in link instead');
+    expect(text).not.toContain('Send sign-in link');
+    expect(
+      fixture.nativeElement.querySelector('input[type="email"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.admin-login__alt'),
+    ).toBeNull();
   });
 });

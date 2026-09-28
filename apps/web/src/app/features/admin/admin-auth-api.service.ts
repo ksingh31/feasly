@@ -3,10 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
-  AdminAuthRequestBody,
-  AdminAuthRequestResponse,
   AdminAuthLogoutResponse,
-  AdminAuthVerifyResponse,
   AdminEntraCallbackBody,
   AdminEntraCallbackResponse,
 } from '@feasly/contracts';
@@ -14,14 +11,15 @@ import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
 /**
- * Admin auth API client (admin/01).
+ * Admin auth API client (auth/02).
  *
- * Speaks the versioned `/api/v1/admin/auth/*` routes. Credential flow is
- * handled centrally by `credentialsInterceptor` (ADM-10): every admin API
- * request carries `Authorization: Bearer <token>` from AdminAuthState (plus
- * `withCredentials` for the same-origin cookie fallback) — the
- * cross-origin session cookie never sticks on modern browsers, so the
- * bearer token is the primary session credential.
+ * Speaks the versioned `/api/v1/admin/auth/*` routes (Entra sign-in is the
+ * only admin sign-in since the magic-link flow was retired 2026-09-28).
+ * Credential flow is handled centrally by `credentialsInterceptor`
+ * (ADM-10): every admin API request carries `Authorization: Bearer <token>`
+ * from AdminAuthState (plus `withCredentials` for the same-origin cookie
+ * fallback) — the cross-origin session cookie never sticks on modern
+ * browsers, so the bearer token is the primary session credential.
  *
  * The admin area is NOT wired to the mock API — it always talks to the
  * real backend (there is no mock admin session).
@@ -44,22 +42,6 @@ export class AdminAuthApiService {
     return request.pipe(timeout(timeoutMs), catchError(toApiError));
   }
 
-  /** Request a magic link. Always returns `{ sent: true }` (no oracle). */
-  requestMagicLink(body: AdminAuthRequestBody): Observable<AdminAuthRequestResponse> {
-    return this.call(
-      this.http.post<AdminAuthRequestResponse>(`${this.authBase}/request`, body),
-    );
-  }
-
-  /** Verify a magic-link token from the email. Returns the session token. */
-  verifyMagicLink(token: string): Observable<AdminAuthVerifyResponse> {
-    return this.call(
-      this.http.get<AdminAuthVerifyResponse>(`${this.authBase}/verify`, {
-        params: { token },
-      }),
-    );
-  }
-
   /** Log out: revoke the session server-side. */
   logout(): Observable<AdminAuthLogoutResponse> {
     return this.call(
@@ -80,8 +62,9 @@ export class AdminAuthApiService {
    * Exchange an Entra authorization code for our session. The SPA never
    * touches Entra tokens: the backend redeems `{ code, codeVerifier,
    * redirectUri }` with Entra and returns the Feasly session
-   * (`sessionToken` + user) in the JSON body — the same Bearer <redacted>
-   * discipline as the magic-link verify response.
+   * (`sessionToken` + user) in the JSON body — the SPA stores it and sends
+   * it back as `Authorization: Bearer <token>` (cross-origin cookie never
+   * sticks).
    */
   exchangeEntraCode(
     body: AdminEntraCallbackBody,
