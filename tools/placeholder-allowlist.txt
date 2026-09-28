@@ -81,3 +81,7 @@ apps/api/tools/repair-sql.mjs :: test email :: protected super_admin seed mirror
 # this entry.
 apps/api/src/services/builder-entra-callback.service.ts :: PLACEHOLDER :: builder Entra app/user flow unprovisioned (fail-closed 503), blocked on Karan's portal provisioning
 packages/contracts/src/builder.ts :: PLACEHOLDER :: builder Entra app/user flow unprovisioned (fail-closed 503), blocked on Karan's portal provisioning
+# Builder auth/05 frontend-owned contracts (AUTH #74): placeholder shapes for
+# the Entra callback, org memberships/switch, and team-user endpoints until
+# the backend lane lands them. Unblocks when backend implements the routes.
+apps/web/src/app/features/builder/builder-auth.contracts.ts :: PLACEHOLDER :: frontend-owned auth/05 contract placeholders, unblocked when backend builder auth/org/team routes land
