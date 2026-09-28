@@ -229,19 +229,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           id: 'standard',
           name: 'Standard',
           blurb:
-            'Durable, builder-grade finishes: quartz-look counters, LVP or carpet flooring, and standard lighting and plumbing packages.',
+            'Quality finishes throughout — finishes are never compromised, with fewer premium upgrades. Standard (non-oak) cabinetry, 9 ft basement ceilings.',
         },
         {
           id: 'premium',
           name: 'Premium',
           blurb:
-            'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer lighting and plumbing fixtures.',
+            'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures.',
         },
         {
           id: 'luxury',
           name: 'Luxury',
           blurb:
-            'Top shelf throughout: custom millwork, natural stone, premium appliances, spa-style bathrooms, and smart-home rough-ins.',
+            'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement — including the gym.',
         },
       ],
       scopeGarageLabel: 'Garage',
