@@ -96,7 +96,7 @@ jobs:
       # AC4: buy-back rule — bot comment, not a hard fail.
       - name: Buy-back bot comment
         if: github.event_name == 'pull_request' && steps.budgets.outputs.buyback == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
