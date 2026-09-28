@@ -30,6 +30,9 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     sendCallbackConfirmation: async (input) => { sent.push(input); return ok; },
     sendNudge: async (input) => { sent.push(input); return ok; },
     sendOpsAlert: async (input) => { sent.push(input); return ok; },
+    sendCommissionInvoiceReady: async (input) => { sent.push(input); return ok; },
+    sendCommissionPaymentReceived: async (input) => { sent.push(input); return ok; },
+    sendCommissionPaymentFailed: async (input) => { sent.push(input); return ok; },
   };
 }
 

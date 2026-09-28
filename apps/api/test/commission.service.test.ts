@@ -24,7 +24,7 @@ import {
 } from '../src/services/billing/attribution.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
-import { estimates, leads, tenants, billingEvents, commissionInvoices } from '../src/db/schema';
+import { estimates, leads, tenants, builders, billingEvents, commissionInvoices } from '../src/db/schema';
 import { ErrorCodes } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
 
@@ -121,6 +121,18 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     },
     sendOpsAlert: async (input: unknown) => {
       sent.push({ op: 'sendOpsAlert', input });
+      return { sent: true, provider: 'log' as const };
+    },
+    sendCommissionInvoiceReady: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionInvoiceReady', input });
+      return { sent: true, provider: 'log' as const };
+    },
+    sendCommissionPaymentReceived: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionPaymentReceived', input });
+      return { sent: true, provider: 'log' as const };
+    },
+    sendCommissionPaymentFailed: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionPaymentFailed', input });
       return { sent: true, provider: 'log' as const };
     },
   };
@@ -634,10 +646,11 @@ describe('commission service', () => {
     const invoiceEvents = rows.filter(
       (r) => r.entityId === draft.id && r.entityType === 'commission_invoice',
     );
-    // created + submitted for review.
-    expect(invoiceEvents.length).toBe(2);
+    // created + submitted for review + BILL-04 email audit (no contact).
+    expect(invoiceEvents.length).toBe(3);
     expect(invoiceEvents.map((r) => r.eventType).sort()).toEqual([
       'invoice.created',
+      'invoice.email_skipped_no_contact',
       'invoice.status_changed',
     ]);
     // Every event carries the tenant key.
@@ -825,5 +838,262 @@ describe('retryCharge (BILL-03)', () => {
     await expect(commission.retryCharge(finalized.id)).rejects.toMatchObject({
       code: ErrorCodes.BILLING_NOT_CONFIGURED,
     });
+  });
+});
+
+describe('listInvoices (BILL-04)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  async function seedInvoice(
+    tenantKey: string,
+  ): Promise<{ id: string; createdAt: Date }> {
+    const { commission, attribution } = newServices(testDb);
+    // seedTenant is not idempotent — only insert once per key.
+    const existing = await testDb.db.query.tenants.findFirst({
+      where: eq(tenants.tenantKey, tenantKey),
+    });
+    if (!existing) {
+      await seedTenant(testDb, tenantKey);
+    }
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      tenantKey,
+    );
+    const invoice = await commission.createDraftInvoice(attributionId);
+    return { id: invoice.id, createdAt: invoice.createdAt };
+  }
+
+  it('lists a tenant\'s invoices newest first', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-1';
+    const first = await seedInvoice(key);
+    // Ensure distinct createdAt for ordering.
+    await new Promise((r) => setTimeout(r, 10));
+    const second = await seedInvoice(key);
+
+    const list = await commission.listInvoices(key, { limit: 20, offset: 0 });
+
+    expect(list.length).toBe(2);
+    expect(list[0].id).toBe(second.id);
+    expect(list[1].id).toBe(first.id);
+    expect(list[0].tenantKey).toBe(key);
+  });
+
+  it('isolates tenants: another tenant\'s invoices never appear', async () => {
+    const { commission } = newServices(testDb);
+    await seedInvoice('list-builder-a');
+    await seedInvoice('list-builder-b');
+
+    const listA = await commission.listInvoices('list-builder-a', {
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(listA.length).toBe(1);
+    expect(listA[0].tenantKey).toBe('list-builder-a');
+  });
+
+  it('paginates with limit/offset', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-page';
+    await seedInvoice(key);
+    await seedInvoice(key);
+    await seedInvoice(key);
+
+    const page1 = await commission.listInvoices(key, { limit: 2, offset: 0 });
+    const page2 = await commission.listInvoices(key, { limit: 2, offset: 2 });
+
+    expect(page1.length).toBe(2);
+    expect(page2.length).toBe(1);
+    const ids1 = new Set(page1.map((i) => i.id));
+    expect(ids1.has(page2[0].id)).toBe(false);
+  });
+
+  it('admin (null tenant) sees all tenants\' invoices', async () => {
+    const { commission } = newServices(testDb);
+    await seedInvoice('list-builder-admin-a');
+    await seedInvoice('list-builder-admin-b');
+
+    const list = await commission.listInvoices(null, { limit: 20, offset: 0 });
+
+    const keys = new Set(list.map((i) => i.tenantKey));
+    expect(keys.has('list-builder-admin-a')).toBe(true);
+    expect(keys.has('list-builder-admin-b')).toBe(true);
+  });
+
+  it('clamps limit to 1–100', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-clamp';
+    await seedInvoice(key);
+
+    const list = await commission.listInvoices(key, { limit: 500, offset: 0 });
+    // Clamped to 100, but only 1 row exists.
+    expect(list.length).toBe(1);
+  });
+});
+
+describe('builder billing emails (BILL-04)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  async function seedBuilderWithEmail(
+    tenantKey: string,
+    email: string,
+  ): Promise<void> {
+    const existing = await testDb.db.query.tenants.findFirst({
+      where: eq(tenants.tenantKey, tenantKey),
+    });
+    if (!existing) {
+      await seedTenant(testDb, tenantKey);
+    }
+    const existingBuilder = await testDb.db.query.builders.findFirst({
+      where: eq(builders.tenantKey, tenantKey),
+    });
+    if (!existingBuilder) {
+      await testDb.db.insert(builders).values({
+        id: randomUUID(),
+        tenantKey,
+        businessName: 'Email Builder Inc',
+        displayName: 'Email Builder',
+        email,
+      });
+    }
+  }
+
+  it('emails the builder when an invoice enters review', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    const key = 'email-review-builder';
+    await seedBuilderWithEmail(key, 'billing@example.com');
+    const attributionId = await seedAttribution(testDb, attribution, key);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    email.sent.length = 0;
+    const inReview = await commission.submitForReview(draft.id);
+
+    expect(inReview.status).toBe('in_review');
+    const sent = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionInvoiceReady',
+    );
+    expect(sent).toBeDefined();
+    const input = (sent as { input: { to: string; reviewDueAt: Date } }).input;
+    expect(input.to).toBe('billing@example.com');
+    expect(input.reviewDueAt).toEqual(inReview.reviewDueAt);
+  });
+
+  it('emails a receipt when the charge succeeds', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    const key = 'email-paid-builder';
+    await seedBuilderWithEmail(key, 'receipts@example.com');
+    const attributionId = await seedAttribution(testDb, attribution, key);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    email.sent.length = 0;
+    const paid = await commission.markPaidByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+    );
+
+    expect(paid.status).toBe('paid');
+    const sent = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionPaymentReceived',
+    );
+    expect(sent).toBeDefined();
+    expect((sent as { input: { to: string } }).input.to).toBe(
+      'receipts@example.com',
+    );
+  });
+
+  it('emails "update your card" when the charge fails', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    const key = 'email-failed-builder';
+    await seedBuilderWithEmail(key, 'dunning@example.com');
+    const attributionId = await seedAttribution(testDb, attribution, key);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    email.sent.length = 0;
+    const failed = await commission.markFailedByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+      'card_declined',
+    );
+
+    expect(failed.status).toBe('failed');
+    const sent = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionPaymentFailed',
+    );
+    expect(sent).toBeDefined();
+    const input = (sent as { input: { to: string; updateWithinDays: number } })
+      .input;
+    expect(input.to).toBe('dunning@example.com');
+    expect(input.updateWithinDays).toBe(7);
+  });
+
+  it('falls back to tenants.fallback_email when builders.email is absent', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    const key = 'email-fallback-builder';
+    await testDb.db.insert(tenants).values({
+      tenantKey: key,
+      businessName: 'Fallback Builder Inc',
+      displayName: 'Fallback Builder',
+      accentColor: '#B08D57',
+      allowedOrigins: ['https://fallback.example'],
+      stripeCustomerId: 'cus_test_123',
+      fallbackEmail: 'fallback@example.com',
+    });
+    const attributionId = await seedAttribution(testDb, attribution, key);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    email.sent.length = 0;
+    await commission.submitForReview(draft.id);
+
+    const sent = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionInvoiceReady',
+    );
+    expect(sent).toBeDefined();
+    expect((sent as { input: { to: string } }).input.to).toBe(
+      'fallback@example.com',
+    );
+  });
+
+  it('audits a skip (no throw) when no contact email exists', async () => {
+    const { commission, attribution, email } = newServices(testDb);
+    const key = 'email-skip-builder';
+    // seedTenant sets no fallbackEmail (defaults to ''); no builders row;
+    // no allowlist row → resolveBuilderEmail returns null.
+    await seedTenant(testDb, key);
+    const attributionId = await seedAttribution(testDb, attribution, key);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    email.sent.length = 0;
+    const inReview = await commission.submitForReview(draft.id);
+
+    // Transition succeeded; no email attempted.
+    expect(inReview.status).toBe('in_review');
+    expect(
+      email.sent.some(
+        (s) => (s as { op: string }).op === 'sendCommissionInvoiceReady',
+      ),
+    ).toBe(false);
+    // The skip was audited.
+    const events = await testDb.rows<{ event_type: string }>(
+      `select event_type from billing_events where entity_id = '${draft.id}' and event_type = 'invoice.email_skipped_no_contact'`,
+    );
+    expect(events.length).toBe(1);
   });
 });

@@ -21,6 +21,9 @@ import type {
   OpsAlertEmailInput,
   PartnerShareEmailInput,
   CallbackConfirmationInput,
+  CommissionInvoiceReadyEmailInput,
+  CommissionPaymentReceivedEmailInput,
+  CommissionPaymentFailedEmailInput,
 } from './email.service';
 
 export interface SandboxEmailServiceDeps {
@@ -60,5 +63,12 @@ export function createSandboxSuppressingEmailService(
     sendNudge: (_input: NudgeEmailInput) => suppressed('sendNudge', log),
     sendOpsAlert: (_input: OpsAlertEmailInput) =>
       suppressed('sendOpsAlert', log),
+    sendCommissionInvoiceReady: (_input: CommissionInvoiceReadyEmailInput) =>
+      suppressed('sendCommissionInvoiceReady', log),
+    sendCommissionPaymentReceived: (
+      _input: CommissionPaymentReceivedEmailInput,
+    ) => suppressed('sendCommissionPaymentReceived', log),
+    sendCommissionPaymentFailed: (_input: CommissionPaymentFailedEmailInput) =>
+      suppressed('sendCommissionPaymentFailed', log),
   };
 }

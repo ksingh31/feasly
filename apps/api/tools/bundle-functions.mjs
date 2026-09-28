@@ -265,6 +265,11 @@ const targets = [
     entry: 'src/functions/billing-invoice-get.ts',
     out: 'billing-invoice-get/index.js',
   },
+  // BILL-04: paginated invoice list for the builder portal.
+  {
+    entry: 'src/functions/billing-invoice-list.ts',
+    out: 'billing-invoice-list/index.js',
+  },
   {
     entry: 'src/functions/billing-invoice-dispute.ts',
     out: 'billing-invoice-dispute/index.js',

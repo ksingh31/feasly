@@ -103,6 +103,9 @@ function fakeEmailService(): EmailService & {
     sendCallbackConfirmation: async () => ok,
     sendNudge: async () => ok,
     sendOpsAlert: async () => ok,
+    sendCommissionInvoiceReady: async () => ok,
+    sendCommissionPaymentReceived: async () => ok,
+    sendCommissionPaymentFailed: async () => ok,
   };
 }
 
