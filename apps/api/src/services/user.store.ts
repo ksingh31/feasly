@@ -3,6 +3,7 @@
  * Implements the store interfaces from user.service.ts against Postgres.
  */
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import {
   builderMemberships,
   invitations,
@@ -200,7 +201,8 @@ export function createDrizzleMembershipStore(
     async add(userId, builderId, role) {
       const [row] = await database
         .insert(builderMemberships)
-        .values({ userId, builderId, role })
+        // App-generated UUID (node:crypto) — same discipline as builders.
+        .values({ id: randomUUID(), userId, builderId, role })
         .onConflictDoNothing()
         .returning();
       if (row) {

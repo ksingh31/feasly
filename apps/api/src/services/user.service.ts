@@ -314,19 +314,21 @@ export function createUserService(deps: UserServiceDeps): UserService {
   }
 
   function assertPasswordValid(password: string): void {
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      throw new HttpError(
-        400,
-        ErrorCodes.VALIDATION_FAILED,
-        `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`,
-        false,
-      );
-    }
+    // Blocklist first: "password123" deserves the "too common" guidance,
+    // not "add one more character" (which yields "password1234" — also common).
     if (isCommonPassword(password)) {
       throw new HttpError(
         400,
         ErrorCodes.VALIDATION_FAILED,
         'That password is too common — try something more unique.',
+        false,
+      );
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`,
         false,
       );
     }
