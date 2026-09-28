@@ -12,7 +12,7 @@ import type {
   AdminLeadStatusRequest,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { toApiError } from '../../core/api/api-error';
+import { toApiError, toBlobApiError } from '../../core/api/api-error';
 
 /**
  * Admin leads-explorer API client (admin/02).
@@ -145,13 +145,18 @@ export class AdminLeadsApiService {
     // Bulk export gets its own timeout from config: Azure Functions cold
     // starts plus CSV generation for thousands of rows can exceed the
     // standard API timeout (2026-09-27: export failed with "Request failed").
-    return this.call(
-      this.http.get(`${this.leadsBase}/export.csv`, {
+    // Blob-aware error mapping: a rejected blob download carries the
+    // problem+json in a Blob body, which the generic toApiError can't read
+    // (2026-09-28: every export failure showed the generic message).
+    return this.http
+      .get(`${this.leadsBase}/export.csv`, {
         params: this.toQueryParams(filters),
         withCredentials: true,
         responseType: 'blob',
-      }),
-      this.config.get('api').exportTimeoutMs,
-    );
+      })
+      .pipe(
+        timeout(this.config.get('api').exportTimeoutMs),
+        catchError(toBlobApiError),
+      );
   }
 }

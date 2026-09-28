@@ -211,4 +211,58 @@ describe('admin-leads-export adapter', () => {
     expect(typeof res.body).toBe('string');
     expect((res.body as string).split('\n')).toHaveLength(2);
   });
+
+  it('survives hostile rows: invalid dates, quotes, newlines, unicode', async () => {
+    // 2026-09-28 QA: authenticated export of 30 real filtered leads failed
+    // with a generic toast. The serializer hardens per-row, but nothing
+    // pinned the full adapter chain against realistic dirty rows — one
+    // hostile value must never kill the whole file.
+    storeListLeads.mockResolvedValue({
+      rows: [
+        makeLeadRow({
+          id: 'lead-bad-date',
+          name: 'O"Brien,\nJr.',
+          addressKey: '123 Main St NW, Calgary, AB T2N 1N4',
+          consentTs: new Date('not-a-date') as unknown as Date,
+          createdAt: new Date(Number.NaN) as unknown as Date,
+        }),
+        makeLeadRow({
+          id: 'lead-unicode',
+          name: 'José García 🏠',
+          email: 'jose+test@example.com',
+          phone: undefined as unknown as string,
+          leadScore: Number.NaN as unknown as number,
+        }),
+        makeLeadRow({
+          id: 'lead-nulls',
+          name: null as unknown as string,
+          email: null as unknown as string,
+          tenantKey: undefined as unknown as null,
+        }),
+      ],
+      nextCursor: null,
+      totalCount: 3,
+      statusCounts: STATUS_COUNTS,
+    });
+    const ctx = context();
+    await adminLeadsExportHandler(ctx, {
+      method: 'GET',
+      headers: { cookie: SESSION_COOKIE },
+      query: { status: 'new', search: 'calgary' },
+    });
+
+    const res = ctx.res as { status: number; body: unknown };
+    expect(res.status).toBe(200);
+    expect(typeof res.body).toBe('string');
+    const body = res.body as string;
+    // Every row made it into the file — none dropped, none threw. (A name
+    // containing a real newline is legal CSV inside quotes, so assert on
+    // content rather than line count.)
+    expect(body).toContain('lead-bad-date');
+    expect(body).toContain('lead-unicode');
+    expect(body).toContain('lead-nulls');
+    expect(body).toContain('"O""Brien,');
+    // Invalid dates serialize empty rather than "Invalid Date".
+    expect(body).not.toContain('Invalid Date');
+  });
 });
