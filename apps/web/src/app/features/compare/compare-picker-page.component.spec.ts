@@ -6,7 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComparePickerPageComponent } from './compare-picker-page.component';
 import { CommunityService } from '../../core/community';
 import { ConfigService } from '../../core/config/config.service';
@@ -250,10 +250,15 @@ describe('ComparePickerPageComponent', () => {
     // Regression: tapping "Compare neighbourhoods" on the homepage must
     // NEVER auto-resume a previous session's comparison into the results
     // page — it always starts on the picker.
+    const scrollSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
     const { fixture, comp, store } = await setup({ fresh: true, seedResult: true });
     expect(comp['phase']()).toBe('picker');
     expect(store.selectSnapshot(ComparisonState.result)).toBeNull();
     expect(store.selectSnapshot(ComparisonState.status)).toBe('idle');
+    // Fresh entry presents the top of the picker (the entry link sits below
+    // the fold on the homepage).
+    expect(scrollSpy).toHaveBeenCalledWith(0, 0);
+    scrollSpy.mockRestore();
     // The picker heading renders (not the results page).
     const el: HTMLElement = fixture.nativeElement;
     expect(el.textContent).toContain('Compare neighbourhoods');

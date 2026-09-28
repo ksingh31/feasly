@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { afterNextRender, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
@@ -146,6 +146,11 @@ export class ComparePickerPageComponent {
       this.store.dispatch(new ClearComparisonResult());
       this.phase.set('picker');
       void this.router.navigate(['/estimate/compare'], { replaceUrl: true });
+      // A fresh start always presents the top of the picker: the homepage
+      // entry link sits below the fold, so without this the route would
+      // inherit the homepage's scroll offset and land mid-page. Browser-only
+      // (afterNextRender never runs on the server).
+      afterNextRender(() => window.scrollTo(0, 0));
     } else {
       const editRequested = params.get('edit') === '1';
       const hasResult = this.store.selectSnapshot(ComparisonState.result) !== null;
@@ -160,6 +165,7 @@ export class ComparePickerPageComponent {
         this.store.dispatch(new ClearComparisonResult());
         this.phase.set('picker');
         void this.router.navigate(['/estimate/compare'], { replaceUrl: true });
+        window.scrollTo(0, 0);
         return;
       }
       if (queryParams['edit'] === '1' && this.phase() === 'results') {
