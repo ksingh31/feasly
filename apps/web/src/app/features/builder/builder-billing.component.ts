@@ -7,7 +7,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe, StripeCardElement } from '@stripe/stripe-js';
