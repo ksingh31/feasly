@@ -1,0 +1,56 @@
+<section class="builder-billing" aria-labelledby="builder-billing-heading">
+  <h1 id="builder-billing-heading">{{ copy.billingHeading }}</h1>
+
+  <p class="builder-billing__explainer">{{ copy.billingExplainer }}</p>
+
+  @if (cardStatus() === 'loading') {
+    <p class="builder-billing__loading" role="status">{{ copy.billingLoading }}</p>
+  } @else if (cardStatus() === 'error') {
+    <p class="builder-billing__error" role="alert">
+      {{ copy.billingLoadError }}
+      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
+    </p>
+  } @else {
+    <!-- Card-on-file status card: display-safe summary only. -->
+    <div class="builder-billing__card-status" role="region" aria-label="Card on file">
+      <p class="builder-billing__card-line" role="status">{{ cardSummary() }}</p>
+      @if (!publishableKey()) {
+        <p class="builder-billing__unavailable" role="note">
+          {{ copy.billingUnavailable }}
+        </p>
+      } @else if (!formOpen()) {
+        <button type="button" (click)="openForm()">
+          {{ card()?.hasCard ? copy.billingUpdateCard : copy.billingAddCard }}
+        </button>
+      }
+    </div>
+
+    @if (saveSuccess()) {
+      <p class="builder-billing__success" role="status">{{ copy.billingCardSaved }}</p>
+    }
+
+    @if (formOpen()) {
+      <div class="builder-billing__form" role="region" aria-label="Card details">
+        <h2>{{ copy.billingFormHeading }}</h2>
+        <div #cardElement class="builder-billing__stripe-element"></div>
+        @if (saveError()) {
+          <p class="builder-billing__error" role="alert">{{ copy.billingSaveFailed }}</p>
+        }
+        <div class="builder-billing__form-actions">
+          <button
+            type="button"
+            (click)="saveCard()"
+            [disabled]="saving()"
+          >
+            {{ saving() ? copy.billingSavingCard : copy.billingSaveCard }}
+          </button>
+          <button type="button" (click)="cancelForm()" [disabled]="saving()">
+            {{ copy.billingCancel }}
+          </button>
+        </div>
+      </div>
+    } @else if (saveError()) {
+      <p class="builder-billing__error" role="alert">{{ copy.billingSaveFailed }}</p>
+    }
+  }
+</section>

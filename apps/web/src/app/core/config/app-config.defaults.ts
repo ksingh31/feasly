@@ -37,6 +37,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // (synchronous revoke aborts downloads in Safari/WebKit).
     downloadRevokeDelayMs: 1000,
   },
+  // Stripe publishable key is deploy-provided (see the deploy config JSON);
+  // empty here = the card form stays unavailable until a deploy provides it.
+  billing: {
+    stripePublishableKey: '',
+  },
   propertyData: {
     source: 'live',
     baseUrl: 'https://data.calgary.ca',
@@ -867,6 +872,26 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadCreatedLabel: 'Created',
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
+      shellNavBilling: 'Billing',
+      billingHeading: 'Billing',
+      billingLoading: 'Loading your billing details…',
+      billingLoadError: 'We couldn’t load your billing details. Please try again.',
+      billingNoCard: 'No card on file.',
+      billingCardOnFile: 'Card on file: {brand} •••• {last4}, expires {exp}',
+      billingAddCard: 'Add card',
+      billingUpdateCard: 'Update card',
+      billingFormHeading: 'Card details',
+      billingSaveCard: 'Save card',
+      billingSavingCard: 'Saving…',
+      billingCardSaved:
+        'Card saved — we’ll charge this card after each 7-day review window.',
+      billingSaveFailed:
+        'We couldn’t save your card. Check the details and try again.',
+      billingUnavailable:
+        'Card setup isn’t available yet — please contact us to arrange billing.',
+      billingCancel: 'Cancel',
+      billingExplainer:
+        'When you report a won deal, Feasly creates a commission invoice (1% of the signed contract value, excluding land). The invoice auto-charges 7 days later unless disputed.',
     },
     admin: {
       apiKeys: {

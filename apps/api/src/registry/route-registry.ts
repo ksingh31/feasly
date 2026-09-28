@@ -890,6 +890,29 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Idempotent: re-reporting returns the existing invoice.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/billing/setup-intent',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder creates a SetupIntent to save a card on file (commission ' +
+      'model). Idempotent: ensures the tenant\'s Stripe customer first. ' +
+      'Returns the client secret for Stripe Elements.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/card',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder reads their card-on-file status (brand/last4/expiry only — ' +
+      'the PAN never leaves Stripe). Commission model.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',

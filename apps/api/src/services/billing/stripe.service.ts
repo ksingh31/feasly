@@ -20,9 +20,19 @@ import type { AppDb } from '../../db/client';
 import { tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 
+/**
+ * Display-safe summary of a saved card payment method. Brand, last4 and
+ * expiry only — the PAN never leaves Stripe.
+ */
+export interface CardSummary {
+  readonly brand: string;
+  readonly last4: string;
+  readonly expMonth: number;
+  readonly expYear: number;
+}
+
 /** Normalized Stripe webhook event — the fields billing cares about. */
-export interface NormalizedStripeEvent {
-  readonly id: string;
+export interface NormalizedStripeEvent {  readonly id: string;
   readonly type: string;
   readonly paymentIntentId?: string;
   readonly customerId?: string;
@@ -51,6 +61,11 @@ export interface StripeClient {
     id: string;
     clientSecret: string;
   }>;
+  /**
+   * Saved card payment methods for a customer, newest first. Only the
+   * display-safe summary is exposed — never the PAN or full details.
+   */
+  listPaymentMethods(customerId: string): Promise<readonly CardSummary[]>;
   createOffSessionPaymentIntent(
     input: {
       amountCents: number;
@@ -94,6 +109,11 @@ export interface StripeService {
     id: string;
     clientSecret: string;
   }>;
+  /**
+   * Saved card payment methods for a customer, newest first. Display-safe
+   * summaries only — never the PAN.
+   */
+  listPaymentMethods(customerId: string): Promise<readonly CardSummary[]>;
   createOffSessionPaymentIntent(
     input: {
       amountCents: number;
@@ -194,12 +214,44 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       });
       return { id: intent.id, clientSecret: intent.client_secret ?? '' };
     },
+    async listPaymentMethods(customerId) {
+      const methods = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+      });
+      return methods.data.map((pm) => ({
+        brand: pm.card?.brand ?? 'unknown',
+        last4: pm.card?.last4 ?? '****',
+        expMonth: pm.card?.exp_month ?? 0,
+        expYear: pm.card?.exp_year ?? 0,
+      }));
+    },
     async createOffSessionPaymentIntent(input, idempotencyKey) {
+      // Resolve an explicit payment method: a card attached via SetupIntent
+      // is NOT automatically the customer's default payment method, so
+      // charging with only `customer` fails when no default is set
+      // ("no payment method attached to customer"). Newest card first —
+      // matches listPaymentMethods ordering, so the card the builder most
+      // recently saved is the one we charge.
+      const methods = await stripe.paymentMethods.list({
+        customer: input.customerId,
+        type: 'card',
+        limit: 1,
+      });
+      const pm = methods.data[0];
+      if (!pm) {
+        throw new HttpError(
+          422,
+          ErrorCodes.BILLING_NOT_CONFIGURED,
+          `Tenant customer "${input.customerId}" has no card on file — cannot charge`,
+        );
+      }
       const intent = await stripe.paymentIntents.create(
         {
           amount: input.amountCents,
           currency: input.currency.toLowerCase(),
           customer: input.customerId,
+          payment_method: pm.id,
           description: input.description,
           off_session: true,
           confirm: true,
@@ -266,6 +318,8 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
     createCustomer: (input) => requireClient().createCustomer(input),
     createSetupIntent: (customerId) =>
       requireClient().createSetupIntent(customerId),
+    listPaymentMethods: (customerId) =>
+      requireClient().listPaymentMethods(customerId),
     createOffSessionPaymentIntent: (input, idempotencyKey) =>
       requireClient().createOffSessionPaymentIntent(input, idempotencyKey),
     createSubscription: (input) =>

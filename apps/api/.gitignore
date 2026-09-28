@@ -12,3 +12,5 @@ admin-estimates-get/index.js
 openapi/index.js
 admin-leads-quarantine-approve/index.js
 admin-leads-quarantine-discard/index.js
+billing-card/index.js
+billing-setup-intent/index.js

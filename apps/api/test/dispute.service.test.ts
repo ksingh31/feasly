@@ -93,6 +93,7 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
       id: 'seti_test_123',
       clientSecret: 'seti_test_secret',
     }),
+    listPaymentMethods: async () => [],
     createOffSessionPaymentIntent: async (input, idempotencyKey) => {
       calls.push({ op: 'createOffSessionPaymentIntent', input, idempotencyKey });
       return { id: 'pi_test_1', status: 'requires_capture' };

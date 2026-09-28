@@ -1,0 +1,54 @@
+// Builder billing page (billing/02, BILL-02). Reuses the dashboard card
+// treatment — no redesign, same spacing and borders.
+.builder-billing {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.builder-billing__explainer {
+  color: var(--color-text-muted, #6b6257);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.builder-billing__card-status,
+.builder-billing__form {
+  background: #fff;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.builder-billing__card-line {
+  margin: 0;
+  font-weight: 600;
+}
+
+.builder-billing__form h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.builder-billing__stripe-element {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #e5e0d8);
+  border-radius: 0.375rem;
+}
+
+.builder-billing__form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.builder-billing__error {
+  color: var(--color-danger, #b3261e);
+}
+
+.builder-billing__success {
+  color: var(--color-success, #1e7e34);
+}

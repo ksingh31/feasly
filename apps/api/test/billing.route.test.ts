@@ -20,6 +20,7 @@ import {
   type BillingRouteDeps,
 } from '../src/routes/billing.route';
 import type { BillingService } from '../src/services/billing/billing.service';
+import type { CommissionCardService } from '../src/services/billing/commission-card.service';
 import type { BuilderGuard } from '../src/middleware/builder-guard';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 
@@ -31,7 +32,14 @@ const BUILDER_SESSION = {
 function makeDeps(opts?: {
   readonly builderSession?: typeof BUILDER_SESSION | null;
   readonly admin?: boolean;
-}): { route: ReturnType<typeof createBillingRoute>; billing: BillingService } {
+  readonly billingModel?: 'commission' | 'flat';
+  readonly stripeConfigured?: boolean;
+  readonly card?: { hasCard: boolean; brand?: string; last4?: string };
+}): {
+  route: ReturnType<typeof createBillingRoute>;
+  billing: BillingService;
+  commissionCard: CommissionCardService;
+} {
   const builderSession = opts?.builderSession === undefined ? BUILDER_SESSION : opts.builderSession;
   const builderGuard: BuilderGuard = {
     requireBuilder: async () => {},
@@ -71,8 +79,52 @@ function makeDeps(opts?: {
     })),
   } as unknown as BillingService;
 
-  const deps: BillingRouteDeps = { billing, builderGuard, adminGuard };
-  return { route: createBillingRoute(deps), billing };
+  const model = opts?.billingModel ?? 'commission';
+  const stripeConfigured = opts?.stripeConfigured ?? true;
+  const card = opts?.card ?? { hasCard: true, brand: 'visa', last4: '4242' };
+  const commissionCard: CommissionCardService = {
+    ensureCustomer: vi.fn(async (tenantKey: string) => {
+      if (model !== 'commission') {
+        throw Object.assign(new Error('model mismatch'), {
+          status: 409,
+          code: 'BILLING_MODEL_MISMATCH',
+        });
+      }
+      if (!stripeConfigured) {
+        throw Object.assign(new Error('not configured'), { status: 422 });
+      }
+      return `cus_${tenantKey}`;
+    }),
+    createSetupIntent: vi.fn(async () => {
+      if (model !== 'commission') {
+        throw Object.assign(new Error('model mismatch'), {
+          status: 409,
+          code: 'BILLING_MODEL_MISMATCH',
+        });
+      }
+      if (!stripeConfigured) {
+        throw Object.assign(new Error('not configured'), { status: 422 });
+      }
+      return { setupIntentId: 'seti_1', clientSecret: 'seti_1_secret_xxx' };
+    }),
+    getCard: vi.fn(async () => {
+      if (model !== 'commission') {
+        throw Object.assign(new Error('model mismatch'), {
+          status: 409,
+          code: 'BILLING_MODEL_MISMATCH',
+        });
+      }
+      return card;
+    }),
+  } as unknown as CommissionCardService;
+
+  const deps: BillingRouteDeps = {
+    billing,
+    commissionCard,
+    builderGuard,
+    adminGuard,
+  };
+  return { route: createBillingRoute(deps), billing, commissionCard };
 }
 
 describe('POST /api/v1/billing/report-contract', () => {
@@ -198,5 +250,74 @@ describe('POST /api/v1/billing/invoices/{id}/resolve', () => {
       route.resolveDispute({}, id, { outcome: 'void' }),
     ).rejects.toMatchObject({ status: 401 });
     expect(billing.resolveDispute).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/v1/billing/setup-intent (BILL-02)', () => {
+  it('returns the client secret and ensures the customer first', async () => {
+    const { route, commissionCard } = makeDeps();
+    const result = await route.createSetupIntent({});
+    expect(result).toEqual({
+      setupIntentId: 'seti_1',
+      clientSecret: 'seti_1_secret_xxx',
+    });
+    expect(commissionCard.ensureCustomer).toHaveBeenCalledWith(
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(commissionCard.createSetupIntent).toHaveBeenCalledWith(
+      'elite-craft',
+    );
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, commissionCard } = makeDeps({ builderSession: null });
+    await expect(route.createSetupIntent({})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(commissionCard.createSetupIntent).not.toHaveBeenCalled();
+  });
+
+  it('409s under the flat model', async () => {
+    const { route } = makeDeps({ billingModel: 'flat' });
+    await expect(route.createSetupIntent({})).rejects.toMatchObject({
+      status: 409,
+      code: 'BILLING_MODEL_MISMATCH',
+    });
+  });
+
+  it('422s when Stripe is not configured', async () => {
+    const { route } = makeDeps({ stripeConfigured: false });
+    await expect(route.createSetupIntent({})).rejects.toMatchObject({
+      status: 422,
+    });
+  });
+});
+
+describe('GET /api/v1/billing/card (BILL-02)', () => {
+  it('returns the card summary for the session tenant', async () => {
+    const { route, commissionCard } = makeDeps();
+    const result = await route.getCard({});
+    expect(result).toEqual({ hasCard: true, brand: 'visa', last4: '4242' });
+    expect(commissionCard.getCard).toHaveBeenCalledWith('elite-craft');
+  });
+
+  it('reports hasCard: false when no card is on file', async () => {
+    const { route } = makeDeps({ card: { hasCard: false } });
+    await expect(route.getCard({})).resolves.toEqual({ hasCard: false });
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, commissionCard } = makeDeps({ builderSession: null });
+    await expect(route.getCard({})).rejects.toMatchObject({ status: 401 });
+    expect(commissionCard.getCard).not.toHaveBeenCalled();
+  });
+
+  it('409s under the flat model', async () => {
+    const { route } = makeDeps({ billingModel: 'flat' });
+    await expect(route.getCard({})).rejects.toMatchObject({
+      status: 409,
+      code: 'BILLING_MODEL_MISMATCH',
+    });
   });
 });

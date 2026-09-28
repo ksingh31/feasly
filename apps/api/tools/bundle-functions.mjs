@@ -273,6 +273,15 @@ const targets = [
     entry: 'src/functions/billing-invoice-resolve.ts',
     out: 'billing-invoice-resolve/index.js',
   },
+  // billing/02 (BILL-02) — commission card-on-file endpoints.
+  {
+    entry: 'src/functions/billing-setup-intent.ts',
+    out: 'billing-setup-intent/index.js',
+  },
+  {
+    entry: 'src/functions/billing-card.ts',
+    out: 'billing-card/index.js',
+  },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
     entry: 'src/functions/admin-disputes.ts',
