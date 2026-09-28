@@ -65,6 +65,13 @@ export interface NarrativeService {
     bearerToken: string | undefined,
     estimateId: string,
   ): Promise<NarrativeResponse>;
+  /**
+   * Admin variant of {@link generateNarrative}: same cache, rate-limit,
+   * and provider chain, but no magic-link auth or ownership check —
+   * the caller (admin route) already enforced the admin session guard.
+   * Throws 404 (unknown estimate), 429 (rate-limited).
+   */
+  generateNarrativeForAdmin(estimateId: string): Promise<NarrativeResponse>;
 }
 
 export interface NarrativeServiceDeps {
@@ -299,6 +306,176 @@ export function createNarrativeService(
     };
   }
 
+  /**
+   * Shared generation core: cache → rate limit → provider chain →
+   * static-guide fallback. Called by the consumer entry point (after
+   * magic-link auth + ownership) and the admin entry point (after the
+   * admin session guard). The record must already be loaded.
+   */
+  async function generateForRecord(
+    record: EstimateRecord,
+  ): Promise<NarrativeResponse> {
+  const estimateId = record.id;
+  // Cached: no LLM call, no cost. Placeholder rows persisted before the
+  // synthetic guard (bug goal_aec0b247775d) are never served from cache.
+  if (
+    record.narrative &&
+    record.narrativeGeneratedAt &&
+    !isSyntheticNarrative(record.narrative)
+  ) {
+    return {
+      estimateId: record.id,
+      narrative: record.narrative,
+      narrativeGeneratedAt: record.narrativeGeneratedAt.toISOString(),
+      cached: true,
+      // Anything persisted is AI output — the static guide is never
+      // persisted (BE-9), so a cached row is always 'ai'.
+      narrativeSource: 'ai',
+    };
+  }
+  // Cost guard.
+  const now = clock();
+  let count: number;
+  try {
+    count = await rateLimits.checkAndRecord(estimateId, now);
+  } catch (error) {
+    throw new Error('rate limit check failed', { cause: error });
+  }
+  if (count > MAX_GENERATIONS_PER_DAY) {
+    throw new HttpError(
+      429,
+      ErrorCodes.RATE_LIMITED,
+      'Narrative generation rate limit exceeded. Try again tomorrow.',
+      true,
+    );
+  }
+  const output = toEstimateOutput(record);
+  /**
+   * Static-guide fallback (BE-9, final resilience tier). When the model
+   * chain is exhausted, the output fails validation after the repair
+   * retry, or the provider is synthetic (dev log mode), the user gets
+   * the hard-coded Calgary guide instead of a 502 dead-end. The guide
+   * is honest (labeled 'static-guide', never AI prose), carries the
+   * verbatim footer, and is NEVER persisted — the next visit retries
+   * the AI chain. The ops alert still fires so a real outage is
+   * visible (except for the synthetic dev path, which is not a
+   * failure).
+   */
+  const staticGuide = async (
+    reason: string,
+    alert: boolean,
+  ): Promise<NarrativeResponse> => {
+    if (alert) {
+      try {
+        await deps.opsAlerts.notifyFailure('narrative_worker_failed', {
+          consecutiveFailures: 1,
+          firstFailureAt: now,
+        });
+      } catch {
+        // Alert delivery must never mask the original failure.
+      }
+      console.error(
+        JSON.stringify({
+          event: 'narrative.static-guide-served',
+          estimateId: record.id,
+          reason,
+        }),
+      );
+    }
+    return {
+      estimateId: record.id,
+      narrative: buildStaticGuideNarrative(),
+      narrativeGeneratedAt: now.toISOString(),
+      cached: false,
+      narrativeSource: 'static-guide',
+    };
+  };
+  let result: NarrativeProviderResult;
+  let communityFacts: CommunityFacts | undefined;
+  // Synthetic dev output (log provider) never reaches users as AI
+  // prose: serve the static guide instead of the old empty state.
+  const emptyForSynthetic = (): Promise<NarrativeResponse> =>
+    staticGuide('synthetic provider output', false);
+  try {
+    const generation = await generateReal(output, record);
+    if (!generation) return emptyForSynthetic();
+    result = generation.result;
+    communityFacts = generation.communityFacts;
+  } catch (error) {
+    return staticGuide(
+      error instanceof Error ? error.message : 'provider error',
+      true,
+    );
+  }
+  let validation = validateNarrative(result.text, output, communityFacts);
+  if (!validation.ok) {
+    // One repair retry: ask the provider again (the prompt already
+    // constrains the output; a second sample often fixes it).
+    try {
+      const retry = await generateReal(output, record);
+      if (!retry) return emptyForSynthetic();
+      result = retry.result;
+      communityFacts = retry.communityFacts;
+    } catch (error) {
+      return staticGuide(
+        error instanceof Error ? error.message : 'provider error',
+        true,
+      );
+    }
+    validation = validateNarrative(result.text, output, communityFacts);
+  }
+  if (!validation.ok) {
+    return staticGuide(
+      `LLM output failed validation: ${validation.violations.join('; ')}`,
+      true,
+    );
+  }
+  let persisted: boolean;
+  try {
+    persisted = await deps.estimates.setNarrative({
+      id: record.id,
+      narrative: result.text,
+      generatedAt: now,
+    });
+  } catch (error) {
+    throw new Error('narrative persistence failed', { cause: error });
+  }
+  // If a racing worker won, return the winner's narrative — unless it is
+  // a pre-guard placeholder row, in which case this worker's (real,
+  // already validated) result stands.
+  if (!persisted) {
+    const fresh = await deps.estimates.findById(record.id);
+    if (
+      fresh?.narrative &&
+      fresh.narrativeGeneratedAt &&
+      !isSyntheticNarrative(fresh.narrative)
+    ) {
+      return {
+        estimateId: fresh.id,
+        narrative: fresh.narrative,
+        narrativeGeneratedAt: fresh.narrativeGeneratedAt.toISOString(),
+        cached: true,
+        narrativeSource: 'ai',
+      };
+    }
+  }
+  console.info(
+    JSON.stringify({
+      event: 'narrative.generated',
+      estimateId: record.id,
+      model: result.model,
+    }),
+  );
+  return {
+    estimateId: record.id,
+    narrative: result.text,
+    narrativeGeneratedAt: now.toISOString(),
+    cached: false,
+    narrativeSource: 'ai',
+  };
+  }
+
+
   return {
     async generateNarrative(
       bearerToken,
@@ -337,163 +514,39 @@ export function createNarrativeService(
           false,
         );
       }
-      // Cached: no LLM call, no cost. Placeholder rows persisted before the
-      // synthetic guard (bug goal_aec0b247775d) are never served from cache.
-      if (
-        record.narrative &&
-        record.narrativeGeneratedAt &&
-        !isSyntheticNarrative(record.narrative)
-      ) {
-        return {
-          estimateId: record.id,
-          narrative: record.narrative,
-          narrativeGeneratedAt: record.narrativeGeneratedAt.toISOString(),
-          cached: true,
-          // Anything persisted is AI output — the static guide is never
-          // persisted (BE-9), so a cached row is always 'ai'.
-          narrativeSource: 'ai',
-        };
-      }
-      // Cost guard.
-      const now = clock();
-      let count: number;
-      try {
-        count = await rateLimits.checkAndRecord(estimateId, now);
-      } catch (error) {
-        throw new Error('rate limit check failed', { cause: error });
-      }
-      if (count > MAX_GENERATIONS_PER_DAY) {
+      return generateForRecord(record);
+    },
+    /**
+     * Admin entry point: same generation pipeline as the consumer, but
+     * the admin session guard (enforced by the route) replaces magic-link
+     * auth — no ownership check against a lead token.
+     */
+    async generateNarrativeForAdmin(
+      estimateId: string,
+    ): Promise<NarrativeResponse> {
+      if (!UUID_RE.test(estimateId)) {
         throw new HttpError(
-          429,
-          ErrorCodes.RATE_LIMITED,
-          'Narrative generation rate limit exceeded. Try again tomorrow.',
-          true,
+          404,
+          ErrorCodes.NOT_FOUND,
+          'Unknown estimate.',
+          false,
         );
       }
-      const output = toEstimateOutput(record);
-      /**
-       * Static-guide fallback (BE-9, final resilience tier). When the model
-       * chain is exhausted, the output fails validation after the repair
-       * retry, or the provider is synthetic (dev log mode), the user gets
-       * the hard-coded Calgary guide instead of a 502 dead-end. The guide
-       * is honest (labeled 'static-guide', never AI prose), carries the
-       * verbatim footer, and is NEVER persisted — the next visit retries
-       * the AI chain. The ops alert still fires so a real outage is
-       * visible (except for the synthetic dev path, which is not a
-       * failure).
-       */
-      const staticGuide = async (
-        reason: string,
-        alert: boolean,
-      ): Promise<NarrativeResponse> => {
-        if (alert) {
-          try {
-            await deps.opsAlerts.notifyFailure('narrative_worker_failed', {
-              consecutiveFailures: 1,
-              firstFailureAt: now,
-            });
-          } catch {
-            // Alert delivery must never mask the original failure.
-          }
-          console.error(
-            JSON.stringify({
-              event: 'narrative.static-guide-served',
-              estimateId: record.id,
-              reason,
-            }),
-          );
-        }
-        return {
-          estimateId: record.id,
-          narrative: buildStaticGuideNarrative(),
-          narrativeGeneratedAt: now.toISOString(),
-          cached: false,
-          narrativeSource: 'static-guide',
-        };
-      };
-      let result: NarrativeProviderResult;
-      let communityFacts: CommunityFacts | undefined;
-      // Synthetic dev output (log provider) never reaches users as AI
-      // prose: serve the static guide instead of the old empty state.
-      const emptyForSynthetic = (): Promise<NarrativeResponse> =>
-        staticGuide('synthetic provider output', false);
+      let record;
       try {
-        const generation = await generateReal(output, record);
-        if (!generation) return emptyForSynthetic();
-        result = generation.result;
-        communityFacts = generation.communityFacts;
+        record = await deps.estimates.findById(estimateId);
       } catch (error) {
-        return staticGuide(
-          error instanceof Error ? error.message : 'provider error',
-          true,
+        throw new Error('estimate lookup failed', { cause: error });
+      }
+      if (!record) {
+        throw new HttpError(
+          404,
+          ErrorCodes.NOT_FOUND,
+          'Unknown estimate.',
+          false,
         );
       }
-      let validation = validateNarrative(result.text, output, communityFacts);
-      if (!validation.ok) {
-        // One repair retry: ask the provider again (the prompt already
-        // constrains the output; a second sample often fixes it).
-        try {
-          const retry = await generateReal(output, record);
-          if (!retry) return emptyForSynthetic();
-          result = retry.result;
-          communityFacts = retry.communityFacts;
-        } catch (error) {
-          return staticGuide(
-            error instanceof Error ? error.message : 'provider error',
-            true,
-          );
-        }
-        validation = validateNarrative(result.text, output, communityFacts);
-      }
-      if (!validation.ok) {
-        return staticGuide(
-          `LLM output failed validation: ${validation.violations.join('; ')}`,
-          true,
-        );
-      }
-      let persisted: boolean;
-      try {
-        persisted = await deps.estimates.setNarrative({
-          id: record.id,
-          narrative: result.text,
-          generatedAt: now,
-        });
-      } catch (error) {
-        throw new Error('narrative persistence failed', { cause: error });
-      }
-      // If a racing worker won, return the winner's narrative — unless it is
-      // a pre-guard placeholder row, in which case this worker's (real,
-      // already validated) result stands.
-      if (!persisted) {
-        const fresh = await deps.estimates.findById(record.id);
-        if (
-          fresh?.narrative &&
-          fresh.narrativeGeneratedAt &&
-          !isSyntheticNarrative(fresh.narrative)
-        ) {
-          return {
-            estimateId: fresh.id,
-            narrative: fresh.narrative,
-            narrativeGeneratedAt: fresh.narrativeGeneratedAt.toISOString(),
-            cached: true,
-            narrativeSource: 'ai',
-          };
-        }
-      }
-      console.info(
-        JSON.stringify({
-          event: 'narrative.generated',
-          estimateId: record.id,
-          model: result.model,
-        }),
-      );
-      return {
-        estimateId: record.id,
-        narrative: result.text,
-        narrativeGeneratedAt: now.toISOString(),
-        cached: false,
-        narrativeSource: 'ai',
-      };
+      return generateForRecord(record);
     },
   };
 }

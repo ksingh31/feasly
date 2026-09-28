@@ -58,6 +58,7 @@ async function setup(options: {
       options.error !== undefined
         ? vi.fn().mockReturnValue(throwError(() => options.error))
         : vi.fn().mockReturnValue(of(options.detail ?? DETAIL)),
+    generateNarrative: vi.fn(),
   };
   // paramMap as a BehaviorSubject so tests can simulate param-only
   // navigation (component reuse) the way the real router does.
@@ -160,9 +161,12 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     expect(text).toContain('Standard');
   });
 
-  it('omits the narrative section when no narrative was generated (AC5)', async () => {
+  it('shows the narrative fallback when no narrative was generated (fix #287)', async () => {
     const { fixture } = await setup({ id: 'estimate-1' });
-    expect(textOf(fixture)).not.toContain('AI summary');
+    const text = textOf(fixture);
+    // The section renders with a graceful fallback instead of vanishing.
+    expect(text).toContain('AI summary');
+    expect(text).toContain('No AI summary was generated for this estimate.');
   });
 
   it('renders the narrative when one was generated (AC5)', async () => {
@@ -173,6 +177,43 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     const text = textOf(fixture);
     expect(text).toContain('AI summary');
     expect(text).toContain('A solid infill opportunity.');
+  });
+
+  it('generates the narrative on demand when the fallback button is clicked (fix #287)', async () => {
+    const { fixture, api } = await setup({ id: 'estimate-1' });
+    api.generateNarrative = vi.fn().mockReturnValue(
+      of({
+        estimateId: 'estimate-1',
+        narrative: 'Freshly generated summary.',
+        narrativeGeneratedAt: '2026-09-28T10:00:00.000Z',
+        cached: false,
+        narrativeSource: 'primary',
+      }),
+    );
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector(
+      '.generate-narrative',
+    ) as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    button.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(api.generateNarrative).toHaveBeenCalledWith('estimate-1');
+    const text = textOf(fixture);
+    expect(text).toContain('Freshly generated summary.');
+    expect(text).not.toContain('No AI summary was generated');
+  });
+
+  it('shows a retry hint when on-demand generation fails (fix #287)', async () => {
+    const { fixture, api } = await setup({ id: 'estimate-1' });
+    api.generateNarrative = vi
+      .fn()
+      .mockReturnValue(throwError(() => new Error('boom')));
+    const el = fixture.nativeElement as HTMLElement;
+    (el.querySelector('.generate-narrative') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(textOf(fixture)).toContain('Generation failed');
   });
 
   it('has no editable controls — the view is read-only (AC3)', async () => {
