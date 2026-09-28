@@ -13,7 +13,7 @@ export interface ReportPdfInput {
   readonly preparedLine: string;
   /** Version label already formatted, e.g. "Report version 3". */
   readonly versionLine: string;
-  /** "Your next steps" — title/body pairs from report copy. */
+  /** "Your next three steps" — title/body pairs from report copy. */
   readonly steps: ReadonlyArray<{ title: string; body: string }>;
   /** The deterministic-figures disclaimer line. */
   readonly disclaimer: string;
@@ -188,7 +188,7 @@ export class ReportPdfService {
     }
 
     // Next steps.
-    text('Your next steps', { size: 13, bold: true, gap: 6 });
+    text('Your next three steps', { size: 13, bold: true, gap: 6 });
     input.steps.forEach((step, i) => {
       text(`${i + 1}. ${step.title}`, { size: 10, bold: true, gap: 2 });
       text(step.body, { size: 10, gap: 8 });

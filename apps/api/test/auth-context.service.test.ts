@@ -47,6 +47,7 @@ function adminSession(
     id: 'sess-1',
     email: 'admin@example.com',
     sessionTokenHash: hashSessionToken(token),
+    idToken: null,
     revokedAt: null,
     expiresAt: new Date(NOW.getTime() + 7 * 24 * 3600 * 1000),
     createdAt: NOW,

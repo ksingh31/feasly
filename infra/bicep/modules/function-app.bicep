@@ -115,6 +115,21 @@ param entraGraphClientSecretUri string = ''
 @description('Key Vault secret URI (versionless) for the feasly-web client secret used in the admin sign-in token exchange (confidential client). Empty = not configured; the Entra callback fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
 param entraClientSecretUri string = ''
 
+@description('Microsoft Entra External ID: tenant subdomain for the BUILDER portal app registration (e.g. feaslyext). Empty = the builder sign-in callback fails closed (503). Unprovisioned as of 2026-09-28 — fill when Karan creates the builder app registration.')
+param builderEntraTenantSubdomain string = ''
+
+@description('Microsoft Entra External ID: tenant (directory) ID for the builder portal app registration. Empty = the builder sign-in callback fails closed (503).')
+param builderEntraTenantId string = ''
+
+@description('Microsoft Entra External ID: application (client) ID of the builder-portal app registration (separate from the admin feasly-web app). Empty = the builder sign-in callback fails closed (503).')
+param builderEntraClientId string = ''
+
+@description('Microsoft Entra External ID: user flow (policy) name for builder sign-in, e.g. feasly-signup-signin (the admin flow can be reused — it is tenant-level, not per-app). Empty = the builder sign-in callback fails closed (503).')
+param builderEntraUserFlow string = ''
+
+@description('Key Vault secret URI (versionless) for the builder-portal client secret used in the builder sign-in token exchange (confidential client). Empty = not configured; the builder Entra callback fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
+param builderEntraClientSecretUri string = ''
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -449,6 +464,54 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
                 // Key Vault reference — the client secret value never lands in app settings.
                 name: 'ENTRA_CLIENT_SECRET'
                 value: '@Microsoft.KeyVault(SecretUri=${entraClientSecretUri})'
+              }
+            ],
+        // Builder-portal Entra External ID sign-in (auth/05): separate app
+        // registration / client secret from the admin flow — builder sign-in
+        // must never mint an admin session. Values are set per environment
+        // in main.bicep; empty = the app setting is omitted and the builder
+        // callback fails closed (503) naming the missing variable. These
+        // identifiers are non-secret (they also ship in the public web
+        // app-config.json).
+        empty(builderEntraTenantSubdomain)
+          ? []
+          : [
+              {
+                name: 'BUILDER_ENTRA_TENANT_SUBDOMAIN'
+                value: builderEntraTenantSubdomain
+              }
+            ],
+        empty(builderEntraTenantId)
+          ? []
+          : [
+              {
+                name: 'BUILDER_ENTRA_TENANT_ID'
+                value: builderEntraTenantId
+              }
+            ],
+        empty(builderEntraClientId)
+          ? []
+          : [
+              {
+                name: 'BUILDER_ENTRA_CLIENT_ID'
+                value: builderEntraClientId
+              }
+            ],
+        empty(builderEntraUserFlow)
+          ? []
+          : [
+              {
+                name: 'BUILDER_ENTRA_USER_FLOW'
+                value: builderEntraUserFlow
+              }
+            ],
+        empty(builderEntraClientSecretUri)
+          ? []
+          : [
+              {
+                // Key Vault reference — the client secret value never lands in app settings.
+                name: 'BUILDER_ENTRA_CLIENT_SECRET'
+                value: '@Microsoft.KeyVault(SecretUri=${builderEntraClientSecretUri})'
               }
             ],
         // CORS allowlist for the in-app middleware (ADM-10): the SWA calls

@@ -38,7 +38,7 @@
   <!-- ── Entry cards (NBH-04 / SEO-05): side-by-side on tablet/desktop, stacked on mobile ── -->
   <div class="entry-pair">
     <section class="compare-entry" aria-labelledby="compare-entry-title">
-      <a class="compare-card" routerLink="/estimate/compare">
+      <a class="compare-card" routerLink="/estimate/compare" [queryParams]="{ fresh: 1 }">
         <div>
           <h2 id="compare-entry-title">{{ compareCopy.landingTitle }}</h2>
           <p>{{ compareCopy.landingBody }}</p>

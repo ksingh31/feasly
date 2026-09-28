@@ -505,6 +505,7 @@ CREATE TABLE IF NOT EXISTS "admin_sessions" (
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text NOT NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "id_token" text;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
@@ -626,6 +627,7 @@ ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NO
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL REFERENCES "tenants"("tenant_key") ON DELETE CASCADE;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text NOT NULL;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "id_token" text;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;

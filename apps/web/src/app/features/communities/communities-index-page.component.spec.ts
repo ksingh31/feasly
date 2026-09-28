@@ -72,15 +72,13 @@ describe('CommunitiesIndexPageComponent', () => {
     }
   });
 
-  it('shows the "from $X" teaser on every card (ranges bundled at build)', () => {
+  it('shows no "from $X" teaser — build costs are not community-specific (U1)', () => {
     fixture.detectChanges();
-    const teasers = fixture.nativeElement.querySelectorAll('.from-price strong');
-    expect(teasers).toHaveLength(40);
-    for (const el of Array.from(teasers)) {
-      expect((el as HTMLElement).textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
-    }
-    const first = component['communities'][0];
-    expect(component.fromPrice(first)).toMatch(/^\$\d{1,3}(,\d{3})*$/);
+    // 28 of 40 communities shared one identical buildLow in the ranges
+    // file; repeating it looked like placeholder data. Cards show the
+    // community's own average assessed value instead.
+    const teasers = fixture.nativeElement.querySelectorAll('.from-price');
+    expect(teasers).toHaveLength(0);
   });
 
   it('sets SEO for the communities route and injects the ItemList JSON-LD', () => {

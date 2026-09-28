@@ -14,7 +14,6 @@ import type {
   AdminUserUpdateBody,
   Builder,
 } from '@feasly/contracts';
-import { SeoService } from '../../core/seo/seo.service';
 import {
   CloseDeleteAdminUser,
   CloseEditAdminUser,
@@ -69,7 +68,6 @@ const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
 export class AdminUsersComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
-  private readonly seo = inject(SeoService);
 
   protected readonly users = this.store.selectSignal(AdminUsersState.users);
   protected readonly total = this.store.selectSignal(AdminUsersState.total);
@@ -111,14 +109,6 @@ export class AdminUsersComponent implements OnInit {
 
   protected readonly staffRoles = STAFF_ROLES;
   protected readonly builderRoles = BUILDER_ROLES;
-
-  constructor() {
-    this.seo.setPage({
-      title: 'Users — Feasly Admin',
-      description: 'Feasly admin user management.',
-      path: '/admin/users',
-    });
-  }
 
   ngOnInit(): void {
     this.store.dispatch([new LoadAdminUsers(), new LoadBuilders()]);

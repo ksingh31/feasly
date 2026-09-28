@@ -181,7 +181,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submitLabel: 'Get My Estimate →',
       emptyHint: 'Enter your Calgary address above to get started.',
       selectHint: 'Please choose your address from the suggestions above.',
-      noResults: "We couldn't find that address. Check the spelling or try a nearby address.",
+      // U3 (2026-09-28): no-results is a guidance state, not a dead end —
+      // typing a complete address finds nothing; the working path is typing
+      // the street number and picking a suggestion from the list.
+      noResults:
+        "We couldn't find that address. Start typing the street number and pick your address from the list.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
@@ -226,19 +230,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           id: 'standard',
           name: 'Standard',
           blurb:
-            'Durable, builder-grade finishes: quartz-look counters, LVP or carpet flooring, and standard lighting and plumbing packages.',
+            'Quality finishes throughout — finishes are never compromised, with fewer premium upgrades. Standard (non-oak) cabinetry, 9 ft basement ceilings.',
         },
         {
           id: 'premium',
           name: 'Premium',
           blurb:
-            'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer lighting and plumbing fixtures.',
+            'A clear step up in every room: hardwood and tile, stone counters, upgraded cabinetry, and designer fixtures.',
         },
         {
           id: 'luxury',
           name: 'Luxury',
           blurb:
-            'Top shelf throughout: custom millwork, natural stone, premium appliances, spa-style bathrooms, and smart-home rough-ins.',
+            'Oak kitchen cabinetry, 10 ft ceilings, outdoor fireplace, feature walls, and a fully finished basement — including the gym.',
         },
       ],
       scopeGarageLabel: 'Garage',
@@ -507,15 +511,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideTitle: 'Building in Calgary',
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
-      stepsTitle: 'Your next steps',
+      stepsTitle: 'Your next three steps',
       steps: [
         {
           title: 'Meet your matched builder',
-          body: 'When you’re ready, we can connect you with builders associated with us in Calgary, matched to your project and area. We’ll only reach out with your permission — opt out anytime.',
+          body: 'See your system-matched builders and their match scores — builders in Calgary whose work fits your project and area. When you’re ready, we can introduce you, only with your permission. Opt out anytime.',
         },
         {
           title: 'Refine your project brief',
-          body: 'Lock in your must-haves — size, layout, and finish level. A clear brief is what turns this estimate into quotes you can actually compare.',
+          body: 'Adjust your inputs and re-run the estimate, compare the Standard and Luxury tiers, and lock in your must-haves — a clear brief is what turns this estimate into quotes you can actually compare.',
+        },
+        {
+          title: 'Save and share',
+          body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
       ],
       planningTitle: 'Planning ahead',
@@ -647,9 +655,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
       renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
-      detailsTitle: 'Feasly — Review your build details',
+      detailsTitle: 'Feasly — Configure your build details',
       details:
-        'Review your property and build details before previewing your Calgary infill estimate — step 3 of 3.',
+        'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
         'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
@@ -658,8 +666,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
-      gateTitle: 'Feasly — Get your estimate',
-      gate: 'Enter your details to unlock your personalized Calgary infill cost estimate.',
+      gateTitle: 'Feasly — Unlock your free estimate report',
+      gate: 'Enter your details to unlock your personalized Calgary infill estimate report.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary infill cost estimate right now.',
       renoComingSoonTitle: 'Feasly — Renovations are coming soon',
@@ -699,10 +707,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminLeads: 'Feasly admin leads explorer.',
       adminBuildersTitle: 'Builders — Feasly Admin',
       adminBuilders: 'Feasly admin builders management.',
-      adminDisputesTitle: 'Disputes — Feasly Admin',
-      adminDisputes: 'Feasly admin billing dispute console.',
       adminUsersTitle: 'Users — Feasly Admin',
       adminUsers: 'Feasly admin user management.',
+      adminDisputesTitle: 'Disputes — Feasly Admin',
+      adminDisputes: 'Feasly admin billing dispute console.',
       adminCalibrationTitle: 'Calibration — Feasly Admin',
       adminCalibration: 'Cost engine calibration console.',
       adminBillingTitle: 'Billing — Feasly Admin',
@@ -871,7 +879,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is not included in these figures?',
-          a: 'The ranges exclude demolition of an existing structure, unusual soil or servicing work, permit and development fees beyond typical allowances, financing costs, and GST. Your full report itemizes what is and is not covered.',
+          a: 'Only landscaping — it varies too much from lot to lot to price, so budget it separately with your builder. Everything else (demolition, soil and servicing, permits and fees, financing, GST) is part of the estimate range.',
         },
         {
           q: 'What is the next step?',
@@ -886,20 +894,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     builder: {
       loginHeading: 'Builder sign in',
       loginExpired:
-        'Your builder session expired. Enter your email for a fresh sign-in link.',
-      loginSent: 'Check your email for your sign-in link.',
-      emailLabel: 'Email',
-      emailPlaceholder: 'you@example.com',
+        'Your builder session expired. Please sign in again with your Microsoft account.',
       emailInvalid: 'Enter a valid email address.',
-      submitLabel: 'Send sign-in link',
-      sendingLabel: 'Sending…',
-      submitError: 'Something went wrong. Please try again.',
       retryLabel: 'Retry',
-      verifyHeading: 'Verifying sign in',
-      verifyProgress: 'Verifying your sign-in link…',
-      verifyError:
-        'This sign-in link is invalid or has expired. Request a fresh one below.',
-      backToLoginLabel: 'Back to sign in',
       shellBrand: 'Feasly Builder',
       shellNavDashboard: 'Leads',
       signOutLabel: 'Sign out',

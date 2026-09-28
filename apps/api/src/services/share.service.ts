@@ -40,12 +40,19 @@ export const PartnerShareRequestSchema = z
   })
   .strict();
 
+/** CAP-008 abuse control: max partner shares per estimate per day. */
+const MAX_SHARES_PER_DAY = 5;
+/** Rolling window for the daily share cap, in milliseconds. */
+const SHARE_DAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export interface ShareService {
   /**
    * Share a report with a partner on an untrusted request body. Unknown or
    * expired report tokens → HttpError(404); partner-share tokens (a
    * different token type) → HttpError(403) — only the owner's link can mint
-   * new shares.
+   * new shares. CAP-008 abuse controls: partner email equal to the owner's
+   * → HttpError(400); 5+ shares for the estimate in the last 24h →
+   * HttpError(429 RATE_LIMITED).
    */
   shareWithPartner(requestBody: unknown): Promise<PartnerShareResponse>;
   /**
@@ -90,6 +97,34 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
       // Only the owner's link mints new shares: a partner link is a
       // different token type and must not fan out more links.
       requireOwnerLink(linkPurpose);
+
+      // CAP-008: the partner address must differ from the owner's own —
+      // self-sharing would mint a duplicate bearer for the same inbox and
+      // is never a legitimate share.
+      if (partnerEmail === lead.email.trim().toLowerCase()) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'The partner email must be different from your own email address.',
+          false,
+        );
+      }
+
+      // CAP-008 abuse control: max 5 shares per estimate per day, over a
+      // rolling 24-hour window. Share audit rows are lead-scoped and a lead
+      // is one estimate thread under the consumer/02 dedupe, so the cap is
+      // counted per lead. Checked before any side effect (link mint, email,
+      // audit insert) so a denied share leaves no trace.
+      const windowStart = new Date(clock().getTime() - SHARE_DAY_WINDOW_MS);
+      const recentShares = await deps.shares.countSince(lead.id, windowStart);
+      if (recentShares >= MAX_SHARES_PER_DAY) {
+        throw new HttpError(
+          429,
+          ErrorCodes.RATE_LIMITED,
+          'You have reached the daily share limit for this report ' +
+            '(5 shares per day). Please try again tomorrow.',
+        );
+      }
 
       // Fresh link for the partner — the owner's token never leaves the
       // browser and is never stored server-side beyond its hash.

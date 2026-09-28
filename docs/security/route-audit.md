@@ -29,7 +29,7 @@ Audited against `apps/web/public/staticwebapp.config.json`,
 
 ## Findings
 
-1. **No internal route is accidentally public.** The only anonymous API routes are the two public wizard endpoints and the data-free health check. Admin routes do not exist yet (admin/01 adds them behind magic-link + allowlist); when they land, this doc must gain their rows.
+1. **No internal route is accidentally public.** The only anonymous API routes are the two public wizard endpoints and the data-free health check. Admin routes are live and Entra-gated (Microsoft Entra External ID email+password, authorization by roles/permissions in Postgres — the old magic-link + allowlist flow was retired 2026-09-28); when new admin routes land, this doc must gain their rows.
 2. **frame-ancestors is deny-by-default.** Global CSP sets `'none'`; only `/embed/*` overrides it, and the override currently points at a placeholder that matches nothing (fail-closed).
 3. **CORS is allowlist-only, no wildcards.** Production has no localhost origins — they are injected only when `NODE_ENV=development`. `evil.example`-style origins receive no `Access-Control-Allow-Origin` (covered by `test/middleware-cors.test.ts`).
 4. **Preflight does not touch the pipeline.** OPTIONS requests are answered 204 at the adapter edge — no rate-limit consumption, no DB work, no PII logging surface.

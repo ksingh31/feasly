@@ -77,6 +77,7 @@ export class AdminLeadsApiService {
     set('source', filters.source);
     set('projectType', filters.projectType);
     set('tenantId', filters.tenantId);
+    set('builderId', filters.builderId);
     set('createdAfter', filters.createdAfter);
     set('createdBefore', filters.createdBefore);
     set('search', filters.search);

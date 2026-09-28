@@ -218,6 +218,54 @@ describe('admin-leads service (admin/02)', () => {
       });
     });
 
+    it('passes the builderId assignment filter to the store ("unassigned" maps to null)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.listLeads).mockResolvedValue({
+        rows: [],
+        nextCursor: null,
+        totalCount: 0,
+        statusCounts: STATUS_COUNTS,
+      });
+
+      // A builder UUID filters to that builder's leads.
+      await service.listLeads(
+        { builderId: '123e4567-e89b-12d3-a456-426614174000' },
+        ADMIN_EMAIL,
+      );
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.objectContaining({
+          builderId: '123e4567-e89b-12d3-a456-426614174000',
+        }),
+        cursor: null,
+        limit: 25,
+      });
+
+      // The 'unassigned' sentinel maps to a null builderId (IS NULL).
+      await service.listLeads({ builderId: 'unassigned' }, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.objectContaining({ builderId: null }),
+        cursor: null,
+        limit: 25,
+      });
+
+      // Default: no assignment filtering.
+      await service.listLeads({}, ADMIN_EMAIL);
+      expect(deps.store.listLeads).toHaveBeenCalledWith({
+        filters: expect.not.objectContaining({ builderId: expect.anything() }),
+        cursor: null,
+        limit: 25,
+      });
+    });
+
+    it('rejects a non-UUID, non-"unassigned" builderId', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      await expect(
+        service.listLeads({ builderId: 'not-a-uuid' }, ADMIN_EMAIL),
+      ).rejects.toThrow('Invalid list query parameters.');
+    });
+
     it('passes quarantinedOnly to the store for the quarantine tab', async () => {
       const deps = makeDeps();
       const service = createAdminLeadsService(deps);

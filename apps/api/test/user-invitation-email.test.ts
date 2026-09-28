@@ -2,8 +2,9 @@
  * Invitation email template tests (auth/01 — Entra pivot).
  *
  * Pins the buyer-grade copy: exact subject, single "Sign in to Feasly" CTA
- * to /admin/login, 7-day expiry note, plain-text fallback URL, and — since
- * Entra owns the credential — no password or token anywhere in the email.
+ * to /admin/login, 7-day expiry note, plain-text fallback URL, first-time
+ * "Forgot password" setup guidance, and — since Entra owns the credential —
+ * no password VALUE or token anywhere in the email.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -46,11 +47,17 @@ describe('renderInvitationEmail', () => {
     expect(text).toContain('expires in 7 days');
   });
 
-  it('carries no password or token copy', () => {
+  it('guides first-time users to set their password (no credential sent)', () => {
+    // auth/05 audit 2026-09-28: Entra accounts are pre-created with a random
+    // password the invitee never receives. The email must tell them to use
+    // "Forgot password" on the Microsoft sign-in page — but it must never
+    // carry a password VALUE or token.
     const { html, text } = render();
-    expect(html.toLowerCase()).not.toContain('password');
+    expect(html).toContain('Forgot password');
+    expect(text).toContain('Forgot password');
+    expect(html).not.toMatch(/temporary password|initial password|your password is/i);
+    expect(text).not.toMatch(/temporary password|initial password|your password is/i);
     expect(html.toLowerCase()).not.toContain('token');
-    expect(text.toLowerCase()).not.toContain('password');
     expect(text.toLowerCase()).not.toContain('token');
   });
 

@@ -680,13 +680,18 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    it('renders the merged next steps (single builder step, matched-to-project framing)', () => {
-      const steps = [...fixture.nativeElement.querySelectorAll('.steps li strong')].map((el: Element) =>
-        el.textContent?.trim(),
-      );
-      expect(steps).toEqual(['Meet your matched builder', 'Refine your project brief']);
-      expect(text()).not.toContain('Share this report with');
-      expect(text()).not.toContain('2–3');
+    it('renders the three locked next steps (match scores on the builder step, save-and-share restored)', () => {
+      const items = [...fixture.nativeElement.querySelectorAll('.steps li')];
+      const titles = items.map((li: Element) => li.querySelector('strong')?.textContent?.trim());
+      const bodies = items.map((li: Element) => li.querySelector('p')?.textContent?.trim());
+      // Locked story: exactly 3 distinct steps — never 2, never duplicated.
+      expect(titles).toEqual(['Meet your matched builder', 'Refine your project brief', 'Save and share']);
+      expect(new Set(bodies).size).toBe(3);
+      // The builder step promises match scores (the builder-matching
+      // explainer beneath defines how matching works).
+      expect(bodies[0]).toContain('match scores');
+      // The save-and-share step covers PDF, partner email, and callback.
+      expect(bodies[2]).toContain('Download the PDF');
     });
 
     it('stepper tap updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {

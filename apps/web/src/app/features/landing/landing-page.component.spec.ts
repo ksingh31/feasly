@@ -9,6 +9,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
+import { expectSharedCalgaryGate } from '../../shared/test-helpers/entry-gate.harness';
 import { LeadState, StoreLeadResult, WizardState, type WizardStateModel } from '../wizard';
 import { ReportState } from '../report/report.state';
 import { SetReportToken } from '../report/report.actions';
@@ -83,7 +84,9 @@ describe('LandingPageComponent', () => {
   it('comparison entry card links to /estimate/compare with the exact story copy (NBH-04)', () => {
     const card = fixture.nativeElement.querySelector('.compare-card') as HTMLAnchorElement;
     expect(card).toBeTruthy();
-    expect(card.getAttribute('href')).toBe('/estimate/compare');
+    // ?fresh=1: the homepage link always starts a fresh comparison on the
+    // picker — it must never auto-resume a persisted previous comparison.
+    expect(card.getAttribute('href')).toBe('/estimate/compare?fresh=1');
     expect(card.textContent).toContain('Compare neighbourhoods');
     expect(card.textContent).toContain('Side-by-side build costs for 2–3 Calgary communities.');
   });
@@ -95,7 +98,7 @@ describe('LandingPageComponent', () => {
     const hrefs = [...pair.querySelectorAll('.compare-card')].map((el: Element) =>
       el.getAttribute('href'),
     );
-    expect(hrefs).toEqual(['/estimate/compare', '/communities']);
+    expect(hrefs).toEqual(['/estimate/compare?fresh=1', '/communities']);
     const blocks = [...main.querySelectorAll(':scope > section, :scope > div')].map((el: Element) =>
       el.className.split(' ')[0],
     );
@@ -307,5 +310,16 @@ describe('LandingPageComponent', () => {
     document.head
       .querySelectorAll('script[type="application/ld+json"]')
       .forEach((el) => el.remove());
+  });
+
+  describe('Calgary-only gate (D-03)', () => {
+    it('shows the shared Calgary-only gate on an out-of-coverage query', async () => {
+      // Entry-point integration: both the new-build AND the reno flows
+      // start at this hero search (reno pages have no address input of
+      // their own — reno users must pick a property here first), so the
+      // shared component's gate must surface here for all three entries
+      // (new-build, reno, embed).
+      await expectSharedCalgaryGate(fixture);
+    });
   });
 });

@@ -26,6 +26,7 @@ function toSessionRecord(
     id: row.id,
     email: row.email,
     sessionTokenHash: row.sessionTokenHash,
+    idToken: row.idToken,
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
