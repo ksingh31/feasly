@@ -21,8 +21,8 @@
       <button class="hero-cta" type="submit">{{ searchCopy.submitLabel }}</button>
     </form>
     @if (coverageBlock(); as block) {
-      <!-- Early coverage guard: the picked lot can't be priced (lot size or
-           assessed value outside the cost-data range). The funnel stops here,
+      <!-- Early coverage guard: the picked property can't be priced (assessed
+           value outside the cost-data range). The funnel stops here,
            before scope/details — the preview page keeps its guard as a backstop. -->
       <div class="coverage-block" role="alert">
         <p class="coverage-heading">{{ previewCopy.validationHeading }}</p>

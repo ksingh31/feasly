@@ -76,6 +76,10 @@ export function detectCoverageSignal(input: string): CoverageSignal {  const tex
  * Estimate input bounds the pricing engine enforces, mirrored from the
  * cost-data file (see `limits` in AppConfig). Kept as a parameter — never a
  * literal — so the cost-data file stays the single source of truth.
+ *
+ * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot
+ * calibration (Karan, 2026-09-28) and are NOT enforced: the estimator never
+ * blocks on lot size.
  */
 export interface PricingCoverageBounds {
   readonly minLotSizeSqft: number;
@@ -92,20 +96,16 @@ export interface PricingCoverageFacts {
 
 /**
  * Which property fact breaks pricing coverage, or null when the property
- * is priceable. Mirrors the engine's check order (lot size before assessed
- * value) and its whole-dollar rounding, so the early guard fires on exactly
- * the same condition as the late preview-time guard.
+ * is priceable. Lot size is NEVER a coverage issue (Karan, 2026-09-28) —
+ * any lot prices, quoted off the house size. Only the assessed value is
+ * checked, with the engine's whole-dollar rounding.
  */
-export type PricingCoverageIssue = 'lot-size' | 'assessed-value';
+export type PricingCoverageIssue = 'assessed-value';
 
 export function pricingCoverageIssue(
   facts: PricingCoverageFacts,
   bounds: PricingCoverageBounds,
 ): PricingCoverageIssue | null {
-  const lot = Math.round(facts.lotSqft);
-  if (!Number.isFinite(lot) || lot < bounds.minLotSizeSqft || lot > bounds.maxLotSizeSqft) {
-    return 'lot-size';
-  }
   const assessed = Math.round(facts.assessedValue);
   if (
     !Number.isFinite(assessed) ||
@@ -115,22 +115,4 @@ export function pricingCoverageIssue(
     return 'assessed-value';
   }
   return null;
-}
-
-/**
- * Fills the {lot}/{min}/{max} placeholders of the can't-price lot-size copy
- * (en-CA grouping, e.g. 643,811). Shared by the early guard (landing) and
- * the late guard (preview) so the wording stays identical.
- */
-export function formatLotSizeBody(
-  template: string,
-  lotSqft: number,
-  minLotSizeSqft: number,
-  maxLotSizeSqft: number,
-): string {
-  const fmt = (n: number): string => n.toLocaleString('en-CA');
-  return template
-    .replace('{lot}', fmt(lotSqft))
-    .replace('{min}', fmt(minLotSizeSqft))
-    .replace('{max}', fmt(maxLotSizeSqft));
 }

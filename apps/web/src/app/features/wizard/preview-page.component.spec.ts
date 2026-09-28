@@ -392,16 +392,17 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
     return { fixture, store };
   }
 
-  it('explains a lot-size rejection in plain English with no retry button', async () => {
-    const { fixture, store } = await setupFailure('lotSizeSqft 643811 outside [1200, 20000]', false);
+  it('explains a validation rejection in plain English with no retry button', async () => {
+    // Lot size NEVER blocks (Karan, 2026-09-28): the engine prices any lot,
+    // so every validation failure renders the generic explanation.
+    const { fixture, store } = await setupFailure('assessedLandValue outside configured bounds', false);
     expect(store.selectSnapshot(ReportState.error)).toBe('validation');
     const card = fixture.nativeElement.querySelector('.error-card') as HTMLElement;
     expect(card).toBeTruthy();
     expect(card.textContent).toContain('We can’t price this property yet');
+    expect(card.textContent).toContain('falls outside the range our cost data covers');
     // The API detail is translated, never rendered verbatim.
-    expect(card.textContent).toContain('643,811 sq ft');
-    expect(card.textContent).toContain('1,200–20,000 sq ft');
-    expect(card.textContent).not.toContain('lotSizeSqft');
+    expect(card.textContent).not.toContain('assessedLandValue');
     // No misleading retry — retry cannot succeed for a validation failure.
     expect(card.querySelector('button')).toBeNull();
     expect(card.textContent).not.toMatch(/try again/i);

@@ -2,12 +2,14 @@
  * Estimate-bounds drift tripwire.
  *
  * `limits.minLotSizeSqft/maxLotSizeSqft/minAssessedLandValue/maxAssessedLandValue`
- * in DEFAULT_APP_CONFIG mirror the `inputBounds` of the cost-data file the
- * API's pricing engine enforces. The property record arrives direct from
- * Socrata (propertyData.source 'live'), so the client needs these numbers
- * for the early lot-coverage guard — but the cost-data file is the single
- * source of truth. If the cost data's bounds ever change, this spec fails
- * until the config mirror is updated alongside it.
+ * in DEFAULT_APP_CONFIG mirror the `inputBounds` of the cost-data file.
+ * The property record arrives direct from Socrata (propertyData.source
+ * 'live'), so the client needs the assessed-value bounds for the early
+ * coverage guard. The lot-size bounds are RESERVED for future bigger-lot
+ * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the estimator
+ * never blocks on lot size. The cost-data file remains the single source of
+ * truth: if its bounds ever change, this spec fails until the config mirror
+ * is updated alongside it.
  *
  * The cost-data file under test is the one the engine's placeholder import
  * points at (packages/cost-engine/src/cost-data.ts), resolved dynamically

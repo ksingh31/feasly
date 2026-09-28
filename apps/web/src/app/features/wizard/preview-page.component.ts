@@ -3,7 +3,6 @@ import { RouterLink } from '@angular/router';
 import type { CostRange } from '@feasly/contracts';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
-import { formatLotSizeBody } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo/seo.service';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
 import { LoadPreview } from '../report/report.actions';
@@ -57,8 +56,6 @@ export class PreviewPageComponent implements OnInit {
   protected readonly status = this.store.selectSignal(ReportState.status);
   /** Failure classification: 'validation' when the API rejected the request. */
   protected readonly reportError = this.store.selectSignal(ReportState.error);
-  /** API error detail (e.g. the validation message) — translated, never verbatim. */
-  protected readonly errorDetail = this.store.selectSignal(ReportState.errorDetail);
 
   /** True when this is a renovation preview (vs new-build). */
   protected readonly isReno = computed(() => this.projectType() === 'renovation');
@@ -100,23 +97,17 @@ export class PreviewPageComponent implements OnInit {
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);
 
   /**
-   * True when the API rejected the request (e.g. lot size out of range).
-   * Retry cannot succeed — the UI explains the problem instead.
+   * True when the API rejected the request (e.g. assessed value out of
+   * range). Retry cannot succeed — the UI explains the problem instead.
+   * Lot size NEVER blocks (Karan, 2026-09-28): the engine prices any lot.
    */
   protected readonly isValidationError = computed(() => this.loadFailed() && this.reportError() === 'validation');
 
   /**
-   * Buyer-grade explanation of a validation failure. Uses the API's error
-   * detail when it matches the known lot-size shape; falls back to the
-   * generic message otherwise. Never renders the raw API text.
+   * Buyer-grade explanation of a validation failure. Never renders the raw
+   * API text — the generic message covers every validation case.
    */
   protected validationMessage(): string {
-    const detail = this.errorDetail() ?? '';
-    const lotMatch = detail.match(/lotSizeSqft\s+(\d+)\s+outside\s*\[(\d+)\s*,\s*(\d+)\]/);
-    if (lotMatch) {
-      const [, lot, min, max] = lotMatch;
-      return formatLotSizeBody(this.copy.validationLotSizeBody, Number(lot), Number(min), Number(max));
-    }
     return this.copy.validationGenericBody;
   }
 
