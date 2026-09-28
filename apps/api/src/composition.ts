@@ -118,6 +118,14 @@ import {
   type BuilderAuthRoute,
 } from './routes/builder-auth.route';
 import {
+  createBuilderEntraCallbackRoute,
+  type BuilderEntraCallbackRoute,
+} from './routes/builder/entra-callback';
+import {
+  createBuilderUsersRoute,
+  type BuilderUsersRoute,
+} from './routes/builder/users.route';
+import {
   createBuilderLeadsRoute,
   type BuilderLeadsRoute,
 } from './routes/builder-leads.route';
@@ -148,6 +156,10 @@ import {
   type BuilderAllowlistStore,
   type BuilderSessionStore,
 } from './services/builder-auth.service';
+import {
+  createBuilderEntraCallbackService,
+  type BuilderEntraCallbackService,
+} from './services/builder-entra-callback.service';
 import {
   createUserService,
   type UserService,
@@ -563,6 +575,11 @@ export interface AppComposition {
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
   readonly builderGuard: BuilderGuard;
+  /** auth/05: builder Entra sign-in (org accounts) + org user management. */
+  readonly builderEntraCallbackService: BuilderEntraCallbackService;
+  readonly builderEntraCallbackRoute: BuilderEntraCallbackRoute;
+  readonly builderEntraCallbackPipeline: RequestPipeline;
+  readonly builderUsersRoute: BuilderUsersRoute;
   /** embed/09: tenant-scoped lead pipeline for the builder portal. */
   readonly builderLeadsService: BuilderLeadsService;
   readonly builderLeadsRoute: BuilderLeadsRoute;
@@ -1177,6 +1194,49 @@ export function createComposition(
   const permissionGuard: PermissionGuard = createPermissionGuard({
     authContext: authContextService,
   });
+  // auth/05 — builder Entra External ID sign-in (organization accounts).
+  // Separate External ID app/user flow from admin (`config.builderEntraSignIn`).
+  // Fail-closed while unprovisioned: the validator 503s until Karan
+  // provisions the builder Entra app + user flow.
+  const builderEntraTokenValidator: EntraTokenValidator =
+    createEntraTokenValidator({
+      ...config.builderEntraSignIn,
+    });
+  const builderEntraCallbackService: BuilderEntraCallbackService =
+    createBuilderEntraCallbackService({
+      tokenValidator: builderEntraTokenValidator,
+      userService,
+      users: userStore,
+      builders: builderService,
+      sessions: builderSessionStore,
+      audit: adminAuditStore,
+      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    });
+  const builderEntraCallbackRoute: BuilderEntraCallbackRoute =
+    createBuilderEntraCallbackRoute({
+      entraCallback: builderEntraCallbackService,
+      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      permissionGuard,
+    });
+  const builderUsersRoute: BuilderUsersRoute = createBuilderUsersRoute({
+    userService,
+    permissionGuard,
+    authContext: authContextService,
+    builderSessions: builderSessionStore,
+  });
+  // auth/05 — the builder Entra callback gets its own deliberately tight
+  // limiter on a separate pipeline, same as the admin callback: 10
+  // attempts per IP per 15 min. Entra owns credential brute-force; this
+  // stops authorization-code replay abuse.
+  const builderEntraCallbackRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.builderEntraSignIn.callbackRateLimit.windowMs,
+    maxRequests: config.builderEntraSignIn.callbackRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const builderEntraCallbackPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: builderEntraCallbackRateLimiter,
+    logger: options.logger,
+  });
   const viewAsService: ViewAsService = createViewAsService({
     sessions: adminSessionStore,
     users: userStore,
@@ -1681,6 +1741,10 @@ export function createComposition(
     builderAuthService,
     builderAuthRoute,
     builderGuard,
+    builderEntraCallbackService,
+    builderEntraCallbackRoute,
+    builderEntraCallbackPipeline,
+    builderUsersRoute,
     builderLeadsService,
     builderLeadsRoute,
     builderAllowlistStore,

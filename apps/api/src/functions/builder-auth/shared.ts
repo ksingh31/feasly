@@ -13,6 +13,7 @@ import {
   middleware,
   type AppComposition,
 } from '../../index';
+import type { RequestPipeline } from '../../middleware/pipeline';
 
 /** Minimal structural types — no @azure/functions dependency needed. */
 export interface FunctionContext {
@@ -57,6 +58,11 @@ export async function dispatchBuilderAuth(
    * Adapters pass this; the registry is the single source of truth.
    */
     readonly path?: string;
+    /**
+     * Override the request pipeline (rate limiter). Used by endpoints with
+     * a different abuse budget. Defaults to the shared pipeline.
+     */
+    readonly pipeline?: (app: AppComposition) => RequestPipeline;
   },
 ): Promise<void> {
   const origin = req.headers?.['origin'];
@@ -102,7 +108,8 @@ export async function dispatchBuilderAuth(
     }
   }
 
-  const result = await app.requestPipeline.run(
+  const pipeline = opts?.pipeline ? opts.pipeline(app) : app.requestPipeline;
+  const result = await pipeline.run(
     { headers, clientIp: clientIpFrom(req) },
     async () => {
       // auth/04: registry permissions are REAL authorization — enforced

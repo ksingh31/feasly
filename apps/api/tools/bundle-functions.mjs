@@ -236,6 +236,31 @@ const targets = [
     entry: 'src/functions/builder-auth-request.ts',
     out: 'builder-auth-request/index.js',
   },
+  // auth/05 — builder Entra sign-in (org accounts) + org user management.
+  {
+    entry: 'src/functions/builder-auth-entra-callback.ts',
+    out: 'builder-auth-entra-callback/index.js',
+  },
+  {
+    entry: 'src/functions/builder-auth-memberships.ts',
+    out: 'builder-auth-memberships/index.js',
+  },
+  {
+    entry: 'src/functions/builder-auth-active-org.ts',
+    out: 'builder-auth-active-org/index.js',
+  },
+  {
+    entry: 'src/functions/builder-users.ts',
+    out: 'builder-users/index.js',
+  },
+  {
+    entry: 'src/functions/builder-users-invite.ts',
+    out: 'builder-users-invite/index.js',
+  },
+  {
+    entry: 'src/functions/builder-users-id.ts',
+    out: 'builder-users-id/index.js',
+  },
   {
     entry: 'src/functions/builder-auth-verify.ts',
     out: 'builder-auth-verify/index.js',
