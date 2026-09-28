@@ -37,8 +37,7 @@ async function navigateTo(url: string): Promise<Router> {
   return router;
 }
 
-describe('retired /admin/verify route', () => {
-  beforeEach(() => {
+describe('retired /admin/verify route', () => {  beforeEach(() => {
     TestBed.resetTestingModule();
   });
 
@@ -59,5 +58,28 @@ describe('retired /admin/verify route', () => {
     const paths = routes.map((r) => r.path);
     expect(paths).toContain('admin/login');
     expect(paths).toContain('admin/auth/callback');
+  });
+});
+
+/**
+ * Wizard deep-link guards (W3, 2026-09-28).
+ *
+ * Every wizard step that needs a selected property must bounce property-less
+ * deep links to the address step instead of rendering a dead-end page.
+ */
+describe('wizard deep-link guards', () => {
+  it("guards 'estimate/details' with the property guard", async () => {
+    const mod = await import('./features/wizard/wizard-property.guard');
+    const route = routes.find((r) => r.path === 'estimate/details');
+    expect(route).toBeDefined();
+    expect(route?.canActivate).toContain(mod.wizardPropertyGuard);
+  });
+
+  it("guards 'estimate/scope' and 'estimate/preview' with the property guard", async () => {
+    const mod = await import('./features/wizard/wizard-property.guard');
+    for (const path of ['estimate/scope', 'estimate/preview']) {
+      const route = routes.find((r) => r.path === path);
+      expect(route?.canActivate).toContain(mod.wizardPropertyGuard);
+    }
   });
 });

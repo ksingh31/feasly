@@ -602,9 +602,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scope: 'Set your build size and finish tier for a Calgary infill estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
       renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
-      detailsTitle: 'Feasly — Configure your build details',
+      detailsTitle: 'Feasly — Review your build details',
       details:
-        'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
+        'Review your property and build details before previewing your Calgary infill estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
         'Your blurred build-cost and total preview for your Calgary infill estimate — unlock the full report.',
