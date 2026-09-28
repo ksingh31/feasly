@@ -7,7 +7,7 @@
  * the email provider accepted the message. The partner email is PII and
  * gets the same handling as lead emails (never logged).
  */
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { partnerShares } from '../db/schema';
 
@@ -32,6 +32,12 @@ export interface PartnerShareStore {
   insert(share: NewPartnerShare): Promise<PartnerShareRecord>;
   /** Latest shares for a lead, newest first (admin views). */
   listByLeadId(leadId: string): Promise<readonly PartnerShareRecord[]>;
+  /**
+   * Number of shares for a lead created at/after `since` — abuse-control
+   * counting for the CAP-008 per-day share cap. DB-side count; rows are
+   * never materialized.
+   */
+  countSince(leadId: string, since: Date): Promise<number>;
   /**
    * The audit row for the magic-link row that was emailed. Only links the
    * share service actually emailed (insert happens after the provider
@@ -85,6 +91,19 @@ export function createDrizzlePartnerShareStore(
         .where(eq(partnerShares.leadId, leadId))
         .orderBy(desc(partnerShares.createdAt));
       return rows.map(toRecord);
+    },
+
+    async countSince(leadId: string, since: Date): Promise<number> {
+      const rows = await db
+        .select({ id: partnerShares.id })
+        .from(partnerShares)
+        .where(
+          and(
+            eq(partnerShares.leadId, leadId),
+            gte(partnerShares.createdAt, since),
+          ),
+        );
+      return rows.length;
     },
 
     async findByMagicLinkId(

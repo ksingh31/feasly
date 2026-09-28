@@ -52,6 +52,10 @@ function fakeStores(opts?: {
   insertFails?: boolean;
   /** When true, the email send fails (exhausted transient retries) instead of succeeding. */
   emailFails?: boolean;
+  /** Shares already recorded for the lead inside the 24h cap window. */
+  recentShares?: number;
+  /** Shares recorded for the lead older than the 24h cap window (never counted). */
+  staleShares?: number;
 }) {
   const live = opts?.live ?? true;
   const partnerLive = opts?.partnerLive ?? true;
@@ -60,6 +64,31 @@ function fakeStores(opts?: {
   const newestEstimateId = opts?.newestEstimateId;
   const persisted: NewPartnerShare[] = [];
   const sentEmails: { to: string; shareUrl: string; expiresInDays?: number }[] = [];
+  const issuedLinkIds: string[] = [];
+  // The service clock is fixed at 2026-09-26T05:00:00Z: "recent" shares sit
+  // inside the 24h cap window, "stale" shares sit outside it.
+  const recentShareRows: PartnerShareRecord[] = Array.from(
+    { length: opts?.recentShares ?? 0 },
+    (_, i) => ({
+      id: `recent-${i}`,
+      leadId: LEAD_ID,
+      magicLinkId: `recent-link-${i}`,
+      partnerEmail: `recent${i}@example.com`,
+      sent: true,
+      createdAt: new Date('2026-09-26T04:30:00Z'),
+    }),
+  );
+  const staleShareRows: PartnerShareRecord[] = Array.from(
+    { length: opts?.staleShares ?? 0 },
+    (_, i) => ({
+      id: `stale-${i}`,
+      leadId: LEAD_ID,
+      magicLinkId: `stale-link-${i}`,
+      partnerEmail: `stale${i}@example.com`,
+      sent: true,
+      createdAt: new Date('2026-09-25T03:00:00Z'),
+    }),
+  );
   const magicLinks = {
     findByToken: async (token: string) => {
       if (token === OWNER_TOKEN && live) {
@@ -92,11 +121,14 @@ function fakeStores(opts?: {
       }
       return null;
     },
-    issue: async (): Promise<IssuedMagicLink> => ({
-      id: PARTNER_LINK_ID,
-      token: PARTNER_TOKEN,
-      expiresAt: new Date('2026-10-03T00:00:00Z'),
-    }),
+    issue: async (): Promise<IssuedMagicLink> => {
+      issuedLinkIds.push('issued');
+      return {
+        id: PARTNER_LINK_ID,
+        token: PARTNER_TOKEN,
+        expiresAt: new Date('2026-10-03T00:00:00Z'),
+      };
+    },
   } as unknown as MagicLinkStore;
   const leads = {
     findById: async (id: string) =>
@@ -148,6 +180,12 @@ function fakeStores(opts?: {
       } as PartnerShareRecord;
     },
     listByLeadId: async () => [],
+    countSince: async (leadId: string, since: Date) =>
+      leadId === LEAD_ID
+        ? [...recentShareRows, ...staleShareRows].filter(
+            (row) => row.createdAt >= since,
+          ).length
+        : 0,
     findByMagicLinkId: async (magicLinkId: string) =>
       emailed && magicLinkId === PARTNER_LINK_ID ? auditRow : null,
   };
@@ -160,7 +198,7 @@ function fakeStores(opts?: {
     magicLinkTtlSeconds: 604800,
     clock: () => new Date('2026-09-26T05:00:00Z'),
   });
-  return { service, persisted, sentEmails };
+  return { service, persisted, sentEmails, issuedLinkIds };
 }
 
 const VALID_BODY = { reportToken: OWNER_TOKEN, partnerEmail: 'partner@example.com' };
@@ -230,6 +268,70 @@ describe('share service', () => {
     ).rejects.toMatchObject({ status: 403, code: ErrorCodes.FORBIDDEN });
     expect(sentEmails).toHaveLength(0);
     expect(persisted).toHaveLength(0);
+  });
+
+  it('rejects sharing to the owner\u2019s own email with 400', async () => {
+    const { service, persisted, sentEmails, issuedLinkIds } = fakeStores();
+    for (const partnerEmail of [
+      'homeowner@example.com',
+      'HomeOwner@Example.com',
+      '  homeowner@example.com  ',
+    ]) {
+      await expect(
+        service.shareWithPartner({ reportToken: OWNER_TOKEN, partnerEmail }),
+      ).rejects.toMatchObject({
+        status: 400,
+        code: ErrorCodes.VALIDATION_FAILED,
+      });
+    }
+    expect(persisted).toHaveLength(0);
+    expect(sentEmails).toHaveLength(0);
+    expect(issuedLinkIds).toHaveLength(0);
+  });
+
+  it('rejects the 6th share in 24h with 429 RATE_LIMITED — no side effects', async () => {
+    const { service, persisted, sentEmails, issuedLinkIds } = fakeStores({
+      recentShares: 5,
+    });
+    await expect(service.shareWithPartner(VALID_BODY)).rejects.toMatchObject({
+      status: 429,
+      code: ErrorCodes.RATE_LIMITED,
+    });
+    // Fail-fast: no link minted, no email sent, no audit row recorded.
+    expect(issuedLinkIds).toHaveLength(0);
+    expect(sentEmails).toHaveLength(0);
+    expect(persisted).toHaveLength(0);
+  });
+
+  it('allows the 5th share in 24h (boundary)', async () => {
+    const { service, persisted, sentEmails } = fakeStores({ recentShares: 4 });
+    const result = await service.shareWithPartner(VALID_BODY);
+    expect(result).toMatchObject({
+      sent: true,
+      sharedTo: 'partner@example.com',
+    });
+    expect(persisted).toHaveLength(1);
+    expect(sentEmails).toHaveLength(1);
+  });
+
+  it('shares older than 24h do not count toward the daily cap', async () => {
+    const { service, persisted } = fakeStores({
+      recentShares: 5,
+      staleShares: 10,
+    });
+    // 5 recent + 10 stale → still capped: stale rows alone prove nothing.
+    await expect(service.shareWithPartner(VALID_BODY)).rejects.toMatchObject({
+      status: 429,
+      code: ErrorCodes.RATE_LIMITED,
+    });
+    expect(persisted).toHaveLength(0);
+  });
+
+  it('a window with only stale shares is not capped', async () => {
+    const { service, persisted } = fakeStores({ staleShares: 10 });
+    const result = await service.shareWithPartner(VALID_BODY);
+    expect(result.sent).toBe(true);
+    expect(persisted).toHaveLength(1);
   });
 });
 
