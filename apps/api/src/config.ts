@@ -143,6 +143,12 @@ const EnvSchema = z.object({
   ENTRA_TENANT_SUBDOMAIN: z.string().trim().default(''),
   ENTRA_CLIENT_ID: z.string().trim().default(''),
   ENTRA_USER_FLOW: z.string().trim().default(''),
+  // Client secret for the `feasly-web` app registration. The callback
+  // redirect URI is registered on the "Web" platform, so the token endpoint
+  // treats the backend as a confidential client and demands client
+  // authentication (HTTP 401 invalid_client without it). Lives in Key Vault
+  // in Azure (plain env locally); it is never logged or emailed.
+  ENTRA_CLIENT_SECRET: z.string().default(''),
   // JWKS cache TTL (ms). Entra rotates signing keys infrequently; a short
   // cache bounds both fetch latency and staleness after a rotation.
   ENTRA_JWKS_CACHE_TTL_MS: z.coerce.number().int().positive().default(600_000),
@@ -469,9 +475,17 @@ export interface EntraSignInConfig {
   readonly tenantId: string;
   /** Application (client) id of the `feasly-web` app registration. */
   readonly clientId: string;
+  /**
+   * Client secret for the `feasly-web` app registration (Key Vault in
+   * Azure, plain env locally). Required: the redirect URI is registered on
+   * the "Web" platform, so the token endpoint treats the backend as a
+   * confidential client. Empty = `configured` is false and the callback
+   * 503s fail-closed.
+   */
+  readonly clientSecret: string;
   /** Sign-in user flow name, e.g. `feasly_signup_signin`. */
   readonly userFlow: string;
-  /** False while any of the four values above is empty — the callback 503s. */
+  /** False while any of the five values above is empty — the callback 503s. */
   readonly configured: boolean;
   /** Derived: the OAuth2 token endpoint for the authorization-code exchange. */
   readonly tokenEndpoint: string;
@@ -890,16 +904,19 @@ function resolveEntraSignInConfig(e: ParsedEnv): EntraSignInConfig {
   const tenantId = e.ENTRA_TENANT_ID;
   const clientId = e.ENTRA_CLIENT_ID;
   const userFlow = e.ENTRA_USER_FLOW;
+  const clientSecret = e.ENTRA_CLIENT_SECRET;
   const configured =
     tenantSubdomain.length > 0 &&
     tenantId.length > 0 &&
     clientId.length > 0 &&
-    userFlow.length > 0;
+    userFlow.length > 0 &&
+    clientSecret.length > 0;
   const base = `https://${tenantSubdomain}.ciamlogin.com/${tenantId}`;
   return {
     tenantSubdomain,
     tenantId,
     clientId,
+    clientSecret,
     userFlow,
     configured,
     tokenEndpoint: `${base}/oauth2/v2.0/token`,
