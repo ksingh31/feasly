@@ -504,11 +504,23 @@ describe('ReportPageComponent', () => {
         expect(choices?.textContent).toContain('in-floor heating');
       });
 
+      it('names standard cabinetry and the luxury gym in the tier descriptors', () => {
+        // Karan's exact requirements (2026-09-28): standard must name
+        // standard/non-oak cabinetry; luxury must name the basement gym.
+        const descriptors = DEFAULT_APP_CONFIG.copy.report.tierDescriptors;
+        expect(descriptors.standard).toContain('non-oak');
+        expect(descriptors.luxury).toContain('gym');
+      });
+
       it('frames coverage as builder-grade granularity with the 60+ line-item credibility line', () => {
         const body = text();
         expect(body).toContain("What your estimate covers");
         expect(body).toContain('60+ line items');
         expect(body).toContain('the way a real Calgary builder budgets');
+        // Costs move: inflation, material choices, project-specific conditions.
+        expect(body).toContain('can move with inflation');
+        expect(body).toContain('your material choices');
+        expect(body).toContain('project-specific conditions');
       });
 
       it('lists the honest exclusions — including landscaping budgeted separately', () => {
@@ -1006,6 +1018,50 @@ describe('ReportPageComponent', () => {
         // Addition caps at 400: the stepper must not move above it.
         const stepperValue = fixture.nativeElement.querySelector('.stepper-value')?.textContent ?? '';
         expect(stepperValue).toContain('400');
+      });
+
+      it('never shows new-build trust sections on a reno report', async () => {
+        await setupReno();
+        // Same reno unlock flow as the stepper test above.
+        const preview = await firstValueFrom(
+          api.getPreviewEstimate({
+            addressKey: 'calgary-918-16-ave-nw',
+            projectType: 'renovation',
+            renoType: 'extensive',
+            renoSqft: 800,
+            tier: 'standard',
+            underpinning: false,
+          }),
+        );
+        const lead = await firstValueFrom(
+          api.submitLead({
+            email: 'buyer@example.com',
+            name: 'Test Buyer',
+            timeline: '6-12mo',
+            marketingConsent: false,
+            estimateId: preview.estimateId,
+          }),
+        );
+        const token = api.devTokenForLead(lead.leadId);
+        expect(token).toBeTruthy();
+        store.dispatch([
+          new ChooseProjectType('renovation'),
+          new UpdateRenoInputs({ renoType: 'extensive', renoSqft: 800, tier: 'standard' }),
+          new SetReportToken(token!),
+          new UnlockReport(),
+        ]);
+        await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'reno unlock');
+        fixture.detectChanges();
+        expect(store.selectSnapshot(ReportState.snapshot)?.projectType).toBe('renovation');
+        const t = text();
+        // New-build coverage framing, tier descriptors, financing and timeline
+        // are about new construction — they must not leak onto reno reports.
+        expect(t).not.toContain('What your estimate covers');
+        expect(t).not.toContain('Built the way a real Calgary builder budgets');
+        expect(t).not.toContain('Planning ahead');
+        expect(t).not.toContain('construction loan');
+        expect(t).not.toContain('finishes are never compromised');
+        expect(t).not.toContain('explicit choices you make in your finish tier');
       });
     });
   });

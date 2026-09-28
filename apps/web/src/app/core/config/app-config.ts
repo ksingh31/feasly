@@ -559,6 +559,8 @@ export interface AppConfig {
       coverageTitle: string;
       /** One-line "full build" framing above the exclusions list. */
       includedLine: string;
+      /** Honest note: inflation, material choices, project conditions can move costs. */
+      costMovementNote: string;
       /** "What's not in this estimate" heading. */
       exclusionsTitle: string;
       /** Compact exclusion list (demolition, soil, permits, financing, GST, landscaping). */

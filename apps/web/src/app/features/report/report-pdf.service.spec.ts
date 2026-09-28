@@ -80,4 +80,19 @@ describe('ReportPdfService', () => {
       expect(raw).toContain(item);
     }
   });
+
+  it('omits the new-build exclusions on a renovation snapshot', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    const renoInput = input();
+    const blob = await service.generate({
+      ...renoInput,
+      title: 'Renovation estimate',
+      snapshot: { ...renoInput.snapshot, projectType: 'renovation' as const },
+    });
+    const raw = await blob.text();
+    // New-build coverage framing must not leak onto reno PDFs.
+    expect(raw).not.toContain('60+ line items');
+    expect(raw).not.toContain('not in this estimate');
+    expect(raw).not.toContain('Demolition of any existing home');
+  });
 });
