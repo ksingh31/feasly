@@ -132,15 +132,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       seoDescription:
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
       trustItems: [
-        '600,000+ City of Calgary assessment records',
-        'Refreshed September 2026',
-        'Deterministic math — AI never invents prices',
+        { value: '600,000+', label: 'City of Calgary assessment records' },
+        { value: 'September 2026', valueShort: 'Sep 2026', label: 'Latest data refresh' },
+        { value: 'Deterministic math', label: 'AI never invents prices', badge: true },
       ],
       trustItemsMock: [
-        'Range-based estimates',
-        'Sample property data — live City records coming soon',
-        'Transparent cost breakdown',
+        { value: 'Range-based', label: 'estimates' },
+        { value: 'Sample property data', label: 'live City records coming soon' },
+        { value: 'Transparent', label: 'cost breakdown' },
       ],
+      trustEyebrow: 'Why Feasly',
       howItWorksTitle: 'Estimate in 2 minutes',
       howItWorksSub: 'No spam. We may reach out about your estimate — opt out anytime.',
       steps: [

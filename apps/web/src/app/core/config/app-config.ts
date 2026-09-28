@@ -10,6 +10,21 @@
  */
 import type { BasementOption, CallbackWindow, FinishTier, GarageOption, TimelineOption } from '@feasly/contracts';
 
+/**
+ * One trust-strip stat block on the landing page: a big display value with a
+ * small supporting label underneath.
+ * - `valueShort`: optional compact value shown on narrow screens
+ *   (e.g. "Sep 2026" instead of "September 2026"); falls back to `value`.
+ * - `badge`: renders a brass check badge above the value instead of the
+ *   large display number (for non-numeric stats like "Deterministic math").
+ */
+export interface TrustStat {
+  value: string;
+  valueShort?: string;
+  label: string;
+  badge?: boolean;
+}
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -212,13 +227,16 @@ export interface AppConfig {
       heroSub: string;
       /** Short description for SEO JSON-LD (WebSite schema). */
       seoDescription: string;
-      trustItems: string[];
+      /** Trust-strip stat blocks (redesigned 2026-09-28): big value + small label. */
+      trustItems: TrustStat[];
       /**
        * Shown instead of `trustItems` while the mock property harness
        * serves the data (`propertyData.source === 'mock'`): sample values
        * must never claim live City data (trust rule).
        */
-      trustItemsMock: string[];
+      trustItemsMock: TrustStat[];
+      /** Small caps label above the trust-strip stats ("Why Feasly"). */
+      trustEyebrow: string;
       howItWorksTitle: string;
       howItWorksSub: string;
       steps: { n: string; title: string; body: string }[];

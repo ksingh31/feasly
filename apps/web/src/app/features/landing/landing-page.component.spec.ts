@@ -105,31 +105,52 @@ describe('LandingPageComponent', () => {
   });
 
   it('trust strip carries no ±, %, or accuracy claim (copy-lint)', () => {
-    const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
+    const values = [...fixture.nativeElement.querySelectorAll('.trust-value-full')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    // Default test config has propertyData.source 'mock' → mock items, never live-data claims.
-    expect(items).toEqual([
-      'Range-based estimates',
-      'Sample property data — live City records coming soon',
-      'Transparent cost breakdown',
-    ]);
-    for (const item of items) {
-      expect(item).not.toMatch(/[±%]/);
-      expect(item?.toLowerCase()).not.toContain('accura');
+    const labels = [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    // Default test config has propertyData.source 'mock' → mock stats, never live-data claims.
+    expect(values).toEqual(['Range-based', 'Sample property data', 'Transparent']);
+    expect(labels).toEqual(['estimates', 'live City records coming soon', 'cost breakdown']);
+    for (const text of [...values, ...labels]) {
+      expect(text).not.toMatch(/[±%]/);
+      expect(text?.toLowerCase()).not.toContain('accura');
     }
   });
 
   it('trust strip claims live City data only when live property data serves the page', async () => {
     await setup({ propertyData: { source: 'live' } });
-    const items = [...fixture.nativeElement.querySelectorAll('.trust-item')].map((el: Element) =>
+    const values = [...fixture.nativeElement.querySelectorAll('.trust-value-full')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(items).toEqual([
-      '600,000+ City of Calgary assessment records',
-      'Refreshed September 2026',
-      'Deterministic math — AI never invents prices',
+    const labels = [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    expect(values).toEqual(['600,000+', 'September 2026', 'Deterministic math']);
+    expect(labels).toEqual([
+      'City of Calgary assessment records',
+      'Latest data refresh',
+      'AI never invents prices',
     ]);
+  });
+
+  it('trust strip renders the redesigned stat blocks with eyebrow, badge, and sample-report button', async () => {
+    await setup({ propertyData: { source: 'live' } });
+    const root = fixture.nativeElement;
+    expect(root.querySelector('.trust-eyebrow')?.textContent?.trim()).toBe('Why Feasly');
+    expect(root.querySelectorAll('.trust-item').length).toBe(3);
+    // Third stat carries the brass check badge; compact value falls back to the full value.
+    const badgeItem = root.querySelector('.trust-item-badge');
+    expect(badgeItem?.querySelector('.trust-badge')?.textContent?.trim()).toBe('✓');
+    const shorts = [...root.querySelectorAll('.trust-value-short')].map((el: Element) =>
+      el.textContent?.trim(),
+    );
+    expect(shorts).toEqual(['600,000+', 'Sep 2026', 'Deterministic math']);
+    const cta = root.querySelector('.sample-report-link a') as HTMLAnchorElement;
+    expect(cta?.getAttribute('href')).toBe('/sample-report');
+    expect(cta?.textContent).toContain('See a sample report');
   });
 
   it('hides the sample-report slot while the flag is off', () => {
