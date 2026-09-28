@@ -98,6 +98,19 @@ var unsubscribeTokenSecretUri = 'https://${keyVaultName}${az.environment().suffi
 var narrativeSecretName = 'feasly-${environment}-narrative-api-key'
 var narrativeApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${narrativeSecretName}'
 
+// Microsoft Entra External ID sign-in (admin/builder, auth/02): the tenant,
+// app registrations, and user flow are provisioned once in the portal (see
+// docs/auth/entra-manual-changes.md) — Entra External ID resources are not
+// Bicep-able. Bicep only wires the resulting identifiers into the Function
+// App's app settings. The Graph client secret is provisioned in Key Vault
+// under its exact name below (created in the portal during tenant setup) —
+// the URI below only references it; Bicep never writes the raw value. The
+// secret must exist in the vault before the app first resolves the Key Vault
+// reference at startup (only Graph provisioning reads it; the sign-in
+// callback itself does not).
+var entraGraphClientSecretName = 'feasly-entra-graph-client-secret'
+var entraGraphClientSecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${entraGraphClientSecretName}'
+
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
@@ -215,6 +228,18 @@ module functionApp 'modules/function-app.bicep' = {
     narrativeApiKeySecretUri: environment == 'dev' ? narrativeApiKeySecretUri : ''
     narrativeEndpoint: environment == 'dev' ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : ''
     narrativeModels: environment == 'dev' ? 'gemini-2.5-flash,gemini-2.5-flash-lite' : ''
+    // Microsoft Entra External ID sign-in (auth/02): dev-only until Karan
+    // provisions the tenant identifiers for other environments. Elsewhere
+    // the settings stay empty and the backend callback fails closed (503)
+    // naming the missing variables. These identifiers are non-secret (they
+    // also ship in the public web app-config.json).
+    entraTenantSubdomain: environment == 'dev' ? 'feaslyext' : ''
+    entraTenantId: environment == 'dev' ? 'e8f46aab-2491-4389-8e39-ae78ee12db6a' : ''
+    entraClientId: environment == 'dev' ? '8d5e842c-c97d-490c-9437-5c77bd9104df' : ''
+    entraUserFlow: environment == 'dev' ? 'feasly-signup-signin' : ''
+    entraIssuerDomain: environment == 'dev' ? 'feaslyext.onmicrosoft.com' : ''
+    entraGraphClientId: environment == 'dev' ? '2fe45e0e-a3ae-4695-93db-eaf1a15ba4d0' : ''
+    entraGraphClientSecretUri: environment == 'dev' ? entraGraphClientSecretUri : ''
     // admin/06 — daily Postgres backup freshness probe (backup_missed).
     // Enabled per environment; the Function App's managed identity gets
     // Reader on the resource group (see function-app.bicep).
