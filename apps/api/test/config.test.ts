@@ -147,9 +147,14 @@ describe('loadConfig', () => {
       narrative: {
         provider: 'log',
         apiKey: '',
-        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        models: ['gemini-3.8-flash'],
         timeoutMs: 20_000,
         endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        fallback: {
+          endpoint: 'https://api.groq.com/openai/v1',
+          apiKey: '',
+          models: ['llama-3.3-70b-versatile'],
+        },
       },
       embed: {
         relayCodeTtlSeconds: 600,
@@ -402,9 +407,8 @@ describe('loadConfig', () => {
 
 describe('parseNarrativeModels (BE-9)', () => {
   it('parses a comma-separated list in order', () => {
-    expect(parseNarrativeModels('gemini-2.5-flash,gemini-2.5-flash-lite')).toEqual([
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
+    expect(parseNarrativeModels('gemini-3.8-flash')).toEqual([
+      'gemini-3.8-flash',
     ]);
   });
 

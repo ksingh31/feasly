@@ -13,12 +13,17 @@
  * fails the build if a key literal ever lands in this module). A missing
  * key fails closed at generate time naming the exact env var.
  *
- * Model chain (BE-9): `models` is the config-owned ordered list
- * (`NARRATIVE_MODELS`, primary first). On transient failures — capacity
- * errors (HTTP 408/429/5xx incl. 529), timeouts, or network errors — the
- * provider tries the next model. It FAILS FAST (no chain) on other 4xx
- * (bad request, bad key, forbidden, unknown model), a missing API key, or
- * a missing endpoint. The result's `model` records which model served.
+ * Model chain (BE-9): `targets` is the config-owned ordered list of
+ * provider steps (`NARRATIVE_*` primary first, `NARRATIVE_FALLBACK_*`
+ * second — Gemini then Groq today). Each target carries its own
+ * endpoint, API key, and ordered model list. On transient failures —
+ * capacity errors (HTTP 408/429/5xx incl. 529), timeouts, or network
+ * errors — the provider tries the next model, then the next target. It
+ * FAILS FAST (no chain) on other 4xx (bad request, bad key, forbidden,
+ * unknown model) or a missing primary API key. A fallback target with
+ * no API key is skipped gracefully (logged, key never logged) so the
+ * Groq step stays dormant until Karan provisions its key. The result's
+ * `model` records which model served.
  *
  * Endpoint: `NARRATIVE_ENDPOINT` is the provider base URL (e.g. the
  * Gemini OpenAI-compatibility base). `chatCompletionsUrl()` appends
@@ -36,19 +41,36 @@ import {
   type NarrativeProviderResult,
 } from '../narrative.types';
 
-export interface OpenAiCompatibleProviderDeps {
+export interface NarrativeProviderTarget {
   /**
-   * LLM API key — from NARRATIVE_API_KEY (Key Vault reference in
-   * staging/production). Absent = fail-closed generation.
+   * Log label for this provider step (e.g. 'gemini', 'groq'). Used in
+   * chain telemetry only — never a secret, never logged with a key.
+   */
+  readonly label: string;
+  /**
+   * LLM API key for this target — from NARRATIVE_API_KEY (primary) or
+   * NARRATIVE_FALLBACK_API_KEY (fallback, Key Vault reference in
+   * staging/production). Absent on the primary = fail-closed
+   * generation; absent on a fallback = the step is skipped gracefully.
    */
   readonly apiKey?: string;
   /**
-   * Ordered model list, primary first (from NARRATIVE_MODELS). At least
-   * one entry is required — construction throws otherwise.
+   * Ordered model list for this target, primary first (from
+   * NARRATIVE_MODELS / NARRATIVE_FALLBACK_MODELS). At least one entry
+   * is required — construction throws otherwise.
    */
   readonly models: readonly string[];
-  /** Endpoint base URL (from NARRATIVE_ENDPOINT config). */
+  /** Endpoint base URL for this target (from NARRATIVE_ENDPOINT / NARRATIVE_FALLBACK_ENDPOINT). */
   readonly endpoint?: string;
+}
+
+export interface OpenAiCompatibleProviderDeps {
+  /**
+   * Ordered provider targets — primary first. The chain advances across
+   * targets on capacity errors (408/429/5xx), timeouts, and network
+   * failures. At least one target is required.
+   */
+  readonly targets: readonly NarrativeProviderTarget[];
   /** Fetch implementation (injected for tests). */
   readonly fetchImpl?: typeof fetch;
   /** Per-attempt timeout in ms (from NARRATIVE_TIMEOUT_MS). */
@@ -79,7 +101,11 @@ function isTimeoutError(error: unknown): boolean {
 }
 
 function logChainEvent(
-  event: 'narrative.model-attempt' | 'narrative.model-chained' | 'narrative.model-served',
+  event:
+    | 'narrative.model-attempt'
+    | 'narrative.model-chained'
+    | 'narrative.model-served'
+    | 'narrative.provider-skipped',
   fields: Record<string, string>,
 ): void {
   console.info(JSON.stringify({ event, provider: 'openai-compatible', ...fields }));
@@ -138,78 +164,108 @@ export function createOpenAiCompatibleNarrativeProvider(
   deps: OpenAiCompatibleProviderDeps,
 ): NarrativeProvider {
   const fetchImpl = deps.fetchImpl ?? fetch;
-  // Endpoint comes from NARRATIVE_ENDPOINT config (no hardcoded default
-  // in services/ — the boundaries test forbids URL literals here).
-  const configured = deps.endpoint;
-  if (!configured) {
-    throw new NarrativeProviderError(
-      'NARRATIVE_ENDPOINT is not configured.',
-    );
+  if (deps.targets.length === 0) {
+    throw new NarrativeProviderError('No narrative provider targets configured.');
   }
-  if (deps.models.length === 0) {
-    throw new NarrativeProviderError(
-      'NARRATIVE_MODELS is empty — configure at least one narrative model.',
-    );
-  }
-  const models = [...deps.models];
+  // Endpoints come from config (no hardcoded defaults in services/ —
+  // the boundaries test forbids URL literals here). Pasted secrets
+  // sometimes carry stray whitespace/newlines (console paste into Key
+  // Vault) — a padded key is never valid, so trim before use; a
+  // whitespace-only value counts as missing.
+  const targets = deps.targets.map((t) => {
+    if (!t.endpoint) {
+      throw new NarrativeProviderError(
+        `NARRATIVE_ENDPOINT is not configured for provider '${t.label}'.`,
+      );
+    }
+    if (t.models.length === 0) {
+      throw new NarrativeProviderError(
+        `NARRATIVE_MODELS is empty for provider '${t.label}' — configure at least one narrative model.`,
+      );
+    }
+    return {
+      label: t.label,
+      endpoint: chatCompletionsUrl(t.endpoint),
+      apiKey: t.apiKey?.trim() || undefined,
+      models: [...t.models],
+    };
+  });
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const endpoint = chatCompletionsUrl(configured);
-  // Pasted secrets sometimes carry stray whitespace/newlines (console
-  // paste into Key Vault) — a padded key is never valid, so trim before
-  // use. A whitespace-only value fails closed like a missing one.
-  const apiKey = deps.apiKey?.trim();
   return {
     // Real provider — output is validated and may be persisted/returned.
     synthetic: false,
     async generate(
       prompt: NarrativePrompt,
     ): Promise<NarrativeProviderResult> {
-      if (!apiKey) {
-        throw new NarrativeProviderError(
-          'NARRATIVE_API_KEY is not configured — narrative generation is disabled until Karan provides the Gemini API key.',
-        );
-      }
       let lastError: NarrativeProviderError | null = null;
-      for (let i = 0; i < models.length; i++) {
-        const model = models[i]!;
-        const isLast = i === models.length - 1;
-        logChainEvent('narrative.model-attempt', { model });
-        try {
-          const result = await attemptModel(
-            fetchImpl,
-            endpoint,
-            apiKey,
-            model,
-            prompt,
-            timeoutMs,
-          );
-          logChainEvent('narrative.model-served', { model });
-          return result;
-        } catch (error) {
-          const providerError =
-            error instanceof NarrativeProviderError
-              ? error
-              : new NarrativeProviderError('LLM API request failed', {
-                  cause: error,
-                });
-          lastError = providerError;
-          const chainable =
-            providerError.status !== undefined
-              ? isChainableStatus(providerError.status)
-              : true;
-          if (!chainable || isLast) throw providerError;
-          logChainEvent('narrative.model-chained', {
-            model,
-            reason: providerError.message,
-            next: models[i + 1]!,
+      for (let ti = 0; ti < targets.length; ti++) {
+        const target = targets[ti]!;
+        const isPrimary = ti === 0;
+        const isLastTarget = ti === targets.length - 1;
+        if (!target.apiKey) {
+          if (isPrimary) {
+            throw new NarrativeProviderError(
+              'NARRATIVE_API_KEY is not configured — narrative generation is disabled until Karan provides the Gemini API key.',
+            );
+          }
+          // Fallback step dormant until its key is provisioned — skip
+          // gracefully (label only, never the key) and let the chain
+          // continue to the next target / static guide.
+          logChainEvent('narrative.provider-skipped', {
+            target: target.label,
+            reason: 'api-key-missing',
           });
+          continue;
+        }
+        for (let i = 0; i < target.models.length; i++) {
+          const model = target.models[i]!;
+          const isLast = isLastTarget && i === target.models.length - 1;
+          logChainEvent('narrative.model-attempt', {
+            target: target.label,
+            model,
+          });
+          try {
+            const result = await attemptModel(
+              fetchImpl,
+              target.endpoint,
+              target.apiKey,
+              model,
+              prompt,
+              timeoutMs,
+            );
+            logChainEvent('narrative.model-served', {
+              target: target.label,
+              model,
+            });
+            return result;
+          } catch (error) {
+            const providerError =
+              error instanceof NarrativeProviderError
+                ? error
+                : new NarrativeProviderError('LLM API request failed', {
+                    cause: error,
+                  });
+            lastError = providerError;
+            const chainable =
+              providerError.status !== undefined
+                ? isChainableStatus(providerError.status)
+                : true;
+            if (!chainable || isLast) throw providerError;
+            const nextModel = target.models[i + 1];
+            logChainEvent('narrative.model-chained', {
+              target: target.label,
+              model,
+              reason: providerError.message,
+              next: nextModel ?? targets[ti + 1]!.label,
+            });
+          }
         }
       }
       // Unreachable — the loop always throws on the last model — but the
       // type system needs a terminal throw.
       throw (
         lastError ??
-        new NarrativeProviderError('All narrative models failed.')
+        new NarrativeProviderError('All narrative provider targets failed.')
       );
     },
   };

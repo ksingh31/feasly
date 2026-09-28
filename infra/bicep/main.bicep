@@ -227,7 +227,15 @@ module functionApp 'modules/function-app.bicep' = {
     narrativeProvider: environment == 'dev' ? 'openai-compatible' : 'log'
     narrativeApiKeySecretUri: environment == 'dev' ? narrativeApiKeySecretUri : ''
     narrativeEndpoint: environment == 'dev' ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : ''
-    narrativeModels: environment == 'dev' ? 'gemini-2.5-flash,gemini-2.5-flash-lite' : ''
+    narrativeModels: environment == 'dev' ? 'gemini-3.8-flash' : ''
+    // Fallback narrative provider (Groq): endpoint/models fall back to
+    // the app config defaults (empty = setting omitted). The API key
+    // stays empty until Karan provisions feasly-dev-groq-api-key in the
+    // dev vault and wires its URI here — until then the Groq step is
+    // skipped gracefully and the static guide remains the last resort.
+    narrativeFallbackEndpoint: ''
+    narrativeFallbackApiKeySecretUri: ''
+    narrativeFallbackModels: ''
     // Microsoft Entra External ID sign-in (auth/02): dev-only until Karan
     // provisions the tenant identifiers for other environments. Elsewhere
     // the settings stay empty and the backend callback fails closed (503)
