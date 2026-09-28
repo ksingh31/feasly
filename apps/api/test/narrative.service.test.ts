@@ -874,7 +874,7 @@ describe('narrative model chain (BE-9)', () => {
 
     function twoTargetProvider(
       fetchImpl: typeof fetch,
-      groqApiKey: string | undefined = 'groq-key',
+      groqApiKey: string | undefined,
     ) {
       return createOpenAiCompatibleNarrativeProvider({
         targets: [
@@ -905,7 +905,9 @@ describe('narrative model chain (BE-9)', () => {
         return model === 'gemini-3.8-flash'
           ? errBody(429, 'Rate limit exceeded')
           : okBody('Groq fallback prose.');
-      }) as typeof fetch);
+      }) as typeof fetch,
+        'groq-key',
+      );
 
       const result = await provider.generate(PROMPT);
 
@@ -923,7 +925,9 @@ describe('narrative model chain (BE-9)', () => {
         return seenModel(init) === 'gemini-3.8-flash'
           ? errBody(503, 'The model is overloaded')
           : okBody('Groq fallback prose.');
-      }) as typeof fetch);
+      }) as typeof fetch,
+        'groq-key',
+      );
 
       const result = await provider.generate(PROMPT);
 
@@ -953,7 +957,9 @@ describe('narrative model chain (BE-9)', () => {
       const provider = twoTargetProvider((async (url) => {
         seenUrls.push(String(url));
         return errBody(404, 'Model not found');
-      }) as typeof fetch);
+      }) as typeof fetch,
+        'groq-key',
+      );
 
       const error = await provider.generate(PROMPT).catch((e) => e);
 
