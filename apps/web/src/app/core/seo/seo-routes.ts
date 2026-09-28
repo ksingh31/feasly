@@ -124,20 +124,63 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'magicLink',
     noindex: true,
   },
+  // Admin console (admin/07): every admin section gets its own title so
+  // client-side nav between sections updates the document title — the
+  // previous per-component setPage calls drifted (sections without one
+  // inherited the last-visited section's title). All noindexed.
+  // AdminShellComponent drives this table on every NavigationEnd; sections
+  // must NOT set their own titles.
+  { pattern: 'admin', titleKey: 'adminHomeTitle', descriptionKey: 'adminHome', noindex: true },
+  { pattern: 'admin/leads', titleKey: 'adminLeadsTitle', descriptionKey: 'adminLeads', noindex: true },
+  { pattern: 'admin/builders', titleKey: 'adminBuildersTitle', descriptionKey: 'adminBuilders', noindex: true },
+  { pattern: 'admin/disputes', titleKey: 'adminDisputesTitle', descriptionKey: 'adminDisputes', noindex: true },
+  {
+    pattern: 'admin/calibration',
+    titleKey: 'adminCalibrationTitle',
+    descriptionKey: 'adminCalibration',
+    noindex: true,
+  },
+  { pattern: 'admin/billing', titleKey: 'adminBillingTitle', descriptionKey: 'adminBilling', noindex: true },
+  { pattern: 'admin/ops/sheets', titleKey: 'adminSheetsTitle', descriptionKey: 'adminSheets', noindex: true },
+  {
+    pattern: 'admin/estimates',
+    titleKey: 'adminEstimatesTitle',
+    descriptionKey: 'adminEstimates',
+    noindex: true,
+  },
+  {
+    pattern: 'admin/estimates/:id',
+    titleKey: 'adminEstimatesTitle',
+    descriptionKey: 'adminEstimates',
+    noindex: true,
+  },
+  { pattern: 'admin/api-keys', titleKey: 'adminApiKeysTitle', descriptionKey: 'adminApiKeys', noindex: true },
+  { pattern: 'admin/funnels', titleKey: 'adminFunnelsTitle', descriptionKey: 'adminFunnels', noindex: true },
+  { pattern: 'admin/login', titleKey: 'adminLoginTitle', descriptionKey: 'adminLogin', noindex: true },
+  {
+    pattern: 'admin/auth/callback',
+    titleKey: 'adminCallbackTitle',
+    descriptionKey: 'adminCallback',
+    noindex: true,
+  },
 ];
 
 /**
- * Patterns for routes that do not exist yet (lead gate, analyzing, embed,
- * admin). Declared now so they are noindexed from the day they ship — no
+ * Patterns for routes that do not exist yet (lead gate, analyzing, embed).
+ * Declared now so they are noindexed from the day they ship — no
  * story may add one of these paths without this table covering it. Checked
  * by `seo.service.spec.ts`.
+ *
+ * The admin console's real routes live in ROUTES above (admin/07); the
+ * `admin/**` entry stays as the noindex fallback for unknown admin
+ * sub-paths, which render the generic admin title rather than the 404 page.
  */
 const FUTURE_NOINDEX: SeoRouteConfig[] = [
   { pattern: 'preview', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'check-email', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'analyzing', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
   { pattern: 'embed/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
-  { pattern: 'admin/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
+  { pattern: 'admin/**', titleKey: 'adminHomeTitle', descriptionKey: 'adminHome', noindex: true },
   { pattern: 'builder/**', titleKey: 'notFoundTitle', descriptionKey: 'notFound', noindex: true },
 ];
 

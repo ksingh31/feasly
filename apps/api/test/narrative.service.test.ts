@@ -887,7 +887,7 @@ describe('narrative model chain (BE-9)', () => {
           {
             label: 'groq',
             apiKey: groqApiKey,
-            models: ['llama-3.3-70b-versatile'],
+            models: ['openai/gpt-oss-120b'],
             endpoint: 'https://groq.example/v1',
           },
         ],
@@ -914,10 +914,10 @@ describe('narrative model chain (BE-9)', () => {
       expect(seenUrls).toEqual([GEMINI_URL, GROQ_URL]);
       expect(seenModels).toEqual([
         'gemini-3.8-flash',
-        'llama-3.3-70b-versatile',
+        'openai/gpt-oss-120b',
       ]);
       expect(result.text).toBe('Groq fallback prose.');
-      expect(result.model).toBe('llama-3.3-70b-versatile');
+      expect(result.model).toBe('openai/gpt-oss-120b');
     });
 
     it('falls through to Groq on 503 from Gemini', async () => {
@@ -931,7 +931,7 @@ describe('narrative model chain (BE-9)', () => {
 
       const result = await provider.generate(PROMPT);
 
-      expect(result.model).toBe('llama-3.3-70b-versatile');
+      expect(result.model).toBe('openai/gpt-oss-120b');
     });
 
     it('skips the Groq fallback target gracefully when its key is absent', async () => {

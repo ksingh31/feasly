@@ -88,6 +88,7 @@ export class FunnelsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // Title comes from the seo-routes table (admin/funnels).
     this.seo.setForRoute('admin/funnels');
     this.load();
   }

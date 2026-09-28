@@ -15,7 +15,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminEstimateDetail } from '@feasly/contracts';
 import { AdminEstimateLookupComponent } from './admin-estimate-lookup.component';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
-import { SeoService } from '../../core/seo/seo.service';
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
@@ -60,7 +59,6 @@ async function setup(options: {
         ? vi.fn().mockReturnValue(throwError(() => options.error))
         : vi.fn().mockReturnValue(of(options.detail ?? DETAIL)),
   };
-  const seo = { setPage: vi.fn() };
   // paramMap as a BehaviorSubject so tests can simulate param-only
   // navigation (component reuse) the way the real router does.
   const paramMap$ = new BehaviorSubject(
@@ -73,7 +71,6 @@ async function setup(options: {
     providers: [
       provideRouter([{ path: '', component: BlankComponent }]),
       { provide: AdminEstimatesApiService, useValue: api },
-      { provide: SeoService, useValue: seo },
       { provide: ActivatedRoute, useValue: route },
     ],
   });
@@ -107,8 +104,29 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       id: 'missing-id',
       error: { code: 'ESTIMATE_NOT_FOUND', message: 'No estimate.', retryable: false },
     });
-    expect(textOf(fixture)).toContain('No estimate found for ID');
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).toContain('check the link and try again');
     expect(textOf(fixture)).toContain('missing-id');
+  });
+
+  it('shows the not-found copy for a malformed id (400 VALIDATION_FAILED)', async () => {
+    // The route validates the id as a UUID; a non-UUID id can never match
+    // an estimate, so it reads as a miss — not a system error.
+    const { fixture } = await setup({
+      id: 'not-a-uuid',
+      error: { code: 'VALIDATION_FAILED', message: 'Invalid estimate id.', retryable: false },
+    });
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).not.toContain('Something went wrong');
+    expect(textOf(fixture)).not.toContain('Retry');
+  });
+
+  it('shows the not-found copy for a bare http_400', async () => {
+    const { fixture } = await setup({
+      id: 'not-a-uuid',
+      error: { code: 'http_400', message: 'Request failed.', retryable: false },
+    });
+    expect(textOf(fixture)).toContain("We couldn't find that estimate");
   });
 
   it('shows a retryable error for transient failures', async () => {

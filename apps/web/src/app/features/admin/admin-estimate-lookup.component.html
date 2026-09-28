@@ -26,8 +26,8 @@
     <p class="loading" role="status">Loading estimate…</p>
   } @else if (showNotFound()) {
     <div class="error-card" role="alert">
-      <p>No estimate found for ID “{{ lookupId() }}”.</p>
-      <p class="hint">Check the ID and try again.</p>
+      <p>We couldn't find that estimate — check the link and try again.</p>
+      <p class="hint">ID looked up: “{{ lookupId() }}”.</p>
     </div>
   } @else if (showError()) {
     <div class="error-card" role="alert">

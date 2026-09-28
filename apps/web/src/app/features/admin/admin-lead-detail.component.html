@@ -109,7 +109,13 @@
         <div><dt>Phone</dt><dd>{{ lead.phone ?? '—' }}</dd></div>
         <div><dt>Source</dt><dd>{{ lead.source }}</dd></div>
         <div><dt>Tenant</dt><dd>{{ lead.tenantKey ?? '—' }}</dd></div>
-        <div><dt>Magic link</dt><dd>{{ magicLinkLabel(lead.magicLinkStatus) }}</dd></div>
+        <div>
+          <dt>Magic link</dt>
+          <dd>
+            {{ magicLinkLabel(lead.magicLinkStatus) }}
+            <span class="lead-modal-card__muted"> — {{ magicLinkHint(lead.magicLinkStatus) }}</span>
+          </dd>
+        </div>
         <div>
           <dt>Contact consent</dt>
           <dd>

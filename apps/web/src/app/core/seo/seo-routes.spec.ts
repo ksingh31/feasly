@@ -50,6 +50,38 @@ describe('seo-routes', () => {
     expect(route.noindex).toBe(true);
   });
 
+  it('resolves each admin section to its own title (admin/07)', () => {
+    // Regression: /admin/billing inherited the disputes title and
+    // /admin/builders fell through to the 404 title because sections
+    // set (or never set) their own titles.
+    const cases: Array<[string, string]> = [
+      ['admin', 'adminHomeTitle'],
+      ['admin/leads', 'adminLeadsTitle'],
+      ['admin/builders', 'adminBuildersTitle'],
+      ['admin/disputes', 'adminDisputesTitle'],
+      ['admin/calibration', 'adminCalibrationTitle'],
+      ['admin/billing', 'adminBillingTitle'],
+      ['admin/ops/sheets', 'adminSheetsTitle'],
+      ['admin/estimates', 'adminEstimatesTitle'],
+      ['admin/estimates/3f9b2c1a-0000-4000-8000-000000000000', 'adminEstimatesTitle'],
+      ['admin/api-keys', 'adminApiKeysTitle'],
+      ['admin/funnels', 'adminFunnelsTitle'],
+      ['admin/login', 'adminLoginTitle'],
+      ['admin/auth/callback', 'adminCallbackTitle'],
+    ];
+    for (const [path, titleKey] of cases) {
+      const route = findSeoRoute(path);
+      expect(route.titleKey, path).toBe(titleKey);
+      expect(route.noindex, path).toBe(true);
+    }
+    // Unknown admin sub-paths fall back to the generic admin title —
+    // never the 404 title.
+    const fallback = findSeoRoute('admin/unknown-section');
+    expect(fallback.pattern).toBe('admin/**');
+    expect(fallback.titleKey).toBe('adminHomeTitle');
+    expect(fallback.noindex).toBe(true);
+  });
+
   it('every declared noindex pattern actually matches a concrete path', () => {
     const samples: Record<string, string> = {
       'estimate/scope': 'estimate/scope',
@@ -69,7 +101,20 @@ describe('seo-routes', () => {
       'r/:token': 'r/abc123',
       'unsubscribe/:token': 'unsubscribe/abc123',
       'embed/**': 'embed/acme/embed.js',
-      'admin/**': 'admin/leads',
+      'admin': 'admin',
+      'admin/leads': 'admin/leads',
+      'admin/builders': 'admin/builders',
+      'admin/disputes': 'admin/disputes',
+      'admin/calibration': 'admin/calibration',
+      'admin/billing': 'admin/billing',
+      'admin/ops/sheets': 'admin/ops/sheets',
+      'admin/estimates': 'admin/estimates',
+      'admin/estimates/:id': 'admin/estimates/3f9b2c1a-0000-4000-8000-000000000000',
+      'admin/api-keys': 'admin/api-keys',
+      'admin/funnels': 'admin/funnels',
+      'admin/login': 'admin/login',
+      'admin/auth/callback': 'admin/auth/callback',
+      'admin/**': 'admin/unknown-section',
       'builder/**': 'builder/login',
     };
     for (const pattern of noindexPatterns()) {
