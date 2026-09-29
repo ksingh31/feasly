@@ -846,8 +846,9 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Generate (or return cached) the AI narrative for an estimate. ' +
-      'Same pipeline as the consumer endpoint, admin-gated instead of ' +
-      'magic-link-gated; LLM writes narrative only, figures are deterministic.',
+      'Same pipeline as the consumer endpoint, but Entra admin-session-gated ' +
+      '(the consumer endpoint is consumer-magic-link-gated); LLM writes narrative ' +
+      'only, figures are deterministic.',
   },
   {
     method: 'GET',
