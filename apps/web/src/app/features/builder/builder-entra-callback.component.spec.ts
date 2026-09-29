@@ -28,13 +28,23 @@ import {
 } from './builder.actions';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import type { BuilderOrgMembership } from './builder-auth.contracts';
+import type { BuilderMembershipSummary } from '@feasly/contracts';
 
 const CANCELLED_COPY = "Sign-in didn't complete — try again.";
 const TRANSIENT_COPY = 'Something went wrong. Please try again.';
 
-function membership(id: string, name: string): BuilderOrgMembership {
-  return { builderId: id, builderName: name, role: 'builder_admin' };
+/**
+ * Build a membership the way the real backend returns it: nested under
+ * `user`, with `builderId` (uuid), `tenantKey`, `builderName`, and `role`.
+ * Regression anchor for the 2026-09-29 crash, where a stale frontend
+ * placeholder read a top-level `memberships` and threw `undefined.length`.
+ */
+function membership(
+  id: string,
+  name: string,
+  role = 'builder_admin',
+): BuilderMembershipSummary {
+  return { builderId: id, tenantKey: 'acme-builders', builderName: name, role };
 }
 
 function setup(opts: {
@@ -42,7 +52,7 @@ function setup(opts: {
   storedState?: string | null;
   storedVerifier?: string | null;
   exchangeOk?: boolean;
-  memberships?: BuilderOrgMembership[];
+  memberships?: BuilderMembershipSummary[];
 }) {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn() };
@@ -61,9 +71,13 @@ function setup(opts: {
       ? throwError(() => ({ retryable: true }))
       : of({
           authenticated: true,
-          user: { email: 'builder@example.com', name: 'Builder User' },
+          user: {
+            email: 'builder@example.com',
+            name: 'Builder User',
+            memberships: opts.memberships ?? [membership('b1', 'Acme Builders')],
+          },
+          activeBuilderId: 'b1',
           sessionToken: 'sess-entra-abc',
-          memberships: opts.memberships ?? [membership('b1', 'Acme Builders')],
         }),
   );
   const api = { exchangeEntraCode };
@@ -179,6 +193,13 @@ describe('BuilderEntraCallbackComponent (auth/05)', () => {
     ) as SetBuilderActiveOrg;
     expect(setOrg.builderId).toBe('b1');
     expect(router.navigate).toHaveBeenCalledWith(['/builder']);
+    // The nested backend membership is narrowed to the frontend shape.
+    const completed = dispatched.find(
+      (a) => a instanceof CompleteBuilderEntraSignIn,
+    ) as CompleteBuilderEntraSignIn;
+    expect(completed.memberships).toEqual([
+      { builderId: 'b1', builderName: 'Acme Builders', role: 'builder_admin' },
+    ]);
   });
 
   it('multiple memberships: routes to /builder/org-picker', () => {
@@ -195,6 +216,26 @@ describe('BuilderEntraCallbackComponent (auth/05)', () => {
       dispatched.some((a) => a instanceof SetBuilderActiveOrg),
     ).toBe(false);
     expect(router.navigate).toHaveBeenCalledWith(['/builder/org-picker']);
+  });
+
+  it('unknown role fails closed: dispatches transient, never routes', () => {
+    const { fixture, dispatched, router } = setup({
+      query: { code: 'code-1', state: 's1' },
+      storedState: 's1',
+      storedVerifier: 'v1',
+      memberships: [membership('b1', 'Acme Builders', 'super_admin')],
+    });
+    const failure = dispatched.find(
+      (a) => a instanceof FailBuilderEntraSignIn,
+    ) as FailBuilderEntraSignIn;
+    expect(failure.error).toBe('transient');
+    expect(
+      dispatched.some((a) => a instanceof CompleteBuilderEntraSignIn),
+    ).toBe(false);
+    expect(router.navigate).not.toHaveBeenCalled();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain(TRANSIENT_COPY);
   });
 
   it('backend failure renders the transient copy and dispatches transient', () => {
