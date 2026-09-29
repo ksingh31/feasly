@@ -91,14 +91,22 @@
                 @if (isBuilderAdmin()) {
                   <select
                     class="builder-team__role-select"
-                    [value]="user.role"
-                    (change)="changeRole(user, $any($event.target).value)"
+                    [value]="pendingRoleFor(user)"
+                    (change)="onRoleSelect(user.id, $any($event.target).value)"
                     [disabled]="updatingUserId() === user.id"
                     [attr.aria-label]="copy.teamColRole"
                   >
                     <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
                     <option value="builder_member">{{ copy.orgRoleMember }}</option>
                   </select>
+                  <button
+                    type="button"
+                    class="builder-team__apply"
+                    [disabled]="!canApplyRole(user)"
+                    (click)="applyRole(user)"
+                  >
+                    {{ copy.teamApplyRole }}
+                  </button>
                 } @else {
                   {{ roleLabel(user.role) }}
                 }

@@ -23,6 +23,7 @@ import { BuilderState } from './builder.state';
 import {
   InviteBuilderTeamUser,
   LoadBuilderTeam,
+  SetBuilderTeamUserRole,
   SetBuilderTeamUserStatus,
 } from './builder-team.state';
 import { ConfigService } from '../../core/config/config.service';
@@ -44,6 +45,7 @@ const BUILDER_COPY = {
   teamColName: 'Name',
   teamColEmail: 'Email',
   teamColRole: 'Role',
+  teamApplyRole: 'Apply',
   teamColStatus: 'Status',
   teamColAdded: 'Added',
   teamColActions: 'Actions',
@@ -169,8 +171,42 @@ describe('BuilderTeamComponent (auth/05)', () => {
     expect(text).not.toContain('Only organization administrators');
   });
 
-  it('a non-admin sees a read-only table with a notice, no invite form', () => {
-    const { fixture } = setup({ isAdmin: false });
+  it('changing a role only stages it; Apply dispatches exactly one update', () => {
+    const { fixture, dispatched } = setup({ isAdmin: true });
+    const selects = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-team__role-select'),
+    ) as HTMLSelectElement[];
+    // Bob (u2) is builder_member.
+    const bobSelect = selects[1] as HTMLSelectElement;
+    expect(bobSelect.value).toBe('builder_member');
+
+    bobSelect.value = 'builder_admin';
+    bobSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    // No dispatch on selection: only the staged LoadBuilderTeam happened.
+    expect(dispatched.some((a) => a instanceof SetBuilderTeamUserRole)).toBe(false);
+
+    const applyButtons = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-team__apply'),
+    ) as HTMLButtonElement[];
+    expect(applyButtons).toHaveLength(2);
+    const aliceApply = applyButtons[0] as HTMLButtonElement;
+    const bobApply = applyButtons[1] as HTMLButtonElement;
+    // Only Bob's Apply is enabled — Alice's staged role matches her stored role.
+    expect(aliceApply.disabled).toBe(true);
+    expect(bobApply.disabled).toBe(false);
+
+    bobApply.click();
+    fixture.detectChanges();
+    const roleActions = dispatched.filter(
+      (a) => a instanceof SetBuilderTeamUserRole,
+    ) as SetBuilderTeamUserRole[];
+    expect(roleActions).toHaveLength(1);
+    expect(roleActions[0].id).toBe('u2');
+    expect(roleActions[0].role).toBe('builder_admin');
+  });
+  it('a non-admin sees a read-only table with a notice, no invite form', () => {    const { fixture } = setup({ isAdmin: false });
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Only organization administrators can manage the team.');
     expect(text).not.toContain('Invite team member');

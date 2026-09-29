@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
@@ -194,9 +194,66 @@ export class BuilderTeamComponent implements OnInit {
     this.store.dispatch(new SetBuilderTeamUserStatus(user.id, 'active'));
   }
 
-  protected changeRole(user: BuilderTeamUser, role: 'builder_admin' | 'builder_member'): void {
-    if (user.role === role) return;
-    this.store.dispatch(new SetBuilderTeamUserRole(user.id, role));
+  /**
+   * Pending (unapplied) role selections, keyed by user id. Selecting a
+   * role never saves — it only stages the choice; the Apply button
+   * performs the actual update. Karan's explicit order (2026-09-29): no
+   * auto-save on selection anywhere in the app.
+   */
+  protected readonly pendingRole = signal<
+    Record<string, 'builder_admin' | 'builder_member'>
+  >({});
+
+  /** The value the role select renders: the pending pick, or the stored role. */
+  protected pendingRoleFor(
+    user: BuilderTeamUser,
+  ): 'builder_admin' | 'builder_member' {
+    return this.pendingRole()[user.id] ?? user.role;
+  }
+
+  /**
+   * The Apply button is enabled only when the staged role differs from
+   * the stored role and no save is in flight.
+   */
+  protected canApplyRole(user: BuilderTeamUser): boolean {
+    return (
+      this.pendingRoleFor(user) !== user.role &&
+      this.updatingUserId() === null
+    );
+  }
+
+  /** Stages a role choice without saving (template-bound). */
+  protected onRoleSelect(userId: string, value: string): void {
+    const role = value as 'builder_admin' | 'builder_member';
+    this.pendingRole.update((pending) => ({ ...pending, [userId]: role }));
+  }
+
+  /**
+   * Saves the staged role (Apply button, template-bound). Clears the
+   * staged choice on completion — on failure the select reverts to the
+   * stored role so the UI can never disagree with the backend.
+   */
+  protected applyRole(user: BuilderTeamUser): void {
+    const pending = this.pendingRole()[user.id];
+    if (pending === undefined || pending === user.role) {
+      this.clearPendingRole(user.id);
+      return;
+    }
+    this.store
+      .dispatch(new SetBuilderTeamUserRole(user.id, pending))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.clearPendingRole(user.id));
+  }
+
+  private clearPendingRole(userId: string): void {
+    this.pendingRole.update((pending) => {
+      if (!(userId in pending)) {
+        return pending;
+      }
+      const next = { ...pending };
+      delete next[userId];
+      return next;
+    });
   }
 
   protected confirmText(): string {
