@@ -168,23 +168,37 @@
                 role="group"
                 [attr.aria-label]="copy.actionsLabel"
               >
-                <label class="builder-lead-card__status">
-                  <span class="sr-only">{{ statusControlLabel(lead.name) }}</span>
-                  <select
-                    #statusSelect
-                    [value]="lead.status"
-                    [disabled]="isUpdating(lead.id)"
-                    (change)="onLeadStatusChange(statusSelect, lead.id)"
-                  >
-                    @for (status of statuses; track status) {
-                      <option [value]="status">{{ statusLabel(status) }}</option>
-                    }
-                  </select>
-                </label>
-                @if (isUpdating(lead.id)) {
-                  <span class="builder-lead-card__saving" role="status">
-                    {{ copy.leadsStatusSaving }}
+                @if (lead.hasInvoice) {
+                  <!-- Recorded contract: status is locked, badge is read-only. -->
+                  <span class="builder-lead-card__locked" role="note">
+                    {{ copy.leadsStatusLocked }}
                   </span>
+                } @else {
+                  <label class="builder-lead-card__status">
+                    <span class="sr-only">{{ statusControlLabel(lead.name) }}</span>
+                    <select
+                      [value]="pendingStatusFor(lead)"
+                      [disabled]="isUpdating(lead.id)"
+                      (change)="onLeadStatusSelect(lead.id, $any($event.target).value)"
+                    >
+                      @for (status of statuses; track status) {
+                        <option [value]="status">{{ statusLabel(status) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    class="builder-lead-card__apply"
+                    [disabled]="!canApplyLeadStatus(lead)"
+                    (click)="applyLeadStatus(lead.id)"
+                  >
+                    {{ copy.leadsStatusApply }}
+                  </button>
+                  @if (isUpdating(lead.id)) {
+                    <span class="builder-lead-card__saving" role="status">
+                      {{ copy.leadsStatusSaving }}
+                    </span>
+                  }
                 }
               </div>
             </article>

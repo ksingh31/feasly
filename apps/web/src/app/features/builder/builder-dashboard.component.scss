@@ -378,6 +378,31 @@
   cursor: wait;
 }
 
+/* Apply button for the staged status selection. Disabled until the
+   selection differs from the stored status. */
+.builder-lead-card__apply {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.builder-lead-card__apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Recorded leads: status locked, badge is read-only. */
+.builder-lead-card__locked {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .builder-lead-card__saving {
   font-size: 0.75rem;
   color: var(--muted);

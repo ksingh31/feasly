@@ -146,7 +146,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     httpMock.verify();
   });
 
-  it('dispatches a status update when the per-lead control changes', async () => {
+  it('stages a status change without saving; Apply dispatches the PATCH', async () => {
     const { fixture, httpMock } = await setup();
     loadLeads(httpMock, LEADS_RESPONSE);
     fixture.detectChanges();
@@ -155,14 +155,31 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     const select = fixture.nativeElement.querySelector(
       '.builder-lead-card__status select',
     ) as HTMLSelectElement;
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
     expect(select).toBeTruthy();
     expect(select.value).toBe('new');
+    // No staged change yet: Apply is disabled.
+    expect(apply.disabled).toBe(true);
 
     select.value = 'won';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
 
+    // Selection alone saves nothing: no PATCH, badge still New.
+    httpMock.expectNone((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
+    );
+    let badge = fixture.nativeElement.querySelector(
+      '.builder-lead-card__badge--new',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('New');
+    expect(apply.disabled).toBe(false);
+
+    apply.click();
     const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/builder/leads/11111111-1111-4111-8111-111111111111'),
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
     );
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ status: 'won' });
@@ -172,7 +189,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
 
     // The confirmed transition applies locally: badge flips to Won and the
     // record-contract CTA appears, carrying the lead id to the record page.
-    const badge = fixture.nativeElement.querySelector(
+    badge = fixture.nativeElement.querySelector(
       '.builder-lead-card__badge--won',
     ) as HTMLElement;
     expect(badge?.textContent?.trim()).toBe('Won');
@@ -188,7 +205,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     httpMock.verify();
   });
 
-  it('restores the status select to the store value when the PATCH fails', async () => {
+  it('reverts the staged select to the store value when the PATCH fails', async () => {
     const { fixture, httpMock } = await setup();
     loadLeads(httpMock, LEADS_RESPONSE);
     fixture.detectChanges();
@@ -197,10 +214,13 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     const select = fixture.nativeElement.querySelector(
       '.builder-lead-card__status select',
     ) as HTMLSelectElement;
-    expect(select.value).toBe('new');
-
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
     select.value = 'won';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    apply.click();
 
     const req = httpMock.expectOne((r) =>
       r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
@@ -212,8 +232,8 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    // Badge never moved; the select re-syncs to the store value so the
-    // two can't disagree (was: select kept showing "Won" next to "New").
+    // Badge never moved; the staged pick is discarded so the select
+    // renders the store value — the two can never disagree.
     const badge = fixture.nativeElement.querySelector(
       '.builder-lead-card__badge--new',
     ) as HTMLElement;
@@ -237,6 +257,26 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     expect(text).not.toContain('Record the signed contract');
     const link = card.querySelector('a[href="/builder/invoices"]');
     expect(link).toBeTruthy();
+    httpMock.verify();
+  });
+
+  it('locks the status control for a recorded lead: no select, no Apply', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector(
+      '.builder-lead-card',
+    ) as HTMLElement;
+    expect(card.querySelector('.builder-lead-card__status')).toBeNull();
+    expect(card.querySelector('.builder-lead-card__apply')).toBeNull();
+    expect(card.textContent).toContain('Status locked — contract recorded');
+    // The badge is read-only: Won, with no way to flip it back.
+    const badge = card.querySelector(
+      '.builder-lead-card__badge--won',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('Won');
     httpMock.verify();
   });
 
@@ -384,8 +424,13 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     const select = fixture.nativeElement.querySelector(
       '.builder-lead-card__status select',
     ) as HTMLSelectElement;
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
     select.value = 'lost';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    apply.click();
 
     const req = httpMock.expectOne((r) =>
       r.url.endsWith('/api/v1/builder/leads/11111111-1111-4111-8111-111111111111'),
