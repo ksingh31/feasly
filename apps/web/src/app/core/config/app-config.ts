@@ -1289,6 +1289,28 @@ export interface AppConfig {
       shellMenuOpenLabel: string;
       /** Shell: mobile menu toggle "close menu" label. */
       shellMenuCloseLabel: string;
+      /** Dashboard subtitle under "Lead pipeline". */
+      leadsSubtitle: string;
+      /** Empty pipeline heading. */
+      leadsEmptyHeading: string;
+      /** Empty pipeline guidance: how leads arrive. */
+      leadsEmptyGuidance: string;
+      /** Filter-empty heading. */
+      leadsFilterEmptyHeading: string;
+      /** Filter-empty guidance. */
+      leadsFilterEmptyGuidance: string;
+      /** Load-failure heading (body reuses loadError, button reuses retryLabel). */
+      leadsErrorHeading: string;
+      /** "Clear filter" button label (filter-empty state). */
+      leadsClearFilter: string;
+      /** Per-lead status select label; {name} is interpolated. */
+      leadsStatusControlLabel: string;
+      /** Shown while a status update is in flight. */
+      leadsStatusSaving: string;
+      /** Won-lead hint lead-in, before the report-contract link. */
+      leadsWonHint: string;
+      /** Won-lead report-contract link label. */
+      leadsWonReportCta: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard

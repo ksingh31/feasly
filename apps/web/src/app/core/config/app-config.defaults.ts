@@ -1109,6 +1109,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shellHomeLabel: 'Feasly Builder home',
       shellMenuOpenLabel: 'Open menu',
       shellMenuCloseLabel: 'Close menu',
+      leadsSubtitle: 'Your matched homeowners, from first contact to signed contract.',
+      leadsEmptyHeading: 'No leads yet',
+      leadsEmptyGuidance:
+        'Matched homeowners will appear here as soon as they submit an estimate request.',
+      leadsFilterEmptyHeading: 'No leads with this status',
+      leadsFilterEmptyGuidance:
+        'Try a different status, or clear the filter to see every lead.',
+      leadsErrorHeading: "Couldn't load your leads",
+      leadsClearFilter: 'Clear filter',
+      leadsStatusControlLabel: 'Update status for {name}',
+      leadsStatusSaving: 'Saving…',
+      leadsWonHint: 'Signed a contract with this lead?',
+      leadsWonReportCta: 'Report the contract',
     },
     admin: {
       apiKeys: {
