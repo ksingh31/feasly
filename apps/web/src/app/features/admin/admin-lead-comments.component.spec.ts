@@ -1,0 +1,205 @@
+/**
+ * AdminLeadCommentsComponent tests (BILL-07).
+ *
+ * The container is thin: these tests assert it wires the shared
+ * `comment-thread` component's outputs to the admin API service with the
+ * right visibility values, renders the admin config (toggle + badges),
+ * and handles the edit/delete flows. The API service is mocked; the real
+ * (placeholder) thread component renders so the surface contract is
+ * exercised end to end.
+ */
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Store } from '@ngxs/store';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { of, throwError } from 'rxjs';
+import { AdminLeadCommentsComponent } from './admin-lead-comments.component';
+import { AdminCommentsApiService } from './admin-comments-api.service';
+import type { LeadComment } from './admin-comments.contracts';
+
+const BUILDER_NOTE: LeadComment = {
+  id: 'c-builder',
+  entityType: 'lead',
+  entityId: 'lead-1',
+  authorKind: 'builder',
+  authorId: 'builder-user-1',
+  authorDisplayName: 'Karan (Elite Craft)',
+  visibility: 'org',
+  body: 'Met them Saturday.',
+  createdAt: '2026-09-29T10:00:00Z',
+  updatedAt: '2026-09-29T10:00:00Z',
+  edited: false,
+};
+
+const INTERNAL_NOTE: LeadComment = {
+  id: 'c-internal',
+  entityType: 'lead',
+  entityId: 'lead-1',
+  authorKind: 'admin',
+  authorId: 'admin-1',
+  authorDisplayName: 'Priya (platform)',
+  visibility: 'admin_only',
+  body: 'Watch this one.',
+  createdAt: '2026-09-29T11:00:00Z',
+  updatedAt: '2026-09-29T11:00:00Z',
+  edited: false,
+};
+
+function newComment(overrides: Partial<LeadComment> = {}): LeadComment {
+  return {
+    id: 'c-new',
+    entityType: 'lead',
+    entityId: 'lead-1',
+    authorKind: 'admin',
+    authorId: 'admin-1',
+    authorDisplayName: 'Priya (platform)',
+    visibility: 'admin_only',
+    body: 'New note',
+    createdAt: '2026-09-29T12:00:00Z',
+    updatedAt: '2026-09-29T12:00:00Z',
+    edited: false,
+    ...overrides,
+  };
+}
+
+describe('AdminLeadCommentsComponent', () => {
+  let apiMock: {
+    listComments: ReturnType<typeof vi.fn>;
+    postComment: ReturnType<typeof vi.fn>;
+    editComment: ReturnType<typeof vi.fn>;
+    deleteComment: ReturnType<typeof vi.fn>;
+  };
+  let fixture: ComponentFixture<AdminLeadCommentsComponent>;
+
+  function setup(seed: readonly LeadComment[] = [BUILDER_NOTE, INTERNAL_NOTE]): void {
+    apiMock = {
+      listComments: vi.fn(() => of({ comments: seed })),
+      postComment: vi.fn((_leadId: string, body: string, visibility: string) =>
+        of(newComment({ body, visibility: visibility as 'org' | 'admin_only' })),
+      ),
+      editComment: vi.fn((id: string, body: string) =>
+        of({ ...INTERNAL_NOTE, id, body, edited: true }),
+      ),
+      deleteComment: vi.fn(() => of(undefined)),
+    };
+    TestBed.configureTestingModule({
+      imports: [AdminLeadCommentsComponent],
+      providers: [
+        { provide: AdminCommentsApiService, useValue: apiMock },
+        { provide: Store, useValue: { selectSnapshot: () => 'admin@feasly.dev' } },
+      ],
+    });
+    fixture = TestBed.createComponent(AdminLeadCommentsComponent);
+    fixture.componentRef.setInput('leadId', 'lead-1');
+    fixture.detectChanges();
+  }
+
+  function textarea(): HTMLTextAreaElement {
+    return fixture.nativeElement.querySelector('.comment-thread__composer textarea');
+  }
+
+  function setText(el: HTMLTextAreaElement, value: string): void {
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function clickButton(text: string, scope: ParentNode = fixture.nativeElement): void {
+    const buttons = [...scope.querySelectorAll('button')];
+    const btn = buttons.find((b) => b.textContent?.trim() === text);
+    if (!btn) throw new Error(`button "${text}" not found`);
+    btn.click();
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('loads and renders every comment, builder notes included', () => {
+    setup();
+    const items = fixture.nativeElement.querySelectorAll('.comment-thread__item');
+    expect(items.length).toBe(2);
+    expect(fixture.nativeElement.textContent).toContain('Met them Saturday.');
+    expect(fixture.nativeElement.textContent).toContain('Watch this one.');
+    expect(apiMock.listComments).toHaveBeenCalledWith('lead-1');
+  });
+
+  it('badges internal notes and leaves shared notes unbadged', () => {
+    setup();
+    const badges = fixture.nativeElement.querySelectorAll('.comment-thread__badge');
+    expect(badges.length).toBe(1);
+    expect(badges[0].textContent).toContain('Internal');
+    const internalItem = fixture.nativeElement.querySelector(
+      '.comment-thread__item--internal',
+    );
+    expect(internalItem.textContent).toContain('Watch this one.');
+  });
+
+  it('defaults the composer visibility toggle to Internal only', () => {
+    setup();
+    const active = fixture.nativeElement.querySelector(
+      '.comment-thread__visibility--active',
+    );
+    expect(active?.textContent).toContain('Internal only');
+  });
+
+  it('posts with admin_only when the default toggle is kept', () => {
+    setup();
+    setText(textarea(), 'Internal follow-up');
+    clickButton('Post');
+    expect(apiMock.postComment).toHaveBeenCalledWith('lead-1', 'Internal follow-up', 'admin_only');
+    expect(fixture.nativeElement.textContent).toContain('Internal follow-up');
+  });
+
+  it('posts with org when "Builder can see this" is chosen', () => {
+    setup();
+    clickButton('Builder can see this');
+    setText(textarea(), 'Shared update');
+    clickButton('Post');
+    expect(apiMock.postComment).toHaveBeenCalledWith('lead-1', 'Shared update', 'org');
+  });
+
+  it('edits a comment through the service and updates the thread', () => {
+    setup();
+    const firstItem = fixture.nativeElement.querySelector('.comment-thread__item');
+    clickButton('Edit', firstItem);
+    const editArea = fixture.nativeElement.querySelector('.comment-thread__edit textarea');
+    setText(editArea, 'Edited note');
+    clickButton('Save');
+    expect(apiMock.editComment).toHaveBeenCalledWith('c-builder', 'Edited note');
+    expect(fixture.nativeElement.textContent).toContain('Edited note');
+    expect(fixture.nativeElement.textContent).toContain('(edited)');
+  });
+
+  it('deletes a comment after confirm and removes it from the thread', () => {
+    setup();
+    const internalItem = fixture.nativeElement.querySelector('.comment-thread__item--internal');
+    clickButton('Delete', internalItem);
+    // Confirm step appears; the service is only called on confirm.
+    expect(apiMock.deleteComment).not.toHaveBeenCalled();
+    clickButton('Delete', internalItem);
+    expect(apiMock.deleteComment).toHaveBeenCalledWith('c-internal');
+    expect(fixture.nativeElement.textContent).not.toContain('Watch this one.');
+  });
+
+  it('shows an inline error when loading fails, with a retry', () => {
+    apiMock = {
+      listComments: vi.fn(() => throwError(() => new Error('boom'))),
+      postComment: vi.fn(),
+      editComment: vi.fn(),
+      deleteComment: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [AdminLeadCommentsComponent],
+      providers: [
+        { provide: AdminCommentsApiService, useValue: apiMock },
+        { provide: Store, useValue: { selectSnapshot: () => 'admin@feasly.dev' } },
+      ],
+    });
+    fixture = TestBed.createComponent(AdminLeadCommentsComponent);
+    fixture.componentRef.setInput('leadId', 'lead-1');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('boom');
+    expect(fixture.nativeElement.textContent).toContain('Try again');
+  });
+});

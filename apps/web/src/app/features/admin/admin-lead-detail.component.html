@@ -217,6 +217,12 @@
       <p class="lead-modal-card__hint">Notes are append-only — they can't be edited or deleted.</p>
     </section>
 
+    <section class="lead-modal-card__section" aria-label="Comments">
+      <h3>Comments</h3>
+      <p class="lead-modal-card__hint">Choose per note whether the builder sees it.</p>
+      <app-admin-lead-comments [leadId]="lead.id" />
+    </section>
+
     <section class="lead-modal-card__section lead-modal-card__record" aria-label="Record">
       <h3>Record</h3>
       <dl class="lead-modal-card__grid">
