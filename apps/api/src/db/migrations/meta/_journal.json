@@ -1,293 +1,300 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "breakpoints": true,
-      "idx": 0,
-      "tag": "0000_far_toad",
-      "version": "7",
-      "when": 1790272502261
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790281363380,
-      "tag": "0001_chubby_barracuda",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1791000000000,
-      "tag": "0002_dizzy_honeypot",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790283322128,
-      "tag": "0003_powerful_edwin_jarvis",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790296494702,
-      "tag": "0004_flat_firestar",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790298186970,
-      "tag": "0005_mute_exiles",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1790299347642,
-      "tag": "0006_free_proudstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1790301416458,
-      "tag": "0007_cooing_deathbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1790301963911,
-      "tag": "0008_burly_korvac",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1790302500316,
-      "tag": "0009_flowery_bullseye",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1790302735742,
-      "tag": "0010_flat_power_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1790302908610,
-      "tag": "0011_complete_hellion",
-      "breakpoints": true
-    },
-    {
-      "breakpoints": true,
-      "idx": 12,
-      "tag": "0012_api_usage",
-      "version": "7",
-      "when": 1790303000000
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1790310781184,
-      "tag": "0013_billing_commission",
-      "breakpoints": true
-    },
-    {
-      "breakpoints": true,
-      "idx": 14,
-      "tag": "0014_sandbox_columns",
-      "version": "7",
-      "when": 1790311000000
-    },
-    {
-      "breakpoints": true,
-      "idx": 15,
-      "tag": "0015_sheets_sync_watermark",
-      "version": "7",
-      "when": 1790310000000
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1790313706792,
-      "tag": "0016_ops_alert_state",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1790316259442,
-      "tag": "0017_funnel_tenant_key",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1790336770698,
-      "tag": "0020_admin_session_auth",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "7",
-      "when": 1790372394184,
-      "tag": "0021_narrative_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1790392718998,
-      "tag": "0022_sheets_sync_state",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1790397000000,
-      "tag": "0023_quarantine_discard",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1790399218818,
-      "tag": "0024_phase2_wire",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1790407897475,
-      "tag": "0025_repair_lead_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1790388149632,
-      "tag": "0026_sheets_sync_runs",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1790400000000,
-      "tag": "0027_builder_portal_auth",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "7",
-      "when": 1790435090068,
-      "tag": "0028_repair_lead_columns_v2",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "7",
-      "when": 1790306900000,
-      "tag": "0029_embed_relay_codes",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1790457297046,
-      "tag": "0030_embed_attribution",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1790480760923,
-      "tag": "0031_billing_disputes",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1790497200000,
-      "tag": "0032_contact_consent",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1790514285849,
-      "tag": "0033_unique_invoice_attribution",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1790515024100,
-      "tag": "0034_unique_open_attribution",
-      "breakpoints": true
-    },
-    {
-      "idx": 33,
-      "version": "7",
-      "when": 1790515200000,
-      "tag": "0035_builders_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1790554921190,
-      "tag": "0036_auth_user_model",
-      "breakpoints": true
-    },
-    {
-      "idx": 35,
-      "version": "7",
-      "when": 1790600000000,
-      "tag": "0037_auth_session_state",
-      "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "7",
-      "when": 1790600000000,
-      "tag": "0038_builder_session_builder_id",
-      "breakpoints": true
-    },
-    {
-      "idx": 37,
-      "version": "7",
-      "when": 1790600000000,
-      "tag": "0039_billing_retry_count",
-      "breakpoints": true
-    },
-    {
-      "idx": 38,
-      "version": "7",
-      "when": 1790610000000,
-      "tag": "0040_builder_allowlist_to_users",
-      "breakpoints": true
-    },
-    {
-      "idx": 39,
-      "version": "7",
-      "when": 1790627481649,
-      "tag": "0041_session_id_token",
-      "breakpoints": true
-    },
-    {
-      "idx": 40,
-      "version": "7",
-      "when": 1790634600000,
-      "tag": "0042_builder_qa_membership",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"breakpoints": true,
+			"idx": 0,
+			"tag": "0000_far_toad",
+			"version": "7",
+			"when": 1790272502261
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1790281363380,
+			"tag": "0001_chubby_barracuda",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1791000000000,
+			"tag": "0002_dizzy_honeypot",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1790283322128,
+			"tag": "0003_powerful_edwin_jarvis",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1790296494702,
+			"tag": "0004_flat_firestar",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1790298186970,
+			"tag": "0005_mute_exiles",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1790299347642,
+			"tag": "0006_free_proudstar",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1790301416458,
+			"tag": "0007_cooing_deathbird",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1790301963911,
+			"tag": "0008_burly_korvac",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1790302500316,
+			"tag": "0009_flowery_bullseye",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1790302735742,
+			"tag": "0010_flat_power_man",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1790302908610,
+			"tag": "0011_complete_hellion",
+			"breakpoints": true
+		},
+		{
+			"breakpoints": true,
+			"idx": 12,
+			"tag": "0012_api_usage",
+			"version": "7",
+			"when": 1790303000000
+		},
+		{
+			"idx": 13,
+			"version": "7",
+			"when": 1790310781184,
+			"tag": "0013_billing_commission",
+			"breakpoints": true
+		},
+		{
+			"breakpoints": true,
+			"idx": 14,
+			"tag": "0014_sandbox_columns",
+			"version": "7",
+			"when": 1790311000000
+		},
+		{
+			"breakpoints": true,
+			"idx": 15,
+			"tag": "0015_sheets_sync_watermark",
+			"version": "7",
+			"when": 1790310000000
+		},
+		{
+			"idx": 16,
+			"version": "7",
+			"when": 1790313706792,
+			"tag": "0016_ops_alert_state",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1790316259442,
+			"tag": "0017_funnel_tenant_key",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1790336770698,
+			"tag": "0020_admin_session_auth",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1790372394184,
+			"tag": "0021_narrative_columns",
+			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "7",
+			"when": 1790392718998,
+			"tag": "0022_sheets_sync_state",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "7",
+			"when": 1790397000000,
+			"tag": "0023_quarantine_discard",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "7",
+			"when": 1790399218818,
+			"tag": "0024_phase2_wire",
+			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "7",
+			"when": 1790407897475,
+			"tag": "0025_repair_lead_columns",
+			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "7",
+			"when": 1790388149632,
+			"tag": "0026_sheets_sync_runs",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "7",
+			"when": 1790400000000,
+			"tag": "0027_builder_portal_auth",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "7",
+			"when": 1790435090068,
+			"tag": "0028_repair_lead_columns_v2",
+			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "7",
+			"when": 1790306900000,
+			"tag": "0029_embed_relay_codes",
+			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "7",
+			"when": 1790457297046,
+			"tag": "0030_embed_attribution",
+			"breakpoints": true
+		},
+		{
+			"idx": 29,
+			"version": "7",
+			"when": 1790480760923,
+			"tag": "0031_billing_disputes",
+			"breakpoints": true
+		},
+		{
+			"idx": 30,
+			"version": "7",
+			"when": 1790497200000,
+			"tag": "0032_contact_consent",
+			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "7",
+			"when": 1790514285849,
+			"tag": "0033_unique_invoice_attribution",
+			"breakpoints": true
+		},
+		{
+			"idx": 32,
+			"version": "7",
+			"when": 1790515024100,
+			"tag": "0034_unique_open_attribution",
+			"breakpoints": true
+		},
+		{
+			"idx": 33,
+			"version": "7",
+			"when": 1790515200000,
+			"tag": "0035_builders_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 34,
+			"version": "7",
+			"when": 1790554921190,
+			"tag": "0036_auth_user_model",
+			"breakpoints": true
+		},
+		{
+			"idx": 35,
+			"version": "7",
+			"when": 1790600000000,
+			"tag": "0037_auth_session_state",
+			"breakpoints": true
+		},
+		{
+			"idx": 36,
+			"version": "7",
+			"when": 1790600000000,
+			"tag": "0038_builder_session_builder_id",
+			"breakpoints": true
+		},
+		{
+			"idx": 37,
+			"version": "7",
+			"when": 1790600000000,
+			"tag": "0039_billing_retry_count",
+			"breakpoints": true
+		},
+		{
+			"idx": 38,
+			"version": "7",
+			"when": 1790610000000,
+			"tag": "0040_builder_allowlist_to_users",
+			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "7",
+			"when": 1790627481649,
+			"tag": "0041_session_id_token",
+			"breakpoints": true
+		},
+		{
+			"idx": 40,
+			"version": "7",
+			"when": 1790634600000,
+			"tag": "0042_builder_qa_membership",
+			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "7",
+			"when": 1790694750536,
+			"tag": "0043_invoice_manual_payment_and_rate_override",
+			"breakpoints": true
+		}
+	]
 }

@@ -398,6 +398,9 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"sla_breached" boolean DEFAULT false NOT NULL,
 	"retry_count" integer DEFAULT 0 NOT NULL,
 	"dispute_reason" text,
+	"commission_rate_override" real,
+	"manual_payment_method" text,
+	"payment_reference" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "commission_invoices_stripe_payment_intent_id_unique" UNIQUE("stripe_payment_intent_id")
@@ -417,6 +420,9 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "paid_at" timestamp w
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "sla_breached" boolean DEFAULT false NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "retry_count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "dispute_reason" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_override" real;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "manual_payment_method" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_reference" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "stripe_events" (

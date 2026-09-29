@@ -39,6 +39,9 @@ function testInvoices(): CommissionInvoice[] {
     paidAt: null,
     slaBreached: false,
     disputeReason: null,
+    commissionRateOverride: null,
+    manualPaymentMethod: null,
+    paymentReference: null,
   } as const;
   return [
     {
@@ -389,6 +392,9 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
           paidAt: null,
           slaBreached: false,
           disputeReason: null,
+          commissionRateOverride: null,
+          manualPaymentMethod: null,
+          paymentReference: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
