@@ -232,8 +232,18 @@ export class BuilderState {
   loadBuilderSession(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.authApi.me().pipe(
       tap((identity) => {
+        // The /me identity carries no org context (role/builderName are
+        // always null there); preserve the previous session's org fields so
+        // a session probe doesn't wipe the active org set at sign-in (which
+        // hid the Team nav for builder_admins). Backend wins when non-null.
+        const prev = ctx.getState().session;
         ctx.patchState({
-          session: identity,
+          session: {
+            ...identity,
+            builderId: identity.builderId ?? prev?.builderId ?? null,
+            builderName: identity.builderName ?? prev?.builderName ?? null,
+            role: identity.role ?? prev?.role ?? null,
+          },
           authStatus: 'authenticated',
           sessionExpired: false,
           // Keep any memberships the Entra callback already provided;
