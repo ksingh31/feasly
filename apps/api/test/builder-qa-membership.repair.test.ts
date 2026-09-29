@@ -67,4 +67,27 @@ describe('builder QA membership repair guard', () => {
     await testDb.exec(REPAIR_SQL as string);
     expect(await memberships()).toHaveLength(1);
   });
+
+  it('recreates the missing unique index before the membership insert (42P10 guard)', async () => {
+    // Simulate the dev database state that aborted deploys: drizzle-kit
+    // skipped the unique index from 0036, and the membership row is missing.
+    // Without the index, the guard's INSERT ... ON CONFLICT (user_id,
+    // builder_id) fails with 42P10 and the whole deploy step aborts.
+    await testDb.exec(`DROP INDEX IF EXISTS "builder_memberships_user_builder_idx"`);
+    await testDb.rows(
+      `DELETE FROM builder_memberships m USING users u
+        WHERE m.user_id = u.id AND u.email = '${ADMIN_EMAIL}'`,
+    );
+    expect(await memberships()).toHaveLength(0);
+
+    await testDb.exec(REPAIR_SQL as string);
+
+    const idx = await testDb.rows(
+      `SELECT 1 FROM pg_indexes WHERE indexname = 'builder_memberships_user_builder_idx'`,
+    );
+    expect(idx).toHaveLength(1);
+    const rows = await memberships();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].role).toBe('builder_admin');
+  });
 });

@@ -548,6 +548,14 @@ ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "user_id" uuid NOT NU
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE;
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- P0 2026-09-28: drizzle-kit silently skipped parts of 0036 on dev too — the
+-- unique index builder_memberships_user_builder_idx never materialized, so the
+-- idempotent membership guard below fails with 42P10 ("no unique or exclusion
+-- constraint matching the ON CONFLICT specification") and aborts the whole
+-- deploy. Re-create it idempotently before any INSERT ... ON CONFLICT that
+-- targets (user_id, builder_id).
+CREATE UNIQUE INDEX IF NOT EXISTS "builder_memberships_user_builder_idx"
+  ON "builder_memberships" ("user_id", "builder_id");
 CREATE TABLE IF NOT EXISTS "invitations" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
