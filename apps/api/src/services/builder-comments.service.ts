@@ -35,7 +35,7 @@ import type {
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderService } from './builder.service';
 import type { LeadStore } from './lead.store';
-import type { UserStore } from './user.store';
+import type { UserStore } from './user.service';
 import type { CommentRow, CommentStore } from './builder-comments.store';
 
 export type CommentActor =
