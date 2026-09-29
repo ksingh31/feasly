@@ -54,6 +54,9 @@ const INVOICE: CommissionInvoice = {
   paidAt: null,
   slaBreached: false,
   disputeReason: null,
+  commissionRateOverride: null,
+  manualPaymentMethod: null,
+  paymentReference: null,
   createdAt: '2026-09-29T10:00:00.000Z',
   updatedAt: '2026-09-29T10:00:00.000Z',
 };
