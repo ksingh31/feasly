@@ -114,9 +114,32 @@ export class BuilderInvoicesState implements NgxsOnInit {
 
   @Action(LoadInvoices)
   loadPage(ctx: StateContext<BuilderInvoicesStateModel>, action: LoadInvoices) {
-    const page = Math.max(1, action.page);
-    ctx.patchState({ listStatus: 'loading', page });
-    return this.api.listInvoices(page, ctx.getState().pageSize).pipe(
+    // Pagination guard (2026-09-29): the state must never send the backend
+    // invalid limit/offset — the zod validation in billing.route.ts
+    // rejects them with 400 (live bug: intermittent 400s on the list).
+    // - `page` is clamped to a finite ≥1 integer. Note Math.max(1, NaN)
+    //   is NaN, which would poison the page signal and every retry after
+    //   it, so non-finite input becomes 1 explicitly.
+    // - `pageSize` falls back to the configured value when the state holds
+    //   a non-positive one. ClearInvoicesState resets to defaults (pageSize
+    //   0) but ngxsOnInit only runs once per store lifetime, so revisiting
+    //   the page after navigating away would otherwise send limit=0.
+    const rawPage = action.page;
+    const page = Number.isFinite(rawPage)
+      ? Math.max(1, Math.floor(rawPage))
+      : 1;
+    const configuredPageSize = this.config.get('copy').builder.invoicesPageSize;
+    const safeConfigured =
+      Number.isFinite(configuredPageSize) && configuredPageSize > 0
+        ? Math.min(100, Math.floor(configuredPageSize))
+        : 20;
+    const statePageSize = ctx.getState().pageSize;
+    const pageSize =
+      Number.isFinite(statePageSize) && statePageSize > 0
+        ? Math.min(100, Math.floor(statePageSize))
+        : safeConfigured;
+    ctx.patchState({ listStatus: 'loading', page, pageSize });
+    return this.api.listInvoices(page, pageSize).pipe(
       tap((res: InvoiceListResponse) =>
         ctx.patchState({
           invoices: res.invoices,

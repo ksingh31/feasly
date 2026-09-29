@@ -12,9 +12,12 @@
  * installed in this repo, so the fakeAsync helper cannot run here.
  */
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
@@ -23,6 +26,7 @@ import { BuilderBillingState } from './builder-billing.state';
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderInvoicesComponent } from './builder-invoices.component';
 import { BuilderInvoicesState } from './builder-invoices.state';
+import { ClearInvoicesState, LoadInvoices } from './builder-invoices.actions';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
@@ -403,5 +407,176 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
       '.builder-invoices__pagination button:last-child',
     ) as HTMLButtonElement;
     expect(next.disabled).toBe(true);
+  });
+});
+
+/**
+ * Pagination param validity (2026-09-29, live bug): the invoices list
+ * intermittently 400'd because the frontend sent invalid limit/offset to
+ * GET /api/v1/billing/invoices (zod: limit 1–100, offset ≥ 0). Root causes
+ * fixed: ClearInvoicesState reset pageSize to 0 (ngxsOnInit runs once, so
+ * revisiting the page sent limit=0), and Math.max(1, NaN) is NaN, poisoning
+ * the page signal and every retry after it. These tests run the real API
+ * service against HttpTestingController and assert the wire params.
+ */
+describe('BuilderInvoices pagination params (no 400)', () => {
+  function setupRealApi() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([BuilderInvoicesState]),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s],
+          },
+        },
+        // NOTE: no BuilderInvoicesApiService override — the real one runs.
+      ],
+    });
+    const store = TestBed.inject(Store);
+    const httpMock = TestBed.inject(HttpTestingController);
+    return { store, httpMock };
+  }
+
+  function expectListRequest(
+    httpMock: HttpTestingController,
+    limit: string,
+    offset: string,
+  ) {
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith('/api/v1/billing/invoices'),
+    );
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('limit')).toBe(limit);
+    expect(req.request.params.get('offset')).toBe(offset);
+    req.flush([]);
+    return req;
+  }
+
+  it('sends limit=10&offset=0 for the initial page-1 load', () => {
+    const { store, httpMock } = setupRealApi();
+    store.dispatch(new LoadInvoices(1));
+    expectListRequest(httpMock, '10', '0');
+    expect(store.selectSnapshot(BuilderInvoicesState.page)).toBe(1);
+    httpMock.verify();
+  });
+
+  it('sends valid params after ClearInvoicesState (the live 400 repro)', () => {
+    const { store, httpMock } = setupRealApi();
+    // Navigate away: the component dispatches ClearInvoicesState on destroy,
+    // resetting pageSize to the 0 default (ngxsOnInit does not re-run).
+    store.dispatch(new ClearInvoicesState());
+    expect(store.selectSnapshot(BuilderInvoicesState.pageSize)).toBe(0);
+    // Navigate back: the revisit must NOT send limit=0.
+    store.dispatch(new LoadInvoices(1));
+    expectListRequest(httpMock, '10', '0');
+    // The state heals itself for the next visit too.
+    expect(store.selectSnapshot(BuilderInvoicesState.pageSize)).toBe(10);
+    httpMock.verify();
+  });
+
+  it('clamps non-finite and out-of-range pages to page 1', () => {
+    const { store, httpMock } = setupRealApi();
+    for (const badPage of [Number.NaN, 0, -3]) {
+      store.dispatch(new LoadInvoices(badPage));
+      expectListRequest(httpMock, '10', '0');
+      // The poisoned-page path: NaN must not stick in the page signal and
+      // poison the retry path after it.
+      expect(store.selectSnapshot(BuilderInvoicesState.page)).toBe(1);
+    }
+    // Fractional pages floor to an integer page.
+    store.dispatch(new LoadInvoices(2.7));
+    expectListRequest(httpMock, '10', '10');
+    expect(store.selectSnapshot(BuilderInvoicesState.page)).toBe(2);
+    httpMock.verify();
+  });
+
+  it('sends offset=10 for page 2 (Next pager path)', () => {
+    const { store, httpMock } = setupRealApi();
+    store.dispatch(new LoadInvoices(2));
+    expectListRequest(httpMock, '10', '10');
+    expect(store.selectSnapshot(BuilderInvoicesState.page)).toBe(2);
+    httpMock.verify();
+  });
+
+  it('retry after an error sends valid params', () => {
+    const { store, httpMock } = setupRealApi();
+    store.dispatch(new ClearInvoicesState());
+    store.dispatch(new LoadInvoices(1));
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith('/api/v1/billing/invoices'),
+    );
+    expect(req.request.params.get('limit')).toBe('10');
+    expect(req.request.params.get('offset')).toBe('0');
+    req.flush(
+      { code: 'VALIDATION_FAILED', message: 'Bad pagination.', retryable: false },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    expect(store.selectSnapshot(BuilderInvoicesState.listStatus)).toBe('error');
+    // Retry (the list error path's Retry button re-dispatches the page).
+    store.dispatch(new LoadInvoices(store.selectSnapshot(BuilderInvoicesState.page)));
+    expectListRequest(httpMock, '10', '0');
+    expect(store.selectSnapshot(BuilderInvoicesState.listStatus)).toBe('ready');
+    httpMock.verify();
+  });
+});
+
+describe('BuilderInvoices ?invoice= deep link', () => {
+  it('opens the invoice detail when the invoice query param is present', async () => {
+    const { convertToParamMap } = await import('@angular/router');
+    const invoices = testInvoices();
+    const apiMock = {
+      listInvoices: () => of({ invoices, total: null, page: 1, pageSize: 10 }),
+      getInvoice: (id: string) => {
+        const found = invoices.find((inv) => inv.id === id);
+        if (!found) {
+          throw new Error(`Test invoice not found: ${id}`);
+        }
+        return of(found);
+      },
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [BuilderInvoicesComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([BuilderBillingState, BuilderInvoicesState]),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s],
+          },
+        },
+        { provide: BuilderInvoicesApiService, useValue: apiMock },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            queryParamMap: of(
+              convertToParamMap({ invoice: 'inv-test-002' }),
+            ),
+          },
+        },
+      ],
+    });
+    const fixture: ComponentFixture<BuilderInvoicesComponent> =
+      TestBed.createComponent(BuilderInvoicesComponent);
+    const store = TestBed.inject(Store);
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    // The record-contract "View invoice" deep link opens the detail view
+    // directly (the paid fixture invoice renders its receipt).
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.id).toBe(
+      'inv-test-002',
+    );
+    const back = fixture.nativeElement.querySelector(
+      '.builder-invoices__back',
+    ) as HTMLButtonElement;
+    expect(back).not.toBeNull();
   });
 });

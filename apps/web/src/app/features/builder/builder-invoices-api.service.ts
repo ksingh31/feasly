@@ -49,21 +49,35 @@ export class BuilderInvoicesApiService {
   /**
    * Paginated invoice list, newest first. Speaks the backend's limit/offset
    * shape and normalizes the bare-array response (total unknown → null).
+   *
+   * Params are clamped to the backend's contract (limit 1–100, offset ≥ 0)
+   * so a bad caller can never produce a 400 from the zod validation.
    */
   listInvoices(page: number, pageSize: number): Observable<InvoiceListResponse> {
-    const offset = (page - 1) * pageSize;
+    const safePage = Number.isFinite(page)
+      ? Math.max(1, Math.floor(page))
+      : 1;
+    const safePageSize = Number.isFinite(pageSize)
+      ? Math.min(100, Math.max(1, Math.floor(pageSize)))
+      : 20;
+    const offset = (safePage - 1) * safePageSize;
     return this.call(
       this.http.get<readonly CommissionInvoice[]>(
         `${this.billingBase}/invoices`,
         {
-          params: { limit: String(pageSize), offset: String(offset) },
+          params: { limit: String(safePageSize), offset: String(offset) },
           withCredentials: true,
         },
       ),
     ).pipe(
       // Normalize the bare array; the endpoint reports no total.
       // (rxjs `map` is imported via the pipe below.)
-      map((invoices) => ({ invoices, total: null, page, pageSize })),
+      map((invoices) => ({
+        invoices,
+        total: null,
+        page: safePage,
+        pageSize: safePageSize,
+      })),
     );
   }
 
