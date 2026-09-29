@@ -22,6 +22,7 @@ import {
   LoadBuilderLeads,
   LoadBuilderSession,
   LogoutBuilder,
+  SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
 } from './builder.actions';
 import { BuilderEntraAuthService } from './builder-entra-auth.service';
@@ -234,6 +235,39 @@ describe('BuilderState (embed/09)', () => {
     const s = snapshot();
     expect(s.authStatus).toBe('unauthenticated');
     expect(s.sessionExpired).toBe(true);
+    httpMock.verify();
+  });
+
+  it('LoadBuilderSession preserves the active-org role when /me carries none', async () => {
+    // Regression: /me always maps role:null, so a session probe after
+    // sign-in must not wipe the builder_admin role set by
+    // SetBuilderActiveOrg — otherwise the Team nav disappears.
+    const seed = store.dispatch(new LoadBuilderSession());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
+      ...SESSION,
+      memberships: [],
+    });
+    await seed;
+
+    store.dispatch(
+      new SetBuilderActiveOrg('builder-1', 'Elite Craft Builders', 'builder_admin'),
+    );
+    expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(true);
+
+    const probe = store.dispatch(new LoadBuilderSession());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
+      ...SESSION,
+      memberships: [],
+    });
+    await probe;
+
+    const s = snapshot();
+    expect(s.session?.role).toBe('builder_admin');
+    // /me maps builderId from the tenant key, so the non-null identity value
+    // wins there; the null role/builderName fall back to the previous org.
+    expect(s.session?.builderId).toBe('elite-craft');
+    expect(s.session?.builderName).toBe('Elite Craft Builders');
+    expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(true);
     httpMock.verify();
   });
 });
