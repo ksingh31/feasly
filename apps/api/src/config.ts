@@ -318,15 +318,16 @@ const EnvSchema = z.object({
     .url()
     .default('https://api.postmarkapp.com/email'),
   EMAIL_ACS_CONNECTION_STRING: z.string().min(1).optional(),
-  // Bound on the ACS delivery poll (beginSend + pollUntilDone): the send is
-  // synchronous in the HTTP request path, so an unbounded poll stalls the
-  // response (2026-09-27: lead-gate "Sending..." hang). Past the deadline
-  // the poll is aborted and the send fails LOUD — the lead row and token
-  // are already committed, so a retry is safe (dedupe live-link path).
-  // 6s default: the email service retries transient failures in-code
-  // (EMAIL_SEND_MAX_ATTEMPTS), so the worst case is 6+1+6+1+6 ≈ 20s —
-  // inside the frontend gate-submit timeout (25s).
-  EMAIL_ACS_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(6_000),
+  // Bound on the whole ACS send operation (beginSend + delivery poll): the
+  // send is synchronous in the HTTP request path, so an unbounded send
+  // stalls the response (2026-09-27: lead-gate "Sending..." hang on the
+  // poll; 2026-09-28: same hang on the beginSend await, which had no bound
+  // at all). Past the deadline the send fails LOUD — the lead row and
+  // token are already committed, so a retry is safe (dedupe live-link
+  // path). 7s default: the email service retries transient failures
+  // in-code (EMAIL_SEND_MAX_ATTEMPTS), so the worst case is 7+1+7+1+7 =
+  // 23s — inside the frontend gate-submit timeout (25s).
+  EMAIL_ACS_SEND_TIMEOUT_MS: z.coerce.number().int().positive().default(7_000),
   // In-code email retry budget: initial try + retries, inside the email
   // service's deliver() (Karan 2026-09-27: at least 2 retries, no queue).
   // Only retryable failures (timeouts, 429, 5xx, network errors) are
@@ -545,13 +546,13 @@ export interface EmailConfig {
   readonly postmarkEndpoint: string;
   readonly acsConnectionString?: string;
   /**
-   * Deadline for the ACS delivery poll, in milliseconds. The send runs
-   * inline in the HTTP request path, so this bounds how long a stalled
-   * delivery poll can hold the response open before it fails loud.
-   * Default 6s: with in-code retries the worst case is 6+1+6+1+6 ≈ 20s,
-   * inside the frontend gate-submit timeout (25s).
+   * Deadline for the whole ACS send operation (beginSend + delivery poll),
+   * in milliseconds. The send runs inline in the HTTP request path, so
+   * this bounds how long a stalled send can hold the response open before
+   * it fails loud. Default 7s: with in-code retries the worst case is
+   * 7+1+7+1+7 = 23s, inside the frontend gate-submit timeout (25s).
    */
-  readonly acsPollTimeoutMs: number;
+  readonly acsSendTimeoutMs: number;
   /**
    * Max email send attempts (initial try + retries), from
    * EMAIL_SEND_MAX_ATTEMPTS. Only retryable failures are retried.
@@ -1130,7 +1131,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       postmarkServerToken: e.EMAIL_POSTMARK_SERVER_TOKEN,
       postmarkEndpoint: e.EMAIL_POSTMARK_ENDPOINT,
       acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
-      acsPollTimeoutMs: e.EMAIL_ACS_POLL_TIMEOUT_MS,
+      acsSendTimeoutMs: e.EMAIL_ACS_SEND_TIMEOUT_MS,
       sendMaxAttempts: e.EMAIL_SEND_MAX_ATTEMPTS,
       appBaseUrl: e.APP_BASE_URL,
       unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,

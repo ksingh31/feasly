@@ -2,7 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
-import type { BillingHealthResponse } from '@feasly/contracts';
+import type {
+  BillingHealthResponse,
+  ManualInvoiceRequest,
+  ManualInvoiceResponse,
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -41,6 +45,11 @@ export class AdminBillingApiService {
     );
   }
 
+  /** URL for the manual-invoice creation endpoint. */
+  private createInvoiceUrl(): string {
+    return this.billingBase + '/invoices';
+  }
+
   private call<T>(request: Observable<T>): Observable<T> {
     const timeoutMs = this.config.get('api').timeoutMs;
     return request.pipe(timeout(timeoutMs), catchError(toApiError));
@@ -70,6 +79,23 @@ export class AdminBillingApiService {
         status: string;
         retryCount: number;
       }>(this.retryUrl(invoiceId), null, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/invoices — manually create a commission
+   * invoice for a builder's converted lead. Admin-gated, `billing:manage`.
+   * The body mirrors the builder-reported contract shape
+   * (ManualInvoiceRequest): leadId, integer cents EXCLUDING land, ISO
+   * contractSignedAt with offset — plus tenantKey.
+   */
+  createManualInvoice(
+    body: ManualInvoiceRequest,
+  ): Observable<ManualInvoiceResponse> {
+    return this.call(
+      this.http.post<ManualInvoiceResponse>(this.createInvoiceUrl(), body, {
         withCredentials: true,
       }),
     );
