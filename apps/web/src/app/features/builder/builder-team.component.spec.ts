@@ -18,6 +18,8 @@ import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BuilderTeamComponent } from './builder-team.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderTeamState } from './builder-team.state';
 import { BuilderState } from './builder.state';
 import {
@@ -35,7 +37,7 @@ const USERS: BuilderTeamUser[] = [
   { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_member', status: 'invited', createdAt: '2026-09-28T00:00:00.000Z' },
 ];
 
-const BUILDER_COPY = {
+const TEAM_COPY = {
   teamHeading: 'Team',
   teamIntro: 'Manage your team.',
   teamLoading: 'Loading your team…',
@@ -115,12 +117,13 @@ function setup(opts: {
   };
   const config = {
     get: (section: string) =>
-      section === 'copy' ? { builder: BUILDER_COPY } : {},
+      section === 'copy' ? { builder: TEAM_COPY } : {},
   };
 
   TestBed.configureTestingModule({
     imports: [BuilderTeamComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: { ...DEFAULT_BUILDER_COPY, ...TEAM_COPY } },
       { provide: Store, useValue: store },
       { provide: ConfigService, useValue: config },
       { provide: SeoService, useValue: seo },

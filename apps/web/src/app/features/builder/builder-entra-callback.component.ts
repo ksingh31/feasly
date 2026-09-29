@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BuilderAuthApiService } from './builder-auth-api.service';
 import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import {
@@ -73,6 +73,7 @@ function toOrgMembership(
 @Component({
   selector: 'app-builder-entra-callback',
   standalone: true,
+  providers: [provideBuilderCopy()],
   templateUrl: './builder-entra-callback.component.html',
   styleUrls: ['./builder-login.component.scss'],
 })
@@ -84,8 +85,8 @@ export class BuilderEntraCallbackComponent implements OnInit {
   private readonly entra = inject(BuilderEntraAuthService);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
-  /** Buyer-grade callback copy (ConfigService, `copy.builder`). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  /** Buyer-grade callback copy (BUILDER_COPY, lazy builder copy). */
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly status = signal<CallbackStatus>('verifying');
   protected readonly errorKind = signal<EntraCallbackErrorKind>('cancelled');

@@ -11,7 +11,7 @@ import type {
   CommissionInvoice,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad } from '../../shared/utils/money';
 import { BuilderBillingState } from './builder-billing.state';
@@ -55,14 +55,13 @@ interface TimelineEntry {
 })
 export class BuilderInvoicesComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = this.config.get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly invoices = this.store.selectSignal(
     BuilderInvoicesState.invoices,

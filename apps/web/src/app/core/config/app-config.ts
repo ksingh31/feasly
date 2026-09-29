@@ -41,6 +41,246 @@ export interface TrustStat {
   refreshedValueShort?: string;
 }
 
+/** Builder Entra tenant wiring (infrastructure config — needed at root). */
+export interface BuilderEntraConfig {
+    /** Builder Entra tenant subdomain ({sub}.ciamlogin.com). */
+    tenantSubdomain: string;
+    /** Builder Entra tenant (directory) ID. */
+    tenantId: string;
+    /** Builder Entra app (client) ID. */
+    clientId: string;
+    /** Builder Entra user flow / policy name. */
+    userFlow: string;
+    /**
+     * OAuth2 authorize endpoint template; {tenantSubdomain} and
+     * {tenantId} are interpolated at runtime.
+     */
+    authorizeUrlTemplate: string;
+}
+
+/**
+ * User-facing builder-portal copy. Lazy-loaded with the builder portal
+ * (features/builder/builder-copy.defaults.ts, provided as BUILDER_COPY)
+ * so the initial bundle doesn't carry it.
+ */
+export interface BuilderCopy {
+  loginHeading: string;
+  loginExpired: string;
+  emailInvalid: string;
+  retryLabel: string;
+  shellBrand: string;
+  shellNavDashboard: string;
+  signOutLabel: string;
+  dashboardHeading: string;
+  loadingLeads: string;
+  loadError: string;
+  emptyLeads: string;
+  filterLabel: string;
+  filterAllLabel: string;
+  emptyFilterLeads: string;
+  summaryHeading: string;
+  summaryTotal: string;
+  statusLabels: {
+      new: string;
+      contacted: string;
+      quoted: string;
+      won: string;
+      lost: string;
+  };
+  updateForbidden: string;
+  updateFailed: string;
+  leadEmailLabel: string;
+  leadAddressLabel: string;
+  leadPhoneLabel: string;
+  leadTimelineLabel: string;
+  leadScoreLabel: string;
+  leadProjectLabel: string;
+  leadCreatedLabel: string;
+  leadStatusUpdatedLabel: string;
+  actionsLabel: string;
+  shellNavBilling: string;
+  shellNavInvoices: string;
+  shellNavReportContract: string;
+  reportContractSeoDescription: string;
+  reportContractHeading: string;
+  reportContractExplainer: string;
+  reportContractLeadLabel: string;
+  reportContractLeadRequired: string;
+  reportContractLeadsLoading: string;
+  reportContractLeadsError: string;
+  reportContractLeadsEmpty: string;
+  recordContractNoReportableLeads: string;
+  recordContractAlreadyRecordedTitle: string;
+  recordContractAlreadyRecordedBody: string;
+  reportContractValueLabel: string;
+  reportContractValueHint: string;
+  reportContractValueRequired: string;
+  reportContractValueInvalid: string;
+  reportContractDateLabel: string;
+  reportContractDateRequired: string;
+  reportContractDateFuture: string;
+  reportContractSubmit: string;
+  reportContractSubmitting: string;
+  reportContractSuccessTitle: string;
+  reportContractSuccessBody: string;
+  reportContractAlreadyReported: string;
+  reportContractDisputed: string;
+  reportContractFlatCovered: string;
+  reportContractNotEnabled: string;
+  reportContractAwaitingDetails: string;
+  recordContractViewInvoice: string;
+  recordContractBackToLeads: string;
+  recordContractReviewDeadline: string;
+  recordContractAutoCharge: string;
+  recordContractZeroCommission: string;
+  billingHeading: string;
+  billingLoading: string;
+  billingLoadError: string;
+  billingNoCard: string;
+  billingCardOnFile: string;
+  billingAddCard: string;
+  billingUpdateCard: string;
+  billingFormHeading: string;
+  billingSaveCard: string;
+  billingSavingCard: string;
+  billingCardSaved: string;
+  billingSaveFailed: string;
+  billingUnavailable: string;
+  billingCancel: string;
+  billingExplainer: string;
+  invoicesHeading: string;
+  invoicesExplainer: string;
+  invoicesLoading: string;
+  invoicesLoadError: string;
+  invoicesEmpty: string;
+  invoicesColDate: string;
+  invoicesColContract: string;
+  invoicesColCommission: string;
+  invoicesColStatus: string;
+  invoicesColDue: string;
+  invoiceStatusDraft: string;
+  invoiceStatusInReview: string;
+  invoiceStatusFinalized: string;
+  invoiceStatusPaid: string;
+  invoiceStatusFailed: string;
+  invoiceStatusDisputed: string;
+  invoiceStatusVoid: string;
+  invoicesAutoChargeIn: string;
+  invoicesAutoChargeTomorrow: string;
+  invoicesAutoChargeToday: string;
+  invoicesPaymentFailed: string;
+  invoicesPaymentReceived: string;
+  invoicesUpdateCardCta: string;
+  invoicesBackToList: string;
+  invoicesReceiptHeading: string;
+  invoicesLineItemsHeading: string;
+  invoicesTimelineHeading: string;
+  invoicesContractRow: string;
+  invoicesCommissionRow: string;
+  invoicesReceiptAmount: string;
+  invoicesReceiptDate: string;
+  invoicesReceiptCard: string;
+  invoicesReviewNote: string;
+  invoicesPrevPage: string;
+  invoicesNextPage: string;
+  invoicesPageOf: string;
+  invoicesPage: string;
+  invoicesPageSize: number;
+  invoicesSeoDescription: string;
+  invoicesTimelineCreated: string;
+  invoicesTimelineReviewEnds: string;
+  invoicesTimelineFinalized: string;
+  invoicesTimelinePaid: string;
+  invoicesTimelineFailed: string;
+  entraSignInLabel: string;
+  entraSignInIntro: string;
+  entraRedirecting: string;
+  entraNotConfigured: string;
+  entraCallbackVerifying: string;
+  entraCallbackCancelled: string;
+  entraCallbackStateMismatch: string;
+  entraCallbackTransient: string;
+  entraCallbackBackToLogin: string;
+  orgPickerHeading: string;
+  orgPickerIntro: string;
+  orgPickerLoading: string;
+  orgPickerError: string;
+  orgPickerRetry: string;
+  orgSwitcherLabel: string;
+  orgRoleAdmin: string;
+  orgRoleMember: string;
+  teamNavLabel: string;
+  teamHeading: string;
+  teamIntro: string;
+  teamLoading: string;
+  teamLoadError: string;
+  teamRetry: string;
+  teamEmpty: string;
+  teamColName: string;
+  teamColEmail: string;
+  teamColRole: string;
+  teamApplyRole: string;
+  teamColStatus: string;
+  teamColActions: string;
+  teamStatusActive: string;
+  teamStatusInvited: string;
+  teamStatusDeactivated: string;
+  teamInviteHeading: string;
+  teamInviteNameLabel: string;
+  teamInviteNameInvalid: string;
+  teamInviteEmailLabel: string;
+  teamInviteRoleLabel: string;
+  teamInviteSubmit: string;
+  teamInviteSent: string;
+  teamInviteError: string;
+  teamDeactivateLabel: string;
+  teamReactivateLabel: string;
+  teamRemoveLabel: string;
+  teamDeactivateConfirm: string;
+  teamRemoveConfirm: string;
+  teamConfirmYes: string;
+  teamConfirmNo: string;
+  teamActionError: string;
+  shellHomeLabel: string;
+  shellMenuOpenLabel: string;
+  shellMenuCloseLabel: string;
+  leadsSubtitle: string;
+  leadsEmptyHeading: string;
+  leadsEmptyGuidance: string;
+  leadsFilterEmptyHeading: string;
+  leadsFilterEmptyGuidance: string;
+  leadsErrorHeading: string;
+  leadsClearFilter: string;
+  leadsStatusControlLabel: string;
+  leadsStatusSaving: string;
+  leadsStatusApply: string;
+  leadsStatusLocked: string;
+  leadsWonHint: string;
+  leadsWonReportCta: string;
+  leadsRecordedCta: string;
+  leadsViewInvoiceCta: string;
+  teamColAdded: string;
+  teamInviteButton: string;
+  teamInviteModalSub: string;
+  teamCountOne: string;
+  teamCountMany: string;
+  teamNotAdmin: string;
+  billingCardPanelTitle: string;
+  billingCardBrandLabel: string;
+  billingCardNumberLabel: string;
+  billingCardExpiryLabel: string;
+  billingCardEmptyTitle: string;
+  billingCardEmptyBody: string;
+  contractWhatHappensTitle: string;
+  contractFormHeading: string;
+  contractLeadPlaceholder: string;
+  contractEstimatedCommission: string;
+  contractCommissionPanelSub: string;
+  contractCommissionContractValue: string;
+  contractCommissionRate: string;
+  contractRetry: string;
+}
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -940,459 +1180,15 @@ export interface AppConfig {
       ctaLabel: string;
     };
     /**
-     * Builder portal (embed/09). All user-facing builder-portal copy lives
-     * here so the no-hardcode tripwire stays green and copy is
-     * deploy-tunable. Mirrors the admin login semantics (Entra sign-in,
-     * session expiry).
+     * Builder portal wiring. Only infrastructure config lives in the root
+     * config now: the Entra tenant wiring is needed at startup (the Entra
+     * auth service is root-provided). All user-facing builder-portal copy
+     * moved to {@link BuilderCopy} — lazy-loaded with the builder portal
+     * via BUILDER_COPY so it stays out of the initial bundle.
      */
     builder: {
-      /** `/builder/login` heading. */
-      loginHeading: string;
-      /** Session-expired notice on the login page. */
-      loginExpired: string;
-      /** Invalid-email validation message (team invites). */
-      emailInvalid: string;
-      /** Retry button label (load failures). */
-      retryLabel: string;
-      /** Builder shell brand text. */
-      shellBrand: string;
-      /** Builder shell nav: dashboard link label. */
-      shellNavDashboard: string;
-      /** Sign-out button label. */
-      signOutLabel: string;
-      /** Dashboard heading. */
-      dashboardHeading: string;
-      /** Leads-loading status copy. */
-      loadingLeads: string;
-      /** Leads-load failure copy. */
-      loadError: string;
-      /** Empty pipeline copy. */
-      emptyLeads: string;
-      /** Pipeline filter label. */
-      filterLabel: string;
-      /** Pipeline filter "all statuses" option. */
-      filterAllLabel: string;
-      /** Pipeline copy when the active filter matches nothing. */
-      emptyFilterLeads: string;
-      /** Pipeline summary heading. */
-      summaryHeading: string;
-      /** Summary: total row label. */
-      summaryTotal: string;
-      /** Pipeline status labels, keyed by the BuilderLeadStatus union. */
-      statusLabels: {
-        new: string;
-        contacted: string;
-        quoted: string;
-        won: string;
-        lost: string;
-      };
-      /** Status-update 403 copy: the lead belongs to another tenant. */
-      updateForbidden: string;
-      /** Generic status-update failure copy. */
-      updateFailed: string;
-      /** Lead email field label. */
-      leadEmailLabel: string;
-      /** Lead address field label. */
-      leadAddressLabel: string;
-      /** Lead phone field label. */
-      leadPhoneLabel: string;
-      /** Lead timeline field label. */
-      leadTimelineLabel: string;
-      /** Lead score field label. */
-      leadScoreLabel: string;
-      /** Lead project-type field label. */
-      leadProjectLabel: string;
-      /** Lead created-date field label. */
-      leadCreatedLabel: string;
-      /** Lead status-updated timestamp label. */
-      leadStatusUpdatedLabel: string;
-      /** Status action group label (screen reader). */
-      actionsLabel: string;
-      /** Builder shell nav: billing link label. */
-      shellNavBilling: string;
-      /** Builder shell nav: invoices link label (top-level tab). */
-      shellNavInvoices: string;
-      /** Builder shell nav: record-contract link label. */
-      shellNavReportContract: string;
-      /** `/builder/record-contract` SEO description. */
-      reportContractSeoDescription: string;
-      /** `/builder/record-contract` heading. */
-      reportContractHeading: string;
-      /** Explains the 1% commission and 14-day reporting SLA. */
-      reportContractExplainer: string;
-      /** Lead picker label. */
-      reportContractLeadLabel: string;
-      /** Lead picker required-field copy. */
-      reportContractLeadRequired: string;
-      /** Leads loading copy. */
-      reportContractLeadsLoading: string;
-      /** Leads load-failure copy. */
-      reportContractLeadsError: string;
-      /** Empty leads list copy. */
-      reportContractLeadsEmpty: string;
-      /** Shown when every lead already has a recorded contract. */
-      recordContractNoReportableLeads: string;
-      /** Already-recorded state heading. */
-      recordContractAlreadyRecordedTitle: string;
-      /** Already-recorded state body. */
-      recordContractAlreadyRecordedBody: string;
-      /** Contract value field label. */
-      reportContractValueLabel: string;
-      /** Contract value field hint (excl. land). */
-      reportContractValueHint: string;
-      /** Contract value required-field copy. */
-      reportContractValueRequired: string;
-      /** Contract value invalid-format copy. */
-      reportContractValueInvalid: string;
-      /** Signing-date field label. */
-      reportContractDateLabel: string;
-      /** Signing-date required-field copy. */
-      reportContractDateRequired: string;
-      /** Signing-date in-the-future copy. */
-      reportContractDateFuture: string;
-      /** Submit button label. */
-      reportContractSubmit: string;
-      /** Submit label while the report posts. */
-      reportContractSubmitting: string;
-      /** Success confirmation heading. */
-      reportContractSuccessTitle: string;
-      /** Success confirmation body; {amount} {commission} interpolated. */
-      reportContractSuccessBody: string;
-      /** Idempotent duplicate-report copy. */
-      reportContractAlreadyReported: string;
-      /** Invoice-under-dispute copy. */
-      reportContractDisputed: string;
-      /** Flat-plan coverage copy. */
-      reportContractFlatCovered: string;
-      /** Billing-not-enabled copy. */
-      reportContractNotEnabled: string;
-      /** Awaiting-contract-details fallback copy. */
-      reportContractAwaitingDetails: string;
-      /** Success invoice card: "View invoice" link label. */
-      recordContractViewInvoice: string;
-      /** Success view: "Back to leads" link label. */
-      recordContractBackToLeads: string;
-      /** Invoice card: review-deadline row label. */
-      recordContractReviewDeadline: string;
-      /** Invoice card: auto-charge row label. */
-      recordContractAutoCharge: string;
-      /** Commission panel: zero-amount figure (shared money util omits cents). */
-      recordContractZeroCommission: string;
-      /** `/builder/billing` heading. */
-      billingHeading: string;
-      /** Card-status loading copy. */
-      billingLoading: string;
-      /** Card-status load-failure copy. */
-      billingLoadError: string;
-      /** "No card on file" status copy. */
-      billingNoCard: string;
-      /** Card-on-file status line; {brand} {last4} {exp} are interpolated. */
-      billingCardOnFile: string;
-      /** "Add card" button label. */
-      billingAddCard: string;
-      /** "Update card" button label. */
-      billingUpdateCard: string;
-      /** Card form heading. */
-      billingFormHeading: string;
-      /** "Save card" submit label. */
-      billingSaveCard: string;
-      /** Submit label while Stripe confirms the setup. */
-      billingSavingCard: string;
-      /** Durable success copy after the card is saved. */
-      billingCardSaved: string;
-      /** Card-save failure copy. */
-      billingSaveFailed: string;
-      /** Copy when Stripe.js or the publishable key is unavailable. */
-      billingUnavailable: string;
-      /** "Cancel" button label (card form). */
-      billingCancel: string;
-      /** Explains the 1% commission charge timing. */
-      billingExplainer: string;
-      /** `/builder/invoices` heading. */
-      invoicesHeading: string;
-      /** Invoices list explainer. */
-      invoicesExplainer: string;
-      /** Invoices loading copy. */
-      invoicesLoading: string;
-      /** Invoices load-failure copy. */
-      invoicesLoadError: string;
-      /** Empty invoices list copy. */
-      invoicesEmpty: string;
-      /** Table header: invoice date. */
-      invoicesColDate: string;
-      /** Table header: signed contract value. */
-      invoicesColContract: string;
-      /** Table header: commission amount. */
-      invoicesColCommission: string;
-      /** Table header: invoice status. */
-      invoicesColStatus: string;
-      /** Table header: review deadline. */
-      invoicesColDue: string;
-      /** Status pill: draft. */
-      invoiceStatusDraft: string;
-      /** Status pill: in review. */
-      invoiceStatusInReview: string;
-      /** Status pill: finalized. */
-      invoiceStatusFinalized: string;
-      /** Status pill: paid. */
-      invoiceStatusPaid: string;
-      /** Status pill: failed. */
-      invoiceStatusFailed: string;
-      /** Status pill: disputed. */
-      invoiceStatusDisputed: string;
-      /** Status pill: void. */
-      invoiceStatusVoid: string;
-      /** Review-deadline countdown; {days} is interpolated. */
-      invoicesAutoChargeIn: string;
-      /** Review deadline is tomorrow. */
-      invoicesAutoChargeTomorrow: string;
-      /** Review deadline is today. */
-      invoicesAutoChargeToday: string;
-      /** Failed-charge banner copy. */
-      invoicesPaymentFailed: string;
-      /** Successful-charge banner copy. */
-      invoicesPaymentReceived: string;
-      /** "Update your card" CTA label. */
-      invoicesUpdateCardCta: string;
-      /** Back-to-list link label. */
-      invoicesBackToList: string;
-      /** Invoice detail: receipt section heading. */
-      invoicesReceiptHeading: string;
-      /** Invoice detail: line-items section heading. */
-      invoicesLineItemsHeading: string;
-      /** Invoice detail: status timeline heading. */
-      invoicesTimelineHeading: string;
-      /** Line-item row: signed contract value (excl. land). */
-      invoicesContractRow: string;
-      /** Line-item row: commission row label; {rate} is interpolated. */
-      invoicesCommissionRow: string;
-      /** Receipt row: amount charged. */
-      invoicesReceiptAmount: string;
-      /** Receipt row: charge date. */
-      invoicesReceiptDate: string;
-      /** Receipt row: card used. */
-      invoicesReceiptCard: string;
-      /** Review-window explainer on the detail view; {date} interpolated. */
-      invoicesReviewNote: string;
-      /** Pagination: previous page. */
-      invoicesPrevPage: string;
-      /** Pagination: next page. */
-      invoicesNextPage: string;
-      /** Pagination status; {page} and {pages} are interpolated. */
-      invoicesPageOf: string;
-      invoicesPage: string;
-      /** Invoices per page in the builder invoice list. */
-      invoicesPageSize: number;
-      /** SEO description for the builder invoices page. */
-      invoicesSeoDescription: string;
-      /** Timeline event: invoice created. */
-      invoicesTimelineCreated: string;
-      /** Timeline event: review window ends. */
-      invoicesTimelineReviewEnds: string;
-      /** Timeline event: finalized. */
-      invoicesTimelineFinalized: string;
-      /** Timeline event: paid. */
-      invoicesTimelinePaid: string;
-      /** Timeline event: charge failed. */
-      invoicesTimelineFailed: string;
-      /**
-       * Microsoft Entra External ID for the builder portal (auth/05).
-       * Separate app registration from the admin portal's — the builder
-       * sign-in must never mint an admin session.
-       */
-      entra: {
-        /** Builder Entra tenant subdomain ({sub}.ciamlogin.com). */
-        tenantSubdomain: string;
-        /** Builder Entra tenant (directory) ID. */
-        tenantId: string;
-        /** Builder Entra app (client) ID. */
-        clientId: string;
-        /** Builder Entra user flow / policy name. */
-        userFlow: string;
-        /**
-         * OAuth2 authorize endpoint template; {tenantSubdomain} and
-         * {tenantId} are interpolated at runtime.
-         */
-        authorizeUrlTemplate: string;
-      };
-      /** auth/05: Entra sign-in button label. */
-      entraSignInLabel: string;
-      /** auth/05: Entra sign-in intro copy. */
-      entraSignInIntro: string;
-      /** auth/05: shown while redirecting to Microsoft. */
-      entraRedirecting: string;
-      /** auth/05: sign-in not configured (ENTRA_* placeholders). */
-      entraNotConfigured: string;
-      /** auth/05: callback "verifying" status. */
-      entraCallbackVerifying: string;
-      /** auth/05: callback generic failure (user cancelled). */
-      entraCallbackCancelled: string;
-      /** auth/05: callback OAuth state mismatch. */
-      entraCallbackStateMismatch: string;
-      /** auth/05: callback backend exchange failure. */
-      entraCallbackTransient: string;
-      /** auth/05: callback back-to-login button. */
-      entraCallbackBackToLogin: string;
-      /** auth/05: org picker heading. */
-      orgPickerHeading: string;
-      /** auth/05: org picker intro copy. */
-      orgPickerIntro: string;
-      /** auth/05: org picker loading state. */
-      orgPickerLoading: string;
-      /** auth/05: org picker load failure. */
-      orgPickerError: string;
-      /** auth/05: org picker retry label. */
-      orgPickerRetry: string;
-      /** auth/05: org switcher label. */
-      orgSwitcherLabel: string;
-      /** auth/05: "Administrator" role label. */
-      orgRoleAdmin: string;
-      /** auth/05: "Member" role label. */
-      orgRoleMember: string;
-      /** auth/05: Team nav label (builder_admin only). */
-      teamNavLabel: string;
-      /** auth/05: /builder/team heading. */
-      teamHeading: string;
-      /** auth/05: team page intro copy. */
-      teamIntro: string;
-      /** auth/05: team list loading state. */
-      teamLoading: string;
-      /** auth/05: team list load failure. */
-      teamLoadError: string;
-      /** auth/05: team list retry label. */
-      teamRetry: string;
-      /** auth/05: empty team copy. */
-      teamEmpty: string;
-      /** auth/05: Name column header. */
-      teamColName: string;
-      /** auth/05: Email column header. */
-      teamColEmail: string;
-      /** auth/05: Role column header. */
-      teamColRole: string;
-      /** Role Apply button label (select-then-apply, no auto-save). */
-      teamApplyRole: string;
-      /** auth/05: Status column header. */
-      teamColStatus: string;
-      /** auth/05: Actions column header. */
-      teamColActions: string;
-      /** auth/05: "Active" status pill. */
-      teamStatusActive: string;
-      /** auth/05: "Invited" status pill. */
-      teamStatusInvited: string;
-      /** auth/05: "Deactivated" status pill. */
-      teamStatusDeactivated: string;
-      /** auth/05: invite section heading. */
-      teamInviteHeading: string;
-      /** auth/05: invite name field label. */
-      teamInviteNameLabel: string;
-      /** auth/05: invalid name message. */
-      teamInviteNameInvalid: string;
-      /** auth/05: invite email field label. */
-      teamInviteEmailLabel: string;
-      /** auth/05: invite role field label. */
-      teamInviteRoleLabel: string;
-      /** auth/05: invite submit button. */
-      teamInviteSubmit: string;
-      /** auth/05: invite sent confirmation. */
-      teamInviteSent: string;
-      /** auth/05: invite failure copy. */
-      teamInviteError: string;
-      /** auth/05: deactivate button label. */
-      teamDeactivateLabel: string;
-      /** auth/05: reactivate button label. */
-      teamReactivateLabel: string;
-      /** auth/05: remove button label. */
-      teamRemoveLabel: string;
-      /** auth/05: deactivate confirm dialog copy. */
-      teamDeactivateConfirm: string;
-      /** auth/05: remove confirm dialog copy. */
-      teamRemoveConfirm: string;
-      /** auth/05: confirm dialog "yes". */
-      teamConfirmYes: string;
-      /** auth/05: confirm dialog "no". */
-      teamConfirmNo: string;
-      /** auth/05: generic row-action failure. */
-      teamActionError: string;
-      /** Shell: aria-label for the brand home link. */
-      shellHomeLabel: string;
-      /** Shell: mobile menu toggle "open menu" label. */
-      shellMenuOpenLabel: string;
-      /** Shell: mobile menu toggle "close menu" label. */
-      shellMenuCloseLabel: string;
-      /** Dashboard subtitle under "Lead pipeline". */
-      leadsSubtitle: string;
-      /** Empty pipeline heading. */
-      leadsEmptyHeading: string;
-      /** Empty pipeline guidance: how leads arrive. */
-      leadsEmptyGuidance: string;
-      /** Filter-empty heading. */
-      leadsFilterEmptyHeading: string;
-      /** Filter-empty guidance. */
-      leadsFilterEmptyGuidance: string;
-      /** Load-failure heading (body reuses loadError, button reuses retryLabel). */
-      leadsErrorHeading: string;
-      /** "Clear filter" button label (filter-empty state). */
-      leadsClearFilter: string;
-      /** Per-lead status select label; {name} is interpolated. */
-      leadsStatusControlLabel: string;
-      /** Shown while a status update is in flight. */
-      leadsStatusSaving: string;
-      /** Per-lead status Apply button label. */
-      leadsStatusApply: string;
-      /** Shown on recorded leads: the status is locked, badge is read-only. */
-      leadsStatusLocked: string;
-      /** Won-lead hint lead-in, before the record-contract link. */
-      leadsWonHint: string;
-      /** Won-lead record-contract link label. */
-      leadsWonReportCta: string;
-      /** Recorded-lead label, before the view-invoice link. */
-      leadsRecordedCta: string;
-      /** Recorded-lead view-invoice link label. */
-      leadsViewInvoiceCta: string;
-      /** auth/05: Added column header (invite date). */
-      teamColAdded: string;
-      /** auth/05: header invite button label. */
-      teamInviteButton: string;
-      /** auth/05: invite modal sub-copy. */
-      teamInviteModalSub: string;
-      /** auth/05: table caption for exactly one team member. */
-      teamCountOne: string;
-      /** auth/05: table caption unit for two or more team members. */
-      teamCountMany: string;
-      /** auth/05: defensive notice when a non-admin lands on the page. */
-      teamNotAdmin: string;
-      /**
-       * Builder billing redesign (design pass, 2026-09-28). Card-on-file
-       * panel copy in the admin billing design language.
-       */
-      /** Card-on-file panel heading. */
-      billingCardPanelTitle: string;
-      /** Card-on-file row label: card brand (e.g. Visa). */
-      billingCardBrandLabel: string;
-      /** Card-on-file row label: masked card number (•••• last4). */
-      billingCardNumberLabel: string;
-      /** Card-on-file row label: card expiry date. */
-      billingCardExpiryLabel: string;
-      /** Designed empty-state title when no card is on file. */
-      billingCardEmptyTitle: string;
-      /** Designed empty-state body when no card is on file. */
-      billingCardEmptyBody: string;
-      /** Explainer-card heading on `/builder/record-contract`. */
-      contractWhatHappensTitle: string;
-      /** Form-card heading on `/builder/record-contract`. */
-      contractFormHeading: string;
-      /** Lead-picker placeholder option on `/builder/record-contract`. */
-      contractLeadPlaceholder: string;
-      /** Live commission-panel label; the computed figure follows. */
-      contractEstimatedCommission: string;
-      /** Commission-panel explainer under the figure. */
-      contractCommissionPanelSub: string;
-      /** Commission-panel breakdown row: contract value. */
-      contractCommissionContractValue: string;
-      /** Commission-panel breakdown row: commission rate. */
-      contractCommissionRate: string;
-      /** Retry button label (record submit + leads reload). */
-      contractRetry: string;
+      /** Builder Entra tenant wiring (infrastructure, not user copy). */
+      entra: BuilderEntraConfig;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard

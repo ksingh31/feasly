@@ -17,6 +17,8 @@ import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { BuilderLeadListResponse } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderState } from './builder.state';
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
@@ -70,6 +72,7 @@ async function setup() {
   TestBed.configureTestingModule({
     imports: [BuilderDashboardComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),

@@ -17,7 +17,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { firstValueFrom } from 'rxjs';
 import type { BuilderLeadListItem } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad, onePercentOfCents, parseCadDollarsToCents } from '../../shared/utils/money';
 import {
@@ -70,13 +70,12 @@ interface ReportContractForm {
 })
 export class BuilderReportContractComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = this.config.get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   /**
    * Commission-panel money formatting: the shared money util renders whole

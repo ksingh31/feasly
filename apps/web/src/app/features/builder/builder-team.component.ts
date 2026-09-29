@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
 import {
   BuilderTeamState,
@@ -49,7 +49,7 @@ export class BuilderTeamComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly users = this.store.selectSignal(BuilderTeamState.users);
   protected readonly status = this.store.selectSignal(BuilderTeamState.status);

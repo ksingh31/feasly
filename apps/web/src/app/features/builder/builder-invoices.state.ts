@@ -1,9 +1,9 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { Action, NgxsOnInit, Selector, State, StateContext } from '@ngxs/store';
+import { Action, NgxsOnInit, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import type { CommissionInvoice } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import {
   BuilderInvoicesApiService,
   type InvoiceListResponse,
@@ -60,11 +60,11 @@ const defaults: BuilderInvoicesStateModel = {
 @Injectable()
 export class BuilderInvoicesState implements NgxsOnInit {
   private readonly api = inject(BuilderInvoicesApiService);
-  private readonly config = inject(ConfigService);
+  private readonly copy = inject(BUILDER_COPY);
 
   ngxsOnInit(ctx: StateContext<BuilderInvoicesStateModel>): void {
     ctx.patchState({
-      pageSize: this.config.get('copy').builder.invoicesPageSize,
+      pageSize: this.copy.invoicesPageSize,
     });
   }
 
@@ -128,7 +128,7 @@ export class BuilderInvoicesState implements NgxsOnInit {
     const page = Number.isFinite(rawPage)
       ? Math.max(1, Math.floor(rawPage))
       : 1;
-    const configuredPageSize = this.config.get('copy').builder.invoicesPageSize;
+    const configuredPageSize = this.copy.invoicesPageSize;
     const safeConfigured =
       Number.isFinite(configuredPageSize) && configuredPageSize > 0
         ? Math.min(100, Math.floor(configuredPageSize))
@@ -179,3 +179,10 @@ export class BuilderInvoicesState implements NgxsOnInit {
     ctx.setState(defaults);
   }
 }
+
+/**
+ * Lazy provider for the `builder/invoices` route (via lazyProvider in
+ * app.routes.ts): the invoices state — and the builder copy it reads —
+ * stays out of the initial bundle.
+ */
+export const builderInvoicesStateProvider = provideStates([BuilderInvoicesState]);

@@ -423,6 +423,16 @@ export const routes: Routes = [
           import('./features/builder/builder-invoices.component').then(
             (m) => m.BuilderInvoicesComponent,
           ),
+        canActivate: [
+          // The invoices state lazy-loads here (dynamic import) so it —
+          // and the builder copy it reads — stays out of the initial
+          // bundle, mirroring the admin data states above.
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/builder-invoices.state'))
+                .builderInvoicesStateProvider,
+          ),
+        ],
       },
       {
         // Legacy path: redirect to the top-level Invoices tab.

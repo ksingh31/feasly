@@ -27,6 +27,12 @@ export class ConfigService {
   private readonly http = inject(HttpClient);
   private readonly configUrl = inject(CONFIG_URL);
   private readonly _config = signal<AppConfig>(structuredClone(DEFAULT_APP_CONFIG));
+  /**
+   * Raw deploy JSON, retained so lazy features can merge their own
+   * sections (e.g. the builder copy) without dragging their defaults
+   * into the initial bundle.
+   */
+  private servedJson: Record<string, unknown> | null = null;
 
   /** Reactive config snapshot. Re-reads if the config is ever reloaded. */
   readonly config = this._config.asReadonly();
@@ -46,11 +52,25 @@ export class ConfigService {
       }
       // Shape beyond "plain object" is deploy-trusted: deepMerge drops unknown
       // keys, and every known key keeps its compiled default unless overridden.
+      this.servedJson = json as Record<string, unknown>;
       this._config.set(
         deepMerge<AppConfig>(structuredClone(DEFAULT_APP_CONFIG), json as DeepPartial<AppConfig>),
       );
     } catch (error) {
       console.warn('[ConfigService] using compiled defaults.', error);
     }
+  }
+
+  /**
+   * Deploy-time `copy.builder` overrides from app-config.json, if the
+   * served JSON had a `copy.builder` object. Lets the lazy builder copy
+   * (BUILDER_COPY) merge deploy overrides over its compiled defaults.
+   * Returns null when the served JSON is missing or has no such section.
+   */
+  getServedBuilderCopy(): Record<string, unknown> | null {
+    const copy = this.servedJson?.['copy'];
+    if (!isPlainObject(copy)) return null;
+    const builder = (copy as Record<string, unknown>)['builder'];
+    return isPlainObject(builder) ? (builder as Record<string, unknown>) : null;
   }
 }

@@ -25,6 +25,8 @@ import type { CommissionInvoice } from '@feasly/contracts';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderInvoicesComponent } from './builder-invoices.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import { ClearInvoicesState, LoadInvoices } from './builder-invoices.actions';
 import { ConfigService } from '../../core/config/config.service';
@@ -162,6 +164,7 @@ async function setupWithInvoices(response: {
   TestBed.configureTestingModule({
     imports: [BuilderInvoicesComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
@@ -274,6 +277,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     TestBed.configureTestingModule({
       imports: [BuilderInvoicesComponent],
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -326,6 +330,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     TestBed.configureTestingModule({
       imports: [BuilderInvoicesComponent],
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -424,6 +429,7 @@ describe('BuilderInvoices pagination params (no 400)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideHttpClient(),
         provideHttpClientTesting(),
         provideStore([BuilderInvoicesState]),
@@ -542,6 +548,7 @@ describe('BuilderInvoices ?invoice= deep link', () => {
     TestBed.configureTestingModule({
       imports: [BuilderInvoicesComponent],
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),

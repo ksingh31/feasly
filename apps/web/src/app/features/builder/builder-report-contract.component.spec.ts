@@ -32,6 +32,8 @@ import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderReportContractComponent } from './builder-report-contract.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { dateOnlyToIsoWithOffset } from '../../shared/utils/datetime';
 import { parseCadDollarsToCents } from '../../shared/utils/money';
 import { BuilderReportContractState } from './builder-report-contract.state';
@@ -116,6 +118,7 @@ async function setup(
   TestBed.configureTestingModule({
     imports: [BuilderReportContractComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       {
         provide: ActivatedRoute,

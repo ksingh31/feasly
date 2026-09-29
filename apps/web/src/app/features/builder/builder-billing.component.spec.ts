@@ -24,6 +24,8 @@ vi.mock('@stripe/stripe-js', () => ({
 }));
 
 import { BuilderBillingComponent } from './builder-billing.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -52,6 +54,7 @@ async function setup() {
   TestBed.configureTestingModule({
     imports: [BuilderBillingComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
@@ -192,6 +195,7 @@ describe('BuilderBillingComponent (billing/02)', () => {
     TestBed.configureTestingModule({
       imports: [BuilderBillingComponent],
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),

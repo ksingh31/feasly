@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type { BuilderLeadListItem, BuilderLeadStatus } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 
@@ -36,7 +36,7 @@ export class BuilderDashboardComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly summary = this.store.selectSignal(BuilderState.summary);

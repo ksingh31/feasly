@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { switchMap } from 'rxjs/operators';
 import { SeoService } from '../../core/seo/seo.service';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BuilderAuthApiService } from './builder-auth-api.service';
 import { BuilderState } from './builder.state';
 import {
@@ -36,6 +36,7 @@ import type { BuilderOrgMembership } from './builder-auth.contracts';
 @Component({
   selector: 'app-builder-org-picker',
   standalone: true,
+  providers: [provideBuilderCopy()],
   templateUrl: './builder-org-picker.component.html',
   styleUrls: ['./builder-login.component.scss', './builder-org-picker.component.scss'],
 })
@@ -47,7 +48,7 @@ export class BuilderOrgPickerComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly memberships = this.store.selectSignal(BuilderState.memberships);
   protected readonly loading = this.store.selectSignal(BuilderState.membershipsLoading);

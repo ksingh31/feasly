@@ -57,22 +57,24 @@ function setup(opts: {
   );
   const api = { switchOrg };
   const router = { navigate: vi.fn().mockResolvedValue(true) };
+  // Builder copy under test: served as the deploy-time override so the
+  // component's real provideBuilderCopy() factory merges it over the defaults.
+  const builderCopy = {
+  orgPickerHeading: 'Choose your organization',
+  orgPickerIntro: 'Pick the one you want to work in.',
+  orgPickerLoading: 'Loading your organizations…',
+  orgPickerError: 'Could not load your organizations.',
+  orgPickerRetry: 'Retry',
+  orgRoleAdmin: 'Administrator',
+  orgRoleMember: 'Member',
+  teamActionError: 'Something went wrong. Please try again.',
+  };
   const config = {
     get: (section: string) =>
       section === 'copy'
-        ? {
-            builder: {
-              orgPickerHeading: 'Choose your organization',
-              orgPickerIntro: 'Pick the one you want to work in.',
-              orgPickerLoading: 'Loading your organizations…',
-              orgPickerError: 'Could not load your organizations.',
-              orgPickerRetry: 'Retry',
-              orgRoleAdmin: 'Administrator',
-              orgRoleMember: 'Member',
-              teamActionError: 'Something went wrong. Please try again.',
-            },
-          }
+        ? { builder: builderCopy }
         : {},
+    getServedBuilderCopy: () => builderCopy,
   };
 
   TestBed.configureTestingModule({

@@ -89,19 +89,21 @@ function setup(opts: {
     callbackRedirectUri: () => 'https://app.example/builder/auth/callback',
   };
   const router = { navigate: vi.fn().mockResolvedValue(true) };
+  // Builder copy under test: served as the deploy-time override so the
+  // component's real provideBuilderCopy() factory merges it over the defaults.
+  const builderCopy = {
+  entraCallbackVerifying: 'Completing sign in…',
+  entraCallbackCancelled: CANCELLED_COPY,
+  entraCallbackStateMismatch: CANCELLED_COPY,
+  entraCallbackTransient: TRANSIENT_COPY,
+  entraCallbackBackToLogin: 'Back to sign in',
+  };
   const config = {
     get: (section: string) =>
       section === 'copy'
-        ? {
-            builder: {
-              entraCallbackVerifying: 'Completing sign in…',
-              entraCallbackCancelled: CANCELLED_COPY,
-              entraCallbackStateMismatch: CANCELLED_COPY,
-              entraCallbackTransient: TRANSIENT_COPY,
-              entraCallbackBackToLogin: 'Back to sign in',
-            },
-          }
+        ? { builder: builderCopy }
         : {},
+    getServedBuilderCopy: () => builderCopy,
   };
 
   TestBed.configureTestingModule({
