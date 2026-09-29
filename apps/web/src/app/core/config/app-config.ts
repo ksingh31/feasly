@@ -1325,6 +1325,22 @@ export interface AppConfig {
       teamNotAdmin: string;
     };
     /**
+     * Builder billing redesign (design pass, 2026-09-28). Card-on-file
+     * panel copy in the admin billing design language.
+     */
+    /** Card-on-file panel heading. */
+    billingCardPanelTitle: string;
+    /** Card-on-file row label: card brand (e.g. Visa). */
+    billingCardBrandLabel: string;
+    /** Card-on-file row label: masked card number (•••• last4). */
+    billingCardNumberLabel: string;
+    /** Card-on-file row label: card expiry date. */
+    billingCardExpiryLabel: string;
+    /** Designed empty-state title when no card is on file. */
+    billingCardEmptyTitle: string;
+    /** Designed empty-state body when no card is on file. */
+    billingCardEmptyBody: string;
+    /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard
      * copy lives here so the no-hardcode tripwire stays green.
      */

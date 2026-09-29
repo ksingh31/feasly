@@ -112,6 +112,91 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain('We couldn’t load your billing details.');
   });
 
+  it('renders the billing tabs with the card tab active', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(NO_CARD);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const tabs = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-billing__tab'),
+    ) as HTMLElement[];
+    expect(tabs.map((t) => t.textContent.trim())).toEqual([
+      'Card on file',
+      'Invoices',
+    ]);
+    expect(tabs[0].classList.contains('builder-billing__tab--active')).toBe(
+      true,
+    );
+    expect(tabs[1].classList.contains('builder-billing__tab--active')).toBe(
+      false,
+    );
+  });
+
+  it('renders the loading skeleton while the card status is in flight', async () => {
+    const { fixture, httpMock } = await setup();
+    // Let NGXS process the dispatched LoadBillingCard. The HTTP request
+    // stays pending until flushed, so the state sits at 'loading'.
+    await new Promise((r) => setTimeout(r, 0));
+    fixture.detectChanges();
+
+    const skeleton = fixture.nativeElement.querySelector(
+      '.builder-billing__skeleton',
+    );
+    expect(skeleton).not.toBeNull();
+    expect(skeleton.getAttribute('role')).toBe('status');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Loading your billing details…');
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(NO_CARD);
+    fixture.detectChanges();
+    await fixture.whenStable();
+  });
+
+  it('renders brand, masked number, and expiry rows when a card is on file', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Brand');
+    expect(text).toContain('Visa');
+    expect(text).toContain('Card number');
+    expect(text).toContain('•••• 4242');
+    expect(text).toContain('Expires');
+    expect(text).toContain('12/2028');
+    expect(text).toContain('Update card');
+  });
+
+  it('redispatches the card load when the retry button is clicked', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .error(new ProgressEvent('error'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const retry = fixture.nativeElement.querySelector(
+      '.builder-billing__alert button',
+    ) as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    retry.click();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(NO_CARD);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('No card on file.');
+  });
+
   it('fail-closes with the unavailable notice when no publishable key is configured', async () => {
     TestBed.resetTestingModule();
     // No publishable key: the compiled default ('') applies.

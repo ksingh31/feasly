@@ -249,7 +249,111 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Amount charged');
   });
 
-  it('paginates the invoice list', async () => {
+  it('renders the billing tabs with the invoices tab active', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const tabs = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__tab'),
+    ) as HTMLElement[];
+    expect(tabs.map((t) => t.textContent.trim())).toEqual([
+      'Card on file',
+      'Invoices',
+    ]);
+    expect(tabs[0].classList.contains('builder-invoices__tab--active')).toBe(
+      false,
+    );
+    expect(tabs[1].classList.contains('builder-invoices__tab--active')).toBe(
+      true,
+    );
+  });
+
+  it('renders the loading skeleton while the invoice list is in flight', async () => {
+    const { Subject } = await import('rxjs');
+    // A Subject that never emits until the test drives it, so the state
+    // stays at 'loading' long enough to observe the skeleton.
+    const listSubject = new Subject();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [BuilderInvoicesComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([BuilderBillingState, BuilderInvoicesState]),
+        { provide: ConfigService, useValue: { get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s] } },
+        {
+          provide: BuilderInvoicesApiService,
+          useValue: {
+            listInvoices: () => listSubject.asObservable(),
+            getInvoice: () => {
+              throw new Error('not used');
+            },
+          },
+        },
+      ],
+    });
+    const fixture: ComponentFixture<BuilderInvoicesComponent> =
+      TestBed.createComponent(BuilderInvoicesComponent);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+    fixture.detectChanges();
+
+    const skeleton = fixture.nativeElement.querySelector(
+      '.builder-invoices__skeleton--table',
+    );
+    expect(skeleton).not.toBeNull();
+    expect(skeleton.getAttribute('role')).toBe('status');
+    expect(skeleton.getAttribute('aria-label')).toContain('Loading');
+
+    listSubject.next({ invoices: [], total: 0, page: 1, pageSize: 10 });
+    await flushMock(fixture);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('No invoices yet');
+  });
+
+  it('redispatches the invoice list when the retry button is clicked', async () => {
+    const { throwError } = await import('rxjs');
+    const invoices = testInvoices();
+    TestBed.resetTestingModule();
+    const listSpy = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new Error('boom')))
+      .mockReturnValue(
+        of({ invoices, total: invoices.length, page: 1, pageSize: 10 }),
+      );
+    const apiMock = {
+      listInvoices: listSpy,
+      getInvoice: (id: string) => of(invoices.find((i) => i.id === id)!),
+    };
+    TestBed.configureTestingModule({
+      imports: [BuilderInvoicesComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideStore([BuilderBillingState, BuilderInvoicesState]),
+        { provide: ConfigService, useValue: { get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s] } },
+        { provide: BuilderInvoicesApiService, useValue: apiMock },
+      ],
+    });
+    const fixture: ComponentFixture<BuilderInvoicesComponent> =
+      TestBed.createComponent(BuilderInvoicesComponent);
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const alert = fixture.nativeElement.querySelector(
+      '.builder-invoices__alert',
+    );
+    expect(alert).not.toBeNull();
+    (alert.querySelector('button') as HTMLButtonElement).click();
+    await flushMock(fixture);
+
+    expect(listSpy).toHaveBeenCalledTimes(2);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('$6,850');
+  });
     const { fixture, store } = await setup();
     fixture.detectChanges();
     await flushMock(fixture);

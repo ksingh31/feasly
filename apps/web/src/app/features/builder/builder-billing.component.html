@@ -1,68 +1,168 @@
 <section class="builder-billing" aria-labelledby="builder-billing-heading">
-  <!-- Billing section tabs (shared with the invoices page). -->
+  <!-- Billing section tabs in the admin underline-tab style. -->
   <nav class="builder-billing__tabs" aria-label="Billing sections">
     <a
+      class="builder-billing__tab builder-billing__tab--active"
       routerLink="/builder/billing"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
       aria-current="page"
       >{{ copy.billingTabCardLabel }}</a
     >
-    <a routerLink="/builder/billing/invoices">{{ copy.billingTabInvoicesLabel }}</a>
+    <a
+      class="builder-billing__tab"
+      routerLink="/builder/billing/invoices"
+      >{{ copy.billingTabInvoicesLabel }}</a
+    >
   </nav>
 
-  <h1 id="builder-billing-heading">{{ copy.billingHeading }}</h1>
-
-  <p class="builder-billing__explainer">{{ copy.billingExplainer }}</p>
-
-  @if (cardStatus() === 'loading') {
-    <p class="builder-billing__loading" role="status">{{ copy.billingLoading }}</p>
-  } @else if (cardStatus() === 'error') {
-    <p class="builder-billing__error" role="alert">
-      {{ copy.billingLoadError }}
-      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
-    </p>
-  } @else {
-    <!-- Card-on-file status card: display-safe summary only. -->
-    <div class="builder-billing__card-status" role="region" aria-label="Card on file">
-      <p class="builder-billing__card-line" role="status">{{ cardSummary() }}</p>
-      @if (!publishableKey()) {
-        <p class="builder-billing__unavailable" role="note">
-          {{ copy.billingUnavailable }}
-        </p>
-      } @else if (!formOpen()) {
-        <button type="button" (click)="openForm()">
-          {{ card()?.hasCard ? copy.billingUpdateCard : copy.billingAddCard }}
-        </button>
-      }
+  <header class="builder-billing__header">
+    <div>
+      <h1 id="builder-billing-heading">{{ copy.billingHeading }}</h1>
+      <p class="builder-billing__sub">{{ copy.billingExplainer }}</p>
     </div>
+  </header>
+
+  @if (cardStatus() === 'loading' && !card()) {
+    <!-- Skeleton rows while the first load is in flight. -->
+    <div
+      class="builder-billing__skeleton"
+      role="status"
+      aria-label="{{ copy.billingLoading }}"
+    >
+      <span class="builder-billing__skeleton-line" aria-hidden="true"></span>
+      <span class="builder-billing__skeleton-line" aria-hidden="true"></span>
+      <span class="builder-billing__skeleton-line" aria-hidden="true"></span>
+      <span class="sr-only">{{ copy.billingLoading }}</span>
+    </div>
+  }
+
+  @if (cardStatus() === 'error') {
+    <div class="builder-billing__alert" role="alert">
+      <p>{{ copy.billingLoadError }}</p>
+      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
+    </div>
+  }
+
+  @if (cardStatus() === 'ready') {
+    <section
+      class="builder-billing__panel"
+      aria-label="{{ copy.billingCardPanelTitle }}"
+    >
+      <h2 class="builder-billing__panel-title">
+        {{ copy.billingCardPanelTitle }}
+      </h2>
+
+      @if (card(); as cardOnFile) {
+        @if (cardOnFile.hasCard) {
+          <dl class="builder-billing__facts">
+            <div>
+              <dt>{{ copy.billingCardBrandLabel }}</dt>
+              <dd>
+                <span class="builder-billing__brand-badge">
+                  {{ cardOnFile.brand ?? '—' }}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>{{ copy.billingCardNumberLabel }}</dt>
+              <dd>•••• {{ cardOnFile.last4 ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ copy.billingCardExpiryLabel }}</dt>
+              <dd>
+                {{ cardOnFile.expMonth ?? '—' }}/{{ cardOnFile.expYear ?? '—' }}
+              </dd>
+            </div>
+          </dl>
+
+          @if (!publishableKey()) {
+            <p class="builder-billing__unavailable" role="note">
+              {{ copy.billingUnavailable }}
+            </p>
+          } @else if (!formOpen()) {
+            <div class="builder-billing__panel-actions">
+              <button
+                type="button"
+                class="builder-billing__btn"
+                (click)="openForm()"
+              >
+                {{ copy.billingUpdateCard }}
+              </button>
+            </div>
+          }
+        } @else {
+          <div class="builder-billing__empty">
+            <p class="builder-billing__empty-title">
+              {{ copy.billingCardEmptyTitle }}
+            </p>
+            <p class="builder-billing__empty-body">
+              {{ copy.billingCardEmptyBody }}
+            </p>
+            @if (!publishableKey()) {
+              <p class="builder-billing__unavailable" role="note">
+                {{ copy.billingUnavailable }}
+              </p>
+            } @else {
+              <div class="builder-billing__panel-actions">
+                <button
+                  type="button"
+                  class="builder-billing__btn builder-billing__btn--primary"
+                  (click)="openForm()"
+                >
+                  {{ copy.billingAddCard }}
+                </button>
+              </div>
+            }
+          </div>
+        }
+      }
+    </section>
 
     @if (saveSuccess()) {
-      <p class="builder-billing__success" role="status">{{ copy.billingCardSaved }}</p>
+      <p class="builder-billing__success" role="status">
+        {{ copy.billingCardSaved }}
+      </p>
     }
 
     @if (formOpen()) {
-      <div class="builder-billing__form" role="region" aria-label="Card details">
-        <h2>{{ copy.billingFormHeading }}</h2>
+      <div
+        class="builder-billing__panel"
+        role="region"
+        aria-label="{{ copy.billingFormHeading }}"
+      >
+        <h2 class="builder-billing__panel-title">
+          {{ copy.billingFormHeading }}
+        </h2>
         <div #cardElement class="builder-billing__stripe-element"></div>
         @if (saveError()) {
-          <p class="builder-billing__error" role="alert">{{ copy.billingSaveFailed }}</p>
+          <div class="builder-billing__alert" role="alert">
+            <p>{{ copy.billingSaveFailed }}</p>
+          </div>
         }
         <div class="builder-billing__form-actions">
           <button
             type="button"
+            class="builder-billing__btn builder-billing__btn--primary"
             (click)="saveCard()"
             [disabled]="saving()"
           >
             {{ saving() ? copy.billingSavingCard : copy.billingSaveCard }}
           </button>
-          <button type="button" (click)="cancelForm()" [disabled]="saving()">
+          <button
+            type="button"
+            class="builder-billing__btn"
+            (click)="cancelForm()"
+            [disabled]="saving()"
+          >
             {{ copy.billingCancel }}
           </button>
         </div>
       </div>
     } @else if (saveError()) {
-      <p class="builder-billing__error" role="alert">{{ copy.billingSaveFailed }}</p>
+      <div class="builder-billing__alert" role="alert">
+        <p>{{ copy.billingSaveFailed }}</p>
+      </div>
     }
   }
 </section>
