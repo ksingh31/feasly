@@ -48,6 +48,7 @@ function testInvoices(): CommissionInvoice[] {
     commissionRateOverride: null,
     manualPaymentMethod: null,
     paymentReference: null,
+    leadName: 'Test Lead',
   } as const;
   return [
     {
@@ -55,6 +56,7 @@ function testInvoices(): CommissionInvoice[] {
       id: 'inv-test-001',
       attributionId: 'a1',
       leadId: 'l1',
+      leadName: 'Ava Brown',
       contractValueCents: 68500000,
       commissionCents: 685000,
       status: 'in_review',
@@ -67,6 +69,7 @@ function testInvoices(): CommissionInvoice[] {
       id: 'inv-test-002',
       attributionId: 'a2',
       leadId: 'l2',
+      leadName: 'Liam Chen',
       contractValueCents: 74250000,
       commissionCents: 742500,
       stripePaymentIntentId: 'pi_test_paid_001',
@@ -211,8 +214,34 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('$6,850');
   });
 
-  it('shows the review-deadline countdown for in-review invoices', async () => {
+  it('renders the lead name in its own column for each invoice', async () => {
     const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const headers = [
+      ...fixture.nativeElement.querySelectorAll(
+        '.builder-invoices__table thead th',
+      ),
+    ].map((th: Element) => th.textContent?.trim());
+    expect(headers).toContain('Lead');
+    // Lead column sits right after the date column.
+    expect(headers.indexOf('Lead')).toBe(headers.indexOf('Date') + 1);
+
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.builder-invoices__table tbody tr',
+    );
+    const firstRowCells = [...rows[0].querySelectorAll('td')].map(
+      (td: Element) => td.textContent?.trim(),
+    );
+    expect(firstRowCells).toContain('Ava Brown');
+    const secondRowCells = [...rows[1].querySelectorAll('td')].map(
+      (td: Element) => td.textContent?.trim(),
+    );
+    expect(secondRowCells).toContain('Liam Chen');
+  });
+
+  it('shows the review-deadline countdown for in-review invoices', async () => {    const { fixture } = await setup();
     fixture.detectChanges();
     await flushMock(fixture);
 
@@ -380,6 +409,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
           tenantKey: 't1',
           attributionId: 'a1',
           leadId: 'l1',
+          leadName: 'Test Lead',
           contractValueCents: 10000000,
           commissionCents: 100000,
           currency: 'CAD',
