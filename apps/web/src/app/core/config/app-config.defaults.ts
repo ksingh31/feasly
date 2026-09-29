@@ -1129,6 +1129,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       teamCountOne: '1 team member',
       teamCountMany: 'team members',
       teamNotAdmin: 'Only organization administrators can manage the team.',
+      /**
+       * Builder billing redesign (design pass, 2026-09-28). Card-on-file
+       * panel copy in the admin billing design language.
+       */
+      billingCardPanelTitle: 'Card on file',
+      billingCardBrandLabel: 'Brand',
+      billingCardNumberLabel: 'Card number',
+      billingCardExpiryLabel: 'Expires',
+      billingCardEmptyTitle: 'No card on file.',
+      billingCardEmptyBody:
+        'Commission invoices auto-charge 7 days after each review window. Add a card so charges go through.',
     },
     admin: {
       apiKeys: {

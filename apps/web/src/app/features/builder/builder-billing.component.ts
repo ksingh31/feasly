@@ -96,21 +96,6 @@ export class BuilderBillingComponent implements OnInit {
     return this.config.get('billing').stripePublishableKey;
   }
 
-  /** Interpolated "Card on file: Visa •••• 4242, expires 12/2028" line. */
-  protected cardSummary(): string {
-    const card = this.card();
-    if (!card?.hasCard) {
-      return this.copy.billingNoCard;
-    }
-    return this.copy.billingCardOnFile
-      .replace('{brand}', card.brand ?? '')
-      .replace('{last4}', card.last4 ?? '')
-      .replace(
-        '{exp}',
-        `${card.expMonth ?? ''}/${card.expYear ?? ''}`,
-      );
-  }
-
   protected retryLoad(): void {
     this.saveError.set(false);
     this.store.dispatch(new LoadBillingCard());
