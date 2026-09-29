@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 /* Admin funnel dashboard (admin/07): per-step counts + conversion bars. */
 
 .funnels {
@@ -51,14 +53,19 @@
   font-weight: 600;
 }
 
-.funnels__field input,
-.funnels__field select {
+.funnels__field input {
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--cream);
   color: var(--text);
+  min-width: 160px;
+}
+
+.funnels__field select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select($pad-y: 0.625rem, $pad-left: 0.75rem, $radius: 0.5rem, $bg: var(--cream));
   min-width: 160px;
 }
 

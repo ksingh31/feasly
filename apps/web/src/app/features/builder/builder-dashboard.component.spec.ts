@@ -67,6 +67,20 @@ const EMPTY_RESPONSE: BuilderLeadListResponse = {
   summary: { total: 0, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0 },
 };
 
+// Won but not yet recorded (no invoice): the card still shows the status
+// control so the builder can report the signed contract.
+const WON_NO_INVOICE_RESPONSE: BuilderLeadListResponse = {
+  leads: [
+    {
+      ...LEADS_RESPONSE.leads[0],
+      status: 'won',
+      hasInvoice: false,
+      invoiceSummary: null,
+    },
+  ],
+  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+};
+
 async function setup() {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -280,6 +294,43 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
       '.builder-lead-card__badge--won',
     ) as HTMLElement;
     expect(badge?.textContent?.trim()).toBe('Won');
+    httpMock.verify();
+  });
+
+  it('syncs the status select with the stored status for a won lead without an invoice', async () => {
+    // Regression: [value] on the select never took effect inside the @for
+    // (the binding runs before the options exist on first render), so a
+    // Won lead showed "New" selected. The selection now lives on the
+    // options via [selected], which is order-safe.
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, WON_NO_INVOICE_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector(
+      '.builder-lead-card',
+    ) as HTMLElement;
+    const badge = card.querySelector(
+      '.builder-lead-card__badge--won',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('Won');
+
+    const select = card.querySelector(
+      '.builder-lead-card__status select',
+    ) as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe('won');
+    const selected = select.querySelector(
+      'option:checked',
+    ) as HTMLOptionElement;
+    expect(selected?.textContent?.trim()).toBe('Won');
+
+    // No staged change yet: Apply is disabled.
+    const apply = card.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
+    expect(apply.disabled).toBe(true);
     httpMock.verify();
   });
 

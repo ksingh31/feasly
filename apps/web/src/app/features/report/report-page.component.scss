@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 // Estimate report page — redesigned: one clear total, fixed land, 3-bucket breakdown.
 // Mobile-first; mirrors the wizard shell. (Line comment: stripped from the
 // compiled bundle — this file sits 70 bytes under the 8 kB component-style budget.)
@@ -521,8 +523,7 @@
   color: var(--text);
 }
 
-.field input,
-.field select {
+.field input {
   font-family: var(--font-ui);
   font-size: 16px;
   color: var(--text);
@@ -531,6 +532,21 @@
   border-radius: 12px;
   min-height: 48px;
   padding: 12px 14px;
+  width: 100%;
+}
+
+.field select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select(
+    $font-size: 16px,
+    $pad-y: 12px,
+    $pad-left: 14px,
+    $radius: 12px,
+    $bg: transparent,
+    $border: 1.5px solid var(--border)
+  );
+  font-family: var(--font-ui);
+  min-height: 48px;
   width: 100%;
 }
 

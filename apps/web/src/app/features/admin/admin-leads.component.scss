@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 /**
  * Admin leads explorer (admin/02) — FE-9 premium redesign.
  *
@@ -201,8 +203,7 @@
   font-weight: 600;
 }
 
-.leads-page__filter input,
-.leads-page__filter select {
+.leads-page__filter input {
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
@@ -210,6 +211,13 @@
   font-size: 0.9375rem;
   background: var(--card);
   color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.leads-page__filter select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select;
   width: 100%;
   box-sizing: border-box;
 }

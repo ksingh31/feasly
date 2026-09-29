@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 /**
  * Admin lead-detail modal card (FE-9) — admin/02.
  *
@@ -133,15 +135,10 @@
 
 .lead-modal-card__status-row select,
 .lead-modal-card__assign-row select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  font: inherit;
-  font-size: 0.9375rem;
-  background: var(--card);
-  color: var(--text);
 }
 
 .lead-modal-card__apply {

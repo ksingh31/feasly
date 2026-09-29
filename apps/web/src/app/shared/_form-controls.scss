@@ -1,0 +1,46 @@
+// Shared form-control styling (DRY: builder + admin features).
+//
+// Native <select> arrows render cramped and inconsistent across browsers —
+// each engine draws its own glyph with its own tight spacing, and
+// `padding-right` alone cannot move the native glyph. `feasly-select`
+// replaces the native arrow with a custom chevron (drawn in `currentColor`,
+// so it follows the control's text color) and reserves fixed space for it,
+// so the label text never touches the arrow on any browser.
+//
+// Usage: `@use '../../shared/form-controls' as *;` then
+// `@include feasly-select;` inside the select's rule. The mixin owns the
+// select chrome (appearance, chevron, padding, border, background); keep
+// layout (width/flex) in the component rule.
+
+@mixin feasly-select(
+  $font-size: 0.9375rem,
+  $pad-y: 0.625rem,
+  $pad-left: 0.75rem,
+  $radius: 0.5rem,
+  $bg: var(--card),
+  $border: 1px solid var(--border)
+) {
+  -webkit-appearance: none;
+  appearance: none;
+  /* Right padding reserves room for the chevron: 0.9rem offset from the
+     edge + 0.75rem glyph + breathing room, so text and arrow never touch. */
+  padding: $pad-y 2.5rem $pad-y $pad-left;
+  border: $border;
+  border-radius: $radius;
+  background-color: $bg;
+  /* The chevron lives in --select-chevron (styles.scss :root) so it is
+     defined once globally instead of inlined per component. */
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 0.75rem auto;
+  font: inherit;
+  font-size: $font-size;
+  color: var(--text);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
