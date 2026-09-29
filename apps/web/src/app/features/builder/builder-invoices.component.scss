@@ -334,8 +334,7 @@
 .builder-invoices__skeleton-line {
   display: block;
   height: 1rem;
-  border-radius: 0.25rem;
-  background: linear-gradient(
+  border-radius: 0.25rem;  background: linear-gradient(
     90deg,
     var(--color-background, #faf9f7) 25%,
     var(--color-border, #e5e0d8) 50%,
@@ -343,6 +342,14 @@
   );
   background-size: 200% 100%;
   animation: builder-invoices__shimmer 1.2s ease-in-out infinite;
+}
+
+.builder-invoices__skeleton--table .builder-invoices__skeleton-line:nth-child(4n + 2) {
+  width: 82%;
+}
+
+.builder-invoices__skeleton--table .builder-invoices__skeleton-line:nth-child(4n + 4) {
+  width: 64%;
 }
 
 @keyframes builder-invoices__shimmer {
