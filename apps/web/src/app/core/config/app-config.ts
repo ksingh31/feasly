@@ -1283,6 +1283,12 @@ export interface AppConfig {
       teamConfirmNo: string;
       /** auth/05: generic row-action failure. */
       teamActionError: string;
+      /** Shell: aria-label for the brand home link. */
+      shellHomeLabel: string;
+      /** Shell: mobile menu toggle "open menu" label. */
+      shellMenuOpenLabel: string;
+      /** Shell: mobile menu toggle "close menu" label. */
+      shellMenuCloseLabel: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard

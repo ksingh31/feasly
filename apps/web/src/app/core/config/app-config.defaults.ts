@@ -1106,6 +1106,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       teamConfirmYes: 'Yes, continue',
       teamConfirmNo: 'Cancel',
       teamActionError: 'Something went wrong. Please try again.',
+      shellHomeLabel: 'Feasly Builder home',
+      shellMenuOpenLabel: 'Open menu',
+      shellMenuCloseLabel: 'Close menu',
     },
     admin: {
       apiKeys: {

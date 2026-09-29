@@ -1,28 +1,55 @@
 <div class="builder-shell">
   <header class="builder-shell__header">
-    <span class="builder-shell__brand">{{ copy.shellBrand }}</span>
-    <nav class="builder-shell__nav">
-      <a routerLink="/builder" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+    <a class="builder-shell__brand" routerLink="/builder" [attr.aria-label]="copy.shellHomeLabel">
+      <app-brand-mark [size]="28" />
+      <span class="builder-shell__wordmark">{{ copy.shellBrand }}</span>
+    </a>
+    <button
+      type="button"
+      class="builder-shell__menu-toggle"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="builder-nav"
+      (click)="toggleMenu()"
+    >
+      <span class="builder-shell__menu-icon" aria-hidden="true"></span>
+      <span class="builder-shell__menu-label">{{
+        menuOpen() ? copy.shellMenuCloseLabel : copy.shellMenuOpenLabel
+      }}</span>
+    </button>
+    <nav
+      class="builder-shell__nav"
+      id="builder-nav"
+      aria-label="Builder"
+      [class.builder-shell__nav--open]="menuOpen()"
+    >
+      <a
+        routerLink="/builder"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        (click)="closeMenu()"
+      >
         {{ copy.shellNavDashboard }}
       </a>
-      <a routerLink="/builder/billing" routerLinkActive="active">
+      <a routerLink="/builder/billing" routerLinkActive="active" (click)="closeMenu()">
         {{ copy.shellNavBilling }}
       </a>
       @if (isBuilderAdmin()) {
-        <a routerLink="/builder/team" routerLinkActive="active">
+        <a routerLink="/builder/team" routerLinkActive="active" (click)="closeMenu()">
           {{ copy.teamNavLabel }}
         </a>
       }
       @if (activeOrgName(); as orgName) {
         <a
           routerLink="/builder/org-picker"
+          routerLinkActive="active"
           class="builder-shell__org"
           [attr.aria-label]="copy.orgSwitcherLabel + ': ' + orgName"
+          (click)="closeMenu()"
         >
           {{ orgName }}
         </a>
       }
-      <a routerLink="/builder/report-contract" routerLinkActive="active">
+      <a routerLink="/builder/report-contract" routerLinkActive="active" (click)="closeMenu()">
         {{ copy.shellNavReportContract }}
       </a>
       @if (session(); as s) {

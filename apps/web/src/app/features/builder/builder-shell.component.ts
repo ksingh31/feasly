@@ -1,23 +1,38 @@
-import { Component, DestroyRef, inject } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
+import { filter } from 'rxjs';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
+import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { LogoutBuilder } from './builder.actions';
 import { BuilderState } from './builder.state';
 
 /**
  * Builder shell (embed/09): layout for the guarded `/builder` route group.
- * Shows the signed-in builder's email and a sign-out action; the dashboard
- * (pipeline list + summary) renders in the outlet.
+ * Mirrors the admin shell design language — brand mark + wordmark, mobile
+ * hamburger dropdown nav, inline nav on desktop (>= 768px). Shows the
+ * signed-in builder's org, session email, and a sign-out action; the
+ * dashboard (pipeline list + summary) renders in the outlet.
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
 @Component({
   selector: 'app-builder-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    BrandMarkComponent,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+  ],
   templateUrl: './builder-shell.component.html',
   styleUrls: ['./builder-shell.component.scss'],
 })
@@ -31,8 +46,15 @@ export class BuilderShellComponent {
   protected readonly copy = inject(ConfigService).get('copy').builder;
 
   protected readonly session = this.store.selectSignal(BuilderState.session);
-  protected readonly activeOrgName = this.store.selectSignal(BuilderState.activeBuilderName);
-  protected readonly isBuilderAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
+  protected readonly activeOrgName = this.store.selectSignal(
+    BuilderState.activeBuilderName,
+  );
+  protected readonly isBuilderAdmin = this.store.selectSignal(
+    BuilderState.isBuilderAdmin,
+  );
+
+  /** Mobile nav menu open state. Desktop shows the nav inline. */
+  protected readonly menuOpen = signal(false);
 
   constructor() {
     this.seo.setPage({
@@ -40,6 +62,23 @@ export class BuilderShellComponent {
       description: 'Feasly builder lead pipeline.',
       path: '/builder',
     });
+    // Close the mobile menu whenever navigation completes.
+    this.router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.menuOpen.set(false);
+      });
+  }
+
+  protected toggleMenu(): void {
+    this.menuOpen.update((open) => !open);
+  }
+
+  protected closeMenu(): void {
+    this.menuOpen.set(false);
   }
 
   protected signOut(): void {
