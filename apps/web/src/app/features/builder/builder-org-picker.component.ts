@@ -21,7 +21,7 @@ import type { BuilderOrgMembership } from './builder-auth.contracts';
  * user belongs to more than one builder organization (or none — the
  * empty state explains that no org was found). The user picks their
  * active org; the choice is POSTed to the backend
- * (`POST /api/v1/builder/auth/switch-org`) which stores it in the
+ * (`POST /api/v1/builder/auth/active-org`) which stores it in the
  * session — the client never trusts an org id from request params.
  *
  * After the switch the session is re-probed (`LoadBuilderSession`) so

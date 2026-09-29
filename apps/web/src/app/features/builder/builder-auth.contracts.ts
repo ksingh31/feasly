@@ -59,15 +59,18 @@ export interface BuilderMembershipsResponse {
   readonly memberships: readonly BuilderOrgMembership[];
 }
 
-/** `POST /api/v1/builder/auth/switch-org` request body. */
+/** `POST /api/v1/builder/auth/active-org` request body. */
 export interface BuilderSwitchOrgBody {
   /** Must be one of the caller's memberships — else 403. */
   readonly builderId: string;
 }
 
-/** `POST /api/v1/builder/auth/switch-org` response. */
+/**
+ * `POST /api/v1/builder/auth/active-org` response. Field names mirror the
+ * backend's `BuilderActiveOrgResponse`.
+ */
 export interface BuilderSwitchOrgResponse {
-  readonly builderId: string;
+  readonly activeBuilderId: string;
   readonly builderName: string;
 }
 
