@@ -56,6 +56,8 @@ async function setup(
   reportContractImpl: (
     body: unknown,
   ) => ReturnType<BuilderBillingApiService['reportContract']>,
+  leadsImpl: () => ReturnType<BuilderLeadsApiService['listLeads']> = () =>
+    of(LEADS_RESPONSE),
 ) {
   TestBed.resetTestingModule();
   const calls: unknown[] = [];
@@ -63,6 +65,7 @@ async function setup(
     calls.push(body);
     return reportContractImpl(body);
   });
+  const listLeads = vi.fn(leadsImpl);
   TestBed.configureTestingModule({
     imports: [BuilderReportContractComponent],
     providers: [
@@ -78,7 +81,7 @@ async function setup(
       },
       {
         provide: BuilderLeadsApiService,
-        useValue: { listLeads: () => of(LEADS_RESPONSE) },
+        useValue: { listLeads },
       },
       {
         provide: BuilderBillingApiService,
@@ -91,7 +94,7 @@ async function setup(
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, calls };
+  return { fixture, calls, listLeads };
 }
 
 function setSelect(
@@ -286,5 +289,89 @@ describe('BuilderReportContractComponent', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('already reported');
+  });
+
+  it('renders the explainer card, form card, and labeled fields', async () => {
+    const { fixture } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    const text = fixture.nativeElement.textContent as string;
+    // Explainer card: what happens when a won deal is reported.
+    expect(text).toContain('What happens next');
+    expect(text).toContain('auto-charges 7 days later unless disputed');
+    // Form card + labeled inputs.
+    expect(text).toContain('Report details');
+    expect(text).toContain('Which lead signed?');
+    expect(text).toContain('Contract value (CAD, excluding land)');
+    expect(text).toContain('Date the contract was signed');
+    expect(text).toContain('Select a lead…');
+  });
+
+  it('shows the live 1% commission estimate as the value is typed', async () => {
+    const { fixture } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    setInput(fixture, 'report-contract-value', '650000');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Estimated commission (1%)');
+    expect(text).toContain('$6,500');
+  });
+
+  it('hides the commission estimate until the amount is valid', async () => {
+    const { fixture } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    setInput(fixture, 'report-contract-value', 'not-a-number');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('Estimated commission (1%)');
+  });
+
+  it('retries the submit from the API-error state', async () => {
+    const { fixture, calls } = await setup(() =>
+      throwError(() => ({
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid contract report body.',
+        retryable: false,
+      })),
+    );
+    fillValidForm(fixture);
+    await submitForm(fixture);
+    expect(calls).toHaveLength(1);
+
+    const retry = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Try again');
+    expect(retry).toBeTruthy();
+    (retry as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(calls).toHaveLength(2);
+  });
+
+  it('reloads the leads picker from the leads-error state', async () => {
+    const { fixture, listLeads } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () =>
+        throwError(() => ({
+          code: 'LEADS_FAILED',
+          message: 'Leads unavailable.',
+          retryable: true,
+        })),
+    );
+    expect(listLeads).toHaveBeenCalledTimes(1);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('couldn’t load your leads');
+
+    const retry = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Try again');
+    expect(retry).toBeTruthy();
+    (retry as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(listLeads).toHaveBeenCalledTimes(2);
   });
 });

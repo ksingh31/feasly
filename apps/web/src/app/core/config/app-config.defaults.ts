@@ -1140,6 +1140,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       billingCardEmptyTitle: 'No card on file.',
       billingCardEmptyBody:
         'Commission invoices auto-charge 7 days after each review window. Add a card so charges go through.',
+      contractWhatHappensTitle: 'What happens next',
+      contractFormHeading: 'Report details',
+      contractLeadPlaceholder: 'Select a lead…',
+      contractEstimatedCommission: 'Estimated commission (1%)',
+      contractRetry: 'Try again',
     },
     admin: {
       apiKeys: {
