@@ -1,5 +1,5 @@
 /**
- * Lead comment thread models — FRONTEND-OWNED PLACEHOLDERS (BILL-06).
+ * Lead comment thread models — FRONTEND-OWNED INTERIM TYPES (BILL-06).
  *
  * These mirror the frozen BILL-05 API contract (2026-09-29). When
  * `@feasly/contracts` gains the Comment types, replace these interfaces
