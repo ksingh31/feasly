@@ -725,4 +725,21 @@ WHERE EXISTS (
   SELECT 1 FROM "admin_allowlist" WHERE "email" = 'karanbirsingh667@gmail.com'
 )
 ON CONFLICT ("email") DO NOTHING;
+
+-- P0 2026-09-28: builder-QA membership guard. drizzle-kit silently skipped
+-- migration 0042 on dev (the membership row never materialized), so Karan's
+-- builder Entra sign-in 403s at the membership gate even though the user row
+-- exists and the migration journal claims 0042 applied. This idempotent
+-- INSERT mirrors 0042 exactly (same fixed UUIDs) and is a no-op when the row
+-- already exists. Without it, the builder callback rejects Karan with
+-- "We couldn't find your Feasly builder account".
+INSERT INTO "builder_memberships" ("id", "user_id", "builder_id", "role")
+SELECT
+  'a39ec450-81f2-4060-baef-afcebed829ac',
+  u."id",
+  'a506cc36-ffd1-42db-993c-999bfbb0f1d2',
+  'builder_admin'
+FROM "users" u
+WHERE u."email" = 'karanbirsingh667@gmail.com'
+ON CONFLICT ("user_id", "builder_id") DO NOTHING;
 `;

@@ -1,9 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
+import { of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComparePickerPageComponent } from './compare-picker-page.component';
 import { CommunityService } from '../../core/community';
 import { ConfigService } from '../../core/config/config.service';
@@ -28,8 +31,33 @@ describe('ComparePickerPageComponent', () => {
     localStorage.clear();
   });
 
-  async function setup() {
+  /** Well-formed previous-session result — the stale-but-valid case. */
+  const STALE_RESULT = {
+    estimateId: 'est-stale',
+    projectType: 'comparison',
+    inputs: { sqft: 1700, tier: 'premium' },
+    rowSets: [],
+    costDataVersion: 'v1',
+    createdAt: '2026-09-28T00:00:00.000Z',
+  };
+
+  async function setup(opts: { fresh?: boolean; seedResult?: boolean } = {}) {
     TestBed.resetTestingModule();
+    if (opts.seedResult) {
+      // Seed localStorage BEFORE the store is created so the storage plugin
+      // rehydrates the previous session's comparison result.
+      localStorage.setItem(
+        'comparison',
+        JSON.stringify({
+          result: STALE_RESULT,
+          stats: {},
+          status: 'ready',
+          stage: null,
+          error: null,
+          leadId: null,
+        }),
+      );
+    }
     await TestBed.configureTestingModule({
       imports: [
         RouterTestingModule.withRoutes([
@@ -40,11 +68,25 @@ describe('ComparePickerPageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         providePropertyData(),
-        provideStore([WizardState, ComparisonState]),
+        opts.seedResult
+          ? provideStore([WizardState, ComparisonState], withNgxsStoragePlugin({ keys: [ComparisonState] }))
+          : provideStore([WizardState, ComparisonState]),
         { provide: API_SERVICE, useClass: MockApiService },
         CommunityService,
         ConfigService,
         SeoService,
+        // ?fresh=1 on the route: fresh entry from the homepage link.
+        ...(opts.fresh
+          ? [
+              {
+                provide: ActivatedRoute,
+                useValue: {
+                  snapshot: { queryParamMap: convertToParamMap({ fresh: '1' }) },
+                  queryParams: of({ fresh: '1' }),
+                },
+              },
+            ]
+          : []),
       ],
     }).compileComponents();
     const httpMock = TestBed.inject(HttpTestingController);
@@ -202,5 +244,36 @@ describe('ComparePickerPageComponent', () => {
     el = fixture.nativeElement;
     expect(el.querySelector('app-compare-results')).toBeTruthy();
     expect(store.selectSnapshot(ComparisonState.status)).toBe('ready');
+  });
+
+  it('?fresh=1 always lands on the picker and clears a stale persisted result', async () => {
+    // Regression: tapping "Compare neighbourhoods" on the homepage must
+    // NEVER auto-resume a previous session's comparison into the results
+    // page — it always starts on the picker.
+    const scrollSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const { fixture, comp, store } = await setup({ fresh: true, seedResult: true });
+    expect(comp['phase']()).toBe('picker');
+    expect(store.selectSnapshot(ComparisonState.result)).toBeNull();
+    expect(store.selectSnapshot(ComparisonState.status)).toBe('idle');
+    // Fresh entry presents the top of the picker (the entry link sits below
+    // the fold on the homepage).
+    expect(scrollSpy).toHaveBeenCalledWith(0, 0);
+    scrollSpy.mockRestore();
+    // The picker heading renders (not the results page).
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('Compare neighbourhoods');
+    expect(el.querySelector('app-compare-results')).toBeFalsy();
+    localStorage.clear();
+  });
+
+  it('without ?fresh=1 a persisted result still lands on the results page', async () => {
+    // The standard resume behavior is preserved: a refresh or the lead-gate
+    // return (no ?fresh param) shows the stored comparison results.
+    const { fixture, comp, store } = await setup({ seedResult: true });
+    expect(comp['phase']()).toBe('results');
+    expect(store.selectSnapshot(ComparisonState.result)).toEqual(STALE_RESULT);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('app-compare-results')).toBeTruthy();
+    localStorage.clear();
   });
 });

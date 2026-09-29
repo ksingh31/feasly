@@ -167,6 +167,21 @@ apps/web/src/app/features/admin/admin-billing.component.html
 apps/web/src/app/features/admin/admin-billing.component.ts
 apps/web/src/app/features/admin/billing-health.state.ts
 
+# Manual invoice creation copy (billing, /admin/billing): the review-step
+# confirmation wording ("7-day builder review window", excluding-land
+# hints) and the one-shot create success/error feedback are
+# admin-facing money-action copy that changes by product decision, not
+# by deploy tuning. Pinned by admin-create-invoice.component.spec.ts.
+apps/web/src/app/features/admin/admin-create-invoice.component.html
+
+# Manual invoice creation implementation constants: the ISO-offset date
+# format is a protocol requirement (mirrors the builder report-contract
+# shape), 100/0.01 are the dollars↔cents definition, 60/10/12 are
+# timezone-arithmetic and the neutral local-noon hour — none are tunables.
+# The display-only 0.01 estimate matches the page's "Commission · 1%"
+# label; the server's response figure is authoritative.
+apps/web/src/app/features/admin/admin-create-invoice.component.ts
+
 # Calgary coverage heuristic (core/utils/coverage.ts, port of
 # apps/api/src/lib/coverage.ts): the T2/T3 FSA prefixes and non-Calgary city
 # tokens are domain constants that DEFINE what "Calgary coverage" means —

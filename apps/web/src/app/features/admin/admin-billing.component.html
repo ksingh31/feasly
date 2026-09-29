@@ -4,11 +4,19 @@
       <h1>Billing health</h1>
       <p class="billing-panel__sub">
         MRR, review aging, dunning, and webhook health. The dunning queue
-        offers a charge retry per failed invoice — everything else is
+        offers a charge retry per failed invoice; "Create invoice" manually
+        creates a commission invoice for a converted lead. Everything else is
         read-only.
       </p>
     </div>
     <div class="billing-panel__header-actions">
+      <button
+        type="button"
+        class="billing-panel__btn"
+        (click)="openCreateForm()"
+      >
+        Create invoice
+      </button>
       @if (health(); as h) {
         <span class="billing-panel__badge" role="status">
           <span aria-hidden="true">●</span> {{ modelLabel(h.model) }}
@@ -43,6 +51,10 @@
       </button>
     </div>
   </header>
+
+  @if (showCreateForm()) {
+    <app-admin-create-invoice (closed)="closeCreateForm()" />
+  }
 
   @if (loadStatus() === 'loading' && !health()) {
     <p class="billing-panel__loading">Loading billing health…</p>

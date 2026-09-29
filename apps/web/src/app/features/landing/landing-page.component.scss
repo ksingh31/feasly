@@ -172,30 +172,39 @@
   border-bottom: 1px solid var(--accent-bg);
 }
 
-/* ── Trust strip ──────────────────────────── */
+/* ── Trust strip (redesigned 2026-09-28: stat blocks + sample-report button) ── */
 
 .trust {
   background: var(--canvas);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.trust-list {
-  list-style: none;
+.trust-inner {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 36px 24px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px 0;
+  padding: 44px 24px 40px;
+}
+
+.trust-eyebrow {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-dark-muted);
+  text-align: center;
+  margin: 0 0 28px;
+}
+
+.trust-list {
+  list-style: none;
+  margin: 0 0 36px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .trust-item {
-  font-family: var(--font-ui);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--on-dark);
   padding: 0 32px;
   text-align: center;
 }
@@ -204,31 +213,149 @@
   border-left: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* Sample-report link under the trust strip (UX audit 2026-09-28). */
-.sample-report-link {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 24px 32px;
-  text-align: center;
+.trust-text {
+  display: block;
 }
-.sample-report-link a {
+
+.trust-value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--on-dark);
+  margin-bottom: 8px;
+}
+
+/* Compact value for narrow screens; hidden on desktop. */
+.trust-value-short {
+  display: none;
+}
+
+.trust-label {
+  display: block;
   font-family: var(--font-ui);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--accent-dark);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  min-height: 44px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--on-dark-muted);
+}
+
+/* Non-numeric stat: brass check badge above a smaller value. */
+.trust-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-dark);
+  color: var(--accent-dark);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
+
+.trust-item-badge .trust-value {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Sample-report CTA: a real brass button, not a floating underline. */
+.sample-report-link {
+  margin: 0;
+  text-align: center;
+}
+
+.sample-report-link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--accent-dark);
+  color: #1c1914;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 15px 32px;
+  border-radius: 999px;
+  min-height: 52px;
+}
+
 .sample-report-link a:hover {
-  color: var(--on-dark);
+  background: #d6a244;
 }
+
 .sample-report-link a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--on-dark);
   outline-offset: 2px;
-  border-radius: 4px;
+}
+
+@media (max-width: 639px) {
+  .trust-inner {
+    padding: 36px 24px;
+  }
+
+  .trust-eyebrow {
+    text-align: left;
+    margin-bottom: 24px;
+  }
+
+  .trust-list {
+    grid-template-columns: 1fr;
+    margin-bottom: 32px;
+  }
+
+  .trust-item {
+    text-align: left;
+    padding: 20px 0;
+  }
+
+  .trust-item:first-child {
+    padding-top: 0;
+  }
+
+  .trust-item + .trust-item {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .trust-value {
+    font-size: 32px;
+  }
+
+  .trust-item-badge .trust-value {
+    font-size: 20px;
+  }
+
+  /* Swap in the compact value on narrow screens. */
+  .trust-value-full {
+    display: none;
+  }
+
+  .trust-value-short {
+    display: block;
+  }
+
+  .trust-item-badge {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .trust-item-badge .trust-badge {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    margin-bottom: 0;
+  }
+
+  .sample-report-link a {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ── Entry card pair (NBH-04 / SEO-05) ── */

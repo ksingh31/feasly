@@ -1661,6 +1661,7 @@ export function createComposition(
   const adminBillingRoute: AdminBillingRoute = createAdminBillingRoute({
     billingHealth: billingHealthService,
     commission: commissionService,
+    billing: billingService,
     adminGuard,
   });
   // Stripe webhook receiver: 100/min per IP (frozen registry). The signature
@@ -1831,7 +1832,7 @@ function createEmailProvider(config: ApiConfig): EmailProvider {
       return createAcsEmailProvider({
         connectionString: config.email.acsConnectionString,
         fromAddress: config.email.fromAddress,
-        deliveryPollTimeoutMs: config.email.acsPollTimeoutMs,
+        sendTimeoutMs: config.email.acsSendTimeoutMs,
       });
     case 'log':
     default:

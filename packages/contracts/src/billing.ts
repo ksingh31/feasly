@@ -149,3 +149,37 @@ export interface ResolveDisputeRequest {
   /** Optional admin note recorded on the dispute + audit trail. */
   readonly note?: string;
 }
+
+/**
+ * POST /api/v1/admin/billing/invoices — admin manually creates a commission
+ * invoice for a builder's converted lead. Mirrors the builder-reported
+ * contract shape (POST /api/v1/billing/report-contract): leadId, integer
+ * cents EXCLUDING land, ISO datetime WITH timezone offset — plus the
+ * builder's tenantKey, since the admin picks the builder.
+ */
+export interface ManualInvoiceRequest {
+  /** Builder tenant key (from the builders table). */
+  readonly tenantKey: string;
+  /**
+   * The Feasly lead this contract came from (required — attribution and
+   * the invoice are lead-keyed).
+   */
+  readonly leadId: string;
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
+  /** ISO 8601 datetime WITH timezone offset. */
+  readonly contractSignedAt: string;
+}
+
+/** POST /api/v1/admin/billing/invoices — the created (or idempotently re-found) invoice. */
+export interface ManualInvoiceResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  readonly tenantKey: string;
+  readonly leadId: string;
+  readonly contractValueCents: number;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** ISO 8601 — end of the builder's review/dispute window. */
+  readonly reviewDueAt: string | null;
+}

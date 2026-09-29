@@ -23,6 +23,8 @@ export interface TestDb {
   readonly db: AppDb;
   /** Run raw SQL, returning rows (driver-shape differences hidden here). */
   rows<T = Record<string, unknown>>(sqlText: string): Promise<T[]>;
+  /** Run a multi-statement SQL batch (e.g. tools/repair-sql.mjs). */
+  exec(sqlText: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -45,6 +47,9 @@ export async function createTestDb(): Promise<TestDb> {
     rows: async <T>(sqlText: string): Promise<T[]> => {
       const result = await pg.query(sqlText);
       return result.rows as T[];
+    },
+    exec: async (sqlText: string): Promise<void> => {
+      await pg.exec(sqlText);
     },
     close: () => pg.close(),
   };

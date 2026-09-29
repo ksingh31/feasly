@@ -5,7 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, of, throwError, TimeoutError } from 'rxjs';
 import type { PropertyRecord, PreviewEstimateResponse, NewBuildEstimateRequest } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { provideApi } from '../../core/api/api.service';
@@ -350,6 +350,31 @@ describe('GatePageComponent', () => {
       (fixture.nativeElement.querySelector('.form-error .retry') as HTMLButtonElement).click();
       await pollUrl('/estimate/analyzing');
       expect(store.selectSnapshot(LeadState.leadId)).toBe('lead-1');
+    });
+
+    it('2026-09-28: a client-side timeout never leaves the button stuck on "Sending..."', async () => {
+      // Karan's iPhone: the gate sat on "Sending..." with no error, no
+      // retry, no unlock. The HTTP layer bounds the lead submit with the
+      // gate timeout (rxjs timeout() → TimeoutError); the component must
+      // surface the error state instead of spinning forever.
+      const timeoutStub = {
+        getPreviewEstimate: () => of(preview),
+        submitLead: () => throwError(() => new TimeoutError()),
+      };
+      await setup({ provide: API_SERVICE, useValue: timeoutStub });
+      fillValidForm();
+      submit();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.form-error')).not.toBeNull();
+      });
+      // Error state, not an eternal spinner: the button is re-enabled with
+      // the submit label and the retry path is offered.
+      const button = fixture.nativeElement.querySelector('button.cta') as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+      expect(button.textContent).not.toContain('Sending');
+      expect(fixture.nativeElement.querySelector('.form-error .retry')).not.toBeNull();
+      expect(router.url).not.toBe('/estimate/analyzing');
     });
   });
 

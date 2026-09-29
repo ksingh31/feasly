@@ -3,7 +3,17 @@
 .compare-page {
   max-width: 720px;
   margin: 0 auto;
-  padding: 0 16px 48px;
+  /* 7.5rem (120px) top clears the fixed site nav — matches the results page
+     (.compare-results) and wizard-shell offset pattern. Without it the
+     heading renders under the fixed header and scroll-top can't reveal it. */
+  padding: 7.5rem 16px 48px;
+}
+
+@media (max-width: 480px) {
+  .compare-page {
+    /* 6rem (96px) top on small phones — matches compare-results mobile. */
+    padding-top: 6rem;
+  }
 }
 
 .eyebrow {
