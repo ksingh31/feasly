@@ -15,8 +15,8 @@
  *   be double-charged.
  * - `POST /api/v1/admin/billing/invoices/{id}/commission-rate` — override
  *   the per-invoice commission rate (percent). Admin-gated,
- *   `billing:manage`. Unpaid invoices only; a settled invoice is never
- *   silently repriced.
+ *   `billing:manage`. Unpaid, undisputed invoices only; a disputed or
+ *   settled invoice is never silently repriced.
  * - `POST /api/v1/admin/billing/invoices` — manually create a commission
  *   invoice for a builder's converted lead (manual invoicing). Mirrors the
  *   builder-reported contract shape

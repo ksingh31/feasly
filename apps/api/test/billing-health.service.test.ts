@@ -251,7 +251,7 @@ describe('billing-health service', () => {
   });
 
   it('exposes the in-review work queue with review dates and effective rates', async () => {
-    await seedTenant();
+    // The tenant was seeded by the first test in this file (shared testDb).
     const parents = await seedParents();
     const soon = new Date(FIXED_NOW.getTime() + 24 * HOUR_MS);
     const later = new Date(FIXED_NOW.getTime() + 5 * 24 * HOUR_MS);
@@ -267,32 +267,40 @@ describe('billing-health service', () => {
       createdAt: hoursAgo(72),
       reviewDueAt: later,
     });
-    // A paid invoice is not part of the work queue.
-    await seedInvoice(parents, {
+    // A paid invoice is not part of the work queue. paidAt sits outside
+    // the trailing-30d collections window so it cannot leak into the
+    // collections expectations of other tests sharing this DB.
+    const paidId = await seedInvoice(parents, {
       status: 'paid',
       commissionCents: 30_000,
-      createdAt: hoursAgo(200),
-      paidAt: hoursAgo(2),
+      createdAt: hoursAgo(40 * 24),
+      paidAt: hoursAgo(40 * 24),
     });
 
     const health = await makeService('commission').getHealth();
 
-    // Most urgent review window first.
-    expect(health.inReviewInvoices.map((row) => row.id)).toEqual([
-      soonId,
-      laterId,
-    ]);
-    expect(health.inReviewInvoices[0]).toMatchObject({
+    // The shared test DB already holds in_review rows from earlier tests,
+    // so assert relative shape/order on our own two rows: most urgent
+    // review window first.
+    const ids = health.inReviewInvoices.map((row) => row.id);
+    const soonIdx = ids.indexOf(soonId);
+    const laterIdx = ids.indexOf(laterId);
+    expect(soonIdx).toBeGreaterThanOrEqual(0);
+    expect(laterIdx).toBeGreaterThanOrEqual(0);
+    expect(soonIdx).toBeLessThan(laterIdx);
+    const byId = new Map(health.inReviewInvoices.map((row) => [row.id, row]));
+    expect(byId.get(soonId)).toMatchObject({
       tenantKey: 'test-builder',
       commissionCents: 10_000,
       currency: 'CAD',
       reviewDueAt: soon.toISOString(),
       commissionRatePercent: 1,
     });
-    expect(health.inReviewInvoices[1]).toMatchObject({
+    expect(byId.get(laterId)).toMatchObject({
       reviewDueAt: later.toISOString(),
       commissionRatePercent: 1,
     });
+    expect(ids).not.toContain(paidId);
   });
 
   it('reports dunning invoices with past_due_since from the charge_failed audit row', async () => {

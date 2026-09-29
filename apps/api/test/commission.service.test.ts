@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   createCommissionService,
   type CommissionService,
@@ -1190,7 +1190,7 @@ describe('markPaidManually', () => {
       paymentMethod: 'cash',
       adminEmail: 'karanbirsingh667@gmail.com',
     });
-    const due = await commission.findDueReviews();
+    const due = await commission.findDueReviews(new Date());
     expect(due.some((invoice) => invoice.id === inReview.id)).toBe(false);
   });
 
@@ -1280,11 +1280,11 @@ describe('setCommissionRate', () => {
 
   /** Drive an invoice to `in_review`: draft → in_review. */
   async function seedInReviewInvoice(tenantKey: string) {
-    const { commission, attribution } = newServices(testDb);
+    const { commission, attribution, stripe } = newServices(testDb);
     await seedTenant(testDb, tenantKey);
     const attributionId = await seedAttribution(testDb, attribution, tenantKey);
     const draft = await commission.createDraftInvoice(attributionId);
-    return { commission, invoice: await commission.submitForReview(draft.id) };
+    return { commission, stripe, invoice: await commission.submitForReview(draft.id) };
   }
 
   it('recalculates the commission from the new percent of the signed contract value', async () => {
@@ -1357,10 +1357,10 @@ describe('setCommissionRate', () => {
     await commission.setCommissionRate(invoice.id, 2.5, 'karanbirsingh667@gmail.com');
     await commission.finalizeInvoice(invoice.id);
     const piCalls = stripe.calls.filter(
-      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
-    ) as Array<{ description?: string }>;
+      (c: unknown) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ) as Array<{ input?: { description?: string } }>;
     expect(piCalls.length).toBeGreaterThan(0);
-    expect(piCalls[0]!.description).toContain('2.5%');
+    expect(piCalls[0]!.input?.description).toContain('2.5%');
   });
 
   it('audits the old → new rate with the admin identity', async () => {

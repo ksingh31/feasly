@@ -914,7 +914,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Admin overrides the per-invoice commission rate (percent, ' +
       '0 < rate <= 10) and recalculates the invoice amount. Unpaid ' +
-      'invoices only (draft, in_review, disputed, failed): a settled ' +
+      'invoices only (draft, in_review, failed): a disputed or settled ' +
       'invoice is never silently repriced (409), and a finalized invoice ' +
       'with a charge in flight is blocked too. Audited old → new rate ' +
       'with the admin identity.',

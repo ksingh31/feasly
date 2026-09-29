@@ -171,10 +171,10 @@ export interface CommissionService {
   /**
    * Admin overrides the per-invoice commission rate (percent, e.g. 1.5 =
    * 1.5%) and recalculates `commissionCents = round(contractValueCents *
-   * rate)`. Allowed only on unpaid invoices (draft, in_review, disputed,
-   * failed) — a settled invoice is never silently repriced (409), and
-   * 'finalized' is blocked too because a PaymentIntent already exists
-   * for the old amount. Validates 0 < rate <= 10 (400 otherwise).
+   * rate)`. Allowed only on unpaid, undisputed invoices (draft, in_review,
+   * failed) — a disputed or settled invoice is never silently repriced
+   * (409), and 'finalized' is blocked too because a PaymentIntent already
+   * exists for the old amount. Validates 0 < rate <= 10 (400 otherwise).
    */
   setCommissionRate(
     invoiceId: string,
@@ -1030,11 +1030,11 @@ export function createCommissionService(
       }
       const row = await requireInvoice(invoiceId);
       const status = row.status as CommissionInvoiceStatus;
-      if (TERMINAL_STATUSES.has(status)) {
+      if (TERMINAL_STATUSES.has(status) || status === 'disputed') {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
-          `Invoice "${invoiceId}" is '${status}' — a settled invoice is never repriced`,
+          `Invoice "${invoiceId}" is '${status}' — a disputed or settled invoice is never repriced`,
         );
       }
       if (status === 'finalized') {
