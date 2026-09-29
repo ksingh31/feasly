@@ -55,8 +55,11 @@ const invoiceIdSchema = z.string().trim().uuid();
 const MANUAL_PAYMENT_METHODS = [
   'cheque',
   'bank_draft',
+  'direct_deposit',
   'e_transfer',
   'cash',
+  'visa',
+  'mastercard',
   'card_terminal',
   'other',
 ] as const satisfies ReadonlyArray<ManualPaymentMethod>;
