@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 /* Lead gate (FE-004): single gate form. Mobile-first, 44px targets. */
 
 .gate-heading {
@@ -53,8 +55,7 @@
   color: var(--muted);
 }
 
-.field input,
-.field select {
+.field input {
   font-family: var(--font-ui);
   font-size: 16px;
   color: var(--text);
@@ -62,6 +63,21 @@
   border: 1.5px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
+  min-height: 44px;
+  width: 100%;
+}
+
+.field select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select(
+    $font-size: 16px,
+    $pad-y: 12px,
+    $pad-left: 14px,
+    $radius: 10px,
+    $bg: var(--cream),
+    $border: 1.5px solid var(--border)
+  );
+  font-family: var(--font-ui);
   min-height: 44px;
   width: 100%;
 }

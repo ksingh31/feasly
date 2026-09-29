@@ -74,12 +74,11 @@
         <label for="builder-status-filter">{{ copy.filterLabel }}</label>
         <select
           id="builder-status-filter"
-          [value]="statusFilter()"
           (change)="onFilterChange($event)"
         >
-          <option value="all">{{ copy.filterAllLabel }}</option>
+          <option value="all" [selected]="statusFilter() === 'all'">{{ copy.filterAllLabel }}</option>
           @for (status of statuses; track status) {
-            <option [value]="status">{{ statusLabel(status) }}</option>
+            <option [value]="status" [selected]="status === statusFilter()">{{ statusLabel(status) }}</option>
           }
         </select>
       </div>
@@ -177,12 +176,15 @@
                   <label class="builder-lead-card__status">
                     <span class="sr-only">{{ statusControlLabel(lead.name) }}</span>
                     <select
-                      [value]="pendingStatusFor(lead)"
                       [disabled]="isUpdating(lead.id)"
                       (change)="onLeadStatusSelect(lead.id, $any($event.target).value)"
                     >
                       @for (status of statuses; track status) {
-                        <option [value]="status">{{ statusLabel(status) }}</option>
+                        <!-- [selected] on the option (not [value] on the select):
+                             the select's value binding runs before the @for
+                             options exist on first render, so it never takes
+                             effect; option-level selectedness is order-safe. -->
+                        <option [value]="status" [selected]="status === pendingStatusFor(lead)">{{ statusLabel(status) }}</option>
                       }
                     </select>
                   </label>

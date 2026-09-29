@@ -1,3 +1,5 @@
+@use '../../shared/form-controls' as *;
+
 /**
  * Builder team page (auth/05) — the org team-user table.
  *
@@ -175,12 +177,8 @@
 }
 
 .builder-team__role-select {
-  padding: 0.375rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: #fff;
-  color: var(--text);
-  font: inherit;
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select($font-size: 0.875rem, $pad-y: 0.375rem, $pad-left: 0.5rem, $radius: 0.375rem);
 }
 
 /* Apply button for the staged role selection. */
@@ -321,14 +319,19 @@
   font-weight: 600;
 }
 
-.builder-team__field input,
-.builder-team__field select {
+.builder-team__field input {
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: #fff;
   color: var(--text);
   font: inherit;
+  font-weight: 400;
+}
+
+.builder-team__field select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select($pad-left: 0.75rem);
   font-weight: 400;
 }
 
