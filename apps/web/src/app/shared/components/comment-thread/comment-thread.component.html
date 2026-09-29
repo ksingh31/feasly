@@ -1,0 +1,166 @@
+<section class="comment-thread" [attr.aria-label]="labels().heading">
+  <h3 class="comment-thread__heading">{{ labels().heading }}</h3>
+
+  @if (loading()) {
+    <p class="comment-thread__status" role="status">{{ labels().loadingThread }}</p>
+  } @else if (comments().length === 0) {
+    <p class="comment-thread__status">{{ labels().emptyThread }}</p>
+  } @else {
+    <ol class="comment-thread__list">
+      @for (comment of comments(); track comment.id) {
+        <li class="comment-thread__item">
+          <div class="comment-thread__meta">
+            <span class="comment-thread__author">{{ comment.authorDisplayName }}</span>
+            <time
+              class="comment-thread__time"
+              [attr.datetime]="comment.createdAt"
+              [title]="comment.createdAt"
+            >
+              {{ formatTimestamp(comment.createdAt) }}
+            </time>
+            @if (comment.edited) {
+              <span class="comment-thread__edited">· {{ labels().editedMarker }}</span>
+            }
+            @if (config().showVisibilityBadges && comment.visibility === 'admin_only') {
+              <span class="comment-thread__internal">{{ labels().internalBadge }}</span>
+            }
+          </div>
+
+          @if (editId() === comment.id) {
+            <div class="comment-thread__edit">
+              <label class="sr-only" [for]="'edit-' + comment.id">
+                {{ labels().editLabel }}: {{ comment.authorDisplayName }}
+              </label>
+              <textarea
+                [id]="'edit-' + comment.id"
+                class="comment-thread__textarea"
+                [value]="editDraft()"
+                (input)="editDraft.set($any($event.target).value)"
+                [maxLength]="maxLength()"
+                [disabled]="busy()"
+                rows="3"
+              ></textarea>
+              <div class="comment-thread__edit-actions">
+                <button
+                  type="button"
+                  class="comment-thread__btn comment-thread__btn--primary"
+                  (click)="submitEdit(comment)"
+                  [disabled]="busy()"
+                >
+                  {{ busy() ? labels().savingLabel : labels().saveLabel }}
+                </button>
+                <button
+                  type="button"
+                  class="comment-thread__btn"
+                  (click)="cancelEdit()"
+                  [disabled]="busy()"
+                >
+                  {{ labels().cancelLabel }}
+                </button>
+              </div>
+            </div>
+          } @else {
+            <p class="comment-thread__body">{{ comment.body }}</p>
+            <div class="comment-thread__actions">
+              @if (canEdit(comment)) {
+                <button
+                  type="button"
+                  class="comment-thread__link"
+                  (click)="startEdit(comment)"
+                  [disabled]="busy()"
+                >
+                  {{ labels().editLabel }}
+                </button>
+              }
+              @if (canDelete()) {
+                @if (deleteConfirmId() === comment.id) {
+                  <span class="comment-thread__confirm">
+                    <button
+                      type="button"
+                      class="comment-thread__btn comment-thread__btn--danger"
+                      (click)="confirmDelete(comment)"
+                      [disabled]="busy()"
+                    >
+                      {{ busy() ? labels().deletingLabel : labels().confirmDeleteLabel }}
+                    </button>
+                    <button
+                      type="button"
+                      class="comment-thread__link"
+                      (click)="cancelDelete()"
+                      [disabled]="busy()"
+                    >
+                      {{ labels().cancelLabel }}
+                    </button>
+                  </span>
+                } @else {
+                  <button
+                    type="button"
+                    class="comment-thread__link comment-thread__link--danger"
+                    (click)="askDelete(comment)"
+                    [disabled]="busy()"
+                  >
+                    {{ labels().deleteLabel }}
+                  </button>
+                }
+              }
+            </div>
+          }
+        </li>
+      }
+    </ol>
+  }
+
+  @if (error() !== null) {
+    <p class="comment-thread__error" role="alert">
+      <span>{{ error() }}</span>
+      <button
+        type="button"
+        class="comment-thread__link"
+        (click)="dismissError.emit()"
+      >
+        {{ labels().dismissErrorLabel }}
+      </button>
+    </p>
+  }
+
+  @if (config().allowPost) {
+    <div class="comment-thread__composer">
+      <label class="sr-only" [for]="composerId">{{ labels().composerPlaceholder }}</label>
+      <textarea
+        [id]="composerId"
+        class="comment-thread__textarea"
+        [placeholder]="labels().composerPlaceholder"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        [maxLength]="maxLength()"
+        [disabled]="busy() || loading()"
+        rows="3"
+      ></textarea>
+      <div class="comment-thread__composer-foot">
+        @if (config().showVisibilityToggle) {
+          <label class="comment-thread__visibility">
+            <span class="sr-only">{{ labels().visibilityToggleLabel }}</span>
+            <select
+              [id]="visibilityId"
+              [value]="postVisibility()"
+              (change)="postVisibility.set($any($event.target).value)"
+              [disabled]="busy()"
+            >
+              <option value="org">{{ labels().visibilityOrgLabel }}</option>
+              <option value="admin_only">{{ labels().visibilityAdminOnlyLabel }}</option>
+            </select>
+          </label>
+        }
+        <span class="comment-thread__hint" aria-live="polite">{{ charHint() }}</span>
+        <button
+          type="button"
+          class="comment-thread__btn comment-thread__btn--primary"
+          (click)="submitPost()"
+          [disabled]="busy() || loading() || draft().trim().length === 0"
+        >
+          {{ posting() ? labels().postingLabel : labels().postLabel }}
+        </button>
+      </div>
+    </div>
+  }
+</section>

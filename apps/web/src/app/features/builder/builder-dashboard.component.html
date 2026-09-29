@@ -162,6 +162,15 @@
                     </p>
                   }
                 }
+                <button
+                  type="button"
+                  class="builder-lead-card__notes-toggle"
+                  (click)="toggleNotes(lead.id)"
+                  [attr.aria-expanded]="notesExpanded(lead.id)"
+                  [attr.aria-controls]="'lead-notes-' + lead.id"
+                >
+                  {{ notesExpanded(lead.id) ? copy.commentsToggleHide : copy.commentsToggleShow }}
+                </button>
               </div>
               <div
                 class="builder-lead-card__side"
@@ -201,6 +210,14 @@
                   }
                 }
               </div>
+              @if (notesExpanded(lead.id)) {
+                <div
+                  class="builder-lead-card__notes"
+                  [id]="'lead-notes-' + lead.id"
+                >
+                  <app-builder-lead-comments [leadId]="lead.id" />
+                </div>
+              }
             </article>
           }
         </div>

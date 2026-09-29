@@ -355,6 +355,29 @@
   color: var(--success, #2f7d4f);
 }
 
+/* Per-lead notes: toggle in the card body, thread spans the full card width. */
+.builder-lead-card__notes-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-top: 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+}
+
+.builder-lead-card__notes {
+  flex-basis: 100%;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+}
+
 .builder-lead-card__side {
   flex: 0 0 auto;
   display: flex;
