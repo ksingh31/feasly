@@ -7,12 +7,12 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe, StripeCardElement } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import {
@@ -41,7 +41,7 @@ import { BuilderBillingState } from './builder-billing.state';
 @Component({
   selector: 'app-builder-billing',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [],
   templateUrl: './builder-billing.component.html',
   styleUrls: ['./builder-billing.component.scss'],
 })
@@ -55,7 +55,7 @@ export class BuilderBillingComponent implements OnInit {
   @ViewChild('cardElement') private cardElementRef?: ElementRef<HTMLElement>;
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = this.config.get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly card = this.store.selectSignal(BuilderBillingState.card);
   protected readonly cardStatus = this.store.selectSignal(

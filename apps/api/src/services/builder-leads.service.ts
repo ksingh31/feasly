@@ -21,9 +21,11 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type {
+  BuilderLeadInvoiceSummary,
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadStatus,
+  CommissionInvoiceStatus,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
@@ -31,6 +33,7 @@ import type {
   BillableEventResult,
   EmbedBillingHookService,
 } from './billing/embed-billing-hook.service';
+import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { BuilderService } from './builder.service';
 import type { LeadStore } from './lead.store';
 
@@ -63,8 +66,10 @@ export interface BuilderLeadsService {
   listLeads(tenantKey: string): Promise<BuilderLeadListResponse>;
   /**
    * Transition a lead's pipeline status. Throws 404 when the lead doesn't
-   * exist, 403 when it isn't assigned to this builder. Writes
-   * `lead_status_history` + audit row with the builder's email.
+   * exist, 403 when it isn't assigned to this builder, and 409
+   * (LEAD_STATUS_LOCKED) when the lead has a recorded signed contract
+   * (a commission invoice exists) — recorded leads are status-locked.
+   * Writes `lead_status_history` + audit row with the builder's email.
    *
    * When the transition is to 'won', the billing charge path runs first
    * (billing/01): with contract details it creates the draft commission
@@ -91,24 +96,33 @@ export interface BuilderLeadsServiceDeps {
    * 'won'. Optional for tests that don't cover billing.
    */
   readonly billingHook?: EmbedBillingHookService;
+  /**
+   * Per-tenant invoice summaries (record-contract flow redesign). Powers
+   * `hasInvoice`/`invoiceSummary` on the lead list items. Optional for
+   * tests that don't cover the recorded-contract state.
+   */
+  readonly invoiceSummaries?: InvoiceSummaryStore;
 }
 
 export interface WonBillingResult {
   readonly billing: BillableEventResult;
 }
 
-function toListItem(record: {
-  readonly id: string;
-  readonly name: string;
-  readonly email: string;
-  readonly phone: string | null;
-  readonly timeline: string;
-  readonly leadScore: number;
-  readonly status: string;
-  readonly addressKey: string;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-}): BuilderLeadListItem {
+function toListItem(
+  record: {
+    readonly id: string;
+    readonly name: string;
+    readonly email: string;
+    readonly phone: string | null;
+    readonly timeline: string;
+    readonly leadScore: number;
+    readonly status: string;
+    readonly addressKey: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+  },
+  invoiceSummary: BuilderLeadInvoiceSummary | null,
+): BuilderLeadListItem {
   return {
     id: record.id,
     name: record.name,
@@ -123,13 +137,15 @@ function toListItem(record: {
     // the address key and the detail view resolves the full estimate.
     projectType: '',
     createdAt: record.createdAt.toISOString(),
+    hasInvoice: invoiceSummary !== null,
+    invoiceSummary,
   };
 }
 
 export function createBuilderLeadsService(
   deps: BuilderLeadsServiceDeps,
 ): BuilderLeadsService {
-  const { leadStore, audit, builders, billingHook } = deps;
+  const { leadStore, audit, builders, billingHook, invoiceSummaries } = deps;
 
   /**
    * Resolve the session's tenant key to the builder row. Every portal
@@ -150,6 +166,26 @@ export function createBuilderLeadsService(
       const records = await leadStore.listByBuilderId({
         builderId: builder.id,
       });
+
+      // Recorded-contract lookup: one tenant-scoped query, then a
+      // lead→invoice map. Absent in tests that don't cover it.
+      const summaries = invoiceSummaries
+        ? await invoiceSummaries.findByTenantKey(tenantKey)
+        : [];
+      const byLeadId = new Map<string, BuilderLeadInvoiceSummary>();
+      for (const summary of summaries) {
+        if (!byLeadId.has(summary.leadId)) {
+          byLeadId.set(summary.leadId, {
+            id: summary.id,
+            contractValueCents: summary.contractValueCents,
+            commissionCents: summary.commissionCents,
+            status: summary.status as CommissionInvoiceStatus,
+            reviewDueAt: summary.reviewDueAt
+              ? summary.reviewDueAt.toISOString()
+              : null,
+          });
+        }
+      }
 
       const summary = {
         total: records.length,
@@ -180,7 +216,9 @@ export function createBuilderLeadsService(
       }
 
       return {
-        leads: records.map(toListItem),
+        leads: records.map((record) =>
+          toListItem(record, byLeadId.get(record.id) ?? null),
+        ),
         summary,
       };
     },
@@ -233,6 +271,26 @@ export function createBuilderLeadsService(
 
       const oldStatus = record.status;
       const newStatus = parsed.data.status;
+
+      // Lead status lock (2026-09-29, Karan): once a signed contract is
+      // recorded (a commission invoice exists), the pipeline status is
+      // frozen — a won/recorded lead can never be flipped back. Rejected
+      // before any billing or write side effects.
+      if (
+        newStatus !== oldStatus &&
+        invoiceSummaries !== undefined &&
+        (await invoiceSummaries.hasInvoiceForLead({
+          leadId: id,
+          tenantKey: builder.tenantKey,
+        }))
+      ) {
+        throw new HttpError(
+          409,
+          ErrorCodes.LEAD_STATUS_LOCKED,
+          'Status is locked: a signed contract is already recorded for this lead.',
+          false,
+        );
+      }
 
       // Contract details are only meaningful on a won transition.
       const { contractValueCents, contractSignedAt } = parsed.data;

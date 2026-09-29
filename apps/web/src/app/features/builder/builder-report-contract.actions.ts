@@ -19,11 +19,6 @@ export class SubmitReportContract {
   ) {}
 }
 
-/** Returns the form to its pristine state after a successful report. */
-export class ResetReportContract {
-  static readonly type = '[BuilderReportContract] Reset';
-}
-
 /** Clears report-contract state (after logout). */
 export class ClearReportContractState {
   static readonly type = '[BuilderReportContract] Clear';

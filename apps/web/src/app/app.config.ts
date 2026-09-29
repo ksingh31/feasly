@@ -22,7 +22,6 @@ import { ConsentState } from './features/consent';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
 import { BuilderBillingState } from './features/builder/builder-billing.state';
-import { BuilderInvoicesState } from './features/builder/builder-invoices.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
 import { AnalyticsTrackerService } from './features/consent';
@@ -109,7 +108,10 @@ export const appConfig: ApplicationConfig = {
         // SheetsSyncState.
         BuilderState,
         BuilderBillingState,
-        BuilderInvoicesState,
+        // BuilderInvoicesState is NOT here: it lazy-loads at the
+        // `builder/invoices` route via lazyProvider (app.routes.ts) so the
+        // invoices state — and the builder copy it reads — stays out of the
+        // initial bundle.
         BuilderReportContractState,
         BuilderTeamState,
         AdminAuthState,

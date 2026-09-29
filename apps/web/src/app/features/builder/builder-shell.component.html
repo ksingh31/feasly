@@ -33,6 +33,9 @@
       <a routerLink="/builder/billing" routerLinkActive="active" (click)="closeMenu()">
         {{ copy.shellNavBilling }}
       </a>
+      <a routerLink="/builder/invoices" routerLinkActive="active" (click)="closeMenu()">
+        {{ copy.shellNavInvoices }}
+      </a>
       @if (isBuilderAdmin()) {
         <a routerLink="/builder/team" routerLinkActive="active" (click)="closeMenu()">
           {{ copy.teamNavLabel }}
@@ -49,7 +52,7 @@
           {{ orgName }}
         </a>
       }
-      <a routerLink="/builder/report-contract" routerLinkActive="active" (click)="closeMenu()">
+      <a routerLink="/builder/record-contract" routerLinkActive="active" (click)="closeMenu()">
         {{ copy.shellNavReportContract }}
       </a>
       @if (session(); as s) {

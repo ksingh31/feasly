@@ -38,20 +38,22 @@ async function setup(opts: SetupOpts = {}) {
     startSignIn: vi.fn().mockResolvedValue(undefined),
   };
   const seo = { setPage: vi.fn() };
+  // Builder copy under test: served as the deploy-time override so the
+  // component's real provideBuilderCopy() factory merges it over the defaults.
+  const builderCopy = {
+  loginHeading: 'Builder sign in',
+  loginExpired: EXPIRED_COPY,
+  entraSignInLabel: SIGN_IN_LABEL,
+  entraSignInIntro: INTRO_COPY,
+  entraRedirecting: 'Redirecting to Microsoft sign-in…',
+  entraNotConfigured: NOT_CONFIGURED_COPY,
+  };
   const config = {
     get: (section: string) =>
       section === 'copy'
-        ? {
-            builder: {
-              loginHeading: 'Builder sign in',
-              loginExpired: EXPIRED_COPY,
-              entraSignInLabel: SIGN_IN_LABEL,
-              entraSignInIntro: INTRO_COPY,
-              entraRedirecting: 'Redirecting to Microsoft sign-in…',
-              entraNotConfigured: NOT_CONFIGURED_COPY,
-            },
-          }
+        ? { builder: builderCopy }
         : {},
+    getServedBuilderCopy: () => builderCopy,
   };
   const route = {
     snapshot: {

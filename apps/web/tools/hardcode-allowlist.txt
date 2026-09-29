@@ -6,6 +6,13 @@
 # for when /assets/config/app-config.json is missing or malformed (FE0-002).
 apps/web/src/app/core/config/app-config.defaults.ts
 
+# Builder-portal copy defaults (BILL-04/Lighthouse): the lazy-loaded compiled
+# fallback for BUILDER_COPY, merged under deploy-time copy.builder overrides
+# from /assets/config/app-config.json by provideBuilderCopy(). Same rationale
+# as app-config.defaults.ts — kept out of the initial bundle so the
+# resource-summary budget stays green.
+apps/web/src/app/features/builder/builder-copy.defaults.ts
+
 # Canned fake data for the mock API harness (FE0-003): fixture figures and
 # copy are inherently literal — the conformance specs pin every value.
 apps/web/src/app/core/api/mock-data.ts
@@ -271,3 +278,11 @@ apps/web/src/app/shared/utils/datetime.ts
 # *.spec.ts files (excluded from this check by rule) and carries its own
 # poll/deadline timing constants — test scaffolding, not app tunables.
 apps/web/src/app/shared/test-helpers/entry-gate.harness.ts
+
+# Builder invoices pagination guard (billing/08): the `100`/`20` clamp
+# literals mirror the backend's zod contract on GET /api/v1/billing/invoices
+# (limit 1..100 in billing.route.ts) — an API-contract mirror, not a deploy
+# tunable; the `20` is the defensive fallback when config/state is corrupt.
+# Must stay in sync with the backend, never tuned independently. Pinned by
+# builder-invoices.component.spec.ts (wire-param assertions).
+apps/web/src/app/features/builder/builder-invoices.state.ts

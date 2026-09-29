@@ -17,12 +17,16 @@ import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { BuilderLeadListResponse } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderState } from './builder.state';
+
+const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 
 const LEADS_RESPONSE: BuilderLeadListResponse = {
   leads: [
     {
-      id: '11111111-1111-4111-8111-111111111111',
+      id: LEAD_ID,
       name: 'Jane Homeowner',
       email: 'jane@example.com',
       phone: '403-555-0101',
@@ -33,9 +37,29 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       addressKey: '123 Main St SW',
       projectType: 'new-build',
       createdAt: '2026-09-19T10:00:00.000Z',
+      hasInvoice: false,
+      invoiceSummary: null,
     },
   ],
   summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
+};
+
+const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
+  leads: [
+    {
+      ...LEADS_RESPONSE.leads[0],
+      status: 'won',
+      hasInvoice: true,
+      invoiceSummary: {
+        id: 'inv-1',
+        contractValueCents: 65000000,
+        status: 'in_review',
+        commissionCents: 650000,
+        reviewDueAt: '2026-10-06T23:59:59-06:00',
+      },
+    },
+  ],
+  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
 };
 
 const EMPTY_RESPONSE: BuilderLeadListResponse = {
@@ -48,6 +72,7 @@ async function setup() {
   TestBed.configureTestingModule({
     imports: [BuilderDashboardComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
@@ -124,7 +149,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     httpMock.verify();
   });
 
-  it('dispatches a status update when the per-lead control changes', async () => {
+  it('stages a status change without saving; Apply dispatches the PATCH', async () => {
     const { fixture, httpMock } = await setup();
     loadLeads(httpMock, LEADS_RESPONSE);
     fixture.detectChanges();
@@ -133,14 +158,31 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     const select = fixture.nativeElement.querySelector(
       '.builder-lead-card__status select',
     ) as HTMLSelectElement;
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
     expect(select).toBeTruthy();
     expect(select.value).toBe('new');
+    // No staged change yet: Apply is disabled.
+    expect(apply.disabled).toBe(true);
 
     select.value = 'won';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
 
+    // Selection alone saves nothing: no PATCH, badge still New.
+    httpMock.expectNone((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
+    );
+    let badge = fixture.nativeElement.querySelector(
+      '.builder-lead-card__badge--new',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('New');
+    expect(apply.disabled).toBe(false);
+
+    apply.click();
     const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/builder/leads/11111111-1111-4111-8111-111111111111'),
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
     );
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ status: 'won' });
@@ -149,8 +191,8 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     await fixture.whenStable();
 
     // The confirmed transition applies locally: badge flips to Won and the
-    // report-contract hint appears.
-    const badge = fixture.nativeElement.querySelector(
+    // record-contract CTA appears, carrying the lead id to the record page.
+    badge = fixture.nativeElement.querySelector(
       '.builder-lead-card__badge--won',
     ) as HTMLElement;
     expect(badge?.textContent?.trim()).toBe('Won');
@@ -158,9 +200,86 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
       '.builder-lead-card__won',
     ) as HTMLElement;
     expect(hint?.textContent).toContain('Signed a contract with this lead?');
-    expect(hint?.textContent).toContain('Report the contract');
-    const link = hint.querySelector('a[href="/builder/report-contract"]');
+    expect(hint?.textContent).toContain('Record the signed contract');
+    const link = hint.querySelector('a');
     expect(link).toBeTruthy();
+    expect(link?.getAttribute('href')).toContain('/builder/record-contract');
+    expect(link?.getAttribute('href')).toContain(LEAD_ID);
+    httpMock.verify();
+  });
+
+  it('reverts the staged select to the store value when the PATCH fails', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, LEADS_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = fixture.nativeElement.querySelector(
+      '.builder-lead-card__status select',
+    ) as HTMLSelectElement;
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
+    select.value = 'won';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    apply.click();
+
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
+    );
+    req.flush(
+      { code: 'LEAD_STATUS_FAILED', message: 'Update failed.', retryable: false },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Badge never moved; the staged pick is discarded so the select
+    // renders the store value — the two can never disagree.
+    const badge = fixture.nativeElement.querySelector(
+      '.builder-lead-card__badge--new',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('New');
+    expect(select.value).toBe('new');
+    httpMock.verify();
+  });
+
+  it('shows the recorded state with an invoice link for a recorded won lead', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector(
+      '.builder-lead-card',
+    ) as HTMLElement;
+    const text = card.textContent as string;
+    expect(text).toContain('Contract recorded');
+    expect(text).toContain('View your invoice');
+    expect(text).not.toContain('Record the signed contract');
+    const link = card.querySelector('a[href="/builder/invoices"]');
+    expect(link).toBeTruthy();
+    httpMock.verify();
+  });
+
+  it('locks the status control for a recorded lead: no select, no Apply', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector(
+      '.builder-lead-card',
+    ) as HTMLElement;
+    expect(card.querySelector('.builder-lead-card__status')).toBeNull();
+    expect(card.querySelector('.builder-lead-card__apply')).toBeNull();
+    expect(card.textContent).toContain('Status locked — contract recorded');
+    // The badge is read-only: Won, with no way to flip it back.
+    const badge = card.querySelector(
+      '.builder-lead-card__badge--won',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('Won');
     httpMock.verify();
   });
 
@@ -308,8 +427,13 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     const select = fixture.nativeElement.querySelector(
       '.builder-lead-card__status select',
     ) as HTMLSelectElement;
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-lead-card__apply',
+    ) as HTMLButtonElement;
     select.value = 'lost';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    apply.click();
 
     const req = httpMock.expectOne((r) =>
       r.url.endsWith('/api/v1/builder/leads/11111111-1111-4111-8111-111111111111'),

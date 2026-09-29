@@ -24,6 +24,8 @@ vi.mock('@stripe/stripe-js', () => ({
 }));
 
 import { BuilderBillingComponent } from './builder-billing.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -52,6 +54,7 @@ async function setup() {
   TestBed.configureTestingModule({
     imports: [BuilderBillingComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
@@ -112,7 +115,7 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain('We couldn’t load your billing details.');
   });
 
-  it('renders the billing tabs with the card tab active', async () => {
+  it('renders no tabs: billing is card-on-file only (invoices moved top-level)', async () => {
     const { fixture, httpMock } = await setup();
     httpMock
       .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
@@ -120,19 +123,8 @@ describe('BuilderBillingComponent (billing/02)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const tabs = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-billing__tab'),
-    ) as HTMLElement[];
-    expect(tabs.map((t) => t.textContent.trim())).toEqual([
-      'Card on file',
-      'Invoices',
-    ]);
-    expect(tabs[0].classList.contains('builder-billing__tab--active')).toBe(
-      true,
-    );
-    expect(tabs[1].classList.contains('builder-billing__tab--active')).toBe(
-      false,
-    );
+    const tabs = fixture.nativeElement.querySelectorAll('.builder-billing__tab');
+    expect(tabs.length).toBe(0);
   });
 
   it('renders the loading skeleton while the card status is in flight', async () => {
@@ -203,6 +195,7 @@ describe('BuilderBillingComponent (billing/02)', () => {
     TestBed.configureTestingModule({
       imports: [BuilderBillingComponent],
       providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),

@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BuilderEntraAuthService } from './builder-entra-auth.service';
 
 /**
@@ -24,6 +24,7 @@ import { BuilderEntraAuthService } from './builder-entra-auth.service';
 @Component({
   selector: 'app-builder-login',
   standalone: true,
+  providers: [provideBuilderCopy()],
   templateUrl: './builder-login.component.html',
   styleUrls: ['./builder-login.component.scss'],
 })
@@ -31,7 +32,7 @@ export class BuilderLoginComponent {
   protected readonly entra = inject(BuilderEntraAuthService);
   protected readonly seo = inject(SeoService);
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly showExpired =
     inject(ActivatedRoute).snapshot.queryParamMap.get('expired') === '1';

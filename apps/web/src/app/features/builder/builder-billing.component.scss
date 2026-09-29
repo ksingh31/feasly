@@ -9,33 +9,6 @@
   max-width: 56rem;
 }
 
-/* Admin-style underline tabs (mirrors leads-page__tabs). */
-.builder-billing__tabs {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--color-border, #e5e0d8);
-}
-
-.builder-billing__tab {
-  display: inline-block;
-  padding: 0.625rem 1rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--color-text-muted, #6b6257);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-
-  &:hover {
-    color: inherit;
-  }
-}
-
-.builder-billing__tab--active {
-  color: var(--color-text, #2b2620);
-  border-bottom-color: var(--color-accent, #a8761a);
-}
-
 .builder-billing__header h1 {
   margin: 0;
   font-size: 1.5rem;

@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type { BuilderLeadListItem, BuilderLeadStatus } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 
@@ -36,7 +36,7 @@ export class BuilderDashboardComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly summary = this.store.selectSignal(BuilderState.summary);
@@ -78,14 +78,6 @@ export class BuilderDashboardComponent implements OnInit {
       .subscribe();
   }
 
-  protected setStatus(leadId: string, status: BuilderLeadStatus): void {
-    if (this.updatingLeadId() !== null) return;
-    this.store
-      .dispatch(new UpdateBuilderLeadStatus(leadId, status))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
   /** Pipeline totals row: clicking a status filters the list to it; 'all' clears. */
   protected filterByStatus(status: BuilderLeadStatus | 'all'): void {
     const current = this.statusFilter();
@@ -100,6 +92,70 @@ export class BuilderDashboardComponent implements OnInit {
   /** True while this lead's status update is in flight. */
   protected isUpdating(leadId: string): boolean {
     return this.updatingLeadId() === leadId;
+  }
+
+  /**
+   * Pending (unapplied) status selections, keyed by lead id. Selecting a
+   * status never saves — it only stages the choice here; the Apply button
+   * performs the actual PATCH. This is Karan's explicit order (2026-09-29):
+   * no auto-save on selection anywhere in the app.
+   */
+  protected readonly pendingStatus = signal<Record<string, BuilderLeadStatus>>(
+    {},
+  );
+
+  /** The value the select renders: the pending pick, or the store value. */
+  protected pendingStatusFor(lead: BuilderLeadListItem): BuilderLeadStatus {
+    return this.pendingStatus()[lead.id] ?? lead.status;
+  }
+
+  /**
+   * The Apply button is enabled only when the staged selection differs
+   * from the stored status and no save is in flight.
+   */
+  protected canApplyLeadStatus(lead: BuilderLeadListItem): boolean {
+    return (
+      this.pendingStatusFor(lead) !== lead.status &&
+      this.updatingLeadId() === null
+    );
+  }
+
+  /** Stages a status choice without saving (template-bound). */
+  protected onLeadStatusSelect(leadId: string, value: string): void {
+    const status = value as BuilderLeadStatus;
+    this.pendingStatus.update((pending) => ({ ...pending, [leadId]: status }));
+  }
+
+  /**
+   * Saves the staged status for one lead (Apply button, template-bound).
+   * Clears the staged choice on completion — on success the store value
+   * matches the pick, on failure the select reverts to the stored status,
+   * so badge and dropdown can never disagree.
+   */
+  protected applyLeadStatus(leadId: string): void {
+    const pending = this.pendingStatus()[leadId];
+    const lead = this.leads().find((l) => l.id === leadId);
+    // Recorded leads are locked: never dispatch a status change for them
+    // (the backend rejects it too — this is the UI-side guard).
+    if (!lead || lead.hasInvoice || pending === undefined || pending === lead.status) {
+      this.clearPendingStatus(leadId);
+      return;
+    }
+    this.store
+      .dispatch(new UpdateBuilderLeadStatus(leadId, pending))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.clearPendingStatus(leadId));
+  }
+
+  private clearPendingStatus(leadId: string): void {
+    this.pendingStatus.update((pending) => {
+      if (!(leadId in pending)) {
+        return pending;
+      }
+      const next = { ...pending };
+      delete next[leadId];
+      return next;
+    });
   }
 
   /** True when the list is loaded but the filter matches nothing. */
@@ -125,12 +181,6 @@ export class BuilderDashboardComponent implements OnInit {
   protected onFilterChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     this.statusFilter.set(value as BuilderLeadStatus | 'all');
-  }
-
-  /** Per-lead status-select change handler (template-bound). */
-  protected onLeadStatusChange(event: Event, leadId: string): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.setStatus(leadId, value as BuilderLeadStatus);
   }
 
   /** Avatar initials from the lead name (first letters of first/last word). */

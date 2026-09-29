@@ -10,7 +10,7 @@ import {
 import { filter } from 'rxjs';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
-import { ConfigService } from '../../core/config/config.service';
+import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { LogoutBuilder } from './builder.actions';
 import { BuilderState } from './builder.state';
@@ -33,6 +33,7 @@ import { BuilderState } from './builder.state';
     RouterLinkActive,
     RouterOutlet,
   ],
+  providers: [provideBuilderCopy()],
   templateUrl: './builder-shell.component.html',
   styleUrls: ['./builder-shell.component.scss'],
 })
@@ -43,7 +44,7 @@ export class BuilderShellComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
-  protected readonly copy = inject(ConfigService).get('copy').builder;
+  protected readonly copy = inject(BUILDER_COPY);
 
   protected readonly session = this.store.selectSignal(BuilderState.session);
   protected readonly activeOrgName = this.store.selectSignal(

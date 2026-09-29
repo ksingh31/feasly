@@ -49,6 +49,8 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       addressKey: '123 Main St SW',
       projectType: 'new-build',
       createdAt: '2026-09-19T10:00:00.000Z',
+      hasInvoice: false,
+      invoiceSummary: null,
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -62,6 +64,8 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       addressKey: '456 Oak Ave NW',
       projectType: 'reno',
       createdAt: '2026-09-18T10:00:00.000Z',
+      hasInvoice: false,
+      invoiceSummary: null,
     },
   ],
   summary: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0 },

@@ -10,11 +10,11 @@
  * httpOnly `Set-Cookie` for a same-origin future. The client only ever
  * sees the opaque magic-link token from the email URL before that.
  */
+import type { CommissionInvoiceStatus } from './billing';
 
 export interface BuilderAuthRequestBody {
   readonly email: string;
 }
-
 export interface BuilderAuthRequestResponse {
   /**
    * Always true — the response is identical for allowlisted and
@@ -87,6 +87,23 @@ export type BuilderLeadStatus =
   | 'won'
   | 'lost';
 
+/**
+ * Display-safe summary of the commission invoice for a recorded contract.
+ * Lets the builder portal show "already recorded" state without fetching
+ * the invoice list (picker filtering, lead-card CTA swap, already-recorded
+ * card). No money math here — the invoice is the source of truth.
+ */
+export interface BuilderLeadInvoiceSummary {
+  readonly id: string;
+  /** Signed construction contract value, integer cents, excl. land. */
+  readonly contractValueCents: number;
+  /** round(contractValueCents * rate), integer cents. */
+  readonly commissionCents: number;
+  readonly status: CommissionInvoiceStatus;
+  /** draft created + 7 days — the builder's review/dispute window. */
+  readonly reviewDueAt: string | null;
+}
+
 export interface BuilderLeadListItem {
   readonly id: string;
   readonly name: string;
@@ -100,6 +117,10 @@ export interface BuilderLeadListItem {
   readonly addressKey: string;
   readonly projectType: string;
   readonly createdAt: string;
+  /** True when a commission invoice exists for this lead (contract recorded). */
+  readonly hasInvoice: boolean;
+  /** Invoice summary when hasInvoice is true, null otherwise. */
+  readonly invoiceSummary: BuilderLeadInvoiceSummary | null;
 }
 
 export interface BuilderLeadListResponse {

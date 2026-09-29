@@ -6,7 +6,7 @@
     </p>
   </header>
 
-  <!-- Explainer card: what reporting a won deal means. -->
+  <!-- Explainer card: what recording a signed contract means. -->
   <section
     class="builder-report-contract__card"
     aria-labelledby="report-contract-what-happens"
@@ -20,7 +20,7 @@
   </section>
 
   @if (isSuccess()) {
-    <!-- Success confirmation: the backend's billing outcome + next steps. -->
+    <!-- Success confirmation: the minted invoice card + next steps. -->
     <section
       class="builder-report-contract__card builder-report-contract__feedback builder-report-contract__feedback--ok"
       role="status"
@@ -30,14 +30,76 @@
         {{ copy.reportContractSuccessTitle }}
       </h2>
       <p>{{ outcomeCopy() }}</p>
+      @if (invoice(); as inv) {
+        <dl class="builder-report-contract__invoice">
+          <div>
+            <dt>{{ copy.invoicesColCommission }}</dt>
+            <dd>{{ money(inv.commissionCents) }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.recordContractReviewDeadline }}</dt>
+            <dd>{{ formatEdmontonDate(inv.reviewDueAt) }}</dd>
+          </div>
+          @if (autoChargeCountdown(inv.reviewDueAt); as countdown) {
+            <div>
+              <dt>{{ copy.recordContractAutoCharge }}</dt>
+              <dd>{{ countdown }}</dd>
+            </div>
+          }
+        </dl>
+      }
       <div class="builder-report-contract__actions">
-        <button
-          type="button"
+        <a
           class="builder-report-contract__btn builder-report-contract__btn--primary"
-          (click)="reportAnother()"
+          [routerLink]="['/builder/invoices']"
+          [queryParams]="{ invoice: invoice()?.id }"
+          >{{ copy.recordContractViewInvoice }}</a
         >
-          {{ copy.reportContractReportAnother }}
-        </button>
+        <a class="builder-report-contract__btn" routerLink="/builder">{{
+          copy.recordContractBackToLeads
+        }}</a>
+      </div>
+    </section>
+  } @else if (isAlreadyRecorded()) {
+    <!-- Already recorded: the invoice status card, no form, no resubmit. -->
+    <section
+      class="builder-report-contract__card builder-report-contract__feedback"
+      role="status"
+      aria-labelledby="report-contract-recorded-title"
+    >
+      <h2 id="report-contract-recorded-title">
+        {{ copy.recordContractAlreadyRecordedTitle }}
+      </h2>
+      <p>{{ copy.recordContractAlreadyRecordedBody }}</p>
+      @if (selectedInvoiceSummary(); as summary) {
+        <dl class="builder-report-contract__invoice">
+          <div>
+            <dt>{{ copy.invoicesColCommission }}</dt>
+            <dd>{{ money(summary.commissionCents) }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.recordContractReviewDeadline }}</dt>
+            <dd>{{ formatEdmontonDate(summary.reviewDueAt) }}</dd>
+          </div>
+          @let countdown = autoChargeCountdown(summary.reviewDueAt);
+          @if (countdown) {
+            <div>
+              <dt>{{ copy.recordContractAutoCharge }}</dt>
+              <dd>{{ countdown }}</dd>
+            </div>
+          }
+        </dl>
+      }
+      <div class="builder-report-contract__actions">
+        <a
+          class="builder-report-contract__btn builder-report-contract__btn--primary"
+          [routerLink]="['/builder/invoices']"
+          [queryParams]="{ invoice: selectedInvoiceSummary()?.id }"
+          >{{ copy.recordContractViewInvoice }}</a
+        >
+        <a class="builder-report-contract__btn" routerLink="/builder">{{
+          copy.recordContractBackToLeads
+        }}</a>
       </div>
     </section>
   } @else {
@@ -74,6 +136,19 @@
           {{ copy.reportContractLeadsEmpty }}
         </p>
       </div>
+    } @else if (reportableLeads().length === 0) {
+      <div class="builder-report-contract__card">
+        <p class="builder-report-contract__muted">
+          {{ copy.recordContractNoReportableLeads }}
+        </p>
+        <div class="builder-report-contract__actions">
+          <a
+            class="builder-report-contract__btn"
+            routerLink="/builder/invoices"
+            >{{ copy.recordContractViewInvoice }}</a
+          >
+        </div>
+      </div>
     } @else {
       <section
         class="builder-report-contract__card"
@@ -95,7 +170,7 @@
               <option value="" disabled>
                 {{ copy.contractLeadPlaceholder }}
               </option>
-              @for (lead of leads(); track lead.id) {
+              @for (lead of reportableLeads(); track lead.id) {
                 <option [value]="lead.id">{{ leadLabel(lead.id) }}</option>
               }
             </select>
@@ -133,12 +208,6 @@
             >
               {{ copy.reportContractValueHint }}
             </p>
-            @if (liveCommission(); as commission) {
-              <p class="builder-report-contract__estimate">
-                {{ copy.contractEstimatedCommission }}:
-                <strong>{{ commission }}</strong>
-              </p>
-            }
             @if (showFieldError(form.controls.contractValue)) {
               @if (contractValueError(); as valueError) {
                 <p class="builder-report-contract__field-error" role="alert">
@@ -146,6 +215,34 @@
                 </p>
               }
             }
+          </div>
+
+          <!-- Always-visible commission panel: the 1% due, live as the
+               builder types. Never hidden — $0.00 on the empty form. -->
+          <div
+            class="builder-report-contract__commission"
+            role="status"
+            aria-label="{{ copy.contractEstimatedCommission }}"
+          >
+            <p class="builder-report-contract__commission-label">
+              {{ copy.contractEstimatedCommission }}
+            </p>
+            <p class="builder-report-contract__commission-figure">
+              {{ liveCommission() }}
+            </p>
+            <p class="builder-report-contract__commission-sub">
+              {{ copy.contractCommissionPanelSub }}
+            </p>
+            <dl class="builder-report-contract__commission-rows">
+              <div>
+                <dt>{{ copy.contractCommissionContractValue }}</dt>
+                <dd>{{ liveContractValue() }}</dd>
+              </div>
+              <div>
+                <dt>{{ copy.contractCommissionRate }}</dt>
+                <dd>1%</dd>
+              </div>
+            </dl>
           </div>
 
           <div class="builder-report-contract__field">

@@ -47,6 +47,8 @@ async function setup(isAdmin = true) {
   const configStub = {
     get: (section: keyof typeof DEFAULT_APP_CONFIG) =>
       DEFAULT_APP_CONFIG[section],
+    // Served app-config.json had no copy.builder overrides in this test.
+    getServedBuilderCopy: () => null,
   } as unknown as ConfigService;
 
   const store = {
@@ -183,10 +185,11 @@ describe('BuilderShellComponent', () => {
       .map((d) => (d.nativeElement as HTMLAnchorElement).getAttribute('href'));
     for (const expected of [
       '/builder',
+      '/builder/invoices',
+      '/builder/record-contract',
       '/builder/billing',
       '/builder/team',
       '/builder/org-picker',
-      '/builder/report-contract',
     ]) {
       expect(hrefs).toContain(expected);
     }

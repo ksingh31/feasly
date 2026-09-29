@@ -16,22 +16,52 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideStore } from '@ngxs/store';
 import { describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
-import type { BuilderLeadListResponse } from '@feasly/contracts';
+import type {
+  BuilderLeadInvoiceSummary,
+  BuilderLeadListResponse,
+  CommissionInvoice,
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderState } from './builder.state';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
+import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderReportContractComponent } from './builder-report-contract.component';
+import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { dateOnlyToIsoWithOffset } from '../../shared/utils/datetime';
 import { parseCadDollarsToCents } from '../../shared/utils/money';
 import { BuilderReportContractState } from './builder-report-contract.state';
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
+const RECORDED_LEAD_ID = '22222222-2222-4222-8222-222222222222';
+
+const INVOICE: CommissionInvoice = {
+  id: 'inv-1',
+  tenantKey: 'tenant-1',
+  attributionId: 'attr-1',
+  leadId: LEAD_ID,
+  contractValueCents: 65000000,
+  commissionCents: 650000,
+  currency: 'CAD',
+  stripePaymentIntentId: null,
+  status: 'in_review',
+  reviewDueAt: '2026-10-06T23:59:59-06:00',
+  finalizedAt: null,
+  paidAt: null,
+  slaBreached: false,
+  disputeReason: null,
+  commissionRateOverride: null,
+  manualPaymentMethod: null,
+  paymentReference: null,
+  createdAt: '2026-09-29T10:00:00.000Z',
+  updatedAt: '2026-09-29T10:00:00.000Z',
+};
 
 const LEADS_RESPONSE: BuilderLeadListResponse = {
   leads: [
@@ -47,9 +77,26 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       addressKey: '123 Main St SW',
       projectType: 'new-build',
       createdAt: '2026-09-19T10:00:00.000Z',
+      hasInvoice: false,
+      invoiceSummary: null,
+    },
+    {
+      id: RECORDED_LEAD_ID,
+      name: 'Bob Builder',
+      email: 'bob@example.com',
+      phone: '403-555-0202',
+      timeline: '1–3 months',
+      leadScore: 91,
+      status: 'won',
+      statusUpdatedAt: '2026-09-21T10:00:00.000Z',
+      addressKey: '456 Oak Ave NW',
+      projectType: 'new-build',
+      createdAt: '2026-09-18T10:00:00.000Z',
+      hasInvoice: true,
+      invoiceSummary: INVOICE,
     },
   ],
-  summary: { total: 1, new: 0, contacted: 0, quoted: 1, won: 0, lost: 0 },
+  summary: { total: 2, new: 0, contacted: 0, quoted: 1, won: 1, lost: 0 },
 };
 
 async function setup(
@@ -58,6 +105,7 @@ async function setup(
   ) => ReturnType<BuilderBillingApiService['reportContract']>,
   leadsImpl: () => ReturnType<BuilderLeadsApiService['listLeads']> = () =>
     of(LEADS_RESPONSE),
+  leadQueryParam: string | null = null,
 ) {
   TestBed.resetTestingModule();
   const calls: unknown[] = [];
@@ -66,10 +114,22 @@ async function setup(
     return reportContractImpl(body);
   });
   const listLeads = vi.fn(leadsImpl);
+  const getInvoice = vi.fn((_id: string) => of(INVOICE));
   TestBed.configureTestingModule({
     imports: [BuilderReportContractComponent],
     providers: [
+      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          snapshot: {
+            queryParamMap: leadQueryParam
+              ? convertToParamMap({ lead: leadQueryParam })
+              : convertToParamMap({}),
+          },
+        },
+      },
       provideHttpClient(),
       provideHttpClientTesting(),
       provideStore([BuilderState, BuilderReportContractState]),
@@ -87,6 +147,10 @@ async function setup(
         provide: BuilderBillingApiService,
         useValue: { reportContract },
       },
+      {
+        provide: BuilderInvoicesApiService,
+        useValue: { getInvoice },
+      },
     ],
   });
   const fixture: ComponentFixture<BuilderReportContractComponent> =
@@ -94,7 +158,7 @@ async function setup(
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, calls, listLeads };
+  return { fixture, calls, listLeads, getInvoice };
 }
 
 function setSelect(
@@ -288,7 +352,7 @@ describe('BuilderReportContractComponent', () => {
     await submitForm(fixture);
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('already reported');
+    expect(text).toContain('This contract is already recorded — nothing more to do.');
   });
 
   it('renders the explainer card, form card, and labeled fields', async () => {
@@ -300,30 +364,114 @@ describe('BuilderReportContractComponent', () => {
     expect(text).toContain('What happens next');
     expect(text).toContain('auto-charges 7 days later unless disputed');
     // Form card + labeled inputs.
-    expect(text).toContain('Report details');
+    expect(text).toContain('Record details');
     expect(text).toContain('Which lead signed?');
     expect(text).toContain('Contract value (CAD, excluding land)');
     expect(text).toContain('Date the contract was signed');
     expect(text).toContain('Select a lead…');
   });
 
-  it('shows the live 1% commission estimate as the value is typed', async () => {
+  it('shows the always-visible commission panel with $0.00 before entry', async () => {
+    const { fixture } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Your commission (1%)');
+    expect(text).toContain('$0.00');
+  });
+
+  it('updates the live 1% commission figure as the value is typed', async () => {
     const { fixture } = await setup(() =>
       of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
     );
     setInput(fixture, 'report-contract-value', '650000');
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Estimated commission (1%)');
+    expect(text).toContain('Your commission (1%)');
     expect(text).toContain('$6,500');
+    expect(text).toContain('$650,000');
   });
 
-  it('hides the commission estimate until the amount is valid', async () => {
+  it('shows $0.00 in the commission panel for an invalid amount', async () => {
     const { fixture } = await setup(() =>
       of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
     );
     setInput(fixture, 'report-contract-value', 'not-a-number');
     const text = fixture.nativeElement.textContent as string;
-    expect(text).not.toContain('Estimated commission (1%)');
+    expect(text).toContain('Your commission (1%)');
+    expect(text).toContain('$0.00');
+  });
+
+  it('filters recorded leads out of the picker', async () => {
+    const { fixture } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    const options = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '#report-contract-lead option',
+      ) as NodeListOf<HTMLOptionElement>,
+    ).map((o) => o.textContent ?? '');
+    expect(options.some((o) => o.includes('Jane Homeowner'))).toBe(true);
+    expect(options.some((o) => o.includes('Bob Builder'))).toBe(false);
+  });
+
+  it('pre-selects the lead passed as a query param', async () => {
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(LEADS_RESPONSE),
+      LEAD_ID,
+    );
+    const select = fixture.nativeElement.querySelector(
+      '#report-contract-lead',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe(LEAD_ID);
+  });
+
+  it('shows the already-recorded state instead of the form for a recorded lead', async () => {
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(LEADS_RESPONSE),
+      RECORDED_LEAD_ID,
+    );
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('already recorded');
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(text).toContain('$6,500');
+    expect(text).toContain('View invoice');
+    expect(text).toContain('Back to leads');
+    expect(text).not.toContain('Report another contract');
+  });
+
+  it('shows the no-reportable-leads message when every lead is recorded', async () => {
+    const recordedOnly: BuilderLeadListResponse = {
+      leads: [LEADS_RESPONSE.leads[1]],
+      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+    };
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(recordedOnly),
+    );
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Every lead already has a recorded contract');
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+  });
+
+  it('shows the invoice card with review deadline and auto-charge on success', async () => {
+    const { fixture, getInvoice } = await setup(() =>
+      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+    );
+    fillValidForm(fixture);
+    await submitForm(fixture);
+
+    expect(getInvoice).toHaveBeenCalledWith('inv-1');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Contract recorded');
+    expect(text).toContain('$6,500');
+    expect(text).toContain('Oct 6, 2026');
+    // Date-dependent: just assert the auto-charge countdown is shown.
+    expect(text).toContain('Auto-charges');
+    expect(text).toContain('View invoice');
+    expect(text).toContain('Back to leads');
+    expect(text).not.toContain('Report another contract');
   });
 
   it('retries the submit from the API-error state', async () => {
