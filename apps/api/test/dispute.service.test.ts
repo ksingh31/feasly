@@ -44,6 +44,7 @@ import {
   type EmbedBillingHookService,
 } from '../src/services/billing/embed-billing-hook.service';
 import { createBillingService } from '../src/services/billing/billing.service';
+import type { BuilderService } from '../src/services/builder.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
 import type { OpsAlertsService } from '../src/services/ops-alerts.service';
@@ -597,9 +598,13 @@ describe('dispute service', () => {
     const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
 
     const billing = createBillingService({
-      // disputeInvoice never touches the lead store; the cast keeps this
-      // focused test from stubbing the whole LeadStore surface.
+      // disputeInvoice never touches the lead store or the builder
+      // resolution; the casts keep this focused test from stubbing the
+      // whole LeadStore / BuilderService surfaces.
       leadStore: {} as unknown as import('../src/services/lead.store').LeadStore,
+      builders: {
+        getByTenantKey: async () => null,
+      } as unknown as Pick<BuilderService, 'getByTenantKey'>,
       billingHook: f.hook,
       commission: f.commission,
       disputes: f.disputes,
