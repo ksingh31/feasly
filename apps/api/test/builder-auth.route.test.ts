@@ -34,14 +34,33 @@ function makeService() {
   };
 }
 
+function makePermissionGuard() {
+  return {
+    getAuthContext: vi.fn().mockResolvedValue(null),
+  };
+}
+
 function makeRoute() {
   const builderAuth = makeService();
+  const permissionGuard = makePermissionGuard();
   const route = createBuilderAuthRoute({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     builderAuth: builderAuth as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    permissionGuard: permissionGuard as any,
     builderSessionTtlSeconds: SESSION_TTL,
   });
-  return { route, builderAuth };
+  return { route, builderAuth, permissionGuard };
+}
+
+function authContext(role: 'builder_admin' | 'builder_member') {
+  return {
+    builderId: 'builder-1',
+    memberships: [
+      { builderId: 'builder-1', role, createdAt: new Date() },
+      { builderId: 'builder-2', role: 'builder_member' as const, createdAt: new Date() },
+    ],
+  };
 }
 
 describe('builder auth route — bearer conformance (embed/09)', () => {
@@ -57,15 +76,58 @@ describe('builder auth route — bearer conformance (embed/09)', () => {
     expect(builderAuth.verifyMagicLink).toHaveBeenCalledWith('tok');
   });
 
-  it('me accepts a Bearer <redacted>', async () => {
-    const { route, builderAuth } = makeRoute();
+  it('me accepts a Bearer <redacted> — role null when no active membership', async () => {
+    const { route, builderAuth, permissionGuard } = makeRoute();
     const result = await route.me({ authorization: 'Bearer bearer-tok' });
     expect(result).toEqual({
       authenticated: true,
       email: 'builder@example.com',
       tenantKey: 'elite-craft',
+      role: null,
     });
     expect(builderAuth.validateSession).toHaveBeenCalledWith('bearer-tok');
+    expect(permissionGuard.getAuthContext).toHaveBeenCalledWith({
+      authorization: 'Bearer bearer-tok',
+    });
+  });
+
+  it('me returns the builder_admin role of the active org', async () => {
+    const { route, permissionGuard } = makeRoute();
+    permissionGuard.getAuthContext.mockResolvedValue(authContext('builder_admin'));
+    const result = await route.me({ authorization: 'Bearer bearer-tok' });
+    expect(result.role).toBe('builder_admin');
+  });
+
+  it('me returns the builder_member role of the active org', async () => {
+    const { route, permissionGuard } = makeRoute();
+    permissionGuard.getAuthContext.mockResolvedValue(authContext('builder_member'));
+    const result = await route.me({ authorization: 'Bearer bearer-tok' });
+    expect(result.role).toBe('builder_member');
+  });
+
+  it('me returns role null when the auth context carries no active-builder membership', async () => {
+    const { route, permissionGuard } = makeRoute();
+    // Active builder is not among the user's memberships (e.g. membership
+    // removed while the session still scopes to it).
+    permissionGuard.getAuthContext.mockResolvedValue({
+      builderId: 'builder-3',
+      memberships: [
+        { builderId: 'builder-1', role: 'builder_admin', createdAt: new Date() },
+      ],
+    });
+    const result = await route.me({ authorization: 'Bearer bearer-tok' });
+    expect(result.role).toBeNull();
+    expect(result.authenticated).toBe(true);
+  });
+
+  it('me with an expired session → 401 SESSION_EXPIRED', async () => {
+    const { route, builderAuth } = makeRoute();
+    builderAuth.validateSession.mockResolvedValue(null);
+    builderAuth.isSessionExpired.mockResolvedValue(true);
+    await expect(route.me({ authorization: 'Bearer stale' })).rejects.toMatchObject({
+      status: 401,
+      code: 'SESSION_EXPIRED',
+    });
   });
 
   it('me still accepts the session cookie', async () => {

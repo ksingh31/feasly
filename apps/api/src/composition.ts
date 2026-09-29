@@ -1178,16 +1178,14 @@ export function createComposition(
         `builder-auth: magic-link email send failed (error=${sanitizeErrorMessage(error)})`,
       ),
   });
-  const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
-    builderAuth: builderAuthService,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
-  });
   const builderGuard: BuilderGuard = createSessionBuilderGuard({
     builderAuth: builderAuthService,
   });
   // auth/04 — permission model + enforcement. The AuthContextService is the
   // single place that turns a session into effective permissions and the
   // server-side builder tenant; the PermissionGuard enforces it in routes.
+  // Created BEFORE the builder auth route: GET /me resolves the
+  // server-authoritative active-org role through the permission guard.
   const authContextService: AuthContextService = createAuthContextService({
     adminSessions: adminSessionStore,
     builderAuth: builderAuthService,
@@ -1198,6 +1196,11 @@ export function createComposition(
   });
   const permissionGuard: PermissionGuard = createPermissionGuard({
     authContext: authContextService,
+  });
+  const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
+    builderAuth: builderAuthService,
+    permissionGuard,
+    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
   });
   // auth/05 — builder Entra External ID sign-in (organization accounts).
   // Separate External ID app/user flow from admin (`config.builderEntraSignIn`).

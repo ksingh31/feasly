@@ -23,6 +23,7 @@ const SESSION: BuilderAuthMeResponse = {
   authenticated: true,
   email: 'builder@example.com',
   tenantKey: 'elite-craft',
+  role: 'builder_admin',
 };
 
 async function setup() {

@@ -81,8 +81,10 @@ export class BuilderAuthApiService {
    *
    * auth/05: carries the session's org context (active builder, role,
    * memberships) — the shell renders the org switcher and team nav from
-   * it. Display only; the backend stays authoritative. Fields are null
-   * until the backend enriches `/me`; the UI treats missing org context
+   * it. Display only; the backend stays authoritative. The role arrives
+   * server-side on every `/me` probe, so a stale client state can never
+   * hide the Team nav from a builder_admin. Fields stay null until the
+   * backend enriches them; the UI treats missing org context
    * as "no org chosen yet".
    */
   me(): Observable<BuilderSessionIdentity> {
@@ -99,7 +101,7 @@ export class BuilderAuthApiService {
               name: null,
               builderId: response.tenantKey,
               builderName: null,
-              role: null,
+              role: response.role,
               memberships: [],
             }),
           ),
