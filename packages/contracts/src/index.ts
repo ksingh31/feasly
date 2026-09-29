@@ -16,6 +16,7 @@ export * from './share';
 export * from './events';
 export * from './embed';
 export * from './community';
+export * from './city-data';
 export * from './error';
 export * from './registry';
 export * from './privacy';

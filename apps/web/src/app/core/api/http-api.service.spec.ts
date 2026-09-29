@@ -160,6 +160,12 @@ describe('HttpApiService', () => {
       method: 'POST',
       url: `${BASE}/events`,
     },
+    {
+      name: 'getCityDataFreshness',
+      call: (api) => api.getCityDataFreshness(),
+      method: 'GET',
+      url: `${BASE}/city-data/freshness`,
+    },
   ];
 
   for (const c of cases) {

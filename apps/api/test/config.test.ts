@@ -120,6 +120,15 @@ describe('loadConfig', () => {
         searchRowLimit: 50,
         suggestionLimit: 8,
       },
+      // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
+      // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
+      // successful fetches only.
+      cityDataFreshness: {
+        socrataBaseUrl: 'https://data.calgary.ca',
+        datasetId: '4bsw-nn7w',
+        httpTimeoutMs: 15_000,
+        cacheTtlMs: 86_400_000,
+      },
       billing: {
         model: 'commission',
         commissionRate: 0.01,

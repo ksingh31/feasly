@@ -13,6 +13,7 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  CityDataFreshnessResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -111,6 +112,17 @@ export class HttpApiService implements ApiService {
     const path = `/communities/${encodeURIComponent(slug)}/stats`;
     return this.call(
       this.http.get<CommunityStats>(`${this.base}${path}`),
+    );
+  }
+
+  /**
+   * City-data freshness (trust-strip/01): GET /api/v1/city-data/freshness.
+   * The backend never 500s this route — a null refreshedMonth is the
+   * honest "unknown" answer, not an error.
+   */
+  getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
+    return this.call(
+      this.http.get<CityDataFreshnessResponse>(`${this.base}/city-data/freshness`),
     );
   }
 

@@ -309,7 +309,9 @@
 
   .trust-item {
     text-align: left;
-    padding: 20px 0;
+    /* trust-strip/01: 17.5px top + 17.5px bottom = 35px item spacing on
+       mobile (390px). Desktop padding is unchanged. */
+    padding: 17.5px 0;
   }
 
   .trust-item:first-child {

@@ -315,6 +315,14 @@ import {
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
 import {
+  createCityDataFreshnessRoute,
+  type CityDataFreshnessRoute,
+} from './routes/city-data-freshness.route';
+import {
+  createCityDataFreshnessService,
+  type CityDataFreshnessService,
+} from './services/city-data-freshness.service';
+import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
@@ -612,6 +620,9 @@ export interface AppComposition {
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
   readonly communityStatsRoute: CommunityStatsRoute;
+  /** City-data freshness for the landing trust strip (trust-strip/01): fetch-only, no db. */
+  readonly cityDataFreshnessService: CityDataFreshnessService;
+  readonly cityDataFreshnessRoute: CityDataFreshnessRoute;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
@@ -1378,6 +1389,14 @@ export function createComposition(
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
     communityStats: communityStatsService,
   });
+  // City-data freshness (trust-strip/01): the landing trust strip's
+  // "Refreshed <Month Year>" item, derived from the Socrata dataset
+  // metadata. Fetch-only service (no db); 24h in-memory cache on successful
+  // fetches; null on Socrata failure (route answers 200, never 500).
+  const cityDataFreshnessService: CityDataFreshnessService =
+    createCityDataFreshnessService(config.cityDataFreshness);
+  const cityDataFreshnessRoute: CityDataFreshnessRoute =
+    createCityDataFreshnessRoute({ freshness: cityDataFreshnessService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
@@ -1781,6 +1800,8 @@ export function createComposition(
     narrativeRoute,
     communityStatsService,
     communityStatsRoute,
+    cityDataFreshnessService,
+    cityDataFreshnessRoute,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
     adminAuditStore,

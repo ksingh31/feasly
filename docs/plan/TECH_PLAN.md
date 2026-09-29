@@ -1281,6 +1281,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/unsubscribe/{token}` | magic-token | — | 100/min per IP | live | Unsubscribe landing state (token IS the credential). |
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live | Record the opt-out (CASL). |
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
+| GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live | City of Calgary assessment dataset freshness (landing trust strip): "Refreshed <Month Year>" from the Socrata dataset metadata (rowsUpdatedAt). 24h in-memory cache on successful fetches; Socrata failure answers 200 { refreshedMonth: null } (never 5xx). |
 | GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public embed config (?key=tenant). Logo, accent colour, contact fallback. Unknown keys → 404 UNKNOWN_TENANT. |
 | POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Exchange a single-use embed relay code for a 12h session token (embed/06). Replays/expired → 410. |
 | POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live | Re-issue a fresh relay code for an expired/used one (embed/06 AC3 — the "session expired" re-issue affordance). 410 on unknown/still-valid codes; 429 inside the 60s per-code cooldown. |

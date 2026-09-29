@@ -54,6 +54,13 @@ describe('MockApiService', () => {
     service = TestBed.inject(MockApiService);
   });
 
+  describe('getCityDataFreshness', () => {
+    it('never claims a live refresh month in the mock harness', async () => {
+      const res = await firstValueFrom(service.getCityDataFreshness());
+      expect(res).toEqual({ refreshedMonth: null });
+    });
+  });
+
   describe('autocomplete', () => {
     it('returns matching suggestions for 3+ chars', async () => {
       const res = await firstValueFrom(service.autocomplete('14 st'));

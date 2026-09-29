@@ -296,6 +296,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/city-data/freshness',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'City of Calgary assessment dataset freshness (landing trust strip): ' +
+      '"Refreshed <Month Year>" from the Socrata dataset metadata ' +
+      '(rowsUpdatedAt). 24h in-memory cache on successful fetches; ' +
+      'Socrata failure answers 200 { refreshedMonth: null } (never 5xx).',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,

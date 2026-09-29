@@ -12,6 +12,7 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  CityDataFreshnessResponse,
   ComparisonEstimateRequest,
   ComparisonEstimateResponse,
   EstimateInputs,
@@ -287,6 +288,15 @@ export class MockApiService implements ApiService {
     } catch (error) {
       return this.roundTripError(error as ApiError);
     }
+  }
+
+  /**
+   * City-data freshness (trust-strip/01): the mock harness never claims a
+   * live refresh month — the landing page shows the trustItemsMock set (not
+   * the dynamic item) whenever propertyData.source is 'mock' anyway.
+   */
+  getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
+    return this.roundTrip({ refreshedMonth: null });
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

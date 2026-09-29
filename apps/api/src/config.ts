@@ -264,6 +264,10 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // --- City-data freshness (landing trust strip) ---
+  // Shares the SOCRATA_* source with propertyData; its own TTL because the
+  // metadata changes at most monthly (24h default, successful fetches only).
+  CITY_DATA_FRESHNESS_CACHE_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   // --- Billing foundation (story billing/01) ---
   // Karan's decision 2026-09-24: 1% of signed construction contract value
   // (excl. land), config-switchable to flat. The billing ENGINE (charging,
@@ -608,6 +612,27 @@ export interface PropertyDataConfig {
 }
 
 /**
+ * City-data freshness config (trust-strip/01).
+ *
+ * The landing trust strip reads "Refreshed <Month Year>" from the
+ * Property Assessment dataset's Socrata metadata (`rowsUpdatedAt`).
+ * Reuses the SOCRATA_* env vars (same source as propertyData) plus a
+ * dedicated 24h cache TTL — the metadata changes at most monthly, so a
+ * failed fetch simply answers `{ refreshedMonth: null }` and the next
+ * request retries.
+ */
+export interface CityDataFreshnessConfig {
+  /** Socrata API base (e.g. https://data.calgary.ca) — no key required. */
+  readonly socrataBaseUrl: string;
+  /** Property Assessment dataset ID. */
+  readonly datasetId: string;
+  /** HTTP timeout for the Socrata metadata request. */
+  readonly httpTimeoutMs: number;
+  /** In-memory cache TTL for SUCCESSFUL metadata fetches (24h default). */
+  readonly cacheTtlMs: number;
+}
+
+/**
  * Embed platform config (embed/02, embed/06).
  */
 export interface EmbedConfig {
@@ -820,6 +845,7 @@ export interface ApiConfig {
   readonly health: HealthConfig;
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
+  readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly sheets: SheetsConfig;
@@ -1155,6 +1181,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+    },
+    cityDataFreshness: {
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      datasetId: e.SOCRATA_DATASET_ID,
+      httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
+      cacheTtlMs: e.CITY_DATA_FRESHNESS_CACHE_TTL_MS,
     },
     billing: {
       model: e.BILLING_MODEL,
