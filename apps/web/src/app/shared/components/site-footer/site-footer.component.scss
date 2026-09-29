@@ -25,7 +25,10 @@
 @media (max-width: 640px) {
   .footer {
     display: grid;
-    grid-template-columns: repeat(2, auto);
+    /* True 50/50 split (Karan 2026-09-28): the right column starts at the
+       horizontal middle. Auto-sized tracks left the right column starting
+       right after the widest left item, which read as misaligned. */
+    grid-template-columns: 1fr 1fr;
     justify-content: start;
     column-gap: 40px;
     row-gap: 14px;
