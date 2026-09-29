@@ -117,6 +117,21 @@ describe('credentialsInterceptor', () => {
     backend.verify();
   });
 
+  it('attaches the builder Bearer <redacted> on /api/v1/billing/* requests', () => {
+    // /api/v1/billing/* is the builder billing surface (card on file,
+    // invoices) — it rides the builder session, not the admin one.
+    const { http, backend } = setup(API_BASE, {
+      admin: 'admin-sess',
+      builder: 'builder-sess',
+    });
+    http.get(`${API_BASE}/api/v1/billing/invoices`).subscribe();
+    const req = backend.expectOne(`${API_BASE}/api/v1/billing/invoices`);
+    expect(req.request.headers.get('Authorization')).toBe('Bearer builder-sess');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({});
+    backend.verify();
+  });
+
   it('leaves third-party URLs untouched (no credential leak)', () => {
     const { http, backend } = setup(API_BASE, { admin: 'admin-sess' });
     http.get('https://data.calgary.ca/resource/4bsw-nn7w.json').subscribe();

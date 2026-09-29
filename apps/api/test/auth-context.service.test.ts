@@ -135,7 +135,8 @@ function seedAdmin(fx: Fixture, token = 'admin-token'): void {
 }
 
 const HEADERS = (token: string) => ({ authorization: `Bearer ${token}` });
-// Builder sessions ride the httpOnly builder cookie (never the Bearer header).
+// Builder sessions ride the httpOnly builder cookie same-origin; the
+// cross-origin SPA sends the same token as a Bearer header instead.
 const BUILDER_HEADERS = (token: string) => ({
   cookie: `feasly_builder_session=${token}`,
 });
@@ -388,6 +389,35 @@ describe('builder session resolution (auth/04)', () => {
     await expect(
       fx.service.resolve(BUILDER_HEADERS('builder-token')),
     ).resolves.toBeNull();
+  });
+
+  it('a builder Bearer token falls through admin resolution to the builder session', async () => {
+    // Regression: the cross-origin SPA sends the builder session as
+    // `Authorization: Bearer <token>` (the httpOnly cookie never sticks
+    // cross-origin). resolve() must not treat it as a failed ADMIN token
+    // and deny — it falls through to the builder store.
+    const fx = makeService();
+    fx.buildersById.set('builder-7', {
+      id: 'builder-7',
+      displayName: 'North Homes',
+      status: 'active',
+    });
+    fx.builderSessions.set('builder-token', {
+      email: 'portal@example.com',
+      tenantKey: 'north-homes',
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(HEADERS('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.builderId).toBe('builder-7');
+    expect(ctx!.permissions).toEqual(
+      expect.arrayContaining(effectivePermissions(null, ['builder_admin'])),
+    );
+  });
+
+  it('a Bearer token in neither store resolves to null', async () => {
+    const fx = makeService();
+    await expect(fx.service.resolve(HEADERS('garbage'))).resolves.toBeNull();
   });
 });
 
