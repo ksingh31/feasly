@@ -37,7 +37,7 @@
                 [value]="editDraft()"
                 (input)="editDraft.set($any($event.target).value)"
                 [maxLength]="maxLength()"
-                [disabled]="busy()"
+                [disabled]="formDisabled()"
                 rows="3"
               ></textarea>
               <div class="comment-thread__edit-actions">
@@ -45,15 +45,15 @@
                   type="button"
                   class="comment-thread__btn comment-thread__btn--primary"
                   (click)="submitEdit(comment)"
-                  [disabled]="busy()"
+                  [disabled]="formDisabled()"
                 >
-                  {{ busy() ? labels().savingLabel : labels().saveLabel }}
+                  {{ formDisabled() ? labels().savingLabel : labels().saveLabel }}
                 </button>
                 <button
                   type="button"
                   class="comment-thread__btn"
                   (click)="cancelEdit()"
-                  [disabled]="busy()"
+                  [disabled]="formDisabled()"
                 >
                   {{ labels().cancelLabel }}
                 </button>
@@ -67,7 +67,7 @@
                   type="button"
                   class="comment-thread__link"
                   (click)="startEdit(comment)"
-                  [disabled]="busy()"
+                  [disabled]="formDisabled()"
                 >
                   {{ labels().editLabel }}
                 </button>
@@ -79,15 +79,15 @@
                       type="button"
                       class="comment-thread__btn comment-thread__btn--danger"
                       (click)="confirmDelete(comment)"
-                      [disabled]="busy()"
+                      [disabled]="formDisabled()"
                     >
-                      {{ busy() ? labels().deletingLabel : labels().confirmDeleteLabel }}
+                      {{ formDisabled() ? labels().deletingLabel : labels().confirmDeleteLabel }}
                     </button>
                     <button
                       type="button"
                       class="comment-thread__link"
                       (click)="cancelDelete()"
-                      [disabled]="busy()"
+                      [disabled]="formDisabled()"
                     >
                       {{ labels().cancelLabel }}
                     </button>
@@ -97,7 +97,7 @@
                     type="button"
                     class="comment-thread__link comment-thread__link--danger"
                     (click)="askDelete(comment)"
-                    [disabled]="busy()"
+                    [disabled]="formDisabled()"
                   >
                     {{ labels().deleteLabel }}
                   </button>
@@ -133,7 +133,7 @@
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         [maxLength]="maxLength()"
-        [disabled]="busy() || loading()"
+        [disabled]="formDisabled() || loading()"
         rows="3"
       ></textarea>
       <div class="comment-thread__composer-foot">
@@ -144,7 +144,7 @@
               [id]="visibilityId"
               [value]="postVisibility()"
               (change)="postVisibility.set($any($event.target).value)"
-              [disabled]="busy()"
+              [disabled]="formDisabled()"
             >
               <option value="org">{{ labels().visibilityOrgLabel }}</option>
               <option value="admin_only">{{ labels().visibilityAdminOnlyLabel }}</option>
@@ -156,7 +156,7 @@
           type="button"
           class="comment-thread__btn comment-thread__btn--primary"
           (click)="submitPost()"
-          [disabled]="busy() || loading() || draft().trim().length === 0"
+          [disabled]="formDisabled() || loading() || draft().trim().length === 0"
         >
           {{ posting() ? labels().postingLabel : labels().postLabel }}
         </button>

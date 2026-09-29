@@ -8,8 +8,8 @@ import {
 } from '../../shared/components/comment-thread';
 import type {
   Comment,
-  CommentEditEvent,
-  CommentPostEvent,
+  CommentEdit,
+  CommentPost,
   CommentThreadLabels,
 } from '../../shared/components/comment-thread';
 import { BUILDER_COPY } from './builder-copy';
@@ -68,7 +68,7 @@ export class BuilderLeadCommentsComponent implements OnInit {
     this.reload();
   }
 
-  protected onPost(event: CommentPostEvent): void {
+  protected onPost(event: CommentPost): void {
     this.error.set(null);
     this.api
       .postComment(this.leadId(), event.body)
@@ -79,7 +79,7 @@ export class BuilderLeadCommentsComponent implements OnInit {
       });
   }
 
-  protected onEdit(event: CommentEditEvent): void {
+  protected onEdit(event: CommentEdit): void {
     this.error.set(null);
     this.api
       .editComment(event.id, event.body)

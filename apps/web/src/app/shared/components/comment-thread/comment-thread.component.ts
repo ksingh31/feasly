@@ -1,8 +1,8 @@
 import { Component, computed, effect, input, output, signal } from '@angular/core';
 import type {
   Comment,
-  CommentEditEvent,
-  CommentPostEvent,
+  CommentEdit,
+  CommentPost,
   CommentThreadConfig,
   CommentThreadLabels,
 } from './comment-thread.models';
@@ -46,10 +46,15 @@ export class CommentThreadComponent {
   readonly loading = input(false);
   /** Container-reported failure; shown until dismissed. */
   readonly error = input<string | null>(null);
+  /**
+   * Container-driven mutation in flight (BILL-07 binds this while its
+   * post/edit/delete resolves). Disables the composer and row actions.
+   */
+  readonly busy = input(false);
   readonly labels = input<CommentThreadLabels>(DEFAULT_COMMENT_THREAD_LABELS);
 
-  readonly post = output<CommentPostEvent>();
-  readonly edit = output<CommentEditEvent>();
+  readonly post = output<CommentPost>();
+  readonly edit = output<CommentEdit>();
   readonly delete = output<string>();
   readonly dismissError = output<void>();
 
@@ -58,7 +63,11 @@ export class CommentThreadComponent {
   protected readonly visibilityId = 'comment-thread-visibility-' + CommentThreadComponent.nextId;
 
   protected readonly draft = signal('');
-  protected readonly postVisibility = signal<'org' | 'admin_only'>('org');
+  /**
+   * Composer visibility choice. Defaults to the safe (internal-only)
+   * option; portals without the toggle ignore the emitted value.
+   */
+  protected readonly postVisibility = signal<'org' | 'admin_only'>('admin_only');
   protected readonly editId = signal<string | null>(null);
   protected readonly editDraft = signal('');
   protected readonly deleteConfirmId = signal<string | null>(null);
@@ -68,9 +77,16 @@ export class CommentThreadComponent {
   protected readonly charHint = computed(
     () => this.maxLength().toLocaleString('en-CA') + ' ' + this.labels().charactersMaxSuffix,
   );
-  protected readonly busy = computed(() => this.pendingOp() !== null);
+  /** Internal pending op (the container resolves via comments/error). */
+  protected readonly opInFlight = computed(() => this.pendingOp() !== null);
+  /** Either the container or an internal op has the thread busy. */
+  protected readonly formDisabled = computed(() => this.busy() || this.opInFlight());
+  /**
+   * A post is in flight (internal pending op, or the container's busy
+   * flag — BILL-07 only raises it for post). Drives the "Posting…" label.
+   */
   protected readonly posting = computed(
-    () => this.pendingOp()?.op === 'post',
+    () => this.pendingOp()?.op === 'post' || this.busy(),
   );
 
   constructor() {
@@ -82,7 +98,7 @@ export class CommentThreadComponent {
       if (pending !== null && this.error() === null && current !== pending.baseline) {
         if (pending.op === 'post') {
           this.draft.set('');
-          this.postVisibility.set('org');
+          this.postVisibility.set('admin_only');
         }
         if (pending.op === 'edit') {
           this.editId.set(null);
@@ -111,10 +127,14 @@ export class CommentThreadComponent {
     return this.config().showVisibilityBadges && comment.visibility === 'admin_only';
   }
 
+  /**
+   * Edit affordance. Own comments when allowEdit is on; containers with
+   * allowDelete (admin moderation) may edit any comment.
+   */
   protected canEdit(comment: Comment): boolean {
     return (
       this.config().allowEdit &&
-      comment.authorId === this.currentUserId() &&
+      (comment.authorId === this.currentUserId() || this.config().allowDelete) &&
       this.editId() !== comment.id
     );
   }
@@ -126,7 +146,7 @@ export class CommentThreadComponent {
 
   protected submitPost(): void {
     const body = this.draft().trim();
-    if (body.length === 0 || body.length > this.maxLength() || this.busy()) {
+    if (body.length === 0 || body.length > this.maxLength() || this.formDisabled()) {
       return;
     }
     this.pendingOp.set({ op: 'post', baseline: this.comments() });
@@ -134,7 +154,7 @@ export class CommentThreadComponent {
   }
 
   protected startEdit(comment: Comment): void {
-    if (!this.canEdit(comment) || this.busy()) {
+    if (!this.canEdit(comment) || this.formDisabled()) {
       return;
     }
     this.deleteConfirmId.set(null);
@@ -153,7 +173,7 @@ export class CommentThreadComponent {
       body.length === 0 ||
       body.length > this.maxLength() ||
       body === comment.body ||
-      this.busy()
+      this.formDisabled()
     ) {
       return;
     }
@@ -162,7 +182,7 @@ export class CommentThreadComponent {
   }
 
   protected askDelete(comment: Comment): void {
-    if (this.busy()) {
+    if (this.formDisabled()) {
       return;
     }
     this.editId.set(null);
@@ -174,7 +194,7 @@ export class CommentThreadComponent {
   }
 
   protected confirmDelete(comment: Comment): void {
-    if (this.busy()) {
+    if (this.formDisabled()) {
       return;
     }
     this.pendingOp.set({ op: 'delete', baseline: this.comments() });

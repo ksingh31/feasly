@@ -5,8 +5,7 @@
  * `comment-thread` component's outputs to the admin API service with the
  * right visibility values, renders the admin config (toggle + badges),
  * and handles the edit/delete flows. The API service is mocked; the real
- * (placeholder) thread component renders so the surface contract is
- * exercised end to end.
+ * thread component renders so the surface contract is exercised end to end.
  */
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store } from '@ngxs/store';
@@ -126,21 +125,28 @@ describe('AdminLeadCommentsComponent', () => {
 
   it('badges internal notes and leaves shared notes unbadged', () => {
     setup();
-    const badges = fixture.nativeElement.querySelectorAll('.comment-thread__badge');
+    const badges = fixture.nativeElement.querySelectorAll('.comment-thread__internal');
     expect(badges.length).toBe(1);
     expect(badges[0].textContent).toContain('Internal');
-    const internalItem = fixture.nativeElement.querySelector(
-      '.comment-thread__item--internal',
+    // The badge lives on the internal note's item.
+    const items = [...fixture.nativeElement.querySelectorAll('.comment-thread__item')];
+    const internalItem = items.find((el) =>
+      el.textContent?.includes('Watch this one.'),
     );
-    expect(internalItem.textContent).toContain('Watch this one.');
+    expect(internalItem?.querySelector('.comment-thread__internal')).toBeTruthy();
+    const sharedItem = items.find((el) =>
+      el.textContent?.includes('Met them Saturday.'),
+    );
+    expect(sharedItem?.querySelector('.comment-thread__internal')).toBeNull();
   });
 
   it('defaults the composer visibility toggle to Internal only', () => {
     setup();
-    const active = fixture.nativeElement.querySelector(
-      '.comment-thread__visibility--active',
-    );
-    expect(active?.textContent).toContain('Internal only');
+    const select = fixture.nativeElement.querySelector(
+      '.comment-thread__visibility select',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('admin_only');
+    expect(select.selectedOptions[0].textContent).toContain('Internal only');
   });
 
   it('posts with admin_only when the default toggle is kept', () => {
@@ -151,9 +157,14 @@ describe('AdminLeadCommentsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Internal follow-up');
   });
 
-  it('posts with org when "Builder can see this" is chosen', () => {
+  it('posts with org when the builder-visible option is chosen', () => {
     setup();
-    clickButton('Builder can see this');
+    const select = fixture.nativeElement.querySelector(
+      '.comment-thread__visibility select',
+    ) as HTMLSelectElement;
+    select.value = 'org';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
     setText(textarea(), 'Shared update');
     clickButton('Post');
     expect(apiMock.postComment).toHaveBeenCalledWith('lead-1', 'Shared update', 'org');
@@ -168,16 +179,19 @@ describe('AdminLeadCommentsComponent', () => {
     clickButton('Save');
     expect(apiMock.editComment).toHaveBeenCalledWith('c-builder', 'Edited note');
     expect(fixture.nativeElement.textContent).toContain('Edited note');
-    expect(fixture.nativeElement.textContent).toContain('(edited)');
+    expect(fixture.nativeElement.textContent).toContain('Edited');
   });
 
   it('deletes a comment after confirm and removes it from the thread', () => {
     setup();
-    const internalItem = fixture.nativeElement.querySelector('.comment-thread__item--internal');
+    const items = [...fixture.nativeElement.querySelectorAll('.comment-thread__item')];
+    const internalItem = items.find((el) =>
+      el.textContent?.includes('Watch this one.'),
+    ) as HTMLElement;
     clickButton('Delete', internalItem);
     // Confirm step appears; the service is only called on confirm.
     expect(apiMock.deleteComment).not.toHaveBeenCalled();
-    clickButton('Delete', internalItem);
+    clickButton('Confirm delete', internalItem);
     expect(apiMock.deleteComment).toHaveBeenCalledWith('c-internal');
     expect(fixture.nativeElement.textContent).not.toContain('Watch this one.');
   });

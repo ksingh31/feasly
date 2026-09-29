@@ -14,8 +14,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CommentThreadComponent } from './comment-thread.component';
 import type {
   Comment,
-  CommentEditEvent,
-  CommentPostEvent,
+  CommentEdit,
+  CommentPost,
   CommentThreadConfig,
 } from './comment-thread.models';
 import {
@@ -115,7 +115,7 @@ describe('CommentThreadComponent', () => {
 
   it('posts the trimmed draft and clears it once the container publishes the new thread', async () => {
     const { fixture, component } = await setup();
-    const posted: CommentPostEvent[] = [];
+    const posted: CommentPost[] = [];
     component.post.subscribe((e) => posted.push(e));
 
     const textarea = fixture.nativeElement.querySelector(
@@ -128,7 +128,7 @@ describe('CommentThreadComponent', () => {
     (fixture.nativeElement.querySelector(
       '.comment-thread__composer button',
     ) as HTMLButtonElement).click();
-    expect(posted).toEqual([{ body: 'A new note', visibility: 'org' }]);
+    expect(posted).toEqual([{ body: 'A new note', visibility: 'admin_only' }]);
     // Optimistic clear happens only after the container publishes.
     expect(textarea.value).toBe('  A new note  ');
 
@@ -187,7 +187,7 @@ describe('CommentThreadComponent', () => {
     const { fixture, component } = await setup({
       comments: [comment({ id: 'c1', body: 'Before', authorId: 'user-1' })],
     });
-    const edited: CommentEditEvent[] = [];
+    const edited: CommentEdit[] = [];
     component.edit.subscribe((e) => edited.push(e));
 
     (fixture.nativeElement.querySelector('.comment-thread__link') as HTMLButtonElement).click();

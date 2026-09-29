@@ -53,14 +53,18 @@ export const BUILDER_COMMENT_THREAD_CONFIG: CommentThreadConfig = {
   showVisibilityBadges: false,
 };
 
-/** Emitted by (post). Builders always send 'org' (toggle hidden). */
-export interface CommentPostEvent {
+/**
+ * Emitted by (post). The composer carries a visibility choice when
+ * `showVisibilityToggle` is on; otherwise the container applies its own
+ * default. Builders always send 'org' (toggle hidden).
+ */
+export interface CommentPost {
   readonly body: string;
-  readonly visibility: 'org' | 'admin_only';
+  readonly visibility?: 'org' | 'admin_only';
 }
 
 /** Emitted by (edit). */
-export interface CommentEditEvent {
+export interface CommentEdit {
   readonly id: string;
   readonly body: string;
 }

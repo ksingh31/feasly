@@ -9,7 +9,7 @@ import {
   type CommentEdit,
   type CommentPost,
   type CommentThreadConfig,
-} from '../../shared/components';
+} from '../../shared/components/comment-thread';
 
 /**
  * Admin lead-comments container (BILL-07).

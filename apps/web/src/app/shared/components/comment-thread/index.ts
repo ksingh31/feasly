@@ -2,9 +2,9 @@
 export { CommentThreadComponent } from './comment-thread.component';
 export type {
   Comment,
-  CommentEditEvent,
+  CommentEdit,
   CommentListResponse,
-  CommentPostEvent,
+  CommentPost,
   CommentThreadConfig,
   CommentThreadLabels,
 } from './comment-thread.models';
