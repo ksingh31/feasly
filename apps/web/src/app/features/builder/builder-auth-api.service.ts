@@ -7,13 +7,13 @@ import type {
   BuilderAuthMeResponse,
   BuilderAuthRequestBody,
   BuilderAuthRequestResponse,
+  BuilderEntraCallbackResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
 import type {
   BuilderEntraCallbackBody,
-  BuilderEntraCallbackResponse,
   BuilderMembershipsResponse,
   BuilderSessionIdentity,
   BuilderSwitchOrgBody,

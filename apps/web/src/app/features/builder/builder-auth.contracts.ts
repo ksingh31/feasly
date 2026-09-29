@@ -43,24 +43,16 @@ export interface BuilderEntraCallbackBody {
   readonly redirectUri: string;
 }
 
-/** `POST /api/v1/builder/auth/entra/callback` success response. */
-export interface BuilderEntraCallbackResponse {
-  readonly authenticated: true;
-  /** Identity of the signed-in builder user (from Entra claims). */
-  readonly user: {
-    /** Lowercased email. */
-    readonly email: string;
-    /** Display name. */
-    readonly name: string;
-  };
-  /** All builder orgs this user belongs to (may be empty → 403). */
-  readonly memberships: readonly BuilderOrgMembership[];
-  /**
-   * The raw session token — the SPA stores it and sends it back as
-   * `Authorization: Bearer <token>` (cross-origin cookie never sticks).
-   */
-  readonly sessionToken: string;
-}
+/**
+ * `POST /api/v1/builder/auth/entra/callback` success response.
+ *
+ * Single source of truth: `BuilderEntraCallbackResponse` from
+ * `@feasly/contracts` (the backend nests memberships under `user` and also
+ * returns `activeBuilderId`). The local placeholder that used to live here
+ * had `memberships` at the top level — it drifted from the shipped backend
+ * and crashed the callback page with `undefined.length` (2026-09-29).
+ * Import the real contract; do not re-declare a local copy.
+ */
 
 /** `GET /api/v1/builder/auth/memberships` response. */
 export interface BuilderMembershipsResponse {
