@@ -21,7 +21,7 @@
             @if (comment.edited) {
               <span class="comment-thread__edited">· {{ labels().editedMarker }}</span>
             }
-            @if (config().showVisibilityBadges && comment.visibility === 'admin_only') {
+            @if (showInternalBadge(comment)) {
               <span class="comment-thread__internal">{{ labels().internalBadge }}</span>
             }
           </div>

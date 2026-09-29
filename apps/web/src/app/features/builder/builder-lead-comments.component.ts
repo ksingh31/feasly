@@ -35,20 +35,7 @@ import { BuilderState } from './builder.state';
   selector: 'app-builder-lead-comments',
   standalone: true,
   imports: [CommentThreadComponent],
-  template: `
-    <app-comment-thread
-      [comments]="comments()"
-      [currentUserId]="currentUserId()"
-      [config]="threadConfig"
-      [maxLength]="copy.commentsMaxLength"
-      [loading]="loading()"
-      [error]="error()"
-      [labels]="labels()"
-      (post)="onPost($event)"
-      (edit)="onEdit($event)"
-      (dismissError)="error.set(null)"
-    />
-  `,
+  templateUrl: './builder-lead-comments.component.html',
 })
 export class BuilderLeadCommentsComponent implements OnInit {
   private readonly api = inject(BuilderCommentsApiService);
