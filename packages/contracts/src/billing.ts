@@ -23,7 +23,7 @@ export interface CommissionInvoice {
   readonly leadId: string;
   /** Signed construction contract value, integer cents, excl. land. */
   readonly contractValueCents: number;
-  /** round(contractValueCents * rate), integer cents. */
+  /** round(contractValueCents * effectiveRate), integer cents. */
   readonly commissionCents: number;
   readonly currency: string;
   /** Off-session PaymentIntent id — set at finalize. Null before. */
@@ -36,8 +36,77 @@ export interface CommissionInvoice {
   /** True when the contract was reported after the 14-day reporting SLA. */
   readonly slaBreached: boolean;
   readonly disputeReason: string | null;
+  /**
+   * Admin override of the commission rate, in PERCENT (e.g. 1.5 = 1.5%).
+   * Null = the configured default rate (BILLING_COMMISSION_RATE).
+   */
+  readonly commissionRateOverride: number | null;
+  /**
+   * Off-Stripe payment method recorded by an admin mark-paid action.
+   * Null unless the invoice was manually marked paid.
+   */
+  readonly manualPaymentMethod: ManualPaymentMethod | null;
+  /** Cheque/trace number for a manual payment. Null otherwise. */
+  readonly paymentReference: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/**
+ * Manual (off-Stripe) payment methods an admin can record when marking a
+ * commission invoice paid — cheque, bank draft, e-transfer, cash, a
+ * separate card terminal, or anything else.
+ */
+export type ManualPaymentMethod =
+  | 'cheque'
+  | 'bank_draft'
+  | 'e_transfer'
+  | 'cash'
+  | 'card_terminal'
+  | 'other';
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/mark-paid — record an
+ * off-Stripe payment received by the platform.
+ */
+export interface MarkInvoicePaidRequest {
+  readonly paymentMethod: ManualPaymentMethod;
+  /** Optional cheque/trace number for the payment. */
+  readonly reference?: string;
+  /** ISO 8601 datetime WITH timezone offset. Defaults to now. */
+  readonly paidAt?: string;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/mark-paid — result. */
+export interface MarkInvoicePaidResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  /** ISO 8601 — when the payment was recorded. */
+  readonly paidAt: string;
+  readonly paymentMethod: ManualPaymentMethod;
+  readonly reference: string | null;
+}
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/commission-rate — override the
+ * per-invoice commission rate (default is the configured 1% of the signed
+ * contract value, excl. land). Unpaid invoices only.
+ */
+export interface SetCommissionRateRequest {
+  /** Percent, e.g. 1.5 = 1.5%. Must satisfy 0 < rate <= 10. */
+  readonly rate: number;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/commission-rate — result. */
+export interface SetCommissionRateResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  /** Effective commission rate after the change, in PERCENT. */
+  readonly commissionRatePercent: number;
+  readonly contractValueCents: number;
+  /** round(contractValueCents * rate) after the override, integer cents. */
+  readonly commissionCents: number;
+  readonly currency: string;
 }
 
 /** Append-only billing audit event. */

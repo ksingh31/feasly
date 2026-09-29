@@ -17,8 +17,7 @@ export interface BillingHealthBucket {
 }
 
 /** A commission invoice stuck in dunning (charge failed, awaiting retry). */
-export interface BillingHealthDunningInvoice {
-  readonly id: string;
+export interface BillingHealthDunningInvoice {  readonly id: string;
   readonly tenantKey: string;
   /** Integer cents. */
   readonly commissionCents: number;
@@ -35,6 +34,22 @@ export interface BillingHealthDunningInvoice {
    * or null when no reason was recorded. Shown in the dunning queue.
    */
   readonly lastFailureReason: string | null;
+}
+
+/** An in-review commission invoice, for the admin billing work queue. */
+export interface BillingHealthInReviewInvoice {
+  readonly id: string;
+  readonly tenantKey: string;
+  /** Integer cents. */
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** End of the 7-day review/dispute window; null when not set. */
+  readonly reviewDueAt: string | null;
+  /**
+   * Effective commission rate, in PERCENT (e.g. 1.5 = 1.5%) — the admin
+   * override when set, otherwise the configured default rate.
+   */
+  readonly commissionRatePercent: number;
 }
 
 /** MRR as reported by the dashboard. */
@@ -102,6 +117,12 @@ export interface BillingHealthResponse {
   readonly disputed: BillingHealthBucket;
   /** Failed-charge invoices with `past_due_since` — dunning work queue. */
   readonly dunning: ReadonlyArray<BillingHealthDunningInvoice>;
+  /**
+   * In-review invoices for the admin work queue — the rows an admin can
+   * mark as paid (off-Stripe) or override the commission rate on.
+   * Ordered by review window (most urgent first), bounded.
+   */
+  readonly inReviewInvoices: ReadonlyArray<BillingHealthInReviewInvoice>;
   /** Max off-session charge retries per failed invoice (BILL-03). */
   readonly maxChargeRetries: number;
   readonly webhooks: BillingHealthWebhooks;

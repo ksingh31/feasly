@@ -24,6 +24,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
@@ -788,6 +789,19 @@ export const commissionInvoices = pgTable(
     retryCount: integer('retry_count').notNull().default(0),
     /** Builder-supplied reason while status='disputed'. */
     disputeReason: text('dispute_reason'),
+    /**
+     * Admin override of the commission rate, in PERCENT (e.g. 1.5 = 1.5%).
+     * Null = the configured default (BILLING_COMMISSION_RATE). Unpaid
+     * invoices only — never changed once a charge settled.
+     */
+    commissionRateOverride: real('commission_rate_override'),
+    /**
+     * Off-Stripe payment method recorded by an admin mark-paid action.
+     * Null unless the invoice was manually marked paid.
+     */
+    manualPaymentMethod: text('manual_payment_method'),
+    /** Cheque/trace number for a manual payment. Null otherwise. */
+    paymentReference: text('payment_reference'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

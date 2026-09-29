@@ -43,6 +43,7 @@ import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
 import { EmailProviderError } from '../email';
+import type { ManualPaymentMethod } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -70,8 +71,40 @@ export interface CommissionInvoiceRecord {
   readonly disputeReason: string | null;
   /** Off-session charge retry attempts made (BILL-03). */
   readonly retryCount: number;
+  /**
+   * Admin override of the commission rate, in PERCENT. Null = the
+   * configured default (billing.commissionRate).
+   */
+  readonly commissionRateOverride: number | null;
+  /**
+   * Off-Stripe payment method recorded by an admin mark-paid action.
+   * Null unless the invoice was manually marked paid.
+   */
+  readonly manualPaymentMethod: ManualPaymentMethod | null;
+  /** Cheque/trace number for a manual payment. Null otherwise. */
+  readonly paymentReference: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** Off-Stripe payment methods accepted by `markPaidManually`. */
+export const MANUAL_PAYMENT_METHODS: ReadonlyArray<ManualPaymentMethod> = [
+  'cheque',
+  'bank_draft',
+  'e_transfer',
+  'cash',
+  'card_terminal',
+  'other',
+];
+
+export interface ManualPaymentInput {
+  readonly paymentMethod: ManualPaymentMethod;
+  /** Optional cheque/trace number. */
+  readonly reference?: string;
+  /** When the payment was received. Defaults to now. */
+  readonly paidAt?: Date;
+  /** The admin who recorded the payment (audit trail). */
+  readonly adminEmail: string | null;
 }
 
 export interface CommissionService {
@@ -114,6 +147,40 @@ export interface CommissionService {
    * 'disputed' — the dispute freeze holds against webhooks.
    */
   markPaidByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
+  /**
+   * Admin manually marks an invoice paid for an off-Stripe payment
+   * (cheque, bank draft, e-transfer, cash, separate card terminal…).
+   *
+   * Allowed from 'in_review' (the common case: the builder paid another
+   * way before the 7-day window ended), 'finalized' (a charge was
+   * attempted but the money arrived off-Stripe), and 'failed' (dunning
+   * resolved by hand). Never from 'disputed' — the dispute freeze holds
+   * until a human resolves it — and never from 'paid'/'void' (409).
+   *
+   * CRITICAL: moving the invoice to 'paid' cancels the scheduled
+   * auto-charge. The invoice-reviewer timer only finalizes 'in_review'
+   * rows (findDueReviews), so a paid invoice can never be charged by
+   * Stripe afterwards; a late payment_intent.succeeded webhook no-ops on
+   * the terminal status (markPaidByPaymentIntent). reviewDueAt is cleared
+   * so no charge clock remains.
+   */
+  markPaidManually(
+    invoiceId: string,
+    input: ManualPaymentInput,
+  ): Promise<CommissionInvoiceRecord>;
+  /**
+   * Admin overrides the per-invoice commission rate (percent, e.g. 1.5 =
+   * 1.5%) and recalculates `commissionCents = round(contractValueCents *
+   * rate)`. Allowed only on unpaid invoices (draft, in_review, disputed,
+   * failed) — a settled invoice is never silently repriced (409), and
+   * 'finalized' is blocked too because a PaymentIntent already exists
+   * for the old amount. Validates 0 < rate <= 10 (400 otherwise).
+   */
+  setCommissionRate(
+    invoiceId: string,
+    ratePercent: number,
+    adminEmail: string | null,
+  ): Promise<CommissionInvoiceRecord>;
   /**
    * Webhook: payment_intent.payment_failed → dunning. No-op (audited) while
    * the invoice is 'disputed'. The optional failure reason is recorded in
@@ -189,7 +256,10 @@ const ALLOWED_TRANSITIONS: Record<
   ReadonlySet<CommissionInvoiceStatus>
 > = {
   draft: new Set(['in_review']),
-  in_review: new Set(['finalized', 'disputed']),
+  // in_review → paid: admin mark-paid for an off-Stripe payment received
+  // before the 7-day window closed. Moving to 'paid' cancels the scheduled
+  // auto-charge (findDueReviews only touches 'in_review').
+  in_review: new Set(['finalized', 'disputed', 'paid']),
   finalized: new Set(['paid', 'failed']),
   paid: new Set([]),
   // BILL-03: a failed invoice may be re-charged by an admin (retryCharge),
@@ -201,10 +271,33 @@ const ALLOWED_TRANSITIONS: Record<
   // can be created while the retry PI is pending. The story's literal
   // `failed → in_review` text was corrected here: `in_review → paid` is not
   // a legal transition, so the retry PI's success webhook would have 409'd.
-  failed: new Set(['finalized']),
+  //
+  // failed → paid: admin mark-paid when dunning is resolved by hand
+  // (off-Stripe payment after a card decline). Dunning ends — the invoice
+  // leaves the failed state, so no retry can charge it afterwards.
+  failed: new Set(['finalized', 'paid']),
   disputed: new Set(['in_review', 'void']),
   void: new Set([]),
 };
+
+/**
+ * The effective commission rate for an invoice, in PERCENT — the admin
+ * override when set, otherwise the configured default.
+ */
+function effectiveRatePercent(
+  row: { commissionRateOverride: number | null },
+  defaultRate: number,
+): number {
+  const pct = row.commissionRateOverride ?? defaultRate * 100;
+  // Round to 4 decimals so config fractions (0.01 → 1%) and 4-decimal
+  // overrides round-trip cleanly for display and audit payloads.
+  return Math.round(pct * 10_000) / 10_000;
+}
+
+/** '1%' / '1.5%' — for PaymentIntent descriptions and admin UI labels. */
+function formatRatePercent(ratePercent: number): string {
+  return `${effectiveRatePercent({ commissionRateOverride: ratePercent }, 0)}%`;
+}
 
 import { isUniqueViolation } from './pg-errors';
 
@@ -227,6 +320,9 @@ function toRecord(
     slaBreached: row.slaBreached,
     disputeReason: row.disputeReason,
     retryCount: row.retryCount,
+    commissionRateOverride: row.commissionRateOverride,
+    manualPaymentMethod: row.manualPaymentMethod as ManualPaymentMethod | null,
+    paymentReference: row.paymentReference,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -641,7 +737,7 @@ export function createCommissionService(
           currency: row.currency,
           customerId,
           description:
-            `Feasly commission 1% — invoice ${invoiceId} ` +
+            `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
             `(contract excl. land, attribution ${row.attributionId})`,
         },
         // Idempotency key: timer retries never double-charge.
@@ -698,7 +794,7 @@ export function createCommissionService(
           currency: row.currency,
           customerId,
           description:
-            `Feasly commission 1% — invoice ${invoiceId} ` +
+            `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
             `(retry ${retryNumber}, contract excl. land, ` +
             `attribution ${row.attributionId})`,
         },
@@ -834,6 +930,170 @@ export function createCommissionService(
       // BILL-04: receipt email on successful charge.
       await notifyBuilder(invoice, 'payment_received');
       return invoice;
+    },
+
+    async markPaidManually(
+      invoiceId: string,
+      input: ManualPaymentInput,
+    ): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      if (!MANUAL_PAYMENT_METHODS.includes(input.paymentMethod)) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `Unknown payment method "${String(input.paymentMethod)}" — ` +
+            `expected one of: ${MANUAL_PAYMENT_METHODS.join(', ')}`,
+        );
+      }
+      const row = await requireInvoice(invoiceId);
+      const from = row.status as CommissionInvoiceStatus;
+      if (from === 'paid') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is already paid — cannot mark paid again`,
+        );
+      }
+      if (from === 'disputed') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is disputed — resolve the dispute before recording a payment`,
+        );
+      }
+      if (from !== 'in_review' && from !== 'finalized' && from !== 'failed') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${from}' — only 'in_review', 'finalized' or 'failed' can be marked paid manually`,
+        );
+      }
+      const paidAt = input.paidAt ?? now();
+      if (Number.isNaN(paidAt.getTime())) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'paidAt must be a valid ISO 8601 datetime',
+        );
+      }
+      const reference =
+        input.reference !== undefined && input.reference.trim().length > 0
+          ? input.reference.trim()
+          : null;
+      // Moving to 'paid' cancels the scheduled auto-charge: the
+      // invoice-reviewer timer only finalizes 'in_review' rows
+      // (findDueReviews), reviewDueAt is cleared so no charge clock remains,
+      // and a late payment_intent.succeeded webhook no-ops on the terminal
+      // status (markPaidByPaymentIntent). The builder can never be charged
+      // twice for this invoice.
+      const invoice = await transition(
+        invoiceId,
+        from,
+        'paid',
+        {
+          manualPaymentMethod: input.paymentMethod,
+          paymentReference: reference,
+          paidAt,
+          reviewDueAt: null,
+        },
+        'invoice.paid_manually',
+        {
+          from,
+          paymentMethod: input.paymentMethod,
+          reference,
+          paidAt: paidAt.toISOString(),
+          adminEmail: input.adminEmail,
+        },
+      );
+      // Same receipt email as the Stripe path — the builder learns the
+      // invoice is settled.
+      await notifyBuilder(invoice, 'payment_received');
+      return invoice;
+    },
+
+    async setCommissionRate(
+      invoiceId: string,
+      ratePercent: number,
+      adminEmail: string | null,
+    ): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      if (
+        !Number.isFinite(ratePercent) ||
+        ratePercent <= 0 ||
+        ratePercent > 10
+      ) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `Commission rate must satisfy 0 < rate <= 10 (percent), got ${String(ratePercent)}`,
+        );
+      }
+      const row = await requireInvoice(invoiceId);
+      const status = row.status as CommissionInvoiceStatus;
+      if (TERMINAL_STATUSES.has(status)) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${status}' — a settled invoice is never repriced`,
+        );
+      }
+      if (status === 'finalized') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has a charge in flight — the rate cannot change after the PaymentIntent was created`,
+        );
+      }
+      const oldRatePercent = effectiveRatePercent(
+        row,
+        billing.commissionRate,
+      );
+      const newRatePercent =
+        Math.round(ratePercent * 10_000) / 10_000;
+      const newCommissionCents = computeCommissionCents(
+        row.contractValueCents,
+        newRatePercent / 100,
+      );
+      // Conditional update on the current status — a concurrent transition
+      // (e.g. finalize racing this override) surfaces as 409 instead of
+      // silently repricing an invoice that just moved.
+      const [updated] = await db
+        .update(commissionInvoices)
+        .set({
+          commissionRateOverride: newRatePercent,
+          commissionCents: newCommissionCents,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(commissionInvoices.id, invoiceId),
+            eq(commissionInvoices.status, status),
+          ),
+        )
+        .returning();
+      if (updated === undefined) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
+        );
+      }
+      const record = toRecord(updated);
+      await audit.append({
+        tenantKey: record.tenantKey,
+        eventType: 'invoice.commission_rate_changed',
+        entityType: 'commission_invoice',
+        entityId: record.id,
+        payload: {
+          fromRatePercent: oldRatePercent,
+          toRatePercent: newRatePercent,
+          oldCommissionCents: row.commissionCents,
+          newCommissionCents,
+          contractValueCents: row.contractValueCents,
+          adminEmail,
+        },
+      });
+      return record;
     },
 
     async markFailedByPaymentIntent(
