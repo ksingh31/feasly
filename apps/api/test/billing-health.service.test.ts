@@ -295,6 +295,7 @@ describe('billing-health service', () => {
       currency: 'CAD',
       reviewDueAt: soon.toISOString(),
       commissionRatePercent: 1,
+      contractValueCents: 1_000_000,
     });
     expect(byId.get(laterId)).toMatchObject({
       reviewDueAt: later.toISOString(),

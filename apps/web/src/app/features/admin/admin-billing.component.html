@@ -3,10 +3,12 @@
     <div>
       <h1>Billing health</h1>
       <p class="billing-panel__sub">
-        MRR, review aging, dunning, and webhook health. The dunning queue
-        offers a charge retry per failed invoice; "Create invoice" manually
-        creates a commission invoice for a converted lead. Everything else is
-        read-only.
+        MRR, review aging, dunning, and webhook health. The in-review
+        queue lets an admin manage an invoice — override its commission
+        rate or record an off-Stripe payment; dunning rows offer the same
+        mark-paid for failed charges paid offline. "Create invoice"
+        manually creates a commission invoice for a converted lead.
+        Everything else is read-only.
       </p>
     </div>
     <div class="billing-panel__header-actions">
@@ -54,6 +56,10 @@
 
   @if (showCreateForm()) {
     <app-admin-create-invoice (closed)="closeCreateForm()" />
+  }
+
+  @if (managedInvoice(); as managed) {
+    <app-admin-manage-invoice [invoice]="managed" (closed)="closeManage()" />
   }
 
   @if (loadStatus() === 'loading' && !health()) {
@@ -139,6 +145,57 @@
       </dl>
     </section>
 
+    <section aria-label="In-review invoices">
+      <h2 class="billing-panel__section-title">
+        In-review invoices
+        @if (h.inReviewInvoices.length > 0) {
+          <span class="billing-panel__flag">action available</span>
+        }
+      </h2>
+      @if (h.inReviewInvoices.length === 0) {
+        <p class="billing-panel__empty">
+          No invoices awaiting review.
+        </p>
+      } @else {
+        <table class="billing-panel__table">
+          <thead>
+            <tr>
+              <th scope="col">Tenant</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Rate</th>
+              <th scope="col">Review due</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (invoice of h.inReviewInvoices; track invoice.id) {
+              <tr>
+                <td>{{ invoice.tenantKey }}</td>
+                <td>{{ formatCents(invoice.commissionCents) }}</td>
+                <td>{{ formatRatePercent(invoice.commissionRatePercent) }}</td>
+                <td>
+                  @if (invoice.reviewDueAt) {
+                    {{ invoice.reviewDueAt | date: 'medium' }}
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="billing-panel__btn"
+                    (click)="openManageInReview(invoice)"
+                  >
+                    Manage
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
     <section aria-label="Dunning">
       <h2 class="billing-panel__section-title">
         Dunning
@@ -183,6 +240,14 @@
                 <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
                 <td>{{ invoice.lastFailureReason ?? '—' }}</td>
                 <td>
+                  <button
+                    type="button"
+                    class="billing-panel__btn"
+                    (click)="openManageDunning(invoice)"
+                    title="Record an off-Stripe payment — cancels the scheduled auto-charge"
+                  >
+                    Mark as paid
+                  </button>
                   @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
                     <span class="billing-panel__muted">Manual handling</span>
                   } @else if (isConfirming(invoice.id)) {

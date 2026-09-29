@@ -70,6 +70,7 @@ interface InvoiceRow {
   readonly paidAt: Date | null;
   readonly retryCount: number;
   readonly commissionRateOverride: number | null;
+  readonly contractValueCents: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -268,6 +269,7 @@ export function createBillingHealthService(
         paidAt: commissionInvoices.paidAt,
         retryCount: commissionInvoices.retryCount,
         commissionRateOverride: commissionInvoices.commissionRateOverride,
+        contractValueCents: commissionInvoices.contractValueCents,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,
       })
@@ -330,6 +332,11 @@ export function createBillingHealthService(
         tenantKey: row.tenantKey,
         commissionCents: row.commissionCents,
         currency: row.currency,
+        commissionRatePercent: effectiveRatePercent(
+          row,
+          billing.commissionRate,
+        ),
+        contractValueCents: row.contractValueCents,
         pastDueSince: failure.at.toISOString(),
         retryCount: row.retryCount,
         lastFailureReason: failure.reason,
@@ -352,6 +359,7 @@ export function createBillingHealthService(
           row,
           billing.commissionRate,
         ),
+        contractValueCents: row.contractValueCents,
         sortKey: row.reviewDueAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
       }))
       .sort((a, b) => a.sortKey - b.sortKey)

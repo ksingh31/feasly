@@ -22,6 +22,10 @@ export interface BillingHealthDunningInvoice {  readonly id: string;
   /** Integer cents. */
   readonly commissionCents: number;
   readonly currency: string;
+  /** Effective commission rate in PERCENT (admin override when set). */
+  readonly commissionRatePercent: number;
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
   /** When the charge failure moved the invoice into dunning. */
   readonly pastDueSince: string;
   /**
@@ -50,6 +54,8 @@ export interface BillingHealthInReviewInvoice {
    * override when set, otherwise the configured default rate.
    */
   readonly commissionRatePercent: number;
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
 }
 
 /** MRR as reported by the dashboard. */

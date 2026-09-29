@@ -1,0 +1,269 @@
+<section class="manage-invoice" aria-labelledby="manage-invoice-title">
+  <h2 id="manage-invoice-title">Manage invoice</h2>
+
+  <dl class="manage-invoice__summary">
+    <div>
+      <dt>Builder</dt>
+      <dd>{{ invoice().tenantKey }}</dd>
+    </div>
+    <div>
+      <dt>Status</dt>
+      <dd>{{ statusLabel() }}</dd>
+    </div>
+    <div>
+      <dt>Current commission</dt>
+      <dd>
+        {{ formatCad(invoice().commissionCents) }}
+        <span class="manage-invoice__muted">
+          ({{ formatRatePercent(invoice().commissionRatePercent) }} of
+          {{ formatCad(invoice().contractValueCents) }}, excluding land)
+        </span>
+      </dd>
+    </div>
+    @if (invoice().reviewDueAt) {
+      <div>
+        <dt>Review due</dt>
+        <dd>{{ invoice().reviewDueAt | date: 'medium' }}</dd>
+      </div>
+    }
+  </dl>
+
+  @if (confirmedInvoice(); as confirmed) {
+    <!-- Success confirmation: the server's authoritative figures. -->
+    <div
+      class="manage-invoice__feedback manage-invoice__feedback--ok"
+      role="status"
+    >
+      @if (confirmedPaid()) {
+        <p>
+          <strong>Invoice marked as paid.</strong>
+          The scheduled auto-charge was cancelled — the builder will not be
+          charged again for this invoice.
+        </p>
+      } @else {
+        <p>
+          <strong>Commission rate updated.</strong>
+          New amount
+          {{ formatCad(confirmedCommissionCents()) }}
+          @if (confirmedRatePercent() !== null) {
+            ({{ formatRatePercent(confirmedRatePercent() ?? 0) }} of
+            {{ formatCad(invoice().contractValueCents) }})
+          }
+        </p>
+      }
+      <button type="button" class="manage-invoice__btn" (click)="close()">
+        Done
+      </button>
+    </div>
+  } @else {
+    @if (feedback(); as failed) {
+      @if (!failed.ok) {
+        <div
+          class="manage-invoice__feedback manage-invoice__feedback--error"
+          role="alert"
+        >
+          {{ failed.message }}
+        </div>
+      }
+    }
+
+    <div class="manage-invoice__card" role="region" aria-label="Commission rate">
+      <h3>Commission rate</h3>
+      <form [formGroup]="rateForm" (ngSubmit)="startRateConfirm()">
+        <div class="manage-invoice__field">
+          <label for="manage-rate">New rate (%)</label>
+          <input
+            id="manage-rate"
+            type="number"
+            formControlName="rate"
+            step="0.1"
+            min="0"
+            max="10"
+            inputmode="decimal"
+            placeholder="e.g. 1.5"
+          />
+          <p class="manage-invoice__hint">
+            Current rate: {{ formatRatePercent(invoice().commissionRatePercent) }}.
+            Must be over 0% and at most 10%.
+          </p>
+          @if (
+            rateForm.controls.rate.touched && rateForm.controls.rate.invalid
+          ) {
+            <p class="manage-invoice__error">
+              Enter a rate over 0% and at most 10%.
+            </p>
+          }
+        </div>
+        @if (previewCents() !== null) {
+          <p class="manage-invoice__preview" role="status">
+            New commission:
+            <strong>{{ formatCad(previewCents() ?? 0) }}</strong>
+            <span class="manage-invoice__muted">
+              ({{ formatRatePercent(rateForm.controls.rate.value ?? 0) }} of
+              {{ formatCad(invoice().contractValueCents) }})
+            </span>
+          </p>
+        }
+        @if (confirmingRate()) {
+          <div
+            class="manage-invoice__confirm"
+            role="region"
+            aria-label="Confirm rate update"
+          >
+            <p>
+              Update the rate to
+              <strong>{{
+                formatRatePercent(rateForm.controls.rate.value ?? 0)
+              }}</strong>
+              — the commission becomes
+              <strong>{{ formatCad(previewCents() ?? 0) }}</strong>?
+            </p>
+            <div class="manage-invoice__actions">
+              <button
+                type="button"
+                class="manage-invoice__btn manage-invoice__btn--primary"
+                (click)="confirmRateUpdate()"
+                [disabled]="actionStatus() === 'submitting'"
+              >
+                @if (actionStatus() === 'submitting') {
+                  Updating…
+                } @else {
+                  Confirm update rate
+                }
+              </button>
+              <button
+                type="button"
+                class="manage-invoice__btn"
+                (click)="backFromRateConfirm()"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="manage-invoice__actions">
+            <button
+              type="submit"
+              class="manage-invoice__btn"
+              [disabled]="actionStatus() === 'submitting'"
+            >
+              Update rate
+            </button>
+          </div>
+        }
+      </form>
+    </div>
+
+    <div
+      class="manage-invoice__card"
+      role="region"
+      aria-label="Record payment"
+    >
+      <h3>Record payment</h3>
+      <p class="manage-invoice__note">
+        Recording a payment marks the invoice <strong>paid</strong> and
+        <strong>cancels the scheduled auto-charge</strong> — the builder can
+        never be charged twice for this invoice.
+      </p>
+      <form [formGroup]="payForm" (ngSubmit)="startPaidConfirm()">
+        <div class="manage-invoice__field">
+          <label for="manage-method">Payment method</label>
+          <select id="manage-method" formControlName="method">
+            <option value="" disabled>Select a method</option>
+            @for (option of paymentMethods; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+          @if (
+            payForm.controls.method.touched && payForm.controls.method.invalid
+          ) {
+            <p class="manage-invoice__error">Choose a payment method.</p>
+          }
+        </div>
+        <div class="manage-invoice__field">
+          <label for="manage-reference">Reference (optional)</label>
+          <input
+            id="manage-reference"
+            type="text"
+            formControlName="reference"
+            maxlength="120"
+            placeholder="Cheque / trace number"
+          />
+          <p class="manage-invoice__hint">
+            Cheque number, e-transfer confirmation, terminal receipt…
+          </p>
+        </div>
+        <div class="manage-invoice__field">
+          <label for="manage-paid-date">Paid date</label>
+          <input
+            id="manage-paid-date"
+            type="date"
+            formControlName="paidDate"
+          />
+          @if (
+            payForm.controls.paidDate.touched &&
+            payForm.controls.paidDate.invalid
+          ) {
+            <p class="manage-invoice__error">Enter the date payment arrived.</p>
+          }
+        </div>
+        @if (confirmingPaid()) {
+          <div
+            class="manage-invoice__confirm"
+            role="region"
+            aria-label="Confirm mark paid"
+          >
+            <p>
+              Mark this invoice paid via
+              <strong>{{
+                paymentMethodLabel(payForm.controls.method.value)
+              }}</strong>
+              @if (payForm.controls.reference.value.trim()) {
+                (ref {{ payForm.controls.reference.value.trim() }})
+              }
+              on <strong>{{ payForm.controls.paidDate.value }}</strong>?
+              The auto-charge is cancelled for good.
+            </p>
+            <div class="manage-invoice__actions">
+              <button
+                type="button"
+                class="manage-invoice__btn manage-invoice__btn--primary"
+                (click)="confirmMarkPaid()"
+                [disabled]="actionStatus() === 'submitting'"
+              >
+                @if (actionStatus() === 'submitting') {
+                  Marking paid…
+                } @else {
+                  Confirm mark paid
+                }
+              </button>
+              <button
+                type="button"
+                class="manage-invoice__btn"
+                (click)="backFromPaidConfirm()"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="manage-invoice__actions">
+            <button
+              type="submit"
+              class="manage-invoice__btn manage-invoice__btn--primary"
+              [disabled]="actionStatus() === 'submitting'"
+            >
+              Mark as paid
+            </button>
+          </div>
+        }
+      </form>
+    </div>
+
+    <div class="manage-invoice__actions">
+      <button type="button" class="manage-invoice__btn" (click)="close()">
+        Close
+      </button>
+    </div>
+  }
+</section>

@@ -31,9 +31,22 @@ const HEALTH: BillingHealthResponse = {
       tenantKey: 'test-builder',
       commissionCents: 15_000,
       currency: 'CAD',
+      commissionRatePercent: 1,
+      contractValueCents: 1_500_000,
       pastDueSince: '2026-09-24T12:00:00.000Z',
       retryCount: 1,
       lastFailureReason: 'Your card was declined.',
+    },
+  ],
+  inReviewInvoices: [
+    {
+      id: 'inv-2',
+      tenantKey: 'test-builder',
+      commissionCents: 10_000,
+      currency: 'CAD',
+      reviewDueAt: '2026-10-03T12:00:00.000Z',
+      commissionRatePercent: 1,
+      contractValueCents: 1_000_000,
     },
   ],
   maxChargeRetries: 3,
@@ -152,6 +165,55 @@ describe('AdminBillingComponent (billing/03)', () => {
     // Durable success feedback.
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Charge re-attempted');
+  });
+
+  it('renders the in-review work queue with a Manage action per invoice', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('In-review invoices');
+    expect(text).toContain('Manage');
+    // The work-queue row shows the effective rate.
+    expect(text).toContain('1%');
+  });
+
+  it('opens the manage modal from an in-review Manage button and closes it', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage');
+    expect(manageButton).toBeDefined();
+    (manageButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    let modal = fixture.nativeElement.querySelector('app-admin-manage-invoice');
+    expect(modal).not.toBeNull();
+    expect(modal.textContent).toContain('Record payment');
+    // Close via the modal's Close button.
+    const closeButton = Array.from(modal.querySelectorAll('button')).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Close',
+    ) as HTMLButtonElement;
+    expect(closeButton).toBeDefined();
+    closeButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    modal = fixture.nativeElement.querySelector('app-admin-manage-invoice');
+    expect(modal).toBeNull();
+  });
+
+  it('opens the manage modal from a dunning Mark as paid button', async () => {
+    const markPaidButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Mark as paid',
+    );
+    expect(markPaidButton).toBeDefined();
+    (markPaidButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const modal = fixture.nativeElement.querySelector(
+      'app-admin-manage-invoice',
+    );
+    expect(modal).not.toBeNull();
+    // Failed-charge context: no review-due date on the invoice summary.
+    expect(modal.textContent).toContain('Failed charge');
   });
 
   it('shows manual handling when retries are exhausted', async () => {

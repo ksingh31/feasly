@@ -1,7 +1,10 @@
 /**
  * Billing-health dashboard actions (billing/03 follow-on — /admin/billing).
  */
-import type { ManualInvoiceRequest } from '@feasly/contracts';
+import type {
+  ManualInvoiceRequest,
+  MarkInvoicePaidRequest,
+} from '@feasly/contracts';
 
 /** Load the billing-health dashboard payload (refresh on each dispatch). */
 export class LoadBillingHealth {
@@ -32,4 +35,40 @@ export class CreateManualInvoice {
 /** Dismiss the create-invoice feedback banner. */
 export class DismissCreateInvoiceFeedback {
   static readonly type = '[BillingHealth] Dismiss create-invoice feedback';
+}
+
+/**
+ * Record an off-Stripe payment for a commission invoice (cheque, bank
+ * draft, e-transfer, cash, card terminal, other). A money action: the UI
+ * always requires a deliberate confirm step before dispatching. The
+ * server marks the invoice paid AND cancels the scheduled auto-charge —
+ * the builder can never be double-charged. The state reloads the
+ * dashboard payload on success so the invoice leaves the work queue.
+ */
+export class MarkInvoicePaid {
+  static readonly type = '[BillingHealth] Mark invoice paid';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: MarkInvoicePaidRequest,
+  ) {}
+}
+
+/**
+ * Override the per-invoice commission rate (percent, e.g. 1.5 = 1.5%).
+ * A money action: the UI always requires a deliberate confirm step
+ * before dispatching. The server recalculates the commission from the
+ * signed contract value (excluding land); unpaid invoices only. The
+ * state reloads the dashboard payload on success.
+ */
+export class SetCommissionRate {
+  static readonly type = '[BillingHealth] Set commission rate';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly rate: number,
+  ) {}
+}
+
+/** Dismiss the mark-paid / rate-override feedback banner. */
+export class DismissInvoiceFeedback {
+  static readonly type = '[BillingHealth] Dismiss invoice feedback';
 }

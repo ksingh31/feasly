@@ -4,13 +4,18 @@ import { catchError, of, tap } from 'rxjs';
 import type {
   BillingHealthResponse,
   ManualInvoiceResponse,
+  MarkInvoicePaidResponse,
+  SetCommissionRateResponse,
 } from '@feasly/contracts';
 import { AdminBillingApiService } from './admin-billing-api.service';
 import {
   CreateManualInvoice,
   DismissCreateInvoiceFeedback,
+  DismissInvoiceFeedback,
   LoadBillingHealth,
+  MarkInvoicePaid,
   RetryInvoiceCharge,
+  SetCommissionRate,
 } from './billing-health.actions';
 
 /** Loading lifecycle for the billing-health dashboard. */
@@ -18,6 +23,9 @@ export type BillingHealthLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Lifecycle of the manual-invoice creation form submit. */
 export type CreateInvoiceStatus = 'idle' | 'submitting' | 'error';
+
+/** Lifecycle of the mark-paid / rate-override submit in the manage modal. */
+export type InvoiceActionStatus = 'idle' | 'submitting' | 'error';
 
 export interface BillingHealthStateModel {
   /** The latest dashboard payload, or null before the first load. */
@@ -42,6 +50,18 @@ export interface BillingHealthStateModel {
     message: string;
     invoice: ManualInvoiceResponse | null;
   } | null;
+  /** Mark-paid / rate-override submit lifecycle in the manage modal. */
+  invoiceActionStatus: InvoiceActionStatus;
+  /**
+   * One-shot mark-paid / rate-override feedback; carries the updated
+   * invoice. Shown in the manage modal; a success also reloads the
+   * dashboard so the work queue reflects the new state.
+   */
+  invoiceFeedback: {
+    ok: boolean;
+    message: string;
+    invoice: MarkInvoicePaidResponse | SetCommissionRateResponse | null;
+  } | null;
 }
 
 const defaults: BillingHealthStateModel = {
@@ -52,6 +72,8 @@ const defaults: BillingHealthStateModel = {
   retryFeedback: null,
   createStatus: 'idle',
   createFeedback: null,
+  invoiceActionStatus: 'idle',
+  invoiceFeedback: null,
 };
 
 /**
@@ -132,6 +154,22 @@ export class BillingHealthState {
     state: BillingHealthStateModel,
   ): BillingHealthStateModel['createFeedback'] {
     return state.createFeedback;
+  }
+
+  /** Mark-paid / rate-override submit lifecycle (manage modal). */
+  @Selector()
+  static invoiceActionStatus(
+    state: BillingHealthStateModel,
+  ): BillingHealthStateModel['invoiceActionStatus'] {
+    return state.invoiceActionStatus;
+  }
+
+  /** One-shot mark-paid / rate-override feedback (manage modal). */
+  @Selector()
+  static invoiceFeedback(
+    state: BillingHealthStateModel,
+  ): BillingHealthStateModel['invoiceFeedback'] {
+    return state.invoiceFeedback;
   }
 
   @Action(LoadBillingHealth)
@@ -232,6 +270,115 @@ export class BillingHealthState {
   dismissCreateInvoiceFeedback(ctx: StateContext<BillingHealthStateModel>) {
     ctx.patchState({ createStatus: 'idle', createFeedback: null });
   }
+
+  /**
+   * Record an off-Stripe payment. On success the dashboard payload reloads
+   * so the invoice leaves the in-review/dunning work queue, and the
+   * feedback carries the paid invoice for the modal's confirmation.
+   */
+  @Action(MarkInvoicePaid)
+  markInvoicePaid(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: MarkInvoicePaid,
+  ) {
+    ctx.patchState({ invoiceActionStatus: 'submitting', invoiceFeedback: null });
+    return this.api.markInvoicePaid(action.invoiceId, action.body).pipe(
+      tap((invoice) => {
+        ctx.patchState({
+          invoiceActionStatus: 'idle',
+          invoiceFeedback: {
+            ok: true,
+            message: 'Invoice marked as paid — the scheduled auto-charge was cancelled.',
+            invoice,
+          },
+        });
+        ctx.dispatch(new LoadBillingHealth());
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({
+          invoiceActionStatus: 'error',
+          invoiceFeedback: {
+            ok: false,
+            message: friendlyInvoiceActionError(err),
+            invoice: null,
+          },
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  /**
+   * Override the per-invoice commission rate. On success the dashboard
+   * payload reloads so the work queue shows the recalculated amount.
+   */
+  @Action(SetCommissionRate)
+  setCommissionRate(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: SetCommissionRate,
+  ) {
+    ctx.patchState({ invoiceActionStatus: 'submitting', invoiceFeedback: null });
+    return this.api.setCommissionRate(action.invoiceId, action.rate).pipe(
+      tap((invoice) => {
+        ctx.patchState({
+          invoiceActionStatus: 'idle',
+          invoiceFeedback: {
+            ok: true,
+            message:
+              `Commission rate set to ${action.rate}% — ` +
+              'the invoice amount was recalculated.',
+            invoice,
+          },
+        });
+        ctx.dispatch(new LoadBillingHealth());
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({
+          invoiceActionStatus: 'error',
+          invoiceFeedback: {
+            ok: false,
+            message: friendlyInvoiceActionError(err),
+            invoice: null,
+          },
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  /** Dismiss the mark-paid / rate-override feedback banner. */
+  @Action(DismissInvoiceFeedback)
+  dismissInvoiceFeedback(ctx: StateContext<BillingHealthStateModel>) {
+    ctx.patchState({ invoiceActionStatus: 'idle', invoiceFeedback: null });
+  }
+}
+
+/**
+ * Map a mark-paid / rate-override failure to user-facing copy. The raw
+ * error never reaches the UI; specific cases are named so the admin can
+ * act on them.
+ */
+function friendlyInvoiceActionError(err: unknown): string {
+  const status =
+    typeof err === 'object' && err !== null && 'status' in err
+      ? (err as { status?: unknown }).status
+      : undefined;
+  const code =
+    typeof err === 'object' &&
+    err !== null &&
+    'error' in err &&
+    typeof (err as { error?: unknown }).error === 'object' &&
+    (err as { error?: unknown }).error !== null
+      ? ((err as { error: { code?: unknown } }).error.code as
+          | string
+          | undefined)
+      : undefined;
+  if (status === 404) return 'That invoice was not found — it may have been handled already.';
+  if (status === 400 && code === 'VALIDATION_FAILED')
+    return 'Check the payment details — the method, reference, or rate is invalid.';
+  if (status === 409)
+    return 'That invoice changed state — it may already be paid. Refresh and try again.';
+  return 'The update failed — check the details and try again.';
 }
 
 /**

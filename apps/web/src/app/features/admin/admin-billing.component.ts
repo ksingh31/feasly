@@ -2,9 +2,17 @@ import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
+import type {
+  BillingHealthDunningInvoice,
+  BillingHealthInReviewInvoice,
+} from '@feasly/contracts';
 import { LoadBillingHealth, RetryInvoiceCharge } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
 import { AdminCreateInvoiceComponent } from './admin-create-invoice.component';
+import {
+  AdminManageInvoiceComponent,
+  type ManageInvoiceInput,
+} from './admin-manage-invoice.component';
 import { formatCentsToCad } from '../../shared/utils/money';
 
 /**
@@ -13,12 +21,17 @@ import { formatCentsToCad } from '../../shared/utils/money';
  *
  * Karan's money overview: MRR (from Stripe subscription data under the
  * flat model), commission collected in the trailing 30 days, in-review
- * invoice aging buckets (<48h / <7d / overdue), disputed totals, the
- * dunning work queue with `past_due_since`, and the Stripe webhook
- * health panel.
+ * invoice aging buckets (<48h / <7d / overdue), the in-review invoice
+ * work queue, disputed totals, the dunning work queue with
+ * `past_due_since`, and the Stripe webhook health panel.
  *
  * Mutating actions on this page (two-click confirm each):
  * - BILL-03: "Retry charge" per failed invoice.
+ * - "Manage" per in-review invoice: commission-rate override or record
+ *   an off-Stripe payment (mark as paid). The manage modal is also
+ *   offered from dunning rows so a failed charge paid offline can be
+ *   cleared. Marking paid cancels the scheduled auto-charge — the
+ *   builder can never be charged twice.
  * - Manual invoice creation ("Create invoice"): builder → lead →
  *   contract value excl. land → 1% commission → 7-day review window.
  * Everything else stays read-only.
@@ -30,7 +43,7 @@ import { formatCentsToCad } from '../../shared/utils/money';
 @Component({
   selector: 'app-admin-billing',
   standalone: true,
-  imports: [DatePipe, AdminCreateInvoiceComponent],
+  imports: [DatePipe, AdminCreateInvoiceComponent, AdminManageInvoiceComponent],
   templateUrl: './admin-billing.component.html',
   styleUrl: './admin-billing.component.scss',
 })
@@ -64,6 +77,9 @@ export class AdminBillingComponent implements OnInit {
   /** Whether the manual-invoice creation form is open. */
   protected readonly showCreateForm = signal(false);
 
+  /** Invoice open in the manage modal, or null. */
+  protected readonly managedInvoice = signal<ManageInvoiceInput | null>(null);
+
   ngOnInit(): void {
     this.store
       .dispatch(new LoadBillingHealth())
@@ -86,6 +102,38 @@ export class AdminBillingComponent implements OnInit {
 
   protected closeCreateForm(): void {
     this.showCreateForm.set(false);
+  }
+
+  /** Open the manage modal for an in-review invoice. */
+  protected openManageInReview(invoice: BillingHealthInReviewInvoice): void {
+    this.managedInvoice.set({
+      id: invoice.id,
+      tenantKey: invoice.tenantKey,
+      commissionCents: invoice.commissionCents,
+      currency: invoice.currency,
+      commissionRatePercent: invoice.commissionRatePercent,
+      contractValueCents: invoice.contractValueCents,
+      reviewDueAt: invoice.reviewDueAt,
+      status: 'in_review',
+    });
+  }
+
+  /** Open the manage modal from a dunning row (failed charge paid offline). */
+  protected openManageDunning(invoice: BillingHealthDunningInvoice): void {
+    this.managedInvoice.set({
+      id: invoice.id,
+      tenantKey: invoice.tenantKey,
+      commissionCents: invoice.commissionCents,
+      currency: invoice.currency,
+      commissionRatePercent: invoice.commissionRatePercent,
+      contractValueCents: invoice.contractValueCents,
+      reviewDueAt: null,
+      status: 'failed',
+    });
+  }
+
+  protected closeManage(): void {
+    this.managedInvoice.set(null);
   }
 
   /**
@@ -137,6 +185,11 @@ export class AdminBillingComponent implements OnInit {
   protected formatCents(cents: number | null): string {
     if (cents === null) return '—';
     return formatCentsToCad(cents);
+  }
+
+  /** "1.5%" — trims float dust from stored percents. */
+  protected formatRatePercent(rate: number): string {
+    return `${Number(rate.toFixed(4))}%`;
   }
 
   /**
