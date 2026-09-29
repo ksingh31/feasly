@@ -66,8 +66,10 @@ export interface BuilderLeadsService {
   listLeads(tenantKey: string): Promise<BuilderLeadListResponse>;
   /**
    * Transition a lead's pipeline status. Throws 404 when the lead doesn't
-   * exist, 403 when it isn't assigned to this builder. Writes
-   * `lead_status_history` + audit row with the builder's email.
+   * exist, 403 when it isn't assigned to this builder, and 409
+   * (LEAD_STATUS_LOCKED) when the lead has a recorded signed contract
+   * (a commission invoice exists) — recorded leads are status-locked.
+   * Writes `lead_status_history` + audit row with the builder's email.
    *
    * When the transition is to 'won', the billing charge path runs first
    * (billing/01): with contract details it creates the draft commission
@@ -269,6 +271,26 @@ export function createBuilderLeadsService(
 
       const oldStatus = record.status;
       const newStatus = parsed.data.status;
+
+      // Lead status lock (2026-09-29, Karan): once a signed contract is
+      // recorded (a commission invoice exists), the pipeline status is
+      // frozen — a won/recorded lead can never be flipped back. Rejected
+      // before any billing or write side effects.
+      if (
+        newStatus !== oldStatus &&
+        invoiceSummaries !== undefined &&
+        (await invoiceSummaries.hasInvoiceForLead({
+          leadId: id,
+          tenantKey: builder.tenantKey,
+        }))
+      ) {
+        throw new HttpError(
+          409,
+          ErrorCodes.LEAD_STATUS_LOCKED,
+          'Status is locked: a signed contract is already recorded for this lead.',
+          false,
+        );
+      }
 
       // Contract details are only meaningful on a won transition.
       const { contractValueCents, contractSignedAt } = parsed.data;

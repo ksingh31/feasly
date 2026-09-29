@@ -11,7 +11,7 @@
  * needs one tenant-scoped DISTINCT-lead query, not the paginated invoice
  * list, and this module carries no charge-path logic.
  */
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { AppDb } from '../../db/client';
 import { commissionInvoices } from '../../db/schema';
 
@@ -32,6 +32,16 @@ export interface InvoiceSummaryStore {
    * DB unique constraint, so the first row per lead wins.
    */
   findByTenantKey(tenantKey: string): Promise<readonly InvoiceSummaryRecord[]>;
+
+  /**
+   * Whether any commission invoice exists for this lead in this tenant.
+   * Powers the lead status lock (2026-09-29): a recorded signed contract
+   * freezes the pipeline status.
+   */
+  hasInvoiceForLead(args: {
+    readonly leadId: string;
+    readonly tenantKey: string;
+  }): Promise<boolean>;
 }
 
 export interface InvoiceSummaryStoreDeps {
@@ -62,6 +72,20 @@ export function createInvoiceSummaryStore(
         // row per lead, which must be deterministic.
         .orderBy(desc(commissionInvoices.createdAt));
       return rows;
+    },
+
+    async hasInvoiceForLead({ leadId, tenantKey }): Promise<boolean> {
+      const rows = await db
+        .select({ id: commissionInvoices.id })
+        .from(commissionInvoices)
+        .where(
+          and(
+            eq(commissionInvoices.leadId, leadId),
+            eq(commissionInvoices.tenantKey, tenantKey),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
     },
   };
 }

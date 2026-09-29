@@ -50,6 +50,8 @@ export const ErrorCodes = {
   ADDRESS_NOT_FOUND: 'ADDRESS_NOT_FOUND',
   UNKNOWN_TENANT: 'UNKNOWN_TENANT',
   CONFLICT: 'CONFLICT',
+  /** Lead status lock (2026-09-29): status change on a recorded-contract lead. */
+  LEAD_STATUS_LOCKED: 'LEAD_STATUS_LOCKED',
   /** Analytics ingest without a valid consent_ts (story consumer/01). */
   CONSENT_REQUIRED: 'CONSENT_REQUIRED',
   RATE_LIMITED: 'RATE_LIMITED',

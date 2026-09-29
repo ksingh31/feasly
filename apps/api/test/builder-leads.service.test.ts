@@ -537,6 +537,9 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       invoiceSummaries: {
         findByTenantKey: async (tenantKey: string) =>
           tenantKey === 'elite-craft' ? summaries : [],
+        hasInvoiceForLead: async ({ leadId, tenantKey }) =>
+          tenantKey === 'elite-craft' &&
+          summaries.some((s) => s.leadId === leadId),
       },
     });
     return service;
@@ -578,5 +581,93 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
     const result = await service.listLeads('elite-craft');
     expect(result.leads[0]?.hasInvoice).toBe(false);
     expect(result.leads[0]?.invoiceSummary).toBeNull();
+  });
+});
+
+describe('builder-leads status lock (2026-09-29)', () => {
+  function makeServiceWithInvoice(leadId: string) {
+    const base = makeDeps();
+    const summaries = [
+      {
+        id: 'inv-1',
+        leadId,
+        contractValueCents: 50000000,
+        commissionCents: 500000,
+        status: 'in_review',
+        reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
+      },
+    ];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      invoiceSummaries: {
+        findByTenantKey: async (tenantKey: string) =>
+          tenantKey === 'elite-craft' ? summaries : [],
+        hasInvoiceForLead: async ({ leadId: checkId, tenantKey }) =>
+          tenantKey === 'elite-craft' &&
+          summaries.some((s) => s.leadId === checkId),
+      },
+    });
+    return { service, leads: base.leads, statusHistory: base.statusHistory };
+  }
+
+  it('rejects a status change on a recorded lead with 409 LEAD_STATUS_LOCKED', async () => {
+    const { service, leads, statusHistory } = makeServiceWithInvoice('lead-1');
+    const before = leads.get('lead-1')?.status;
+    expect(before).toBe('new');
+
+    const err = await service
+      .updateStatus('lead-1', { status: 'contacted' }, 'elite-craft', 'builder@example.com')
+      .then(
+        () => null,
+        (e: unknown) => e as { status: number; code: string; message: string },
+      );
+    expect(err).not.toBeNull();
+    expect(err?.status).toBe(409);
+    expect(err?.code).toBe('LEAD_STATUS_LOCKED');
+
+    // No side effects: status and history untouched.
+    expect(leads.get('lead-1')?.status).toBe('new');
+    expect(statusHistory).toHaveLength(0);
+  });
+
+  it('rejects won→new on a recorded lead (never flippable back)', async () => {
+    const { service, leads } = makeServiceWithInvoice('lead-1');
+    leads.set('lead-1', { ...leads.get('lead-1')!, status: 'won' });
+
+    const err = await service
+      .updateStatus('lead-1', { status: 'new' }, 'elite-craft', 'builder@example.com')
+      .then(
+        () => null,
+        (e: unknown) => e as { status: number; code: string },
+      );
+    expect(err?.status).toBe(409);
+    expect(err?.code).toBe('LEAD_STATUS_LOCKED');
+    expect(leads.get('lead-1')?.status).toBe('won');
+  });
+
+  it('allows a no-op same-status update on a recorded lead', async () => {
+    const { service, leads } = makeServiceWithInvoice('lead-1');
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'new' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(leads.get('lead-1')?.status).toBe('new');
+  });
+
+  it('still transitions unrecorded leads when the dep is wired', async () => {
+    const { service, leads } = makeServiceWithInvoice('lead-other');
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'contacted' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(leads.get('lead-1')?.status).toBe('contacted');
   });
 });
