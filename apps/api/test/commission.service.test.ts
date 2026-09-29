@@ -1167,20 +1167,24 @@ describe('markPaidManually', () => {
     expect(piEvents.length).toBe(0);
   });
 
-  it('marks a finalized invoice paid — the in-flight auto-charge is cancelled', async () => {
+  it('409s a finalized invoice — an in-flight PaymentIntent cannot be cancelled here', async () => {
     const { commission } = newServices(testDb);
     const inReview = await seedInReviewInvoice('markpaid-builder-3');
     const finalized = await commission.finalizeInvoice(inReview.id);
-    const paid = await commission.markPaidManually(finalized.id, {
-      paymentMethod: 'bank_draft',
-      adminEmail: 'karanbirsingh667@gmail.com',
-    });
-    expect(paid.status).toBe('paid');
-    expect(paid.manualPaymentMethod).toBe('bank_draft');
-    // retryCharge is impossible from paid: the charge clock is dead.
-    await expect(commission.retryCharge(paid.id)).rejects.toMatchObject({
+    // finalized owns a live Stripe PaymentIntent; flipping it to paid would
+    // leave Stripe collecting money while our ledger says "paid manually".
+    // Mark paid only after the charge fails (→ failed), or refund first.
+    await expect(
+      commission.markPaidManually(finalized.id, {
+        paymentMethod: 'bank_draft',
+        adminEmail: 'karanbirsingh667@gmail.com',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
       code: ErrorCodes.CONFLICT,
     });
+    const still = await commission.getById(finalized.id);
+    expect(still.status).toBe('finalized');
   });
 
   it('excludes a manually paid invoice from auto-finalization reviews', async () => {
@@ -1316,7 +1320,7 @@ describe('setCommissionRate', () => {
     }
   });
 
-  it('409s on paid, finalized, and disputed invoices', async () => {
+  it('409s on paid and finalized invoices, but allows disputed (unpaid)', async () => {
     const { commission, attribution } = newServices(testDb);
     await seedTenant(testDb, 'setrate-builder-3');
     const attributionId = await seedAttribution(
@@ -1342,13 +1346,20 @@ describe('setCommissionRate', () => {
       commission.setCommissionRate(paid.id, 2, 'karanbirsingh667@gmail.com'),
     ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
 
-    // Disputed: terminal.
+    // Disputed: unpaid — an admin resolving a dispute may fix the rate.
     const { invoice: inReview2 } =
       await seedInReviewInvoice('setrate-builder-4');
     const disputed = await commission.disputeInvoice(inReview2.id, 'wrong amount');
-    await expect(
-      commission.setCommissionRate(disputed.id, 2, 'karanbirsingh667@gmail.com'),
-    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+    const repriced = await commission.setCommissionRate(
+      disputed.id,
+      2,
+      'karanbirsingh667@gmail.com',
+    );
+    expect(repriced).toMatchObject({
+      status: 'disputed',
+      commissionRateOverride: 2,
+      commissionCents: 1_000_000,
+    });
   });
 
   it('uses the overridden rate in the Stripe PaymentIntent description', async () => {

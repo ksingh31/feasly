@@ -118,7 +118,7 @@ describe('AdminManageInvoiceComponent', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     // 1.5% of the $500,000 contract (excluding land).
-    expect(text).toContain('$750,000');
+    expect(text).toContain('$7,500');
     expect(text).toContain('1.5%');
   });
 
@@ -216,7 +216,7 @@ describe('AdminManageInvoiceComponent', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Commission rate updated.');
-    expect(text).toContain('$750,000');
+    expect(text).toContain('$7,500');
     let closed = false;
     fixture.componentInstance.closed.subscribe(() => {
       closed = true;

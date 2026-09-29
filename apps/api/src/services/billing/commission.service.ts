@@ -961,11 +961,14 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is disputed — resolve the dispute before recording a payment`,
         );
       }
-      if (from !== 'in_review' && from !== 'finalized' && from !== 'failed') {
+      if (from !== 'in_review' && from !== 'failed') {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
-          `Invoice "${invoiceId}" is '${from}' — only 'in_review', 'finalized' or 'failed' can be marked paid manually`,
+          `Invoice "${invoiceId}" is '${from}' — only 'in_review' or 'failed' can be marked paid manually` +
+            (from === 'finalized'
+              ? ' (a finalized invoice has an in-flight Stripe PaymentIntent — mark the builder paid only after the charge fails, or refund the charge first)'
+              : ''),
         );
       }
       const paidAt = input.paidAt ?? now();
@@ -980,12 +983,15 @@ export function createCommissionService(
         input.reference !== undefined && input.reference.trim().length > 0
           ? input.reference.trim()
           : null;
-      // Moving to 'paid' cancels the scheduled auto-charge: the
-      // invoice-reviewer timer only finalizes 'in_review' rows
-      // (findDueReviews), reviewDueAt is cleared so no charge clock remains,
-      // and a late payment_intent.succeeded webhook no-ops on the terminal
-      // status (markPaidByPaymentIntent). The builder can never be charged
-      // twice for this invoice.
+      // Moving to 'paid' cancels the scheduled auto-charge, and only for
+      // statuses that have no live Stripe PaymentIntent: 'in_review' is
+      // pre-charge (the invoice-reviewer timer only finalizes 'in_review'
+      // rows via findDueReviews) and 'failed' means the charge already
+      // failed. A 'finalized' invoice owns an in-flight PaymentIntent that
+      // this path cannot cancel — mark-paid is rejected for it above — so
+      // a late payment_intent.succeeded webhook can never double-charge:
+      // it no-ops on the terminal status (markPaidByPaymentIntent). The
+      // builder can never be charged twice for this invoice.
       const invoice = await transition(
         invoiceId,
         from,
@@ -1030,11 +1036,16 @@ export function createCommissionService(
       }
       const row = await requireInvoice(invoiceId);
       const status = row.status as CommissionInvoiceStatus;
-      if (TERMINAL_STATUSES.has(status) || status === 'disputed') {
+      // Unpaid invoices only: settled (paid/void) and failed charges are
+      // never repriced. Disputed IS allowed — it is unpaid, and a dispute
+      // is often about the amount itself, so resolving it may mean fixing
+      // the rate. Finalized keeps its own 409: the PaymentIntent amount is
+      // already fixed.
+      if (TERMINAL_STATUSES.has(status)) {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
-          `Invoice "${invoiceId}" is '${status}' — a disputed or settled invoice is never repriced`,
+          `Invoice "${invoiceId}" is '${status}' — a settled or failed invoice is never repriced`,
         );
       }
       if (status === 'finalized') {

@@ -901,8 +901,11 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'e_transfer | cash | card_terminal | other) with an optional ' +
       'cheque/trace reference and paid date. Marks the invoice paid and ' +
       'cancels the scheduled auto-charge — the builder can never be ' +
-      'double-charged. Allowed from in_review / finalized / failed; ' +
-      'disputed and settled invoices 409. Audited with the admin identity.',
+      'double-charged. Allowed from in_review / failed only: a finalized ' +
+      'invoice owns an in-flight Stripe PaymentIntent that cannot be ' +
+      'cancelled here, so it 409s (mark paid after the charge fails, or ' +
+      'refund first). Disputed and settled invoices 409. Audited with ' +
+      'the admin identity.',
   },
   {
     method: 'POST',
@@ -914,10 +917,10 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Admin overrides the per-invoice commission rate (percent, ' +
       '0 < rate <= 10) and recalculates the invoice amount. Unpaid ' +
-      'invoices only (draft, in_review, failed): a disputed or settled ' +
-      'invoice is never silently repriced (409), and a finalized invoice ' +
-      'with a charge in flight is blocked too. Audited old → new rate ' +
-      'with the admin identity.',
+      'invoices only (draft, in_review, disputed): settled (paid/void) ' +
+      'and failed invoices are never repriced (409), and a finalized ' +
+      'invoice with a charge in flight is blocked too. Audited old → ' +
+      'new rate with the admin identity.',
   },
   {
     method: 'POST',

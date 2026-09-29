@@ -18,13 +18,20 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { startWith } from 'rxjs';
 import { Store } from '@ngxs/store';
 import type {
   ManualPaymentMethod,
   MarkInvoicePaidRequest,
+  MarkInvoicePaidResponse,
+  SetCommissionRateResponse,
 } from '@feasly/contracts';
 import { formatCentsToCad } from '../../shared/utils/money';
+import {
+  dateOnlyToIsoWithOffset,
+  todayLocalDateString,
+} from '../../shared/utils/datetime';
 import { BillingHealthState } from './billing-health.state';
 import {
   DismissInvoiceFeedback,
@@ -34,7 +41,6 @@ import {
 import {
   MANUAL_PAYMENT_METHOD_LABELS,
 } from './admin-billing-api.service';
-import { toIsoWithOffset } from './admin-create-invoice.component';
 
 /**
  * Invoice handed to the manage modal — either an in-review work-queue
@@ -60,11 +66,11 @@ function greaterThanZero(
   return typeof value === 'number' && value > 0 ? null : { greaterThanZero: true };
 }
 
-/** Local calendar date as `yyyy-MM-dd` (UTC slicing shifts the day). */
-function localToday(): string {
-  const now = new Date();
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+/** True for a rate-override result (it carries the recalculated amount). */
+function isRateResponse(
+  confirmed: MarkInvoicePaidResponse | SetCommissionRateResponse,
+): confirmed is SetCommissionRateResponse {
+  return !('paymentMethod' in confirmed);
 }
 
 /**
@@ -134,15 +140,27 @@ export class AdminManageInvoiceComponent implements OnDestroy {
       validators: [Validators.maxLength(120)],
       nonNullable: true,
     }),
-    paidDate: new FormControl<string>(localToday(), {
+    paidDate: new FormControl<string>(todayLocalDateString(), {
       validators: [Validators.required],
       nonNullable: true,
     }),
   });
 
+  /**
+   * Live recalculated commission for the entered rate. Tracked through
+   * `valueChanges` because `FormControl.value` is a plain property read, not
+   * a signal — a computed reading it directly would never re-evaluate.
+   */
+  private readonly rateValue = toSignal(
+    this.rateForm.controls.rate.valueChanges.pipe(
+      startWith(this.rateForm.controls.rate.value),
+    ),
+    { initialValue: null as number | null },
+  );
+
   /** Live recalculated commission for the entered rate. */
   readonly previewCents = computed(() => {
-    const rate = this.rateForm.controls.rate.value;
+    const rate = this.rateValue();
     if (rate === null || !Number.isFinite(rate) || rate <= 0 || rate > 10) {
       return null;
     }
@@ -154,23 +172,24 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     () => this.feedback()?.invoice ?? null,
   );
 
-  /** True when the confirmed result is a mark-paid (has paymentMethod). */
-  readonly confirmedPaid = computed(
-    () =>
-      this.confirmedInvoice() !== null &&
-      'paymentMethod' in (this.confirmedInvoice() as object),
-  );
+  /** True when the confirmed result is a mark-paid (no recalculated amount). */
+  readonly confirmedPaid = computed(() => {
+    const confirmed = this.confirmedInvoice();
+    return confirmed !== null && !isRateResponse(confirmed);
+  });
 
   /** Authoritative figures from the confirmed server response. */
-  readonly confirmedCommissionCents = computed(
-    () => this.confirmedInvoice()?.commissionCents ?? 0,
-  );
+  readonly confirmedCommissionCents = computed(() => {
+    const confirmed = this.confirmedInvoice();
+    return confirmed !== null && isRateResponse(confirmed)
+      ? confirmed.commissionCents
+      : 0;
+  });
   readonly confirmedRatePercent = computed(() => {
     const confirmed = this.confirmedInvoice();
-    if (confirmed === null || 'paymentMethod' in (confirmed as object)) {
-      return null;
-    }
-    return confirmed.commissionRatePercent;
+    return confirmed !== null && isRateResponse(confirmed)
+      ? confirmed.commissionRatePercent
+      : null;
   });
 
   ngOnDestroy(): void {
@@ -233,12 +252,9 @@ export class AdminManageInvoiceComponent implements OnDestroy {
   confirmMarkPaid(): void {
     const { method, reference, paidDate } = this.payForm.getRawValue();
     if (method === '' || paidDate === '') return;
-    const [year, month, day] = paidDate.split('-').map(Number);
-    // Local noon: day-accurate without midnight DST-boundary shifts.
-    const paidAt = new Date(year, month - 1, day, 12, 0, 0);
     const body: MarkInvoicePaidRequest = {
       paymentMethod: method,
-      paidAt: toIsoWithOffset(paidAt),
+      paidAt: dateOnlyToIsoWithOffset(paidDate),
     };
     const trimmed = reference.trim();
     this.confirmingPaid.set(false);

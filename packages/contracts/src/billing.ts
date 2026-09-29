@@ -68,6 +68,11 @@ export type ManualPaymentMethod =
 /**
  * POST /api/v1/admin/billing/invoices/{id}/mark-paid — record an
  * off-Stripe payment received by the platform.
+ *
+ * Only `in_review` and `failed` invoices can be marked paid: a `finalized`
+ * invoice owns an in-flight Stripe PaymentIntent that this endpoint cannot
+ * cancel, so it is rejected with 409 (mark paid after the charge fails, or
+ * refund the charge first).
  */
 export interface MarkInvoicePaidRequest {
   readonly paymentMethod: ManualPaymentMethod;
