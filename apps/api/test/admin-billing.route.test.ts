@@ -372,6 +372,29 @@ describe('admin-billing route markPaid', () => {
     expect(deps.commission.markPaidManually).not.toHaveBeenCalled();
   });
 
+  it('accepts the expanded payment methods (direct_deposit, visa, mastercard)', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const markPaidManually = deps.commission
+      .markPaidManually as unknown as ReturnType<typeof vi.fn>;
+    markPaidManually.mockImplementation(
+      async (id: string, input: { paymentMethod: string }) => ({
+        id,
+        status: 'paid',
+        paidAt: new Date('2026-09-29T18:00:00.000Z'),
+        manualPaymentMethod: input.paymentMethod,
+        paymentReference: null,
+      }),
+    );
+    for (const paymentMethod of ['direct_deposit', 'visa', 'mastercard'] as const) {
+      const result = await route.markPaid(ADMIN_HEADERS, INVOICE_ID, {
+        paymentMethod,
+      });
+      expect(result.paymentMethod).toBe(paymentMethod);
+    }
+    expect(markPaidManually).toHaveBeenCalledTimes(3);
+  });
+
   it('propagates the service 409 for an already-paid invoice', async () => {
     const deps = makeDeps();
     const route = createAdminBillingRoute(deps);

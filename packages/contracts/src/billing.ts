@@ -54,14 +54,18 @@ export interface CommissionInvoice {
 
 /**
  * Manual (off-Stripe) payment methods an admin can record when marking a
- * commission invoice paid — cheque, bank draft, e-transfer, cash, a
- * separate card terminal, or anything else.
+ * commission invoice paid — cheque, bank draft, direct deposit, e-transfer,
+ * cash, a Visa or Mastercard payment taken outside Stripe, a separate card
+ * terminal, or anything else.
  */
 export type ManualPaymentMethod =
   | 'cheque'
   | 'bank_draft'
+  | 'direct_deposit'
   | 'e_transfer'
   | 'cash'
+  | 'visa'
+  | 'mastercard'
   | 'card_terminal'
   | 'other';
 

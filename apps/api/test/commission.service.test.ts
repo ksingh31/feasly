@@ -1224,6 +1224,19 @@ describe('markPaidManually', () => {
     ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
   });
 
+  it('accepts the expanded payment methods at the service level', async () => {
+    const { commission } = newServices(testDb);
+    const methods = ['direct_deposit', 'visa', 'mastercard'] as const;
+    for (const [i, paymentMethod] of methods.entries()) {
+      const inReview = await seedInReviewInvoice(`markpaid-builder-methods-${i}`);
+      const paid = await commission.markPaidManually(inReview.id, {
+        paymentMethod,
+        adminEmail: 'karanbirsingh667@gmail.com',
+      });
+      expect(paid.manualPaymentMethod).toBe(paymentMethod);
+    }
+  });
+
   it('400s on an unknown payment method and 404s on an unknown invoice', async () => {
     const { commission } = newServices(testDb);
     const inReview = await seedInReviewInvoice('markpaid-builder-7');

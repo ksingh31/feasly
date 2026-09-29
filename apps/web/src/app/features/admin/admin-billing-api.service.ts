@@ -160,8 +160,11 @@ export const MANUAL_PAYMENT_METHOD_LABELS: ReadonlyArray<{
 }> = [
   { value: 'cheque', label: 'Cheque' },
   { value: 'bank_draft', label: 'Bank draft' },
+  { value: 'direct_deposit', label: 'Direct deposit' },
   { value: 'e_transfer', label: 'E-transfer' },
   { value: 'cash', label: 'Cash' },
+  { value: 'visa', label: 'Visa' },
+  { value: 'mastercard', label: 'Mastercard' },
   { value: 'card_terminal', label: 'Card terminal' },
   { value: 'other', label: 'Other' },
 ];

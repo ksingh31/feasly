@@ -91,8 +91,11 @@ export interface CommissionInvoiceRecord {
 export const MANUAL_PAYMENT_METHODS: ReadonlyArray<ManualPaymentMethod> = [
   'cheque',
   'bank_draft',
+  'direct_deposit',
   'e_transfer',
   'cash',
+  'visa',
+  'mastercard',
   'card_terminal',
   'other',
 ];
