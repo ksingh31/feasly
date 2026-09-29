@@ -155,7 +155,7 @@ export class BuilderAuthApiService {
   switchOrg(body: BuilderSwitchOrgBody): Observable<BuilderSwitchOrgResponse> {
     return this.call(
       this.http.post<BuilderSwitchOrgResponse>(
-        `${this.authBase}/switch-org`,
+        `${this.authBase}/active-org`,
         body,
         { withCredentials: true },
       ),

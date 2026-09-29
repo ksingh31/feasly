@@ -1,9 +1,10 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, makeEnvironmentProviders } from '@angular/core';
+import type { EnvironmentProviders } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { Action, NgxsOnInit, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import type { CommissionInvoice } from '@feasly/contracts';
-import { BUILDER_COPY } from './builder-copy';
+import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import {
   BuilderInvoicesApiService,
   type InvoiceListResponse,
@@ -184,5 +185,12 @@ export class BuilderInvoicesState implements NgxsOnInit {
  * Lazy provider for the `builder/invoices` route (via lazyProvider in
  * app.routes.ts): the invoices state — and the builder copy it reads —
  * stays out of the initial bundle.
+ *
+ * BUILDER_COPY must be registered in the SAME environment injector as the
+ * state. lazyProvider instantiates the state in a child environment
+ * injector, which cannot see component-level providers (e.g. the builder
+ * shell's) — without this entry, inject(BUILDER_COPY) throws
+ * NullInjectorError and the invoices tab lands on the error page.
  */
-export const builderInvoicesStateProvider = provideStates([BuilderInvoicesState]);
+export const builderInvoicesStateProvider: EnvironmentProviders =
+  makeEnvironmentProviders([provideBuilderCopy(), provideStates([BuilderInvoicesState])]);
