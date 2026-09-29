@@ -38,12 +38,12 @@ function provider() {
   });
 }
 
-/** Provider with a short poll deadline for timeout tests. */
-function providerWithTimeout(deliveryPollTimeoutMs: number) {
+/** Provider with a short send deadline for timeout tests. */
+function providerWithTimeout(sendTimeoutMs: number) {
   return createAcsEmailProvider({
     connectionString: 'endpoint=https://example.com;accesskey=fake',
     fromAddress: 'noreply@feasly.example',
-    deliveryPollTimeoutMs,
+    sendTimeoutMs,
   });
 }
 
@@ -142,6 +142,31 @@ describe('acs provider', () => {
     expect(error.message).toContain('delivery polling timed out after 50ms');
     // Bounded, not forever: comfortably under 5s.
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it('fails loud when beginSend stalls past the deadline (2026-09-28 gate hang)', async () => {
+    // The 2026-09-27 fix bounded only the delivery poll — beginSend()
+    // itself was an unbounded await and held the lead-submit HTTP response
+    // open with no backend completion row. A stalled beginSend must fail
+    // loud inside the deadline.
+    mockBeginSend.mockImplementation(() => new Promise(() => {}));
+    const started = Date.now();
+    const error = await providerWithTimeout(50).send(MESSAGE).catch((e) => e);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.message).toContain('beginSend timed out after 50ms');
+    // Bounded, not forever: comfortably under 5s.
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it('marks a stalled beginSend as RETRYABLE delivery-failed (never reached ACS)', async () => {
+    // beginSend never resolved, so the message never reached the provider:
+    // retrying cannot duplicate anything — unlike the poll-phase timeout.
+    mockBeginSend.mockImplementation(() => new Promise(() => {}));
+    const error = await providerWithTimeout(50).send(MESSAGE).catch((e) => e);
+    expect(error).toBeInstanceOf(EmailProviderError);
+    expect(error.retryable).toBe(true);
+    expect(error.failureCode).toBe('delivery-failed');
+    expect(error.sendAccepted ?? false).toBe(false);
   });
 
   it('does not fire the timeout when the poll completes first', async () => {

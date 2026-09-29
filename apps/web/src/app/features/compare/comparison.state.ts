@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { forkJoin, of } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
-import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
+import { Action, NgxsOnInit, Selector, State, StateContext, Store } from '@ngxs/store';
 import type { ComparisonEstimateResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import type { CommunityStats } from '../../core/api/api.service';
@@ -50,6 +50,24 @@ const defaults: ComparisonStateModel = {
 };
 
 /**
+ * Shape guard for a rehydrated comparison result. The results component
+ * dereferences `result.rowSets` and `result.inputs` unconditionally, so a
+ * persisted result missing either field (written by an older build, or
+ * corrupted storage) must be treated as absent.
+ */
+function isComparisonResult(value: unknown): value is ComparisonEstimateResponse {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    Array.isArray(record['rowSets']) &&
+    typeof record['inputs'] === 'object' &&
+    record['inputs'] !== null
+  );
+}
+
+/**
  * Comparison state (NBH-03): the single source of truth for the
  * /estimate/compare results.
  *
@@ -67,9 +85,31 @@ const defaults: ComparisonStateModel = {
   defaults,
 })
 @Injectable()
-export class ComparisonState {
+export class ComparisonState implements NgxsOnInit {
   private readonly api = inject(API_SERVICE);
   private readonly store = inject(Store);
+
+  /**
+   * Guards against stale persisted state. The storage plugin rehydrates
+   * persisted state during the InitState action — which runs before this
+   * hook — so a result written by an older build (different shape) would
+   * otherwise reach the results component, where `subheading()` and the
+   * template dereference `result.rowSets` / `result.inputs` and throw
+   * (global error handler redirects to /error).
+   *
+   * A malformed result is discarded, not migrated: the user lands back on
+   * the picker with their community picks intact (those live in
+   * WizardState), and re-running the comparison restores the results.
+   */
+  ngxsOnInit(ctx: StateContext<ComparisonStateModel>): void {
+    const state = ctx.getState();
+    if (state.result !== null && !isComparisonResult(state.result)) {
+      ctx.patchState({ result: null, status: 'idle', stage: null, error: null });
+    }
+    if (state.stats === null || typeof state.stats !== 'object') {
+      ctx.patchState({ stats: {} });
+    }
+  }
 
   @Selector()
   static result(state: ComparisonStateModel): ComparisonEstimateResponse | null {
