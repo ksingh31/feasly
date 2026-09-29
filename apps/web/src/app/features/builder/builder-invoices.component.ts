@@ -4,7 +4,7 @@ import {
   OnInit,
   inject,
 } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type {
   CommissionInvoice,
@@ -30,7 +30,7 @@ interface TimelineEntry {
 }
 
 /**
- * Builder invoices page (BILL-04): `/builder/billing/invoices`.
+ * Builder invoices page (BILL-04): `/builder/invoices`.
  *
  * Paginated, tenant-scoped commission invoice list (newest first) plus a
  * detail view per invoice: line items, status timeline, charge-state
@@ -48,7 +48,7 @@ interface TimelineEntry {
 @Component({
   selector: 'app-builder-invoices',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink],
   templateUrl: './builder-invoices.component.html',
   styleUrls: ['./builder-invoices.component.scss'],
 })
@@ -87,7 +87,7 @@ export class BuilderInvoicesComponent implements OnInit {
     this.seo.setPage({
       title: 'Invoices — Feasly builder portal',
       description: this.copy.invoicesSeoDescription,
-      path: '/builder/billing/invoices',
+      path: '/builder/invoices',
     });
     this.destroyRef.onDestroy(() => {
       this.store.dispatch(new ClearInvoicesState());

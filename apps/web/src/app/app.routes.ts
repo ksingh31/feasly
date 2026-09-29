@@ -415,13 +415,19 @@ export const routes: Routes = [
           ),
       },
       {
-        // Builder invoices (BILL-04): commission invoice list + detail.
-        // Lazy-loaded with the rest of the builder portal.
-        path: 'billing/invoices',
+        // Builder invoices: commission invoice list + detail, now a
+        // top-level tab (was /builder/billing/invoices). Lazy-loaded with
+        // the rest of the builder portal.
+        path: 'invoices',
         loadComponent: () =>
           import('./features/builder/builder-invoices.component').then(
             (m) => m.BuilderInvoicesComponent,
           ),
+      },
+      {
+        // Legacy path: redirect to the top-level Invoices tab.
+        path: 'billing/invoices',
+        redirectTo: 'invoices',
       },
       {
         // Builder team (auth/05): org user management — builder_admin only
@@ -434,14 +440,19 @@ export const routes: Routes = [
         canActivate: [builderTeamGuard],
       },
       {
-        // Builder report-contract (billing/01 charge path UI): the builder
-        // reports a signed contract for one of their leads. Lazy-loaded
-        // with the rest of the builder portal.
-        path: 'report-contract',
+        // Builder record-contract: the builder records a signed contract
+        // for one of their leads. Lazy-loaded with the rest of the
+        // builder portal.
+        path: 'record-contract',
         loadComponent: () =>
           import('./features/builder/builder-report-contract.component').then(
             (m) => m.BuilderReportContractComponent,
           ),
+      },
+      {
+        // Legacy path: redirect to the renamed record-contract page.
+        path: 'report-contract',
+        redirectTo: 'record-contract',
       },
 
     ],
