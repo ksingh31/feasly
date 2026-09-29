@@ -21,7 +21,11 @@ import {
   ROLE_PERMISSIONS,
   type Permission,
 } from '../auth/permissions';
-import { extractSessionToken } from '../middleware/session-token';
+import {
+  extractSessionToken,
+  parseBearerToken,
+  parseCookieValue,
+} from '../middleware/session-token';
 import { ADMIN_SESSION_COOKIE } from '../middleware/admin-guard';
 import { BUILDER_SESSION_COOKIE } from '../middleware/builder-guard';
 import type { AdminAuditStore } from './admin-audit.store';
@@ -319,16 +323,28 @@ export function createAuthContextService(
 
   return {
     async resolve(headers) {
-      const adminToken = extractSessionToken(headers, ADMIN_SESSION_COOKIE);
-      if (adminToken) {
-        const ctx = await resolveAdminSession(adminToken);
-        if (ctx) return ctx;
-        // A present-but-invalid admin token is not a builder token — deny.
+      // A Bearer token is audience-opaque: the header alone cannot tell an
+      // admin session token from a builder session token (both are random
+      // opaque strings). Try the admin store first, then the builder store;
+      // a token that resolves in neither is unauthenticated. Cookie names
+      // ARE audience-specific, so the cookie path keeps the strict order.
+      const bearer = parseBearerToken(headers);
+      if (bearer) {
+        const adminCtx = await resolveAdminSession(bearer);
+        if (adminCtx) return adminCtx;
+        const builderCtx = await resolveBuilderSession(bearer);
+        if (builderCtx) return builderCtx;
         return null;
       }
-      const builderToken = extractSessionToken(headers, BUILDER_SESSION_COOKIE);
-      if (builderToken) {
-        return resolveBuilderSession(builderToken);
+      const adminCookie = parseCookieValue(headers, ADMIN_SESSION_COOKIE);
+      if (adminCookie) {
+        const ctx = await resolveAdminSession(adminCookie);
+        if (ctx) return ctx;
+        return null;
+      }
+      const builderCookie = parseCookieValue(headers, BUILDER_SESSION_COOKIE);
+      if (builderCookie) {
+        return resolveBuilderSession(builderCookie);
       }
       return null;
     },

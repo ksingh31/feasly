@@ -63,7 +63,12 @@ function bearerTokenFor(url: string, baseUrl: string, store: Store): string | nu
   if (path.startsWith('/api/v1/admin/')) {
     return store.selectSnapshot(AdminAuthState.sessionToken);
   }
-  if (path.startsWith('/api/v1/builder/')) {
+  if (
+    path.startsWith('/api/v1/builder/') ||
+    path.startsWith('/api/v1/billing/')
+  ) {
+    // /api/v1/billing/* is the builder billing surface (card on file,
+    // invoices, report-contract) — same builder session, same token.
     return store.selectSnapshot(BuilderState.sessionToken);
   }
   return null;
