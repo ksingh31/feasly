@@ -1,0 +1,115 @@
+<div class="comment-thread">
+  <ol class="comment-thread__list">
+    @for (comment of sorted(); track comment.id) {
+      <li
+        class="comment-thread__item"
+        [class.comment-thread__item--internal]="showInternalBadge(comment)"
+      >
+        <div class="comment-thread__avatar" aria-hidden="true">{{ initial(comment.authorDisplayName) }}</div>
+        <div class="comment-thread__body">
+          <div class="comment-thread__meta">
+            <span class="comment-thread__author">{{ comment.authorDisplayName }}</span>
+            @if (showInternalBadge(comment)) {
+              <span class="comment-thread__badge">Internal</span>
+            }
+            <span class="comment-thread__time">{{ timeAgo(comment.createdAt) }}</span>
+            @if (comment.edited) {
+              <span class="comment-thread__edited">(edited)</span>
+            }
+          </div>
+          @if (editingId() === comment.id) {
+            <div class="comment-thread__edit">
+              <label>
+                <span class="sr-only">Edit comment</span>
+                <textarea
+                  [ngModel]="editDraft()"
+                  (ngModelChange)="editDraft.set($event)"
+                  rows="3"
+                  maxlength="2000"
+                ></textarea>
+              </label>
+              <div class="comment-thread__edit-actions">
+                <button type="button" (click)="submitEdit(comment.id)" [disabled]="!editDraft().trim()">
+                  Save
+                </button>
+                <button type="button" class="comment-thread__ghost" (click)="cancelEdit()">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            <p class="comment-thread__text">{{ comment.body }}</p>
+            <div class="comment-thread__actions">
+              @if (canEdit(comment)) {
+                <button type="button" class="comment-thread__ghost" (click)="startEdit(comment)">
+                  Edit
+                </button>
+              }
+              @if (canDelete()) {
+                @if (confirmingDeleteId() === comment.id) {
+                  <span class="comment-thread__confirm">
+                    Delete this comment?
+                    <button type="button" class="comment-thread__danger" (click)="confirmDelete(comment.id)">
+                      Delete
+                    </button>
+                    <button type="button" class="comment-thread__ghost" (click)="cancelDelete()">
+                      Keep
+                    </button>
+                  </span>
+                } @else {
+                  <button type="button" class="comment-thread__ghost" (click)="askDelete(comment.id)">
+                    Delete
+                  </button>
+                }
+              }
+            </div>
+          }
+        </div>
+      </li>
+    } @empty {
+      <li class="comment-thread__empty">No comments yet.</li>
+    }
+  </ol>
+
+  @if (config().allowPost) {
+    <div class="comment-thread__composer">
+      @if (config().showVisibilityToggle) {
+        <div class="comment-thread__visibility" role="radiogroup" aria-label="Who can see this note">
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="draftVisibility() === 'admin_only'"
+            [class.comment-thread__visibility--active]="draftVisibility() === 'admin_only'"
+            (click)="draftVisibility.set('admin_only')"
+          >
+            Internal only
+          </button>
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="draftVisibility() === 'org'"
+            [class.comment-thread__visibility--active]="draftVisibility() === 'org'"
+            (click)="draftVisibility.set('org')"
+          >
+            Builder can see this
+          </button>
+        </div>
+      }
+      <label>
+        <span class="sr-only">Write a comment</span>
+        <textarea
+          [ngModel]="draft()"
+          (ngModelChange)="draft.set($event)"
+          rows="3"
+          maxlength="2000"
+          placeholder="Write a note…"
+          [disabled]="busy()"
+        ></textarea>
+      </label>
+      <div class="comment-thread__composer-foot">
+        <span class="comment-thread__hint">{{ draft().length }}/2000</span>
+        <button type="button" (click)="submitPost()" [disabled]="!canPost()">
+          {{ busy() ? 'Posting…' : 'Post' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>
