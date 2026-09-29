@@ -374,6 +374,20 @@ export const CommunityStatsResponseSchema = z
   })
   .openapi('CommunityStatsResponse');
 
+// ── City-data freshness ────────────────────────────────────────────────
+
+export const CityDataFreshnessResponseSchema = z
+  .object({
+    refreshedMonth: z
+      .string()
+      .nullable()
+      .describe(
+        'Month + year the assessment dataset was last refreshed ("September 2026"); ' +
+          'null when the Socrata metadata could not be read.',
+      ),
+  })
+  .openapi('CityDataFreshnessResponse');
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z

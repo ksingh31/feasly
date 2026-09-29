@@ -31,6 +31,7 @@ import {
   CallbackRequestSchema,
   CallbackResponseSchema,
   CallbackWindowSchema,
+  CityDataFreshnessResponseSchema,
   CommunityStatsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
@@ -134,6 +135,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('AnalyticsIngestResponse', AnalyticsIngestResponseSchema);
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
+  registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
   registry.register('RenoEstimateInputs', RenoEstimateInputsSchema);
@@ -576,6 +578,30 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Community stats',
         content: {
           'application/json': { schema: CommunityStatsResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/city-data/freshness
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/city-data/freshness',
+    summary: 'Get City assessment dataset freshness',
+    description:
+      'Month + year the City of Calgary Property Assessment dataset was ' +
+      'last refreshed ("Refreshed <Month Year>" for the landing trust ' +
+      'strip). Public by design; never 5xx — Socrata failure answers ' +
+      '200 with refreshedMonth null.',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
+    responses: {
+      '200': {
+        description: 'Dataset freshness',
+        content: {
+          'application/json': { schema: CityDataFreshnessResponseSchema },
         },
       },
       ...errorResponses(),
