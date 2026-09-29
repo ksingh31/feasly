@@ -130,6 +130,14 @@ import {
   type BuilderLeadsRoute,
 } from './routes/builder-leads.route';
 import {
+  createBuilderCommentsRoute,
+  type BuilderCommentsRoute,
+} from './routes/builder-comments.route';
+import {
+  createAdminCommentsRoute,
+  type AdminCommentsRoute,
+} from './routes/admin-comments.route';
+import {
   createBillingRoute,
   type BillingRoute,
 } from './routes/billing.route';
@@ -180,6 +188,14 @@ import {
   createBuilderLeadsService,
   type BuilderLeadsService,
 } from './services/builder-leads.service';
+import {
+  createBuilderCommentsService,
+  type BuilderCommentsService,
+} from './services/builder-comments.service';
+import {
+  createDrizzleCommentStore,
+  type CommentStore,
+} from './services/builder-comments.store';
 import {
   createBuilderService,
   type BuilderService,
@@ -595,6 +611,11 @@ export interface AppComposition {
   /** embed/09: tenant-scoped lead pipeline for the builder portal. */
   readonly builderLeadsService: BuilderLeadsService;
   readonly builderLeadsRoute: BuilderLeadsRoute;
+  /** billing/05: lead comments — one service, builder + admin routes. */
+  readonly commentStore: CommentStore;
+  readonly builderCommentsService: BuilderCommentsService;
+  readonly builderCommentsRoute: BuilderCommentsRoute;
+  readonly adminCommentsRoute: AdminCommentsRoute;
   readonly builderAllowlistStore: BuilderAllowlistStore;
   readonly builderSessionStore: BuilderSessionStore;
   /**
@@ -1654,6 +1675,23 @@ export function createComposition(
     builderLeads: builderLeadsService,
     builderGuard,
   });
+  // billing/05 lead comments: one service, two thin routes (builder/admin).
+  const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
+  const builderCommentsService: BuilderCommentsService =
+    createBuilderCommentsService({
+      comments: commentStore,
+      builders: builderService,
+      leadStore,
+      users: userStore,
+    });
+  const builderCommentsRoute: BuilderCommentsRoute = createBuilderCommentsRoute({
+    comments: builderCommentsService,
+    builderGuard,
+  });
+  const adminCommentsRoute: AdminCommentsRoute = createAdminCommentsRoute({
+    comments: builderCommentsService,
+    adminGuard,
+  });
   // billing/02 flat path — dormant until BILLING_MODEL=flat. Both charge
   // paths are built; config selects the active one.
   const flatPlanService: FlatPlanService = createFlatPlanService({
@@ -1788,6 +1826,10 @@ export function createComposition(
     builderUsersRoute,
     builderLeadsService,
     builderLeadsRoute,
+    commentStore,
+    builderCommentsService,
+    builderCommentsRoute,
+    adminCommentsRoute,
     builderAllowlistStore,
     builderSessionStore,
     builderService,

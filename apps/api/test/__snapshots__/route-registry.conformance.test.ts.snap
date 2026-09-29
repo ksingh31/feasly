@@ -2,6 +2,10 @@
 
 exports[`route registry > exhaustive role x route permission matrix (auth/04 acceptance criterion 1) 1`] = `
 {
+  "DELETE /api/v1/admin/comments/{commentId}": [
+    "super_admin",
+    "admin",
+  ],
   "DELETE /api/v1/admin/users/{id}": [
     "super_admin",
     "admin",
@@ -94,6 +98,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "viewer",
   ],
+  "GET /api/v1/admin/leads/{leadId}/comments": [
+    "super_admin",
+    "admin",
+    "viewer",
+  ],
   "GET /api/v1/admin/ops/sheets-status": [
     "super_admin",
     "admin",
@@ -159,6 +168,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
   ],
   "GET /api/v1/builder/leads/{id}": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
+  "GET /api/v1/builder/leads/{leadId}/comments": [
     "super_admin",
     "admin",
     "builder_admin",
@@ -265,6 +280,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "PATCH /api/v1/admin/comments/{commentId}": [
+    "super_admin",
+    "admin",
+  ],
   "PATCH /api/v1/admin/leads/{id}/status": [
     "super_admin",
     "admin",
@@ -273,6 +292,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "builder_admin",
+  ],
+  "PATCH /api/v1/builder/comments/{commentId}": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
   ],
   "PATCH /api/v1/builder/leads/{id}": [
     "super_admin",
@@ -382,6 +407,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/leads/{leadId}/comments": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/ops/sheets-sync-now": [
     "super_admin",
     "admin",
@@ -458,6 +487,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
     "builder_member",
     "none",
+  ],
+  "POST /api/v1/builder/leads/{leadId}/comments": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
   ],
   "POST /api/v1/builder/users/invite": [
     "super_admin",
