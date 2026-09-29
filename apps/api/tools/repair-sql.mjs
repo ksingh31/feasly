@@ -734,6 +734,26 @@ WHERE EXISTS (
 )
 ON CONFLICT ("email") DO NOTHING;
 
+-- P0 2026-09-28: builder-seed guard. drizzle-kit silently skipped parts of
+-- migration 0035 on dev too — the builders table exists but the Elite Craft
+-- Builders seed row never materialized. Without it, the membership guard
+-- below aborts the whole deploy with a foreign key violation on
+-- builder_memberships_builder_id_fkey (observed 2026-09-29: "insert or
+-- update on table builder_memberships violates foreign key constraint").
+-- This idempotent INSERT mirrors 0035's seed exactly (same fixed UUIDs,
+-- ON CONFLICT tenant_key) and is a no-op when the rows already exist.
+INSERT INTO "builders"
+  ("id", "tenant_key", "business_name", "display_name", "email", "phone",
+   "logo_url", "accent_color", "allowed_origins", "plan", "status")
+VALUES
+  ('a506cc36-ffd1-42db-993c-999bfbb0f1d2', 'elite-craft-builders',
+   'Elite Craft Builders', 'Elite Craft Builders', '', '',
+   '', '#B08D57', '["https://elitecraftbuilders.com"]'::jsonb, NULL, 'active'),
+  ('6f2c90fd-2395-4f6c-8e71-3b699cf68857', 'demo',
+   'Demo Builder', 'Demo Builder', 'demo@example.com', '(555) 010-2030',
+   '', '#0F766E', '["https://demo.example.com"]'::jsonb, NULL, 'active')
+ON CONFLICT ("tenant_key") DO NOTHING;
+
 -- P0 2026-09-28: builder-QA membership guard. drizzle-kit silently skipped
 -- migration 0042 on dev (the membership row never materialized), so Karan's
 -- builder Entra sign-in 403s at the membership gate even though the user row

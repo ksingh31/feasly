@@ -90,4 +90,28 @@ describe('builder QA membership repair guard', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].role).toBe('builder_admin');
   });
+
+  it('seeds the missing builder row before the membership insert (FK guard)', async () => {
+    // Simulate the dev database state that aborted the 2026-09-29 deploy:
+    // drizzle-kit skipped parts of 0035 — the builders table exists but the
+    // Elite Craft Builders seed row is missing. Without it, the membership
+    // guard's INSERT aborts the whole deploy with a foreign key violation
+    // on builder_memberships_builder_id_fkey.
+    await testDb.rows(
+      `DELETE FROM builder_memberships m USING users u
+        WHERE m.user_id = u.id AND u.email = '${ADMIN_EMAIL}'`,
+    );
+    await testDb.rows(`DELETE FROM builders WHERE tenant_key = '${TENANT_KEY}'`);
+    expect(await memberships()).toHaveLength(0);
+
+    await testDb.exec(REPAIR_SQL as string);
+
+    const builders = await testDb.rows(
+      `SELECT tenant_key FROM builders WHERE tenant_key = '${TENANT_KEY}'`,
+    );
+    expect(builders).toHaveLength(1);
+    const rows = await memberships();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].role).toBe('builder_admin');
+  });
 });
