@@ -734,6 +734,28 @@ WHERE EXISTS (
 )
 ON CONFLICT ("email") DO NOTHING;
 
+-- P0 2026-09-29: tenants-seed guard. No migration ever seeded the
+-- "tenants" table (created in 0006; builder_sessions.tenant_key FKs to
+-- tenants(tenant_key) since 0027), so the first real builder Entra sign-in
+-- — Karan's, 2026-09-29 02:18Z — 500'd in the callback at the session
+-- insert: "insert or update on table builder_sessions violates foreign key
+-- constraint builder_sessions_tenant_key_fkey". The membership gate had
+-- just started passing (the #354/#355 repair restored his membership), so
+-- this was the next missing piece in the same chain. This idempotent INSERT
+-- mirrors the builders-seed tenant keys exactly (ON CONFLICT tenant_key)
+-- and is a no-op when the rows already exist. It runs before the
+-- builder-seed guard below because builder_sessions depends on tenants.
+INSERT INTO "tenants"
+  ("tenant_key", "business_name", "display_name", "logo_url",
+   "accent_color", "allowed_origins", "fallback_phone", "fallback_email",
+   "plan")
+VALUES
+  ('elite-craft-builders', 'Elite Craft Builders', 'Elite Craft Builders',
+   '', '#B08D57', ARRAY['https://elitecraftbuilders.com'], '', '', NULL),
+  ('demo', 'Demo Builder', 'Demo Builder',
+   '', '#0F766E', ARRAY['https://demo.example.com'], '', '', NULL)
+ON CONFLICT ("tenant_key") DO NOTHING;
+
 -- P0 2026-09-28: builder-seed guard. drizzle-kit silently skipped parts of
 -- migration 0035 on dev too — the builders table exists but the Elite Craft
 -- Builders seed row never materialized. Without it, the membership guard
