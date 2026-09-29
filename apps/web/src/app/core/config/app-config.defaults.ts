@@ -1106,6 +1106,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       teamConfirmYes: 'Yes, continue',
       teamConfirmNo: 'Cancel',
       teamActionError: 'Something went wrong. Please try again.',
+      contractWhatHappensTitle: 'What happens next',
+      contractFormHeading: 'Report details',
+      contractLeadPlaceholder: 'Select a lead…',
+      contractEstimatedCommission: 'Estimated commission (1%)',
+      contractRetry: 'Try again',
     },
     admin: {
       apiKeys: {

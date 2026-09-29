@@ -1395,6 +1395,16 @@ export interface AppConfig {
         /** Shown when the Entra tenant config is still a placeholder. */
         entraNotConfigured: string;
       };
+      /** Explainer-card heading on `/builder/report-contract`. */
+      contractWhatHappensTitle: string;
+      /** Form-card heading on `/builder/report-contract`. */
+      contractFormHeading: string;
+      /** Lead-picker placeholder option on `/builder/report-contract`. */
+      contractLeadPlaceholder: string;
+      /** Live estimated-commission label; the computed figure follows. */
+      contractEstimatedCommission: string;
+      /** Retry button label (report submit + leads reload). */
+      contractRetry: string;
     };
     /**
      * Unsubscribe center (email/03) copy. The confirmation line
