@@ -1122,6 +1122,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadsStatusSaving: 'Saving…',
       leadsWonHint: 'Signed a contract with this lead?',
       leadsWonReportCta: 'Report the contract',
+      teamColAdded: 'Added',
+      teamInviteButton: 'Invite team member',
+      teamInviteModalSub:
+        'They’ll get an email invite and sign in with their Microsoft account — Feasly never sees a password.',
+      teamCountOne: '1 team member',
+      teamCountMany: 'team members',
+      teamNotAdmin: 'Only organization administrators can manage the team.',
     },
     admin: {
       apiKeys: {

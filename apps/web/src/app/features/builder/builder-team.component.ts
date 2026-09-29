@@ -21,9 +21,14 @@ import type { BuilderTeamUser } from './builder-auth.contracts';
  *
  * Route: `/builder/team` — guarded for `builder_admin` only (see
  * `builderTeamGuard`); `builder_member` holders never see the nav link
- * and the guard redirects them to `/builder`. Shows the org's user list
- * with invite (name/email/role), deactivate/reactivate, role change, and
- * remove.
+ * and the guard redirects them to `/builder`. The component additionally
+ * gates defensively: the invite form, role select, and row actions render
+ * only for builder admins (`BuilderState.isBuilderAdmin()`); a non-admin
+ * who somehow lands here gets a read-only table plus a notice.
+ *
+ * Admin design language (admin-users.component.*): header + invite button,
+ * banner, skeleton rows, table (name/email/role/status/added/actions),
+ * empty state, error + retry, invite and confirm modals.
  *
  * Deactivation kills the member's session immediately (backend); removal
  * is only allowed while the invite was never accepted (backend enforces).
@@ -56,6 +61,13 @@ export class BuilderTeamComponent implements OnInit {
     BuilderTeamState.updatingUserId,
   );
   protected readonly orgName = this.store.selectSignal(BuilderState.activeBuilderName);
+  /**
+   * Defensive admin gate: the route guard already blocks non-admins, and
+   * the shell hides the nav — but the invite form, role select, and row
+   * actions render only behind this signal too, so a tampered route state
+   * can never surface manage controls to a builder_member.
+   */
+  protected readonly isBuilderAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
 
   readonly inviteForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -68,6 +80,9 @@ export class BuilderTeamComponent implements OnInit {
     id: string;
     kind: 'deactivate' | 'remove';
   } | null = null;
+
+  /** Invite modal open state; only ever opened behind the admin gate. */
+  protected inviteOpen = false;
 
   constructor() {
     this.seo.setPage({
@@ -110,6 +125,27 @@ export class BuilderTeamComponent implements OnInit {
     return control.invalid && (control.dirty || control.touched);
   }
 
+  /** Buyer-grade added date (e.g. "Sep 28, 2026"); '—' when missing. */
+  protected addedDate(user: BuilderTeamUser): string {
+    if (!user.createdAt) return '—';
+    const parsed = new Date(user.createdAt);
+    if (Number.isNaN(parsed.getTime())) return '—';
+    return parsed.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  protected openInvite(): void {
+    if (!this.store.selectSnapshot(BuilderState.isBuilderAdmin)) return;
+    this.inviteOpen = true;
+  }
+
+  protected closeInvite(): void {
+    this.inviteOpen = false;
+  }
+
   protected invite(): void {
     if (this.inviteForm.invalid) {
       this.inviteForm.markAllAsTouched();
@@ -122,6 +158,7 @@ export class BuilderTeamComponent implements OnInit {
       .subscribe(() => {
         if (this.store.selectSnapshot(BuilderTeamState.inviteFeedback) === 'sent') {
           this.inviteForm.reset({ role: 'builder_member' });
+          this.inviteOpen = false;
         }
       });
   }

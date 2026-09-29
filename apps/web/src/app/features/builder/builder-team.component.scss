@@ -1,175 +1,393 @@
 /**
- * Builder team page (auth/05) — builder-portal design language.
+ * Builder team page (auth/05) — the org team-user table.
+ *
+ * Mirrors the admin user-management design (apps/web/src/app/features/admin/
+ * admin-users.component.scss): cream background, charcoal text, brass accents,
+ * table on top, invite opens as a modal dialog. The table scrolls
+ * horizontally on narrow screens (390px); skeleton rows stand in while the
+ * list loads.
  */
+
 .builder-team {
-  max-width: 56rem;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--cream);
+  color: var(--text);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  min-height: 100%;
 }
 
-.builder-team h1 {
+.builder-team__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.builder-team__header h1 {
+  margin: 0;
+  font-family: var(--font-headline);
   font-size: 1.75rem;
-  margin: 0 0 0.25rem;
+  font-weight: 700;
 }
 
 .builder-team__org {
-  color: var(--color-text-muted, #6b6257);
-  margin: 0 0 0.5rem;
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.builder-team__intro {
-  color: var(--color-text-muted, #6b6257);
-  margin: 0 0 2rem;
+.builder-team__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.builder-team__primary {
+  align-self: center;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--accent-deep);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.builder-team__primary:hover {
+  filter: brightness(0.95);
+}
+
+.builder-team__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.builder-team__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  background: #e8f3e4;
+  border: 1px solid #b9d8b2;
+  color: #2c5b25;
+}
+
+.builder-team__banner--error {
+  background: #fbe9e7;
+  border-color: #e8a49c;
+  color: #8c2f26;
+}
+
+.builder-team__banner button {
+  flex-shrink: 0;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.builder-team__state {
+  color: var(--muted);
+}
+
+.builder-team__state--error {
+  color: #8c2f26;
+}
+
+.builder-team__retry {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.builder-team__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
 }
 
 .builder-team__table {
   width: 100%;
+  min-width: 46rem;
   border-collapse: collapse;
-  margin-bottom: 2.5rem;
-  background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
-  border-radius: 0.75rem;
-  overflow: hidden;
+  font-size: 0.9375rem;
+}
+
+.builder-team__caption {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  caption-side: top;
 }
 
 .builder-team__table th,
 .builder-team__table td {
   text-align: left;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border, #e5e0d8);
-  font-size: 0.875rem;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
 }
 
-.builder-team__table th {
-  font-size: 0.75rem;
+.builder-team__table thead th {
+  border-top: none;
+  font-size: 0.8125rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-muted, #6b6257);
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
-.builder-team__pill {
+.builder-team__status {
   display: inline-block;
   padding: 0.125rem 0.625rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  background: #e8f3e4;
+  color: #2c5b25;
 }
 
-.builder-team__pill--active {
-  background: #e6f4ea;
-  color: #1a7f37;
+.builder-team__status--invited {
+  background: #fdf3e0;
+  color: #8a5a13;
 }
 
-.builder-team__pill--invited {
-  background: #fff8e6;
-  color: #8a6d00;
+.builder-team__status--deactivated {
+  background: #f1f1f1;
+  color: #666;
 }
 
-.builder-team__pill--deactivated {
-  background: #f1efec;
-  color: #6b6257;
+.builder-team__role-select {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
 }
 
-.builder-team__table button {
-  margin-right: 0.5rem;
-  font-size: 0.875rem;
-  background: none;
+.builder-team__actions {
+  white-space: nowrap;
+}
+
+.builder-team__actions button {
+  padding: 0.25rem 0.5rem;
   border: none;
-  color: var(--color-primary, #1a1a1a);
-  text-decoration: underline;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--accent-deep);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.builder-team__invite {
-  background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
+.builder-team__actions button:hover {
+  text-decoration: underline;
 }
 
-.builder-team__invite h2 {
-  font-size: 1.25rem;
-  margin: 0 0 1rem;
+.builder-team__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.builder-team__danger-link {
+  color: #8c2f26;
+}
+
+.builder-team__muted {
+  color: var(--muted);
+}
+
+.builder-team__empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem;
+}
+
+/* --------------------------------------- loading skeleton (no spinners) */
+
+.builder-team__skeleton-row td {
+  padding: 0.75rem 1rem;
+}
+
+.builder-team__skeleton {
+  display: block;
+  height: 1rem;
+  border-radius: 0.375rem;
+  background: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.06) 25%,
+    rgb(0 0 0 / 0.12) 50%,
+    rgb(0 0 0 / 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: builder-team-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes builder-team-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .builder-team__skeleton {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------ modals */
+
+.builder-team__overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the builder mobile nav — same rule as the admin users modal
+     (see admin-users.component.scss, z-index 150). */
+  z-index: 150;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.builder-team__modal {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--cream);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.25);
+}
+
+.builder-team__modal h2 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 1.375rem;
+}
+
+.builder-team__modal-sub {
+  margin: 0.5rem 0 1rem;
+  color: var(--muted);
 }
 
 .builder-team__field {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
   margin-bottom: 1rem;
-}
-
-.builder-team__field span {
-  display: block;
-  font-size: 0.875rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
 }
 
 .builder-team__field input,
 .builder-team__field select {
-  width: 100%;
-  max-width: 24rem;
   padding: 0.625rem 0.75rem;
-  font-size: 1rem;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
 }
 
-.builder-team__button {
+.builder-team__field-error {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #8c2f26;
+}
+
+.builder-team__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.builder-team__modal-actions button {
   padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #fff;
-  background: var(--color-primary, #1a1a1a);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.builder-team__button:disabled {
-  opacity: 0.6;
-  cursor: wait;
+.builder-team__modal-actions .builder-team__primary {
+  border: none;
 }
 
-.builder-team__errorbox {
-  background: #fdecec;
-  border: 1px solid #f5c6c6;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
+/* Confirm dialog shares the overlay/modal treatment */
+.builder-team__confirm-text {
+  margin: 0 0 1rem;
 }
 
-.builder-team__notice {
-  background: #e6f4ea;
-  border: 1px solid #b7e0c3;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
-}
-
-.builder-team__fielderror {
-  color: #b3261e;
-  font-size: 0.875rem;
-  margin: -0.5rem 0 1rem;
-}
-
-.builder-team__confirm {
-  position: fixed;
-  inset: 0;
+.builder-team__confirm-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 1rem;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 1.5rem;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
-.builder-team__confirm p {
-  background: #fff;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  max-width: 24rem;
-  margin: 0;
+.builder-team__confirm-actions button {
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.builder-team__confirm-actions .builder-team__primary {
+  border: none;
+}
+
+/* ---------------------------------------------------------- responsive */
+
+@media (max-width: 640px) {
+  .builder-team {
+    padding: 1rem;
+  }
+
+  .builder-team__header h1 {
+    font-size: 1.5rem;
+  }
+
+  .builder-team__primary {
+    width: 100%;
+  }
+
+  .builder-team__modal {
+    padding: 1.25rem;
+  }
+
+  .builder-team__overlay {
+    padding: 1rem 0.5rem;
+    align-items: flex-start;
+  }
 }

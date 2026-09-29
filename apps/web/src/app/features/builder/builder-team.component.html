@@ -1,36 +1,85 @@
 <div class="builder-team">
-  <h1>{{ copy.teamHeading }}</h1>
-  @if (orgName(); as org) {
-    <p class="builder-team__org">{{ org }}</p>
+  <div class="builder-team__header">
+    <div>
+      <h1>{{ copy.teamHeading }}</h1>
+      @if (orgName(); as org) {
+        <p class="builder-team__org">{{ org }}</p>
+      }
+      <p class="builder-team__subtitle">{{ copy.teamIntro }}</p>
+    </div>
+    @if (isBuilderAdmin()) {
+      <button
+        type="button"
+        class="builder-team__primary"
+        (click)="openInvite()"
+      >
+        {{ copy.teamInviteButton }}
+      </button>
+    }
+  </div>
+
+  @if (!isBuilderAdmin()) {
+    <p class="builder-team__banner" role="note">{{ copy.teamNotAdmin }}</p>
   }
-  <p class="builder-team__intro">{{ copy.teamIntro }}</p>
+
+  @if (inviteFeedback() === 'sent') {
+    <div class="builder-team__banner" role="status">
+      <span>{{ copy.teamInviteSent }}</span>
+      <button type="button" (click)="dismissFeedback()" aria-label="Dismiss">
+        Dismiss
+      </button>
+    </div>
+  } @else if (inviteFeedback() === 'failed') {
+    <div
+      class="builder-team__banner builder-team__banner--error"
+      role="alert"
+    >
+      <span>{{ copy.teamInviteError }}</span>
+      <button type="button" (click)="dismissFeedback()" aria-label="Dismiss">
+        Dismiss
+      </button>
+    </div>
+  }
 
   @if (status() === 'loading') {
-    <p role="status">{{ copy.teamLoading }}</p>
+    <div
+      class="builder-team__table-wrap"
+      role="status"
+      [attr.aria-label]="copy.teamLoading"
+    >
+      <table class="builder-team__table" aria-hidden="true">
+        <tbody>
+          @for (i of [1, 2, 3, 4]; track i) {
+            <tr class="builder-team__skeleton-row">
+              <td><span class="builder-team__skeleton"></span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   } @else if (status() === 'error') {
-    <p class="builder-team__errorbox" role="alert">{{ copy.teamLoadError }}</p>
-    <button type="button" class="builder-team__button" (click)="retry()">
-      {{ copy.teamRetry }}
-    </button>
+    <p class="builder-team__state builder-team__state--error">
+      {{ copy.teamLoadError }}
+      <button type="button" class="builder-team__retry" (click)="retry()">
+        {{ copy.teamRetry }}
+      </button>
+    </p>
   } @else {
-    @if (actionError()) {
-      <p class="builder-team__errorbox" role="alert">
-        {{ copy.teamActionError }}
-        <button type="button" (click)="dismissFeedback()">{{ copy.teamConfirmNo }}</button>
-      </p>
-    }
-
-    @if (users().length === 0) {
-      <p>{{ copy.teamEmpty }}</p>
-    } @else {
+    <div class="builder-team__table-wrap">
       <table class="builder-team__table">
+        <caption class="builder-team__caption">
+          {{ users().length === 1 ? copy.teamCountOne : users().length + ' ' + copy.teamCountMany }}
+        </caption>
         <thead>
           <tr>
-            <th>{{ copy.teamColName }}</th>
-            <th>{{ copy.teamColEmail }}</th>
-            <th>{{ copy.teamColRole }}</th>
-            <th>{{ copy.teamColStatus }}</th>
-            <th>{{ copy.teamColActions }}</th>
+            <th scope="col">{{ copy.teamColName }}</th>
+            <th scope="col">{{ copy.teamColEmail }}</th>
+            <th scope="col">{{ copy.teamColRole }}</th>
+            <th scope="col">{{ copy.teamColStatus }}</th>
+            <th scope="col">{{ copy.teamColAdded }}</th>
+            @if (isBuilderAdmin()) {
+              <th scope="col">{{ copy.teamColActions }}</th>
+            }
           </tr>
         </thead>
         <tbody>
@@ -39,64 +88,99 @@
               <td>{{ user.name }}</td>
               <td>{{ user.email }}</td>
               <td>
-                <select
-                  [value]="user.role"
-                  (change)="changeRole(user, $any($event.target).value)"
-                  [disabled]="updatingUserId() === user.id"
-                  [attr.aria-label]="copy.teamColRole"
-                >
-                  <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
-                  <option value="builder_member">{{ copy.orgRoleMember }}</option>
-                </select>
+                @if (isBuilderAdmin()) {
+                  <select
+                    class="builder-team__role-select"
+                    [value]="user.role"
+                    (change)="changeRole(user, $any($event.target).value)"
+                    [disabled]="updatingUserId() === user.id"
+                    [attr.aria-label]="copy.teamColRole"
+                  >
+                    <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
+                    <option value="builder_member">{{ copy.orgRoleMember }}</option>
+                  </select>
+                } @else {
+                  {{ roleLabel(user.role) }}
+                }
               </td>
               <td>
-                <span class="builder-team__pill builder-team__pill--{{ user.status }}">
+                <span class="builder-team__status builder-team__status--{{ user.status }}">
                   {{ statusLabel(user.status) }}
                 </span>
               </td>
-              <td>
-                @if (updatingUserId() === user.id) {
-                  <span>…</span>
-                } @else if (user.status === 'deactivated') {
-                  <button type="button" (click)="reactivate(user)">
-                    {{ copy.teamReactivateLabel }}
-                  </button>
-                } @else {
-                  <button type="button" (click)="askDeactivate(user)">
-                    {{ copy.teamDeactivateLabel }}
-                  </button>
-                  @if (user.status === 'invited') {
-                    <button type="button" (click)="askRemove(user)">
-                      {{ copy.teamRemoveLabel }}
+              <td>{{ addedDate(user) }}</td>
+              @if (isBuilderAdmin()) {
+                <td class="builder-team__actions">
+                  @if (updatingUserId() === user.id) {
+                    <span>…</span>
+                  } @else if (user.status === 'deactivated') {
+                    <button type="button" (click)="reactivate(user)">
+                      {{ copy.teamReactivateLabel }}
                     </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="builder-team__danger-link"
+                      (click)="askDeactivate(user)"
+                    >
+                      {{ copy.teamDeactivateLabel }}
+                    </button>
+                    @if (user.status === 'invited') {
+                      <button
+                        type="button"
+                        class="builder-team__danger-link"
+                        (click)="askRemove(user)"
+                      >
+                        {{ copy.teamRemoveLabel }}
+                      </button>
+                    }
                   }
-                }
+                </td>
+              }
+            </tr>
+          } @empty {
+            <tr>
+              <td
+                [attr.colspan]="isBuilderAdmin() ? 6 : 5"
+                class="builder-team__empty"
+              >
+                {{ copy.teamEmpty }}
               </td>
             </tr>
           }
         </tbody>
       </table>
+    </div>
+    @if (actionError()) {
+      <p class="builder-team__state builder-team__state--error">
+        {{ copy.teamActionError }}
+      </p>
     }
+  }
+</div>
 
-    <section class="builder-team__invite">
-      <h2>{{ copy.teamInviteHeading }}</h2>
-      @if (inviteFeedback() === 'sent') {
-        <p class="builder-team__notice" role="status">
-          {{ copy.teamInviteSent }}
-          <button type="button" (click)="dismissFeedback()">{{ copy.teamConfirmNo }}</button>
-        </p>
-      }
-      @if (inviteFeedback() === 'failed') {
-        <p class="builder-team__errorbox" role="alert">{{ copy.teamInviteError }}</p>
-      }
+<!-- Invite modal (admin-only, gated defensively) -->
+@if (inviteOpen && isBuilderAdmin()) {
+  <div class="builder-team__overlay" (click)="closeInvite()">
+    <div
+      class="builder-team__modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="builder-invite-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="builder-invite-title">{{ copy.teamInviteHeading }}</h2>
+      <p class="builder-team__modal-sub">{{ copy.teamInviteModalSub }}</p>
       <form [formGroup]="inviteForm" (ngSubmit)="invite()" novalidate>
         <label class="builder-team__field">
           <span>{{ copy.teamInviteNameLabel }}</span>
           <input type="text" formControlName="name" autocomplete="name" />
+          @if (nameInvalid) {
+            <span class="builder-team__field-error" role="alert">
+              {{ copy.teamInviteNameInvalid }}
+            </span>
+          }
         </label>
-        @if (nameInvalid) {
-          <p class="builder-team__fielderror" role="alert">{{ copy.teamInviteNameInvalid }}</p>
-        }
         <label class="builder-team__field">
           <span>{{ copy.teamInviteEmailLabel }}</span>
           <input
@@ -105,10 +189,12 @@
             autocomplete="email"
             inputmode="email"
           />
+          @if (emailInvalid) {
+            <span class="builder-team__field-error" role="alert">
+              {{ copy.emailInvalid }}
+            </span>
+          }
         </label>
-        @if (emailInvalid) {
-          <p class="builder-team__fielderror" role="alert">{{ copy.emailInvalid }}</p>
-        }
         <label class="builder-team__field">
           <span>{{ copy.teamInviteRoleLabel }}</span>
           <select formControlName="role">
@@ -116,20 +202,45 @@
             <option value="builder_member">{{ copy.orgRoleMember }}</option>
           </select>
         </label>
-        <button type="submit" class="builder-team__button" [disabled]="inviteForm.invalid">
-          {{ copy.teamInviteSubmit }}
-        </button>
+        <div class="builder-team__modal-actions">
+          <button type="button" (click)="closeInvite()">
+            {{ copy.teamConfirmNo }}
+          </button>
+          <button
+            type="submit"
+            class="builder-team__primary"
+            [disabled]="inviteForm.invalid"
+          >
+            {{ copy.teamInviteSubmit }}
+          </button>
+        </div>
       </form>
-    </section>
-  }
-
-  @if (confirmAction) {
-    <div class="builder-team__confirm" role="alertdialog" aria-modal="true">
-      <p>{{ confirmText() }}</p>
-      <button type="button" class="builder-team__button" (click)="confirmDialog()">
-        {{ copy.teamConfirmYes }}
-      </button>
-      <button type="button" (click)="cancelConfirm()">{{ copy.teamConfirmNo }}</button>
     </div>
-  }
-</div>
+  </div>
+}
+
+<!-- Confirm dialog -->
+@if (confirmAction) {
+  <div class="builder-team__overlay" (click)="cancelConfirm()">
+    <div
+      class="builder-team__modal"
+      role="alertdialog"
+      aria-modal="true"
+      (click)="$event.stopPropagation()"
+    >
+      <p class="builder-team__confirm-text">{{ confirmText() }}</p>
+      <div class="builder-team__confirm-actions">
+        <button type="button" (click)="cancelConfirm()">
+          {{ copy.teamConfirmNo }}
+        </button>
+        <button
+          type="button"
+          class="builder-team__primary"
+          (click)="confirmDialog()"
+        >
+          {{ copy.teamConfirmYes }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
