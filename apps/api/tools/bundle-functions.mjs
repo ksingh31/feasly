@@ -289,6 +289,24 @@ const targets = [
     entry: 'src/functions/builder-leads-status.ts',
     out: 'builder-leads-status/index.js',
   },
+  // billing/05 lead comments (builder).
+  {
+    entry: 'src/functions/builder-lead-comments.ts',
+    out: 'builder-lead-comments/index.js',
+  },
+  {
+    entry: 'src/functions/builder-comment.ts',
+    out: 'builder-comment/index.js',
+  },
+  // billing/05 lead comments (admin).
+  {
+    entry: 'src/functions/admin-lead-comments.ts',
+    out: 'admin-lead-comments/index.js',
+  },
+  {
+    entry: 'src/functions/admin-comment.ts',
+    out: 'admin-comment/index.js',
+  },
   // billing/01 first charge path — model-aware charge endpoints.
   {
     entry: 'src/functions/billing-report-contract.ts',
