@@ -333,6 +333,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/billing/invoices/{id}/commission-rate": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/billing/invoices/{id}/mark-paid": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/billing/invoices/{id}/retry": [
     "super_admin",
     "admin",
