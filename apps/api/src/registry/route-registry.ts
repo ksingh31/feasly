@@ -891,6 +891,36 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/mark-paid',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin records an off-Stripe payment (cheque | bank_draft | ' +
+      'e_transfer | cash | card_terminal | other) with an optional ' +
+      'cheque/trace reference and paid date. Marks the invoice paid and ' +
+      'cancels the scheduled auto-charge — the builder can never be ' +
+      'double-charged. Allowed from in_review / finalized / failed; ' +
+      'disputed and settled invoices 409. Audited with the admin identity.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/commission-rate',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin overrides the per-invoice commission rate (percent, ' +
+      '0 < rate <= 10) and recalculates the invoice amount. Unpaid ' +
+      'invoices only (draft, in_review, disputed, failed): a settled ' +
+      'invoice is never silently repriced (409), and a finalized invoice ' +
+      'with a charge in flight is blocked too. Audited old → new rate ' +
+      'with the admin identity.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/invoices',
     auth: 'admin',
     permissions: ['billing:manage'] as const,

@@ -356,6 +356,16 @@ const targets = [
     entry: 'src/functions/admin-billing-create-invoice.ts',
     out: 'admin-billing-create-invoice/index.js',
   },
+  // Admin manual mark-paid for off-Stripe payments (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-mark-paid.ts',
+    out: 'admin-billing-mark-paid/index.js',
+  },
+  // Admin per-invoice commission-rate override (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-set-rate.ts',
+    out: 'admin-billing-set-rate/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

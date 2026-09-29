@@ -7,8 +7,16 @@
  *   (MRR, in-review aging buckets, dunning with `past_due_since`, webhook
  *   health). Admin-gated.
  * - `POST /api/v1/admin/billing/invoices/{id}/retry` — retry a failed
- *   commission charge (BILL-03). Admin-gated, `billing:manage`. This is the
- *   single mutating action on this route; the health payload stays read-only.
+ *   commission charge (BILL-03). Admin-gated, `billing:manage`.
+ * - `POST /api/v1/admin/billing/invoices/{id}/mark-paid` — record an
+ *   off-Stripe payment (cheque, bank draft, e-transfer, cash, card
+ *   terminal, other). Admin-gated, `billing:manage`. Marks the invoice
+ *   paid AND cancels the scheduled auto-charge — the builder can never
+ *   be double-charged.
+ * - `POST /api/v1/admin/billing/invoices/{id}/commission-rate` — override
+ *   the per-invoice commission rate (percent). Admin-gated,
+ *   `billing:manage`. Unpaid invoices only; a settled invoice is never
+ *   silently repriced.
  * - `POST /api/v1/admin/billing/invoices` — manually create a commission
  *   invoice for a builder's converted lead (manual invoicing). Mirrors the
  *   builder-reported contract shape
@@ -32,6 +40,9 @@ import type {
   BillingHealthResponse,
   ManualInvoiceRequest,
   ManualInvoiceResponse,
+  ManualPaymentMethod,
+  MarkInvoicePaidResponse,
+  SetCommissionRateResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
@@ -40,6 +51,26 @@ import type { BillingService } from '../services/billing/billing.service';
 import type { CommissionService } from '../services/billing/commission.service';
 
 const invoiceIdSchema = z.string().trim().uuid();
+
+const MANUAL_PAYMENT_METHODS = [
+  'cheque',
+  'bank_draft',
+  'e_transfer',
+  'cash',
+  'card_terminal',
+  'other',
+] as const satisfies ReadonlyArray<ManualPaymentMethod>;
+
+const markPaidBodySchema = z.object({
+  paymentMethod: z.enum(MANUAL_PAYMENT_METHODS),
+  reference: z.string().trim().max(120).optional(),
+  paidAt: z.string().datetime({ offset: true }).optional(),
+});
+
+const setCommissionRateBodySchema = z.object({
+  /** Percent, e.g. 1.5 = 1.5%. Must satisfy 0 < rate <= 10. */
+  rate: z.number().finite().gt(0).lte(10),
+});
 
 const manualInvoiceBodySchema: z.ZodType<ManualInvoiceRequest> = z.object({
   tenantKey: z.string().trim().min(1).max(120),
@@ -66,6 +97,18 @@ export interface AdminBillingRoute {
     headers: Record<string, string | string[] | undefined>,
     invoiceId: unknown,
   ): Promise<{ invoiceId: string; status: string; retryCount: number }>;
+  /** POST /api/v1/admin/billing/invoices/{id}/mark-paid */
+  markPaid(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<MarkInvoicePaidResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/commission-rate */
+  setCommissionRate(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<SetCommissionRateResponse>;
   /** POST /api/v1/admin/billing/invoices */
   createInvoice(
     headers: Record<string, string | string[] | undefined>,
@@ -96,8 +139,76 @@ export function createAdminBillingRoute(
       };
     },
 
-    async createInvoice(headers, body): Promise<ManualInvoiceResponse> {
+    async markPaid(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<MarkInvoicePaidResponse> {
       await adminGuard.requireAdmin(headers);
+      const parsed = markPaidBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid payment body: paymentMethod (cheque | bank_draft | ' +
+            'e_transfer | cash | card_terminal | other), optional reference ' +
+            '(max 120 chars), and optional paidAt (ISO datetime with ' +
+            'timezone offset) are accepted.',
+          false,
+        );
+      }
+      const invoice = await commission.markPaidManually(
+        invoiceIdSchema.parse(invoiceId),
+        {
+          paymentMethod: parsed.data.paymentMethod,
+          reference: parsed.data.reference,
+          paidAt:
+            parsed.data.paidAt === undefined
+              ? undefined
+              : new Date(parsed.data.paidAt),
+          adminEmail: await adminGuard.getAdminEmail(headers),
+        },
+      );
+      return {
+        invoiceId: invoice.id,
+        status: invoice.status,
+        paidAt: (invoice.paidAt as Date).toISOString(),
+        paymentMethod: invoice.manualPaymentMethod as ManualPaymentMethod,
+        reference: invoice.paymentReference,
+      };
+    },
+
+    async setCommissionRate(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<SetCommissionRateResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = setCommissionRateBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid rate body: rate must be a number satisfying 0 < rate <= 10 (percent).',
+          false,
+        );
+      }
+      const invoice = await commission.setCommissionRate(
+        invoiceIdSchema.parse(invoiceId),
+        parsed.data.rate,
+        await adminGuard.getAdminEmail(headers),
+      );
+      return {
+        invoiceId: invoice.id,
+        status: invoice.status,
+        commissionRatePercent: invoice.commissionRateOverride ?? 0,
+        contractValueCents: invoice.contractValueCents,
+        commissionCents: invoice.commissionCents,
+        currency: invoice.currency,
+      };
+    },
+
+    async createInvoice(headers, body): Promise<ManualInvoiceResponse> {      await adminGuard.requireAdmin(headers);
       const parsed = manualInvoiceBodySchema.safeParse(body);
       if (!parsed.success) {
         throw new HttpError(

@@ -37,6 +37,7 @@ import type { StripeService } from './stripe.service';
 import type {
   BillingHealthBucket,
   BillingHealthDunningInvoice,
+  BillingHealthInReviewInvoice,
   BillingHealthResponse,
 } from '@feasly/contracts';
 
@@ -68,8 +69,24 @@ interface InvoiceRow {
   readonly reviewDueAt: Date | null;
   readonly paidAt: Date | null;
   readonly retryCount: number;
+  readonly commissionRateOverride: number | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** Bounded admin work queue of in-review invoices. */
+const IN_REVIEW_WORK_QUEUE_LIMIT = 50;
+
+/**
+ * Effective commission rate for an invoice row, in PERCENT — the admin
+ * override when set, otherwise the configured default.
+ */
+function effectiveRatePercent(
+  row: Pick<InvoiceRow, 'commissionRateOverride'>,
+  defaultRate: number,
+): number {
+  const pct = row.commissionRateOverride ?? defaultRate * 100;
+  return Math.round(pct * 10_000) / 10_000;
 }
 
 function emptyBucket(): BillingHealthBucket {
@@ -250,6 +267,7 @@ export function createBillingHealthService(
         reviewDueAt: commissionInvoices.reviewDueAt,
         paidAt: commissionInvoices.paidAt,
         retryCount: commissionInvoices.retryCount,
+        commissionRateOverride: commissionInvoices.commissionRateOverride,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,
       })
@@ -270,12 +288,14 @@ export function createBillingHealthService(
     let disputed = emptyBucket();
     let collectedTrailing30d = emptyBucket();
     const dunningRows: InvoiceRow[] = [];
+    const inReviewRows: InvoiceRow[] = [];
     const collectedCutoff = new Date(
       generatedAt.getTime() - COLLECTED_WINDOW_MS,
     );
 
     for (const row of invoiceRows) {
       if (row.status === 'in_review') {
+        inReviewRows.push(row);
         const ageMs = generatedAt.getTime() - row.createdAt.getTime();
         if (row.reviewDueAt !== null && row.reviewDueAt <= generatedAt) {
           overdue = addToBucket(overdue, row);
@@ -317,6 +337,26 @@ export function createBillingHealthService(
     }
     // Oldest past-due first — the dunning work queue order.
     dunning.sort((a, b) => a.pastDueSince.localeCompare(b.pastDueSince));
+
+    // In-review work queue: the rows an admin can mark as paid off-Stripe
+    // or override the commission rate on. Most urgent review window first
+    // (null reviewDueAt last), bounded so the dashboard payload stays small.
+    const inReviewInvoices: BillingHealthInReviewInvoice[] = inReviewRows
+      .map((row) => ({
+        id: row.id,
+        tenantKey: row.tenantKey,
+        commissionCents: row.commissionCents,
+        currency: row.currency,
+        reviewDueAt: row.reviewDueAt?.toISOString() ?? null,
+        commissionRatePercent: effectiveRatePercent(
+          row,
+          billing.commissionRate,
+        ),
+        sortKey: row.reviewDueAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .slice(0, IN_REVIEW_WORK_QUEUE_LIMIT)
+      .map(({ sortKey: _sortKey, ...rest }) => rest);
 
     const mrr =
       billing.model === 'flat'
@@ -390,6 +430,7 @@ export function createBillingHealthService(
       inReview: { under48h, under7d, overdue },
       disputed,
       dunning,
+      inReviewInvoices,
       // BILL-03: the dunning queue needs the retry cap for "Retry n of m".
       maxChargeRetries: billing.maxChargeRetries ?? 3,
       webhooks: {
