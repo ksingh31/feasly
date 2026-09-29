@@ -15,7 +15,9 @@
  *   review window) or void.
  *
  * Tenant isolation is enforced at this layer: builders can only touch
- * invoices carrying their own tenant key (403 otherwise).
+ * invoices carrying their own tenant key (403 otherwise), and
+ * reportContract scopes the lead by (id, builder_id) resolved from the
+ * session's tenant key (403 when the lead belongs to another builder).
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts. This facade never touches db directly; the
@@ -32,6 +34,7 @@ import type {
 } from './commission.service';
 import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
+import type { BuilderService } from '../builder.service';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 
 export interface ReportContractInput {
@@ -83,6 +86,12 @@ export interface BillingServiceDeps {
   readonly billingHook: EmbedBillingHookService;
   readonly commission: CommissionService;
   /**
+   * Resolves the session tenant key to the builder row (builders table).
+   * Required for reportContract's (id, builder_id) iron-rule scoping —
+   * the same pattern as BuilderLeadsService.requireBuilder.
+   */
+  readonly builders: Pick<BuilderService, 'getByTenantKey'>;
+  /**
    * Dispute console (billing/01 follow-on): records the dispute row +
    * immutable evidence snapshot when an invoice is disputed. Optional so
    * existing constructions keep working; composition always wires it.
@@ -93,7 +102,21 @@ export interface BillingServiceDeps {
 export function createBillingService(
   deps: BillingServiceDeps,
 ): BillingService {
-  const { leadStore, billingHook, commission, disputes } = deps;
+  const { leadStore, billingHook, commission, disputes, builders } = deps;
+
+  /**
+   * Resolve the session's tenant key to the builder row. Every report
+   * call goes through here so a builder always acts as exactly one
+   * builder. Unknown (or inactive) tenant key → 404 (no builder to
+   * scope to). Matches BuilderLeadsService.requireBuilder.
+   */
+  async function requireBuilder(tenantKey: string) {
+    const builder = await builders.getByTenantKey(tenantKey);
+    if (builder === null || builder.status !== 'active') {
+      throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.');
+    }
+    return builder;
+  }
 
   async function requireTenantInvoice(
     invoiceId: string,
@@ -114,19 +137,32 @@ export function createBillingService(
     async reportContract(
       input: ReportContractInput,
     ): Promise<BillableEventResult> {
-      const lead = await leadStore.findById(input.leadId);
-      if (lead === undefined || lead === null) {
+      const builder = await requireBuilder(input.tenantKey);
+      // auth/04 (iron rule): the lead is scoped by (id, builder_id)
+      // resolved from session state — never by the lead row's tenant_key,
+      // which can legitimately diverge (NULL or stale on builder-scoped
+      // rows: lead.store insert() defaults tenantKey to null and
+      // updateOnRepeat() stamps builderId without touching tenant_key).
+      // A cross-builder row is never pulled into the service.
+      const lead = await leadStore.findByIdAndBuilderId({
+        id: input.leadId,
+        builderId: builder.id,
+      });
+      if (lead === null || lead === undefined) {
+        // Distinguish "exists but isn't yours" (403) from "doesn't
+        // exist" (404) with a boolean probe — no row data.
+        const exists = await leadStore.existsById(input.leadId);
+        if (exists) {
+          throw new HttpError(
+            403,
+            ErrorCodes.FORBIDDEN,
+            'This lead belongs to a different builder.',
+          );
+        }
         throw new HttpError(
           404,
           ErrorCodes.NOT_FOUND,
           `Lead not found: "${input.leadId}"`,
-        );
-      }
-      if (lead.tenantKey !== input.tenantKey) {
-        throw new HttpError(
-          403,
-          ErrorCodes.FORBIDDEN,
-          'This lead belongs to a different builder.',
         );
       }
       const detail: LeadWonDetail = {
