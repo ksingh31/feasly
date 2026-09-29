@@ -354,6 +354,8 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('$6,850');
   });
+
+  it('paginates the invoice list', async () => {
     const { fixture, store } = await setup();
     fixture.detectChanges();
     await flushMock(fixture);
