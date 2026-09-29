@@ -78,14 +78,6 @@ export class BuilderDashboardComponent implements OnInit {
       .subscribe();
   }
 
-  protected setStatus(leadId: string, status: BuilderLeadStatus): void {
-    if (this.updatingLeadId() !== null) return;
-    this.store
-      .dispatch(new UpdateBuilderLeadStatus(leadId, status))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
   /** Pipeline totals row: clicking a status filters the list to it; 'all' clears. */
   protected filterByStatus(status: BuilderLeadStatus | 'all'): void {
     const current = this.statusFilter();
@@ -128,9 +120,41 @@ export class BuilderDashboardComponent implements OnInit {
   }
 
   /** Per-lead status-select change handler (template-bound). */
-  protected onLeadStatusChange(event: Event, leadId: string): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.setStatus(leadId, value as BuilderLeadStatus);
+  protected onLeadStatusChange(
+    select: HTMLSelectElement,
+    leadId: string,
+  ): void {
+    const value = select.value as BuilderLeadStatus;
+    if (this.updatingLeadId() !== null) {
+      // Another update is in flight: roll the select back to the
+      // authoritative store value instead of queueing a second dispatch.
+      this.resyncStatusSelect(select, leadId);
+      return;
+    }
+    this.store
+      .dispatch(new UpdateBuilderLeadStatus(leadId, value))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.resyncStatusSelect(select, leadId));
+  }
+
+  /**
+   * Re-syncs a lead's status select with the authoritative store value.
+   *
+   * `[value]` on a native select is write-once-per-expression-change: after
+   * the user picks a status, if the PATCH fails (or the store value never
+   * changes), Angular never rewrites the DOM select while the badge always
+   * reflects the store — the dropdown would keep showing the failed pick
+   * ("New") next to a "Won" badge. Rewriting `select.value` explicitly
+   * after every update attempt keeps the two in sync.
+   */
+  private resyncStatusSelect(
+    select: HTMLSelectElement,
+    leadId: string,
+  ): void {
+    const lead = this.leads().find((l) => l.id === leadId);
+    if (lead && select.value !== lead.status) {
+      select.value = lead.status;
+    }
   }
 
   /** Avatar initials from the lead name (first letters of first/last word). */

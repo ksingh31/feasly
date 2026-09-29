@@ -347,6 +347,12 @@
   font-weight: 600;
 }
 
+/* Recorded state: calmer treatment — the action is done, the invoice link
+   is the next step. */
+.builder-lead-card__won--recorded {
+  color: var(--success, #2f7d4f);
+}
+
 .builder-lead-card__side {
   flex: 0 0 auto;
   display: flex;
