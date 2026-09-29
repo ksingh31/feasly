@@ -43,15 +43,6 @@ interface ReportContractForm {
 }
 
 /**
- * Commission-panel money formatting: the shared money util renders whole
- * dollars without cents ("$6,500"), but the panel's empty state must read
- * "$0.00" per the approved flow. Zero is the only case that differs.
- */
-function formatCadFigure(cents: number): string {
-  return cents === 0 ? '$0.00' : formatCentsToCad(cents);
-}
-
-/**
  * Builder record-contract page: `/builder/record-contract`.
  *
  * When a Feasly lead signs a build contract, the builder records it here:
@@ -86,6 +77,18 @@ export class BuilderReportContractComponent implements OnInit {
 
   /** Builder portal copy (config-owned). */
   protected readonly copy = this.config.get('copy').builder;
+
+  /**
+   * Commission-panel money formatting: the shared money util renders whole
+   * dollars without cents ("$6,500"), but the panel's empty state must read
+   * "$0.00" per the approved flow. Zero is the only case that differs.
+   * The zero figure is config-owned copy.
+   */
+  private formatCadFigure(cents: number): string {
+    return cents === 0
+      ? this.copy.recordContractZeroCommission
+      : formatCentsToCad(cents);
+  }
 
   protected readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly leadsStatus = this.store.selectSignal(
@@ -148,11 +151,11 @@ export class BuilderReportContractComponent implements OnInit {
    */
   protected readonly liveCommissionCents = signal(0);
   protected readonly liveCommission = computed(() =>
-    formatCadFigure(onePercentOfCents(this.liveCommissionCents())),
+    this.formatCadFigure(onePercentOfCents(this.liveCommissionCents())),
   );
   /** The typed contract value in cents (for the commission panel breakdown). */
   protected readonly liveContractValue = computed(() =>
-    formatCadFigure(this.liveCommissionCents()),
+    this.formatCadFigure(this.liveCommissionCents()),
   );
 
   protected readonly form = new FormGroup<ReportContractForm>({

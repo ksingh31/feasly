@@ -81,7 +81,8 @@
             <dt>{{ copy.recordContractReviewDeadline }}</dt>
             <dd>{{ formatEdmontonDate(summary.reviewDueAt) }}</dd>
           </div>
-          @if (autoChargeCountdown(summary.reviewDueAt); as countdown) {
+          @let countdown = autoChargeCountdown(summary.reviewDueAt);
+          @if (countdown) {
             <div>
               <dt>{{ copy.recordContractAutoCharge }}</dt>
               <dd>{{ countdown }}</dd>

@@ -271,3 +271,11 @@ apps/web/src/app/shared/utils/datetime.ts
 # *.spec.ts files (excluded from this check by rule) and carries its own
 # poll/deadline timing constants — test scaffolding, not app tunables.
 apps/web/src/app/shared/test-helpers/entry-gate.harness.ts
+
+# Builder invoices pagination guard (billing/08): the `100`/`20` clamp
+# literals mirror the backend's zod contract on GET /api/v1/billing/invoices
+# (limit 1..100 in billing.route.ts) — an API-contract mirror, not a deploy
+# tunable; the `20` is the defensive fallback when config/state is corrupt.
+# Must stay in sync with the backend, never tuned independently. Pinned by
+# builder-invoices.component.spec.ts (wire-param assertions).
+apps/web/src/app/features/builder/builder-invoices.state.ts

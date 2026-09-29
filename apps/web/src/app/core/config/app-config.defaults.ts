@@ -985,6 +985,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       recordContractBackToLeads: 'Back to leads',
       recordContractReviewDeadline: 'Review deadline',
       recordContractAutoCharge: 'Auto-charges',
+      recordContractZeroCommission: '$0.00',
       billingHeading: 'Billing',
       billingLoading: 'Loading your billing details…',
       billingLoadError: 'We couldn’t load your billing details. Please try again.',

@@ -1076,6 +1076,8 @@ export interface AppConfig {
       recordContractReviewDeadline: string;
       /** Invoice card: auto-charge row label. */
       recordContractAutoCharge: string;
+      /** Commission panel: zero-amount figure (shared money util omits cents). */
+      recordContractZeroCommission: string;
       /** `/builder/billing` heading. */
       billingHeading: string;
       /** Card-status loading copy. */
