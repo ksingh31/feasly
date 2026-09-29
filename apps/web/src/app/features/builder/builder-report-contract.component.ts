@@ -3,7 +3,9 @@ import {
   DestroyRef,
   OnInit,
   inject,
+  signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   FormGroup,
@@ -84,6 +86,12 @@ export class BuilderReportContractComponent implements OnInit {
     BuilderReportContractState.error,
   );
 
+  /**
+   * Live 1% commission preview under the value field, recomputed as the
+   * builder types. Display-only — the backend computes the billed amount.
+   */
+  protected readonly liveCommission = signal<string | null>(null);
+
   protected readonly form = new FormGroup<ReportContractForm>({
     leadId: new FormControl<string | null>(null, Validators.required),
     contractValue: new FormControl<string | null>(null, [
@@ -117,6 +125,16 @@ export class BuilderReportContractComponent implements OnInit {
     this.destroyRef.onDestroy(() => {
       this.store.dispatch(new ClearReportContractState());
     });
+    this.form.controls.contractValue.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        const cents = parseCadDollarsToCents(value);
+        this.liveCommission.set(
+          cents !== null && cents > 0
+            ? formatCentsToCad(onePercentOfCents(cents))
+            : null,
+        );
+      });
   }
 
   ngOnInit(): void {
@@ -235,6 +253,16 @@ export class BuilderReportContractComponent implements OnInit {
       ),
     );
     // The error view shows the RFC 7807-surfaced message from state.
+  }
+
+  /** Re-submits the report after an API failure (the form is still valid). */
+  protected retrySubmit(): Promise<void> {
+    return this.submit();
+  }
+
+  /** Reloads the lead picker after a leads fetch failure. */
+  protected reloadLeads(): void {
+    this.store.dispatch(new LoadBuilderLeads());
   }
 
   protected reportAnother(): void {

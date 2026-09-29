@@ -1122,6 +1122,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadsStatusSaving: 'Saving…',
       leadsWonHint: 'Signed a contract with this lead?',
       leadsWonReportCta: 'Report the contract',
+      contractWhatHappensTitle: 'What happens next',
+      contractFormHeading: 'Report details',
+      contractLeadPlaceholder: 'Select a lead…',
+      contractEstimatedCommission: 'Estimated commission (1%)',
+      contractRetry: 'Try again',
     },
     admin: {
       apiKeys: {
