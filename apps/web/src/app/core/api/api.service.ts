@@ -12,6 +12,7 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  CityDataFreshnessResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -93,6 +94,13 @@ export interface ApiService {
    * community. Errors `not_found` when the slug is unknown.
    */
   getCommunityStats(slug: string): Observable<CommunityStats>;
+  /**
+   * City-data freshness (trust-strip/01): GET /api/v1/city-data/freshness.
+   * The refresh month ("September 2026") for the landing trust strip, or
+   * null when the dataset metadata could not be read — the page then shows
+   * its "Live City data" fallback instead of a month.
+   */
+  getCityDataFreshness(): Observable<CityDataFreshnessResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -252,6 +260,10 @@ class LazyApiService implements ApiService {
 
   getCommunityStats(slug: string): Observable<CommunityStats> {
     return this.resolve().getCommunityStats(slug);
+  }
+
+  getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
+    return this.resolve().getCityDataFreshness();
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

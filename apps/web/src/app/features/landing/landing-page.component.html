@@ -63,7 +63,7 @@
     <div class="trust-inner">
       <p class="trust-eyebrow" id="trust-eyebrow">{{ copy.trustEyebrow }}</p>
       <ul class="trust-list">
-        @for (stat of trustStats; track stat.value) {
+        @for (stat of trustStats(); track stat.value) {
           <li class="trust-item" [class.trust-item-badge]="stat.badge">
             @if (stat.badge) {
               <span class="trust-badge" aria-hidden="true">✓</span>

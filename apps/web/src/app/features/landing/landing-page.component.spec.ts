@@ -5,8 +5,11 @@ import { provideRouter, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PropertyRecord } from '@feasly/contracts';
-import { provideApi } from '../../core/api';
+import { of, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
+import type { CityDataFreshnessResponse, PropertyRecord } from '@feasly/contracts';
+import { API_SERVICE, provideApi } from '../../core/api';
+import type { ApiService } from '../../core/api';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config';
 import { expectSharedCalgaryGate } from '../../shared/test-helpers/entry-gate.harness';
@@ -34,7 +37,10 @@ describe('LandingPageComponent', () => {
     propertyData: { source: 'mock' },
   };
 
-  async function setup(configOverrides: Record<string, unknown> = {}): Promise<void> {
+  async function setup(
+    configOverrides: Record<string, unknown> = {},
+    extraProviders: unknown[] = [],
+  ): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [LandingPageComponent],
@@ -45,6 +51,7 @@ describe('LandingPageComponent', () => {
         provideApi(),
         provideRouter([{ path: 'estimate/scope', component: LandingPageComponent }]),
         provideStore([WizardState, LeadState, ReportState]),
+        ...extraProviders,
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -131,12 +138,77 @@ describe('LandingPageComponent', () => {
     const labels = [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(values).toEqual(['600,000+', 'September 2026', 'Deterministic math']);
+    // The mock API harness answers refreshedMonth null → the honest
+    // "Live City data" fallback; no hardcoded month, no accuracy claim.
+    expect(values).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
     expect(labels).toEqual([
       'City of Calgary assessment records',
       'Latest data refresh',
       'AI never invents prices',
     ]);
+  });
+
+  describe('trust strip refresh month (trust-strip/01)', () => {
+    /** API stub whose getCityDataFreshness answers with a canned response. */
+    function freshnessProvider(
+      response: Observable<CityDataFreshnessResponse>,
+    ): { provide: unknown; useValue: ApiService } {
+      const stub = {
+        getCityDataFreshness: vi.fn().mockReturnValue(response),
+      };
+      return { provide: API_SERVICE, useValue: stub as unknown as ApiService };
+    }
+
+    function trustValues(): string[] {
+      return [...fixture.nativeElement.querySelectorAll('.trust-value-full')].map((el: Element) =>
+        el.textContent?.trim(),
+      );
+    }
+
+    function trustShorts(): string[] {
+      return [...fixture.nativeElement.querySelectorAll('.trust-value-short')].map((el: Element) =>
+        el.textContent?.trim(),
+      );
+    }
+
+    it('renders "Refreshed <Month Year>" when the endpoint reports a month', async () => {
+      await setup(
+        { propertyData: { source: 'live' } },
+        [freshnessProvider(of({ refreshedMonth: 'September 2026' }))],
+      );
+      fixture.detectChanges();
+      expect(trustValues()).toEqual(['600,000+', 'Refreshed September 2026', 'Deterministic math']);
+      expect(trustShorts()).toEqual(['600,000+', 'Refreshed Sep 2026', 'Deterministic math']);
+    });
+
+    it('falls back to "Live City data" when the endpoint returns null', async () => {
+      await setup(
+        { propertyData: { source: 'live' } },
+        [freshnessProvider(of({ refreshedMonth: null }))],
+      );
+      fixture.detectChanges();
+      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+    });
+
+    it('falls back to "Live City data" when the request fails', async () => {
+      await setup(
+        { propertyData: { source: 'live' } },
+        [freshnessProvider(throwError(() => new Error('backend down')))],
+      );
+      fixture.detectChanges();
+      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+    });
+
+    it('never calls the freshness endpoint on the mock property path', async () => {
+      const provider = freshnessProvider(of({ refreshedMonth: 'September 2026' }));
+      await setup({ propertyData: { source: 'mock' } }, [provider]);
+      fixture.detectChanges();
+      expect(trustValues()).toEqual(['Range-based', 'Sample property data', 'Transparent']);
+      expect(
+        (provider.useValue as unknown as { getCityDataFreshness: ReturnType<typeof vi.fn> })
+          .getCityDataFreshness,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   it('trust strip renders the redesigned stat blocks with eyebrow, badge, and sample-report button', async () => {
@@ -150,7 +222,7 @@ describe('LandingPageComponent', () => {
     const shorts = [...root.querySelectorAll('.trust-value-short')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(shorts).toEqual(['600,000+', 'Sep 2026', 'Deterministic math']);
+    expect(shorts).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
     const cta = root.querySelector('.sample-report-link a') as HTMLAnchorElement;
     expect(cta?.getAttribute('href')).toBe('/sample-report');
     expect(cta?.textContent).toContain('See a sample report');

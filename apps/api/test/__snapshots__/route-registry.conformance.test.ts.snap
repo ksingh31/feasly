@@ -169,6 +169,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "GET /api/v1/city-data/freshness": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "GET /api/v1/communities/{slug}/stats": [
     "super_admin",
     "admin",

@@ -1,16 +1,28 @@
-import { Component, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
 import type { TrustStat } from '../../core/config';
+import { API_SERVICE } from '../../core/api';
 import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
 import { ClearLead, GoToStep, SelectProperty } from '../wizard';
 import { ClearReport } from '../report/report.actions';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+
+  /** Stable key of the trust item rewritten with the live refresh month. */
+const CITY_DATA_FRESHNESS_KEY = 'city-data-freshness';
+
+/** "September 2026" → "Sep 2026" for the narrow-screen trust value. */
+function shortMonthYear(monthYear: string): string {
+  const [month = '', year = ''] = monthYear.split(' ');
+  return `${month.slice(0, 3)} ${year}`.trim();
+}
 
 /**
  * S0 landing (FE1-001): one job — get the address.
@@ -39,6 +51,8 @@ export class LandingPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly api = inject(API_SERVICE);
 
   /** Landing + search copy (config-owned). */
   readonly copy = this.config.get('copy').landing;
@@ -55,17 +69,52 @@ export class LandingPageComponent implements OnInit {
    * property harness serves the data, the property-data stat must not claim
    * live City data. Keyed off `propertyData.source` (not `api.useMockApi`):
    * the property backend is an independent switch.
+   *
+   * On the live path the "Latest data refresh" item is dynamic: once
+   * GET /api/v1/city-data/freshness resolves, it reads "Refreshed <Month
+   * Year>"; until then (or when the metadata is unreachable) it keeps the
+   * honest "Live City data" fallback from config — never a hardcoded month
+   * that goes stale.
    */
-  readonly trustStats: TrustStat[] =
-    this.config.get('propertyData').source === 'mock'
-      ? this.copy.trustItemsMock
-      : this.copy.trustItems;
+  readonly trustStats = computed((): TrustStat[] => {
+    if (this.config.get('propertyData').source === 'mock') {
+      return this.copy.trustItemsMock;
+    }
+    const month = this.refreshMonth();
+    return this.copy.trustItems.map((item) => {
+      if (item.key !== CITY_DATA_FRESHNESS_KEY || !month) return item;
+      return {
+        ...item,
+        value: (item.refreshedValue ?? 'Refreshed {monthYear}').replace('{monthYear}', month),
+        valueShort: (item.refreshedValueShort ?? 'Refreshed {monthYearShort}').replace(
+          '{monthYearShort}',
+          shortMonthYear(month),
+        ),
+      };
+    });
+  });
+
+  /** Live dataset-refresh month ("September 2026"); null = unknown/unreachable. */
+  private readonly refreshMonth = signal<string | null>(null);
 
   @ViewChild(AddressAutocompleteComponent)
   private readonly autocomplete?: AddressAutocompleteComponent;
 
   ngOnInit(): void {
     this.seo.setForRoute('');
+    // trust-strip/01: resolve the live dataset-refresh month on the live
+    // property path only. A null month (or a failed request) leaves the
+    // "Live City data" fallback in place — the strip never claims a month
+    // it could not verify.
+    if (this.config.get('propertyData').source !== 'mock') {
+      this.api
+        .getCityDataFreshness()
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of({ refreshedMonth: null })),
+        )
+        .subscribe((res) => this.refreshMonth.set(res.refreshedMonth));
+    }
     // SEO-06: Landing page gets WebSite + FAQPage + LocalBusiness JSON-LD
     // (single @graph script). FAQ copy comes from ConfigService — the same
     // source as the rendered FAQ, so the drift test can assert byte-equality.

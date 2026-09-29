@@ -133,7 +133,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
       trustItems: [
         { value: '600,000+', label: 'City of Calgary assessment records' },
-        { value: 'September 2026', valueShort: 'Sep 2026', label: 'Latest data refresh' },
+        // The refresh month is dynamic (GET /api/v1/city-data/freshness);
+        // value/valueShort are the honest fallbacks while it is unknown —
+        // never a hardcoded month that goes stale.
+        {
+          key: 'city-data-freshness',
+          value: 'Live City data',
+          valueShort: 'Live City data',
+          label: 'Latest data refresh',
+          refreshedValue: 'Refreshed {monthYear}',
+          refreshedValueShort: 'Refreshed {monthYearShort}',
+        },
         { value: 'Deterministic math', label: 'AI never invents prices', badge: true },
       ],
       trustItemsMock: [
