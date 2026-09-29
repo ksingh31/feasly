@@ -939,19 +939,25 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadStatusUpdatedLabel: 'Status updated',
       actionsLabel: 'Update lead status',
       shellNavBilling: 'Billing',
-      shellNavReportContract: 'Report contract',
-      reportContractSeoDescription:
-        'Report a signed build contract in the Feasly builder portal.',
-      reportContractHeading: 'Report a signed contract',
+      shellNavInvoices: 'Invoices',
+      shellNavReportContract: 'Record signed contract',
+      recordContractSeoDescription:
+        'Record a signed build contract in the Feasly builder portal.',
+      reportContractHeading: 'Record a signed contract',
       reportContractExplainer:
-        'When a Feasly lead signs a build contract, report it here. We take a 1% commission on the signed contract value, excluding land. Please report within 14 days of signing.',
+        'When a Feasly lead signs a build contract, record it here. We take a 1% commission on the signed contract value, excluding land. Please record it within 14 days of signing — that’s part of your Feasly agreement.',
       reportContractLeadLabel: 'Which lead signed?',
       reportContractLeadRequired: 'Choose the lead that signed the contract.',
       reportContractLeadsLoading: 'Loading your leads…',
       reportContractLeadsError:
         'We couldn’t load your leads. Please try again.',
       reportContractLeadsEmpty:
-        'You don’t have any leads yet. Once Feasly sends you leads, you can report signed contracts here.',
+        'You don’t have any leads yet. Once Feasly sends you leads, you can record signed contracts here.',
+      recordContractNoReportableLeads:
+        'Every lead already has a recorded contract — nothing left to record.',
+      recordContractAlreadyRecordedTitle: 'This contract is already recorded',
+      recordContractAlreadyRecordedBody:
+        'There’s already a commission invoice for this lead. Review it for the current amount and payment timing.',
       reportContractValueLabel: 'Contract value (CAD, excluding land)',
       reportContractValueHint:
         'The signed construction contract amount — land cost stays out. Example: 650000',
@@ -960,13 +966,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       reportContractDateLabel: 'Date the contract was signed',
       reportContractDateRequired: 'Enter the signing date.',
       reportContractDateFuture: 'The signing date can’t be in the future.',
-      reportContractSubmit: 'Report contract',
-      reportContractSubmitting: 'Reporting…',
-      reportContractSuccessTitle: 'Contract reported — thank you',
+      reportContractSubmit: 'Record signed contract',
+      reportContractSubmitting: 'Recording…',
+      reportContractSuccessTitle: 'Contract recorded — your invoice is ready',
       reportContractSuccessBody:
-        'You reported a {amount} contract. Your 1% commission is {commission}. It enters a 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+        'You recorded a {amount} contract. Your 1% commission is {commission}. The invoice is in its 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
       reportContractAlreadyReported:
-        'This contract is already reported — nothing more to do.',
+        'This contract is already recorded — nothing more to do.',
       reportContractDisputed:
         'This contract already has an invoice under dispute. The charge is paused while we review it — nothing more for you to do.',
       reportContractFlatCovered:
@@ -975,7 +981,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Billing isn’t enabled for your account yet. We saved your report and our team will follow up.',
       reportContractAwaitingDetails:
         'We received your report but need more details before we can create the invoice. Our team will follow up.',
-      reportContractReportAnother: 'Report another contract',
+      recordContractViewInvoice: 'View invoice',
+      recordContractBackToLeads: 'Back to leads',
+      recordContractReviewDeadline: 'Review deadline',
+      recordContractAutoCharge: 'Auto-charges',
       billingHeading: 'Billing',
       billingLoading: 'Loading your billing details…',
       billingLoadError: 'We couldn’t load your billing details. Please try again.',
@@ -994,7 +1003,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Card setup isn’t available yet — please contact us to arrange billing.',
       billingCancel: 'Cancel',
       billingExplainer:
-        'When you report a won deal, Feasly creates a commission invoice (1% of the signed contract value, excluding land). The invoice auto-charges 7 days later unless disputed.',
+        'When you record a signed contract, Feasly creates a commission invoice (1% of the signed contract value, excluding land). The invoice auto-charges 7 days later unless disputed.',
       billingTabCardLabel: 'Card on file',
       billingTabInvoicesLabel: 'Invoices',
       invoicesHeading: 'Invoices',
@@ -1004,7 +1013,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       invoicesLoadError:
         'We couldn\u2019t load your invoices. Please try again.',
       invoicesEmpty:
-        'No invoices yet \u2014 they\u2019ll appear here when you report a won deal.',
+        'No invoices yet — they’ll appear here when you record a signed contract.',
       invoicesColDate: 'Date',
       invoicesColContract: 'Contract value',
       invoicesColCommission: 'Commission',
@@ -1131,7 +1140,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadsStatusControlLabel: 'Update status for {name}',
       leadsStatusSaving: 'Saving…',
       leadsWonHint: 'Signed a contract with this lead?',
-      leadsWonReportCta: 'Report the contract',
+      leadsWonReportCta: 'Record the signed contract',
+      leadsRecordedCta: 'Contract recorded',
+      leadsViewInvoiceCta: 'View your invoice',
       teamColAdded: 'Added',
       teamInviteButton: 'Invite team member',
       teamInviteModalSub:
@@ -1151,9 +1162,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       billingCardEmptyBody:
         'Commission invoices auto-charge 7 days after each review window. Add a card so charges go through.',
       contractWhatHappensTitle: 'What happens next',
-      contractFormHeading: 'Report details',
+      contractFormHeading: 'Record details',
       contractLeadPlaceholder: 'Select a lead…',
-      contractEstimatedCommission: 'Estimated commission (1%)',
+      contractEstimatedCommission: 'Your commission (1%)',
+      contractCommissionPanelSub:
+        'Calculated from the signed contract value, excluding land.',
+      contractCommissionContractValue: 'Contract value',
+      contractCommissionRate: 'Commission rate',
       contractRetry: 'Try again',
     },
     admin: {

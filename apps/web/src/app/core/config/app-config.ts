@@ -1010,11 +1010,13 @@ export interface AppConfig {
       actionsLabel: string;
       /** Builder shell nav: billing link label. */
       shellNavBilling: string;
-      /** Builder shell nav: report-contract link label. */
+      /** Builder shell nav: invoices link label (top-level tab). */
+      shellNavInvoices: string;
+      /** Builder shell nav: record-contract link label. */
       shellNavReportContract: string;
-      /** `/builder/report-contract` SEO description. */
+      /** `/builder/record-contract` SEO description. */
       reportContractSeoDescription: string;
-      /** `/builder/report-contract` heading. */
+      /** `/builder/record-contract` heading. */
       reportContractHeading: string;
       /** Explains the 1% commission and 14-day reporting SLA. */
       reportContractExplainer: string;
@@ -1028,6 +1030,12 @@ export interface AppConfig {
       reportContractLeadsError: string;
       /** Empty leads list copy. */
       reportContractLeadsEmpty: string;
+      /** Shown when every lead already has a recorded contract. */
+      recordContractNoReportableLeads: string;
+      /** Already-recorded state heading. */
+      recordContractAlreadyRecordedTitle: string;
+      /** Already-recorded state body. */
+      recordContractAlreadyRecordedBody: string;
       /** Contract value field label. */
       reportContractValueLabel: string;
       /** Contract value field hint (excl. land). */
@@ -1060,8 +1068,14 @@ export interface AppConfig {
       reportContractNotEnabled: string;
       /** Awaiting-contract-details fallback copy. */
       reportContractAwaitingDetails: string;
-      /** "Report another contract" button label. */
-      reportContractReportAnother: string;
+      /** Success invoice card: "View invoice" link label. */
+      recordContractViewInvoice: string;
+      /** Success view: "Back to leads" link label. */
+      recordContractBackToLeads: string;
+      /** Invoice card: review-deadline row label. */
+      recordContractReviewDeadline: string;
+      /** Invoice card: auto-charge row label. */
+      recordContractAutoCharge: string;
       /** `/builder/billing` heading. */
       billingHeading: string;
       /** Card-status loading copy. */
@@ -1092,11 +1106,7 @@ export interface AppConfig {
       billingCancel: string;
       /** Explains the 1% commission charge timing. */
       billingExplainer: string;
-      /** Builder billing tab: card-on-file section label. */
-      billingTabCardLabel: string;
-      /** Builder billing tab: invoices section label. */
-      billingTabInvoicesLabel: string;
-      /** `/builder/billing/invoices` heading. */
+      /** `/builder/invoices` heading. */
       invoicesHeading: string;
       /** Invoices list explainer. */
       invoicesExplainer: string;
@@ -1323,10 +1333,14 @@ export interface AppConfig {
       leadsStatusControlLabel: string;
       /** Shown while a status update is in flight. */
       leadsStatusSaving: string;
-      /** Won-lead hint lead-in, before the report-contract link. */
+      /** Won-lead hint lead-in, before the record-contract link. */
       leadsWonHint: string;
-      /** Won-lead report-contract link label. */
+      /** Won-lead record-contract link label. */
       leadsWonReportCta: string;
+      /** Recorded-lead label, before the view-invoice link. */
+      leadsRecordedCta: string;
+      /** Recorded-lead view-invoice link label. */
+      leadsViewInvoiceCta: string;
       /** auth/05: Added column header (invite date). */
       teamColAdded: string;
       /** auth/05: header invite button label. */
@@ -1355,15 +1369,21 @@ export interface AppConfig {
       billingCardEmptyTitle: string;
       /** Designed empty-state body when no card is on file. */
       billingCardEmptyBody: string;
-      /** Explainer-card heading on `/builder/report-contract`. */
+      /** Explainer-card heading on `/builder/record-contract`. */
       contractWhatHappensTitle: string;
-      /** Form-card heading on `/builder/report-contract`. */
+      /** Form-card heading on `/builder/record-contract`. */
       contractFormHeading: string;
-      /** Lead-picker placeholder option on `/builder/report-contract`. */
+      /** Lead-picker placeholder option on `/builder/record-contract`. */
       contractLeadPlaceholder: string;
-      /** Live estimated-commission label; the computed figure follows. */
+      /** Live commission-panel label; the computed figure follows. */
       contractEstimatedCommission: string;
-      /** Retry button label (report submit + leads reload). */
+      /** Commission-panel explainer under the figure. */
+      contractCommissionPanelSub: string;
+      /** Commission-panel breakdown row: contract value. */
+      contractCommissionContractValue: string;
+      /** Commission-panel breakdown row: commission rate. */
+      contractCommissionRate: string;
+      /** Retry button label (record submit + leads reload). */
       contractRetry: string;
     };
     /**
