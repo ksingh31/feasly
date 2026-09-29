@@ -1593,6 +1593,7 @@ export function createComposition(
     leadStore,
     billingHook: embedBillingHookService,
     commission: commissionService,
+    builders: builderService,
     disputes: disputeService,
   });
   // billing/02 (BILL-02) — commission card-on-file: the setup-intent +

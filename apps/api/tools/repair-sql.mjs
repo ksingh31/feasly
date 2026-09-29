@@ -792,4 +792,19 @@ SELECT
 FROM "users" u
 WHERE u."email" = 'karanbirsingh667@gmail.com'
 ON CONFLICT ("user_id", "builder_id") DO NOTHING;
+
+-- P0 2026-09-29: tenant-key divergence backfill. Leads assigned to a
+-- builder via builder_id can carry a NULL or stale tenant_key (the lead
+-- store's insert() defaults tenantKey to null and updateOnRepeat() stamps
+-- builderId without touching tenant_key), which made reportContract 403
+-- leads that are visible in the builder's own pipeline (Karan's "QA Test"
+-- lead, 2026-09-29: builder_id set, tenant_key NULL). The facade now
+-- scopes by (id, builder_id), but re-aligning tenant_key keeps the legacy
+-- key-based reads and joins consistent. Idempotent: a no-op when the keys
+-- already agree.
+UPDATE "leads"
+SET "tenant_key" = b."tenant_key"
+FROM "builders" b
+WHERE "leads"."builder_id" = b."id"
+  AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");
 `;
