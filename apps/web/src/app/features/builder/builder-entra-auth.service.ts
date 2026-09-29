@@ -115,8 +115,10 @@ export class BuilderEntraAuthService {
   /**
    * Build the full Entra end-session URL for sign-out. Mirrors the admin
    * helper: `id_token_hint` (the id_token captured at sign-in, returned
-   * by the backend on logout) tells Entra exactly which session to end,
-   * so it skips the "Pick an account" picker (logout UX, Karan 2026-09-28).
+   * by the backend on logout) tells Entra exactly which session to end.
+   * NOTE: Entra External ID (CIAM) currently ignores the hint and shows
+   * the "Pick an account" picker anyway (verified 2026-09-28); kept so
+   * the picker disappears automatically if Microsoft adds support.
    * Pure (no navigation) so it is unit-testable.
    */
   buildEntraLogoutUrl(

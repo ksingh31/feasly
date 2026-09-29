@@ -175,8 +175,11 @@ export function createAdminAuthService(
       let idTokenHint: string | null = null;
       if (sessionToken) {
         // Read the stored id_token BEFORE revoking: the end-session
-        // redirect needs it as `id_token_hint` so Entra skips the
-        // "Pick an account" picker (logout UX, 2026-09-28).
+        // redirect sends it as `id_token_hint` to identify the session.
+        // NOTE: Entra External ID (CIAM) currently ignores the hint and
+        // shows the "Pick an account" picker anyway (verified 2026-09-28);
+        // kept so the picker disappears automatically if Microsoft adds
+        // support (logout UX, Karan 2026-09-28).
         const session = await sessions.findActiveByHash(
           hashSessionToken(sessionToken),
           clock(),
