@@ -66,6 +66,24 @@ describe('builderTeamGuard (auth/05)', () => {
     expect(result.redirectTo).toEqual(['/builder']);
   });
 
+  it('redirects an unauthenticated visitor (probe finds no session) to /builder', () => {
+    // No session and no admin role — same outcome as a member: never land
+    // on the team page. (The outer builderGuard normally bounces these to
+    // /builder/login first; this is the defense-in-depth check.)
+    const { router, dispatched } = setup({
+      isAdmin: false,
+      sessionLoaded: false,
+      probeAdmin: false,
+    });
+    const result$ = runGuard() as import('rxjs').Observable<unknown>;
+    return result$.toPromise().then((result) => {
+      expect(dispatched.some((a) => a instanceof LoadBuilderSession)).toBe(true);
+      expect(router.createUrlTree).toHaveBeenCalledWith(['/builder']);
+      const tree = result as unknown as { redirectTo: string[] };
+      expect(tree.redirectTo).toEqual(['/builder']);
+    });
+  });
+
   it('probes an unknown session before deciding (admin)', async () => {
     const { dispatched } = setup({
       isAdmin: false,

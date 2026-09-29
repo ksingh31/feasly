@@ -216,6 +216,68 @@ describe('requireBuilderId tenant scoping (auth/04)', () => {
   });
 });
 
+describe('builder team invite route (auth/05)', () => {
+  const INVITE_ROUTE = 'POST /api/v1/builder/users/invite';
+
+  function memberCtx(): AuthContext {
+    return ctxWith({
+      staffRole: null,
+      builderId: 'builder-9',
+      memberships: [
+        { builderId: 'builder-9', role: 'builder_member', createdAt: new Date() },
+      ],
+      permissions: effectivePermissions(null, ['builder_member']),
+    });
+  }
+
+  function adminCtx(): AuthContext {
+    return ctxWith({
+      staffRole: null,
+      builderId: 'builder-9',
+      memberships: [
+        { builderId: 'builder-9', role: 'builder_admin', createdAt: new Date() },
+      ],
+      permissions: effectivePermissions(null, ['builder_admin']),
+    });
+  }
+
+  it('builder_member is 403 on POST /api/v1/builder/users/invite', async () => {
+    const { guard, auditDenied } = makeGuard(async () => memberCtx());
+    const err = await guard
+      .requirePermission('builder:users:manage', HEADERS, INVITE_ROUTE)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    const http = err as HttpError;
+    expect(http.status).toBe(403);
+    expect(http.code).toBe('FORBIDDEN');
+    expect(auditDenied).toHaveBeenCalledTimes(1);
+    expect(auditDenied.mock.calls[0]![0]).toMatchObject({
+      permission: 'builder:users:manage',
+      route: INVITE_ROUTE,
+    });
+  });
+
+  it('builder_admin passes POST /api/v1/builder/users/invite', async () => {
+    const ctx = adminCtx();
+    const { guard } = makeGuard(async () => ctx);
+    const out = await guard.requirePermission(
+      'builder:users:manage',
+      HEADERS,
+      INVITE_ROUTE,
+    );
+    expect(out).toBe(ctx);
+  });
+
+  it('no session is 401 on POST /api/v1/builder/users/invite', async () => {
+    const { guard } = makeGuard(async () => null);
+    const err = await guard
+      .requirePermission('builder:users:manage', HEADERS, INVITE_ROUTE)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(401);
+  });
+});
+
 describe('getAuthContext', () => {
   it('returns null when unauthenticated (route maps it to 401)', async () => {
     const { guard } = makeGuard(async () => null);

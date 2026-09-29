@@ -1311,6 +1311,18 @@ export interface AppConfig {
       leadsWonHint: string;
       /** Won-lead report-contract link label. */
       leadsWonReportCta: string;
+      /** auth/05: Added column header (invite date). */
+      teamColAdded: string;
+      /** auth/05: header invite button label. */
+      teamInviteButton: string;
+      /** auth/05: invite modal sub-copy. */
+      teamInviteModalSub: string;
+      /** auth/05: table caption for exactly one team member. */
+      teamCountOne: string;
+      /** auth/05: table caption unit for two or more team members. */
+      teamCountMany: string;
+      /** auth/05: defensive notice when a non-admin lands on the page. */
+      teamNotAdmin: string;
     };
     /**
      * Admin funnel dashboard (story admin/07). All user-facing dashboard
