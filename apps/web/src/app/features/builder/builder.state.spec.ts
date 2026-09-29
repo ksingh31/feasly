@@ -32,6 +32,7 @@ const SESSION: BuilderAuthMeResponse = {
   authenticated: true,
   email: 'builder@example.com',
   tenantKey: 'elite-craft',
+  role: 'builder_admin',
 };
 
 const LEADS_RESPONSE: BuilderLeadListResponse = {
@@ -239,12 +240,13 @@ describe('BuilderState (embed/09)', () => {
   });
 
   it('LoadBuilderSession preserves the active-org role when /me carries none', async () => {
-    // Regression: /me always maps role:null, so a session probe after
-    // sign-in must not wipe the builder_admin role set by
+    // Regression: older /me responses mapped role:null, so a session probe
+    // after sign-in must not wipe the builder_admin role set by
     // SetBuilderActiveOrg — otherwise the Team nav disappears.
     const seed = store.dispatch(new LoadBuilderSession());
     httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
       ...SESSION,
+      role: null,
       memberships: [],
     });
     await seed;
@@ -257,6 +259,7 @@ describe('BuilderState (embed/09)', () => {
     const probe = store.dispatch(new LoadBuilderSession());
     httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
       ...SESSION,
+      role: null,
       memberships: [],
     });
     await probe;
@@ -267,6 +270,33 @@ describe('BuilderState (embed/09)', () => {
     // wins there; the null role/builderName fall back to the previous org.
     expect(s.session?.builderId).toBe('elite-craft');
     expect(s.session?.builderName).toBe('Elite Craft Builders');
+    expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(true);
+    httpMock.verify();
+  });
+
+  it('LoadBuilderSession restores the active-org role from /me when the previous state role was null', async () => {
+    // Self-healing: /me now returns the server-authoritative role, so a
+    // persisted session with role:null (wiped by older bundles) regains
+    // builder_admin on the next probe — restoring the Team nav.
+    const first = store.dispatch(new LoadBuilderSession());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
+      ...SESSION,
+      role: null,
+      memberships: [],
+    });
+    await first;
+    expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(false);
+
+    const probe = store.dispatch(new LoadBuilderSession());
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me')).flush({
+      ...SESSION,
+      role: 'builder_admin',
+      memberships: [],
+    });
+    await probe;
+
+    const s = snapshot();
+    expect(s.session?.role).toBe('builder_admin');
     expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(true);
     httpMock.verify();
   });

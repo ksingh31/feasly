@@ -27,10 +27,17 @@ import type {
 import { BUILDER_SESSION_COOKIE } from '../middleware/builder-guard';
 import { extractSessionToken } from '../middleware/session-token';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { PermissionGuard } from '../middleware/permission-guard';
 import type { BuilderAuthService } from '../services/builder-auth.service';
 
 export interface BuilderAuthRouteDeps {
   readonly builderAuth: BuilderAuthService;
+  /**
+   * Resolve-only auth context (never throws) used to enrich /me with the
+   * server-authoritative active-org role. The route depends on the
+   * PermissionGuard *interface*, not an implementation.
+   */
+  readonly permissionGuard: PermissionGuard;
   /** Session TTL seconds — for the Max-Age cookie attribute. From config. */
   readonly builderSessionTtlSeconds: number;
 }
@@ -45,7 +52,9 @@ export interface BuilderAuthRoute {
    */
   verify(query: unknown): Promise<BuilderAuthVerifyResponse>;
   /**
-   * GET /api/v1/builder/auth/me — returns the session identity.
+   * GET /api/v1/builder/auth/me — returns the session identity plus the
+   * server-authoritative active-org role (null when the session has no
+   * active builder membership).
    * Requires a valid session (guarded by the adapter).
    */
   me(
@@ -95,7 +104,7 @@ export function buildClearBuilderSessionCookie(): string {
 export function createBuilderAuthRoute(
   deps: BuilderAuthRouteDeps,
 ): BuilderAuthRoute {
-  const { builderAuth, builderSessionTtlSeconds } = deps;
+  const { builderAuth, builderSessionTtlSeconds, permissionGuard } = deps;
 
   return {
     request: (body: unknown): Promise<BuilderAuthRequestResponse> =>
@@ -134,10 +143,20 @@ export function createBuilderAuthRoute(
           false,
         );
       }
+      // Server-authoritative active-org role: resolve the session into an
+      // auth context (never throws — returns null when the builder is
+      // inactive or the session is legacy) and read the membership role for
+      // the session's active builder. Null when there is no active builder
+      // membership; the frontend keeps its previous role in that case.
+      const ctx = await permissionGuard.getAuthContext(headers);
+      const role =
+        ctx?.memberships.find((m) => m.builderId === ctx.builderId)?.role ??
+        null;
       return {
         authenticated: true as const,
         email: session.email,
         tenantKey: session.tenantKey,
+        role,
       };
     },
 

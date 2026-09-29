@@ -49,6 +49,15 @@ export interface BuilderAuthMeResponse {
   readonly email: string;
   /** The tenant this builder session is authorized for. */
   readonly tenantKey: string;
+  /**
+   * The user's role in the session's active org, resolved server-side from
+   * the builder memberships. Null when the session has no active builder
+   * membership (e.g. legacy magic-link sessions with no user record). The
+   * builder frontend restores the active-org role from this on every
+   * session load, so a stale client state can never hide the Team nav from
+   * a builder_admin.
+   */
+  readonly role: 'builder_admin' | 'builder_member' | null;
 }
 
 export interface BuilderAuthLogoutResponse {

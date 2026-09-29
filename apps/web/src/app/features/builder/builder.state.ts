@@ -232,10 +232,13 @@ export class BuilderState {
   loadBuilderSession(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.authApi.me().pipe(
       tap((identity) => {
-        // The /me identity carries no org context (role/builderName are
-        // always null there); preserve the previous session's org fields so
-        // a session probe doesn't wipe the active org set at sign-in (which
-        // hid the Team nav for builder_admins). Backend wins when non-null.
+        // The /me identity now carries the server-authoritative active-org
+        // role, so a session probe self-heals the role even when the
+        // persisted state has role:null (previously the Team nav hid for
+        // builder_admins). builderName has no server field yet; preserve the
+        // previous session's org fields when /me returns null so a probe
+        // never wipes the active org set at sign-in. Backend wins when
+        // non-null.
         const prev = ctx.getState().session;
         ctx.patchState({
           session: {
