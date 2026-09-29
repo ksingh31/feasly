@@ -225,6 +225,61 @@ export const leadNotes = pgTable(
 );
 
 /**
+ * Lead comments (BILL-05).
+ *
+ * One table for every commentable entity: `entity_type`/`entity_id` are
+ * generic from day one (`lead` for now) so invoice comments — the future
+ * dispute thread — reuse this table with zero migration.
+ *
+ * Visibility model (enforced in SQL, never in JS):
+ * - `org` — visible to the entity's builder org and to admins.
+ * - `admin_only` — visible to admins only. The builder read path adds
+ *   `visibility = 'org'` to the WHERE clause, so an admin-internal note
+ *   can never reach a builder response.
+ *
+ * Edit, not delete (Karan 2026-09-29): authors edit their own comments
+ * (`updated_at` bump); admins soft-delete via `deleted_at`. No hard
+ * delete path exists.
+ */
+export const builderComments = pgTable(
+  'builder_comments',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    /** 'lead' for now; 'invoice' later (dispute thread) — no migration. */
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    /** 'builder' | 'admin'. */
+    authorKind: text('author_kind').notNull(),
+    /** users.id — resolved from the session email at write time. */
+    authorId: uuid('author_id').notNull(),
+    /** 'org' | 'admin_only'. */
+    visibility: text('visibility').notNull().default('org'),
+    /** Length-capped at the service layer (2000 chars); HTML-escaped on read. */
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Soft delete (admin moderation only) — null means visible. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('builder_comments_entity_idx').on(
+      t.entityType,
+      t.entityId,
+      t.createdAt,
+    ),
+    index('builder_comments_entity_visibility_idx').on(
+      t.entityId,
+      t.visibility,
+    ),
+  ],
+);
+
+/**
  * Lead status history (consumer/02; admin/02 adds the HTTP endpoints).
  *
  * Every status transition appends a row. Like notes, this is history the
