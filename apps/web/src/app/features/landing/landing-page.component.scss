@@ -466,6 +466,10 @@
 
 .seo-links {
   margin-top: 12px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 
 .seo-links a {
@@ -476,11 +480,6 @@
 
 .seo-links a:hover {
   text-decoration: underline;
-}
-
-.seo-links span {
-  margin: 0 8px;
-  color: var(--muted);
 }
 
 .how-grid {
