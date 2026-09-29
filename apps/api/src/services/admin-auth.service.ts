@@ -186,10 +186,13 @@ export function createAdminAuthService(
         );
         idTokenHint = session?.idToken ?? null;
         await sessions.revokeByHash(hashSessionToken(sessionToken), clock());
+        // Presence-only diagnostic (never the token): the admin_audit_log
+        // shows whether the Entra end-session redirect carried id_token_hint,
+        // so a "Pick an account" picker report is diagnosable from the DB.
         await audit.log({
           actorEmail: null,
           action: 'session_revoked',
-          detail: 'admin_logout',
+          detail: `admin_logout id_token_hint=${idTokenHint ? 'present' : 'absent'}`,
         });
       }
       return {
