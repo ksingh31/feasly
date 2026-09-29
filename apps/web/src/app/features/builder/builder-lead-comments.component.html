@@ -1,0 +1,12 @@
+<app-comment-thread
+  [comments]="comments()"
+  [currentUserId]="currentUserId()"
+  [config]="threadConfig"
+  [maxLength]="copy.commentsMaxLength"
+  [loading]="loading()"
+  [error]="error()"
+  [labels]="labels()"
+  (post)="onPost($event)"
+  (edit)="onEdit($event)"
+  (dismissError)="error.set(null)"
+/>

@@ -54,8 +54,8 @@ export class CommentThreadComponent {
   readonly dismissError = output<void>();
 
   /** Unique ids per instance (several threads can share a page). */
-  protected readonly composerId = `comment-thread-composer-${++CommentThreadComponent.nextId}`;
-  protected readonly visibilityId = `comment-thread-visibility-${CommentThreadComponent.nextId}`;
+  protected readonly composerId = 'comment-thread-composer-' + ++CommentThreadComponent.nextId;
+  protected readonly visibilityId = 'comment-thread-visibility-' + CommentThreadComponent.nextId;
 
   protected readonly draft = signal('');
   protected readonly postVisibility = signal<'org' | 'admin_only'>('org');
@@ -66,8 +66,7 @@ export class CommentThreadComponent {
 
   protected readonly remaining = computed(() => this.maxLength() - this.draft().length);
   protected readonly charHint = computed(
-    () =>
-      `${this.maxLength().toLocaleString('en-CA')} ${this.labels().charactersMaxSuffix}`,
+    () => this.maxLength().toLocaleString('en-CA') + ' ' + this.labels().charactersMaxSuffix,
   );
   protected readonly busy = computed(() => this.pendingOp() !== null);
   protected readonly posting = computed(
@@ -105,6 +104,11 @@ export class CommentThreadComponent {
 
   protected formatTimestamp(iso: string): string {
     return formatCommentTimestamp(iso);
+  }
+
+  /** Internal-visibility badge (admin config only — builders never see it). */
+  protected showInternalBadge(comment: Comment): boolean {
+    return this.config().showVisibilityBadges && comment.visibility === 'admin_only';
   }
 
   protected canEdit(comment: Comment): boolean {
