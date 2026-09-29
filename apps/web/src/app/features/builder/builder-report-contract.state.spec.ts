@@ -18,7 +18,6 @@ import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import {
   ClearReportContractState,
-  ResetReportContract,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 import {
@@ -198,27 +197,6 @@ describe('BuilderReportContractState', () => {
     expect(state.submitStatus).toBe('error');
     expect(state.error?.message).toBe('Invalid contract report body.');
     expect(state.result).toBeNull();
-  });
-
-  it('reset returns the form to idle', async () => {
-    const dispatch = store.dispatch(
-      new SubmitReportContract(LEAD_ID, 65000000, '2026-09-20T00:00:00Z'),
-    );
-    const req = httpMock.expectOne((r) =>
-      r.url.includes('/api/v1/billing/report-contract'),
-    );
-    req.flush({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
-    flushInvoiceDetail(httpMock);
-    await dispatch.toPromise();
-    expect(snapshot(store).submitStatus).toBe('success');
-
-    await store.dispatch(new ResetReportContract()).toPromise();
-    const state = snapshot(store);
-    expect(state.submitStatus).toBe('idle');
-    expect(state.result).toBeNull();
-    expect(state.reportedValueCents).toBeNull();
-    expect(state.invoice).toBeNull();
-    expect(state.error).toBeNull();
   });
 
   it('clear resets the state (logout path)', async () => {

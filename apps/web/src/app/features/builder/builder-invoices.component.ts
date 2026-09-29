@@ -4,7 +4,8 @@ import {
   OnInit,
   inject,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type {
   CommissionInvoice,
@@ -57,6 +58,8 @@ export class BuilderInvoicesComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** Builder portal copy (config-owned). */
   protected readonly copy = this.config.get('copy').builder;
@@ -98,6 +101,17 @@ export class BuilderInvoicesComponent implements OnInit {
     this.store.dispatch(new LoadInvoices(1));
     // Card summary for paid-invoice receipts (last4 display).
     this.store.dispatch(new LoadBillingCard());
+    // Deep link from the record-contract success card: ?invoice=<id>
+    // opens the invoice detail directly. The detail fetch is independent
+    // of the list, so no need to wait for the list to load.
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const invoiceId = params.get('invoice');
+        if (invoiceId) {
+          this.store.dispatch(new SelectInvoice(invoiceId));
+        }
+      });
   }
 
   protected retryLoad(): void {
@@ -110,6 +124,12 @@ export class BuilderInvoicesComponent implements OnInit {
 
   protected closeDetail(): void {
     this.store.dispatch(new ClearInvoiceSelection());
+    // Drop the deep-link param so a closed detail doesn't reopen on the
+    // next visit within this session.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+    });
   }
 
   protected prevPage(): void {

@@ -51,7 +51,8 @@
       <div class="builder-report-contract__actions">
         <a
           class="builder-report-contract__btn builder-report-contract__btn--primary"
-          routerLink="/builder/invoices"
+          [routerLink]="['/builder/invoices']"
+          [queryParams]="{ invoice: invoice()?.id }"
           >{{ copy.recordContractViewInvoice }}</a
         >
         <a class="builder-report-contract__btn" routerLink="/builder">{{
@@ -91,7 +92,8 @@
       <div class="builder-report-contract__actions">
         <a
           class="builder-report-contract__btn builder-report-contract__btn--primary"
-          routerLink="/builder/invoices"
+          [routerLink]="['/builder/invoices']"
+          [queryParams]="{ invoice: selectedInvoiceSummary()?.id }"
           >{{ copy.recordContractViewInvoice }}</a
         >
         <a class="builder-report-contract__btn" routerLink="/builder">{{

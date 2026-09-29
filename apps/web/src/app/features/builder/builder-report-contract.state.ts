@@ -10,7 +10,6 @@ import {
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import {
   ClearReportContractState,
-  ResetReportContract,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 
@@ -140,11 +139,6 @@ export class BuilderReportContractState {
           return of(null);
         }),
       );
-  }
-
-  @Action(ResetReportContract)
-  reset(ctx: StateContext<BuilderReportContractStateModel>) {
-    ctx.setState(defaults);
   }
 
   @Action(ClearReportContractState)

@@ -1267,6 +1267,8 @@ export interface AppConfig {
       teamColEmail: string;
       /** auth/05: Role column header. */
       teamColRole: string;
+      /** Role Apply button label (select-then-apply, no auto-save). */
+      teamApplyRole: string;
       /** auth/05: Status column header. */
       teamColStatus: string;
       /** auth/05: Actions column header. */
@@ -1333,6 +1335,10 @@ export interface AppConfig {
       leadsStatusControlLabel: string;
       /** Shown while a status update is in flight. */
       leadsStatusSaving: string;
+      /** Per-lead status Apply button label. */
+      leadsStatusApply: string;
+      /** Shown on recorded leads: the status is locked, badge is read-only. */
+      leadsStatusLocked: string;
       /** Won-lead hint lead-in, before the record-contract link. */
       leadsWonHint: string;
       /** Won-lead record-contract link label. */
