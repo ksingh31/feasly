@@ -1,0 +1,23 @@
+<div class="admin-lead-comments">
+  @if (status() === 'loading') {
+    <p class="admin-lead-comments__state" role="status">Loading comments…</p>
+  } @else if (status() === 'error') {
+    <div class="admin-lead-comments__state admin-lead-comments__state--error">
+      <p role="alert">{{ error() }}</p>
+      <button type="button" (click)="reload()">Try again</button>
+    </div>
+  } @else {
+    <app-comment-thread
+      [comments]="comments()"
+      [currentUserId]="currentUserId()"
+      [config]="config"
+      [busy]="busy()"
+      (post)="onPost($event)"
+      (edit)="onEdit($event)"
+      (delete)="onDelete($event)"
+    />
+  }
+  @if (actionError(); as err) {
+    <p class="admin-lead-comments__error" role="alert">{{ err }}</p>
+  }
+</div>

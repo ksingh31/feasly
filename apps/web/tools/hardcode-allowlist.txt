@@ -286,3 +286,10 @@ apps/web/src/app/shared/test-helpers/entry-gate.harness.ts
 # Must stay in sync with the backend, never tuned independently. Pinned by
 # builder-invoices.component.spec.ts (wire-param assertions).
 apps/web/src/app/features/builder/builder-invoices.state.ts
+
+# Comment-thread relative timestamps, PLACEHOLDER for BILL-06 (BILL-07 lane):
+# the `timeAgo` helper's 60/24/30/1000 are time-unit conversion constants
+# (seconds-per-minute, hours-per-day, …) — physical constants, not deploy
+# tunables. This file is deleted when BILL-06's real component merges; the
+# entry goes stale harmlessly with it.
+apps/web/src/app/shared/components/comment-thread/comment-thread.component.ts

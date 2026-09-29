@@ -33,6 +33,7 @@ import {
   LoadBuilders,
 } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
+import { AdminLeadCommentsComponent } from './admin-lead-comments.component';
 
 /** Pipeline statuses in the order Karan works them. */
 const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
@@ -72,7 +73,7 @@ const FOCUSABLE_SELECTOR =
 @Component({
   selector: 'app-admin-lead-detail',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, AdminLeadCommentsComponent],
   templateUrl: './admin-lead-detail.component.html',
   styleUrls: ['./admin-lead-detail.component.scss'],
   host: {
