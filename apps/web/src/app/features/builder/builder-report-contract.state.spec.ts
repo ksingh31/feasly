@@ -28,6 +28,21 @@ import {
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 
+const INVOICE = {
+  id: 'inv-1',
+  status: 'in_review',
+  commissionCents: 650000,
+  reviewDueAt: '2026-10-06T23:59:59-06:00',
+};
+
+/** Flushes the invoice-detail GET the state issues after a billed result. */
+function flushInvoiceDetail(httpMock: HttpTestingController) {
+  const invoiceReq = httpMock.expectOne((r) =>
+    r.url.includes('/api/v1/billing/invoices/inv-1'),
+  );
+  invoiceReq.flush(INVOICE);
+}
+
 function setup() {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -82,6 +97,7 @@ describe('BuilderReportContractState', () => {
       contractSignedAt: '2026-09-20T00:00:00-06:00',
     });
     req.flush({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
+    flushInvoiceDetail(httpMock);
     await dispatch.toPromise();
 
     const state = snapshot(store);
@@ -92,7 +108,35 @@ describe('BuilderReportContractState', () => {
       invoiceId: 'inv-1',
       invoiceStatus: 'in_review',
     });
+    expect(state.invoice).toEqual(INVOICE);
     expect(state.error).toBeNull();
+  });
+
+  it('succeeds without invoice detail when the invoice fetch fails', async () => {
+    const dispatch = store.dispatch(
+      new SubmitReportContract(LEAD_ID, 65000000, '2026-09-20T00:00:00Z'),
+    );
+    const req = httpMock.expectOne((r) =>
+      r.url.includes('/api/v1/billing/report-contract'),
+    );
+    req.flush({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
+    const invoiceReq = httpMock.expectOne((r) =>
+      r.url.includes('/api/v1/billing/invoices/inv-1'),
+    );
+    invoiceReq.flush(
+      { title: 'Not found', status: 404 },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await dispatch.toPromise();
+
+    const state = snapshot(store);
+    expect(state.submitStatus).toBe('success');
+    expect(state.result).toEqual({
+      billed: true,
+      invoiceId: 'inv-1',
+      invoiceStatus: 'in_review',
+    });
+    expect(state.invoice).toBeNull();
   });
 
   it('flows the flat-plan outcome through to the success view', async () => {
@@ -126,6 +170,7 @@ describe('BuilderReportContractState', () => {
       invoiceStatus: 'in_review',
       reason: 'existing_invoice',
     });
+    flushInvoiceDetail(httpMock);
     await dispatch.toPromise();
 
     const state = snapshot(store);
@@ -163,6 +208,7 @@ describe('BuilderReportContractState', () => {
       r.url.includes('/api/v1/billing/report-contract'),
     );
     req.flush({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
+    flushInvoiceDetail(httpMock);
     await dispatch.toPromise();
     expect(snapshot(store).submitStatus).toBe('success');
 
@@ -171,6 +217,7 @@ describe('BuilderReportContractState', () => {
     expect(state.submitStatus).toBe('idle');
     expect(state.result).toBeNull();
     expect(state.reportedValueCents).toBeNull();
+    expect(state.invoice).toBeNull();
     expect(state.error).toBeNull();
   });
 
@@ -182,6 +229,7 @@ describe('BuilderReportContractState', () => {
       r.url.includes('/api/v1/billing/report-contract'),
     );
     req.flush({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' });
+    flushInvoiceDetail(httpMock);
     await dispatch.toPromise();
 
     await store.dispatch(new ClearReportContractState()).toPromise();

@@ -1,19 +1,20 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
-import type { ApiError } from '@feasly/contracts';
+import type { ApiError, CommissionInvoice } from '@feasly/contracts';
 import {
   BuilderBillingApiService,
   type ReportContractResult,
 } from './builder-billing-api.service';
+import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import {
   ClearReportContractState,
   ResetReportContract,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 
-/** Submit lifecycle for the report-contract form. */
+/** Submit lifecycle for the record-contract form. */
 export type ReportContractSubmitStatus =
   | 'idle'
   | 'submitting'
@@ -27,6 +28,8 @@ export interface BuilderReportContractStateModel {
   result: ReportContractResult | null;
   /** The reported contract value in cents (for the success summary). */
   reportedValueCents: number | null;
+  /** The minted invoice, fetched for the success card (dates + status). */
+  invoice: CommissionInvoice | null;
   /** RFC 7807-surfaced ApiError on submit failure. */
   error: ApiError | null;
 }
@@ -35,18 +38,19 @@ const defaults: BuilderReportContractStateModel = {
   submitStatus: 'idle',
   result: null,
   reportedValueCents: null,
+  invoice: null,
   error: null,
 };
 
 /**
- * Builder report-contract state: the single source of truth for the
- * `/builder/report-contract` page.
+ * Builder record-contract state: the single source of truth for the
+ * `/builder/record-contract` page.
  *
- * Memory-only — nothing about a contract report is persisted client-side.
- * The state dispatches the report through BuilderBillingApiService and
- * keeps the backend's outcome (draft invoice created, idempotent
- * duplicate, flat-plan covered, billing not enabled) for the confirmation
- * view. Attribution and the 7-day review window are server-side only.
+ * Memory-only — nothing about a contract record is persisted client-side.
+ * The state dispatches the record through BuilderBillingApiService, then
+ * fetches the minted invoice so the confirmation card shows the real
+ * review deadline and auto-charge date. Attribution and the 7-day review
+ * window are server-side only.
  */
 @State<BuilderReportContractStateModel>({
   name: 'builderReportContract',
@@ -55,6 +59,7 @@ const defaults: BuilderReportContractStateModel = {
 @Injectable()
 export class BuilderReportContractState {
   private readonly api = inject(BuilderBillingApiService);
+  private readonly invoicesApi = inject(BuilderInvoicesApiService);
 
   @Selector()
   static submitStatus(
@@ -78,6 +83,11 @@ export class BuilderReportContractState {
   }
 
   @Selector()
+  static invoice(state: BuilderReportContractStateModel): CommissionInvoice | null {
+    return state.invoice;
+  }
+
+  @Selector()
   static error(state: BuilderReportContractStateModel): ApiError | null {
     return state.error;
   }
@@ -87,7 +97,12 @@ export class BuilderReportContractState {
     ctx: StateContext<BuilderReportContractStateModel>,
     action: SubmitReportContract,
   ) {
-    ctx.patchState({ submitStatus: 'submitting', error: null, result: null });
+    ctx.patchState({
+      submitStatus: 'submitting',
+      error: null,
+      result: null,
+      invoice: null,
+    });
     return this.api
       .reportContract({
         leadId: action.leadId,
@@ -95,13 +110,28 @@ export class BuilderReportContractState {
         contractSignedAt: action.contractSignedAt,
       })
       .pipe(
-        tap((result) =>
+        switchMap((result) => {
           ctx.patchState({
-            submitStatus: 'success',
             result,
             reportedValueCents: action.contractValueCents,
-          }),
-        ),
+          });
+          // Fetch the minted invoice so the confirmation card shows the
+          // real review deadline and auto-charge date. The idempotent
+          // duplicate outcome returns the existing invoice id too.
+          if (result.billed && result.invoiceId) {
+            return this.invoicesApi.getInvoice(result.invoiceId).pipe(
+              tap((invoice) =>
+                ctx.patchState({ submitStatus: 'success', invoice }),
+              ),
+              catchError(() =>
+                // The record succeeded; the card just can't show the
+                // invoice dates. Still a success.
+                of(ctx.patchState({ submitStatus: 'success' })),
+              ),
+            );
+          }
+          return of(ctx.patchState({ submitStatus: 'success' }));
+        }),
         catchError((error: unknown) => {
           ctx.patchState({
             submitStatus: 'error',

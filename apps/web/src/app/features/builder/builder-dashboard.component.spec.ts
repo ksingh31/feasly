@@ -19,10 +19,12 @@ import type { BuilderLeadListResponse } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
 import { BuilderState } from './builder.state';
 
+const LEAD_ID = '11111111-1111-4111-8111-111111111111';
+
 const LEADS_RESPONSE: BuilderLeadListResponse = {
   leads: [
     {
-      id: '11111111-1111-4111-8111-111111111111',
+      id: LEAD_ID,
       name: 'Jane Homeowner',
       email: 'jane@example.com',
       phone: '403-555-0101',
@@ -33,9 +35,29 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       addressKey: '123 Main St SW',
       projectType: 'new-build',
       createdAt: '2026-09-19T10:00:00.000Z',
+      hasInvoice: false,
+      invoiceSummary: null,
     },
   ],
   summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
+};
+
+const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
+  leads: [
+    {
+      ...LEADS_RESPONSE.leads[0],
+      status: 'won',
+      hasInvoice: true,
+      invoiceSummary: {
+        id: 'inv-1',
+        contractValueCents: 65000000,
+        status: 'in_review',
+        commissionCents: 650000,
+        reviewDueAt: '2026-10-06T23:59:59-06:00',
+      },
+    },
+  ],
+  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
 };
 
 const EMPTY_RESPONSE: BuilderLeadListResponse = {
@@ -149,7 +171,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     await fixture.whenStable();
 
     // The confirmed transition applies locally: badge flips to Won and the
-    // report-contract hint appears.
+    // record-contract CTA appears, carrying the lead id to the record page.
     const badge = fixture.nativeElement.querySelector(
       '.builder-lead-card__badge--won',
     ) as HTMLElement;
@@ -158,8 +180,62 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
       '.builder-lead-card__won',
     ) as HTMLElement;
     expect(hint?.textContent).toContain('Signed a contract with this lead?');
-    expect(hint?.textContent).toContain('Report the contract');
-    const link = hint.querySelector('a[href="/builder/report-contract"]');
+    expect(hint?.textContent).toContain('Record the signed contract');
+    const link = hint.querySelector('a');
+    expect(link).toBeTruthy();
+    expect(link?.getAttribute('href')).toContain('/builder/record-contract');
+    expect(link?.getAttribute('href')).toContain(LEAD_ID);
+    httpMock.verify();
+  });
+
+  it('restores the status select to the store value when the PATCH fails', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, LEADS_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = fixture.nativeElement.querySelector(
+      '.builder-lead-card__status select',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('new');
+
+    select.value = 'won';
+    select.dispatchEvent(new Event('change'));
+
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
+    );
+    req.flush(
+      { code: 'LEAD_STATUS_FAILED', message: 'Update failed.', retryable: false },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Badge never moved; the select re-syncs to the store value so the
+    // two can't disagree (was: select kept showing "Won" next to "New").
+    const badge = fixture.nativeElement.querySelector(
+      '.builder-lead-card__badge--new',
+    ) as HTMLElement;
+    expect(badge?.textContent?.trim()).toBe('New');
+    expect(select.value).toBe('new');
+    httpMock.verify();
+  });
+
+  it('shows the recorded state with an invoice link for a recorded won lead', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector(
+      '.builder-lead-card',
+    ) as HTMLElement;
+    const text = card.textContent as string;
+    expect(text).toContain('Contract recorded');
+    expect(text).toContain('View your invoice');
+    expect(text).not.toContain('Record the signed contract');
+    const link = card.querySelector('a[href="/builder/invoices"]');
     expect(link).toBeTruthy();
     httpMock.verify();
   });

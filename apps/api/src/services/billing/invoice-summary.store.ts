@@ -11,9 +11,9 @@
  * needs one tenant-scoped DISTINCT-lead query, not the paginated invoice
  * list, and this module carries no charge-path logic.
  */
-import { eq } from 'drizzle-orm';
-import type { AppDb } from '../db/client';
-import { commissionInvoices } from '../db/schema';
+import { desc, eq } from 'drizzle-orm';
+import type { AppDb } from '../../db/client';
+import { commissionInvoices } from '../../db/schema';
 
 /** Display-safe invoice summary for one recorded contract. */
 export interface InvoiceSummaryRecord {
@@ -57,7 +57,10 @@ export function createInvoiceSummaryStore(
           reviewDueAt: commissionInvoices.reviewDueAt,
         })
         .from(commissionInvoices)
-        .where(eq(commissionInvoices.tenantKey, tenantKey));
+        .where(eq(commissionInvoices.tenantKey, tenantKey))
+        // Newest first: the caller's lead→invoice lookup keeps the first
+        // row per lead, which must be deterministic.
+        .orderBy(desc(commissionInvoices.createdAt));
       return rows;
     },
   };

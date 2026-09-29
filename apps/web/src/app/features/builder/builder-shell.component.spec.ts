@@ -183,10 +183,11 @@ describe('BuilderShellComponent', () => {
       .map((d) => (d.nativeElement as HTMLAnchorElement).getAttribute('href'));
     for (const expected of [
       '/builder',
+      '/builder/invoices',
+      '/builder/record-contract',
       '/builder/billing',
       '/builder/team',
       '/builder/org-picker',
-      '/builder/report-contract',
     ]) {
       expect(hrefs).toContain(expected);
     }

@@ -252,24 +252,13 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Amount charged');
   });
 
-  it('renders the billing tabs with the invoices tab active', async () => {
+  it('renders no tabs: invoices is a top-level tab, not under billing', async () => {
     const { fixture } = await setup();
     fixture.detectChanges();
     await flushMock(fixture);
 
-    const tabs = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__tab'),
-    ) as HTMLElement[];
-    expect(tabs.map((t) => t.textContent.trim())).toEqual([
-      'Card on file',
-      'Invoices',
-    ]);
-    expect(tabs[0].classList.contains('builder-invoices__tab--active')).toBe(
-      false,
-    );
-    expect(tabs[1].classList.contains('builder-invoices__tab--active')).toBe(
-      true,
-    );
+    const tabs = fixture.nativeElement.querySelectorAll('.builder-invoices__tab');
+    expect(tabs.length).toBe(0);
   });
 
   it('renders the loading skeleton while the invoice list is in flight', async () => {

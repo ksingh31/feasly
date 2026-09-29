@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -12,8 +13,10 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { firstValueFrom } from 'rxjs';
+import type { BuilderLeadListItem } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad, onePercentOfCents, parseCadDollarsToCents } from '../../shared/utils/money';
@@ -25,7 +28,6 @@ import { BuilderState } from './builder.state';
 import { LoadBuilderLeads } from './builder.actions';
 import {
   ClearReportContractState,
-  ResetReportContract,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 import { BuilderReportContractState } from './builder-report-contract.state';
@@ -41,13 +43,28 @@ interface ReportContractForm {
 }
 
 /**
- * Builder report-contract page: `/builder/report-contract`.
+ * Commission-panel money formatting: the shared money util renders whole
+ * dollars without cents ("$6,500"), but the panel's empty state must read
+ * "$0.00" per the approved flow. Zero is the only case that differs.
+ */
+function formatCadFigure(cents: number): string {
+  return cents === 0 ? '$0.00' : formatCentsToCad(cents);
+}
+
+/**
+ * Builder record-contract page: `/builder/record-contract`.
  *
- * When a Feasly lead signs a build contract, the builder reports it here:
+ * When a Feasly lead signs a build contract, the builder records it here:
  * which lead, the signed contract value (CAD, excluding land), and the
  * signing date. The backend runs attribution (12-month window), mints a
  * draft commission invoice, and starts the 7-day review window — the
  * page only collects the inputs.
+ *
+ * One contract per lead: the picker lists only leads without an invoice.
+ * Opening the page for an already-recorded lead (e.g. via a stale link)
+ * shows the invoice status card instead of the form — there is no
+ * resubmit path, so a duplicate report is impossible from the UI. The
+ * backend stays idempotent per lead as the backstop.
  *
  * All state lives in BuilderReportContractState; the leads picker reads
  * from BuilderState. The component dispatches and renders selectors, never
@@ -56,7 +73,7 @@ interface ReportContractForm {
 @Component({
   selector: 'app-builder-report-contract',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './builder-report-contract.component.html',
   styleUrls: ['./builder-report-contract.component.scss'],
 })
@@ -64,6 +81,7 @@ export class BuilderReportContractComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Builder portal copy (config-owned). */
@@ -82,15 +100,60 @@ export class BuilderReportContractComponent implements OnInit {
   protected readonly reportedValueCents = this.store.selectSignal(
     BuilderReportContractState.reportedValueCents,
   );
+  protected readonly invoice = this.store.selectSignal(
+    BuilderReportContractState.invoice,
+  );
   protected readonly submitError = this.store.selectSignal(
     BuilderReportContractState.error,
   );
 
+  /** Leads that can still be recorded: no commission invoice yet. */
+  protected readonly reportableLeads = computed<readonly BuilderLeadListItem[]>(
+    () => this.leads().filter((lead) => !lead.hasInvoice),
+  );
+
   /**
-   * Live 1% commission preview under the value field, recomputed as the
-   * builder types. Display-only — the backend computes the billed amount.
+   * The currently selected lead's id, mirrored into a signal so the
+   * already-recorded state reacts to picker changes too.
    */
-  protected readonly liveCommission = signal<string | null>(null);
+  protected readonly selectedLeadId = signal<string | null>(null);
+
+  /** The currently selected lead, or null when nothing is selected. */
+  protected readonly selectedLead = computed<BuilderLeadListItem | null>(() => {
+    const id = this.selectedLeadId();
+    if (!id) {
+      return null;
+    }
+    return this.leads().find((l) => l.id === id) ?? null;
+  });
+
+  /**
+   * The currently selected lead's invoice summary, when it has one. The
+   * picker filters recorded leads out, so this only fires for a stale
+   * `?lead=` link — it drives the already-recorded state.
+   */
+  protected readonly selectedInvoiceSummary = computed(
+    () => this.selectedLead()?.invoiceSummary ?? null,
+  );
+
+  /** Whether the selected lead is already recorded (no form, no resubmit). */
+  protected readonly isAlreadyRecorded = computed(
+    () => this.selectedInvoiceSummary() !== null,
+  );
+
+  /**
+   * Always-visible 1% commission figure, recomputed as the builder types.
+   * Starts at $0.00 — the figure is never hidden behind a validity gate.
+   * Display-only; the backend computes the billed amount.
+   */
+  protected readonly liveCommissionCents = signal(0);
+  protected readonly liveCommission = computed(() =>
+    formatCadFigure(onePercentOfCents(this.liveCommissionCents())),
+  );
+  /** The typed contract value in cents (for the commission panel breakdown). */
+  protected readonly liveContractValue = computed(() =>
+    formatCadFigure(this.liveCommissionCents()),
+  );
 
   protected readonly form = new FormGroup<ReportContractForm>({
     leadId: new FormControl<string | null>(null, Validators.required),
@@ -118,9 +181,9 @@ export class BuilderReportContractComponent implements OnInit {
 
   constructor() {
     this.seo.setPage({
-      title: 'Report signed contract — Feasly builder portal',
+      title: 'Record signed contract — Feasly builder portal',
       description: this.copy.reportContractSeoDescription,
-      path: '/builder/report-contract',
+      path: '/builder/record-contract',
     });
     this.destroyRef.onDestroy(() => {
       this.store.dispatch(new ClearReportContractState());
@@ -129,16 +192,27 @@ export class BuilderReportContractComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
         const cents = parseCadDollarsToCents(value);
-        this.liveCommission.set(
-          cents !== null && cents > 0
-            ? formatCentsToCad(onePercentOfCents(cents))
-            : null,
+        this.liveCommissionCents.set(
+          cents !== null && cents > 0 ? cents : 0,
         );
+      });
+    this.form.controls.leadId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((leadId) => {
+        this.selectedLeadId.set(leadId);
       });
   }
 
   ngOnInit(): void {
     this.store.dispatch(new LoadBuilderLeads());
+    // The lead-card CTA passes the lead id: pre-select it so the builder
+    // doesn't pick the lead twice. A recorded lead resolves to the
+    // already-recorded state instead of the form.
+    const leadId = this.route.snapshot.queryParamMap.get('lead');
+    if (leadId) {
+      this.form.controls.leadId.setValue(leadId);
+      this.selectedLeadId.set(leadId);
+    }
   }
 
   /** Human-readable lead label for the picker. */
@@ -265,8 +339,59 @@ export class BuilderReportContractComponent implements OnInit {
     this.store.dispatch(new LoadBuilderLeads());
   }
 
-  protected reportAnother(): void {
-    this.form.reset();
-    this.store.dispatch(new ResetReportContract());
+  /** ISO instant → America/Edmonton medium date (the billing calendar). */
+  protected formatEdmontonDate(iso: string | null): string {
+    if (!iso) {
+      return '—';
+    }
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    return date.toLocaleDateString('en-CA', {
+      timeZone: 'America/Edmonton',
+      dateStyle: 'medium',
+    });
+  }
+
+  /**
+   * Day-level auto-charge countdown on the America/Edmonton calendar,
+   * counted from the invoice's review deadline. Returns null when there
+   * is no review deadline.
+   */
+  protected autoChargeCountdown(reviewDueAt: string | null): string | null {
+    if (!reviewDueAt) {
+      return null;
+    }
+    const due = new Date(reviewDueAt);
+    if (Number.isNaN(due.getTime())) {
+      return null;
+    }
+    const dayFmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Edmonton',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const days =
+      Math.round(
+        (Date.parse(dayFmt.format(due)) - Date.parse(dayFmt.format(new Date()))) /
+          86_400_000,
+      );
+    if (days < 0) {
+      return null;
+    }
+    if (days === 0) {
+      return this.copy.invoicesAutoChargeToday;
+    }
+    if (days === 1) {
+      return this.copy.invoicesAutoChargeTomorrow;
+    }
+    return this.copy.invoicesAutoChargeIn.replace('{days}', String(days));
+  }
+
+  /** Integer cents → "$12,345" (shared money util, integer math only). */
+  protected money(cents: number): string {
+    return formatCentsToCad(cents);
   }
 }

@@ -941,7 +941,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shellNavBilling: 'Billing',
       shellNavInvoices: 'Invoices',
       shellNavReportContract: 'Record signed contract',
-      recordContractSeoDescription:
+      reportContractSeoDescription:
         'Record a signed build contract in the Feasly builder portal.',
       reportContractHeading: 'Record a signed contract',
       reportContractExplainer:
@@ -1004,8 +1004,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       billingCancel: 'Cancel',
       billingExplainer:
         'When you record a signed contract, Feasly creates a commission invoice (1% of the signed contract value, excluding land). The invoice auto-charges 7 days later unless disputed.',
-      billingTabCardLabel: 'Card on file',
-      billingTabInvoicesLabel: 'Invoices',
       invoicesHeading: 'Invoices',
       invoicesExplainer:
         'Every commission invoice on your account, newest first. Amounts are 1% of the signed contract value, excluding land.',
