@@ -472,6 +472,10 @@ import {
   type DisputeService,
 } from './services/billing/dispute.service';
 import {
+  createInvoiceSummaryStore,
+  type InvoiceSummaryStore,
+} from './services/billing/invoice-summary.store';
+import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
 } from './routes/stripe-webhooks.route';
@@ -1636,11 +1640,15 @@ export function createComposition(
   // embed/09 builder portal: won transitions run the billing charge path.
   // Portal scoping is by builder_id (builders table); the session's tenant
   // key resolves to the builder row.
+  const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
+    db: db.db,
+  });
   const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
     leadStore,
     audit: adminAuditStore,
     builders: builderService,
     billingHook: embedBillingHookService,
+    invoiceSummaries: invoiceSummaryStore,
   });
   const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
     builderLeads: builderLeadsService,

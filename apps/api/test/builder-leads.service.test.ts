@@ -217,8 +217,7 @@ function makeDeps() {
 }
 
 describe('builder-leads service (embed/09)', () => {
-  it('listLeads returns only the builder-assigned leads', async () => {
-    const { service } = makeDeps();
+  it('listLeads returns only the builder-assigned leads', async () => {    const { service } = makeDeps();
     const result = await service.listLeads('elite-craft');
     expect(result.leads).toHaveLength(1);
     expect(result.leads[0]?.id).toBe('lead-1');
@@ -516,5 +515,68 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
       'builder@example.com',
     );
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe('builder-leads invoice summaries (record-contract flow redesign)', () => {
+  function makeServiceWithSummaries(
+    summaries: ReadonlyArray<{
+      readonly id: string;
+      readonly leadId: string;
+      readonly contractValueCents: number;
+      readonly commissionCents: number;
+      readonly status: string;
+      readonly reviewDueAt: Date | null;
+    }>,
+  ) {
+    const base = makeDeps();
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      invoiceSummaries: {
+        findByTenantKey: async (tenantKey: string) =>
+          tenantKey === 'elite-craft' ? summaries : [],
+      },
+    });
+    return service;
+  }
+
+  it('marks leads with invoices and attaches the summary', async () => {
+    const service = makeServiceWithSummaries([
+      {
+        id: 'inv-1',
+        leadId: 'lead-1',
+        contractValueCents: 50000000,
+        commissionCents: 500000,
+        status: 'in_review',
+        reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
+      },
+    ]);
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads).toHaveLength(1);
+    const item = result.leads[0];
+    expect(item?.hasInvoice).toBe(true);
+    expect(item?.invoiceSummary).toEqual({
+      id: 'inv-1',
+      contractValueCents: 50000000,
+      commissionCents: 500000,
+      status: 'in_review',
+      reviewDueAt: '2026-10-06T00:00:00.000Z',
+    });
+  });
+
+  it('marks leads without invoices as not recorded', async () => {
+    const service = makeServiceWithSummaries([]);
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.hasInvoice).toBe(false);
+    expect(result.leads[0]?.invoiceSummary).toBeNull();
+  });
+
+  it('works without the invoice-summaries dep (older call sites)', async () => {
+    const { service } = makeDeps();
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.hasInvoice).toBe(false);
+    expect(result.leads[0]?.invoiceSummary).toBeNull();
   });
 });
