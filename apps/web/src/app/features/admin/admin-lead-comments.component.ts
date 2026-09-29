@@ -6,6 +6,7 @@ import { AdminCommentsApiService } from './admin-comments-api.service';
 import type { LeadComment } from './admin-comments.contracts';
 import {
   CommentThreadComponent,
+  sortCommentsByOldest,
   type CommentEdit,
   type CommentPost,
   type CommentThreadConfig,
@@ -76,7 +77,7 @@ export class AdminLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.comments.set(res.comments);
+          this.comments.set(sortCommentsByOldest(res.comments));
           this.status.set('ready');
         },
         error: (err: unknown) => {
@@ -96,7 +97,7 @@ export class AdminLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (comment) => {
-          this.comments.update((list) => [...list, comment]);
+          this.comments.update((list) => sortCommentsByOldest([...list, comment]));
           this.busy.set(false);
         },
         error: (err: unknown) => {

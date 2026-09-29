@@ -5,6 +5,7 @@ import {
   BUILDER_COMMENT_THREAD_CONFIG,
   CommentThreadComponent,
   DEFAULT_COMMENT_THREAD_LABELS,
+  sortCommentsByOldest,
 } from '../../shared/components/comment-thread';
 import type {
   Comment,
@@ -74,7 +75,8 @@ export class BuilderLeadCommentsComponent implements OnInit {
       .postComment(this.leadId(), event.body)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (comment) => this.comments.update((all) => [...all, comment]),
+        next: (comment) =>
+          this.comments.update((all) => sortCommentsByOldest([...all, comment])),
         error: () => this.error.set(this.copy.commentsPostFailed),
       });
   }
@@ -99,7 +101,7 @@ export class BuilderLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.comments.set(response.comments);
+          this.comments.set(sortCommentsByOldest(response.comments));
           this.loading.set(false);
         },
         error: () => {

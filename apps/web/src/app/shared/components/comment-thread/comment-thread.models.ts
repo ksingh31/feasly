@@ -163,3 +163,13 @@ function formatCommentDate(date: Date): string {
     day: 'numeric',
   });
 }
+
+/**
+ * Oldest-first sort by `createdAt` (ISO-8601). Containers apply this so
+ * the thread renders chronologically regardless of backend ordering.
+ */
+export function sortCommentsByOldest<T extends { readonly createdAt: string }>(
+  comments: readonly T[],
+): T[] {
+  return [...comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}

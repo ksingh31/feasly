@@ -12,4 +12,5 @@ export {
   BUILDER_COMMENT_THREAD_CONFIG,
   DEFAULT_COMMENT_THREAD_LABELS,
   formatCommentTimestamp,
+  sortCommentsByOldest,
 } from './comment-thread.models';
