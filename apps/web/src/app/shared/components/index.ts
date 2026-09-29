@@ -2,15 +2,17 @@
 export { AddressAutocompleteComponent } from './address-autocomplete';
 export { BrandMarkComponent } from './brand-mark';
 export { BuilderMatchingExplainerComponent } from './builder-matching-explainer';
-// PLACEHOLDER (BILL-07) — BILL-06 owns comment-thread; this re-export is
-// deleted with the placeholder component when BILL-06 merges.
-export { CommentThreadComponent } from './comment-thread';
+// BILL-06 comment-thread: types are re-exported from the barrel (type-only,
+// erased at runtime). Import the CommentThreadComponent VALUE from the
+// subpath '../../shared/components/comment-thread' to keep it out of the
+// main entry chunk (BILL-06 + BILL-07 load it only via lazy routes).
 export type {
+  Comment,
   CommentEdit,
+  CommentListResponse,
   CommentPost,
   CommentThreadConfig,
-  ThreadComment,
-  ThreadCommentVisibility,
+  CommentThreadLabels,
 } from './comment-thread';
 export { LegalReviewBannerComponent } from './legal-review-banner';
 export { PropertyCardComponent } from './property-card';

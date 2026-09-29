@@ -1,13 +1,15 @@
-/**
- * PLACEHOLDER barrel — BILL-06 owns this component (see comment-thread.component.ts).
- * Delete with the component when BILL-06 merges.
- */
+/** Lead comment thread (shared, BILL-06) — presentational, reused by both portals. */
 export { CommentThreadComponent } from './comment-thread.component';
 export type {
-  CommentEdit,
-  CommentPost,
+  Comment,
+  CommentEditEvent,
+  CommentListResponse,
+  CommentPostEvent,
   CommentThreadConfig,
-  ThreadComment,
-  ThreadCommentVisibility,
-} from './comment-thread.component';
-export { COMMENT_BODY_MAX } from './comment-thread.component';
+  CommentThreadLabels,
+} from './comment-thread.models';
+export {
+  BUILDER_COMMENT_THREAD_CONFIG,
+  DEFAULT_COMMENT_THREAD_LABELS,
+  formatCommentTimestamp,
+} from './comment-thread.models';
