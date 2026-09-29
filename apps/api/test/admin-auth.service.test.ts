@@ -160,6 +160,31 @@ describe('admin auth service (auth/02)', () => {
         (e: unknown) => (e as { action: string }).action === 'session_revoked',
       );
       expect(revoked).toHaveLength(1);
+      // No stored id_token on this session → the audit detail records the
+      // hint as absent (presence only, never the token value).
+      expect((revoked[0] as { detail: string }).detail).toBe(
+        'admin_logout id_token_hint=absent',
+      );
+    });
+
+    it('logout records id_token_hint=present when the session stored one', async () => {
+      const { service, sessions, audit } = makeService();
+      await insertSession(
+        sessions,
+        'sess-token',
+        ADMIN_EMAIL,
+        new Date(NOW.getTime() + SESSION_TTL * 1000),
+        'stub-id-token',
+      );
+      const result = await service.logout('sess-token');
+      expect(result.entraIdTokenHint).toBe('stub-id-token');
+      const revoked = audit.entries.filter(
+        (e: unknown) => (e as { action: string }).action === 'session_revoked',
+      );
+      expect(revoked).toHaveLength(1);
+      expect((revoked[0] as { detail: string }).detail).toBe(
+        'admin_logout id_token_hint=present',
+      );
     });
 
     it('null token → still returns success (idempotent)', async () => {

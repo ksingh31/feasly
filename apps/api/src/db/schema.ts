@@ -996,11 +996,12 @@ export const adminSessions = pgTable(
     sessionTokenHash: text('session_token_hash').notNull().unique(),
     /**
      * The Entra id_token captured at sign-in (logout UX, 2026-09-28).
-     * Passed back as `id_token_hint` on the end-session redirect so Entra
-     * ends the right session directly instead of showing the
-     * "Pick an account" picker. Null for pre-change sessions and non-Entra
-     * sessions. The token is short-lived; if it has expired Entra simply
-     * falls back to the picker (no worse than before).
+     * Passed back as `id_token_hint` on the end-session redirect to
+     * identify the session. NOTE: Entra External ID (CIAM) currently
+     * ignores the hint and shows the "Pick an account" picker anyway
+     * (verified 2026-09-28); kept so the picker disappears automatically
+     * if Microsoft adds support. Null for pre-change sessions and
+     * non-Entra sessions.
      */
     idToken: text('id_token'),
     /**
@@ -1090,11 +1091,12 @@ export const builderSessions = pgTable(
     sessionTokenHash: text('session_token_hash').notNull().unique(),
     /**
      * The Entra id_token captured at sign-in (logout UX, 2026-09-28).
-     * Passed back as `id_token_hint` on the end-session redirect so Entra
-     * ends the right session directly instead of showing the
-     * "Pick an account" picker. Null for pre-change sessions and non-Entra
-     * sessions. The token is short-lived; if it has expired Entra simply
-     * falls back to the picker (no worse than before).
+     * Passed back as `id_token_hint` on the end-session redirect to
+     * identify the session. NOTE: Entra External ID (CIAM) currently
+     * ignores the hint and shows the "Pick an account" picker anyway
+     * (verified 2026-09-28); kept so the picker disappears automatically
+     * if Microsoft adds support. Null for pre-change sessions and
+     * non-Entra sessions.
      */
     idToken: text('id_token'),
     /**

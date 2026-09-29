@@ -130,7 +130,7 @@ describe('AdminEntraAuthService', () => {
     httpMock.verify();
   });
 
-  it('buildEntraLogoutUrl appends id_token_hint when provided (skips the MS account picker)', () => {
+  it('buildEntraLogoutUrl appends id_token_hint when provided (CIAM currently ignores it; kept for future support)', () => {
     const endpoint = `https://${ENTRA.tenantSubdomain}.ciamlogin.com/${ENTRA.tenantId}/oauth2/v2.0/logout`;
     const url = new URL(service.buildEntraLogoutUrl(endpoint, 'stub-id-token'));
     expect(url.searchParams.get('id_token_hint')).toBe('stub-id-token');
