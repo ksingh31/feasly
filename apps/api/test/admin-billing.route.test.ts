@@ -36,6 +36,7 @@ const HEALTH_RESPONSE: BillingHealthResponse = {
   },
   disputed: { count: 0, commissionCents: 0 },
   dunning: [],
+  inReviewInvoices: [],
   maxChargeRetries: 3,
   webhooks: {
     received24h: 3,
@@ -74,6 +75,8 @@ function makeDeps(): AdminBillingRouteDeps {
     commission: {
       retryCharge: vi.fn(),
       getById: vi.fn(),
+      markPaidManually: vi.fn(),
+      setCommissionRate: vi.fn(),
     } as unknown as import('../src/services/billing/commission.service').CommissionService,
     billing: {
       reportContract: vi.fn(),
@@ -299,5 +302,145 @@ describe('admin-billing route createInvoice', () => {
       status: 422,
       code: ErrorCodes.BILLING_MODEL_MISMATCH,
     });
+  });
+});
+
+describe('admin-billing route markPaid', () => {
+  const INVOICE_ID = '22222222-2222-4222-8222-222222222222';
+
+  it('marks the invoice paid for an admin session and maps the response', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const markPaidManually = deps.commission
+      .markPaidManually as unknown as ReturnType<typeof vi.fn>;
+    markPaidManually.mockResolvedValue({
+      id: INVOICE_ID,
+      status: 'paid',
+      paidAt: new Date('2026-09-29T18:00:00.000Z'),
+      manualPaymentMethod: 'cheque',
+      paymentReference: 'CHQ-1234',
+    });
+    const result = await route.markPaid(ADMIN_HEADERS, INVOICE_ID, {
+      paymentMethod: 'cheque',
+      reference: 'CHQ-1234',
+      paidAt: '2026-09-29T12:00:00-06:00',
+    });
+    expect(result).toEqual({
+      invoiceId: INVOICE_ID,
+      status: 'paid',
+      paidAt: '2026-09-29T18:00:00.000Z',
+      paymentMethod: 'cheque',
+      reference: 'CHQ-1234',
+    });
+    expect(markPaidManually).toHaveBeenCalledWith(INVOICE_ID, {
+      paymentMethod: 'cheque',
+      reference: 'CHQ-1234',
+      paidAt: new Date('2026-09-29T18:00:00.000Z'),
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+  });
+
+  it('rejects non-admin callers with 401 before touching the service', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.markPaid({}, INVOICE_ID, { paymentMethod: 'cash' }),
+    ).rejects.toMatchObject({
+      status: 401,
+      code: ErrorCodes.UNAUTHENTICATED,
+    });
+    expect(deps.commission.markPaidManually).not.toHaveBeenCalled();
+  });
+
+  it('400s on an unknown payment method, malformed paidAt, or a non-UUID id', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.markPaid(ADMIN_HEADERS, INVOICE_ID, { paymentMethod: 'wire' }),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    await expect(
+      route.markPaid(ADMIN_HEADERS, INVOICE_ID, {
+        paymentMethod: 'cash',
+        paidAt: 'next Tuesday',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    await expect(
+      route.markPaid(ADMIN_HEADERS, 'not-a-uuid', { paymentMethod: 'cash' }),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    expect(deps.commission.markPaidManually).not.toHaveBeenCalled();
+  });
+
+  it('propagates the service 409 for an already-paid invoice', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    (deps.commission.markPaidManually as unknown as ReturnType<typeof vi.fn>)
+      .mockRejectedValue(new HttpError(409, ErrorCodes.CONFLICT, 'Already paid.'));
+    await expect(
+      route.markPaid(ADMIN_HEADERS, INVOICE_ID, { paymentMethod: 'cash' }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+  });
+});
+
+describe('admin-billing route setCommissionRate', () => {
+  const INVOICE_ID = '33333333-3333-4333-8333-333333333333';
+
+  it('overrides the rate for an admin session and maps the response', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const setCommissionRate = deps.commission
+      .setCommissionRate as unknown as ReturnType<typeof vi.fn>;
+    setCommissionRate.mockResolvedValue({
+      id: INVOICE_ID,
+      status: 'in_review',
+      commissionRateOverride: 1.5,
+      contractValueCents: 50_000_000,
+      commissionCents: 750_000,
+      currency: 'CAD',
+    });
+    const result = await route.setCommissionRate(ADMIN_HEADERS, INVOICE_ID, {
+      rate: 1.5,
+    });
+    expect(result).toEqual({
+      invoiceId: INVOICE_ID,
+      status: 'in_review',
+      commissionRatePercent: 1.5,
+      contractValueCents: 50_000_000,
+      commissionCents: 750_000,
+      currency: 'CAD',
+    });
+    expect(setCommissionRate).toHaveBeenCalledWith(
+      INVOICE_ID,
+      1.5,
+      'karanbirsingh667@gmail.com',
+    );
+  });
+
+  it('rejects non-admin callers with 401 before touching the service', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(route.setCommissionRate({}, INVOICE_ID, { rate: 1.5 })).rejects
+      .toMatchObject({ status: 401, code: ErrorCodes.UNAUTHENTICATED });
+    expect(deps.commission.setCommissionRate).not.toHaveBeenCalled();
+  });
+
+  it('400s on zero, negative, >10, non-numeric, and missing rates', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    for (const bad of [0, -1, 10.0001, Number.NaN, '1.5', undefined]) {
+      await expect(
+        route.setCommissionRate(ADMIN_HEADERS, INVOICE_ID, { rate: bad }),
+      ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    }
+    expect(deps.commission.setCommissionRate).not.toHaveBeenCalled();
+  });
+
+  it('propagates the service 409 for a settled invoice', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    (deps.commission.setCommissionRate as unknown as ReturnType<typeof vi.fn>)
+      .mockRejectedValue(new HttpError(409, ErrorCodes.CONFLICT, 'Settled.'));
+    await expect(
+      route.setCommissionRate(ADMIN_HEADERS, INVOICE_ID, { rate: 1.5 }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
   });
 });

@@ -250,6 +250,51 @@ describe('billing-health service', () => {
     });
   });
 
+  it('exposes the in-review work queue with review dates and effective rates', async () => {
+    await seedTenant();
+    const parents = await seedParents();
+    const soon = new Date(FIXED_NOW.getTime() + 24 * HOUR_MS);
+    const later = new Date(FIXED_NOW.getTime() + 5 * 24 * HOUR_MS);
+    const soonId = await seedInvoice(parents, {
+      status: 'in_review',
+      commissionCents: 10_000,
+      createdAt: hoursAgo(10),
+      reviewDueAt: soon,
+    });
+    const laterId = await seedInvoice(parents, {
+      status: 'in_review',
+      commissionCents: 20_000,
+      createdAt: hoursAgo(72),
+      reviewDueAt: later,
+    });
+    // A paid invoice is not part of the work queue.
+    await seedInvoice(parents, {
+      status: 'paid',
+      commissionCents: 30_000,
+      createdAt: hoursAgo(200),
+      paidAt: hoursAgo(2),
+    });
+
+    const health = await makeService('commission').getHealth();
+
+    // Most urgent review window first.
+    expect(health.inReviewInvoices.map((row) => row.id)).toEqual([
+      soonId,
+      laterId,
+    ]);
+    expect(health.inReviewInvoices[0]).toMatchObject({
+      tenantKey: 'test-builder',
+      commissionCents: 10_000,
+      currency: 'CAD',
+      reviewDueAt: soon.toISOString(),
+      commissionRatePercent: 1,
+    });
+    expect(health.inReviewInvoices[1]).toMatchObject({
+      reviewDueAt: later.toISOString(),
+      commissionRatePercent: 1,
+    });
+  });
+
   it('reports dunning invoices with past_due_since from the charge_failed audit row', async () => {
     const parents = await seedParents();
     const failedAt = hoursAgo(30);

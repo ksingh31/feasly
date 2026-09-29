@@ -1097,3 +1097,297 @@ describe('builder billing emails (BILL-04)', () => {
     expect(events.length).toBe(1);
   });
 });
+
+describe('markPaidManually', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  });
+
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  /** Drive an invoice to `in_review`: draft → in_review. */
+  async function seedInReviewInvoice(tenantKey: string) {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, tenantKey);
+    const attributionId = await seedAttribution(testDb, attribution, tenantKey);
+    const draft = await commission.createDraftInvoice(attributionId);
+    return commission.submitForReview(draft.id);
+  }
+
+  it('marks an in_review invoice paid with method, reference, and paid date', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-1');
+    const paidAt = new Date('2026-09-29T12:00:00-06:00');
+
+    const paid = await commission.markPaidManually(inReview.id, {
+      paymentMethod: 'cheque',
+      reference: 'CHQ-1234',
+      paidAt,
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+
+    expect(paid).toMatchObject({
+      status: 'paid',
+      manualPaymentMethod: 'cheque',
+      paymentReference: 'CHQ-1234',
+    });
+    expect(paid.paidAt?.toISOString()).toBe('2026-09-29T18:00:00.000Z');
+    expect(paid.reviewDueAt).toBeNull();
+  });
+
+  it('marks a failed invoice paid — the Stripe charge clock is cancelled', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-2');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    const failed = await commission.markFailedByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+      'Your card was declined.',
+    );
+    const paid = await commission.markPaidManually(failed.id, {
+      paymentMethod: 'e_transfer',
+      reference: 'ETF-2026-7788',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    expect(paid.status).toBe('paid');
+    expect(paid.manualPaymentMethod).toBe('e_transfer');
+    // A later late payment_intent.succeeded webhook is a no-op on the
+    // terminal status: no double-charge.
+    const secondHit = await commission.markPaidByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+    );
+    expect(secondHit.status).toBe('paid');
+    expect(secondHit.manualPaymentMethod).toBe('e_transfer');
+    const piEvents = await testDb.rows<{ event_type: string }>(
+      `select event_type from billing_events where entity_id = '${failed.id}' and event_type = 'invoice.paid'`,
+    );
+    expect(piEvents.length).toBe(0);
+  });
+
+  it('marks a finalized invoice paid — the in-flight auto-charge is cancelled', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-3');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    const paid = await commission.markPaidManually(finalized.id, {
+      paymentMethod: 'bank_draft',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    expect(paid.status).toBe('paid');
+    expect(paid.manualPaymentMethod).toBe('bank_draft');
+    // retryCharge is impossible from paid: the charge clock is dead.
+    await expect(commission.retryCharge(paid.id)).rejects.toMatchObject({
+      code: ErrorCodes.CONFLICT,
+    });
+  });
+
+  it('excludes a manually paid invoice from auto-finalization reviews', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-4');
+    await commission.markPaidManually(inReview.id, {
+      paymentMethod: 'cash',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    const due = await commission.findDueReviews();
+    expect(due.some((invoice) => invoice.id === inReview.id)).toBe(false);
+  });
+
+  it('409s when the invoice is already paid, and 409s disputed/draft invoices', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-5');
+    await commission.markPaidManually(inReview.id, {
+      paymentMethod: 'cash',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    await expect(
+      commission.markPaidManually(inReview.id, {
+        paymentMethod: 'cash',
+        adminEmail: 'karanbirsingh667@gmail.com',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+
+    const disputed = await commission.disputeInvoice(
+      (await seedInReviewInvoice('markpaid-builder-6')).id,
+      'wrong amount',
+    );
+    await expect(
+      commission.markPaidManually(disputed.id, {
+        paymentMethod: 'cash',
+        adminEmail: 'karanbirsingh667@gmail.com',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+  });
+
+  it('400s on an unknown payment method and 404s on an unknown invoice', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-7');
+    await expect(
+      commission.markPaidManually(inReview.id, {
+        // The service-level guard fires for callers that bypass route zod.
+        paymentMethod: 'stripe' as never,
+        adminEmail: 'karanbirsingh667@gmail.com',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    await expect(
+      commission.markPaidManually(randomUUID(), {
+        paymentMethod: 'cash',
+        adminEmail: 'karanbirsingh667@gmail.com',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.NOT_FOUND });
+  });
+
+  it('audits the manual payment with the method, reference, and admin identity', async () => {
+    const { commission } = newServices(testDb);
+    const inReview = await seedInReviewInvoice('markpaid-builder-8');
+    await commission.markPaidManually(inReview.id, {
+      paymentMethod: 'other',
+      reference: 'in-person terminal #2',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.entityId, inReview.id),
+          eq(billingEvents.eventType, 'invoice.paid_manually'),
+        ),
+      );
+    expect(events).toHaveLength(1);
+    const payload = events[0]!.payload as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      from: 'in_review',
+      paymentMethod: 'other',
+      reference: 'in-person terminal #2',
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+    expect(typeof payload['paidAt']).toBe('string');
+  });
+});
+
+describe('setCommissionRate', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  });
+
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  /** Drive an invoice to `in_review`: draft → in_review. */
+  async function seedInReviewInvoice(tenantKey: string) {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, tenantKey);
+    const attributionId = await seedAttribution(testDb, attribution, tenantKey);
+    const draft = await commission.createDraftInvoice(attributionId);
+    return { commission, invoice: await commission.submitForReview(draft.id) };
+  }
+
+  it('recalculates the commission from the new percent of the signed contract value', async () => {
+    const { commission, invoice } =
+      await seedInReviewInvoice('setrate-builder-1');
+    // Signed contract: $500,000 → 1.5% = $7,500.
+    expect(invoice.commissionCents).toBe(500_000);
+
+    const updated = await commission.setCommissionRate(
+      invoice.id,
+      1.5,
+      'karanbirsingh667@gmail.com',
+    );
+    expect(updated).toMatchObject({
+      status: 'in_review',
+      commissionRateOverride: 1.5,
+      commissionCents: 750_000,
+      contractValueCents: 50_000_000,
+    });
+  });
+
+  it('400s on zero, negative, non-finite, and >10 rates', async () => {
+    const { commission, invoice } =
+      await seedInReviewInvoice('setrate-builder-2');
+    for (const bad of [0, -1, 10.0001, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(
+        commission.setCommissionRate(invoice.id, bad, 'karanbirsingh667@gmail.com'),
+      ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    }
+  });
+
+  it('409s on paid, finalized, and disputed invoices', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'setrate-builder-3');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'setrate-builder-3',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+
+    // Finalized: a charge is in flight — the amount is already fixed.
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    await expect(
+      commission.setCommissionRate(finalized.id, 2, 'karanbirsingh667@gmail.com'),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+
+    // Paid: settled invoices are never repriced.
+    const paid = await commission.markPaidByPaymentIntent(
+      finalized.stripePaymentIntentId!,
+    );
+    expect(paid.status).toBe('paid');
+    await expect(
+      commission.setCommissionRate(paid.id, 2, 'karanbirsingh667@gmail.com'),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+
+    // Disputed: terminal.
+    const { invoice: inReview2 } =
+      await seedInReviewInvoice('setrate-builder-4');
+    const disputed = await commission.disputeInvoice(inReview2.id, 'wrong amount');
+    await expect(
+      commission.setCommissionRate(disputed.id, 2, 'karanbirsingh667@gmail.com'),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+  });
+
+  it('uses the overridden rate in the Stripe PaymentIntent description', async () => {
+    const { commission, stripe, invoice } =
+      await seedInReviewInvoice('setrate-builder-5');
+    await commission.setCommissionRate(invoice.id, 2.5, 'karanbirsingh667@gmail.com');
+    await commission.finalizeInvoice(invoice.id);
+    const piCalls = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ) as Array<{ description?: string }>;
+    expect(piCalls.length).toBeGreaterThan(0);
+    expect(piCalls[0]!.description).toContain('2.5%');
+  });
+
+  it('audits the old → new rate with the admin identity', async () => {
+    const { commission, invoice } =
+      await seedInReviewInvoice('setrate-builder-6');
+    await commission.setCommissionRate(
+      invoice.id,
+      1.5,
+      'karanbirsingh667@gmail.com',
+    );
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.entityId, invoice.id),
+          eq(billingEvents.eventType, 'invoice.commission_rate_changed'),
+        ),
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload as Record<string, unknown>).toMatchObject({
+      fromRatePercent: 1,
+      toRatePercent: 1.5,
+      oldCommissionCents: 500_000,
+      newCommissionCents: 750_000,
+      contractValueCents: 50_000_000,
+      adminEmail: 'karanbirsingh667@gmail.com',
+    });
+  });
+});
