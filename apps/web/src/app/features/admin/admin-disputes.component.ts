@@ -182,13 +182,14 @@ export class AdminDisputesComponent implements OnInit {
     }
     const s = detail.evidenceSnapshot;
     const reviewDue = s.reviewDueAt === null ? '—' : this.formatEdmonton(s.reviewDueAt);
+    const rateLabel = formatRatePercent(s.effectiveRatePercent ?? 1);
     return [
       ['Invoice ID', s.invoiceId],
       ['Tenant', s.tenantKey],
       ['Attribution ID', s.attributionId],
       ['Lead ID', s.leadId],
       ['Contract value (excl. land)', this.formatMoney(s.contractValueCents)],
-      [`Commission (${formatRatePercent(s.effectiveRatePercent ?? 1)})`, this.formatMoney(s.commissionCents)],
+      [`Commission (${rateLabel})`, this.formatMoney(s.commissionCents)],
       ['Currency', s.currency],
       ['Payment intent', s.stripePaymentIntentId ?? '—'],
       ['Invoice created', this.formatEdmonton(s.invoiceCreatedAt)],
