@@ -88,16 +88,6 @@ const bodySchema = z.string().trim().min(1).max(2000);
 
 const visibilitySchema = z.enum(['org', 'admin_only']);
 
-/** Escape HTML on READ — stored bodies stay pristine, wire bodies are text. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * The wire contract's `authorId` carries the author's email (lowercased).
  * The frontend session knows the signed-in user by email, so this is the
@@ -118,7 +108,10 @@ function toContract(
     authorId: authorEmail.toLowerCase(),
     authorDisplayName,
     visibility: row.visibility as CommentVisibility,
-    body: escapeHtml(row.body),
+    // Bodies go out pristine — the Angular SPA renders them with
+    // interpolation, which is the single HTML-escaping layer. Server-side
+    // escaping here would double-escape (& shows as &amp;).
+    body: row.body,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     edited: row.updatedAt.getTime() > row.createdAt.getTime(),

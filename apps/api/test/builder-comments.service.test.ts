@@ -522,7 +522,7 @@ describe('builder-comments.service', () => {
   });
 
   describe('output safety', () => {
-    it('escapes HTML on read (stored body stays pristine)', async () => {
+    it('returns the body pristine on read — Angular interpolation is the single escaping layer', async () => {
       const raw = `<script>alert("x")</script> & 'quotes'`;
       await service.createComment({
         entityType: 'lead',
@@ -538,9 +538,9 @@ describe('builder-comments.service', () => {
         entityId: LEAD_ID,
         actor: builderActor,
       });
-      expect(res.comments[0]?.body).toBe(
-        '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;quotes&#39;',
-      );
+      // No server-side escaping: the SPA renders with {{ }} interpolation,
+      // which escapes exactly once. Escaping here would double-escape.
+      expect(res.comments[0]?.body).toBe(raw);
     });
   });
 });
