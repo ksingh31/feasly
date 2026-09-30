@@ -56,7 +56,19 @@ export class BuilderTeamComponent implements OnInit {
   protected readonly inviteFeedback = this.store.selectSignal(
     BuilderTeamState.inviteFeedback,
   );
+  /** Invite request in flight — disables the submit button (busy guard). */
+  protected readonly inviting = this.store.selectSignal(
+    BuilderTeamState.inviting,
+  );
+  /** The API's own message for a failed invite — shown inline in the dialog. */
+  protected readonly inviteError = this.store.selectSignal(
+    BuilderTeamState.inviteError,
+  );
   protected readonly actionError = this.store.selectSignal(BuilderTeamState.actionError);
+  /** The API's own message for a failed row action, when one was given. */
+  protected readonly actionErrorMessage = this.store.selectSignal(
+    BuilderTeamState.actionErrorMessage,
+  );
   protected readonly updatingUserId = this.store.selectSignal(
     BuilderTeamState.updatingUserId,
   );
@@ -84,6 +96,12 @@ export class BuilderTeamComponent implements OnInit {
   /** Invite modal open state; only ever opened behind the admin gate. */
   protected inviteOpen = false;
 
+  /**
+   * Client-side duplicate: the typed email is already on the loaded team
+   * list, so no API call is made — the inline message explains why.
+   */
+  protected readonly duplicateInviteError = signal<string | null>(null);
+
   constructor() {
     this.seo.setPage({
       title: 'Team — Feasly Builder',
@@ -94,6 +112,10 @@ export class BuilderTeamComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.dispatch(new LoadBuilderTeam());
+    // A stale duplicate warning must not survive the user fixing the email.
+    this.inviteForm.controls.email.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.duplicateInviteError.set(null));
   }
 
   protected retry(): void {
@@ -139,21 +161,42 @@ export class BuilderTeamComponent implements OnInit {
 
   protected openInvite(): void {
     if (!this.store.selectSnapshot(BuilderState.isBuilderAdmin)) return;
+    this.duplicateInviteError.set(null);
+    this.store.dispatch(new ClearBuilderTeamFeedback());
     this.inviteOpen = true;
   }
 
   protected closeInvite(): void {
+    this.duplicateInviteError.set(null);
     this.inviteOpen = false;
   }
 
   protected invite(): void {
-    if (this.inviteForm.invalid) {
+    // Busy guard: an in-flight invite swallows repeat taps — the button is
+    // also disabled, but the ngSubmit path can fire without it.
+    if (this.inviteForm.invalid || this.inviting()) {
       this.inviteForm.markAllAsTouched();
       return;
     }
     const { name, email, role } = this.inviteForm.getRawValue();
+    const normalizedEmail = email.trim().toLowerCase();
+    // Client-side duplicate check: the email is already on the loaded team
+    // list — explain inline instead of calling the API (the backend 409 is
+    // the enforcement; this is the fast path).
+    const existing = this.users().find(
+      (user) => user.email.toLowerCase() === normalizedEmail,
+    );
+    if (existing) {
+      this.duplicateInviteError.set(
+        existing.status === 'invited'
+          ? this.copy.teamInviteDuplicatePending
+          : this.copy.teamInviteDuplicateMember,
+      );
+      return;
+    }
+    this.duplicateInviteError.set(null);
     this.store
-      .dispatch(new InviteBuilderTeamUser(name.trim(), email.trim(), role))
+      .dispatch(new InviteBuilderTeamUser(name.trim(), normalizedEmail, role))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.store.selectSnapshot(BuilderTeamState.inviteFeedback) === 'sent') {
@@ -176,18 +219,27 @@ export class BuilderTeamComponent implements OnInit {
   }
 
   protected cancelConfirm(): void {
+    // Never dismiss mid-flight — the row buttons are id-scoped and the
+    // dialog closes itself when the action completes.
+    if (this.updatingUserId() !== null) return;
     this.confirmAction = null;
   }
 
   protected confirmDialog(): void {
     const action = this.confirmAction;
-    if (!action) return;
-    this.confirmAction = null;
-    if (action.kind === 'deactivate') {
-      this.store.dispatch(new SetBuilderTeamUserStatus(action.id, 'deactivated'));
-    } else {
-      this.store.dispatch(new RemoveBuilderTeamUser(action.id));
-    }
+    // Re-entry guard: one confirm at a time.
+    if (!action || this.updatingUserId() !== null) return;
+    // The dialog stays open while the action is in flight so the confirm
+    // button can show its busy state; it closes on completion.
+    const done$ =
+      action.kind === 'deactivate'
+        ? this.store.dispatch(new SetBuilderTeamUserStatus(action.id, 'deactivated'))
+        : this.store.dispatch(new RemoveBuilderTeamUser(action.id));
+    done$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.confirmAction = null;
+      });
   }
 
   protected reactivate(user: BuilderTeamUser): void {
@@ -257,8 +309,30 @@ export class BuilderTeamComponent implements OnInit {
   }
 
   protected confirmText(): string {
+    const name =
+      this.users().find((user) => user.id === this.confirmAction?.id)?.name ??
+      'this person';
+    const template =
+      this.confirmAction?.kind === 'remove'
+        ? this.copy.teamRemoveConfirm
+        : this.copy.teamDeactivateConfirm;
+    return template.replace('{name}', name);
+  }
+
+  /** Confirm-button label: the busy state names the in-flight action. */
+  protected confirmYesLabel(): string {
+    if (this.updatingUserId() === null) return this.copy.teamConfirmYes;
     return this.confirmAction?.kind === 'remove'
-      ? this.copy.teamRemoveConfirm
-      : this.copy.teamDeactivateConfirm;
+      ? this.copy.teamRemoving
+      : this.copy.teamDeactivating;
+  }
+
+  /**
+   * Row action buttons are disabled while a confirm dialog is open or a
+   * row action is in flight — a second tap can never queue a second
+   * remove/deactivate.
+   */
+  protected rowActionsDisabled(): boolean {
+    return this.confirmAction !== null || this.updatingUserId() !== null;
   }
 }
