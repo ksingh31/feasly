@@ -68,7 +68,24 @@ export function parseCadDollarsToCents(value: string | null): number | null {
  * Computes the 1% platform commission on a contract value (integer cents).
  *
  * DISPLAY-ONLY — the backend computes the billed amount. 65000000 -> 650000.
+ * Kept for call sites that predate per-builder rates (billing/08).
  */
 export function onePercentOfCents(cents: number): number {
   return Math.round(cents / 100);
+}
+
+/**
+ * Computes the commission on a contract value (integer cents) at a
+ * negotiated rate (percent, e.g. 1 = 1%).
+ *
+ * DISPLAY-ONLY — the backend computes the billed amount.
+ */
+export function percentOfCents(cents: number, ratePercent: number): number {
+  return Math.round((cents * ratePercent) / 100);
+}
+
+/** Formats a rate percent for copy, e.g. 1 -> "1%", 1.5 -> "1.5%". */
+export function formatRatePercent(ratePercent: number): string {
+  const rounded = Math.round(ratePercent * 10_000) / 10_000;
+  return `${Number(rounded.toFixed(4))}%`;
 }

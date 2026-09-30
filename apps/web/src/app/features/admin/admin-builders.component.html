@@ -47,6 +47,7 @@
             <th scope="col">Sign-in key</th>
             <th scope="col">Status</th>
             <th scope="col">Plan</th>
+            <th scope="col">Commission rate</th>
             <th scope="col">Email</th>
             <th scope="col"><span class="builders-page__sr">Actions</span></th>
           </tr>
@@ -86,6 +87,7 @@
                 >{{ statusLabel(builder.status) }}</span>
               </td>
               <td>{{ planLabel(builder.plan) }}</td>
+              <td>{{ rateLabel(builder.commissionRatePercent) }}</td>
               <td>{{ builder.email ?? '—' }}</td>
               <td>
                 <button
@@ -224,6 +226,25 @@
                 <option [value]="option.value">{{ option.label }}</option>
               }
             </select>
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Commission rate (%)</span>
+            <input
+              type="number"
+              formControlName="commissionRatePercent"
+              min="0"
+              max="10"
+              step="0.01"
+            />
+            <span class="builders-page__hint">
+              Their cut of each signed contract, as a percent (1 = 1%). A
+              change applies to future invoices only — existing invoices keep
+              the rate they were created with.
+            </span>
+            @if (fieldError('commissionRatePercent'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
           </label>
 
           <label class="builders-page__field builders-page__field--full">

@@ -23,6 +23,7 @@ const BUILDER_A: Builder = {
   plan: 'flat',
   status: 'active',
   settings: {},
+  commissionRatePercent: 1,
   createdAt: '2026-09-27T00:00:00.000Z',
   updatedAt: '2026-09-27T00:00:00.000Z',
 };
@@ -303,5 +304,99 @@ describe('AdminBuildersComponent', () => {
 
     await waitFor(fixture, () => rows().length === 1, 'table reload');
     expect(rows()[0].textContent).toContain('Elite Craft Builders');
+  });
+
+  it('shows the per-builder commission rate in the table', async () => {
+    await setup();
+    await loadPage([BUILDER_A]);
+
+    expect(rows()[0].textContent).toContain('1%');
+  });
+
+  it('pre-fills the rate on edit and omits it from the payload when cleared', async () => {
+    await setup();
+    await loadPage();
+
+    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
+    editButtons[0].nativeElement.click();
+    fixture.detectChanges();
+
+    const rateInput = fixture.debugElement.query(
+      By.css('[formControlName="commissionRatePercent"]'),
+    ).nativeElement as HTMLInputElement;
+    expect(rateInput.value).toBe('1');
+
+    // Clear the field = no change: the PATCH must not carry the key.
+    setField('commissionRatePercent', '');
+    clickSubmit();
+
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).not.toHaveProperty('commissionRatePercent');
+    req.flush(BUILDER_A);
+  });
+
+  it('sends the new rate when it changes on edit', async () => {
+    await setup();
+    await loadPage();
+
+    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
+    editButtons[0].nativeElement.click();
+    fixture.detectChanges();
+
+    setField('commissionRatePercent', '2');
+    clickSubmit();
+
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toMatchObject({ commissionRatePercent: 2 });
+    req.flush({ ...BUILDER_A, commissionRatePercent: 2 });
+
+    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
+    expect(rows()[0].textContent).toContain('2%');
+  });
+
+  it('blocks saving a rate outside 0–10% with buyer-grade guidance', async () => {
+    await setup();
+    await loadPage();
+
+    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
+    editButtons[0].nativeElement.click();
+    fixture.detectChanges();
+
+    setField('commissionRatePercent', '11');
+    const rateInput = fixture.debugElement.query(
+      By.css('[formControlName="commissionRatePercent"]'),
+    );
+    rateInput.nativeElement.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+
+    expect(fieldErrors().join(' ')).toContain('between 0 and 10');
+
+    clickSubmit();
+    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
+  });
+
+  it('includes the rate when creating a builder', async () => {
+    await setup();
+    await loadPage([BUILDER_A]);
+
+    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
+    fixture.detectChanges();
+
+    setField('businessName', 'North Homes Ltd');
+    setField('displayName', 'North Homes');
+    setField('tenantKey', 'north-homes');
+    setField('commissionRatePercent', '1.5');
+    clickSubmit();
+
+    const req = httpMock.expectOne(
+      (r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST',
+    );
+    expect(req.request.body).toMatchObject({ commissionRatePercent: 1.5 });
+    req.flush({ ...BUILDER_B, commissionRatePercent: 1.5 });
+
+    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
+    expect(rows()[1].textContent).toContain('1.5%');
   });
 });

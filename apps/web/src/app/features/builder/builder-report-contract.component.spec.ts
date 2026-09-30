@@ -60,6 +60,8 @@ const INVOICE: CommissionInvoice = {
   commissionRateOverride: null,
   manualPaymentMethod: null,
   paymentReference: null,
+  commissionRatePercent: 1,
+  effectiveRatePercent: 1,
   createdAt: '2026-09-29T10:00:00.000Z',
   updatedAt: '2026-09-29T10:00:00.000Z',
 };
@@ -111,6 +113,8 @@ async function setup(
   leadsImpl: () => ReturnType<BuilderLeadsApiService['listLeads']> = () =>
     of(LEADS_RESPONSE),
   leadQueryParam: string | null = null,
+  rateImpl: () => ReturnType<BuilderBillingApiService['getCommissionRate']> = () =>
+    of({ commissionRatePercent: 1 }),
 ) {
   TestBed.resetTestingModule();
   const calls: unknown[] = [];
@@ -118,6 +122,7 @@ async function setup(
     calls.push(body);
     return reportContractImpl(body);
   });
+  const getCommissionRate = vi.fn(rateImpl);
   const listLeads = vi.fn(leadsImpl);
   const getInvoice = vi.fn((_id: string) => of(INVOICE));
   TestBed.configureTestingModule({
@@ -150,7 +155,7 @@ async function setup(
       },
       {
         provide: BuilderBillingApiService,
-        useValue: { reportContract },
+        useValue: { reportContract, getCommissionRate },
       },
       {
         provide: BuilderInvoicesApiService,
@@ -404,6 +409,40 @@ describe('BuilderReportContractComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Your commission (1%)');
     expect(text).toContain('$0.00');
+  });
+
+  it('loads the org rate on init and previews with it (billing/08)', async () => {
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(LEADS_RESPONSE),
+      null,
+      () => of({ commissionRatePercent: 2 }),
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    setInput(fixture, 'report-contract-value', '650000');
+    const text = fixture.nativeElement.textContent as string;
+    // $650,000 × 2% = $13,000
+    expect(text).toContain('Your commission (2%)');
+    expect(text).toContain('$13,000');
+  });
+
+  it('falls back to the 1% default when the rate fetch fails (billing/08)', async () => {
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(LEADS_RESPONSE),
+      null,
+      () => throwError(() => new Error('network down')),
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    setInput(fixture, 'report-contract-value', '650000');
+    const text = fixture.nativeElement.textContent as string;
+    // Display-only fallback — the backend still computes the real amount.
+    expect(text).toContain('Your commission (1%)');
+    expect(text).toContain('$6,500');
   });
 
   it('filters recorded leads out of the picker', async () => {

@@ -48,6 +48,8 @@ function testInvoices(): CommissionInvoice[] {
     commissionRateOverride: null,
     manualPaymentMethod: null,
     paymentReference: null,
+  commissionRatePercent: 1,
+  effectiveRatePercent: 1,
     leadName: 'Test Lead',
   } as const;
   return [
@@ -212,6 +214,38 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Disputed');
     // Commission amounts render via the shared money util.
     expect(text).toContain('$6,850');
+  });
+
+  it('labels the detail view with the invoice\u2019s own effective rate (billing/08)', async () => {
+    const invoices = testInvoices().map((inv, i) =>
+      i === 0
+        ? { ...inv, commissionRatePercent: 2, effectiveRatePercent: 2 }
+        : inv,
+    );
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    // The rate label lives in the detail view, not the list rows.
+    expect(fixture.nativeElement.textContent as string).not.toContain(
+      'Commission (2%)',
+    );
+
+    // Open the first invoice's detail view (the 2% one).
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    expect(buttons.length).toBeGreaterThan(0);
+    buttons[0].click();
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Commission (2%)');
   });
 
   it('renders the lead name in its own column for each invoice', async () => {
@@ -423,6 +457,8 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
           commissionRateOverride: null,
           manualPaymentMethod: null,
           paymentReference: null,
+  commissionRatePercent: 1,
+  effectiveRatePercent: 1,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },

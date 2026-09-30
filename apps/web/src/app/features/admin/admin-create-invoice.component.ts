@@ -23,7 +23,11 @@ import type {
   ManualInvoiceRequest,
   ManualInvoiceResponse,
 } from '@feasly/contracts';
-import { formatCentsToCad } from '../../shared/utils/money';
+import {
+  formatCentsToCad,
+  formatRatePercent,
+  percentOfCents,
+} from '../../shared/utils/money';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { BillingHealthState } from './billing-health.state';
@@ -35,14 +39,6 @@ import {
 /** UUID shape check; the server re-validates strictly. */
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Display-only commission-rate estimate shown on the review step. The
- * billing page header already presents the model as "Commission · 1%",
- * and the server computes the authoritative figure — this constant never
- * reaches billing math (the create-invoice response carries it).
- */
-const DISPLAY_COMMISSION_RATE = 0.01;
 
 /**
  * Formats a local Date as ISO 8601 WITH an explicit timezone offset
@@ -130,11 +126,27 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
     return dollars === null ? null : Math.round(dollars * 100);
   });
 
-  /** Display-only 1% estimate for the review step. */
+  /** Display-only estimate for the review step, at the selected builder's rate. */
   readonly estimatedCommissionCents = computed(() => {
     const cents = this.contractValueCents();
-    return cents === null ? null : Math.round(cents * DISPLAY_COMMISSION_RATE);
+    return cents === null ? null : percentOfCents(cents, this.selectedRatePercent());
   });
+
+  /**
+   * The selected builder's negotiated rate (percent), for the review-step
+   * estimate. Falls back to the 1% default while builders load — the
+   * server computes the authoritative figure at creation.
+   */
+  readonly selectedRatePercent = computed(() => {
+    const tenantKey = this.form.controls.builder.value;
+    const builder = this.builders().find((b) => b.tenantKey === tenantKey);
+    return builder?.commissionRatePercent ?? 1;
+  });
+
+  /** '1%' / '1.5%' label for the review-step estimate. */
+  readonly selectedRateLabel = computed(() =>
+    formatRatePercent(this.selectedRatePercent()),
+  );
 
   ngOnInit(): void {
     if (this.listStatus() === 'idle') {

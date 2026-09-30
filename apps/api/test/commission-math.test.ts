@@ -7,6 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeCommissionCents,
+  effectiveRatePercent,
+  formatRatePercent,
   wholeDaysBetween,
 } from '../src/lib/commission-math';
 
@@ -47,9 +49,69 @@ describe('computeCommissionCents', () => {
   });
 
   it('rejects invalid rates', () => {
-    expect(() => computeCommissionCents(10_000, 0)).toThrow(RangeError);
+    expect(() => computeCommissionCents(10_000, -0.01)).toThrow(RangeError);
     expect(() => computeCommissionCents(10_000, 1.5)).toThrow(RangeError);
     expect(() => computeCommissionCents(10_000, NaN)).toThrow(RangeError);
+  });
+
+  it('accepts a 0% negotiated rate (billing/08)', () => {
+    // A 0% builder rate is a legitimate negotiated outcome — the invoice
+    // is $0, not an error.
+    expect(computeCommissionCents(50_000_000, 0)).toBe(0);
+  });
+});
+
+describe('effectiveRatePercent (billing/08)', () => {
+  const DEFAULT_RATE = 0.01;
+
+  it('prefers the per-invoice admin override', () => {
+    expect(
+      effectiveRatePercent(
+        { commissionRateOverride: 1.5, commissionRatePercent: 2 },
+        DEFAULT_RATE,
+      ),
+    ).toBe(1.5);
+  });
+
+  it('falls back to the builder rate snapshotted at creation', () => {
+    expect(
+      effectiveRatePercent(
+        { commissionRateOverride: null, commissionRatePercent: 2 },
+        DEFAULT_RATE,
+      ),
+    ).toBe(2);
+  });
+
+  it('falls back to the configured default for legacy invoices', () => {
+    expect(
+      effectiveRatePercent(
+        { commissionRateOverride: null, commissionRatePercent: null },
+        DEFAULT_RATE,
+      ),
+    ).toBe(1);
+  });
+
+  it('rounds to 4 decimals for display and audit payloads', () => {
+    expect(
+      effectiveRatePercent(
+        { commissionRateOverride: 1.23456789, commissionRatePercent: null },
+        DEFAULT_RATE,
+      ),
+    ).toBe(1.2346);
+  });
+});
+
+describe('formatRatePercent', () => {
+  it("renders whole percents without decimals ('1%')", () => {
+    expect(formatRatePercent(1)).toBe('1%');
+  });
+
+  it("renders fractional percents ('1.5%')", () => {
+    expect(formatRatePercent(1.5)).toBe('1.5%');
+  });
+
+  it('trims float dust from stored percents', () => {
+    expect(formatRatePercent(0.1 + 0.2)).toBe('0.3%');
   });
 });
 

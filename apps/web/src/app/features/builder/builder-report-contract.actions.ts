@@ -23,3 +23,13 @@ export class SubmitReportContract {
 export class ClearReportContractState {
   static readonly type = '[BuilderReportContract] Clear';
 }
+
+/**
+ * Loads the org's negotiated commission rate (percent) for the live
+ * preview (billing/08). The preview falls back to the 1% default while
+ * the rate loads or when the fetch fails — the figure is display-only;
+ * the backend computes the billed amount.
+ */
+export class LoadCommissionRate {
+  static readonly type = '[BuilderReportContract] Load commission rate';
+}

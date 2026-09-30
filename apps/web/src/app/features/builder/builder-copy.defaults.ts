@@ -55,7 +55,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'Record a signed build contract in the Feasly builder portal.',
   reportContractHeading: 'Record a signed contract',
   reportContractExplainer:
-    'When a Feasly lead signs a build contract, record it here. We take a 1% commission on the signed contract value, excluding land. Please record it within 14 days of signing — that’s part of your Feasly agreement.',
+    'When a Feasly lead signs a build contract, record it here. We take a {rate} commission on the signed contract value, excluding land. Please record it within 14 days of signing — that’s part of your Feasly agreement.',
   reportContractLeadLabel: 'Which lead signed?',
   reportContractLeadRequired: 'Choose the lead that signed the contract.',
   reportContractLeadsLoading: 'Loading your leads…',
@@ -80,7 +80,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   reportContractSubmitting: 'Recording…',
   reportContractSuccessTitle: 'Contract recorded — your invoice is ready',
   reportContractSuccessBody:
-    'You recorded a {amount} contract. Your 1% commission is {commission}. The invoice is in its 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+    'You recorded a {amount} contract. Your {rate} commission is {commission}. The invoice is in its 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
   reportContractAlreadyReported:
     'This contract is already recorded — nothing more to do.',
   reportContractDisputed:
@@ -114,10 +114,10 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'Card setup isn’t available yet — please contact us to arrange billing.',
   billingCancel: 'Cancel',
   billingExplainer:
-    'When you record a signed contract, Feasly creates a commission invoice (1% of the signed contract value, excluding land). The invoice auto-charges 7 days later unless disputed.',
+    'When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. The invoice auto-charges 7 days later unless disputed.',
   invoicesHeading: 'Invoices',
   invoicesExplainer:
-    'Every commission invoice on your account, newest first. Amounts are 1% of the signed contract value, excluding land.',
+    'Every commission invoice on your account, newest first. Each invoice shows the commission rate applied to the signed contract value, excluding land.',
   invoicesLoading: 'Loading your invoices\u2026',
   invoicesLoadError:
     'We couldn\u2019t load your invoices. Please try again.',
@@ -285,7 +285,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   contractWhatHappensTitle: 'What happens next',
   contractFormHeading: 'Record details',
   contractLeadPlaceholder: 'Select a lead…',
-  contractEstimatedCommission: 'Your commission (1%)',
+  contractEstimatedCommission: 'Your commission ({rate})',
   contractCommissionPanelSub:
     'Calculated from the signed contract value, excluding land.',
   contractCommissionContractValue: 'Contract value',

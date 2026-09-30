@@ -44,33 +44,9 @@ import type {
 } from './commission.service';
 import type { StripeService } from './stripe.service';
 import type { OpsAlertsService } from '../ops-alerts.service';
+import type { DisputeEvidenceSnapshot } from '@feasly/contracts';
 
 export type DisputeStatus = 'open' | 'accepted' | 'rejected';
-
-/**
- * Immutable invoice state captured at dispute-open time. The console
- * renders this — never the live invoice row — so the evidence can't
- * change under the admin's review.
- */
-export interface DisputeEvidenceSnapshot {
-  readonly invoiceId: string;
-  readonly tenantKey: string;
-  readonly attributionId: string;
-  readonly leadId: string;
-  /** Signed construction contract value, integer cents, excl. land. */
-  readonly contractValueCents: number;
-  /** round(contractValueCents * rate), integer cents. */
-  readonly commissionCents: number;
-  readonly currency: string;
-  readonly stripePaymentIntentId: string | null;
-  readonly status: 'disputed';
-  readonly reviewDueAt: string | null;
-  readonly disputeReason: string;
-  readonly invoiceCreatedAt: string;
-  readonly disputedAt: string;
-  /** True when backfilled for a disputed invoice with no dispute row. */
-  readonly backfilled?: boolean;
-}
 
 export interface DisputeRecord {
   readonly id: string;
@@ -214,6 +190,7 @@ function snapshotFor(
     disputeReason: invoice.disputeReason ?? '',
     invoiceCreatedAt: invoice.createdAt.toISOString(),
     disputedAt: openedAt.toISOString(),
+    effectiveRatePercent: invoice.effectiveRatePercent,
     ...(backfilled ? { backfilled: true as const } : {}),
   };
 }

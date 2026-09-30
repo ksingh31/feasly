@@ -211,6 +211,12 @@ export interface DisputeEvidenceSnapshot {
   readonly disputedAt: string;
   /** True when backfilled for a disputed invoice with no dispute row. */
   readonly backfilled?: boolean;
+  /**
+   * The commission rate applied to this invoice (percent, e.g. 1.5),
+   * captured at dispute time. Snapshots written before billing/08 lack
+   * this field — readers must fall back to 1%.
+   */
+  readonly effectiveRatePercent?: number;
 }
 
 export interface DisputeListItem {

@@ -106,6 +106,15 @@ export class AdminBuildersComponent implements OnInit {
     allowedOrigins: [''],
     plan: [''],
     status: ['active' as BuilderStatus, [Validators.required]],
+    /**
+     * Negotiated commission rate, in PERCENT (billing/08). 1 = the 1%
+     * default. 0 is a legitimate negotiated outcome; the backend rejects
+     * anything outside 0–10.
+     */
+    commissionRatePercent: [
+      1,
+      [Validators.min(0), Validators.max(10)],
+    ],
     settings: ['', [jsonValidator]],
   });
 
@@ -144,6 +153,7 @@ export class AdminBuildersComponent implements OnInit {
       allowedOrigins: '',
       plan: '',
       status: 'active',
+      commissionRatePercent: 1,
       settings: '',
     });
     this.form.get('tenantKey')?.enable();
@@ -170,6 +180,7 @@ export class AdminBuildersComponent implements OnInit {
       allowedOrigins: builder.allowedOrigins.join('\n'),
       plan: builder.plan ?? '',
       status: builder.status,
+      commissionRatePercent: builder.commissionRatePercent,
       settings: Object.keys(builder.settings).length > 0 ? JSON.stringify(builder.settings, null, 2) : '',
     });
     // Tenant key is the builder's identity everywhere (embeds, sessions,
@@ -223,6 +234,9 @@ export class AdminBuildersComponent implements OnInit {
     if (errors['jsonObject']) {
       return 'Settings must be a JSON object, like { "key": "value" }.';
     }
+    if (errors['min'] || errors['max']) {
+      return 'Enter a rate between 0 and 10 percent.';
+    }
     return 'This field is not valid.';
   }
 
@@ -260,6 +274,11 @@ export class AdminBuildersComponent implements OnInit {
         plan: v.plan === '' ? null : v.plan,
         status: v.status!,
         settings,
+        // A cleared field means "no change" — 0 is a real rate, so only
+        // null is omitted.
+        ...(v.commissionRatePercent !== null
+          ? { commissionRatePercent: v.commissionRatePercent! }
+          : {}),
       };
       this.savedMessage.set('Builder saved.');
       this.store
@@ -289,6 +308,10 @@ export class AdminBuildersComponent implements OnInit {
         plan: v.plan === '' ? null : v.plan,
         status: v.status!,
         settings,
+        // Blank on create falls back to the 1% default server-side.
+        ...(v.commissionRatePercent !== null
+          ? { commissionRatePercent: v.commissionRatePercent! }
+          : {}),
       };
       this.savedMessage.set('Builder added.');
       this.store
@@ -315,6 +338,15 @@ export class AdminBuildersComponent implements OnInit {
 
   protected statusLabel(status: BuilderStatus): string {
     return status === 'active' ? 'Active' : 'Inactive';
+  }
+
+  /**
+   * Commission rate cell, e.g. "1%". The contract guarantees the field,
+   * but a missing value (stale cache) renders as the 1% default.
+   */
+  protected rateLabel(ratePercent: number | undefined): string {
+    const rounded = Math.round((ratePercent ?? 1) * 10_000) / 10_000;
+    return `${Number(rounded.toFixed(4))}%`;
   }
 
   /** Initials avatar (wordmark fallback) when the builder has no logo. */

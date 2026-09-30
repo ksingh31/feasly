@@ -3,7 +3,7 @@ import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import type { DisputeListItem } from '@feasly/contracts';
-import { formatCentsToCad } from '../../shared/utils/money';
+import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import {
   AcceptAdminDispute,
   ClearSelectedAdminDispute,
@@ -188,7 +188,7 @@ export class AdminDisputesComponent implements OnInit {
       ['Attribution ID', s.attributionId],
       ['Lead ID', s.leadId],
       ['Contract value (excl. land)', this.formatMoney(s.contractValueCents)],
-      ['Commission (1%)', this.formatMoney(s.commissionCents)],
+      [`Commission (${formatRatePercent(s.effectiveRatePercent ?? 1)})`, this.formatMoney(s.commissionCents)],
       ['Currency', s.currency],
       ['Payment intent', s.stripePaymentIntentId ?? '—'],
       ['Invoice created', this.formatEdmonton(s.invoiceCreatedAt)],

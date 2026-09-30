@@ -331,6 +331,10 @@ describe('dispute service', () => {
     expect(dispute.evidenceSnapshot.invoiceId).toBe(invoice.id);
     expect(dispute.evidenceSnapshot.contractValueCents).toBe(50_000_000);
     expect(dispute.evidenceSnapshot.commissionCents).toBe(500_000);
+    // billing/08: the snapshot carries the invoice's effective rate.
+    expect(dispute.evidenceSnapshot.effectiveRatePercent).toBe(
+      invoice.effectiveRatePercent,
+    );
     expect(dispute.evidenceSnapshot.status).toBe('disputed');
     expect(dispute.evidenceSnapshot.backfilled).toBeUndefined();
 

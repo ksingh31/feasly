@@ -30,7 +30,7 @@
     }
 
     @if (reviewing()) {
-      <!-- Review/confirm step: calculated 1% figure + 7-day review note. -->
+      <!-- Review/confirm step: estimated commission at the builder's rate + 7-day review note. -->
       <div class="create-invoice__review" role="region" aria-label="Review invoice">
         <h3>Review invoice</h3>
         <dl>
@@ -54,7 +54,7 @@
             <dd>{{ form.controls.signedDate.value }}</dd>
           </div>
           <div>
-            <dt>Estimated commission (1%)</dt>
+            <dt>Estimated commission ({{ selectedRateLabel() }})</dt>
             <dd>
               <strong>{{ formatCad(estimatedCommissionCents() ?? 0) }}</strong>
             </dd>
