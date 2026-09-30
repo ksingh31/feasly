@@ -1,33 +1,12 @@
 /**
- * Lead comment thread models — FRONTEND-OWNED INTERIM TYPES (BILL-06).
+ * Lead comment thread models — shared presentational types (BILL-06).
  *
- * These mirror the frozen BILL-05 API contract (2026-09-29). When
- * `@feasly/contracts` gains the Comment types, replace these interfaces
- * with imports (single source of truth) — field names are frozen, do not
- * rename without updating both sides.
+ * `Comment` and `CommentListResponse` are the frozen BILL-05 API contract:
+ * `@feasly/contracts` is the single source of truth (re-exported below).
+ * Everything else in this file is UI-owned (config, labels, formatting).
  */
-
-/** A single lead comment (frozen BILL-05 shape). */
-export interface Comment {
-  readonly id: string;
-  readonly entityType: string;
-  readonly entityId: string;
-  readonly authorKind: 'builder' | 'admin';
-  readonly authorId: string;
-  readonly authorDisplayName: string;
-  readonly visibility: 'org' | 'admin_only';
-  readonly body: string;
-  /** ISO-8601. */
-  readonly createdAt: string;
-  /** ISO-8601. */
-  readonly updatedAt: string;
-  readonly edited: boolean;
-}
-
-/** `GET /api/v1/builder/leads/{leadId}/comments` response (frozen contract). */
-export interface CommentListResponse {
-  readonly comments: readonly Comment[];
-}
+import type { CommentVisibility } from '@feasly/contracts';
+export type { Comment, CommentListResponse } from '@feasly/contracts';
 
 /**
  * Capability + display switches for the thread. The story freezes this
@@ -60,7 +39,7 @@ export const BUILDER_COMMENT_THREAD_CONFIG: CommentThreadConfig = {
  */
 export interface CommentPost {
   readonly body: string;
-  readonly visibility?: 'org' | 'admin_only';
+  readonly visibility?: CommentVisibility;
 }
 
 /** Emitted by (edit). */

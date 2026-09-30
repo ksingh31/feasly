@@ -39,6 +39,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     createdAt: new Date(Date.now() - 3_600_000).toISOString(),
     updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
     edited: false,
+    deletedAt: null,
     ...overrides,
   };
 }
