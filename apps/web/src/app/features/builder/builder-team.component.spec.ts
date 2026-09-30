@@ -25,6 +25,7 @@ import { BuilderState } from './builder.state';
 import {
   InviteBuilderTeamUser,
   LoadBuilderTeam,
+  RemoveBuilderTeamUser,
   SetBuilderTeamUserRole,
   SetBuilderTeamUserStatus,
 } from './builder-team.state';
@@ -87,6 +88,9 @@ function setup(opts: {
   isAdmin?: boolean;
   status?: TeamStatus;
   feedback?: InviteFeedback;
+  inviting?: boolean;
+  inviteError?: string | null;
+  copyExtra?: Record<string, string>;
 } = {}) {
   const isAdmin = opts.isAdmin ?? true;
   TestBed.resetTestingModule();
@@ -102,6 +106,10 @@ function setup(opts: {
       if (selector === BuilderTeamState.status) return () => (opts.status ?? 'ready');
       if (selector === BuilderTeamState.inviteFeedback)
         return () => (opts.feedback ?? null);
+      if (selector === BuilderTeamState.inviting)
+        return () => (opts.inviting ?? false);
+      if (selector === BuilderTeamState.inviteError)
+        return () => (opts.inviteError ?? null);
       if (selector === BuilderTeamState.actionError) return () => false;
       if (selector === BuilderTeamState.updatingUserId) return () => null;
       if (selector === BuilderState.activeBuilderName) return () => 'Acme Builders';
@@ -123,7 +131,7 @@ function setup(opts: {
   TestBed.configureTestingModule({
     imports: [BuilderTeamComponent],
     providers: [
-      { provide: BUILDER_COPY, useValue: { ...DEFAULT_BUILDER_COPY, ...TEAM_COPY } },
+      { provide: BUILDER_COPY, useValue: { ...DEFAULT_BUILDER_COPY, ...TEAM_COPY, ...(opts.copyExtra ?? {}) } },
       { provide: Store, useValue: store },
       { provide: ConfigService, useValue: config },
       { provide: SeoService, useValue: seo },
@@ -297,13 +305,89 @@ describe('BuilderTeamComponent (auth/05)', () => {
     expect(banner.textContent).toContain('Invite sent.');
   });
 
-  it('a failed invite shows the error banner', () => {
-    const { fixture } = setup({ feedback: 'failed' });
-    const banner = fixture.nativeElement.querySelector(
-      '.builder-team__banner--error',
+  it('a failed invite shows the API message inline in the dialog', () => {
+    const { fixture } = setup({
+      inviteError: 'An invite is already on its way.',
+    });
+    openInviteModal(fixture);
+    const alert = fixture.nativeElement.querySelector(
+      '.builder-team__modal [role="alert"]',
     ) as HTMLElement;
-    expect(banner).not.toBeNull();
-    expect(banner.textContent).toContain('Could not send the invite.');
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain('An invite is already on its way.');
+    // No generic error banner anymore.
+    expect(
+      fixture.nativeElement.querySelector('.builder-team__banner--error'),
+    ).toBeNull();
+  });
+
+  it('blocks invite re-entry while an invite is in flight', () => {
+    const { fixture, dispatched } = setup({ inviting: true });
+    openInviteModal(fixture);
+    const component = fixture.componentInstance;
+    component.inviteForm.setValue({
+      name: 'Cara',
+      email: 'cara@example.com',
+      role: 'builder_member',
+    });
+    fixture.detectChanges();
+    const submit = fixture.nativeElement.querySelector(
+      '.builder-team__modal-actions button[type="submit"]',
+    ) as HTMLButtonElement;
+    // Busy state: disabled button with the sending label.
+    expect(submit.disabled).toBe(true);
+    expect(submit.textContent).toContain('Sending…');
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('ngSubmit'));
+    expect(
+      dispatched.some((a) => a instanceof InviteBuilderTeamUser),
+    ).toBe(false);
+  });
+
+  it('an already-teamed email shows the inline duplicate error, no API call', () => {
+    const { fixture, dispatched } = setup();
+    openInviteModal(fixture);
+    const component = fixture.componentInstance;
+    component.inviteForm.setValue({
+      name: 'Alice Clone',
+      email: 'ALICE@example.com',
+      role: 'builder_member',
+    });
+    fixture.detectChanges();
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('ngSubmit'));
+    fixture.detectChanges();
+    expect(
+      dispatched.some((a) => a instanceof InviteBuilderTeamUser),
+    ).toBe(false);
+    const alert = fixture.nativeElement.querySelector(
+      '.builder-team__modal [role="alert"]',
+    ) as HTMLElement;
+    expect(alert.textContent).toContain('This email is already on the team.');
+  });
+
+  it('a pending-invite email shows the on-its-way message, no API call', () => {
+    const { fixture, dispatched } = setup();
+    openInviteModal(fixture);
+    const component = fixture.componentInstance;
+    component.inviteForm.setValue({
+      name: 'Bob Again',
+      email: 'bob@example.com',
+      role: 'builder_member',
+    });
+    fixture.detectChanges();
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('ngSubmit'));
+    fixture.detectChanges();
+    expect(
+      dispatched.some((a) => a instanceof InviteBuilderTeamUser),
+    ).toBe(false);
+    const alert = fixture.nativeElement.querySelector(
+      '.builder-team__modal [role="alert"]',
+    ) as HTMLElement;
+    expect(alert.textContent).toContain(
+      'An invite is already on its way to this email address.',
+    );
   });
 
   it('loading shows skeleton rows, error shows retry', () => {
@@ -342,5 +426,54 @@ describe('BuilderTeamComponent (auth/05)', () => {
     ) as SetBuilderTeamUserStatus;
     expect(action).toBeDefined();
     expect(action.status).toBe('deactivated');
+  });
+
+  it('remove is id-scoped to the clicked row and names the invitee', () => {
+    const { fixture, dispatched } = setup({
+      copyExtra: { teamRemoveConfirm: 'Remove the invite for {name}?' },
+    });
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    // Bob (u2) is the invited row with a Remove action.
+    const remove = buttons.find((b) => b.textContent?.includes('Remove'));
+    expect(remove).toBeDefined();
+    remove!.click();
+    fixture.detectChanges();
+    // The dialog names the invitee; nothing dispatched yet.
+    const dialogText = fixture.nativeElement.querySelector(
+      '.builder-team__confirm-text',
+    ).textContent as string;
+    expect(dialogText).toContain('Remove the invite for Bob?');
+    expect(
+      dispatched.some((a) => a instanceof RemoveBuilderTeamUser),
+    ).toBe(false);
+    // Confirming dispatches the remove scoped to Bob's id.
+    const confirm = (
+      fixture.nativeElement.querySelectorAll('.builder-team__confirm-actions button') as NodeListOf<HTMLButtonElement>
+    )[1];
+    confirm.click();
+    const action = dispatched.find(
+      (a) => a instanceof RemoveBuilderTeamUser,
+    ) as RemoveBuilderTeamUser;
+    expect(action).toBeDefined();
+    expect(action.id).toBe('u2');
+  });
+
+  it('row action buttons disable while a confirm dialog is open', () => {
+    const { fixture } = setup();
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    const remove = buttons.find((b) => b.textContent?.includes('Remove'));
+    remove!.click();
+    fixture.detectChanges();
+    const actionButtons = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-team__actions button'),
+    ) as HTMLButtonElement[];
+    expect(actionButtons.length).toBeGreaterThan(0);
+    for (const button of actionButtons) {
+      expect(button.disabled).toBe(true);
+    }
   });
 });

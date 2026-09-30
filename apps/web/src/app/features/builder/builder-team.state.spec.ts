@@ -9,7 +9,7 @@
  */
 import { TestBed } from '@angular/core/testing';
 import { Store, provideStore } from '@ngxs/store';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BuilderTeamState,
@@ -117,6 +117,64 @@ describe('BuilderTeamState (auth/05)', () => {
       .dispatch(new InviteBuilderTeamUser('Cara', 'cara@example.com', 'builder_member'))
       .toPromise();
     expect(store.selectSnapshot(BuilderTeamState.inviteFeedback)).toBe('failed');
+  });
+
+  it('invite sets inviting while in flight and clears it on success', async () => {
+    const gate = new Subject<unknown>();
+    const { store } = setup({
+      inviteUser: vi.fn().mockReturnValue(gate.asObservable()),
+    });
+    const pending = store
+      .dispatch(new InviteBuilderTeamUser('Cara', 'cara@example.com', 'builder_member'))
+      .toPromise();
+    expect(store.selectSnapshot(BuilderTeamState.inviting)).toBe(true);
+    gate.next({ user: { ...BOB, id: 'u3', email: 'cara@example.com' } });
+    gate.complete();
+    await pending;
+    expect(store.selectSnapshot(BuilderTeamState.inviting)).toBe(false);
+    expect(store.selectSnapshot(BuilderTeamState.inviteFeedback)).toBe('sent');
+  });
+
+  it('invite failure captures the API message and inviting clears', async () => {
+    const { store } = setup({
+      inviteUser: vi
+        .fn()
+        .mockReturnValue(
+          throwError(() => ({ message: 'An invite is already on its way.' })),
+        ),
+    });
+    await store
+      .dispatch(new InviteBuilderTeamUser('Bob', 'bob@example.com', 'builder_member'))
+      .toPromise();
+    expect(store.selectSnapshot(BuilderTeamState.inviting)).toBe(false);
+    expect(store.selectSnapshot(BuilderTeamState.inviteFeedback)).toBe('failed');
+    expect(store.selectSnapshot(BuilderTeamState.inviteError)).toBe(
+      'An invite is already on its way.',
+    );
+  });
+
+  it('a new invite clears the previous invite error', async () => {
+    const { store, api } = setup({
+      inviteUser: vi
+        .fn()
+        .mockReturnValueOnce(
+          throwError(() => ({ message: 'An invite is already on its way.' })),
+        )
+        .mockReturnValue(of({ user: BOB })),
+    });
+    await store
+      .dispatch(new InviteBuilderTeamUser('Bob', 'bob@example.com', 'builder_member'))
+      .toPromise();
+    expect(store.selectSnapshot(BuilderTeamState.inviteError)).toBe(
+      'An invite is already on its way.',
+    );
+    // The retry clears the error before the API call resolves.
+    const retry = store
+      .dispatch(new InviteBuilderTeamUser('Eve', 'eve@example.com', 'builder_member'))
+      .toPromise();
+    expect(store.selectSnapshot(BuilderTeamState.inviteError)).toBeNull();
+    await retry;
+    expect(api.inviteUser).toHaveBeenCalledTimes(2);
   });
 
   it('status update replaces the row in place', async () => {
