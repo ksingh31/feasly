@@ -189,6 +189,13 @@ export interface Builder {
   readonly plan: string | null;
   readonly status: BuilderStatus;
   readonly settings: Readonly<Record<string, unknown>>;
+  /**
+   * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
+   * 1. Editable in the admin portal (billing/08). New commission invoices
+   * snapshot this value at creation; changing it affects future invoices
+   * only.
+   */
+  readonly commissionRatePercent: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -209,6 +216,11 @@ export interface BuilderCreateBody {
   readonly plan?: string | null;
   readonly status?: BuilderStatus;
   readonly settings?: Readonly<Record<string, unknown>>;
+  /**
+   * Commission rate in PERCENT (0–10). Omitted = the 1% default.
+   * Rejected with 400 INVALID_RATE outside 0–10.
+   */
+  readonly commissionRatePercent?: number;
 }
 
 export interface BuilderUpdateBody {
@@ -222,6 +234,12 @@ export interface BuilderUpdateBody {
   readonly plan?: string | null;
   readonly status?: BuilderStatus;
   readonly settings?: Readonly<Record<string, unknown>>;
+  /**
+   * Commission rate in PERCENT (0–10). Omitted = unchanged. Changing it
+   * affects future invoices only; existing invoices keep their snapshot.
+   * Rejected with 400 INVALID_RATE outside 0–10.
+   */
+  readonly commissionRatePercent?: number;
 }
 
 export interface LeadAssignBuilderBody {

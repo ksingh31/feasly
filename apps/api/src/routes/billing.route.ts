@@ -16,6 +16,9 @@
  *   own invoice (charge clock freezes, ops alerted). Builder-gated.
  * - `POST /api/v1/billing/invoices/{id}/resolve` — admin resolves a
  *   dispute (resume with a fresh review window, or void). Admin-gated.
+ * - `GET /api/v1/billing/commission-rate` — builder reads their org's
+ *   negotiated commission rate (percent) for the "Record signed contract"
+ *   live preview. Builder-gated; tenant-scoped.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -38,6 +41,7 @@ import type {
   CommissionCardStatus,
 } from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
+import type { CommissionRateResponse } from '@feasly/contracts';
 
 export interface BillingRouteDeps {
   readonly billing: BillingService;
@@ -82,6 +86,10 @@ export interface BillingRoute {
     id: unknown,
     body: unknown,
   ): Promise<CommissionInvoiceRecord>;
+  /** GET /api/v1/billing/commission-rate */
+  getCommissionRate(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<CommissionRateResponse>;
 }
 
 const uuidSchema = z.string().trim().uuid();
@@ -172,6 +180,17 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
     ): Promise<CommissionCardStatus> {
       const session = await requireBuilderSession(builderGuard, headers);
       return commissionCard.getCard(session.tenantKey);
+    },
+
+    async getCommissionRate(
+      headers: Record<string, string | string[] | undefined>,
+    ): Promise<CommissionRateResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return {
+        commissionRatePercent: await billing.getCommissionRatePercent(
+          session.tenantKey,
+        ),
+      };
     },
 
     async createSetupIntent(

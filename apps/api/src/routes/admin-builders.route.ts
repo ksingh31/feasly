@@ -83,6 +83,12 @@ const builderCreateSchema = z.object({
   plan: z.string().trim().max(50).nullish(),
   status: builderStatusSchema.nullish(),
   settings: z.record(z.string(), z.unknown()).nullish(),
+  /**
+   * Negotiated commission rate, in PERCENT. Defaults to 1 when omitted on
+   * create. Range-checked by BuilderService (0–10); zod only rejects
+   * non-numeric input here.
+   */
+  commissionRatePercent: z.number().nullish(),
 });
 
 const builderUpdateSchema = z.object({
@@ -100,6 +106,12 @@ const builderUpdateSchema = z.object({
   plan: z.string().trim().max(50).nullish(),
   status: builderStatusSchema.nullish(),
   settings: z.record(z.string(), z.unknown()).nullish(),
+  /**
+   * Negotiated commission rate, in PERCENT. Defaults to 1 when omitted on
+   * create. Range-checked by BuilderService (0–10); zod only rejects
+   * non-numeric input here.
+   */
+  commissionRatePercent: z.number().nullish(),
 });
 
 function parseBuilderId(id: unknown): string {
@@ -158,6 +170,9 @@ export function createAdminBuildersRoute(
     plan: data.plan ?? null,
     status: data.status ?? 'active',
     settings: data.settings ?? {},
+    ...(data.commissionRatePercent !== undefined && data.commissionRatePercent !== null
+      ? { commissionRatePercent: data.commissionRatePercent }
+      : {}),
   });
 
   const toUpdateBody = (
@@ -182,6 +197,9 @@ export function createAdminBuildersRoute(
       : {}),
     ...(data.settings !== undefined && data.settings !== null
       ? { settings: data.settings }
+      : {}),
+    ...(data.commissionRatePercent !== undefined && data.commissionRatePercent !== null
+      ? { commissionRatePercent: data.commissionRatePercent }
       : {}),
   });
 

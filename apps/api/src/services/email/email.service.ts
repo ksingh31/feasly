@@ -121,6 +121,8 @@ export interface CommissionInvoiceReadyEmailInput {
   readonly commissionCents: number;
   readonly contractValueCents: number;
   readonly currency: string;
+  /** Effective commission rate applied to the invoice, in PERCENT. */
+  readonly commissionRatePercent: number;
   /** End of the 7-day review window. */
   readonly reviewDueAt: Date;
 }
@@ -361,6 +363,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         contractValueCents: input.contractValueCents,
         currency: input.currency,
+        commissionRatePercent: input.commissionRatePercent,
         reviewDueAt: input.reviewDueAt,
       });
       return deliver({ ...rendered, to: input.to });

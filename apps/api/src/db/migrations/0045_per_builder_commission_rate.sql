@@ -1,0 +1,21 @@
+-- Per-builder commission rate (billing/08, 2026-09-30).
+--
+-- `builders` gains `commission_rate_percent` (real, percent convention:
+-- 1 = 1%, matching the existing per-invoice override column). NOT NULL
+-- DEFAULT 1 — Karan's 2026-09-24 decision (1% of the signed construction
+-- contract value, excl. land) stays the default; the admin portal can set a
+-- negotiated rate per builder (0–10, validated in the API).
+--
+-- `commission_invoices` gains a nullable `commission_rate_percent`: the
+-- builder's rate SNAPSHOTTED at invoice creation. Changing a builder's
+-- rate affects future invoices only — already-created invoices keep the
+-- rate they were created with. Null = legacy invoice created before the
+-- snapshot; the configured default (BILLING_COMMISSION_RATE) applies.
+--
+-- NOTE on type: `real`, not `numeric`, matching the existing
+-- `commission_rate_override` column — Drizzle maps `real` to a JS number
+-- while `numeric` arrives as a string.
+--> statement-breakpoint
+ALTER TABLE "builders" ADD COLUMN "commission_rate_percent" real NOT NULL DEFAULT 1;
+--> statement-breakpoint
+ALTER TABLE "commission_invoices" ADD COLUMN "commission_rate_percent" real;

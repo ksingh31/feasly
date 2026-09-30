@@ -511,6 +511,13 @@ export const builders = pgTable('builders', {
   /** 'active' | 'inactive' — inactive builders can't bill or embed. */
   status: text('status').notNull().default('active'),
   /**
+   * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
+   * 1 (Karan 2026-09-24 decision); editable in the admin portal
+   * (billing/08). New commission invoices snapshot this value at
+   * creation — changing it affects future invoices only.
+   */
+  commissionRatePercent: real('commission_rate_percent').notNull().default(1),
+  /**
    * Escape hatch for future per-builder config (per-plan fields, feature
    * flags) without new migrations. Always an object.
    */
@@ -825,7 +832,7 @@ export const commissionInvoices = pgTable(
       .references(() => leads.id),
     /** Signed construction contract value in integer cents, EXCL. land. */
     contractValueCents: integer('contract_value_cents').notNull(),
-    /** round(contractValueCents * BILLING_COMMISSION_RATE), integer cents. */
+    /** round(contractValueCents * effectiveRate), integer cents. */
     commissionCents: integer('commission_cents').notNull(),
     currency: text('currency').notNull().default('CAD'),
     /** Off-session PaymentIntent created at finalize. UNIQUE — one PI max. */
@@ -846,10 +853,16 @@ export const commissionInvoices = pgTable(
     disputeReason: text('dispute_reason'),
     /**
      * Admin override of the commission rate, in PERCENT (e.g. 1.5 = 1.5%).
-     * Null = the configured default (BILLING_COMMISSION_RATE). Unpaid
+     * Null = no override — the snapshot below applies. Unpaid
      * invoices only — never changed once a charge settled.
      */
     commissionRateOverride: real('commission_rate_override'),
+    /**
+     * The builder's `commission_rate_percent` snapshotted at invoice
+     * creation (billing/08). Null = legacy invoice created before the
+     * snapshot — the configured default (BILLING_COMMISSION_RATE) applies.
+     */
+    commissionRatePercent: real('commission_rate_percent'),
     /**
      * Off-Stripe payment method recorded by an admin mark-paid action.
      * Null unless the invoice was manually marked paid.

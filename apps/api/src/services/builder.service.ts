@@ -65,6 +65,36 @@ type BuilderRow = typeof builders.$inferSelect;
 
 const BUILDER_STATUS_RE = /^(active|inactive)$/;
 
+/** The default commission rate (percent) — Karan 2026-09-24: 1%. */
+const DEFAULT_COMMISSION_RATE_PERCENT = 1;
+/** Builder commission rates are negotiated percentages: 0–10. */
+const MAX_COMMISSION_RATE_PERCENT = 10;
+
+/**
+ * Validate a builder commission rate (percent). 0 is a legitimate
+ * negotiated outcome; anything outside 0–10 (or non-numeric) is 400.
+ */
+function parseCommissionRatePercent(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      'commissionRatePercent must be a number.',
+      false,
+    );
+  }
+  if (value < 0 || value > MAX_COMMISSION_RATE_PERCENT) {
+    throw new HttpError(
+      400,
+      ErrorCodes.INVALID_RATE,
+      `commissionRatePercent must be between 0 and ${MAX_COMMISSION_RATE_PERCENT} (percent).`,
+      false,
+    );
+  }
+  return value;
+}
+
 function toContract(row: BuilderRow): Builder {
   return {
     id: row.id,
@@ -79,6 +109,7 @@ function toContract(row: BuilderRow): Builder {
     plan: row.plan,
     status: row.status === 'inactive' ? 'inactive' : 'active',
     settings: { ...row.settings },
+    commissionRatePercent: row.commissionRatePercent,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -149,6 +180,9 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       // case, but two concurrent creates can both pass it. Map the
       // insert-time unique violation to the same 409 as the pre-check
       // instead of leaking a 500.
+      const commissionRatePercent =
+        parseCommissionRatePercent(input.commissionRatePercent) ??
+        DEFAULT_COMMISSION_RATE_PERCENT;
       let row;
       try {
         [row] = await db
@@ -166,6 +200,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
             plan: input.plan?.trim() || null,
             status,
             settings: { ...(input.settings ?? {}) },
+            commissionRatePercent,
           })
           .returning();
       } catch (error) {
@@ -183,7 +218,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       await audit.log({
         actorEmail: adminEmail,
         action: 'admin_builder_created',
-        detail: `builderId=${row.id} tenantKey=${row.tenantKey}`,
+        detail: `builderId=${row.id} tenantKey=${row.tenantKey} commissionRatePercent=${row.commissionRatePercent}`,
       });
       return toContract(row);
     },
@@ -220,6 +255,13 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         patch.status = input.status;
       }
       if (input.settings !== undefined) patch.settings = { ...input.settings };
+      const newRatePercent = parseCommissionRatePercent(
+        input.commissionRatePercent,
+      );
+      const rateChanged =
+        newRatePercent !== undefined &&
+        newRatePercent !== current.commissionRatePercent;
+      if (rateChanged) patch.commissionRatePercent = newRatePercent;
       const [row] = await db
         .update(builders)
         .set(patch)
@@ -230,6 +272,15 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         action: 'admin_builder_updated',
         detail: `builderId=${row.id} tenantKey=${row.tenantKey}`,
       });
+      if (rateChanged) {
+        await audit.log({
+          actorEmail: adminEmail,
+          action: 'admin_builder_commission_rate_changed',
+          detail:
+            `builderId=${row.id} tenantKey=${row.tenantKey} ` +
+            `from=${current.commissionRatePercent} to=${newRatePercent}`,
+        });
+      }
       return toContract(row);
     },
 
