@@ -5,10 +5,10 @@ import type { Observable } from 'rxjs';
 import type {
   CommentListResponse,
   CommentVisibility,
-  CreateAdminCommentBody,
-  LeadComment,
+  CreateCommentBody,
+  Comment,
   UpdateCommentBody,
-} from './admin-comments.contracts';
+} from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -20,9 +20,7 @@ import { toApiError } from '../../core/api/api-error';
  * session authenticates cross-origin (same pattern as the other admin
  * services). The admin area always talks to the real backend.
  *
- * Types come from `./admin-comments.contracts` — a local mirror of the
- * BILL-05 frozen contract. When BILL-05 merges, re-point the imports at
- * `@feasly/contracts`; the shapes are identical by construction.
+ * Types come from `@feasly/contracts` (BILL-05 frozen contract).
  */
 @Injectable({ providedIn: 'root' })
 export class AdminCommentsApiService {
@@ -78,20 +76,20 @@ export class AdminCommentsApiService {
    * Post a note on the lead. The caller chooses the visibility;
    * `admin_only` is the safe default (matches the API default).
    */
-  postComment(leadId: string, body: string, visibility: CommentVisibility): Observable<LeadComment> {
-    const payload: CreateAdminCommentBody = { body, visibility };
+  postComment(leadId: string, body: string, visibility: CommentVisibility): Observable<Comment> {
+    const payload: CreateCommentBody = { body, visibility };
     return this.call(
-      this.http.post<LeadComment>(this.leadCommentsUrl(leadId), payload, {
+      this.http.post<Comment>(this.leadCommentsUrl(leadId), payload, {
         withCredentials: true,
       }),
     );
   }
 
   /** Edit any comment on the lead (admin may edit all). */
-  editComment(commentId: string, body: string): Observable<LeadComment> {
+  editComment(commentId: string, body: string): Observable<Comment> {
     const payload: UpdateCommentBody = { body };
     return this.call(
-      this.http.patch<LeadComment>(this.commentUrl(commentId), payload, {
+      this.http.patch<Comment>(this.commentUrl(commentId), payload, {
         withCredentials: true,
       }),
     );

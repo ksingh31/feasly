@@ -135,13 +135,13 @@ function makeService(store: CommentStore): {
           : null;
       },
       findById: async (id: string) => {
-        const map: Record<string, string> = {
-          [USER_ID]: 'Mya Builder',
-          [OTHER_USER_ID]: 'Other Builder',
-          [ADMIN_USER_ID]: 'Owen Admin',
+        const map: Record<string, { name: string; email: string }> = {
+          [USER_ID]: { name: 'Mya Builder', email: 'builder@example.com' },
+          [OTHER_USER_ID]: { name: 'Other Builder', email: 'other@example.com' },
+          [ADMIN_USER_ID]: { name: 'Owen Admin', email: 'admin@example.com' },
         };
-        const name = map[id];
-        return name ? ({ id, name } as never) : null;
+        const hit = map[id];
+        return hit ? ({ id, name: hit.name, email: hit.email } as never) : null;
       },
     },
     uuid: () => 'e1111111-1111-4111-8111-111111111111',
@@ -217,7 +217,7 @@ describe('builder-comments.service', () => {
         entityType: 'lead',
         entityId: LEAD_ID,
         authorKind: 'builder',
-        authorId: USER_ID,
+        authorId: 'builder@example.com',
         authorDisplayName: 'Mya Builder',
         visibility: 'org',
         body: 'looks good',
@@ -515,6 +515,9 @@ describe('builder-comments.service', () => {
         actor: adminActor,
       });
       expect(res.comments[0]?.authorDisplayName).toBe('Other Builder');
+      // The wire authorId is the author's email — the identity the UI
+      // matches its session against for the "edit own comment" affordance.
+      expect(res.comments[0]?.authorId).toBe('other@example.com');
     });
   });
 

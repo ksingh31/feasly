@@ -2,8 +2,8 @@
  * AdminCommentsApiService tests (BILL-07).
  *
  * Asserts the service speaks the BILL-05 frozen admin routes with the
- * right method, URL, body, and credentials — typed against the local
- * frozen contract mirror (`admin-comments.contracts`).
+ * right method, URL, body, and credentials — typed against
+ * `@feasly/contracts`.
  */
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -13,11 +13,11 @@ import {
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AdminCommentsApiService } from './admin-comments-api.service';
-import type { LeadComment } from './admin-comments.contracts';
+import type { Comment } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
-const COMMENT: LeadComment = {
+const COMMENT: Comment = {
   id: 'c-1',
   entityType: 'lead',
   entityId: 'lead-1',
@@ -29,6 +29,7 @@ const COMMENT: LeadComment = {
   createdAt: '2026-09-29T10:00:00Z',
   updatedAt: '2026-09-29T10:00:00Z',
   edited: false,
+  deletedAt: null,
 };
 
 describe('AdminCommentsApiService', () => {
@@ -51,7 +52,7 @@ describe('AdminCommentsApiService', () => {
   });
 
   it('lists comments from the admin lead-comments endpoint', () => {
-    let result: readonly LeadComment[] | null = null;
+    let result: readonly Comment[] | null = null;
     service.listComments('lead-1').subscribe((res) => {
       result = res.comments;
     });

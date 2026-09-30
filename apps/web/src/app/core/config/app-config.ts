@@ -256,6 +256,12 @@ export interface BuilderCopy {
   leadsStatusSaving: string;
   leadsStatusApply: string;
   leadsStatusLocked: string;
+  commentsToggleShow: string;
+  commentsToggleHide: string;
+  commentsEmpty: string;
+  commentsPostFailed: string;
+  commentsEditFailed: string;
+  commentsMaxLength: number;
   leadsWonHint: string;
   leadsWonReportCta: string;
   leadsRecordedCta: string;

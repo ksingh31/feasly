@@ -85,11 +85,3 @@ packages/contracts/src/builder.ts :: PLACEHOLDER :: builder Entra app/user flow 
 # the Entra callback, org memberships/switch, and team-user endpoints until
 # the backend lane lands them. Unblocks when backend implements the routes.
 apps/web/src/app/features/builder/builder-auth.contracts.ts :: PLACEHOLDER :: frontend-owned auth/05 contract placeholders, unblocked when backend builder auth/org/team routes land
-
-# BILL-07 lane: comment-thread shared-component placeholder (BILL-06 owns the
-# real component, building on a parallel lane). Faithful to BILL-06's spec'd
-# input/output surface so the admin container builds and verifies meanwhile.
-# Unblock: DELETE these files + this entry when BILL-06 merges (the admin
-# container is written purely against the surface and must not change).
-apps/web/src/app/shared/components/comment-thread :: PLACEHOLDER :: BILL-06 parallel-lane placeholder, delete on BILL-06 merge
-apps/web/src/app/shared/components/index.ts :: PLACEHOLDER :: re-export of the BILL-06 placeholder above, delete on BILL-06 merge

@@ -2,15 +2,21 @@
 export { AddressAutocompleteComponent } from './address-autocomplete';
 export { BrandMarkComponent } from './brand-mark';
 export { BuilderMatchingExplainerComponent } from './builder-matching-explainer';
-// PLACEHOLDER (BILL-07) — BILL-06 owns comment-thread; this re-export is
-// deleted with the placeholder component when BILL-06 merges.
-export { CommentThreadComponent } from './comment-thread';
+// Note (BILL-06): comment-thread's RUNTIME values (CommentThreadComponent,
+// BUILDER_COMMENT_THREAD_CONFIG, DEFAULT_COMMENT_THREAD_LABELS,
+// formatCommentTimestamp) are intentionally NOT re-exported here. They are
+// imported via the direct subpath '../../shared/components/comment-thread'.
+// Re-exporting the component from this barrel pulls its 14KB into the main
+// entry chunk (it's shared with the lazy builder/admin portals), breaking
+// the Lighthouse resource-summary budget. Type-only exports are erased at
+// compile time and stay here for convenient typing.
 export type {
+  Comment,
   CommentEdit,
+  CommentListResponse,
   CommentPost,
   CommentThreadConfig,
-  ThreadComment,
-  ThreadCommentVisibility,
+  CommentThreadLabels,
 } from './comment-thread';
 export { LegalReviewBannerComponent } from './legal-review-banner';
 export { PropertyCardComponent } from './property-card';

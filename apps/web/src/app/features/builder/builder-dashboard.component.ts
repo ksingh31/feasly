@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import type { BuilderLeadListItem, BuilderLeadStatus } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
+import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 
@@ -27,7 +28,7 @@ import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 @Component({
   selector: 'app-builder-dashboard',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, BuilderLeadCommentsComponent],
   templateUrl: './builder-dashboard.component.html',
   styleUrls: ['./builder-dashboard.component.scss'],
 })
@@ -69,6 +70,25 @@ export class BuilderDashboardComponent implements OnInit {
       .dispatch(new LoadBuilderLeads())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  /** Lead ids whose notes thread is expanded (ephemeral UI state, not persisted). */
+  protected readonly expandedNotes = signal<ReadonlySet<string>>(new Set());
+
+  protected notesExpanded(leadId: string): boolean {
+    return this.expandedNotes().has(leadId);
+  }
+
+  protected toggleNotes(leadId: string): void {
+    this.expandedNotes.update((open) => {
+      const next = new Set(open);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
   }
 
   protected retryLoad(): void {

@@ -1,115 +1,166 @@
-<div class="comment-thread">
-  <ol class="comment-thread__list">
-    @for (comment of sorted(); track comment.id) {
-      <li
-        class="comment-thread__item"
-        [class.comment-thread__item--internal]="showInternalBadge(comment)"
-      >
-        <div class="comment-thread__avatar" aria-hidden="true">{{ initial(comment.authorDisplayName) }}</div>
-        <div class="comment-thread__body">
+<section class="comment-thread" [attr.aria-label]="labels().heading">
+  <h3 class="comment-thread__heading">{{ labels().heading }}</h3>
+
+  @if (loading()) {
+    <p class="comment-thread__status" role="status">{{ labels().loadingThread }}</p>
+  } @else if (comments().length === 0) {
+    <p class="comment-thread__status">{{ labels().emptyThread }}</p>
+  } @else {
+    <ol class="comment-thread__list">
+      @for (comment of comments(); track comment.id) {
+        <li class="comment-thread__item">
           <div class="comment-thread__meta">
             <span class="comment-thread__author">{{ comment.authorDisplayName }}</span>
-            @if (showInternalBadge(comment)) {
-              <span class="comment-thread__badge">Internal</span>
-            }
-            <span class="comment-thread__time">{{ timeAgo(comment.createdAt) }}</span>
+            <time
+              class="comment-thread__time"
+              [attr.datetime]="comment.createdAt"
+              [title]="comment.createdAt"
+            >
+              {{ formatTimestamp(comment.createdAt) }}
+            </time>
             @if (comment.edited) {
-              <span class="comment-thread__edited">(edited)</span>
+              <span class="comment-thread__edited">· {{ labels().editedMarker }}</span>
+            }
+            @if (showInternalBadge(comment)) {
+              <span class="comment-thread__internal">{{ labels().internalBadge }}</span>
             }
           </div>
-          @if (editingId() === comment.id) {
+
+          @if (editId() === comment.id) {
             <div class="comment-thread__edit">
-              <label>
-                <span class="sr-only">Edit comment</span>
-                <textarea
-                  [ngModel]="editDraft()"
-                  (ngModelChange)="editDraft.set($event)"
-                  rows="3"
-                  maxlength="2000"
-                ></textarea>
+              <label class="sr-only" [for]="'edit-' + comment.id">
+                {{ labels().editLabel }}: {{ comment.authorDisplayName }}
               </label>
+              <textarea
+                [id]="'edit-' + comment.id"
+                class="comment-thread__textarea"
+                [value]="editDraft()"
+                (input)="editDraft.set($any($event.target).value)"
+                [maxLength]="maxLength()"
+                [disabled]="formDisabled()"
+                rows="3"
+              ></textarea>
               <div class="comment-thread__edit-actions">
-                <button type="button" (click)="submitEdit(comment.id)" [disabled]="!editDraft().trim()">
-                  Save
+                <button
+                  type="button"
+                  class="comment-thread__btn comment-thread__btn--primary"
+                  (click)="submitEdit(comment)"
+                  [disabled]="formDisabled()"
+                >
+                  {{ formDisabled() ? labels().savingLabel : labels().saveLabel }}
                 </button>
-                <button type="button" class="comment-thread__ghost" (click)="cancelEdit()">Cancel</button>
+                <button
+                  type="button"
+                  class="comment-thread__btn"
+                  (click)="cancelEdit()"
+                  [disabled]="formDisabled()"
+                >
+                  {{ labels().cancelLabel }}
+                </button>
               </div>
             </div>
           } @else {
-            <p class="comment-thread__text">{{ comment.body }}</p>
+            <p class="comment-thread__body">{{ comment.body }}</p>
             <div class="comment-thread__actions">
               @if (canEdit(comment)) {
-                <button type="button" class="comment-thread__ghost" (click)="startEdit(comment)">
-                  Edit
+                <button
+                  type="button"
+                  class="comment-thread__link"
+                  (click)="startEdit(comment)"
+                  [disabled]="formDisabled()"
+                >
+                  {{ labels().editLabel }}
                 </button>
               }
               @if (canDelete()) {
-                @if (confirmingDeleteId() === comment.id) {
+                @if (deleteConfirmId() === comment.id) {
                   <span class="comment-thread__confirm">
-                    Delete this comment?
-                    <button type="button" class="comment-thread__danger" (click)="confirmDelete(comment.id)">
-                      Delete
+                    <button
+                      type="button"
+                      class="comment-thread__btn comment-thread__btn--danger"
+                      (click)="confirmDelete(comment)"
+                      [disabled]="formDisabled()"
+                    >
+                      {{ formDisabled() ? labels().deletingLabel : labels().confirmDeleteLabel }}
                     </button>
-                    <button type="button" class="comment-thread__ghost" (click)="cancelDelete()">
-                      Keep
+                    <button
+                      type="button"
+                      class="comment-thread__link"
+                      (click)="cancelDelete()"
+                      [disabled]="formDisabled()"
+                    >
+                      {{ labels().cancelLabel }}
                     </button>
                   </span>
                 } @else {
-                  <button type="button" class="comment-thread__ghost" (click)="askDelete(comment.id)">
-                    Delete
+                  <button
+                    type="button"
+                    class="comment-thread__link comment-thread__link--danger"
+                    (click)="askDelete(comment)"
+                    [disabled]="formDisabled()"
+                  >
+                    {{ labels().deleteLabel }}
                   </button>
                 }
               }
             </div>
           }
-        </div>
-      </li>
-    } @empty {
-      <li class="comment-thread__empty">No comments yet.</li>
-    }
-  </ol>
+        </li>
+      }
+    </ol>
+  }
+
+  @if (error() !== null) {
+    <p class="comment-thread__error" role="alert">
+      <span>{{ error() }}</span>
+      <button
+        type="button"
+        class="comment-thread__link"
+        (click)="dismissError.emit()"
+      >
+        {{ labels().dismissErrorLabel }}
+      </button>
+    </p>
+  }
 
   @if (config().allowPost) {
     <div class="comment-thread__composer">
-      @if (config().showVisibilityToggle) {
-        <div class="comment-thread__visibility" role="radiogroup" aria-label="Who can see this note">
-          <button
-            type="button"
-            role="radio"
-            [attr.aria-checked]="draftVisibility() === 'admin_only'"
-            [class.comment-thread__visibility--active]="draftVisibility() === 'admin_only'"
-            (click)="draftVisibility.set('admin_only')"
-          >
-            Internal only
-          </button>
-          <button
-            type="button"
-            role="radio"
-            [attr.aria-checked]="draftVisibility() === 'org'"
-            [class.comment-thread__visibility--active]="draftVisibility() === 'org'"
-            (click)="draftVisibility.set('org')"
-          >
-            Builder can see this
-          </button>
-        </div>
-      }
-      <label>
-        <span class="sr-only">Write a comment</span>
-        <textarea
-          [ngModel]="draft()"
-          (ngModelChange)="draft.set($event)"
-          rows="3"
-          maxlength="2000"
-          placeholder="Write a note…"
-          [disabled]="busy()"
-        ></textarea>
-      </label>
+      <label class="sr-only" [for]="composerId">{{ labels().composerPlaceholder }}</label>
+      <textarea
+        [id]="composerId"
+        class="comment-thread__textarea"
+        [placeholder]="labels().composerPlaceholder"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        [maxLength]="maxLength()"
+        [disabled]="formDisabled() || loading()"
+        rows="3"
+      ></textarea>
       <div class="comment-thread__composer-foot">
-        <span class="comment-thread__hint">{{ draft().length }}/2000</span>
-        <button type="button" (click)="submitPost()" [disabled]="!canPost()">
-          {{ busy() ? 'Posting…' : 'Post' }}
+        @if (config().showVisibilityToggle) {
+          <label class="comment-thread__visibility">
+            <span class="sr-only">{{ labels().visibilityToggleLabel }}</span>
+            <select
+              [id]="visibilityId"
+              [value]="postVisibility()"
+              (change)="postVisibility.set($any($event.target).value)"
+              [disabled]="formDisabled()"
+            >
+              <option value="org">{{ labels().visibilityOrgLabel }}</option>
+              <option value="admin_only">{{ labels().visibilityAdminOnlyLabel }}</option>
+            </select>
+          </label>
+        }
+        <span class="comment-thread__hint" aria-live="polite">{{ charHint() }}</span>
+        <button
+          type="button"
+          class="comment-thread__btn comment-thread__btn--primary"
+          (click)="submitPost()"
+          [disabled]="formDisabled() || loading() || draft().trim().length === 0"
+        >
+          {{ posting() ? labels().postingLabel : labels().postLabel }}
         </button>
       </div>
     </div>
   }
-</div>
+</section>
