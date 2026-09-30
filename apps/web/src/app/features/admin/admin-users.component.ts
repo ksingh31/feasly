@@ -362,10 +362,19 @@ export class AdminUsersComponent implements OnInit {
   }
 
   /**
+   * Deterministic id for a last-admin ⓘ tooltip bubble. The disabled
+   * control's `aria-describedby` and the tooltip's `[tooltipId]` both
+   * use it (template refs can't cross `@if` block boundaries).
+   */
+  protected lastAdminTipId(user: AdminUser | null, kind: 'role' | 'deactivate'): string {
+    return `last-admin-${kind}-${user?.id ?? 'unknown'}`;
+  }
+
+  /**
    * auth/07: whether this row is the sole remaining active staff admin
    * (`super_admin`/`admin`) in the loaded list. The template disables
-   * their staff-role select and their Deactivate action, with an inline
-   * explainer; the backend 409 is the real enforcement. Pending /
+   * their staff-role select and their Deactivate action, with an ⓘ
+   * tooltip explainer; the backend 409 is the real enforcement. Pending /
    * deactivated users never count. (The list is paginated, so an admin
    * on another page isn't visible here — the 409 still protects them.)
    */

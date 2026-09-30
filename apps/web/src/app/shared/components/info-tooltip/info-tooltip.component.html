@@ -31,7 +31,7 @@
       class="info-tooltip__bubble"
       [class.info-tooltip__bubble--positioned]="positioned()"
       role="tooltip"
-      [id]="tooltipId"
+      [id]="tooltipId()"
       [style.top.px]="position().top"
       [style.left.px]="position().left"
     >{{ text() }}</div>

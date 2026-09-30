@@ -22,7 +22,6 @@ import { BuilderTeamComponent } from './builder-team.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
-import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderTeamState } from './builder-team.state';
 import { BuilderState } from './builder.state';
 import {
@@ -487,7 +486,11 @@ describe('BuilderTeamComponent (auth/05)', () => {
     remove!.click();
     fixture.detectChanges();
     const actionButtons = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-team__actions button'),
+      // The ⓘ tooltip trigger is informational, not an action — it stays
+      // enabled so the user can read why the action is disabled.
+      fixture.nativeElement.querySelectorAll(
+        '.builder-team__actions button:not(.info-tooltip__trigger)',
+      ),
     ) as HTMLButtonElement[];
     expect(actionButtons.length).toBeGreaterThan(0);
     for (const button of actionButtons) {
@@ -559,7 +562,8 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     // points at the tooltip for screen readers.
     expect(row.querySelector('app-info-tooltip .info-tooltip__trigger')).not.toBeNull();
     const tip = tooltipsIn(fixture, row).find((t) => t.text() === ROLE_NOTE)!;
-    expect(select.getAttribute('aria-describedby')).toBe(tip.tooltipId);
+    expect(tip.tooltipId()).toBe('last-admin-role-u1');
+    expect(select.getAttribute('aria-describedby')).toBe('last-admin-role-u1');
     // No inline explainer text under the controls anymore.
     expect(row.querySelector('.builder-team__note:not(.builder-team__note--error)')).toBeNull();
     // Bob (u2) is a member — his select stays enabled.
@@ -575,18 +579,31 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     expect(deactivate).toBeDefined();
     expect(deactivate.disabled).toBe(true);
     expect(tooltipTexts(fixture, row)).toContain(DEACTIVATE_NOTE);
-    const tip = tooltipsIn(fixture, row).find((t) => t.text() === DEACTIVATE_NOTE)!;
-    expect(deactivate.getAttribute('aria-describedby')).toBe(tip.tooltipId);
+    // Scope to the deactivate tooltip's own element — the row also
+    // carries the role tooltip.
+    const tipDebug = fixture.debugElement
+      .queryAll(By.directive(InfoTooltipComponent))
+      .find(
+        (d) =>
+          row.contains(d.nativeElement as Node) &&
+          (d.componentInstance as InfoTooltipComponent).text() ===
+            DEACTIVATE_NOTE,
+      )!;
+    const tip = tipDebug.componentInstance as InfoTooltipComponent;
+    expect(tip.tooltipId()).toBe('last-admin-deactivate-u1');
+    expect(deactivate.getAttribute('aria-describedby')).toBe('last-admin-deactivate-u1');
 
     // The explainer shows on demand: tap the ⓘ icon.
-    const trigger = row.querySelector(
-      'app-info-tooltip .info-tooltip__trigger',
+    const trigger = tipDebug.nativeElement.querySelector(
+      '.info-tooltip__trigger',
     ) as HTMLButtonElement;
     trigger.click();
     fixture.detectChanges();
     await Promise.resolve();
     fixture.detectChanges();
-    const bubble = row.querySelector('.info-tooltip__bubble') as HTMLElement;
+    const bubble = tipDebug.nativeElement.querySelector(
+      '.info-tooltip__bubble',
+    ) as HTMLElement;
     expect(bubble).not.toBeNull();
     expect(bubble.getAttribute('role')).toBe('tooltip');
     expect(bubble.textContent?.trim()).toBe(DEACTIVATE_NOTE);

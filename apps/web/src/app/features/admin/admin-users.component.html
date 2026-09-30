@@ -102,7 +102,7 @@
                       class="users-page__danger-link"
                       (click)="deactivate(user)"
                       [disabled]="updating() || isSoleStaffAdmin(user)"
-                      [attr.aria-describedby]="staffDeactivateTip?.tooltipId"
+                      [attr.aria-describedby]="isSoleStaffAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
                     >
                       Deactivate
                     </button>
@@ -111,7 +111,7 @@
                          action explains why (replaces the inline note). -->
                     @if (isSoleStaffAdmin(user)) {
                       <app-info-tooltip
-                        #staffDeactivateTip="infoTooltip"
+                        [tooltipId]="lastAdminTipId(user, 'deactivate')"
                         text="Every organization needs at least one active administrator."
                         label="Why can't this user be deactivated?"
                       />
@@ -267,7 +267,7 @@
           <span class="users-page__field-row">
             <select
               formControlName="role"
-              [attr.aria-describedby]="staffRoleTip?.tooltipId"
+              [attr.aria-describedby]="isSoleStaffAdmin(editingUser()) ? lastAdminTipId(editingUser(), 'role') : null"
             >
               <option value="">No staff role (builder organizations only)</option>
               @for (role of staffRoles; track role) {
@@ -281,7 +281,7 @@
                  disabled select explains why (replaces the inline note). -->
             @if (isSoleStaffAdmin(editingUser())) {
               <app-info-tooltip
-                #staffRoleTip="infoTooltip"
+                [tooltipId]="lastAdminTipId(editingUser(), 'role')"
                 text="You can't change the role of the last administrator. Add another administrator first."
                 label="Why can't this role be changed?"
               />

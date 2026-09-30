@@ -217,7 +217,12 @@ describe('AdminUsersComponent', () => {
         row.querySelector('app-info-tooltip .info-tooltip__trigger'),
       ).not.toBeNull();
       // …and the control points at the tooltip for screen readers.
-      expect(button.getAttribute('aria-describedby')).toBe(tip!.tooltipId);
+      expect(tip!.tooltipId()).toBe(
+        `last-admin-deactivate-${SOLE_ADMIN.id}`,
+      );
+      expect(button.getAttribute('aria-describedby')).toBe(
+        `last-admin-deactivate-${SOLE_ADMIN.id}`,
+      );
       // No inline explainer text under the control anymore.
       expect(row.querySelector('.users-page__note:not(.users-page__note--error)')).toBeNull();
     });
@@ -268,7 +273,10 @@ describe('AdminUsersComponent', () => {
       expect(tip!.text()).toBe(
         "You can't change the role of the last administrator. Add another administrator first.",
       );
-      expect(select.getAttribute('aria-describedby')).toBe(tip!.tooltipId);
+      expect(tip!.tooltipId()).toBe(`last-admin-role-${SOLE_ADMIN.id}`);
+      expect(select.getAttribute('aria-describedby')).toBe(
+        `last-admin-role-${SOLE_ADMIN.id}`,
+      );
       expect(
         modal.querySelector('.users-page__note:not(.users-page__note--error)'),
       ).toBeNull();

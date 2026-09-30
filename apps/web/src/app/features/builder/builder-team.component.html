@@ -87,7 +87,7 @@
                     (change)="onRoleSelect(user.id, $any($event.target).value)"
                     [disabled]="updatingUserId() === user.id || isSoleAdmin(user)"
                     [attr.aria-label]="copy.teamColRole"
-                    [attr.aria-describedby]="roleTip?.tooltipId"
+                    [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'role') : null"
                   >
                     <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
                     <option value="builder_member">{{ copy.orgRoleMember }}</option>
@@ -98,7 +98,7 @@
                        note, which bloated the column on mobile). -->
                   @if (isSoleAdmin(user)) {
                     <app-info-tooltip
-                      #roleTip="infoTooltip"
+                      [tooltipId]="lastAdminTipId(user, 'role')"
                       [text]="copy.teamLastAdminRoleNote"
                       label="Why can't this role be changed?"
                     />
@@ -138,7 +138,7 @@
                       type="button"
                       class="builder-team__danger-link"
                       [disabled]="rowActionsDisabled() || isSoleAdmin(user)"
-                      [attr.aria-describedby]="deactivateTip?.tooltipId"
+                      [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
                       (click)="askDeactivate(user)"
                     >
                       {{ copy.teamDeactivateLabel }}
@@ -149,7 +149,7 @@
                          which bloated the ACTIONS column on mobile). -->
                     @if (isSoleAdmin(user)) {
                       <app-info-tooltip
-                        #deactivateTip="infoTooltip"
+                        [tooltipId]="lastAdminTipId(user, 'deactivate')"
                         [text]="copy.teamLastAdminDeactivateNote"
                         label="Why can't this member be deactivated?"
                       />

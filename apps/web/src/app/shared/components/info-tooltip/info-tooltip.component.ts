@@ -4,6 +4,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  computed,
   inject,
   input,
   signal,
@@ -20,8 +21,8 @@ let infoTooltipCounter = 0;
  *
  * Parents render it only when the control is disabled for an informational
  * reason and pass the exact story copy via `text`. The disabled control
- * itself binds `[attr.aria-describedby]="tip?.tooltipId"` (template ref
- * `#tip="infoTooltip"`); the bubble carries `role="tooltip"`.
+ * binds `[attr.aria-describedby]` to the same id passed as `[tooltipId]`;
+ * the bubble carries `role="tooltip"`.
  *
  * Behavior: tap/click toggles (pinned open); hover opens on hover-capable
  * desktops; keyboard focus opens; Escape, outside tap/click, or toggling
@@ -45,10 +46,23 @@ export class InfoTooltipComponent implements AfterViewChecked {
   readonly label = input('Why is this unavailable?');
 
   /**
-   * Stable id of the tooltip bubble. Parents bind the disabled control's
-   * `aria-describedby` to it: `[attr.aria-describedby]="tip?.tooltipId"`.
+   * Optional explicit id for the tooltip bubble. Parents that link a
+   * disabled control via `aria-describedby` pass a deterministic id
+   * (e.g. `'last-admin-role-' + user.id`) so both sides reference the
+   * same string without template-ref scoping gymnastics. When omitted,
+   * a unique id is generated.
    */
-  readonly tooltipId = `info-tooltip-${++infoTooltipCounter}`;
+  readonly tooltipIdInput = input<string | undefined>(undefined, {
+    alias: 'tooltipId',
+  });
+
+  /**
+   * The bubble's id — the value parents bind the disabled control's
+   * `aria-describedby` to.
+   */
+  readonly tooltipId = computed(
+    () => this.tooltipIdInput() ?? this.autoTooltipId,
+  );
 
   protected readonly open = signal(false);
   protected readonly pinned = signal(false);
@@ -58,6 +72,7 @@ export class InfoTooltipComponent implements AfterViewChecked {
   private readonly bubbleRef = viewChild<ElementRef<HTMLElement>>('bubble');
   private readonly triggerRef = viewChild<ElementRef<HTMLButtonElement>>('trigger');
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly autoTooltipId = `info-tooltip-${++infoTooltipCounter}`;
 
   private suppressFocusOpen = false;
   private hoverCapable: boolean | null = null;

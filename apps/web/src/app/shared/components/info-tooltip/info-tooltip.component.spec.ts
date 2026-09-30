@@ -79,8 +79,25 @@ describe('InfoTooltipComponent', () => {
     const tip = bubble()!;
     expect(tip.getAttribute('role')).toBe('tooltip');
     expect(tip.textContent?.trim()).toBe(EXPLAINER);
-    expect(tip.id).toBe(component().tooltipId);
+    expect(tip.id).toBe(component().tooltipId());
     expect(tip.id).toMatch(/^info-tooltip-\d+$/);
+  });
+
+  it('a parent-provided tooltipId is used for the bubble id', async () => {
+    @Component({
+      standalone: true,
+      imports: [InfoTooltipComponent],
+      template: `<app-info-tooltip text="x" tooltipId="parent-tip-1" />`,
+    })
+    class IdHostComponent {}
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [IdHostComponent] });
+    const idFixture = TestBed.createComponent(IdHostComponent);
+    idFixture.detectChanges();
+    const instance = idFixture.debugElement.query(
+      By.directive(InfoTooltipComponent),
+    ).componentInstance as InfoTooltipComponent;
+    expect(instance.tooltipId()).toBe('parent-tip-1');
   });
 
   it('each instance gets a unique tooltip id', () => {
@@ -99,7 +116,7 @@ describe('InfoTooltipComponent', () => {
       .queryAll(By.directive(InfoTooltipComponent))
       .map((d) => d.componentInstance as InfoTooltipComponent);
     expect(instances).toHaveLength(2);
-    expect(instances[0]!.tooltipId).not.toBe(instances[1]!.tooltipId);
+    expect(instances[0]!.tooltipId()).not.toBe(instances[1]!.tooltipId());
   });
 
   it('Escape dismisses an open tooltip', async () => {
