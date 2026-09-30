@@ -225,6 +225,29 @@ ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "lead_id" uuid NOT NULL;
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "note" text NOT NULL;
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "builder_comments" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"entity_type" text NOT NULL,
+	"entity_id" uuid NOT NULL,
+	"author_kind" text NOT NULL,
+	"author_id" uuid NOT NULL,
+	"visibility" text DEFAULT 'org' NOT NULL,
+	"body" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"deleted_at" timestamp with time zone
+);
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "entity_type" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "entity_id" uuid NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "author_kind" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "author_id" uuid NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "visibility" text DEFAULT 'org' NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "body" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone;
 CREATE TABLE IF NOT EXISTS "lead_status_history" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

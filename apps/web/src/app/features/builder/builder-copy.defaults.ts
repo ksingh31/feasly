@@ -128,6 +128,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesColCommission: 'Commission',
   invoicesColStatus: 'Status',
   invoicesColDue: 'Review deadline',
+  invoicesColLead: 'Lead',
   invoiceStatusDraft: 'Draft',
   invoiceStatusInReview: 'In review',
   invoiceStatusFinalized: 'Finalized',

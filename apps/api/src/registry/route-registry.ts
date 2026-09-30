@@ -651,6 +651,81 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'review); without them the invoice waits for ' +
       'POST /api/v1/billing/report-contract.',
   },
+  // ── billing/05 lead comments ────────────────────────────────────────
+  {
+    method: 'GET',
+    path: '/api/v1/builder/leads/{leadId}/comments',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Lead comment thread for the builder portal — `org`-visible comments ' +
+      'only. `admin_only` rows are excluded in SQL, never serialized.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/leads/{leadId}/comments',
+    auth: 'builder-session',
+    permissions: ['builder:leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Add a builder comment to a lead. Visibility is forced to `org` ' +
+      'server-side; any client-sent visibility is ignored.',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/builder/comments/{commentId}',
+    auth: 'builder-session',
+    permissions: ['builder:leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      "Edit the builder's own comment (author-only). There is no builder " +
+      'DELETE route — builders cannot delete comments.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/leads/{leadId}/comments',
+    auth: 'admin',
+    permissions: ['leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Full lead comment thread for admins, including `admin_only` rows.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/leads/{leadId}/comments',
+    auth: 'admin',
+    permissions: ['leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Add an admin comment to a lead. Defaults to `admin_only` unless ' +
+      '`org` is explicitly requested.',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/comments/{commentId}',
+    auth: 'admin',
+    permissions: ['leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary: "Edit an admin's own comment (author-only).",
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/admin/comments/{commentId}',
+    auth: 'admin',
+    permissions: ['leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Soft-delete a comment (admin moderation). The row survives in the ' +
+      'database; both read paths exclude it in SQL.',
+  },
   {
     method: 'GET',
     path: '/api/v1/admin/api-keys',

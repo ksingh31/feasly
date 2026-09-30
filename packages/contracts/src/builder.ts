@@ -330,3 +330,71 @@ export interface BuilderOrgUserUpdateBody {
   /** 'active' | 'disabled' — disabling kills sessions immediately. */
   readonly status?: string;
 }
+
+/**
+ * Lead comments (BILL-05) — FROZEN contract. BILL-06 (builder portal UI)
+ * and BILL-07 (admin console UI) build against these shapes; do not
+ * change them without coordinating both lanes.
+ *
+ * Visibility model:
+ * - `org` — visible to the lead's builder org AND to admins.
+ * - `admin_only` — visible to admins only. The builder read path excludes
+ *   these rows in SQL (never in JS), so leaking one to a builder is
+ *   unrepresentable in the builder response.
+ *
+ * v1 attaches comments to leads only, but `entityType`/`entityId` are
+ * generic from day one so invoice comments (the future dispute thread)
+ * reuse this table with zero migration.
+ */
+
+/** Who can see a comment. */
+export type CommentVisibility = 'org' | 'admin_only';
+
+/** Who wrote a comment. */
+export type CommentAuthorKind = 'builder' | 'admin';
+
+/** What a comment is attached to. v1: leads only. */
+export type CommentEntityType = 'lead';
+
+/**
+ * A single comment. Builder and admin responses share this one base type —
+ * no duplicated interfaces. Soft-deleted rows are never serialized, so
+ * `deletedAt` is always null on the wire.
+ */
+export interface Comment {
+  readonly id: string;
+  readonly entityType: CommentEntityType;
+  readonly entityId: string;
+  readonly authorKind: CommentAuthorKind;
+  readonly authorId: string;
+  readonly authorDisplayName: string;
+  readonly visibility: CommentVisibility;
+  /** HTML-escaped on read — render as text, never as HTML. */
+  readonly body: string;
+  /** ISO-8601 timestamps. */
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  /** True once the author has edited the body. */
+  readonly edited: boolean;
+  readonly deletedAt: null;
+}
+
+/** `GET …/comments` response — newest last (chronological thread). */
+export interface CommentListResponse {
+  readonly comments: readonly Comment[];
+}
+
+/**
+ * `POST …/comments` request body. `visibility` is honored on the admin
+ * path only (default `admin_only` — safe default); the builder path
+ * forces `org` server-side and ignores any client-sent value.
+ */
+export interface CreateCommentBody {
+  readonly body: string;
+  readonly visibility?: CommentVisibility;
+}
+
+/** `PATCH …/comments/{commentId}` request body. Author-only. */
+export interface UpdateCommentBody {
+  readonly body: string;
+}

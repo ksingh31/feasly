@@ -46,6 +46,7 @@ const INVOICE: CommissionInvoice = {
   tenantKey: 'tenant-1',
   attributionId: 'attr-1',
   leadId: LEAD_ID,
+  leadName: 'Jane Homeowner',
   contractValueCents: 65000000,
   commissionCents: 650000,
   currency: 'CAD',

@@ -887,6 +887,18 @@ describe('listInvoices (BILL-04)', () => {
     expect(list[0].tenantKey).toBe(key);
   });
 
+  it('resolves the lead name on each listed invoice', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-leadname';
+    await seedInvoice(key);
+
+    const list = await commission.listInvoices(key, { limit: 20, offset: 0 });
+
+    expect(list.length).toBe(1);
+    // seedAttribution inserts the lead as 'Test Homeowner'.
+    expect(list[0].leadName).toBe('Test Homeowner');
+  });
+
   it('isolates tenants: another tenant\'s invoices never appear', async () => {
     const { commission } = newServices(testDb);
     await seedInvoice('list-builder-a');

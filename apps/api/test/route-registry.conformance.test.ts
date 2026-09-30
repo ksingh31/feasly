@@ -196,6 +196,34 @@ describe('route registry', () => {
         'builder_admin',
         'builder_member',
       ],
+      // billing/05 — lead comments (builder path reuses builder:leads perms).
+      'GET /api/v1/builder/leads/{leadId}/comments': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+        'builder_member',
+      ],
+      'POST /api/v1/builder/leads/{leadId}/comments': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+        'builder_member',
+      ],
+      'PATCH /api/v1/builder/comments/{commentId}': [
+        'super_admin',
+        'admin',
+        'builder_admin',
+        'builder_member',
+      ],
+      // billing/05 — lead comments (admin path reuses leads perms).
+      'GET /api/v1/admin/leads/{leadId}/comments': [
+        'super_admin',
+        'admin',
+        'viewer',
+      ],
+      'POST /api/v1/admin/leads/{leadId}/comments': ['super_admin', 'admin'],
+      'PATCH /api/v1/admin/comments/{commentId}': ['super_admin', 'admin'],
+      'DELETE /api/v1/admin/comments/{commentId}': ['super_admin', 'admin'],
       'POST /api/v1/billing/report-contract': [
         'super_admin',
         'admin',

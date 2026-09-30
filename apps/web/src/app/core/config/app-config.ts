@@ -158,6 +158,7 @@ export interface BuilderCopy {
   invoicesColCommission: string;
   invoicesColStatus: string;
   invoicesColDue: string;
+  invoicesColLead: string;
   invoiceStatusDraft: string;
   invoiceStatusInReview: string;
   invoiceStatusFinalized: string;
