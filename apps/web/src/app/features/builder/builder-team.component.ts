@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
+import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
 import {
@@ -38,7 +39,7 @@ import type { BuilderTeamUser } from './builder-auth.contracts';
 @Component({
   selector: 'app-builder-team',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, InfoTooltipComponent],
   templateUrl: './builder-team.component.html',
   styleUrls: ['./builder-team.component.scss'],
 })
@@ -274,8 +275,8 @@ export class BuilderTeamComponent implements OnInit {
    * auth/07: whether this row is the sole remaining active admin of the
    * org. Pending/deactivated members never count — only live access
    * (status 'active') holding 'builder_admin'. The template disables
-   * their role select + Apply and their Deactivate action, with an
-   * inline explainer; the backend 409 is the real enforcement.
+   * their role select + Apply and their Deactivate action, with an ⓘ
+   * tooltip explainer; the backend 409 is the real enforcement.
    */
   protected isSoleAdmin(user: BuilderTeamUser): boolean {
     if (user.role !== 'builder_admin' || user.status !== 'active') {
@@ -285,6 +286,15 @@ export class BuilderTeamComponent implements OnInit {
       (u) => u.role === 'builder_admin' && u.status === 'active',
     );
     return admins.length === 1 && admins[0]!.id === user.id;
+  }
+
+  /**
+   * Deterministic id for the row's last-admin ⓘ tooltip bubble. The
+   * disabled control's `aria-describedby` and the tooltip's `[tooltipId]`
+   * both use it (template refs can't cross `@if` block boundaries).
+   */
+  protected lastAdminTipId(user: BuilderTeamUser, kind: 'role' | 'deactivate'): string {
+    return `last-admin-${kind}-${user.id}`;
   }
 
   /**

@@ -1,0 +1,63 @@
+/* InfoTooltip — shared ⓘ trigger + tooltip bubble (auth/07 last-admin
+ * explainers, both portals). Warm cream/charcoal/brass design tokens only. */
+
+.info-tooltip {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.info-tooltip__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  /* Deep bronze: the only brass tone dark enough for 4.5:1 on cream. */
+  color: var(--accent-deep);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.info-tooltip__icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.info-tooltip__bubble {
+  /* Viewport-fixed: clamped by the component so it never overflows on
+   * 390px mobile (e.g. inside a right-side ACTIONS column). Above the
+   * admin mobile nav (100) and edit-drawer modal (150). */
+  position: fixed;
+  z-index: 1000;
+  max-width: min(17.5rem, calc(100vw - 1rem));
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(26, 22, 18, 0.18);
+  /* Rendered hidden until the component measures and places it — avoids a
+   * flash at the wrong spot on open. */
+  visibility: hidden;
+
+  &--positioned {
+    visibility: visible;
+  }
+}
