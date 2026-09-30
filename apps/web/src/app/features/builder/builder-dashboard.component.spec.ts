@@ -15,11 +15,31 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { BuilderLeadListResponse } from '@feasly/contracts';
+import type { BuilderLeadListResponse, Comment } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderState } from './builder.state';
+
+/** A minimal full Comment fixture for the expanded-thread flushes. */
+function threadComment(overrides: Partial<Comment> = {}): Comment {
+  const now = new Date().toISOString();
+  return {
+    id: 'c1',
+    entityType: 'lead',
+    entityId: LEAD_ID,
+    authorKind: 'builder',
+    authorId: 'builder@example.com',
+    authorDisplayName: 'A Builder',
+    visibility: 'org',
+    body: 'A note',
+    createdAt: now,
+    updatedAt: now,
+    edited: false,
+    deletedAt: null,
+    ...overrides,
+  };
+}
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -39,6 +59,26 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       createdAt: '2026-09-19T10:00:00.000Z',
       hasInvoice: false,
       invoiceSummary: null,
+      commentCount: 2,
+      latestComment: {
+        body: 'Called — no answer. Left a voicemail.',
+        authorDisplayName: 'A Builder',
+        authorKind: 'builder',
+        createdAt: '2026-09-28T10:00:00.000Z',
+      },
+    },
+  ],
+  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
+};
+
+// The same lead with zero notes: the section shows the empty-state CTA
+// instead of the preview, and the count pill reads 0.
+const NO_NOTES_RESPONSE: BuilderLeadListResponse = {
+  leads: [
+    {
+      ...LEADS_RESPONSE.leads[0],
+      commentCount: 0,
+      latestComment: null,
     },
   ],
   summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
@@ -500,6 +540,137 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     expect(banner.textContent).toContain(
       'That lead belongs to another builder — its status was not changed.',
     );
+    httpMock.verify();
+  });
+
+  it('shows the notes section collapsed by default with a live count badge', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, LEADS_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const section = fixture.nativeElement.querySelector(
+      '.builder-lead-card__notes-section',
+    ) as HTMLElement;
+    expect(section).toBeTruthy();
+    expect(section.getAttribute('aria-label')).toContain('Notes');
+
+    const header = section.querySelector(
+      '.builder-lead-card__notes-header',
+    ) as HTMLButtonElement;
+    expect(header).toBeTruthy();
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(
+      header.querySelector('.builder-lead-card__notes-title')?.textContent?.trim(),
+    ).toBe('Notes');
+    expect(
+      header.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
+    ).toBe('2');
+
+    // Collapsed: the thread is not mounted yet.
+    expect(section.querySelector('app-builder-lead-comments')).toBeNull();
+    httpMock.verify();
+  });
+
+  it('renders the latest-note preview when collapsed', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, LEADS_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const preview = fixture.nativeElement.querySelector(
+      '.builder-lead-card__notes-preview',
+    ) as HTMLElement;
+    expect(preview).toBeTruthy();
+    expect(preview.textContent).toContain('A Builder');
+    expect(preview.textContent).toContain('Called — no answer. Left a voicemail.');
+    httpMock.verify();
+  });
+
+  it('shows the empty-state CTA for a lead with no notes; clicking expands the thread', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, NO_NOTES_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const section = fixture.nativeElement.querySelector(
+      '.builder-lead-card__notes-section',
+    ) as HTMLElement;
+    // The count pill reads 0 and the empty state replaces the preview.
+    expect(
+      section.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
+    ).toBe('0');
+    expect(section.querySelector('.builder-lead-card__notes-preview')).toBeNull();
+
+    const cta = section.querySelector(
+      '.builder-lead-card__notes-cta',
+    ) as HTMLButtonElement;
+    expect(cta).toBeTruthy();
+    expect(cta.textContent?.trim()).toBe('Add the first note');
+
+    cta.click();
+    fixture.detectChanges();
+
+    const header = section.querySelector(
+      '.builder-lead-card__notes-header',
+    ) as HTMLButtonElement;
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+
+    // The expanded thread loads the comments for the lead.
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}/comments`),
+    );
+    req.flush({ comments: [] });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(section.querySelector('app-builder-lead-comments')).toBeTruthy();
+    httpMock.verify();
+  });
+
+  it('updates the badge and preview live when the thread publishes comments', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, LEADS_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const section = fixture.nativeElement.querySelector(
+      '.builder-lead-card__notes-section',
+    ) as HTMLElement;
+    const header = section.querySelector(
+      '.builder-lead-card__notes-header',
+    ) as HTMLButtonElement;
+
+    // Expand; the thread publishes its loaded comments (now 3, one new).
+    header.click();
+    fixture.detectChanges();
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}/comments`),
+    );
+    const now = new Date().toISOString();
+    req.flush({
+      comments: [
+        threadComment({ id: 'c1', body: 'Older note', createdAt: '2026-09-27T10:00:00.000Z' }),
+        threadComment({ id: 'c2', body: 'Called — no answer. Left a voicemail.', createdAt: '2026-09-28T10:00:00.000Z' }),
+        threadComment({ id: 'c3', body: 'They called back — quoting next week.', createdAt: now }),
+      ],
+    });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // The badge updates while still expanded; the preview updates on collapse.
+    expect(
+      section.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
+    ).toBe('3');
+
+    header.click();
+    fixture.detectChanges();
+
+    const preview = section.querySelector(
+      '.builder-lead-card__notes-preview',
+    ) as HTMLElement;
+    expect(preview).toBeTruthy();
+    expect(preview.textContent).toContain('They called back — quoting next week.');
     httpMock.verify();
   });
 });

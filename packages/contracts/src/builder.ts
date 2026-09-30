@@ -121,6 +121,32 @@ export interface BuilderLeadListItem {
   readonly hasInvoice: boolean;
   /** Invoice summary when hasInvoice is true, null otherwise. */
   readonly invoiceSummary: BuilderLeadInvoiceSummary | null;
+  /**
+   * Builder-visible comment count (org + shared admin notes only —
+   * admin_only and soft-deleted rows are excluded in SQL). Drives the
+   * collapsed notes badge on each lead card; the thread pushes live
+   * updates after load/post/edit.
+   */
+  readonly commentCount: number;
+  /**
+   * Newest builder-visible comment, null when commentCount is 0. Powers
+   * the collapsed notes preview — one field set, no full thread fetch.
+   */
+  readonly latestComment: BuilderLeadCommentPreview | null;
+}
+
+/**
+ * Builder-visible comment preview for the lead list: the newest
+ * builder-visible (org + shared admin) note, or null when there are
+ * none. A subset of `Comment` — the preview never needs ids,
+ * visibility, or edit state.
+ */
+export interface BuilderLeadCommentPreview {
+  readonly body: string;
+  readonly authorDisplayName: string;
+  readonly authorKind: CommentAuthorKind;
+  /** ISO-8601 timestamp. */
+  readonly createdAt: string;
 }
 
 export interface BuilderLeadListResponse {
@@ -369,7 +395,11 @@ export interface Comment {
   readonly authorId: string;
   readonly authorDisplayName: string;
   readonly visibility: CommentVisibility;
-  /** HTML-escaped on read — render as text, never as HTML. */
+  /**
+   * Bodies go out pristine — the Angular SPA renders them with
+   * interpolation, which is the single HTML-escaping layer. Render as
+   * text, never as HTML.
+   */
   readonly body: string;
   /** ISO-8601 timestamps. */
   readonly createdAt: string;

@@ -18,6 +18,7 @@ import {
 import type { BuilderService } from '../src/services/builder.service';
 import type { LeadStore } from '../src/services/lead.store';
 import type { AdminAuditStore } from '../src/services/admin-audit.store';
+import type { UserStore } from '../src/services/user.service';
 
 const ELITE_BUILDER_ID = 'builder-elite';
 const OTHER_BUILDER_ID = 'builder-other';
@@ -669,5 +670,91 @@ describe('builder-leads status lock (2026-09-29)', () => {
     );
     expect(result.ok).toBe(true);
     expect(leads.get('lead-1')?.status).toBe('contacted');
+  });
+});
+
+describe('builder-leads comment summaries (notes section redesign)', () => {
+  function makeServiceWithComments(
+    summaries: ReadonlyMap<string, { count: number; latest: { authorId: string; authorKind: 'builder' | 'admin'; body: string; createdAt: Date } | null }>,
+    userNames: ReadonlyMap<string, string>,
+  ) {
+    const base = makeDeps();
+    const calls: Array<{
+      readonly entityType: string;
+      readonly entityIds: ReadonlyArray<string>;
+      readonly includeAdminOnly: boolean;
+    }> = [];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      commentSummaries: {
+        summariesByEntity: async ({ entityType, entityIds, includeAdminOnly }) => {
+          calls.push({ entityType, entityIds, includeAdminOnly });
+          return new Map(
+            [...summaries].filter(([entityId]) => entityIds.includes(entityId)),
+          );
+        },
+      },
+      users: {
+        findById: async (id: string) =>
+          userNames.has(id) ? { id, name: userNames.get(id)! } : null,
+      } as unknown as Pick<UserStore, 'findById'>,
+    });
+    return { service, calls };
+  }
+
+  const LATEST = {
+    authorId: 'user-1',
+    authorKind: 'builder' as const,
+    body: 'Called — no answer.',
+    createdAt: new Date('2026-09-28T10:00:00.000Z'),
+  };
+
+  it('attaches count + latest preview with the resolved author name', async () => {
+    const { service, calls } = makeServiceWithComments(
+      new Map([['lead-1', { count: 2, latest: LATEST }]]),
+      new Map([['user-1', 'Mya Builder']]),
+    );
+    const result = await service.listLeads('elite-craft');
+    const item = result.leads[0];
+    expect(item?.commentCount).toBe(2);
+    expect(item?.latestComment).toEqual({
+      body: 'Called — no answer.',
+      authorDisplayName: 'Mya Builder',
+      authorKind: 'builder',
+      createdAt: '2026-09-28T10:00:00.000Z',
+    });
+    // One store call, builder-visible rows only.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.entityType).toBe('lead');
+    expect(calls[0]?.includeAdminOnly).toBe(false);
+    expect(calls[0]?.entityIds).toContain('lead-1');
+  });
+
+  it('defaults to count 0 and a null preview when the lead has no summary', async () => {
+    const { service } = makeServiceWithComments(
+      new Map(),
+      new Map(),
+    );
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.commentCount).toBe(0);
+    expect(result.leads[0]?.latestComment).toBeNull();
+  });
+
+  it('falls back to Unknown when the author has no user row', async () => {
+    const { service } = makeServiceWithComments(
+      new Map([['lead-1', { count: 1, latest: LATEST }]]),
+      new Map(),
+    );
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.latestComment?.authorDisplayName).toBe('Unknown');
+  });
+
+  it('works without the comment deps (older call sites)', async () => {
+    const { service } = makeDeps();
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.commentCount).toBe(0);
+    expect(result.leads[0]?.latestComment).toBeNull();
   });
 });

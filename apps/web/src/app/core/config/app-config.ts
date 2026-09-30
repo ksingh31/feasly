@@ -256,8 +256,16 @@ export interface BuilderCopy {
   leadsStatusSaving: string;
   leadsStatusApply: string;
   leadsStatusLocked: string;
-  commentsToggleShow: string;
-  commentsToggleHide: string;
+  /** Notes section header on each lead card. */
+  commentsSectionTitle: string;
+  /** Empty-state CTA that expands the thread. */
+  commentsAddFirstNote: string;
+  /** Empty-state hint above the CTA. */
+  commentsEmptyHint: string;
+  /** Composer footnote: who can see builder-posted notes. */
+  commentsVisibleToOrg: string;
+  /** Badge on notes written by the Feasly team (shared admin notes). */
+  commentsTeamBadge: string;
   commentsEmpty: string;
   commentsPostFailed: string;
   commentsEditFailed: string;

@@ -21,10 +21,12 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type {
+  BuilderLeadCommentPreview,
   BuilderLeadInvoiceSummary,
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadStatus,
+  CommentAuthorKind,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
@@ -34,8 +36,10 @@ import type {
   EmbedBillingHookService,
 } from './billing/embed-billing-hook.service';
 import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
+import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
 import type { LeadStore } from './lead.store';
+import type { UserStore } from './user.service';
 
 export const BuilderLeadStatusSchema = z.enum([
   'new',
@@ -102,6 +106,19 @@ export interface BuilderLeadsServiceDeps {
    * tests that don't cover the recorded-contract state.
    */
   readonly invoiceSummaries?: InvoiceSummaryStore;
+  /**
+   * Per-entity comment summaries (notes section redesign). Powers
+   * `commentCount`/`latestComment` on the lead list items — one query
+   * for all leads, builder-visible rows only. Optional for tests that
+   * don't cover comments.
+   */
+  readonly commentSummaries?: Pick<CommentStore, 'summariesByEntity'>;
+  /**
+   * Resolves comment author ids to display names for the preview.
+   * Optional for tests that don't cover comments (falls back to
+   * 'Unknown', matching the comments service).
+   */
+  readonly users?: Pick<UserStore, 'findById'>;
 }
 
 export interface WonBillingResult {
@@ -122,6 +139,10 @@ function toListItem(
     readonly updatedAt: Date;
   },
   invoiceSummary: BuilderLeadInvoiceSummary | null,
+  comment: {
+    readonly count: number;
+    readonly latest: BuilderLeadCommentPreview | null;
+  } | null,
 ): BuilderLeadListItem {
   return {
     id: record.id,
@@ -139,13 +160,15 @@ function toListItem(
     createdAt: record.createdAt.toISOString(),
     hasInvoice: invoiceSummary !== null,
     invoiceSummary,
+    commentCount: comment?.count ?? 0,
+    latestComment: comment?.latest ?? null,
   };
 }
 
 export function createBuilderLeadsService(
   deps: BuilderLeadsServiceDeps,
 ): BuilderLeadsService {
-  const { leadStore, audit, builders, billingHook, invoiceSummaries } = deps;
+  const { leadStore, audit, builders, billingHook, invoiceSummaries, commentSummaries, users } = deps;
 
   /**
    * Resolve the session's tenant key to the builder row. Every portal
@@ -187,6 +210,60 @@ export function createBuilderLeadsService(
         }
       }
 
+      // Notes lookup: one entity-scoped query for every listed lead, then
+      // a lead→comment-summary map. Builder-visible rows only
+      // (includeAdminOnly=false — the store enforces it in SQL).
+      const commentRows: ReadonlyMap<string, CommentSummary> = commentSummaries
+        ? await commentSummaries.summariesByEntity({
+            entityType: 'lead',
+            entityIds: records.map((record) => record.id),
+            includeAdminOnly: false,
+          })
+        : new Map();
+
+      // The user store has no batch read — dedupe author ids, one
+      // lookup each. 'Unknown' matches the comments service fallback.
+      const authorNames = new Map<string, string>();
+      if (users !== undefined) {
+        const authorIds = new Set<string>();
+        for (const row of commentRows.values()) {
+          if (row.latest !== null) {
+            authorIds.add(row.latest.authorId);
+          }
+        }
+        await Promise.all(
+          [...authorIds].map(async (authorId) => {
+            const user = await users.findById(authorId).catch(() => null);
+            const name = user?.name?.trim();
+            authorNames.set(authorId, name ? name : 'Unknown');
+          }),
+        );
+      }
+      const commentPreviewFor = (
+        leadId: string,
+      ): {
+        readonly count: number;
+        readonly latest: BuilderLeadCommentPreview | null;
+      } | null => {
+        const row = commentRows.get(leadId);
+        if (!row) {
+          return null;
+        }
+        return {
+          count: row.count,
+          latest:
+            row.latest === null
+              ? null
+              : {
+                  body: row.latest.body,
+                  authorDisplayName:
+                    authorNames.get(row.latest.authorId) ?? 'Unknown',
+                  authorKind: row.latest.authorKind as CommentAuthorKind,
+                  createdAt: row.latest.createdAt.toISOString(),
+                },
+        };
+      };
+
       const summary = {
         total: records.length,
         new: 0,
@@ -217,7 +294,11 @@ export function createBuilderLeadsService(
 
       return {
         leads: records.map((record) =>
-          toListItem(record, byLeadId.get(record.id) ?? null),
+          toListItem(
+            record,
+            byLeadId.get(record.id) ?? null,
+            commentPreviewFor(record.id),
+          ),
         ),
         summary,
       };

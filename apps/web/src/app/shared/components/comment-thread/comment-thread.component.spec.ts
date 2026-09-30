@@ -195,6 +195,7 @@ describe('CommentThreadComponent', () => {
         allowDelete: true,
         showVisibilityToggle: true,
         showVisibilityBadges: true,
+        showAuthorBadges: false,
       },
       comments: [
         comment({ id: 'c1', authorId: 'owen.admin@example.com', authorKind: 'admin' }),
@@ -267,6 +268,7 @@ describe('CommentThreadComponent', () => {
         allowDelete: true,
         showVisibilityToggle: true,
         showVisibilityBadges: true,
+        showAuthorBadges: false,
       },
       comments: [comment({ id: 'c1', visibility: 'admin_only', authorKind: 'admin' })],
     });
@@ -286,6 +288,7 @@ describe('CommentThreadComponent', () => {
         allowDelete: true,
         showVisibilityToggle: false,
         showVisibilityBadges: false,
+        showAuthorBadges: false,
       },
       comments: [comment({ id: 'c1' })],
     });
@@ -303,6 +306,67 @@ describe('CommentThreadComponent', () => {
       '.comment-thread__btn--danger',
     ) as HTMLButtonElement).click();
     expect(deleted).toEqual(['c1']);
+  });
+
+  it('shows the Feasly team badge on shared admin notes when configured', async () => {
+    const { fixture } = await setup({
+      config: BUILDER_COMMENT_THREAD_CONFIG,
+      comments: [
+        comment({ id: 'c1', authorKind: 'admin', visibility: 'org' }),
+        comment({ id: 'c2', authorKind: 'builder', visibility: 'org' }),
+      ],
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    const badges = root.querySelectorAll('.comment-thread__team');
+    // Only the admin-authored note gets the badge.
+    expect(badges).toHaveLength(1);
+    expect(badges[0].textContent).toContain('Feasly team');
+  });
+
+  it('never shows the team badge when showAuthorBadges is off', async () => {
+    const { fixture } = await setup({
+      config: {
+        allowPost: true,
+        allowEdit: true,
+        allowDelete: false,
+        showVisibilityToggle: false,
+        showVisibilityBadges: false,
+        showAuthorBadges: false,
+      },
+      comments: [comment({ id: 'c1', authorKind: 'admin', visibility: 'org' })],
+    });
+    expect(
+      fixture.nativeElement.querySelector('.comment-thread__team'),
+    ).toBeNull();
+  });
+
+  it('hides the thread heading when showHeading is false', async () => {
+    const { fixture } = await setup({
+      config: { ...BUILDER_COMMENT_THREAD_CONFIG, showHeading: false },
+      comments: [comment({ id: 'c1' })],
+    });
+    expect(
+      fixture.nativeElement.querySelector('.comment-thread__heading'),
+    ).toBeNull();
+  });
+
+  it('renders the thread heading by default', async () => {
+    const { fixture } = await setup({
+      config: {
+        allowPost: true,
+        allowEdit: true,
+        allowDelete: false,
+        showVisibilityToggle: false,
+        showVisibilityBadges: false,
+        showAuthorBadges: false,
+      },
+      comments: [comment({ id: 'c1' })],
+    });
+    const heading = fixture.nativeElement.querySelector(
+      '.comment-thread__heading',
+    ) as HTMLElement;
+    expect(heading).toBeTruthy();
+    expect(heading.textContent).toContain(DEFAULT_COMMENT_THREAD_LABELS.heading);
   });
 });
 

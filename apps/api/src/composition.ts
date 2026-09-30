@@ -1664,19 +1664,23 @@ export function createComposition(
   const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
     db: db.db,
   });
+  // billing/05 lead comments store — created here (ahead of the leads
+  // service) so the lead list can carry per-lead notes counts/previews.
+  const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
   const builderLeadsService: BuilderLeadsService = createBuilderLeadsService({
     leadStore,
     audit: adminAuditStore,
     builders: builderService,
     billingHook: embedBillingHookService,
     invoiceSummaries: invoiceSummaryStore,
+    commentSummaries: commentStore,
+    users: userStore,
   });
   const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
     builderLeads: builderLeadsService,
     builderGuard,
   });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
-  const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
       comments: commentStore,

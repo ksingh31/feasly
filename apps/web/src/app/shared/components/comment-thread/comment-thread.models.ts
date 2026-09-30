@@ -9,8 +9,10 @@ import type { CommentVisibility } from '@feasly/contracts';
 export type { Comment, CommentListResponse } from '@feasly/contracts';
 
 /**
- * Capability + display switches for the thread. The story freezes this
- * shape — both portals pass a config with these exact five flags.
+ * Capability + display switches for the thread. The story froze this
+ * shape at five flags; the notes-section redesign adds `showAuthorBadges`
+ * (builder portal only — the admin console already distinguishes authors
+ * by other means and stays unchanged).
  */
 export interface CommentThreadConfig {
   readonly allowPost: boolean;
@@ -18,11 +20,24 @@ export interface CommentThreadConfig {
   readonly allowDelete: boolean;
   readonly showVisibilityToggle: boolean;
   readonly showVisibilityBadges: boolean;
+  /**
+   * Render the `adminAuthorBadgeLabel` badge on admin-authored comments
+   * (shared admin notes in the builder portal). False on the admin side.
+   */
+  readonly showAuthorBadges: boolean;
+  /**
+   * Render the thread's own <h3> heading. The notes-section redesign
+   * renders its own header row (title + live count badge), so the
+   * builder container sets this false to avoid a duplicated "Notes".
+   * Defaults to true when omitted — the admin console is unchanged.
+   */
+  readonly showHeading?: boolean;
 }
 
 /**
  * Builder-portal config (story-frozen): builders post and edit their own
- * notes; they never see visibility controls, badges, or delete.
+ * notes; they never see visibility controls, badges, or delete. Shared
+ * admin notes carry the "Feasly team" badge so builders know the source.
  */
 export const BUILDER_COMMENT_THREAD_CONFIG: CommentThreadConfig = {
   allowPost: true,
@@ -30,6 +45,10 @@ export const BUILDER_COMMENT_THREAD_CONFIG: CommentThreadConfig = {
   allowDelete: false,
   showVisibilityToggle: false,
   showVisibilityBadges: false,
+  showAuthorBadges: true,
+  // The lead card's notes section renders its own header row with the
+  // live count badge — the thread's duplicate <h3> stays hidden.
+  showHeading: false,
 };
 
 /**
@@ -68,6 +87,8 @@ export interface CommentThreadLabels {
   readonly confirmDeleteLabel: string;
   readonly editedMarker: string;
   readonly internalBadge: string;
+  /** Badge on admin-authored comments (builder portal only). */
+  readonly adminAuthorBadgeLabel: string;
   readonly dismissErrorLabel: string;
   readonly charactersMaxSuffix: string;
   readonly visibilityToggleLabel: string;
@@ -91,6 +112,7 @@ export const DEFAULT_COMMENT_THREAD_LABELS: CommentThreadLabels = {
   confirmDeleteLabel: 'Confirm delete',
   editedMarker: 'Edited',
   internalBadge: 'Internal',
+  adminAuthorBadgeLabel: 'Feasly team',
   dismissErrorLabel: 'Dismiss',
   charactersMaxSuffix: 'characters max',
   visibilityToggleLabel: 'Who can see this note',

@@ -2,9 +2,15 @@ import { Component, DestroyRef, computed, inject, OnInit, signal } from '@angula
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
-import type { BuilderLeadListItem, BuilderLeadStatus } from '@feasly/contracts';
+import type {
+  BuilderLeadCommentPreview,
+  BuilderLeadListItem,
+  BuilderLeadStatus,
+  Comment,
+} from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
+import { formatCommentTimestamp } from '../../shared/components/comment-thread';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 
@@ -74,6 +80,55 @@ export class BuilderDashboardComponent implements OnInit {
 
   /** Lead ids whose notes thread is expanded (ephemeral UI state, not persisted). */
   protected readonly expandedNotes = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * Live per-lead notes metadata, keyed by lead id. Seeded from the
+   * server's `commentCount`/`latestComment` on the lead list; the thread
+   * pushes updates via `onCommentsChanged` after load/post/edit so the
+   * badge and preview stay live without a reload.
+   */
+  protected readonly commentMeta = signal<
+    Record<string, { readonly count: number; readonly latest: BuilderLeadCommentPreview | null }>
+  >({});
+
+  /** Badge count: live override wins, otherwise the server list value. */
+  protected commentCountFor(lead: BuilderLeadListItem): number {
+    return this.commentMeta()[lead.id]?.count ?? lead.commentCount;
+  }
+
+  /** Collapsed preview: live override wins, otherwise the server list value. */
+  protected latestCommentFor(lead: BuilderLeadListItem): BuilderLeadCommentPreview | null {
+    return this.commentMeta()[lead.id]?.latest ?? lead.latestComment;
+  }
+
+  /**
+   * Thread published its comments (load/post/edit) — recompute the badge
+   * and preview. The list is oldest-first, so the latest is the last
+   * element.
+   */
+  protected onCommentsChanged(leadId: string, comments: readonly Comment[]): void {
+    const latest = comments[comments.length - 1] ?? null;
+    this.commentMeta.update((meta) => ({
+      ...meta,
+      [leadId]: {
+        count: comments.length,
+        latest:
+          latest === null
+            ? null
+            : {
+                body: latest.body,
+                authorDisplayName: latest.authorDisplayName,
+                authorKind: latest.authorKind,
+                createdAt: latest.createdAt,
+              },
+      },
+    }));
+  }
+
+  /** Relative timestamp for the collapsed notes preview (shared formatter). */
+  protected formatNoteTimestamp(iso: string): string {
+    return formatCommentTimestamp(iso);
+  }
 
   protected notesExpanded(leadId: string): boolean {
     return this.expandedNotes().has(leadId);
