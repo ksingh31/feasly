@@ -27,10 +27,31 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "quarantined" boolean DEFAULT false
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lead_score" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'new' NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "unsubscribed_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "contact_opt_out_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "nudge_sent_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "builder_id" uuid;
+CREATE TABLE IF NOT EXISTS "builders" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"tenant_key" text NOT NULL,
+	"business_name" text NOT NULL,
+	"display_name" text NOT NULL,
+	"email" text,
+	"phone" text,
+	"logo_url" text,
+	"accent_color" text,
+	"allowed_origins" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"plan" text,
+	"status" text DEFAULT 'active' NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "builders_tenant_key_unique" UNIQUE("tenant_key")
+);
 CREATE TABLE IF NOT EXISTS "magic_links" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -196,6 +217,29 @@ ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "lead_id" uuid NOT NULL;
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "note" text NOT NULL;
 ALTER TABLE "lead_notes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "builder_comments" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"entity_type" text NOT NULL,
+	"entity_id" uuid NOT NULL,
+	"author_kind" text NOT NULL,
+	"author_id" uuid NOT NULL,
+	"visibility" text DEFAULT 'org' NOT NULL,
+	"body" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"deleted_at" timestamp with time zone
+);
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "entity_type" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "entity_id" uuid NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "author_kind" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "author_id" uuid NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "visibility" text DEFAULT 'org' NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "body" text NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_comments" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone;
 CREATE TABLE IF NOT EXISTS "lead_status_history" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -367,7 +411,11 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"finalized_at" timestamp with time zone,
 	"paid_at" timestamp with time zone,
 	"sla_breached" boolean DEFAULT false NOT NULL,
+	"retry_count" integer DEFAULT 0 NOT NULL,
 	"dispute_reason" text,
+	"commission_rate_override" real,
+	"manual_payment_method" text,
+	"payment_reference" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "commission_invoices_stripe_payment_intent_id_unique" UNIQUE("stripe_payment_intent_id")
@@ -385,7 +433,11 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "review_due_at" times
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "finalized_at" timestamp with time zone;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "paid_at" timestamp with time zone;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "sla_breached" boolean DEFAULT false NOT NULL;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "retry_count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "dispute_reason" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_override" real;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "manual_payment_method" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_reference" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "stripe_events" (
@@ -406,6 +458,37 @@ CREATE TABLE IF NOT EXISTS "ops_alert_state" (
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "type" text PRIMARY KEY NOT NULL;
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "last_fired_at" timestamp with time zone;
 ALTER TABLE "ops_alert_state" ADD COLUMN IF NOT EXISTS "last_recovered_at" timestamp with time zone;
+CREATE TABLE IF NOT EXISTS "billing_disputes" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"invoice_id" uuid NOT NULL,
+	"tenant_key" text NOT NULL,
+	"reason" text NOT NULL,
+	"evidence_snapshot" jsonb NOT NULL,
+	"status" text DEFAULT 'open' NOT NULL,
+	"opened_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"sla_due_at" timestamp with time zone NOT NULL,
+	"sla_breached_at" timestamp with time zone,
+	"resolved_at" timestamp with time zone,
+	"resolved_by" text,
+	"resolution_note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "invoice_id" uuid NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "reason" text NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "evidence_snapshot" jsonb NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'open' NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "opened_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "sla_due_at" timestamp with time zone NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "sla_breached_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_by" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolution_note" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "admin_allowlist" (
 
 	"email" text PRIMARY KEY NOT NULL,
@@ -436,14 +519,109 @@ CREATE TABLE IF NOT EXISTS "admin_sessions" (
 	"revoked_at" timestamp with time zone,
 	"expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"active_builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL,
+	"view_as" jsonb,
 	CONSTRAINT "admin_sessions_session_token_hash_unique" UNIQUE("session_token_hash")
 );
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text NOT NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "id_token" text;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "users" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"name" text NOT NULL,
+	"status" text DEFAULT 'invited' NOT NULL,
+	"staff_role" text,
+	"entra_object_id" text,
+	"is_protected" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email"),
+	CONSTRAINT "users_entra_object_id_unique" UNIQUE("entra_object_id")
+);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'invited' NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "staff_role" text;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "entra_object_id" text;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "is_protected" boolean DEFAULT false NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "active_builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
+CREATE TABLE IF NOT EXISTS "builder_memberships" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+	"builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE,
+	"role" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
+ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- P0 2026-09-30: builder-team invite multi-tap created duplicate
+-- (user_id, builder_id) membership rows on dev (14 rows for one user), so
+-- the unique index below could never materialize and one Remove wiped them
+-- all. Dedupe first: keep the earliest row per (user_id, builder_id).
+-- Idempotent: a no-op once no duplicates remain.
+DELETE FROM "builder_memberships" a
+USING "builder_memberships" b
+WHERE a."user_id" = b."user_id"
+  AND a."builder_id" = b."builder_id"
+  AND (a."created_at", a."id") > (b."created_at", b."id");
+-- P0 2026-09-28: drizzle-kit silently skipped parts of 0036 on dev too — the
+-- unique index builder_memberships_user_builder_idx never materialized, so the
+-- idempotent membership guard below fails with 42P10 ("no unique or exclusion
+-- constraint matching the ON CONFLICT specification") and aborts the whole
+-- deploy. Re-create it idempotently before any INSERT ... ON CONFLICT that
+-- targets (user_id, builder_id).
+CREATE UNIQUE INDEX IF NOT EXISTS "builder_memberships_user_builder_idx"
+  ON "builder_memberships" ("user_id", "builder_id");
+CREATE TABLE IF NOT EXISTS "invitations" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"invited_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+	"role" text NOT NULL,
+	"builder_id" uuid REFERENCES "builders"("id") ON DELETE CASCADE,
+	"entra_user_id" text,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "invited_by" uuid REFERENCES "users"("id") ON DELETE SET NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE CASCADE;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "entra_user_id" text;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
+ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- P0 2026-09-30: the same multi-tap stacked duplicate pending invitations
+-- for one email+org. Keep the newest pending per (email, builder_id) and
+-- revoke the rest, so the 409 "one live invite per email" rule has a clean
+-- slate. Idempotent: a no-op once no duplicate pendings remain.
+UPDATE "invitations" AS old
+SET "status" = 'revoked'
+WHERE old."status" = 'pending'
+  AND EXISTS (
+    SELECT 1 FROM "invitations" AS newer
+    WHERE newer."status" = 'pending'
+      AND newer."email" = old."email"
+      AND newer."builder_id" = old."builder_id"
+      AND newer."created_at" > old."created_at"
+  );
 CREATE TABLE IF NOT EXISTS "callback_requests" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -502,9 +680,12 @@ ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NO
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL REFERENCES "tenants"("tenant_key") ON DELETE CASCADE;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "session_token_hash" text NOT NULL;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "id_token" text;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
 CREATE TABLE IF NOT EXISTS "embed_relay_codes" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -575,3 +756,99 @@ ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with t
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "used_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;
 ALTER TABLE "magic_links" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now();
+
+-- P0 2026-09-28: bootstrap-data guard. drizzle-kit silently skipped
+-- migration 0036 on dev (users table never materialized), so the protected
+-- super_admin seed row may also be missing even after the schema repair
+-- above creates the tables. This idempotent INSERT mirrors 0036's seed
+-- exactly (same fixed UUID) and is a no-op when the row already exists.
+-- Without it, the Entra callback has no protected row to link and Karan
+-- cannot sign in.
+INSERT INTO "users"
+  ("id", "email", "name", "status", "staff_role", "entra_object_id", "is_protected")
+SELECT
+  '805793cc-5aca-46f4-9498-996c784aee5a',
+  'karanbirsingh667@gmail.com',
+  'Karan',
+  'invited',
+  'super_admin',
+  NULL,
+  true
+WHERE EXISTS (
+  SELECT 1 FROM "admin_allowlist" WHERE "email" = 'karanbirsingh667@gmail.com'
+)
+ON CONFLICT ("email") DO NOTHING;
+
+-- P0 2026-09-29: tenants-seed guard. No migration ever seeded the
+-- "tenants" table (created in 0006; builder_sessions.tenant_key FKs to
+-- tenants(tenant_key) since 0027), so the first real builder Entra sign-in
+-- — Karan's, 2026-09-29 02:18Z — 500'd in the callback at the session
+-- insert: "insert or update on table builder_sessions violates foreign key
+-- constraint builder_sessions_tenant_key_fkey". The membership gate had
+-- just started passing (the #354/#355 repair restored his membership), so
+-- this was the next missing piece in the same chain. This idempotent INSERT
+-- mirrors the builders-seed tenant keys exactly (ON CONFLICT tenant_key)
+-- and is a no-op when the rows already exist. It runs before the
+-- builder-seed guard below because builder_sessions depends on tenants.
+INSERT INTO "tenants"
+  ("tenant_key", "business_name", "display_name", "logo_url",
+   "accent_color", "allowed_origins", "fallback_phone", "fallback_email",
+   "plan")
+VALUES
+  ('elite-craft-builders', 'Elite Craft Builders', 'Elite Craft Builders',
+   '', '#B08D57', ARRAY['https://elitecraftbuilders.com'], '', '', NULL),
+  ('demo', 'Demo Builder', 'Demo Builder',
+   '', '#0F766E', ARRAY['https://demo.example.com'], '', '', NULL)
+ON CONFLICT ("tenant_key") DO NOTHING;
+
+-- P0 2026-09-28: builder-seed guard. drizzle-kit silently skipped parts of
+-- migration 0035 on dev too — the builders table exists but the Elite Craft
+-- Builders seed row never materialized. Without it, the membership guard
+-- below aborts the whole deploy with a foreign key violation on
+-- builder_memberships_builder_id_fkey (observed 2026-09-29: "insert or
+-- update on table builder_memberships violates foreign key constraint").
+-- This idempotent INSERT mirrors 0035's seed exactly (same fixed UUIDs,
+-- ON CONFLICT tenant_key) and is a no-op when the rows already exist.
+INSERT INTO "builders"
+  ("id", "tenant_key", "business_name", "display_name", "email", "phone",
+   "logo_url", "accent_color", "allowed_origins", "plan", "status")
+VALUES
+  ('a506cc36-ffd1-42db-993c-999bfbb0f1d2', 'elite-craft-builders',
+   'Elite Craft Builders', 'Elite Craft Builders', '', '',
+   '', '#B08D57', '["https://elitecraftbuilders.com"]'::jsonb, NULL, 'active'),
+  ('6f2c90fd-2395-4f6c-8e71-3b699cf68857', 'demo',
+   'Demo Builder', 'Demo Builder', 'demo@example.com', '(555) 010-2030',
+   '', '#0F766E', '["https://demo.example.com"]'::jsonb, NULL, 'active')
+ON CONFLICT ("tenant_key") DO NOTHING;
+
+-- P0 2026-09-28: builder-QA membership guard. drizzle-kit silently skipped
+-- migration 0042 on dev (the membership row never materialized), so Karan's
+-- builder Entra sign-in 403s at the membership gate even though the user row
+-- exists and the migration journal claims 0042 applied. This idempotent
+-- INSERT mirrors 0042 exactly (same fixed UUIDs) and is a no-op when the row
+-- already exists. Without it, the builder callback rejects Karan with
+-- "We couldn't find your Feasly builder account".
+INSERT INTO "builder_memberships" ("id", "user_id", "builder_id", "role")
+SELECT
+  'a39ec450-81f2-4060-baef-afcebed829ac',
+  u."id",
+  'a506cc36-ffd1-42db-993c-999bfbb0f1d2',
+  'builder_admin'
+FROM "users" u
+WHERE u."email" = 'karanbirsingh667@gmail.com'
+ON CONFLICT ("user_id", "builder_id") DO NOTHING;
+
+-- P0 2026-09-29: tenant-key divergence backfill. Leads assigned to a
+-- builder via builder_id can carry a NULL or stale tenant_key (the lead
+-- store's insert() defaults tenantKey to null and updateOnRepeat() stamps
+-- builderId without touching tenant_key), which made reportContract 403
+-- leads that are visible in the builder's own pipeline (Karan's "QA Test"
+-- lead, 2026-09-29: builder_id set, tenant_key NULL). The facade now
+-- scopes by (id, builder_id), but re-aligning tenant_key keeps the legacy
+-- key-based reads and joins consistent. Idempotent: a no-op when the keys
+-- already agree.
+UPDATE "leads"
+SET "tenant_key" = b."tenant_key"
+FROM "builders" b
+WHERE "leads"."builder_id" = b."id"
+  AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");

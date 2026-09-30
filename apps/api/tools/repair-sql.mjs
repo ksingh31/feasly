@@ -577,6 +577,16 @@ ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "user_id" uuid NOT NU
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "builder_id" uuid NOT NULL REFERENCES "builders"("id") ON DELETE CASCADE;
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "role" text NOT NULL;
 ALTER TABLE "builder_memberships" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- P0 2026-09-30: builder-team invite multi-tap created duplicate
+-- (user_id, builder_id) membership rows on dev (14 rows for one user), so
+-- the unique index below could never materialize and one Remove wiped them
+-- all. Dedupe first: keep the earliest row per (user_id, builder_id).
+-- Idempotent: a no-op once no duplicates remain.
+DELETE FROM "builder_memberships" a
+USING "builder_memberships" b
+WHERE a."user_id" = b."user_id"
+  AND a."builder_id" = b."builder_id"
+  AND (a."created_at", a."id") > (b."created_at", b."id");
 -- P0 2026-09-28: drizzle-kit silently skipped parts of 0036 on dev too — the
 -- unique index builder_memberships_user_builder_idx never materialized, so the
 -- idempotent membership guard below fails with 42P10 ("no unique or exclusion
@@ -606,6 +616,20 @@ ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "entra_user_id" text;
 ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
 ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 ALTER TABLE "invitations" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- P0 2026-09-30: the same multi-tap stacked duplicate pending invitations
+-- for one email+org. Keep the newest pending per (email, builder_id) and
+-- revoke the rest, so the 409 "one live invite per email" rule has a clean
+-- slate. Idempotent: a no-op once no duplicate pendings remain.
+UPDATE "invitations" AS old
+SET "status" = 'revoked'
+WHERE old."status" = 'pending'
+  AND EXISTS (
+    SELECT 1 FROM "invitations" AS newer
+    WHERE newer."status" = 'pending'
+      AND newer."email" = old."email"
+      AND newer."builder_id" = old."builder_id"
+      AND newer."created_at" > old."created_at"
+  );
 CREATE TABLE IF NOT EXISTS "callback_requests" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
