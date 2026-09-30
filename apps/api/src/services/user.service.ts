@@ -213,6 +213,11 @@ export interface UserServiceDeps {
   readonly uuid?: () => string;
   readonly invitationTtlSeconds?: number;
   readonly appBaseUrl: string;
+  /**
+   * Timing/observability sink for the slow invite steps (Entra Graph +
+   * email). Defaults to console.info; tests inject a collector.
+   */
+  readonly log?: (message: string) => void;
 }
 
 export interface UserService {
@@ -438,6 +443,7 @@ export function createUserService(deps: UserServiceDeps): UserService {
   const clock = deps.clock ?? (() => new Date());
   const uuid = deps.uuid ?? randomUUID;
   const invitationTtlSeconds = deps.invitationTtlSeconds ?? 604_800;
+  const log = deps.log ?? ((message: string) => console.info(message));
 
   async function publicUser(user: UserRecord): Promise<PublicUser> {
     return toPublicUser(user, await memberships.listByUserId(user.id));
@@ -523,6 +529,24 @@ export function createUserService(deps: UserServiceDeps): UserService {
         }
       }
 
+      // One live invite per email+org (Karan's rule). A pending,
+      // non-expired invitation means the invite is already on its way —
+      // reject with buyer-grade copy instead of stacking another user
+      // update, membership, invitation row, and invite email.
+      const pendingInvites = await invitations.findPendingByEmail(email);
+      const liveInvite = pendingInvites.find(
+        (invite) =>
+          (invite.builderId ?? null) === builderId &&
+          invite.expiresAt.getTime() > now.getTime(),
+      );
+      if (liveInvite) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          'An invite is already on its way to this email address.',
+        );
+      }
+
       const user = existing
         ? await users.updateUser(
             existing.id,
@@ -545,18 +569,28 @@ export function createUserService(deps: UserServiceDeps): UserService {
           });
 
       if (builderId) {
-        await memberships.add(user.id, builderId, input.role as BuilderRole);
+        // Idempotent membership: never stack a second row for the same
+        // user+org. The (user_id, builder_id) unique index is the race
+        // guard; this read covers repeat taps even where the index is
+        // absent.
+        const current = await memberships.listByUserId(user.id);
+        if (!current.some((m) => m.builderId === builderId)) {
+          await memberships.add(user.id, builderId, input.role as BuilderRole);
+        }
       }
 
-      // Idempotency: if a pending invitation already carries a Graph account
-      // (e.g. the first invite's DB write failed after Graph succeeded),
-      // reuse it instead of creating a duplicate Entra account.
-      const pendingInvites = await invitations.findPendingByEmail(email);
+      // Withdraw dead (expired) pendings before issuing the fresh invite.
+      await invitations.revokePendingByEmail(email);
+
+      // Reuse the Graph account from an earlier pending invitation (e.g.
+      // the first attempt's email send failed) instead of creating a
+      // duplicate Entra account.
+      const entraStart = Date.now();
       const entraUserId =
         pendingInvites.find((i) => i.entraUserId)?.entraUserId ??
         (await createEntraAccount(email, name));
+      log(`invite: Entra step took ${Date.now() - entraStart}ms for ${email}`);
 
-      await invitations.revokePendingByEmail(email);
       await insertInvitation({
         email,
         invitedBy: input.invitedBy ?? null,
@@ -566,6 +600,7 @@ export function createUserService(deps: UserServiceDeps): UserService {
         now,
       });
 
+      const emailStart = Date.now();
       const emailSent = await sendInviteEmail({
         user,
         name,
@@ -573,6 +608,9 @@ export function createUserService(deps: UserServiceDeps): UserService {
         builderId,
         inviterName: input.inviterName,
       });
+      log(
+        `invite: email step took ${Date.now() - emailStart}ms for ${email} (sent=${emailSent})`,
+      );
 
       await audit.log({
         actorEmail: input.actorEmail ?? null,

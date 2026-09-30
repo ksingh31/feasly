@@ -37,6 +37,7 @@ interface Harness {
   auditLog: { action: string; actorEmail: string | null; detail?: string }[];
   invitations: InvitationRecord[];
   revokedSessionEmails: string[];
+  logLines: string[];
   failGraphCreate: boolean;
   failGraphToggle: boolean;
   seedUser: UserStore['insert'];
@@ -55,6 +56,7 @@ function makeHarness(): Harness {
     auditLog: [],
     invitations: [],
     revokedSessionEmails: [],
+    logLines: [],
     failGraphCreate: false,
     failGraphToggle: false,
     seedUser: null as unknown as UserStore['insert'],
@@ -228,6 +230,7 @@ function makeHarness(): Harness {
     uuid: () => `uuid-${++uuidCounter}`,
     invitationTtlSeconds: 604_800,
     appBaseUrl: 'https://app.example',
+    log: (message: string) => h.logLines.push(message),
   };
   h.service = createUserService(deps);
   return h;
@@ -325,6 +328,100 @@ describe('UserService (Entra)', () => {
     // Builder invitees land on the builder sign-in, not the admin one.
     expect(h.sentEmails).toHaveLength(1);
     expect(h.sentEmails[0]!.signInUrl).toBe('https://app.example/builder/login');
+  });
+
+  it('invite: a repeat invite while one is pending is rejected with 409 (one invite per email)', async () => {
+    const h = makeHarness();
+    const input = {
+      email: 'bob@example.com',
+      name: 'Bob Builder',
+      role: 'builder_member' as const,
+      builderId: 'builder-1',
+    };
+    await h.service.invite(input);
+
+    const err = await expectHttpError(h.service.invite(input), 409);
+    expect(err.message).toBe(
+      'An invite is already on its way to this email address.',
+    );
+
+    // Nothing stacked: one invitation, one email, one Graph account, one
+    // membership — the repeat tap changed nothing.
+    expect(
+      h.invitations.filter((i) => i.status === 'pending'),
+    ).toHaveLength(1);
+    expect(h.sentEmails).toHaveLength(1);
+    expect(h.entraCalls.filter((c) => c.op === 'create')).toHaveLength(1);
+    const user = (await h.service.findByEmail('bob@example.com'))!;
+    expect(user.memberships).toHaveLength(1);
+    // The slow-step timings were logged for the single real invite.
+    expect(
+      h.logLines.some((line) => line.startsWith('invite: Entra step took ')),
+    ).toBe(true);
+    expect(
+      h.logLines.some((line) => line.startsWith('invite: email step took ')),
+    ).toBe(true);
+  });
+
+  it('invite: an expired pending invitation does not block a fresh invite', async () => {
+    const h = makeHarness();
+    const now = new Date('2026-09-27T18:00:00Z');
+    h.invitations.push({
+      id: 'old-invite',
+      email: 'cara@example.com',
+      invitedBy: null,
+      role: 'builder_member',
+      builderId: 'builder-1',
+      entraUserId: 'entra-cara@example.com',
+      status: 'pending',
+      expiresAt: new Date(now.getTime() - 3_600_000),
+      createdAt: new Date(now.getTime() - 8 * 86_400_000),
+    });
+
+    const { emailSent } = await h.service.invite({
+      email: 'cara@example.com',
+      name: 'Cara',
+      role: 'builder_member',
+      builderId: 'builder-1',
+    });
+    expect(emailSent).toBe(true);
+
+    // The dead invite was revoked; exactly one live invite remains, and it
+    // reused the earlier Graph account instead of creating a duplicate.
+    expect(
+      h.invitations.filter((i) => i.status === 'revoked'),
+    ).toHaveLength(1);
+    const pending = h.invitations.filter((i) => i.status === 'pending');
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.entraUserId).toBe('entra-cara@example.com');
+    expect(h.entraCalls.filter((c) => c.op === 'create')).toHaveLength(0);
+    expect(h.sentEmails).toHaveLength(1);
+  });
+
+  it('invite: the membership add is idempotent when the membership already exists', async () => {
+    const h = makeHarness();
+    const input = {
+      email: 'dan@example.com',
+      name: 'Dan',
+      role: 'builder_member' as const,
+      builderId: 'builder-1',
+    };
+    await h.service.invite(input);
+    // The first invite's email thread is over (withdrawn) but the org
+    // membership stands — inviting again must not stack a second row.
+    for (const row of h.invitations) {
+      (row as { status: string }).status = 'revoked';
+    }
+
+    await h.service.invite({ ...input, name: 'Dan Updated' });
+
+    const user = (await h.service.findByEmail('dan@example.com'))!;
+    expect(user.name).toBe('Dan Updated');
+    expect(user.memberships).toHaveLength(1);
+    expect(user.memberships[0]).toMatchObject({
+      builderId: 'builder-1',
+      role: 'builder_member',
+    });
   });
 
   it('invite: only a super_admin can grant the super_admin role (auth/04)', async () => {

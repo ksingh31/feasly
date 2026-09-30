@@ -29,17 +29,9 @@
         Dismiss
       </button>
     </div>
-  } @else if (inviteFeedback() === 'failed') {
-    <div
-      class="builder-team__banner builder-team__banner--error"
-      role="alert"
-    >
-      <span>{{ copy.teamInviteError }}</span>
-      <button type="button" (click)="dismissFeedback()" aria-label="Dismiss">
-        Dismiss
-      </button>
-    </div>
   }
+  <!-- Invite failures render inline inside the invite dialog (role="alert")
+       with the API's own message — no generic banner. -->
 
   @if (status() === 'loading') {
     <div
@@ -122,13 +114,18 @@
                   @if (updatingUserId() === user.id) {
                     <span>…</span>
                   } @else if (user.status === 'deactivated') {
-                    <button type="button" (click)="reactivate(user)">
+                    <button
+                      type="button"
+                      [disabled]="rowActionsDisabled()"
+                      (click)="reactivate(user)"
+                    >
                       {{ copy.teamReactivateLabel }}
                     </button>
                   } @else {
                     <button
                       type="button"
                       class="builder-team__danger-link"
+                      [disabled]="rowActionsDisabled()"
                       (click)="askDeactivate(user)"
                     >
                       {{ copy.teamDeactivateLabel }}
@@ -137,6 +134,7 @@
                       <button
                         type="button"
                         class="builder-team__danger-link"
+                        [disabled]="rowActionsDisabled()"
                         (click)="askRemove(user)"
                       >
                         {{ copy.teamRemoveLabel }}
@@ -161,7 +159,7 @@
     </div>
     @if (actionError()) {
       <p class="builder-team__state builder-team__state--error">
-        {{ copy.teamActionError }}
+        {{ actionErrorMessage() ?? copy.teamActionError }}
       </p>
     }
   }
@@ -210,6 +208,11 @@
             <option value="builder_member">{{ copy.orgRoleMember }}</option>
           </select>
         </label>
+        @if (duplicateInviteError(); as dupError) {
+          <p class="builder-team__field-error" role="alert">{{ dupError }}</p>
+        } @else if (inviteError()) {
+          <p class="builder-team__field-error" role="alert">{{ inviteError() }}</p>
+        }
         <div class="builder-team__modal-actions">
           <button type="button" (click)="closeInvite()">
             {{ copy.teamConfirmNo }}
@@ -217,9 +220,9 @@
           <button
             type="submit"
             class="builder-team__primary"
-            [disabled]="inviteForm.invalid"
+            [disabled]="inviteForm.invalid || inviting()"
           >
-            {{ copy.teamInviteSubmit }}
+            {{ inviting() ? copy.teamInviteSending : copy.teamInviteSubmit }}
           </button>
         </div>
       </form>
@@ -238,15 +241,20 @@
     >
       <p class="builder-team__confirm-text">{{ confirmText() }}</p>
       <div class="builder-team__confirm-actions">
-        <button type="button" (click)="cancelConfirm()">
+        <button
+          type="button"
+          (click)="cancelConfirm()"
+          [disabled]="updatingUserId() !== null"
+        >
           {{ copy.teamConfirmNo }}
         </button>
         <button
           type="button"
           class="builder-team__primary"
           (click)="confirmDialog()"
+          [disabled]="updatingUserId() !== null"
         >
-          {{ copy.teamConfirmYes }}
+          {{ confirmYesLabel() }}
         </button>
       </div>
     </div>

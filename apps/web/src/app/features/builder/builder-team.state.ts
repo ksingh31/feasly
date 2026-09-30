@@ -55,10 +55,19 @@ export type BuilderTeamStatus = 'idle' | 'loading' | 'ready' | 'error';
 export interface BuilderTeamStateModel {
   users: readonly BuilderTeamUser[];
   status: BuilderTeamStatus;
+  /** Invite request in flight (busy guard: blocks multi-tap re-entry). */
+  inviting: boolean;
   /** Last invite: 'sent' | 'failed' | null. */
   inviteFeedback: 'sent' | 'failed' | null;
+  /**
+   * The API's own message for the last failed invite, shown inline in the
+   * invite dialog (role="alert"). Null when no failure is outstanding.
+   */
+  inviteError: string | null;
   /** Last row action: 'failed' | null. */
   actionError: boolean;
+  /** The API's own message for the last failed row action, if any. */
+  actionErrorMessage: string | null;
   /** User id currently being updated/removed (disables its buttons). */
   updatingUserId: string | null;
 }
@@ -66,8 +75,11 @@ export interface BuilderTeamStateModel {
 const defaults: BuilderTeamStateModel = {
   users: [],
   status: 'idle',
+  inviting: false,
   inviteFeedback: null,
+  inviteError: null,
   actionError: false,
+  actionErrorMessage: null,
   updatingUserId: null,
 };
 
@@ -103,8 +115,23 @@ export class BuilderTeamState {
   }
 
   @Selector()
+  static inviting(state: BuilderTeamStateModel): boolean {
+    return state.inviting;
+  }
+
+  @Selector()
+  static inviteError(state: BuilderTeamStateModel): string | null {
+    return state.inviteError;
+  }
+
+  @Selector()
   static actionError(state: BuilderTeamStateModel): boolean {
     return state.actionError;
+  }
+
+  @Selector()
+  static actionErrorMessage(state: BuilderTeamStateModel): string | null {
+    return state.actionErrorMessage;
   }
 
   @Selector()
@@ -131,7 +158,13 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: InviteBuilderTeamUser,
   ): Observable<unknown> {
-    ctx.patchState({ inviteFeedback: null, actionError: false });
+    ctx.patchState({
+      inviting: true,
+      inviteFeedback: null,
+      inviteError: null,
+      actionError: false,
+      actionErrorMessage: null,
+    });
     return this.api
       .inviteUser({ name: action.name, email: action.email, role: action.role })
       .pipe(
@@ -140,10 +173,18 @@ export class BuilderTeamState {
           ctx.patchState({
             users: [response.user, ...state.users],
             inviteFeedback: 'sent',
+            inviting: false,
           });
         }),
-        catchError(() => {
-          ctx.patchState({ inviteFeedback: 'failed' });
+        catchError((err: { message?: string }) => {
+          ctx.patchState({
+            inviting: false,
+            inviteFeedback: 'failed',
+            // Surface the API's own message (e.g. the 409 duplicate-invite
+            // copy) inline in the dialog; never a blank error.
+            inviteError:
+              err?.message ?? 'Could not send the invite. Please try again.',
+          });
           return of(null);
         }),
       );
@@ -154,13 +195,18 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: SetBuilderTeamUserStatus,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
     return this.api.updateUser(action.id, { status: action.status }).pipe(
       tap((updated) => {
         this.replaceUser(ctx, updated);
       }),
-      catchError(() => {
-        ctx.patchState({ updatingUserId: null, actionError: true });
+      catchError((err: { message?: string }) => {
+        ctx.patchState({
+          updatingUserId: null,
+          actionError: true,
+          actionErrorMessage:
+            err?.message ?? 'Something went wrong. Please try again.',
+        });
         return of(null);
       }),
     );
@@ -171,13 +217,18 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: SetBuilderTeamUserRole,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
     return this.api.updateUser(action.id, { role: action.role }).pipe(
       tap((updated) => {
         this.replaceUser(ctx, updated);
       }),
-      catchError(() => {
-        ctx.patchState({ updatingUserId: null, actionError: true });
+      catchError((err: { message?: string }) => {
+        ctx.patchState({
+          updatingUserId: null,
+          actionError: true,
+          actionErrorMessage:
+            err?.message ?? 'Something went wrong. Please try again.',
+        });
         return of(null);
       }),
     );
@@ -188,7 +239,7 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: RemoveBuilderTeamUser,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
     return this.api.deleteUser(action.id).pipe(
       tap(() => {
         const state = ctx.getState();
@@ -197,8 +248,13 @@ export class BuilderTeamState {
           updatingUserId: null,
         });
       }),
-      catchError(() => {
-        ctx.patchState({ updatingUserId: null, actionError: true });
+      catchError((err: { message?: string }) => {
+        ctx.patchState({
+          updatingUserId: null,
+          actionError: true,
+          actionErrorMessage:
+            err?.message ?? 'Something went wrong. Please try again.',
+        });
         return of(null);
       }),
     );
@@ -206,7 +262,12 @@ export class BuilderTeamState {
 
   @Action(ClearBuilderTeamFeedback)
   clearFeedback(ctx: StateContext<BuilderTeamStateModel>): void {
-    ctx.patchState({ inviteFeedback: null, actionError: false });
+    ctx.patchState({
+      inviteFeedback: null,
+      inviteError: null,
+      actionError: false,
+      actionErrorMessage: null,
+    });
   }
 
   private replaceUser(
