@@ -264,27 +264,29 @@
         </label>
         <label class="users-page__field">
           <span>Staff role</span>
-          <select
-            formControlName="role"
-            [attr.aria-describedby]="staffRoleTip?.tooltipId"
-          >
-            <option value="">No staff role (builder organizations only)</option>
-            @for (role of staffRoles; track role) {
-              <option [value]="role">
-                {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
-              </option>
+          <span class="users-page__field-row">
+            <select
+              formControlName="role"
+              [attr.aria-describedby]="staffRoleTip?.tooltipId"
+            >
+              <option value="">No staff role (builder organizations only)</option>
+              @for (role of staffRoles; track role) {
+                <option [value]="role">
+                  {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
+                </option>
+              }
+            </select>
+            <!-- auth/07: the sole remaining active staff admin's role is
+                 locked by the backend 409 — the ⓘ tooltip beside the
+                 disabled select explains why (replaces the inline note). -->
+            @if (isSoleStaffAdmin(editingUser())) {
+              <app-info-tooltip
+                #staffRoleTip="infoTooltip"
+                text="You can't change the role of the last administrator. Add another administrator first."
+                label="Why can't this role be changed?"
+              />
             }
-          </select>
-          <!-- auth/07: the sole remaining active staff admin's role is
-               locked by the backend 409 — the ⓘ tooltip beside the
-               disabled select explains why (replaces the inline note). -->
-          @if (isSoleStaffAdmin(editingUser())) {
-            <app-info-tooltip
-              #staffRoleTip="infoTooltip"
-              text="You can't change the role of the last administrator. Add another administrator first."
-              label="Why can't this role be changed?"
-            />
-          }
+          </span>
         </label>
         @if (updateError()) {
           <p class="users-page__state users-page__state--error">{{ updateError() }}</p>

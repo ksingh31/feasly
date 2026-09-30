@@ -288,6 +288,18 @@
   font-weight: 400;
 }
 
+/* Row wrapper for a control + its ⓘ tooltip (auth/07 last-admin). */
+.users-page__field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.users-page__field-row select {
+  flex: 1;
+  min-width: 0;
+}
+
 .users-page__field-error {
   font-size: 0.8125rem;
   font-weight: 400;
