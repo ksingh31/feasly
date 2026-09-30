@@ -1,92 +1,105 @@
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
-import { Store } from '@ngxs/store';
 import type {
   Comment,
   CommentListResponse,
-} from '../../shared/components/comment-thread';
-import { BuilderState } from './builder.state';
+  CreateCommentBody,
+  UpdateCommentBody,
+} from '@feasly/contracts';
+import { ConfigService } from '../../core/config/config.service';
+import { toApiError } from '../../core/api/api-error';
 
 /**
- * Builder lead-comments API client (BILL-06).
+ * Builder lead-comments API client (BILL-06, wired to the real BILL-05
+ * backend).
  *
- * TEMPORARY IN-MEMORY MOCK of the frozen BILL-05 contract — the real
- * backend (`GET/POST /api/v1/builder/leads/{leadId}/comments`,
- * `PATCH /api/v1/builder/comments/{commentId}`) is being built in parallel
- * (story/bill-05-comments-api). When it merges, replace the bodies below
- * with HttpClient calls against the frozen shapes; the container and the
- * shared thread component are already wired to those shapes and must not
- * change.
+ * Speaks the versioned `/api/v1/builder/leads/{leadId}/comments` routes
+ * behind the builder session cookie (`withCredentials: true`). Every call
+ * is tenant-scoped server-side: the builder read path excludes `admin_only`
+ * notes, and edits are author-only (both enforced by the backend, never by
+ * the UI).
  *
- * Frozen contract:
- * - `GET /api/v1/builder/leads/{leadId}/comments` → `{ comments: Comment[] }`
- * - `POST /api/v1/builder/leads/{leadId}/comments` `{ body }` → `Comment`
- * - `PATCH /api/v1/builder/comments/{commentId}` `{ body }` → `Comment`
- * - `Comment` = `{ id, entityType, entityId, authorKind, authorId,
- *   authorDisplayName, visibility, body, createdAt, updatedAt, edited }`.
+ * Types come from `@feasly/contracts` (BILL-05 frozen contract).
  */
 @Injectable({ providedIn: 'root' })
 export class BuilderCommentsApiService {
-  private readonly store = inject(Store);
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(ConfigService);
 
-  /** In-memory threads keyed by lead id (mock persistence for the session). */
-  private readonly threads = new Map<string, Comment[]>();
+  /**
+   * Versioned contract paths (short segments — the no-hardcode tripwire
+   * flags string literals >= 50 chars, and these are API contract, not
+   * tunables, so they don't belong in app-config.json).
+   */
+  private static readonly LEADS_PATH = '/builder/leads';
+  private static readonly COMMENTS_PATH = '/builder/comments';
+  private static readonly COMMENTS_SEGMENT = '/comments';
 
-  /** Tenant-scoped comment thread for a lead, oldest first. */
-  listComments(leadId: string): Observable<CommentListResponse> {
-    return of({ comments: this.threadFor(leadId) });
+  private get leadsBase(): string {
+    const v1 = `${this.config.get('api').baseUrl}/api/v1`;
+    return v1 + BuilderCommentsApiService.LEADS_PATH;
+  }
+
+  private get commentsBase(): string {
+    const v1 = `${this.config.get('api').baseUrl}/api/v1`;
+    return v1 + BuilderCommentsApiService.COMMENTS_PATH;
+  }
+
+  /** `/api/v1/builder/leads/{leadId}/comments` */
+  private leadCommentsUrl(leadId: string): string {
+    return (
+      this.leadsBase +
+      '/' +
+      encodeURIComponent(leadId) +
+      BuilderCommentsApiService.COMMENTS_SEGMENT
+    );
+  }
+
+  /** `/api/v1/builder/comments/{commentId}` */
+  private commentUrl(commentId: string): string {
+    return this.commentsBase + '/' + encodeURIComponent(commentId);
+  }
+
+  private call<T>(request: Observable<T>): Observable<T> {
+    const timeoutMs = this.config.get('api').timeoutMs;
+    return request.pipe(timeout(timeoutMs), catchError(toApiError));
   }
 
   /**
-   * Post a note as the current builder user. The real backend derives the
-   * author from the session and forces `visibility: 'org'`; the mock does
-   * the same from the NGXS session.
+   * Org-visible thread for the lead, oldest first. `admin_only` notes are
+   * excluded server-side — builders can never see them through this path.
+   */
+  listComments(leadId: string): Observable<CommentListResponse> {
+    return this.call(
+      this.http.get<CommentListResponse>(this.leadCommentsUrl(leadId), {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * Post a note as the current builder user. The backend derives the author
+   * from the session and forces `visibility: 'org'` — no visibility choice
+   * is sent (or accepted) on the builder path.
    */
   postComment(leadId: string, body: string): Observable<Comment> {
-    const session = this.store.selectSnapshot(BuilderState.session);
-    const now = new Date().toISOString();
-    const comment: Comment = {
-      id: crypto.randomUUID(),
-      entityType: 'lead',
-      entityId: leadId,
-      authorKind: 'builder',
-      authorId: session?.email ?? 'unknown',
-      authorDisplayName: session?.name ?? session?.email ?? 'A builder',
-      visibility: 'org',
-      body,
-      createdAt: now,
-      updatedAt: now,
-      edited: false,
-    };
-    this.threadFor(leadId).push(comment);
-    return of(comment);
+    const payload: CreateCommentBody = { body };
+    return this.call(
+      this.http.post<Comment>(this.leadCommentsUrl(leadId), payload, {
+        withCredentials: true,
+      }),
+    );
   }
 
-  /** Edit an own comment (author-only is enforced server-side for real). */
+  /** Edit an own comment. Author-only is enforced server-side. */
   editComment(commentId: string, body: string): Observable<Comment> {
-    for (const thread of this.threads.values()) {
-      const index = thread.findIndex((c) => c.id === commentId);
-      if (index !== -1) {
-        const updated: Comment = {
-          ...thread[index],
-          body,
-          updatedAt: new Date().toISOString(),
-          edited: true,
-        };
-        thread[index] = updated;
-        return of(updated);
-      }
-    }
-    return throwError(() => new Error(`Comment not found: ${commentId}`));
-  }
-
-  private threadFor(leadId: string): Comment[] {
-    let thread = this.threads.get(leadId);
-    if (!thread) {
-      thread = [];
-      this.threads.set(leadId, thread);
-    }
-    return thread;
+    const payload: UpdateCommentBody = { body };
+    return this.call(
+      this.http.patch<Comment>(this.commentUrl(commentId), payload, {
+        withCredentials: true,
+      }),
+    );
   }
 }

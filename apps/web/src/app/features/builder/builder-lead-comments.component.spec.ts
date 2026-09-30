@@ -36,6 +36,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     createdAt: now,
     updatedAt: now,
     edited: false,
+    deletedAt: null,
     ...overrides,
   };
 }
