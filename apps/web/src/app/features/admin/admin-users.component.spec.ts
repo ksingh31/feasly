@@ -1,10 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AdminUser } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
+import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { OpenInviteAdminUser } from './admin-users.actions';
 import { AdminUsersComponent } from './admin-users.component';
 import { AdminAuthState } from './admin-auth.state';
@@ -190,19 +192,59 @@ describe('AdminUsersComponent', () => {
       return button;
     }
 
-    it('sole staff admin: Deactivate is disabled with the exact explainer', () => {
+    /** The auth/07 ⓘ tooltip rendered inside a scope (row or modal). */
+    function lastAdminTooltip(scope: HTMLElement): InfoTooltipComponent | null {
+      const found = fixture.debugElement
+        .queryAll(By.directive(InfoTooltipComponent))
+        .find((d) => scope.contains(d.nativeElement as Node));
+      return (found?.componentInstance as InfoTooltipComponent | undefined) ?? null;
+    }
+
+    it('sole staff admin: Deactivate is disabled with the ⓘ tooltip explainer', () => {
       flushInit([SOLE_ADMIN]);
       const row = fixture.nativeElement.querySelectorAll(
         'tbody tr',
       )[0] as HTMLElement;
-      expect(deactivateButton(row).disabled).toBe(true);
-      const note = row.querySelector('.users-page__note') as HTMLElement;
-      expect(note?.textContent?.trim()).toBe(
+      const button = deactivateButton(row);
+      expect(button.disabled).toBe(true);
+      const tip = lastAdminTooltip(row);
+      expect(tip).not.toBeNull();
+      expect(tip!.text()).toBe(
+        'Every organization needs at least one active administrator.',
+      );
+      // The trigger icon renders beside the disabled action…
+      expect(
+        row.querySelector('app-info-tooltip .info-tooltip__trigger'),
+      ).not.toBeNull();
+      // …and the control points at the tooltip for screen readers.
+      expect(button.getAttribute('aria-describedby')).toBe(tip!.tooltipId);
+      // No inline explainer text under the control anymore.
+      expect(row.querySelector('.users-page__note:not(.users-page__note--error)')).toBeNull();
+    });
+
+    it('sole staff admin: the tooltip opens with the exact copy on demand', async () => {
+      flushInit([SOLE_ADMIN]);
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      const trigger = row.querySelector(
+        'app-info-tooltip .info-tooltip__trigger',
+      ) as HTMLButtonElement;
+      trigger.click();
+      fixture.detectChanges();
+      await Promise.resolve();
+      fixture.detectChanges();
+      const bubble = row.querySelector(
+        '.info-tooltip__bubble',
+      ) as HTMLElement;
+      expect(bubble).not.toBeNull();
+      expect(bubble.getAttribute('role')).toBe('tooltip');
+      expect(bubble.textContent?.trim()).toBe(
         'Every organization needs at least one active administrator.',
       );
     });
 
-    it('sole staff admin: the edit drawer role select is disabled with the exact explainer', () => {
+    it('sole staff admin: the edit drawer role select is disabled with the ⓘ tooltip explainer', () => {
       flushInit([SOLE_ADMIN]);
       // Open the drawer through the real UI path (Edit button → openEdit).
       const row = fixture.nativeElement.querySelectorAll(
@@ -213,26 +255,32 @@ describe('AdminUsersComponent', () => {
       ) as HTMLButtonElement;
       edit.click();
       fixture.detectChanges();
-      const select = fixture.nativeElement.querySelector(
-        '.users-page__modal select[formcontrolname="role"]',
+      const modal = fixture.nativeElement.querySelector(
+        '.users-page__modal',
+      ) as HTMLElement;
+      const select = modal.querySelector(
+        'select[formcontrolname="role"]',
       ) as HTMLSelectElement;
       expect(select).not.toBeNull();
       expect(select.disabled).toBe(true);
-      const note = fixture.nativeElement.querySelector(
-        '.users-page__modal .users-page__note',
-      ) as HTMLElement;
-      expect(note?.textContent?.trim()).toBe(
+      const tip = lastAdminTooltip(modal);
+      expect(tip).not.toBeNull();
+      expect(tip!.text()).toBe(
         "You can't change the role of the last administrator. Add another administrator first.",
       );
+      expect(select.getAttribute('aria-describedby')).toBe(tip!.tooltipId);
+      expect(
+        modal.querySelector('.users-page__note:not(.users-page__note--error)'),
+      ).toBeNull();
     });
 
-    it('two staff admins: controls stay enabled and no explainer shows', () => {
+    it('two staff admins: controls stay enabled and no tooltip shows', () => {
       flushInit([SOLE_ADMIN, SECOND_ADMIN]);
       const row = fixture.nativeElement.querySelectorAll(
         'tbody tr',
       )[0] as HTMLElement;
       expect(deactivateButton(row).disabled).toBe(false);
-      expect(row.querySelector('.users-page__note')).toBeNull();
+      expect(row.querySelector('app-info-tooltip')).toBeNull();
     });
 
     it('pending and deactivated admins never count toward the guard', () => {
@@ -254,8 +302,9 @@ describe('AdminUsersComponent', () => {
         'tbody tr',
       )[0] as HTMLElement;
       expect(deactivateButton(row).disabled).toBe(true);
-      const note = row.querySelector('.users-page__note') as HTMLElement;
-      expect(note?.textContent?.trim()).toBe(
+      const tip = lastAdminTooltip(row);
+      expect(tip).not.toBeNull();
+      expect(tip!.text()).toBe(
         'Every organization needs at least one active administrator.',
       );
     });

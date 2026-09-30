@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
+import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
 import {
@@ -38,7 +39,7 @@ import type { BuilderTeamUser } from './builder-auth.contracts';
 @Component({
   selector: 'app-builder-team',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, InfoTooltipComponent],
   templateUrl: './builder-team.component.html',
   styleUrls: ['./builder-team.component.scss'],
 })

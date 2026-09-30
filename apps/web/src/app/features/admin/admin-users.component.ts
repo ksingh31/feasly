@@ -34,6 +34,7 @@ import { AdminUsersState } from './admin-users.state';
 import { AdminAuthState } from './admin-auth.state';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
+import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 
 const STAFF_ROLES = ['super_admin', 'admin', 'viewer'] as const;
 const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
@@ -61,7 +62,7 @@ const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, InfoTooltipComponent],
   templateUrl: './admin-users.component.html',
   styleUrls: ['./admin-users.component.scss'],
 })

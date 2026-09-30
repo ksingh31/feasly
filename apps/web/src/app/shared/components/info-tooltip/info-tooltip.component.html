@@ -1,0 +1,39 @@
+<span
+  class="info-tooltip"
+  (mouseenter)="onWrapperMouseEnter()"
+  (mouseleave)="onWrapperMouseLeave()"
+  (focusin)="onTriggerFocusIn()"
+  (focusout)="onWrapperFocusOut($event)"
+>
+  <button
+    #trigger
+    type="button"
+    class="info-tooltip__trigger"
+    [attr.aria-label]="label()"
+    [attr.aria-expanded]="open()"
+    (pointerdown)="onTriggerPointerDown()"
+    (click)="onTriggerClick()"
+  >
+    <svg
+      class="info-tooltip__icon"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="10" cy="10" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7" />
+      <line x1="10" y1="9" x2="10" y2="14.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+      <circle cx="10" cy="6.4" r="1.15" fill="currentColor" />
+    </svg>
+  </button>
+  @if (open()) {
+    <div
+      #bubble
+      class="info-tooltip__bubble"
+      [class.info-tooltip__bubble--positioned]="positioned()"
+      role="tooltip"
+      [id]="tooltipId"
+      [style.top.px]="position().top"
+      [style.left.px]="position().left"
+    >{{ text() }}</div>
+  }
+</span>

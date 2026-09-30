@@ -14,11 +14,14 @@
  * - Reactivate dispatches directly.
  */
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BuilderTeamComponent } from './builder-team.component';
 import { BUILDER_COPY } from './builder-copy';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
+import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderTeamState } from './builder-team.state';
 import { BuilderState } from './builder.state';
@@ -496,9 +499,9 @@ describe('BuilderTeamComponent (auth/05)', () => {
 /**
  * Builder team component specs (auth/07 — last-admin protection).
  *
- * - The sole remaining active admin's role select + Apply are disabled
- *   with the exact story explainer; Deactivate is disabled with its own
- *   exact explainer.
+ * - The sole remaining active admin's role select + Apply are disabled with
+ *   an ⓘ tooltip carrying the exact story explainer; Deactivate is disabled
+ *   with its own ⓘ tooltip explainer (no inline notes under the controls).
  * - With two active admins (or when pending/deactivated admins are the
  *   only others), the controls stay enabled / the guard still trips.
  */
@@ -511,6 +514,24 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     "You can't change the role of the last administrator. Add another administrator first.";
   const DEACTIVATE_NOTE =
     'Every organization needs at least one active administrator.';
+
+  /** The auth/07 ⓘ tooltips rendered inside a scope (row or table). */
+  function tooltipsIn(
+    fixture: ComponentFixture<BuilderTeamComponent>,
+    scope: HTMLElement,
+  ): InfoTooltipComponent[] {
+    return fixture.debugElement
+      .queryAll(By.directive(InfoTooltipComponent))
+      .filter((d) => scope.contains(d.nativeElement as Node))
+      .map((d) => d.componentInstance as InfoTooltipComponent);
+  }
+
+  function tooltipTexts(
+    fixture: ComponentFixture<BuilderTeamComponent>,
+    scope: HTMLElement,
+  ): string[] {
+    return tooltipsIn(fixture, scope).map((t) => t.text());
+  }
 
   function soleAdminUsers(): BuilderTeamUser[] {
     return [
@@ -527,19 +548,25 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     return fixture.nativeElement.querySelectorAll('.builder-team__role-select')[index] as HTMLSelectElement;
   }
 
-  it('sole admin: role select and Apply are disabled with the exact explainer', () => {
+  it('sole admin: role select and Apply are disabled with the ⓘ tooltip explainer', () => {
     const { fixture } = setup({ isAdmin: true, users: soleAdminUsers() });
     // Alice (u1) is the only active builder_admin.
-    expect(roleSelectFor(fixture, 0).disabled).toBe(true);
-    const notes = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-team__note'),
-    ) as HTMLElement[];
-    expect(notes.map((n) => n.textContent?.trim())).toContain(ROLE_NOTE);
+    const select = roleSelectFor(fixture, 0);
+    expect(select.disabled).toBe(true);
+    const row = rowFor(fixture, 0);
+    expect(tooltipTexts(fixture, row)).toContain(ROLE_NOTE);
+    // The trigger icon renders beside the disabled select, and the select
+    // points at the tooltip for screen readers.
+    expect(row.querySelector('app-info-tooltip .info-tooltip__trigger')).not.toBeNull();
+    const tip = tooltipsIn(fixture, row).find((t) => t.text() === ROLE_NOTE)!;
+    expect(select.getAttribute('aria-describedby')).toBe(tip.tooltipId);
+    // No inline explainer text under the controls anymore.
+    expect(row.querySelector('.builder-team__note:not(.builder-team__note--error)')).toBeNull();
     // Bob (u2) is a member — his select stays enabled.
     expect(roleSelectFor(fixture, 1).disabled).toBe(false);
   });
 
-  it('sole admin: Deactivate is disabled with the exact explainer', () => {
+  it('sole admin: Deactivate is disabled with the ⓘ tooltip explainer', async () => {
     const { fixture } = setup({ isAdmin: true, users: soleAdminUsers() });
     const row = rowFor(fixture, 0);
     const deactivate = Array.from(row.querySelectorAll('button')).find((b) =>
@@ -547,10 +574,25 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     ) as HTMLButtonElement;
     expect(deactivate).toBeDefined();
     expect(deactivate.disabled).toBe(true);
-    expect(row.textContent).toContain(DEACTIVATE_NOTE);
+    expect(tooltipTexts(fixture, row)).toContain(DEACTIVATE_NOTE);
+    const tip = tooltipsIn(fixture, row).find((t) => t.text() === DEACTIVATE_NOTE)!;
+    expect(deactivate.getAttribute('aria-describedby')).toBe(tip.tooltipId);
+
+    // The explainer shows on demand: tap the ⓘ icon.
+    const trigger = row.querySelector(
+      'app-info-tooltip .info-tooltip__trigger',
+    ) as HTMLButtonElement;
+    trigger.click();
+    fixture.detectChanges();
+    await Promise.resolve();
+    fixture.detectChanges();
+    const bubble = row.querySelector('.info-tooltip__bubble') as HTMLElement;
+    expect(bubble).not.toBeNull();
+    expect(bubble.getAttribute('role')).toBe('tooltip');
+    expect(bubble.textContent?.trim()).toBe(DEACTIVATE_NOTE);
   });
 
-  it('two active admins: controls stay enabled and no explainer shows', () => {
+  it('two active admins: controls stay enabled and no tooltip shows', () => {
     const { fixture } = setup({
       isAdmin: true,
       users: [
@@ -565,7 +607,7 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     ) as HTMLButtonElement;
     expect(deactivate.disabled).toBe(false);
     expect(
-      fixture.nativeElement.querySelector('.builder-team__note'),
+      fixture.nativeElement.querySelector('app-info-tooltip'),
     ).toBeNull();
   });
 
@@ -580,11 +622,9 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     });
     // Alice is still the only ACTIVE admin — her controls are locked.
     expect(roleSelectFor(fixture, 0).disabled).toBe(true);
-    const notes = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-team__note'),
-    ) as HTMLElement[];
-    expect(notes.map((n) => n.textContent?.trim())).toContain(ROLE_NOTE);
-    expect(notes.map((n) => n.textContent?.trim())).toContain(DEACTIVATE_NOTE);
+    const texts = tooltipTexts(fixture, rowFor(fixture, 0));
+    expect(texts).toContain(ROLE_NOTE);
+    expect(texts).toContain(DEACTIVATE_NOTE);
   });
 
   it('a backend 409 race surfaces inline on the targeted row, not as a banner', () => {

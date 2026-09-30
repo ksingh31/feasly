@@ -87,10 +87,22 @@
                     (change)="onRoleSelect(user.id, $any($event.target).value)"
                     [disabled]="updatingUserId() === user.id || isSoleAdmin(user)"
                     [attr.aria-label]="copy.teamColRole"
+                    [attr.aria-describedby]="roleTip?.tooltipId"
                   >
                     <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
                     <option value="builder_member">{{ copy.orgRoleMember }}</option>
                   </select>
+                  <!-- auth/07: the sole remaining active admin's role is
+                       locked by the backend 409 — the ⓘ tooltip beside the
+                       disabled select explains why (replaces the inline
+                       note, which bloated the column on mobile). -->
+                  @if (isSoleAdmin(user)) {
+                    <app-info-tooltip
+                      #roleTip="infoTooltip"
+                      [text]="copy.teamLastAdminRoleNote"
+                      label="Why can't this role be changed?"
+                    />
+                  }
                   <button
                     type="button"
                     class="builder-team__apply"
@@ -99,12 +111,6 @@
                   >
                     {{ copy.teamApplyRole }}
                   </button>
-                  <!-- auth/07: the sole remaining active admin's role is
-                       locked by the backend 409 — the disabled select
-                       explains why. -->
-                  @if (isSoleAdmin(user)) {
-                    <p class="builder-team__note">{{ copy.teamLastAdminRoleNote }}</p>
-                  }
                 } @else {
                   {{ roleLabel(user.role) }}
                 }
@@ -132,14 +138,21 @@
                       type="button"
                       class="builder-team__danger-link"
                       [disabled]="rowActionsDisabled() || isSoleAdmin(user)"
+                      [attr.aria-describedby]="deactivateTip?.tooltipId"
                       (click)="askDeactivate(user)"
                     >
                       {{ copy.teamDeactivateLabel }}
                     </button>
                     <!-- auth/07: deactivating the last admin is refused by
-                         the backend 409 — the disabled action explains why. -->
+                         the backend 409 — the ⓘ tooltip beside the disabled
+                         action explains why (replaces the inline note,
+                         which bloated the ACTIONS column on mobile). -->
                     @if (isSoleAdmin(user)) {
-                      <p class="builder-team__note">{{ copy.teamLastAdminDeactivateNote }}</p>
+                      <app-info-tooltip
+                        #deactivateTip="infoTooltip"
+                        [text]="copy.teamLastAdminDeactivateNote"
+                        label="Why can't this member be deactivated?"
+                      />
                     }
                     @if (user.status === 'invited') {
                       <button
