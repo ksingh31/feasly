@@ -46,6 +46,9 @@ export class AdminLeadCommentsComponent implements OnInit {
     allowDelete: true,
     showVisibilityToggle: true,
     showVisibilityBadges: true,
+    // The "Feasly team" badge is a builder-portal affordance — the admin
+    // console already distinguishes authorship and stays unchanged.
+    showAuthorBadges: false,
   };
 
   protected readonly comments = signal<readonly Comment[]>([]);

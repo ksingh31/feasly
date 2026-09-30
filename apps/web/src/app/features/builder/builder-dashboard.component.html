@@ -161,15 +161,6 @@
                     </p>
                   }
                 }
-                <button
-                  type="button"
-                  class="builder-lead-card__notes-toggle"
-                  (click)="toggleNotes(lead.id)"
-                  [attr.aria-expanded]="notesExpanded(lead.id)"
-                  [attr.aria-controls]="'lead-notes-' + lead.id"
-                >
-                  {{ notesExpanded(lead.id) ? copy.commentsToggleHide : copy.commentsToggleShow }}
-                </button>
               </div>
               <div
                 class="builder-lead-card__side"
@@ -212,14 +203,72 @@
                   }
                 }
               </div>
-              @if (notesExpanded(lead.id)) {
+            <section
+              class="builder-lead-card__notes-section"
+              [attr.aria-label]="copy.commentsSectionTitle + ': ' + lead.name"
+            >
+              <button
+                type="button"
+                class="builder-lead-card__notes-header"
+                (click)="toggleNotes(lead.id)"
+                [attr.aria-expanded]="notesExpanded(lead.id)"
+                [attr.aria-controls]="'lead-notes-' + lead.id"
+              >
+                <span class="builder-lead-card__notes-title">{{ copy.commentsSectionTitle }}</span>
+                <span
+                  class="builder-lead-card__notes-count"
+                  [class.builder-lead-card__notes-count--zero]="commentCountFor(lead) === 0"
+                >{{ commentCountFor(lead) }}</span>
+                <svg
+                  class="builder-lead-card__notes-chevron"
+                  [class.builder-lead-card__notes-chevron--open]="notesExpanded(lead.id)"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                ><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              @if (!notesExpanded(lead.id)) {
+                @if (latestCommentFor(lead); as latest) {
+                  <button
+                    type="button"
+                    class="builder-lead-card__notes-preview"
+                    (click)="toggleNotes(lead.id)"
+                  >
+                    <span class="builder-lead-card__notes-preview-meta">
+                      {{ latest.authorDisplayName }} · {{ formatNoteTimestamp(latest.createdAt) }}
+                    </span>
+                    <span class="builder-lead-card__notes-preview-body">{{ latest.body }}</span>
+                  </button>
+                } @else {
+                  <div class="builder-lead-card__notes-empty">
+                    <p>{{ copy.commentsEmptyHint }}</p>
+                    <button
+                      type="button"
+                      class="builder-lead-card__notes-cta"
+                      (click)="toggleNotes(lead.id)"
+                    >
+                      {{ copy.commentsAddFirstNote }}
+                    </button>
+                  </div>
+                }
+              } @else {
                 <div
-                  class="builder-lead-card__notes"
+                  class="builder-lead-card__notes-thread"
                   [id]="'lead-notes-' + lead.id"
                 >
-                  <app-builder-lead-comments [leadId]="lead.id" />
+                  <app-builder-lead-comments
+                    [leadId]="lead.id"
+                    (commentsChanged)="onCommentsChanged(lead.id, $event)"
+                  />
                 </div>
               }
+            </section>
             </article>
           }
         </div>

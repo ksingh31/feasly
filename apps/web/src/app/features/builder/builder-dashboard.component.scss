@@ -351,27 +351,159 @@
   color: var(--success, #2f7d4f);
 }
 
-/* Per-lead notes: toggle in the card body, thread spans the full card width. */
-.builder-lead-card__notes-toggle {
+/* Per-lead notes section (redesign): header row with the live count
+   badge + chevron, collapsed latest-note preview, empty-state CTA, and
+   the expanded thread. Full card width on narrow screens; the card's
+   right-hand column on wide screens (desktop frame of the mockup). */
+.builder-lead-card__notes-section {
+  flex: 1 1 100%;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.builder-lead-card__notes-header {
   appearance: none;
   background: none;
   border: 0;
-  padding: 0;
-  margin-top: 0.5rem;
+  padding: 0.625rem 0.125rem;
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--accent);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 0.125rem;
 }
 
-.builder-lead-card__notes {
-  flex-basis: 100%;
-  border-top: 1px solid var(--border);
-  margin-top: 0.5rem;
-  padding-top: 0.75rem;
+.builder-lead-card__notes-title {
+  font-family: var(--font-headline);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.builder-lead-card__notes-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-deep);
+  background: var(--accent-bg);
+  border-radius: 999px;
+  padding: 0.3125rem 0.625rem;
+  min-width: 1.75rem;
+  text-align: center;
+}
+
+.builder-lead-card__notes-count--zero {
+  color: var(--muted);
+  background: var(--cream-2);
+}
+
+.builder-lead-card__notes-chevron {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+.builder-lead-card__notes-chevron--open {
+  transform: rotate(180deg);
+}
+
+.builder-lead-card__notes-preview {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.builder-lead-card__notes-preview:hover {
+  border-color: var(--accent);
+}
+
+.builder-lead-card__notes-preview-meta {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.125rem;
+}
+
+.builder-lead-card__notes-preview-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.builder-lead-card__notes-empty {
+  padding: 0.25rem 0.125rem 0.5rem;
+}
+
+.builder-lead-card__notes-empty p {
+  margin: 0 0 0.625rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.builder-lead-card__notes-cta {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  padding: 0.625rem 1rem;
+  cursor: pointer;
+}
+
+.builder-lead-card__notes-thread {
+  padding-top: 0.25rem;
+}
+
+/* Wide screens: the notes section becomes the card's right-hand column. */
+@media (min-width: 64rem) {
+  .builder-lead-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 20rem);
+    grid-template-areas:
+      "avatar main notes"
+      "avatar side notes";
+    align-items: start;
+  }
+
+  .builder-lead-card__avatar {
+    grid-area: avatar;
+  }
+
+  .builder-lead-card__main {
+    grid-area: main;
+  }
+
+  .builder-lead-card__side {
+    grid-area: side;
+  }
+
+  .builder-lead-card__notes-section {
+    grid-area: notes;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    margin-top: 0;
+    padding-top: 0;
+    padding-left: 1.25rem;
+  }
 }
 
 .builder-lead-card__side {

@@ -1,5 +1,7 @@
 <section class="comment-thread" [attr.aria-label]="labels().heading">
-  <h3 class="comment-thread__heading">{{ labels().heading }}</h3>
+  @if (config().showHeading !== false) {
+    <h3 class="comment-thread__heading">{{ labels().heading }}</h3>
+  }
 
   @if (loading()) {
     <p class="comment-thread__status" role="status">{{ labels().loadingThread }}</p>
@@ -23,6 +25,9 @@
             }
             @if (showInternalBadge(comment)) {
               <span class="comment-thread__internal">{{ labels().internalBadge }}</span>
+            }
+            @if (showAdminAuthorBadge(comment)) {
+              <span class="comment-thread__team">{{ labels().adminAuthorBadgeLabel }}</span>
             }
           </div>
 

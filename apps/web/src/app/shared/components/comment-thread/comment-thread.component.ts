@@ -128,6 +128,16 @@ export class CommentThreadComponent {
   }
 
   /**
+   * "Feasly team" badge on admin-authored notes (builder config only —
+   * the admin console doesn't need it). Shared admin notes are the only
+   * admin-authored rows a builder can ever see (internal ones never
+   * leave the server).
+   */
+  protected showAdminAuthorBadge(comment: Comment): boolean {
+    return this.config().showAuthorBadges && comment.authorKind === 'admin';
+  }
+
+  /**
    * Edit affordance: author-only, matching the backend. The wire
    * `Comment.authorId` is the author's email (lowercased), which is what
    * containers pass as `currentUserId`. The moderator config

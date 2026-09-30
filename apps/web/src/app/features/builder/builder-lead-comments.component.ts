@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import {
@@ -25,7 +25,8 @@ import { BuilderState } from './builder.state';
  * Thin by design — no NGXS state for the thread (ephemeral per-lead UI
  * state lives in signals here). Builder config hides every visibility
  * control: `{ allowPost: true, allowEdit: true, allowDelete: false,
- * showVisibilityToggle: false, showVisibilityBadges: false }`.
+ * showVisibilityToggle: false, showVisibilityBadges: false,
+ * showAuthorBadges: true }` (shared admin notes carry the team badge).
  *
  * `currentUserId` is the session email — the only per-user identifier in
  * the frontend session. The BILL-05 backend sets the wire
@@ -49,6 +50,13 @@ export class BuilderLeadCommentsComponent implements OnInit {
 
   readonly leadId = input.required<string>();
 
+  /**
+   * The thread's current comments, emitted after the initial load and
+   * after every successful post/edit. The lead card listens to keep its
+   * notes count badge + latest-note preview live without a reload.
+   */
+  readonly commentsChanged = output<readonly Comment[]>();
+
   protected readonly threadConfig = BUILDER_COMMENT_THREAD_CONFIG;
 
   protected readonly comments = signal<readonly Comment[]>([]);
@@ -60,14 +68,20 @@ export class BuilderLeadCommentsComponent implements OnInit {
     () => this.store.selectSignal(BuilderState.session)()?.email ?? '',
   );
 
-  /** Component defaults with builder voice for the empty state. */
+  /** Component defaults with builder voice for the empty state + team badge. */
   protected readonly labels = computed<CommentThreadLabels>(() => ({
     ...DEFAULT_COMMENT_THREAD_LABELS,
     emptyThread: this.copy.commentsEmpty,
+    adminAuthorBadgeLabel: this.copy.commentsTeamBadge,
   }));
 
   ngOnInit(): void {
     this.reload();
+  }
+
+  /** Publish the thread so the lead card's badge/preview stays live. */
+  private emitChanged(comments: readonly Comment[]): void {
+    this.commentsChanged.emit(comments);
   }
 
   protected onPost(event: CommentPost): void {
@@ -77,7 +91,11 @@ export class BuilderLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (comment) =>
-          this.comments.update((all) => sortCommentsByOldest([...all, comment])),
+          this.comments.update((all) => {
+            const next = sortCommentsByOldest([...all, comment]);
+            this.emitChanged(next);
+            return next;
+          }),
         error: () => this.error.set(this.copy.commentsPostFailed),
       });
   }
@@ -89,7 +107,11 @@ export class BuilderLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updated) =>
-          this.comments.update((all) => all.map((c) => (c.id === updated.id ? updated : c))),
+          this.comments.update((all) => {
+            const next = all.map((c) => (c.id === updated.id ? updated : c));
+            this.emitChanged(next);
+            return next;
+          }),
         error: () => this.error.set(this.copy.commentsEditFailed),
       });
   }
@@ -102,8 +124,10 @@ export class BuilderLeadCommentsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.comments.set(sortCommentsByOldest(response.comments));
+          const comments = sortCommentsByOldest(response.comments);
+          this.comments.set(comments);
           this.loading.set(false);
+          this.emitChanged(comments);
         },
         error: () => {
           this.loading.set(false);
