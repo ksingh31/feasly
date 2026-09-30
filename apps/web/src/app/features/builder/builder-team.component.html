@@ -83,9 +83,9 @@
                 @if (isBuilderAdmin()) {
                   <select
                     class="builder-team__role-select"
-                    [value]="pendingRoleFor(user)"
+                    [value]="isSoleAdmin(user) ? user.role : pendingRoleFor(user)"
                     (change)="onRoleSelect(user.id, $any($event.target).value)"
-                    [disabled]="updatingUserId() === user.id"
+                    [disabled]="updatingUserId() === user.id || isSoleAdmin(user)"
                     [attr.aria-label]="copy.teamColRole"
                   >
                     <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
@@ -99,6 +99,12 @@
                   >
                     {{ copy.teamApplyRole }}
                   </button>
+                  <!-- auth/07: the sole remaining active admin's role is
+                       locked by the backend 409 — the disabled select
+                       explains why. -->
+                  @if (isSoleAdmin(user)) {
+                    <p class="builder-team__note">{{ copy.teamLastAdminRoleNote }}</p>
+                  }
                 } @else {
                   {{ roleLabel(user.role) }}
                 }
@@ -125,11 +131,16 @@
                     <button
                       type="button"
                       class="builder-team__danger-link"
-                      [disabled]="rowActionsDisabled()"
+                      [disabled]="rowActionsDisabled() || isSoleAdmin(user)"
                       (click)="askDeactivate(user)"
                     >
                       {{ copy.teamDeactivateLabel }}
                     </button>
+                    <!-- auth/07: deactivating the last admin is refused by
+                         the backend 409 — the disabled action explains why. -->
+                    @if (isSoleAdmin(user)) {
+                      <p class="builder-team__note">{{ copy.teamLastAdminDeactivateNote }}</p>
+                    }
                     @if (user.status === 'invited') {
                       <button
                         type="button"
@@ -140,6 +151,14 @@
                         {{ copy.teamRemoveLabel }}
                       </button>
                     }
+                  }
+                  <!-- auth/07: a backend 409 (e.g. the last-admin race)
+                       surfaces inline on the row it targeted, never as a
+                       generic banner. -->
+                  @if (actionError() && actionErrorUserId() === user.id) {
+                    <p class="builder-team__note builder-team__note--error" role="alert">
+                      {{ actionErrorMessage() ?? copy.teamActionError }}
+                    </p>
                   }
                 </td>
               }
@@ -157,7 +176,9 @@
         </tbody>
       </table>
     </div>
-    @if (actionError()) {
+    <!-- Row-tagged failures render inline on their row (auth/07); this
+         banner is only the fallback for untagged errors. -->
+    @if (actionError() && actionErrorUserId() === null) {
       <p class="builder-team__state builder-team__state--error">
         {{ actionErrorMessage() ?? copy.teamActionError }}
       </p>

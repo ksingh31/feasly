@@ -69,6 +69,13 @@ export class BuilderTeamComponent implements OnInit {
   protected readonly actionErrorMessage = this.store.selectSignal(
     BuilderTeamState.actionErrorMessage,
   );
+  /**
+   * auth/07: the row a failed action targeted — its 409 surfaces inline on
+   * that row, never as a generic banner.
+   */
+  protected readonly actionErrorUserId = this.store.selectSignal(
+    BuilderTeamState.actionErrorUserId,
+  );
   protected readonly updatingUserId = this.store.selectSignal(
     BuilderTeamState.updatingUserId,
   );
@@ -264,13 +271,31 @@ export class BuilderTeamComponent implements OnInit {
   }
 
   /**
+   * auth/07: whether this row is the sole remaining active admin of the
+   * org. Pending/deactivated members never count — only live access
+   * (status 'active') holding 'builder_admin'. The template disables
+   * their role select + Apply and their Deactivate action, with an
+   * inline explainer; the backend 409 is the real enforcement.
+   */
+  protected isSoleAdmin(user: BuilderTeamUser): boolean {
+    if (user.role !== 'builder_admin' || user.status !== 'active') {
+      return false;
+    }
+    const admins = this.users().filter(
+      (u) => u.role === 'builder_admin' && u.status === 'active',
+    );
+    return admins.length === 1 && admins[0]!.id === user.id;
+  }
+
+  /**
    * The Apply button is enabled only when the staged role differs from
    * the stored role and no save is in flight.
    */
   protected canApplyRole(user: BuilderTeamUser): boolean {
     return (
       this.pendingRoleFor(user) !== user.role &&
-      this.updatingUserId() === null
+      this.updatingUserId() === null &&
+      !this.isSoleAdmin(user)
     );
   }
 

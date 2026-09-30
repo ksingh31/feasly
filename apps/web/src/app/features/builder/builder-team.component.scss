@@ -242,6 +242,24 @@
   color: var(--muted);
 }
 
+/* auth/07: inline explainer under a disabled control when the row is the
+   sole remaining active admin. Wraps inside the cell (the actions cell is
+   nowrap) and never widens the table — no extra horizontal scroll on
+   mobile. */
+.builder-team__note {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: normal;
+  max-width: 14rem;
+}
+
+/* auth/07: row-inline backend error (e.g. the last-admin 409 race). */
+.builder-team__note--error {
+  color: #8c2f26;
+}
+
 .builder-team__empty {
   text-align: center;
   color: var(--muted);

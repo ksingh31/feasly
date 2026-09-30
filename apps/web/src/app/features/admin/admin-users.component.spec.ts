@@ -157,4 +157,141 @@ describe('AdminUsersComponent', () => {
       role: 'viewer',
     });
   });
+
+  /**
+   * auth/07 — last-admin protection: the sole remaining active staff
+   * admin's role select and Deactivate action are disabled, each with
+   * the exact story explainer. The backend 409 is the real enforcement.
+   */
+  describe('last-admin protection', () => {
+    const SOLE_ADMIN: AdminUser = {
+      id: '323e4567-e89b-12d3-a456-426614174000',
+      email: 'sole@example.com',
+      name: 'Sole',
+      status: 'active',
+      staffRole: 'admin',
+      isProtected: false,
+      memberships: [],
+      createdAt: '2026-09-28T00:00:00.000Z',
+      updatedAt: '2026-09-28T00:00:00.000Z',
+    };
+    const SECOND_ADMIN: AdminUser = {
+      ...SOLE_ADMIN,
+      id: '423e4567-e89b-12d3-a456-426614174000',
+      email: 'second@example.com',
+      name: 'Second',
+    };
+
+    function deactivateButton(row: HTMLElement): HTMLButtonElement {
+      const button = Array.from(row.querySelectorAll('button')).find((b) =>
+        (b.textContent ?? '').includes('Deactivate'),
+      ) as HTMLButtonElement;
+      expect(button).toBeDefined();
+      return button;
+    }
+
+    it('sole staff admin: Deactivate is disabled with the exact explainer', () => {
+      flushInit([SOLE_ADMIN]);
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      expect(deactivateButton(row).disabled).toBe(true);
+      const note = row.querySelector('.users-page__note') as HTMLElement;
+      expect(note?.textContent?.trim()).toBe(
+        'Every organization needs at least one active administrator.',
+      );
+    });
+
+    it('sole staff admin: the edit drawer role select is disabled with the exact explainer', () => {
+      flushInit([SOLE_ADMIN]);
+      // Open the drawer through the real UI path (Edit button → openEdit).
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      const edit = Array.from(row.querySelectorAll('button')).find((b) =>
+        (b.textContent ?? '').includes('Edit'),
+      ) as HTMLButtonElement;
+      edit.click();
+      fixture.detectChanges();
+      const select = fixture.nativeElement.querySelector(
+        '.users-page__modal select[formcontrolname="role"]',
+      ) as HTMLSelectElement;
+      expect(select).not.toBeNull();
+      expect(select.disabled).toBe(true);
+      const note = fixture.nativeElement.querySelector(
+        '.users-page__modal .users-page__note',
+      ) as HTMLElement;
+      expect(note?.textContent?.trim()).toBe(
+        "You can't change the role of the last administrator. Add another administrator first.",
+      );
+    });
+
+    it('two staff admins: controls stay enabled and no explainer shows', () => {
+      flushInit([SOLE_ADMIN, SECOND_ADMIN]);
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      expect(deactivateButton(row).disabled).toBe(false);
+      expect(row.querySelector('.users-page__note')).toBeNull();
+    });
+
+    it('pending and deactivated admins never count toward the guard', () => {
+      flushInit([
+        SOLE_ADMIN,
+        {
+          ...SECOND_ADMIN,
+          status: 'disabled',
+        },
+        {
+          ...SECOND_ADMIN,
+          id: '523e4567-e89b-12d3-a456-426614174000',
+          email: 'pending@example.com',
+          name: 'Pending',
+          status: 'invited',
+        },
+      ]);
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      expect(deactivateButton(row).disabled).toBe(true);
+      const note = row.querySelector('.users-page__note') as HTMLElement;
+      expect(note?.textContent?.trim()).toBe(
+        'Every organization needs at least one active administrator.',
+      );
+    });
+
+    it('a backend 409 race surfaces inline on the targeted row, not as a banner', () => {
+      // Two admins so the Deactivate action is enabled; the backend still
+      // refuses with 409 (the race the disabled UI can't prevent).
+      flushInit([SOLE_ADMIN, SECOND_ADMIN]);
+      const row = fixture.nativeElement.querySelectorAll(
+        'tbody tr',
+      )[0] as HTMLElement;
+      deactivateButton(row).click();
+      fixture.detectChanges();
+      const req = httpMock.expectOne(
+        (r) => r.url.endsWith(`/api/v1/admin/users/${SOLE_ADMIN.id}`) && r.method === 'PATCH',
+      );
+      req.flush(
+        {
+          type: 'urn:feasly:errors:last-admin',
+          title: 'Last administrator',
+          status: 409,
+          message: 'Every organization needs at least one active administrator.',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      fixture.detectChanges();
+      const note = row.querySelector(
+        '.users-page__note--error',
+      ) as HTMLElement;
+      expect(note?.textContent?.trim()).toBe(
+        'Every organization needs at least one active administrator.',
+      );
+      // Row-tagged failures never use the generic banner.
+      expect(
+        fixture.nativeElement.querySelector('.users-page__state--error'),
+      ).toBeNull();
+    });
+  });
 });
