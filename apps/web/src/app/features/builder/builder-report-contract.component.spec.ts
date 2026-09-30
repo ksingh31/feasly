@@ -80,6 +80,8 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       createdAt: '2026-09-19T10:00:00.000Z',
       hasInvoice: false,
       invoiceSummary: null,
+      commentCount: 0,
+      latestComment: null,
     },
     {
       id: RECORDED_LEAD_ID,
@@ -95,6 +97,8 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       createdAt: '2026-09-18T10:00:00.000Z',
       hasInvoice: true,
       invoiceSummary: INVOICE,
+      commentCount: 0,
+      latestComment: null,
     },
   ],
   summary: { total: 2, new: 0, contacted: 0, quoted: 1, won: 1, lost: 0 },

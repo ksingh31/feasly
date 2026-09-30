@@ -92,6 +92,39 @@ function makeStore(seed: CommentRow[] = []): CommentStore & {
       const found = rows.find((r) => r.id === args.id);
       if (found) found.deletedAt = args.deletedAt;
     },
+    async summariesByEntity(args) {
+      // Mirrors the real window-function query: per-entity count plus
+      // the newest visible row, with the same SQL visibility gate.
+      const visible = rows
+        .filter((r) => r.entityType === args.entityType)
+        .filter((r) => args.entityIds.includes(r.entityId))
+        .filter((r) => r.deletedAt === null)
+        .filter((r) => args.includeAdminOnly || r.visibility === 'org')
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const byEntity = new Map<string, CommentRow[]>();
+      for (const r of visible) {
+        const list = byEntity.get(r.entityId) ?? [];
+        list.push(r);
+        byEntity.set(r.entityId, list);
+      }
+      return new Map(
+        [...byEntity].map(([entityId, list]) => [
+          entityId,
+          {
+            count: list.length,
+            latest:
+              list[0] === undefined
+                ? null
+                : {
+                    body: list[0].body,
+                    authorId: list[0].authorId,
+                    authorKind: list[0].authorKind as 'builder' | 'admin',
+                    createdAt: list[0].createdAt,
+                  },
+          },
+        ]),
+      );
+    },
   };
 }
 

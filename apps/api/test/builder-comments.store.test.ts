@@ -127,3 +127,120 @@ describe('builder comments store (PGlite)', () => {
     expect(updated?.updatedAt.getTime()).toBe(later.getTime());
   });
 });
+
+describe('builder comments store summariesByEntity (PGlite)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  async function insertNote(args: {
+    entityId: string;
+    authorKind: 'builder' | 'admin';
+    visibility: 'org' | 'admin_only';
+    body: string;
+    createdAt: Date;
+  }) {
+    const store = createDrizzleCommentStore({ db: testDb.db });
+    return store.insert({
+      id: randomUUID(),
+      entityType: 'lead',
+      entityId: args.entityId,
+      authorKind: args.authorKind,
+      authorId: AUTHOR_ID,
+      visibility: args.visibility,
+      body: args.body,
+      createdAt: args.createdAt,
+      updatedAt: args.createdAt,
+    });
+  }
+
+  it('returns per-entity counts and the newest visible comment in one call', async () => {
+    const base = new Date('2026-09-28T10:00:00.000Z');
+    const entityA = randomUUID();
+    await insertNote({
+      entityId: entityA, authorKind: 'builder', visibility: 'org',
+      body: 'First', createdAt: new Date(base.getTime()),
+    });
+    await insertNote({
+      entityId: entityA, authorKind: 'builder', visibility: 'org',
+      body: 'Second', createdAt: new Date(base.getTime() + 1_000),
+    });
+    // Newest overall is admin_only: builder callers must not see it.
+    await insertNote({
+      entityId: entityA, authorKind: 'admin', visibility: 'admin_only',
+      body: 'Secret', createdAt: new Date(base.getTime() + 2_000),
+    });
+    // A second entity with a single note proves per-entity partitioning.
+    const entityB = randomUUID();
+    await insertNote({
+      entityId: entityB, authorKind: 'builder', visibility: 'org',
+      body: 'Only', createdAt: new Date(base.getTime()),
+    });
+
+    const store = createDrizzleCommentStore({ db: testDb.db });
+    const builderView = await store.summariesByEntity({
+      entityType: 'lead',
+      entityIds: [entityA, entityB, randomUUID()],
+      includeAdminOnly: false,
+    });
+    // The entity with zero visible comments is absent from the map.
+    expect([...builderView.keys()].sort()).toEqual([entityA, entityB].sort());
+
+    const summaryA = builderView.get(entityA)!;
+    expect(summaryA.count).toBe(2);
+    expect(summaryA.latest?.body).toBe('Second');
+    expect(summaryA.latest?.authorId).toBe(AUTHOR_ID);
+    expect(summaryA.latest?.createdAt.getTime()).toBe(base.getTime() + 1_000);
+
+    const summaryB = builderView.get(entityB)!;
+    expect(summaryB.count).toBe(1);
+    expect(summaryB.latest?.body).toBe('Only');
+
+    const adminView = await store.summariesByEntity({
+      entityType: 'lead',
+      entityIds: [entityA],
+      includeAdminOnly: true,
+    });
+    expect(adminView.get(entityA)?.count).toBe(3);
+    expect(adminView.get(entityA)?.latest?.body).toBe('Secret');
+  });
+
+  it('excludes soft-deleted comments from the count and the latest', async () => {
+    const base = new Date('2026-09-28T10:00:00.000Z');
+    const entityId = randomUUID();
+    await insertNote({
+      entityId, authorKind: 'builder', visibility: 'org',
+      body: 'First', createdAt: new Date(base.getTime()),
+    });
+    const newest = await insertNote({
+      entityId, authorKind: 'builder', visibility: 'org',
+      body: 'Second', createdAt: new Date(base.getTime() + 1_000),
+    });
+
+    const store = createDrizzleCommentStore({ db: testDb.db });
+    await store.softDelete({ id: newest.id, deletedAt: new Date() });
+
+    const view = await store.summariesByEntity({
+      entityType: 'lead',
+      entityIds: [entityId],
+      includeAdminOnly: false,
+    });
+    expect(view.get(entityId)?.count).toBe(1);
+    expect(view.get(entityId)?.latest?.body).toBe('First');
+  });
+
+  it('returns an empty map for an empty entity list', async () => {
+    const store = createDrizzleCommentStore({ db: testDb.db });
+    const view = await store.summariesByEntity({
+      entityType: 'lead',
+      entityIds: [],
+      includeAdminOnly: false,
+    });
+    expect(view.size).toBe(0);
+  });
+});

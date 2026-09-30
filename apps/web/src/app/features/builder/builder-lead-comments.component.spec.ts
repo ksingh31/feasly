@@ -108,6 +108,61 @@ describe('BuilderLeadCommentsComponent', () => {
     expect(updated.edited).toBe(true);
   });
 
+  it('emits commentsChanged after the initial load', async () => {
+    // A fresh mount with the subscription in place before the first
+    // change detection, so the load-time emission is captured.
+    TestBed.resetTestingModule();
+    const apiStub = {
+      listComments: vi.fn(() => of({ comments: [comment(), comment({ id: 'c2' })] })),
+      postComment: vi.fn(),
+      editComment: vi.fn(),
+    };
+    await TestBed.configureTestingModule({
+      imports: [BuilderLeadCommentsComponent],
+      providers: [
+        provideStore([BuilderState]),
+        { provide: BUILDER_COPY, useValue: { ...DEFAULT_BUILDER_COPY } },
+        { provide: BuilderCommentsApiService, useValue: apiStub },
+      ],
+    }).compileComponents();
+    const fresh: ComponentFixture<BuilderLeadCommentsComponent> =
+      TestBed.createComponent(BuilderLeadCommentsComponent);
+    const emitted: Array<readonly Comment[]> = [];
+    fresh.componentInstance.commentsChanged.subscribe((c) => emitted.push(c));
+    fresh.componentRef.setInput('leadId', 'lead-1');
+    fresh.detectChanges();
+    await fresh.whenStable();
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toHaveLength(2);
+  });
+
+  it('emits commentsChanged after posting a note', async () => {
+    const { fixture } = await setup();
+    const emitted: Array<readonly Comment[]> = [];
+    fixture.componentInstance.commentsChanged.subscribe((c) => emitted.push(c));
+
+    threadOf(fixture).post.emit({ body: 'A new note', visibility: 'org' });
+    fixture.detectChanges();
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toHaveLength(2);
+    expect(emitted[0][1].body).toBe('A new note');
+  });
+
+  it('emits commentsChanged after editing a note', async () => {
+    const { fixture } = await setup();
+    const emitted: Array<readonly Comment[]> = [];
+    fixture.componentInstance.commentsChanged.subscribe((c) => emitted.push(c));
+
+    threadOf(fixture).edit.emit({ id: 'c1', body: 'Edited note' });
+    fixture.detectChanges();
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0][0].body).toBe('Edited note');
+    expect(emitted[0][0].edited).toBe(true);
+  });
+
   it('surfaces API failures with builder copy and clears on dismiss', async () => {
     const { fixture, apiStub } = await setup();
     const { throwError } = await import('rxjs');
