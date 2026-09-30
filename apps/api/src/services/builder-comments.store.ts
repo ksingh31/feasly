@@ -8,7 +8,7 @@
  * in JS after the fact would be a leak vector, so there is no code path
  * that loads admin_only rows and drops them in memory.
  */
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { builderComments } from '../db/schema';
 
@@ -26,6 +26,21 @@ export interface NewCommentRow {
   readonly updatedAt: Date;
 }
 
+export interface CommentSummaryLatest {
+  readonly body: string;
+  /** users.id — the service resolves this to a display name. */
+  readonly authorId: string;
+  readonly authorKind: 'builder' | 'admin';
+  readonly createdAt: Date;
+}
+
+export interface CommentSummary {
+  /** Builder-visible (per includeAdminOnly) non-deleted comment count. */
+  readonly count: number;
+  /** Newest visible comment. Non-null whenever the entity is in the map. */
+  readonly latest: CommentSummaryLatest | null;
+}
+
 export interface CommentStore {
   /**
    * Chronological (oldest first) non-deleted comments for an entity.
@@ -39,6 +54,18 @@ export interface CommentStore {
   }): Promise<CommentRow[]>;
   /** A single comment by id, including soft-deleted rows (null when absent). */
   getById(id: string): Promise<CommentRow | null>;
+  /**
+   * Per-entity comment counts + newest comment in ONE query (drives the
+   * lead list's notes badges — no N+1 thread fetches). The visibility
+   * gate is identical to listByEntity: `includeAdminOnly: false`
+   * appends `visibility = 'org'` in SQL. Entities with zero visible
+   * comments are absent from the map.
+   */
+  summariesByEntity(args: {
+    readonly entityType: string;
+    readonly entityIds: readonly string[];
+    readonly includeAdminOnly: boolean;
+  }): Promise<ReadonlyMap<string, CommentSummary>>;
   insert(row: NewCommentRow): Promise<CommentRow>;
   /** Author edit: rewrites the body and bumps updated_at. */
   updateBody(args: {
@@ -87,6 +114,57 @@ export function createDrizzleCommentStore(
         .where(eq(builderComments.id, id))
         .limit(1);
       return rows[0] ?? null;
+    },
+
+    async summariesByEntity(args): Promise<ReadonlyMap<string, CommentSummary>> {
+      if (args.entityIds.length === 0) {
+        return new Map();
+      }
+      // Single pass: window functions compute the per-entity count and
+      // rank rows newest-first; the outer query keeps rank 1. The
+      // visibility gate stays in SQL — same rule as listByEntity, so an
+      // admin_only row can never inflate a builder's badge.
+      const ranked = db
+        .select({
+          entityId: builderComments.entityId,
+          body: builderComments.body,
+          authorId: builderComments.authorId,
+          authorKind: builderComments.authorKind,
+          createdAt: builderComments.createdAt,
+          count: sql<number>`count(*) over (partition by ${builderComments.entityId})`
+            .mapWith(Number)
+            .as('comment_count'),
+          rn: sql<number>`row_number() over (partition by ${builderComments.entityId} order by ${builderComments.createdAt} desc, ${builderComments.id} desc)`
+            .mapWith(Number)
+            .as('rn'),
+        })
+        .from(builderComments)
+        .where(
+          and(
+            eq(builderComments.entityType, args.entityType),
+            inArray(builderComments.entityId, [...args.entityIds]),
+            isNull(builderComments.deletedAt),
+            // THE visibility gate, same as listByEntity.
+            args.includeAdminOnly
+              ? undefined
+              : eq(builderComments.visibility, 'org'),
+          ),
+        )
+        .as('ranked');
+      const rows = await db.select().from(ranked).where(eq(ranked.rn, 1));
+      const out = new Map<string, CommentSummary>();
+      for (const row of rows) {
+        out.set(row.entityId, {
+          count: row.count,
+          latest: {
+            body: row.body,
+            authorId: row.authorId,
+            authorKind: row.authorKind as 'builder' | 'admin',
+            createdAt: row.createdAt,
+          },
+        });
+      }
+      return out;
     },
 
     async insert(row): Promise<CommentRow> {
