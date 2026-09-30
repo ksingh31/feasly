@@ -79,6 +79,13 @@ export class AdminUsersComponent implements OnInit {
   protected readonly editingId = this.store.selectSignal(AdminUsersState.editingId);
   protected readonly updating = this.store.selectSignal(AdminUsersState.updating);
   protected readonly updateError = this.store.selectSignal(AdminUsersState.updateError);
+  /**
+   * auth/07: the table row a failed row action targeted — its 409 surfaces
+   * inline on that row, never as a generic banner.
+   */
+  protected readonly updateErrorUserId = this.store.selectSignal(
+    AdminUsersState.updateErrorUserId,
+  );
   protected readonly deletingId = this.store.selectSignal(AdminUsersState.deletingId);
   protected readonly deleting = this.store.selectSignal(AdminUsersState.deleting);
   protected readonly deleteError = this.store.selectSignal(AdminUsersState.deleteError);
@@ -157,6 +164,13 @@ export class AdminUsersComponent implements OnInit {
     this.editDrawerControls.clear();
     this.editDrawerRoleControls.clear();
     this.editForm.reset({ name: user.name, role: user.staffRole ?? '' });
+    // auth/07: the sole remaining active staff admin's role is locked by
+    // the backend 409 — disable the select up front with an explainer.
+    if (this.isSoleStaffAdmin(user)) {
+      this.editForm.controls.role.disable();
+    } else {
+      this.editForm.controls.role.enable();
+    }
     this.store.dispatch(new OpenEditAdminUser(user.id));
   }
 
@@ -344,5 +358,29 @@ export class AdminUsersComponent implements OnInit {
   protected canDelete(user: AdminUser): boolean {
     // Delete is only ever allowed before the invite is accepted.
     return !user.isProtected && user.status === 'invited';
+  }
+
+  /**
+   * auth/07: whether this row is the sole remaining active staff admin
+   * (`super_admin`/`admin`) in the loaded list. The template disables
+   * their staff-role select and their Deactivate action, with an inline
+   * explainer; the backend 409 is the real enforcement. Pending /
+   * deactivated users never count. (The list is paginated, so an admin
+   * on another page isn't visible here — the 409 still protects them.)
+   */
+  protected isSoleStaffAdmin(user: AdminUser | null): boolean {
+    if (
+      !user ||
+      (user.staffRole !== 'super_admin' && user.staffRole !== 'admin') ||
+      user.status !== 'active'
+    ) {
+      return false;
+    }
+    const admins = this.users().filter(
+      (u) =>
+        (u.staffRole === 'super_admin' || u.staffRole === 'admin') &&
+        u.status === 'active',
+    );
+    return admins.length === 1 && admins[0]!.id === user.id;
   }
 }

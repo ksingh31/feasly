@@ -157,6 +157,26 @@ export interface UserStore {
    * last-super_admin guard reads this.
    */
   countActiveByStaffRole(role: StaffRole): Promise<number>;
+  /**
+   * auth/07: ids of users with live access (status `active`) holding a
+   * staff admin role (`super_admin` or `admin`), locked `FOR UPDATE` in
+   * id order. The last-admin guard calls this INSIDE `transact()` and
+   * excludes the mutation target itself — the row locks serialize two
+   * concurrent demotions: the loser blocks, re-checks after the winner
+   * commits, and gets the 409 instead of stranding the platform.
+   */
+  listActiveStaffAdminIds(): Promise<string[]>;
+  /**
+   * auth/07: run `fn` with transaction-scoped stores. The last-admin
+   * check-then-mutate guards use this so the check and the update are
+   * one atomic unit. Never nest: call once per service method.
+   */
+  transact<T>(
+    fn: (tx: {
+      users: UserStore;
+      memberships: MembershipStore;
+    }) => Promise<T>,
+  ): Promise<T>;
 }
 
 /**
@@ -194,6 +214,13 @@ export interface MembershipStore {
   ): Promise<BuilderMembership>;
   listByUserId(userId: string): Promise<BuilderMembership[]>;
   remove(userId: string, builderId: string): Promise<boolean>;
+  /**
+   * auth/07: ids of users with live access (status `active`) holding
+   * `builder_admin` in this org, locked `FOR UPDATE` in id order. Same
+   * locking discipline as `UserStore.listActiveStaffAdminIds` — the
+   * per-org last-admin guard calls this inside `transact()`.
+   */
+  listActiveOrgAdminIds(builderId: string): Promise<string[]>;
 }
 
 export interface UserServiceDeps {
@@ -412,6 +439,67 @@ async function rejectLastSuperAdmin(
       ErrorCodes.FORBIDDEN,
       'This is the last super admin — promote someone else first.',
     );
+  }
+}
+
+/** Staff roles that can administer the platform (`users:manage`). */
+function isStaffAdminRole(role: StaffRole | null): role is StaffRole {
+  return role === 'super_admin' || role === 'admin';
+}
+
+/** Buyer-grade copy for the 409 — shared with the frontend explainers. */
+const LAST_ADMIN_ROLE_MESSAGE =
+  "You can't change the role of the last administrator. Add another administrator first.";
+const LAST_ADMIN_DEACTIVATE_MESSAGE =
+  'Every organization needs at least one active administrator.';
+
+/** Narrow a thrown value to a last-admin rejection for audit logging. */
+function isLastAdminRejection(err: unknown): err is HttpError {
+  return err instanceof HttpError && err.code === ErrorCodes.LAST_ADMIN;
+}
+
+/**
+ * auth/07: last staff-admin guard — the platform must always have at
+ * least one active staff admin (`super_admin` or `admin`). Call INSIDE
+ * the guard transaction: `listActiveStaffAdminIds` locks every candidate
+ * row FOR UPDATE in id order, so a concurrent demotion blocks here and
+ * re-checks after the first committer — two simultaneous demotions can't
+ * both slip through. The target is excluded by the caller.
+ *
+ * Only users with live access (status `active`) count: deactivated or
+ * never-accepted users never trip this guard.
+ */
+async function rejectLastStaffAdmin(
+  txUsers: UserStore,
+  user: UserRecord,
+  message: string,
+): Promise<void> {
+  if (!isStaffAdminRole(user.staffRole) || user.status !== 'active') return;
+  const ids = await txUsers.listActiveStaffAdminIds();
+  const remaining = ids.filter((id) => id !== user.id).length;
+  if (remaining === 0) {
+    throw new HttpError(409, ErrorCodes.LAST_ADMIN, message);
+  }
+}
+
+/**
+ * auth/07: per-org last-admin guard — an organization must always have at
+ * least one active `builder_admin`. Same transactional locking discipline
+ * as {@link rejectLastStaffAdmin}. The caller checks this for every org
+ * where the mutation would drop the target's admin-ness (demote, remove
+ * membership, or deactivate the user).
+ */
+async function rejectLastOrgAdmin(
+  txMemberships: MembershipStore,
+  builderId: string,
+  user: UserRecord,
+  message: string,
+): Promise<void> {
+  if (user.status !== 'active') return;
+  const ids = await txMemberships.listActiveOrgAdminIds(builderId);
+  const remaining = ids.filter((id) => id !== user.id).length;
+  if (remaining === 0) {
+    throw new HttpError(409, ErrorCodes.LAST_ADMIN, message);
   }
 }
 
@@ -720,14 +808,48 @@ export function createUserService(deps: UserServiceDeps): UserService {
       if (user.status === 'disabled') {
         return publicUser(user);
       }
+      // auth/07: the last-admin check and the status flip are one
+      // transaction — the guard's FOR UPDATE row locks serialize two
+      // concurrent deactivations. A blocked attempt is audit-logged in
+      // the catch (inside the tx it would roll back with the throw).
+      let updated: UserRecord;
+      try {
+        updated = await users.transact(async (tx) => {
+          await rejectLastStaffAdmin(
+            tx.users,
+            user,
+            LAST_ADMIN_DEACTIVATE_MESSAGE,
+          );
+          const userMemberships = await tx.memberships.listByUserId(id);
+          for (const m of userMemberships) {
+            if (m.role === 'builder_admin') {
+              await rejectLastOrgAdmin(
+                tx.memberships,
+                m.builderId,
+                user,
+                LAST_ADMIN_DEACTIVATE_MESSAGE,
+              );
+            }
+          }
+          return tx.users.updateUser(id, { status: 'disabled' }, clock());
+        });
+      } catch (err) {
+        if (isLastAdminRejection(err)) {
+          await audit.log({
+            actorEmail: opts?.actorEmail ?? null,
+            action: 'user.last_admin_blocked',
+            detail: `email=${user.email} op=deactivate`,
+          });
+        }
+        throw err;
+      }
+      // Side effects run after the commit, never inside the guard
+      // transaction: if Graph is down the user row is already safely
+      // disabled (auth-context fails closed on `disabled`), and the 502
+      // tells the admin the Entra account may still be enabled.
       if (user.entraObjectId) {
         await entra.setAccountEnabled(user.entraObjectId, false);
       }
-      const updated = await users.updateUser(
-        id,
-        { status: 'disabled' },
-        clock(),
-      );
       // auth/03: revoke live sessions immediately, server-side. The
       // auth-context already fails closed on `disabled`, so this is
       // defense in depth — the cookie stops working on the next request
@@ -779,7 +901,35 @@ export function createUserService(deps: UserServiceDeps): UserService {
       if (user.staffRole === staffRole) {
         return publicUser(user);
       }
-      const updated = await users.updateUser(id, { staffRole }, clock());
+      // auth/07: demoting the last staff admin (super_admin/admin) is
+      // refused with a 409 — the guard runs inside the same transaction
+      // as the role change so a concurrent demotion can't slip through.
+      // A blocked attempt is audit-logged in the catch (inside the tx it
+      // would roll back with the throw).
+      const removesStaffAdmin =
+        isStaffAdminRole(user.staffRole) && !isStaffAdminRole(staffRole);
+      let updated: UserRecord;
+      try {
+        updated = removesStaffAdmin
+          ? await users.transact(async (tx) => {
+              await rejectLastStaffAdmin(
+                tx.users,
+                user,
+                LAST_ADMIN_ROLE_MESSAGE,
+              );
+              return tx.users.updateUser(id, { staffRole }, clock());
+            })
+          : await users.updateUser(id, { staffRole }, clock());
+      } catch (err) {
+        if (isLastAdminRejection(err)) {
+          await audit.log({
+            actorEmail: opts?.actorEmail ?? null,
+            action: 'user.last_admin_blocked',
+            detail: `email=${user.email} op=role_change to=${staffRole ?? 'none'}`,
+          });
+        }
+        throw err;
+      }
       await audit.log({
         actorEmail: opts?.actorEmail ?? null,
         action: 'user.role_changed',
@@ -824,22 +974,57 @@ export function createUserService(deps: UserServiceDeps): UserService {
       }
       rejectProtected(user);
       rejectSelf(user, opts?.actorId, 'change the memberships of');
-      const current = await memberships.listByUserId(id);
-      const desiredByBuilder = new Map(desired.map((m) => [m.builderId, m.role]));
-      for (const m of current) {
-        const wanted = desiredByBuilder.get(m.builderId);
-        if (!wanted) {
-          await memberships.remove(id, m.builderId);
-        } else if (wanted !== m.role) {
-          await memberships.remove(id, m.builderId);
-          await memberships.add(id, m.builderId, wanted);
+      // auth/07: the per-org last-admin check and the membership diff
+      // are one transaction — the guard's FOR UPDATE row locks serialize
+      // concurrent demotions in the same org. A blocked attempt is
+      // audit-logged in the catch (inside the tx it would roll back).
+      try {
+        await users.transact(async (tx) => {
+          const current = await tx.memberships.listByUserId(id);
+          const desiredByBuilder = new Map(
+            desired.map((m) => [m.builderId, m.role]),
+          );
+          // Guard first: for every org where this change would drop the
+          // target's builder_admin role, refuse if they are the last
+          // active builder_admin of that org. Never-accepted or
+          // deactivated targets never trip the guard (rejectLastOrgAdmin
+          // requires status `active`).
+          for (const m of current) {
+            const wanted = desiredByBuilder.get(m.builderId);
+            if (m.role === 'builder_admin' && wanted !== 'builder_admin') {
+              await rejectLastOrgAdmin(
+                tx.memberships,
+                m.builderId,
+                user,
+                LAST_ADMIN_ROLE_MESSAGE,
+              );
+            }
+          }
+          for (const m of current) {
+            const wanted = desiredByBuilder.get(m.builderId);
+            if (!wanted) {
+              await tx.memberships.remove(id, m.builderId);
+            } else if (wanted !== m.role) {
+              await tx.memberships.remove(id, m.builderId);
+              await tx.memberships.add(id, m.builderId, wanted);
+            }
+          }
+          const currentIds = new Set(current.map((m) => m.builderId));
+          for (const m of desired) {
+            if (!currentIds.has(m.builderId)) {
+              await tx.memberships.add(id, m.builderId, m.role);
+            }
+          }
+        });
+      } catch (err) {
+        if (isLastAdminRejection(err)) {
+          await audit.log({
+            actorEmail: opts?.actorEmail ?? null,
+            action: 'user.last_admin_blocked',
+            detail: `email=${user.email} op=memberships desired=${desired.map((m) => `${m.builderId}:${m.role}`).join(',') || 'none'}`,
+          });
         }
-      }
-      const currentIds = new Set(current.map((m) => m.builderId));
-      for (const m of desired) {
-        if (!currentIds.has(m.builderId)) {
-          await memberships.add(id, m.builderId, m.role);
-        }
+        throw err;
       }
       await audit.log({
         actorEmail: opts?.actorEmail ?? null,
@@ -857,6 +1042,11 @@ export function createUserService(deps: UserServiceDeps): UserService {
       rejectProtected(user);
       rejectSelf(user, opts?.actorId, 'delete');
       await rejectLastSuperAdmin(users, user);
+      // auth/07: no last-admin guard here on purpose. Deleting is
+      // invited-only (the 400 below): a never-accepted invite never
+      // counts as an admin, so deleting one can never strand an org.
+      // Deleting a live admin is impossible — deactivate them instead,
+      // and that path is guarded.
       if (user.status !== 'invited') {
         throw new HttpError(
           400,

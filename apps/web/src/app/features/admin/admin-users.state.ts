@@ -50,6 +50,12 @@ export interface AdminUsersStateModel {
   editingId: string | null;
   updating: boolean;
   updateError: string | null;
+  /**
+   * auth/07: the table row a failed row action (deactivate/reactivate)
+   * targeted — its 409 surfaces inline on that row, never as a generic
+   * banner. Null for drawer-save failures (shown inside the drawer).
+   */
+  updateErrorUserId: string | null;
   /** Delete confirmation state. */
   deletingId: string | null;
   deleting: boolean;
@@ -71,6 +77,7 @@ const defaults: AdminUsersStateModel = {
   editingId: null,
   updating: false,
   updateError: null,
+  updateErrorUserId: null,
   deletingId: null,
   deleting: false,
   deleteError: null,
@@ -147,6 +154,11 @@ export class AdminUsersState {
   @Selector()
   static updateError(state: AdminUsersStateModel): string | null {
     return state.updateError;
+  }
+
+  @Selector()
+  static updateErrorUserId(state: AdminUsersStateModel): string | null {
+    return state.updateErrorUserId;
   }
 
   @Selector()
@@ -261,7 +273,7 @@ export class AdminUsersState {
     ctx: StateContext<AdminUsersStateModel>,
     action: UpdateAdminUser,
   ): Observable<AdminUser> {
-    ctx.patchState({ updating: true, updateError: null });
+    ctx.patchState({ updating: true, updateError: null, updateErrorUserId: null });
     return this.api.updateUser(action.id, action.body).pipe(
       tap({
         next: (user) => {
@@ -397,7 +409,7 @@ export class AdminUsersState {
     id: string,
     active: boolean,
   ): Observable<AdminUser> {
-    ctx.patchState({ updating: true, updateError: null });
+    ctx.patchState({ updating: true, updateError: null, updateErrorUserId: null });
     return this.api
       .updateUser(id, { status: active ? 'active' : 'disabled' })
       .pipe(
@@ -406,6 +418,7 @@ export class AdminUsersState {
             ctx.patchState({
               updating: false,
               updateError: null,
+              updateErrorUserId: null,
               users: ctx
                 .getState()
                 .users.map((u) => (u.id === user.id ? user : u)),
@@ -420,6 +433,7 @@ export class AdminUsersState {
           error: (err: { message?: string }) => {
             ctx.patchState({
               updating: false,
+              updateErrorUserId: id,
               updateError:
                 err?.message ?? 'Could not change the user. Please try again.',
             });

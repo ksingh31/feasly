@@ -164,6 +164,36 @@ export function createDrizzleUserStore(deps: DrizzleUserStoreDeps): UserStore {
         );
       return Number(rows[0]?.value ?? 0);
     },
+
+    async listActiveStaffAdminIds() {
+      // auth/07: no count(*) here — Postgres forbids FOR UPDATE with
+      // aggregates. Select the ids (deterministic id order so two
+      // concurrent guards never deadlock) and let the caller count.
+      const rows = await database
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            inArray(users.staffRole, ['super_admin', 'admin']),
+            eq(users.status, 'active'),
+          ),
+        )
+        .orderBy(users.id)
+        .for('update');
+      return rows.map((r: { id: string }) => r.id);
+    },
+
+    async transact(fn) {
+      // auth/07: transaction-scoped stores built from the tx handle, so
+      // the guard's FOR UPDATE locks and the guarded mutation share one
+      // connection and commit atomically.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return database.transaction(async (tx: any) => {
+        const txUsers = createDrizzleUserStore({ db: tx });
+        const txMemberships = createDrizzleMembershipStore({ db: tx });
+        return fn({ users: txUsers, memberships: txMemberships });
+      });
+    },
   };
 }
 
@@ -288,6 +318,27 @@ export function createDrizzleMembershipStore(
         )
         .returning({ userId: builderMemberships.userId });
       return rows.length > 0;
+    },
+
+    async listActiveOrgAdminIds(builderId: string) {
+      // auth/07: same discipline as listActiveStaffAdminIds — select
+      // ids only (no count(*) with FOR UPDATE), deterministic id order.
+      // Locks the membership rows AND the joined user rows; the caller
+      // excludes the mutation target itself.
+      const rows = await database
+        .select({ id: users.id })
+        .from(builderMemberships)
+        .innerJoin(users, eq(builderMemberships.userId, users.id))
+        .where(
+          and(
+            eq(builderMemberships.builderId, builderId),
+            eq(builderMemberships.role, 'builder_admin'),
+            eq(users.status, 'active'),
+          ),
+        )
+        .orderBy(users.id)
+        .for('update');
+      return rows.map((r: { id: string }) => r.id);
     },
   };
 }

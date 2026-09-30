@@ -68,6 +68,11 @@ export interface BuilderTeamStateModel {
   actionError: boolean;
   /** The API's own message for the last failed row action, if any. */
   actionErrorMessage: string | null;
+  /**
+   * auth/07: the row the last failed action targeted. The 409 race is
+   * surfaced inline on that row (never as a generic banner).
+   */
+  actionErrorUserId: string | null;
   /** User id currently being updated/removed (disables its buttons). */
   updatingUserId: string | null;
 }
@@ -80,6 +85,7 @@ const defaults: BuilderTeamStateModel = {
   inviteError: null,
   actionError: false,
   actionErrorMessage: null,
+  actionErrorUserId: null,
   updatingUserId: null,
 };
 
@@ -132,6 +138,11 @@ export class BuilderTeamState {
   @Selector()
   static actionErrorMessage(state: BuilderTeamStateModel): string | null {
     return state.actionErrorMessage;
+  }
+
+  @Selector()
+  static actionErrorUserId(state: BuilderTeamStateModel): string | null {
+    return state.actionErrorUserId;
   }
 
   @Selector()
@@ -195,7 +206,7 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: SetBuilderTeamUserStatus,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null, actionErrorUserId: null });
     return this.api.updateUser(action.id, { status: action.status }).pipe(
       tap((updated) => {
         this.replaceUser(ctx, updated);
@@ -204,6 +215,7 @@ export class BuilderTeamState {
         ctx.patchState({
           updatingUserId: null,
           actionError: true,
+          actionErrorUserId: action.id,
           actionErrorMessage:
             err?.message ?? 'Something went wrong. Please try again.',
         });
@@ -217,7 +229,7 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: SetBuilderTeamUserRole,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null, actionErrorUserId: null });
     return this.api.updateUser(action.id, { role: action.role }).pipe(
       tap((updated) => {
         this.replaceUser(ctx, updated);
@@ -226,6 +238,7 @@ export class BuilderTeamState {
         ctx.patchState({
           updatingUserId: null,
           actionError: true,
+          actionErrorUserId: action.id,
           actionErrorMessage:
             err?.message ?? 'Something went wrong. Please try again.',
         });
@@ -239,7 +252,7 @@ export class BuilderTeamState {
     ctx: StateContext<BuilderTeamStateModel>,
     action: RemoveBuilderTeamUser,
   ): Observable<unknown> {
-    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null });
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null, actionErrorUserId: null });
     return this.api.deleteUser(action.id).pipe(
       tap(() => {
         const state = ctx.getState();
@@ -252,6 +265,7 @@ export class BuilderTeamState {
         ctx.patchState({
           updatingUserId: null,
           actionError: true,
+          actionErrorUserId: action.id,
           actionErrorMessage:
             err?.message ?? 'Something went wrong. Please try again.',
         });

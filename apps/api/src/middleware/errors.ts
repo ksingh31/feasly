@@ -58,6 +58,12 @@ export const ErrorCodes = {
   INVALID_API_KEY: 'INVALID_API_KEY',
   DEPENDENCY_UNAVAILABLE: 'DEPENDENCY_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  /**
+   * auth/07 — demoting or deactivating the last administrator (staff or
+   * builder-org) was refused. 409 with buyer-grade copy; the UI disables
+   * the controls up front, this is the real enforcement.
+   */
+  LAST_ADMIN: 'LAST_ADMIN',
   /** Billing called without Stripe configured (billing/02). */
   BILLING_NOT_CONFIGURED: 'BILLING_NOT_CONFIGURED',
   /** Billing path disabled by the active BILLING_MODEL (billing/02). */

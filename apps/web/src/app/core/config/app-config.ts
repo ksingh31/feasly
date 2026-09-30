@@ -244,6 +244,10 @@ export interface BuilderCopy {
   teamDeactivating: string;
   teamDeactivateConfirm: string;
   teamRemoveConfirm: string;
+  /** auth/07: explainer shown under the disabled role select / Deactivate
+      for the sole remaining active admin (exact story copy). */
+  teamLastAdminRoleNote: string;
+  teamLastAdminDeactivateNote: string;
   teamConfirmYes: string;
   teamConfirmNo: string;
   teamActionError: string;

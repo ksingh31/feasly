@@ -91,6 +91,10 @@ function setup(opts: {
   inviting?: boolean;
   inviteError?: string | null;
   copyExtra?: Record<string, string>;
+  users?: BuilderTeamUser[];
+  actionError?: boolean;
+  actionErrorUserId?: string | null;
+  actionErrorMessage?: string | null;
 } = {}) {
   const isAdmin = opts.isAdmin ?? true;
   TestBed.resetTestingModule();
@@ -102,7 +106,7 @@ function setup(opts: {
       return of(null);
     }),
     selectSignal: vi.fn((selector: unknown) => {
-      if (selector === BuilderTeamState.users) return () => USERS;
+      if (selector === BuilderTeamState.users) return () => opts.users ?? USERS;
       if (selector === BuilderTeamState.status) return () => (opts.status ?? 'ready');
       if (selector === BuilderTeamState.inviteFeedback)
         return () => (opts.feedback ?? null);
@@ -110,7 +114,11 @@ function setup(opts: {
         return () => (opts.inviting ?? false);
       if (selector === BuilderTeamState.inviteError)
         return () => (opts.inviteError ?? null);
-      if (selector === BuilderTeamState.actionError) return () => false;
+      if (selector === BuilderTeamState.actionError) return () => (opts.actionError ?? false);
+      if (selector === BuilderTeamState.actionErrorUserId)
+        return () => (opts.actionErrorUserId ?? null);
+      if (selector === BuilderTeamState.actionErrorMessage)
+        return () => (opts.actionErrorMessage ?? null);
       if (selector === BuilderTeamState.updatingUserId) return () => null;
       if (selector === BuilderState.activeBuilderName) return () => 'Acme Builders';
       if (selector === BuilderState.isBuilderAdmin) return () => isAdmin;
@@ -403,7 +411,14 @@ describe('BuilderTeamComponent (auth/05)', () => {
   });
 
   it('deactivate asks for confirmation before dispatching', () => {
-    const { fixture, dispatched } = setup();
+    // auth/07: the confirm flow needs an enabled Deactivate, so seed two
+    // active admins (with a sole admin the button is disabled instead).
+    const { fixture, dispatched } = setup({
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
     ) as HTMLButtonElement[];
@@ -475,5 +490,128 @@ describe('BuilderTeamComponent (auth/05)', () => {
     for (const button of actionButtons) {
       expect(button.disabled).toBe(true);
     }
+  });
+});
+
+/**
+ * Builder team component specs (auth/07 — last-admin protection).
+ *
+ * - The sole remaining active admin's role select + Apply are disabled
+ *   with the exact story explainer; Deactivate is disabled with its own
+ *   exact explainer.
+ * - With two active admins (or when pending/deactivated admins are the
+ *   only others), the controls stay enabled / the guard still trips.
+ */
+describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  const ROLE_NOTE =
+    "You can't change the role of the last administrator. Add another administrator first.";
+  const DEACTIVATE_NOTE =
+    'Every organization needs at least one active administrator.';
+
+  function soleAdminUsers(): BuilderTeamUser[] {
+    return [
+      { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_member', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+    ];
+  }
+
+  function rowFor(fixture: ComponentFixture<BuilderTeamComponent>, index: number): HTMLElement {
+    return fixture.nativeElement.querySelectorAll('tbody tr')[index] as HTMLElement;
+  }
+
+  function roleSelectFor(fixture: ComponentFixture<BuilderTeamComponent>, index: number): HTMLSelectElement {
+    return fixture.nativeElement.querySelectorAll('.builder-team__role-select')[index] as HTMLSelectElement;
+  }
+
+  it('sole admin: role select and Apply are disabled with the exact explainer', () => {
+    const { fixture } = setup({ isAdmin: true, users: soleAdminUsers() });
+    // Alice (u1) is the only active builder_admin.
+    expect(roleSelectFor(fixture, 0).disabled).toBe(true);
+    const notes = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-team__note'),
+    ) as HTMLElement[];
+    expect(notes.map((n) => n.textContent?.trim())).toContain(ROLE_NOTE);
+    // Bob (u2) is a member — his select stays enabled.
+    expect(roleSelectFor(fixture, 1).disabled).toBe(false);
+  });
+
+  it('sole admin: Deactivate is disabled with the exact explainer', () => {
+    const { fixture } = setup({ isAdmin: true, users: soleAdminUsers() });
+    const row = rowFor(fixture, 0);
+    const deactivate = Array.from(row.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Deactivate'),
+    ) as HTMLButtonElement;
+    expect(deactivate).toBeDefined();
+    expect(deactivate.disabled).toBe(true);
+    expect(row.textContent).toContain(DEACTIVATE_NOTE);
+  });
+
+  it('two active admins: controls stay enabled and no explainer shows', () => {
+    const { fixture } = setup({
+      isAdmin: true,
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
+    expect(roleSelectFor(fixture, 0).disabled).toBe(false);
+    const row = rowFor(fixture, 0);
+    const deactivate = Array.from(row.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Deactivate'),
+    ) as HTMLButtonElement;
+    expect(deactivate.disabled).toBe(false);
+    expect(
+      fixture.nativeElement.querySelector('.builder-team__note'),
+    ).toBeNull();
+  });
+
+  it('deactivated and invited admins never count toward the guard', () => {
+    const { fixture } = setup({
+      isAdmin: true,
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u2', name: 'Carol', email: 'carol@example.com', role: 'builder_admin', status: 'deactivated', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u3', name: 'Dave', email: 'dave@example.com', role: 'builder_admin', status: 'invited', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
+    // Alice is still the only ACTIVE admin — her controls are locked.
+    expect(roleSelectFor(fixture, 0).disabled).toBe(true);
+    const notes = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-team__note'),
+    ) as HTMLElement[];
+    expect(notes.map((n) => n.textContent?.trim())).toContain(ROLE_NOTE);
+    expect(notes.map((n) => n.textContent?.trim())).toContain(DEACTIVATE_NOTE);
+  });
+
+  it('a backend 409 race surfaces inline on the targeted row, not as a banner', () => {
+    // Two admins so the controls are enabled; the backend still refuses
+    // with 409 (the race the disabled UI can't prevent).
+    const { fixture } = setup({
+      isAdmin: true,
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+      actionError: true,
+      actionErrorUserId: 'u1',
+      actionErrorMessage: DEACTIVATE_NOTE,
+    });
+    const row = rowFor(fixture, 0);
+    const note = row.querySelector(
+      '.builder-team__note--error',
+    ) as HTMLElement;
+    expect(note?.textContent?.trim()).toBe(DEACTIVATE_NOTE);
+    // Row-tagged failures never use the generic banner.
+    expect(
+      fixture.nativeElement.querySelector('.builder-team__state--error'),
+    ).toBeNull();
+    // The other row shows no error.
+    expect(
+      rowFor(fixture, 1).querySelector('.builder-team__note--error'),
+    ).toBeNull();
   });
 });

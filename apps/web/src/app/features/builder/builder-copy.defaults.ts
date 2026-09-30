@@ -221,6 +221,12 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   teamRemoveLabel: 'Remove',
   teamRemoving: 'Removing…',
   teamDeactivating: 'Deactivating…',
+  // auth/07: exact story copy — shown under the disabled controls when
+  // the row is the sole remaining active admin.
+  teamLastAdminRoleNote:
+    "You can't change the role of the last administrator. Add another administrator first.",
+  teamLastAdminDeactivateNote:
+    'Every organization needs at least one active administrator.',
   teamDeactivateConfirm:
     'Deactivate {name}? They will lose access to the builder portal immediately and be signed out.',
   teamRemoveConfirm:

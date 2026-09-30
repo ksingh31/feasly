@@ -101,10 +101,15 @@
                       type="button"
                       class="users-page__danger-link"
                       (click)="deactivate(user)"
-                      [disabled]="updating()"
+                      [disabled]="updating() || isSoleStaffAdmin(user)"
                     >
                       Deactivate
                     </button>
+                    <!-- auth/07: deactivating the last admin is refused by
+                         the backend 409 — the disabled action explains why. -->
+                    @if (isSoleStaffAdmin(user)) {
+                      <span class="users-page__note">Every organization needs at least one active administrator.</span>
+                    }
                   }
                 }
                 @if (user.status === 'invited' && canEdit(user)) {
@@ -125,6 +130,12 @@
                     Delete
                   </button>
                 }
+                <!-- auth/07: a backend 409 (e.g. the last-admin race)
+                     surfaces inline on the row it targeted, never as a
+                     generic banner. -->
+                @if (updateError() && updateErrorUserId() === user.id) {
+                  <span class="users-page__note users-page__note--error" role="alert">{{ updateError() }}</span>
+                }
               </td>
             </tr>
           } @empty {
@@ -137,7 +148,9 @@
         </tbody>
       </table>
     </div>
-    @if (updateError()) {
+    <!-- Row-tagged failures render inline on their row (auth/07); this
+         banner is only the fallback for drawer-save failures. -->
+    @if (updateError() && updateErrorUserId() === null) {
       <p class="users-page__state users-page__state--error">{{ updateError() }}</p>
     }
   }
@@ -253,6 +266,12 @@
               </option>
             }
           </select>
+          <!-- auth/07: the sole remaining active staff admin's role is
+               locked by the backend 409 — the disabled select explains
+               why. -->
+          @if (isSoleStaffAdmin(editingUser())) {
+            <span class="users-page__note">You can't change the role of the last administrator. Add another administrator first.</span>
+          }
         </label>
         @if (updateError()) {
           <p class="users-page__state users-page__state--error">{{ updateError() }}</p>

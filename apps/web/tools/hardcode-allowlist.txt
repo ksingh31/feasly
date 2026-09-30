@@ -28,6 +28,14 @@ apps/web/src/app/features/legal/terms-page.component.ts
 # tuning. Copy-pinned by not-found-page.component.spec.ts.
 apps/web/src/app/features/not-found/not-found-page.component.ts
 
+# Last-admin explainer copy (auth/07): the two strings are pinned verbatim
+# by the story's acceptance criteria — they change by product decision,
+# not by deploy tuning. The builder portal's copy lives in the allowlisted
+# builder-copy.defaults.ts; the admin console has no copy config, so its
+# two explainers live inline here. Copy-pinned by
+# admin-users.component.spec.ts.
+apps/web/src/app/features/admin/admin-users.component.html
+
 # Admin login expired-session copy (admin/01): the exact string is pinned by
 # the story's acceptance criteria ("shows the exact expired-session copy").
 # Copy-pinned by admin-login.component.spec.ts.

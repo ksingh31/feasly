@@ -294,6 +294,25 @@
   color: #8c2f26;
 }
 
+/* auth/07: inline explainer under a disabled control when the row is the
+   sole remaining active staff admin. Wraps inside the cell (the actions
+   cell is nowrap) and never widens the table on mobile. */
+.users-page__note {
+  display: block;
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: normal;
+  max-width: 16rem;
+}
+
+/* auth/07: row-inline backend error (e.g. the last-admin 409 race). */
+.users-page__note--error {
+  color: #8c2f26;
+}
+
 .users-page__modal-actions {
   display: flex;
   justify-content: flex-end;
