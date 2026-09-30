@@ -21,6 +21,11 @@ export interface CommissionInvoice {
   readonly tenantKey: string;
   readonly attributionId: string;
   readonly leadId: string;
+  /**
+   * Builder-facing name of the lead this invoice belongs to, resolved
+   * server-side so invoice lists don't need a second lookup.
+   */
+  readonly leadName: string;
   /** Signed construction contract value, integer cents, excl. land. */
   readonly contractValueCents: number;
   /** round(contractValueCents * effectiveRate), integer cents. */

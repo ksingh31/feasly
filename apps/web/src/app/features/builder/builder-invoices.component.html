@@ -55,6 +55,10 @@
         </h2>
         <dl class="builder-invoices__facts">
           <div>
+            <dt>{{ copy.invoicesColLead }}</dt>
+            <dd>{{ invoice.leadName }}</dd>
+          </div>
+          <div>
             <dt>{{ copy.invoicesContractRow }}</dt>
             <dd>{{ money(invoice.contractValueCents) }}</dd>
           </div>
@@ -152,6 +156,7 @@
         <thead>
           <tr>
             <th scope="col">{{ copy.invoicesColDate }}</th>
+            <th scope="col">{{ copy.invoicesColLead }}</th>
             <th scope="col">{{ copy.invoicesColContract }}</th>
             <th scope="col">{{ copy.invoicesColCommission }}</th>
             <th scope="col">{{ copy.invoicesColStatus }}</th>
@@ -170,6 +175,7 @@
                   {{ formatEdmontonDate(invoice.createdAt) }}
                 </button>
               </td>
+              <td>{{ invoice.leadName }}</td>
               <td>{{ money(invoice.contractValueCents) }}</td>
               <td>{{ money(invoice.commissionCents) }}</td>
               <td>

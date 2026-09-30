@@ -24,11 +24,11 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
-import { builderAllowlist, builders, commissionInvoices, tenants } from '../../db/schema';
+import { builderAllowlist, builders, commissionInvoices, leads, tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
@@ -59,6 +59,11 @@ export interface CommissionInvoiceRecord {
   readonly tenantKey: string;
   readonly attributionId: string;
   readonly leadId: string;
+  /**
+   * Builder-facing name of the lead this invoice belongs to, resolved
+   * server-side (leads table) so invoice lists don't need a second lookup.
+   */
+  readonly leadName: string;
   readonly contractValueCents: number;
   readonly commissionCents: number;
   readonly currency: string;
@@ -306,12 +311,14 @@ import { isUniqueViolation } from './pg-errors';
 
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
+  leadName: string,
 ): CommissionInvoiceRecord {
   return {
     id: row.id,
     tenantKey: row.tenantKey,
     attributionId: row.attributionId,
     leadId: row.leadId,
+    leadName,
     contractValueCents: row.contractValueCents,
     commissionCents: row.commissionCents,
     currency: row.currency,
@@ -329,6 +336,31 @@ function toRecord(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Resolve builder-facing lead names for a set of lead ids in a single
+ * query. Every commission invoice is created from a lead, so a missing
+ * entry is a data-integrity issue — it maps to '' rather than a fake name.
+ */
+async function leadNamesById(
+  db: AppDb,
+  leadIds: readonly string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(leadIds)];
+  if (unique.length === 0) {
+    return new Map();
+  }
+  const rows = await db.query.leads.findMany({
+    where: inArray(leads.id, unique),
+    columns: { id: true, name: true },
+  });
+  return new Map(rows.map((row) => [row.id, row.name]));
+}
+
+/** Single-lead variant for the non-list invoice paths. */
+async function leadNameFor(db: AppDb, leadId: string): Promise<string> {
+  return (await leadNamesById(db, [leadId])).get(leadId) ?? '';
 }
 
 export function createCommissionService(
@@ -407,7 +439,7 @@ export function createCommissionService(
         `Invoice "${id}" changed concurrently — expected '${from}'`,
       );
     }
-    const record = toRecord(updated);
+    const record = toRecord(updated, await leadNameFor(db, updated.leadId));
     await audit.append({
       tenantKey: record.tenantKey,
       eventType,
@@ -559,7 +591,7 @@ export function createCommissionService(
         disputeReason: row.disputeReason,
       },
     });
-    return toRecord(row);
+    return toRecord(row, await leadNameFor(db, row.leadId));
   }
 
   return {
@@ -600,7 +632,7 @@ export function createCommissionService(
           entityId: existing.id,
           payload: { attributionId },
         });
-        return toRecord(existing);
+        return toRecord(existing, await leadNameFor(db, existing.leadId));
       }
 
       const reportedAt = record.updatedAt;
@@ -645,7 +677,7 @@ export function createCommissionService(
           });
           return [winner];
         });
-      const invoice = toRecord(row);
+      const invoice = toRecord(row, await leadNameFor(db, row.leadId));
       await audit.append({
         tenantKey: invoice.tenantKey,
         eventType: 'invoice.created',
@@ -920,7 +952,7 @@ export function createCommissionService(
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         // Webhook redelivery for an already-settled invoice: no-op, no
         // duplicate audit row.
-        return toRecord(row);
+        return toRecord(row, await leadNameFor(db, row.leadId));
       }
       const invoice = await transition(
         row.id,
@@ -1092,7 +1124,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated);
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId));
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.commission_rate_changed',
@@ -1128,7 +1160,7 @@ export function createCommissionService(
       const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
       if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
-        return toRecord(row);
+        return toRecord(row, await leadNameFor(db, row.leadId));
       }
       const invoice = await transition(
         row.id,
@@ -1161,7 +1193,11 @@ export function createCommissionService(
           lte(commissionInvoices.reviewDueAt, reviewNow),
         ),
       });
-      return rows.map(toRecord);
+      const names = await leadNamesById(
+        db,
+        rows.map((row) => row.leadId),
+      );
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? ''));
     },
 
     async findByAttribution(
@@ -1171,7 +1207,10 @@ export function createCommissionService(
       const row = await db.query.commissionInvoices.findFirst({
         where: eq(commissionInvoices.attributionId, attributionId),
       });
-      return row === undefined ? null : toRecord(row);
+      if (row === undefined) {
+        return null;
+      }
+      return toRecord(row, await leadNameFor(db, row.leadId));
     },
 
     async findByLead(leadId: string): Promise<CommissionInvoiceRecord | null> {
@@ -1179,11 +1218,15 @@ export function createCommissionService(
       const row = await db.query.commissionInvoices.findFirst({
         where: eq(commissionInvoices.leadId, leadId),
       });
-      return row === undefined ? null : toRecord(row);
+      if (row === undefined) {
+        return null;
+      }
+      return toRecord(row, await leadNameFor(db, row.leadId));
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
-      return toRecord(await requireInvoice(invoiceId));
+      const invoiceRow = await requireInvoice(invoiceId);
+      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId));
     },
 
     async listInvoices(
@@ -1202,7 +1245,11 @@ export function createCommissionService(
         limit,
         offset,
       });
-      return rows.map(toRecord);
+      const names = await leadNamesById(
+        db,
+        rows.map((row) => row.leadId),
+      );
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? ''));
     },
   };
 }
