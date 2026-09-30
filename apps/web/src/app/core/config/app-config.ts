@@ -232,11 +232,16 @@ export interface BuilderCopy {
   teamInviteEmailLabel: string;
   teamInviteRoleLabel: string;
   teamInviteSubmit: string;
+  teamInviteSending: string;
   teamInviteSent: string;
   teamInviteError: string;
+  teamInviteDuplicateMember: string;
+  teamInviteDuplicatePending: string;
   teamDeactivateLabel: string;
   teamReactivateLabel: string;
   teamRemoveLabel: string;
+  teamRemoving: string;
+  teamDeactivating: string;
   teamDeactivateConfirm: string;
   teamRemoveConfirm: string;
   teamConfirmYes: string;

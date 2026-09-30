@@ -219,6 +219,15 @@
   text-decoration: underline;
 }
 
+/* Touch devices: a tap sticks the :hover state, leaving the underline
+   painted on (the "Remove looked underlined" iPhone report). Never
+   underline on devices without a hover pointer. */
+@media (hover: none) {
+  .builder-team__actions button:hover {
+    text-decoration: none;
+  }
+}
+
 .builder-team__actions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -359,8 +368,19 @@
   cursor: pointer;
 }
 
-.builder-team__modal-actions .builder-team__primary {
+/* The primary action inside dialogs must beat the transparent
+   `.builder-team__*-actions button` rules above (0,2,0 wins over 0,1,1)
+   so Send invite / Yes, continue render as the brass primary button. */
+.builder-team__modal-actions .builder-team__primary,
+.builder-team__confirm-actions .builder-team__primary {
   border: none;
+  background: var(--accent-deep);
+  color: #fff;
+}
+
+.builder-team__modal-actions .builder-team__primary:disabled,
+.builder-team__confirm-actions .builder-team__primary:disabled {
+  opacity: 0.6;
 }
 
 /* Confirm dialog shares the overlay/modal treatment */
@@ -383,10 +403,6 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-}
-
-.builder-team__confirm-actions .builder-team__primary {
-  border: none;
 }
 
 /* ---------------------------------------------------------- responsive */

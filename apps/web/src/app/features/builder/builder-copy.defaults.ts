@@ -209,16 +209,22 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   teamInviteEmailLabel: 'Work email',
   teamInviteRoleLabel: 'Role',
   teamInviteSubmit: 'Send invite',
+  teamInviteSending: 'Sending…',
   teamInviteSent:
     'Invite sent — they will get an email to set up their sign-in.',
   teamInviteError: 'Could not send the invite. Please try again.',
+  teamInviteDuplicateMember: 'This email is already on the team.',
+  teamInviteDuplicatePending:
+    'An invite is already on its way to this email address.',
   teamDeactivateLabel: 'Deactivate',
   teamReactivateLabel: 'Reactivate',
   teamRemoveLabel: 'Remove',
+  teamRemoving: 'Removing…',
+  teamDeactivating: 'Deactivating…',
   teamDeactivateConfirm:
-    'Deactivate this person? They will lose access to the builder portal immediately and be signed out.',
+    'Deactivate {name}? They will lose access to the builder portal immediately and be signed out.',
   teamRemoveConfirm:
-    'Remove this invite? They have not signed in yet, so this just cancels the invitation.',
+    'Remove the invite for {name}? They have not signed in yet, so this just cancels the invitation.',
   teamConfirmYes: 'Yes, continue',
   teamConfirmNo: 'Cancel',
   teamActionError: 'Something went wrong. Please try again.',
