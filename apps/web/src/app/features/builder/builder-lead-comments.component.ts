@@ -28,9 +28,10 @@ import { BuilderState } from './builder.state';
  * showVisibilityToggle: false, showVisibilityBadges: false }`.
  *
  * `currentUserId` is the session email — the only per-user identifier in
- * the frontend session. COORDINATION POINT (BILL-05): the backend must set
- * `Comment.authorId` to the same value for the "edit own comment"
- * affordance to match.
+ * the frontend session. The BILL-05 backend sets the wire
+ * `Comment.authorId` to the author's email (lowercased) so the "edit own
+ * comment" affordance matches; authorship enforcement stays server-side on
+ * the internal user id.
  */
 @Component({
   selector: 'app-builder-lead-comments',

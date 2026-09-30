@@ -128,13 +128,16 @@ export class CommentThreadComponent {
   }
 
   /**
-   * Edit affordance. Own comments when allowEdit is on; containers with
-   * allowDelete (admin moderation) may edit any comment.
+   * Edit affordance: author-only, matching the backend. The wire
+   * `Comment.authorId` is the author's email (lowercased), which is what
+   * containers pass as `currentUserId`. The moderator config
+   * (`allowDelete`) gates delete only — the backend 403s edits of other
+   * people's comments, so the UI never offers them.
    */
   protected canEdit(comment: Comment): boolean {
     return (
       this.config().allowEdit &&
-      (comment.authorId === this.currentUserId() || this.config().allowDelete) &&
+      comment.authorId.toLowerCase() === this.currentUserId().toLowerCase() &&
       this.editId() !== comment.id
     );
   }

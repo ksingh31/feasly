@@ -21,7 +21,9 @@
  * name. A session with no user row (legacy magic-link) gets 403 — the
  * portal's org picker already requires a user row, so this is
  * consistent. Author-only edit: `author_id` must equal the caller's user
- * id, for builders AND admins alike.
+ * id, for builders AND admins alike. The wire `Comment.authorId` carries
+ * the author's email (lowercased) so the UI can match "own comment"
+ * against its session identity; the internal id never leaves the server.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -96,16 +98,24 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * The wire contract's `authorId` carries the author's email (lowercased).
+ * The frontend session knows the signed-in user by email, so this is the
+ * identity the "edit own comment" affordance matches against. The internal
+ * `users.id` stays the DB key and the only thing the author-only edit
+ * check compares — it never leaves the server.
+ */
 function toContract(
   row: CommentRow,
   authorDisplayName: string,
+  authorEmail: string,
 ): Comment {
   return {
     id: row.id,
     entityType: row.entityType as CommentEntityType,
     entityId: row.entityId,
     authorKind: row.authorKind as CommentAuthorKind,
-    authorId: row.authorId,
+    authorId: authorEmail.toLowerCase(),
     authorDisplayName,
     visibility: row.visibility as CommentVisibility,
     body: escapeHtml(row.body),
@@ -207,12 +217,19 @@ export function createBuilderCommentsService(
   }
 
   /**
-   * Resolve the current display name for an author id. The user row is
-   * the source of truth; fall back to 'Unknown' when the user is gone.
+   * Resolve a comment's author to the identity the UI matches against:
+   * display name plus the email that the wire `authorId` carries. The
+   * user row is the source of truth; fall back to 'Unknown' / '' when
+   * the user is gone.
    */
-  async function displayNameFor(authorId: string): Promise<string> {
+  async function authorIdentityFor(
+    authorId: string,
+  ): Promise<{ name: string; email: string }> {
     const user = await users.findById(authorId).catch(() => null);
-    return user?.name?.trim() ? user.name : 'Unknown';
+    return {
+      name: user?.name?.trim() ? user.name : 'Unknown',
+      email: (user?.email ?? '').toLowerCase(),
+    };
   }
 
   return {
@@ -227,7 +244,8 @@ export function createBuilderCommentsService(
       });
       const out: Comment[] = [];
       for (const row of rows) {
-        out.push(toContract(row, await displayNameFor(row.authorId)));
+        const identity = await authorIdentityFor(row.authorId);
+        out.push(toContract(row, identity.name, identity.email));
       }
       return { comments: out };
     },
@@ -281,7 +299,7 @@ export function createBuilderCommentsService(
         createdAt: now,
         updatedAt: now,
       });
-      return toContract(row, author.name);
+      return toContract(row, author.name, author.email);
     },
 
     async updateComment(args): Promise<Comment> {
@@ -313,7 +331,7 @@ export function createBuilderCommentsService(
       if (!updated) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Comment not found.', false);
       }
-      return toContract(updated, author.name);
+      return toContract(updated, author.name, author.email);
     },
 
     async deleteComment(args): Promise<{ readonly ok: true }> {

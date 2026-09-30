@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import { AdminAuthState } from './admin-auth.state';
 import { AdminCommentsApiService } from './admin-comments-api.service';
-import type { LeadComment } from './admin-comments.contracts';
+import type { Comment } from '@feasly/contracts';
 import {
   CommentThreadComponent,
   sortCommentsByOldest,
@@ -48,7 +48,7 @@ export class AdminLeadCommentsComponent implements OnInit {
     showVisibilityBadges: true,
   };
 
-  protected readonly comments = signal<readonly LeadComment[]>([]);
+  protected readonly comments = signal<readonly Comment[]>([]);
   protected readonly status = signal<'loading' | 'ready' | 'error'>('loading');
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
@@ -57,8 +57,10 @@ export class AdminLeadCommentsComponent implements OnInit {
   /**
    * Best stable admin identifier available on the frontend (the admin
    * identity carries email + display name, no uuid). Drives the thread's
-   * "own comment" affordance; admins additionally get the moderator rule
-   * (edit-any via the admin config).
+   * "own comment" affordance — the wire `Comment.authorId` is the author's
+   * email (lowercased), matching the BILL-05 backend. Edit stays
+   * author-only for admins too (the backend 403s edits of other people's
+   * comments); admins moderate via soft-delete.
    */
   protected currentUserId(): string {
     return this.store.selectSnapshot(AdminAuthState.email) ?? '';

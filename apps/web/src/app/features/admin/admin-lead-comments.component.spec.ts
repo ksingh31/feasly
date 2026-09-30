@@ -13,9 +13,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { AdminLeadCommentsComponent } from './admin-lead-comments.component';
 import { AdminCommentsApiService } from './admin-comments-api.service';
-import type { LeadComment } from './admin-comments.contracts';
+import type { Comment } from '@feasly/contracts';
 
-const BUILDER_NOTE: LeadComment = {
+const BUILDER_NOTE: Comment = {
   id: 'c-builder',
   entityType: 'lead',
   entityId: 'lead-1',
@@ -27,35 +27,38 @@ const BUILDER_NOTE: LeadComment = {
   createdAt: '2026-09-29T10:00:00Z',
   updatedAt: '2026-09-29T10:00:00Z',
   edited: false,
+  deletedAt: null,
 };
 
-const INTERNAL_NOTE: LeadComment = {
+const INTERNAL_NOTE: Comment = {
   id: 'c-internal',
   entityType: 'lead',
   entityId: 'lead-1',
   authorKind: 'admin',
-  authorId: 'admin-1',
+  authorId: 'admin@feasly.dev',
   authorDisplayName: 'Priya (platform)',
   visibility: 'admin_only',
   body: 'Watch this one.',
   createdAt: '2026-09-29T11:00:00Z',
   updatedAt: '2026-09-29T11:00:00Z',
   edited: false,
+  deletedAt: null,
 };
 
-function newComment(overrides: Partial<LeadComment> = {}): LeadComment {
+function newComment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: 'c-new',
     entityType: 'lead',
     entityId: 'lead-1',
     authorKind: 'admin',
-    authorId: 'admin-1',
+    authorId: 'admin@feasly.dev',
     authorDisplayName: 'Priya (platform)',
     visibility: 'admin_only',
     body: 'New note',
     createdAt: '2026-09-29T12:00:00Z',
     updatedAt: '2026-09-29T12:00:00Z',
     edited: false,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -69,7 +72,7 @@ describe('AdminLeadCommentsComponent', () => {
   };
   let fixture: ComponentFixture<AdminLeadCommentsComponent>;
 
-  function setup(seed: readonly LeadComment[] = [BUILDER_NOTE, INTERNAL_NOTE]): void {
+  function setup(seed: readonly Comment[] = [BUILDER_NOTE, INTERNAL_NOTE]): void {
     apiMock = {
       listComments: vi.fn(() => of({ comments: seed })),
       postComment: vi.fn((_leadId: string, body: string, visibility: string) =>
@@ -170,14 +173,20 @@ describe('AdminLeadCommentsComponent', () => {
     expect(apiMock.postComment).toHaveBeenCalledWith('lead-1', 'Shared update', 'org');
   });
 
-  it('edits a comment through the service and updates the thread', () => {
+  it('edits the admins own comment through the service and updates the thread', () => {
     setup();
-    const firstItem = fixture.nativeElement.querySelector('.comment-thread__item');
-    clickButton('Edit', firstItem);
+    const items = [...fixture.nativeElement.querySelectorAll('.comment-thread__item')];
+    // The builder's note is not editable by the admin (author-only edits);
+    // the admin's own internal note is.
+    expect(items[0].textContent).not.toContain('Edit');
+    const ownItem = items.find((el) =>
+      el.textContent?.includes('Watch this one.'),
+    ) as HTMLElement;
+    clickButton('Edit', ownItem);
     const editArea = fixture.nativeElement.querySelector('.comment-thread__edit textarea');
     setText(editArea, 'Edited note');
     clickButton('Save');
-    expect(apiMock.editComment).toHaveBeenCalledWith('c-builder', 'Edited note');
+    expect(apiMock.editComment).toHaveBeenCalledWith('c-internal', 'Edited note');
     expect(fixture.nativeElement.textContent).toContain('Edited note');
     expect(fixture.nativeElement.textContent).toContain('Edited');
   });

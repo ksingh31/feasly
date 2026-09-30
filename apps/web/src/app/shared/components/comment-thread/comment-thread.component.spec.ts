@@ -183,6 +183,36 @@ describe('CommentThreadComponent', () => {
     expect(items[1].querySelector('.comment-thread__link')).toBeNull();
   });
 
+  it('never shows edit on someone elses comment, even with the admin config', async () => {
+    // The backend 403s edits of other people's comments; the moderator
+    // config gates delete only. Emails are compared case-insensitively.
+    const { fixture } = await setup({
+      currentUserId: 'Owen.Admin@example.com',
+      config: {
+        allowPost: true,
+        allowEdit: true,
+        allowDelete: true,
+        showVisibilityToggle: true,
+        showVisibilityBadges: true,
+      },
+      comments: [
+        comment({ id: 'c1', authorId: 'owen.admin@example.com', authorKind: 'admin' }),
+        comment({ id: 'c2', authorId: 'mya@example.com', authorKind: 'builder' }),
+      ],
+    });
+    const items = fixture.nativeElement.querySelectorAll('.comment-thread__item');
+    expect(items[0].querySelector('.comment-thread__link')?.textContent).toContain(
+      DEFAULT_COMMENT_THREAD_LABELS.editLabel,
+    );
+    expect(items[1].querySelector('.comment-thread__link')?.textContent).not.toContain(
+      DEFAULT_COMMENT_THREAD_LABELS.editLabel,
+    );
+    // Delete is still available on both under the admin config.
+    expect(fixture.nativeElement.textContent).toContain(
+      DEFAULT_COMMENT_THREAD_LABELS.deleteLabel,
+    );
+  });
+
   it('edits an own comment and exits edit mode on container publish', async () => {
     const { fixture, component } = await setup({
       comments: [comment({ id: 'c1', body: 'Before', authorId: 'user-1' })],
