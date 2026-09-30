@@ -10,6 +10,7 @@ import {
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import {
   ClearReportContractState,
+  LoadCommissionRate,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 
@@ -29,6 +30,12 @@ export interface BuilderReportContractStateModel {
   reportedValueCents: number | null;
   /** The minted invoice, fetched for the success card (dates + status). */
   invoice: CommissionInvoice | null;
+  /**
+   * The org's negotiated commission rate (percent) for the live preview.
+   * Null until loaded (or when the fetch fails) — the UI falls back to
+   * the 1% default; the backend always computes the billed amount.
+   */
+  commissionRatePercent: number | null;
   /** RFC 7807-surfaced ApiError on submit failure. */
   error: ApiError | null;
 }
@@ -38,6 +45,7 @@ const defaults: BuilderReportContractStateModel = {
   result: null,
   reportedValueCents: null,
   invoice: null,
+  commissionRatePercent: null,
   error: null,
 };
 
@@ -84,6 +92,17 @@ export class BuilderReportContractState {
   @Selector()
   static invoice(state: BuilderReportContractStateModel): CommissionInvoice | null {
     return state.invoice;
+  }
+
+  /**
+   * The org's negotiated rate (percent), or null before it loads. The
+   * component falls back to the 1% default for the live preview.
+   */
+  @Selector()
+  static commissionRatePercent(
+    state: BuilderReportContractStateModel,
+  ): number | null {
+    return state.commissionRatePercent;
   }
 
   @Selector()
@@ -144,5 +163,20 @@ export class BuilderReportContractState {
   @Action(ClearReportContractState)
   clear(ctx: StateContext<BuilderReportContractStateModel>) {
     ctx.setState(defaults);
+  }
+
+  @Action(LoadCommissionRate)
+  loadCommissionRate(ctx: StateContext<BuilderReportContractStateModel>) {
+    // A failed fetch leaves the rate null — the UI previews at the 1%
+    // default instead of blocking the form. The billed amount is always
+    // computed server-side from the builder row.
+    return this.api.getCommissionRate().pipe(
+      tap((response) =>
+        ctx.patchState({
+          commissionRatePercent: response.commissionRatePercent,
+        }),
+      ),
+      catchError(() => of(null)),
+    );
   }
 }

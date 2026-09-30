@@ -33,6 +33,7 @@ describe('commission-invoice-ready template (BILL-04)', () => {
       commissionCents: 500_000,
       contractValueCents: 50_000_000,
       currency: 'CAD',
+      commissionRatePercent: 1,
       reviewDueAt: due,
     });
 
@@ -40,6 +41,9 @@ describe('commission-invoice-ready template (BILL-04)', () => {
     expect(rendered.html).toContain('INV-2026-001');
     // 1% commission: $5,000.00
     expect(rendered.html).toContain('$5,000.00');
+    // The effective rate threads into the label — no hardcoded percent.
+    expect(rendered.html).toContain('Commission (1%)');
+    expect(rendered.text).toContain('Commission (1%): $5,000.00');
     // Contract value excluding land: $500,000.00
     expect(rendered.html).toContain('$500,000.00');
     expect(rendered.html).toContain('excl. land');

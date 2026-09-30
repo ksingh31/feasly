@@ -365,6 +365,12 @@ function formatMoney(cents: number): string {
   });
 }
 
+/** Rate percent label, e.g. 1 → "1%", 1.5 → "1.5%" (no float dust). */
+function formatPercent(ratePercent: number): string {
+  const rounded = Math.round(ratePercent * 10_000) / 10_000;
+  return `${Number(rounded.toFixed(4))}%`;
+}
+
 /** Day-level date in America/Edmonton, e.g. "Oct 5, 2026". */
 function formatEdmontonDate(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -381,6 +387,8 @@ export interface CommissionInvoiceReadyTemplateInput {
   readonly commissionCents: number;
   readonly contractValueCents: number;
   readonly currency: string;
+  /** Effective commission rate applied to the invoice, in PERCENT. */
+  readonly commissionRatePercent: number;
   /** End of the 7-day review window — rendered in America/Edmonton. */
   readonly reviewDueAt: Date;
   /** Builder portal invoices URL is derived from ctx.appBaseUrl. */
@@ -394,12 +402,13 @@ export function renderCommissionInvoiceReadyEmail(
   const dueDate = formatEdmontonDate(input.reviewDueAt);
   const commission = formatMoney(input.commissionCents);
   const contractValue = formatMoney(input.contractValueCents);
+  const rateLabel = formatPercent(input.commissionRatePercent);
   const subject = `Your ${ctx.brandName} commission invoice is ready for review`;
   const body = `<p>Hi there,</p>
 <p>A commission invoice for your build is now in its 7-day review window:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:12px 0;">
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Invoice</td><td style="padding:4px 0;font-weight:600;">${esc(input.invoiceRef)}</td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Commission (1%)</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Commission (${rateLabel})</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Contract value</td><td style="padding:4px 0;">$${contractValue} ${esc(input.currency)} (excl. land)</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Review deadline</td><td style="padding:4px 0;font-weight:600;">${esc(dueDate)}</td></tr>
 </table>
@@ -409,7 +418,7 @@ ${fallbackLink(invoicesUrl)}`;
   const text =
     `Hi there,\n\nA commission invoice for your build is now in its 7-day review window:\n\n` +
     `Invoice: ${input.invoiceRef}\n` +
-    `Commission (1%): $${commission} ${input.currency}\n` +
+    `Commission (${rateLabel}): $${commission} ${input.currency}\n` +
     `Contract value: $${contractValue} ${input.currency} (excl. land)\n` +
     `Review deadline: ${dueDate}\n\n` +
     `We'll charge the card on file on ${dueDate} unless the invoice is disputed before then.\n\n` +

@@ -33,6 +33,7 @@ import {
   stripeEvents,
 } from '../../db/schema';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
+import { effectiveRatePercent } from '../../lib/commission-math';
 import type { StripeService } from './stripe.service';
 import type {
   BillingHealthBucket,
@@ -70,6 +71,7 @@ interface InvoiceRow {
   readonly paidAt: Date | null;
   readonly retryCount: number;
   readonly commissionRateOverride: number | null;
+  readonly commissionRatePercent: number | null;
   readonly contractValueCents: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -77,18 +79,6 @@ interface InvoiceRow {
 
 /** Bounded admin work queue of in-review invoices. */
 const IN_REVIEW_WORK_QUEUE_LIMIT = 50;
-
-/**
- * Effective commission rate for an invoice row, in PERCENT — the admin
- * override when set, otherwise the configured default.
- */
-function effectiveRatePercent(
-  row: Pick<InvoiceRow, 'commissionRateOverride'>,
-  defaultRate: number,
-): number {
-  const pct = row.commissionRateOverride ?? defaultRate * 100;
-  return Math.round(pct * 10_000) / 10_000;
-}
 
 function emptyBucket(): BillingHealthBucket {
   return { count: 0, commissionCents: 0 };
@@ -269,6 +259,7 @@ export function createBillingHealthService(
         paidAt: commissionInvoices.paidAt,
         retryCount: commissionInvoices.retryCount,
         commissionRateOverride: commissionInvoices.commissionRateOverride,
+        commissionRatePercent: commissionInvoices.commissionRatePercent,
         contractValueCents: commissionInvoices.contractValueCents,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,

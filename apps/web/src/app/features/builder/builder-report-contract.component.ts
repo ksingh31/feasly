@@ -19,7 +19,12 @@ import { firstValueFrom } from 'rxjs';
 import type { BuilderLeadListItem } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
-import { formatCentsToCad, onePercentOfCents, parseCadDollarsToCents } from '../../shared/utils/money';
+import {
+  formatCentsToCad,
+  formatRatePercent,
+  parseCadDollarsToCents,
+  percentOfCents,
+} from '../../shared/utils/money';
 import {
   dateOnlyToIsoWithOffset,
   todayLocalDateString,
@@ -28,6 +33,7 @@ import { BuilderState } from './builder.state';
 import { LoadBuilderLeads } from './builder.actions';
 import {
   ClearReportContractState,
+  LoadCommissionRate,
   SubmitReportContract,
 } from './builder-report-contract.actions';
 import { BuilderReportContractState } from './builder-report-contract.state';
@@ -109,6 +115,22 @@ export class BuilderReportContractComponent implements OnInit {
     BuilderReportContractState.error,
   );
 
+  /**
+   * The org's negotiated commission rate (percent), null until loaded.
+   * The live preview falls back to the 1% default while loading or on
+   * fetch failure — display-only; the backend computes the billed amount.
+   */
+  protected readonly storedRatePercent = this.store.selectSignal(
+    BuilderReportContractState.commissionRatePercent,
+  );
+  protected readonly ratePercent = computed(
+    () => this.storedRatePercent() ?? 1,
+  );
+  /** '1%' / '1.5%' — fills the {rate} placeholders in the page copy. */
+  protected readonly rateLabel = computed(() =>
+    formatRatePercent(this.ratePercent()),
+  );
+
   /** Leads that can still be recorded: no commission invoice yet. */
   protected readonly reportableLeads = computed<readonly BuilderLeadListItem[]>(
     () => this.leads().filter((lead) => !lead.hasInvoice),
@@ -144,13 +166,16 @@ export class BuilderReportContractComponent implements OnInit {
   );
 
   /**
-   * Always-visible 1% commission figure, recomputed as the builder types.
-   * Starts at $0.00 — the figure is never hidden behind a validity gate.
+   * Always-visible commission figure, recomputed as the builder types —
+   * at the org's negotiated rate (1% default until it loads). Starts at
+   * $0.00 — the figure is never hidden behind a validity gate.
    * Display-only; the backend computes the billed amount.
    */
   protected readonly liveCommissionCents = signal(0);
   protected readonly liveCommission = computed(() =>
-    this.formatCadFigure(onePercentOfCents(this.liveCommissionCents())),
+    this.formatCadFigure(
+      percentOfCents(this.liveCommissionCents(), this.ratePercent()),
+    ),
   );
   /** The typed contract value in cents (for the commission panel breakdown). */
   protected readonly liveContractValue = computed(() =>
@@ -207,6 +232,7 @@ export class BuilderReportContractComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.dispatch(new LoadBuilderLeads());
+    this.store.dispatch(new LoadCommissionRate());
     // The lead-card CTA passes the lead id: pre-select it so the builder
     // doesn't pick the lead twice. A recorded lead resolves to the
     // already-recorded state instead of the form.
@@ -265,14 +291,40 @@ export class BuilderReportContractComponent implements OnInit {
       : this.copy.reportContractDateFuture;
   }
 
-  /** The 1% commission on the reported contract, formatted for display. */
+  /** The commission on the reported contract at the org's rate, formatted. */
   protected reportedCommission(): string {
     const cents = this.reportedValueCents();
     if (cents === null) {
       return '';
     }
     // Display-only figure; the backend computes the billed amount.
-    return formatCentsToCad(onePercentOfCents(cents));
+    return formatCentsToCad(percentOfCents(cents, this.ratePercent()));
+  }
+
+  /** Page explainer with the org's rate filled in. */
+  protected explainerCopy(): string {
+    return this.copy.reportContractExplainer.replace(
+      '{rate}',
+      this.rateLabel(),
+    );
+  }
+
+  /**
+   * The rate label for the success copy: the minted invoice's effective
+   * rate when the invoice was fetched, otherwise the preview rate. Both
+   * come from the backend — the billed figure never depends on the copy.
+   */
+  protected successRateLabel(): string {
+    const effective = this.invoice()?.effectiveRatePercent;
+    return formatRatePercent(effective ?? this.ratePercent());
+  }
+
+  /** "Your commission (1%)" label with the org's rate filled in. */
+  protected estimatedCommissionLabel(): string {
+    return this.copy.contractEstimatedCommission.replace(
+      '{rate}',
+      this.rateLabel(),
+    );
   }
 
   protected reportedAmount(): string {
@@ -295,6 +347,7 @@ export class BuilderReportContractComponent implements OnInit {
       }
       return this.copy.reportContractSuccessBody
         .replace('{amount}', this.reportedAmount())
+        .replace('{rate}', this.successRateLabel())
         .replace('{commission}', this.reportedCommission());
     }
     switch (outcome.reason) {

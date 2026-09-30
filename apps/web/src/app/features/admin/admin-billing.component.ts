@@ -203,6 +203,8 @@ export class AdminBillingComponent implements OnInit {
   }
 
   protected modelLabel(model: 'commission' | 'flat'): string {
-    return model === 'commission' ? 'Commission · 1%' : 'Flat plan';
+    // The commission model now bills at each builder's negotiated rate
+    // (default 1%) — the badge names the model, not a single rate.
+    return model === 'commission' ? 'Commission' : 'Flat plan';
   }
 }

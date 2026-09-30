@@ -338,6 +338,11 @@ const targets = [
     entry: 'src/functions/billing-card.ts',
     out: 'billing-card/index.js',
   },
+  // billing/08 — builder reads their org's negotiated commission rate.
+  {
+    entry: 'src/functions/billing-commission-rate.ts',
+    out: 'billing-commission-rate/index.js',
+  },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
     entry: 'src/functions/admin-disputes.ts',

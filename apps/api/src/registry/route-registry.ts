@@ -1148,6 +1148,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/billing/commission-rate',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder reads their org\'s negotiated commission rate (percent), ' +
+      'for the "Record signed contract" live preview. Falls back to the ' +
+      'configured default when the builder row is missing.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,

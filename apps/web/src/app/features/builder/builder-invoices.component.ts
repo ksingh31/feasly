@@ -13,7 +13,7 @@ import type {
 } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
-import { formatCentsToCad } from '../../shared/utils/money';
+import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { BuilderBillingState } from './builder-billing.state';
 import { LoadBillingCard } from './builder-billing.actions';
 import {
@@ -247,8 +247,16 @@ export class BuilderInvoicesComponent implements OnInit {
     );
   }
 
-  protected commissionRateLabel(): string {
-    return this.copy.invoicesCommissionRow.replace('{rate}', '1%');
+  /**
+   * Per-invoice commission row label, e.g. "Commission (1%)" — the
+   * invoice's effective rate (override → snapshot → config default),
+   * computed server-side. Falls back to 1% when the field is absent.
+   */
+  protected commissionRateLabel(invoice: CommissionInvoice): string {
+    return this.copy.invoicesCommissionRow.replace(
+      '{rate}',
+      formatRatePercent(invoice.effectiveRatePercent ?? 1),
+    );
   }
 
   /** Card summary for receipts: "Visa •••• 4242". */

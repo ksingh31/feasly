@@ -85,7 +85,7 @@ describe('AdminBillingComponent (billing/03)', () => {
   it('loads billing health on init and renders the panels', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Billing health');
-    expect(text).toContain('Commission · 1%');
+    expect(text).toContain('Commission');
     expect(text).toContain('Stripe test mode');
     // MRR is n/a under the commission model.
     expect(text).toContain('n/a under the commission model');

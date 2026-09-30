@@ -2,7 +2,7 @@
   <header class="builder-report-contract__header">
     <h1 id="report-contract-heading">{{ copy.reportContractHeading }}</h1>
     <p class="builder-report-contract__sub">
-      {{ copy.reportContractExplainer }}
+      {{ explainerCopy() }}
     </p>
   </header>
 
@@ -217,15 +217,16 @@
             }
           </div>
 
-          <!-- Always-visible commission panel: the 1% due, live as the
-               builder types. Never hidden — $0.00 on the empty form. -->
+          <!-- Always-visible commission panel: the amount due at the
+               org's rate, live as the builder types. Never hidden —
+               $0.00 on the empty form. -->
           <div
             class="builder-report-contract__commission"
             role="status"
-            aria-label="{{ copy.contractEstimatedCommission }}"
+            aria-label="{{ estimatedCommissionLabel() }}"
           >
             <p class="builder-report-contract__commission-label">
-              {{ copy.contractEstimatedCommission }}
+              {{ estimatedCommissionLabel() }}
             </p>
             <p class="builder-report-contract__commission-figure">
               {{ liveCommission() }}
@@ -240,7 +241,7 @@
               </div>
               <div>
                 <dt>{{ copy.contractCommissionRate }}</dt>
-                <dd>1%</dd>
+                <dd>{{ rateLabel() }}</dd>
               </div>
             </dl>
           </div>

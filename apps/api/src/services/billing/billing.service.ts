@@ -79,6 +79,11 @@ export interface BillingService {
     invoiceId: string,
     outcome: 'resume' | 'void',
   ): Promise<CommissionInvoiceRecord>;
+  /**
+   * The builder org's negotiated commission rate, in PERCENT (billing/08).
+   * Powers the builder portal's "Record signed contract" live preview.
+   */
+  getCommissionRatePercent(tenantKey: string): Promise<number>;
 }
 
 export interface BillingServiceDeps {
@@ -214,6 +219,10 @@ export function createBillingService(
       outcome: 'resume' | 'void',
     ): Promise<CommissionInvoiceRecord> {
       return commission.resolveDispute(invoiceId, outcome);
+    },
+
+    async getCommissionRatePercent(tenantKey: string): Promise<number> {
+      return commission.getCommissionRatePercent(tenantKey);
     },
   };
 }

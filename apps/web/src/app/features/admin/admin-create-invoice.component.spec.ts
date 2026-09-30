@@ -19,6 +19,17 @@ const BUILDERS: Builder[] = [
     businessName: 'Test Builder Inc.',
     plan: 'commission',
     status: 'active',
+    commissionRatePercent: 1,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+  } as Builder,
+  {
+    tenantKey: 'custom-rate-builder',
+    displayName: 'Custom Rate Builder',
+    businessName: 'Custom Rate Builder Inc.',
+    plan: 'commission',
+    status: 'active',
+    commissionRatePercent: 2,
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
   } as Builder,
@@ -102,6 +113,23 @@ describe('AdminCreateInvoiceComponent (manual invoice creation)', () => {
     expect(text).toContain('Review invoice');
     expect(text).toContain('$8,500');
     expect(text).toContain('7-day builder review window');
+  });
+
+  it('estimates the review-step commission at the selected builder\u2019s rate (billing/08)', () => {
+    component.form.controls.builder.setValue('custom-rate-builder');
+    component.form.controls.leadId.setValue(LEAD_ID);
+    component.form.controls.contractDollars.setValue(850_000);
+    component.form.controls.signedDate.setValue('2026-09-20');
+    component.startReview();
+    fixture.detectChanges();
+
+    expect(component.reviewing()).toBe(true);
+    // $850,000 × 2% = $17,000 — the estimate follows the builder's
+    // negotiated rate, not the 1% default.
+    expect(component.estimatedCommissionCents()).toBe(1_700_000);
+    expect(component.selectedRateLabel()).toBe('2%');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('$17,000');
   });
 
   it('dispatches the create with integer cents and an offset ISO datetime', async () => {

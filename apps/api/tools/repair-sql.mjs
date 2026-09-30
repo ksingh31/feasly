@@ -55,11 +55,13 @@ CREATE TABLE IF NOT EXISTS "builders" (
 	"allowed_origins" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"plan" text,
 	"status" text DEFAULT 'active' NOT NULL,
+	"commission_rate_percent" real DEFAULT 1 NOT NULL,
 	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "builders_tenant_key_unique" UNIQUE("tenant_key")
 );
+ALTER TABLE "builders" ADD COLUMN IF NOT EXISTS "commission_rate_percent" real DEFAULT 1 NOT NULL;
 CREATE TABLE IF NOT EXISTS "magic_links" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -422,6 +424,7 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"retry_count" integer DEFAULT 0 NOT NULL,
 	"dispute_reason" text,
 	"commission_rate_override" real,
+	"commission_rate_percent" real,
 	"manual_payment_method" text,
 	"payment_reference" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -444,6 +447,7 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "sla_breached" boolea
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "retry_count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "dispute_reason" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_override" real;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_percent" real;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "manual_payment_method" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_reference" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;

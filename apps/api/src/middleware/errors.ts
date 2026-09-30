@@ -52,6 +52,11 @@ export const ErrorCodes = {
   CONFLICT: 'CONFLICT',
   /** Lead status lock (2026-09-29): status change on a recorded-contract lead. */
   LEAD_STATUS_LOCKED: 'LEAD_STATUS_LOCKED',
+  /**
+   * Commission rate outside the allowed range (billing/08): builder rate
+   * must satisfy 0 <= rate <= 10 (percent).
+   */
+  INVALID_RATE: 'INVALID_RATE',
   /** Analytics ingest without a valid consent_ts (story consumer/01). */
   CONSENT_REQUIRED: 'CONSENT_REQUIRED',
   RATE_LIMITED: 'RATE_LIMITED',

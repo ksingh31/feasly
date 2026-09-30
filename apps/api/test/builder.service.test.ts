@@ -30,6 +30,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     plan: null,
     status: 'active',
     settings: {},
+    commissionRatePercent: 1,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -129,5 +130,128 @@ describe('BuilderService.createBuilder duplicate handling', () => {
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'admin_builder_created' }),
     );
+  });
+});
+
+describe('BuilderService commission rate (billing/08)', () => {
+  it('defaults to 1% when omitted on create', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    const builder = await service.createBuilder(INPUT, 'admin@example.com');
+    expect(builder.commissionRatePercent).toBe(1);
+    expect(insertCalls[0]).toMatchObject({ commissionRatePercent: 1 });
+  });
+
+  it('stores a custom rate on create', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    const builder = await service.createBuilder(
+      { ...INPUT, commissionRatePercent: 1.5 },
+      'admin@example.com',
+    );
+    expect(insertCalls[0]).toMatchObject({ commissionRatePercent: 1.5 });
+    // The returned row echoes the DB default in this fake; the insert
+    // payload is the assertion that matters.
+    expect(builder.commissionRatePercent).toBeDefined();
+  });
+
+  it('accepts 0% — a legitimate negotiated outcome', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    await service.createBuilder(
+      { ...INPUT, commissionRatePercent: 0 },
+      'admin@example.com',
+    );
+    expect(insertCalls[0]).toMatchObject({ commissionRatePercent: 0 });
+  });
+
+  it('rejects rates above 10% with INVALID_RATE (400)', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service, audit } = makeDeps(db);
+
+    await expect(
+      service.createBuilder({ ...INPUT, commissionRatePercent: 10.01 }, 'admin@example.com'),
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_RATE' });
+    expect(insertCalls).toHaveLength(0);
+    expect(audit.log).not.toHaveBeenCalled();
+  });
+
+  it('rejects negative rates with INVALID_RATE (400)', async () => {
+    const { db } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    await expect(
+      service.createBuilder({ ...INPUT, commissionRatePercent: -1 }, 'admin@example.com'),
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_RATE' });
+  });
+
+  it('rejects non-numeric rates with VALIDATION_FAILED (400)', async () => {
+    const { db } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    await expect(
+      service.createBuilder(
+        { ...INPUT, commissionRatePercent: '1.5' as unknown as number },
+        'admin@example.com',
+      ),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' });
+  });
+
+  it('update audits old->new when the rate changes', async () => {
+    const current = makeRow({ commissionRatePercent: 1 });
+    const updateCalls: unknown[] = [];
+    const db = {
+      query: {
+        builders: { findFirst: vi.fn(async () => current) },
+      },
+      update: vi.fn(() => ({
+        set: vi.fn((patch: unknown) => {
+          updateCalls.push(patch);
+          return {
+            where: vi.fn(() => ({
+              returning: vi.fn(async () => [makeRow({ commissionRatePercent: 2 })]),
+            })),
+          };
+        }),
+      })),
+    } as unknown as AppDb;
+    const { service, audit } = makeDeps(db);
+
+    const builder = await service.updateBuilder(current.id, { commissionRatePercent: 2 }, 'admin@example.com');
+    expect(updateCalls[0]).toMatchObject({ commissionRatePercent: 2 });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_builder_commission_rate_changed',
+        detail: expect.stringContaining('from=1 to=2'),
+      }),
+    );
+    expect(builder.commissionRatePercent).toBe(2);
+  });
+
+  it('update does not audit when the rate is unchanged', async () => {
+    const current = makeRow({ commissionRatePercent: 1 });
+    const db = {
+      query: {
+        builders: { findFirst: vi.fn(async () => current) },
+      },
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            returning: vi.fn(async () => [makeRow({ commissionRatePercent: 1 })]),
+          })),
+        })),
+      })),
+    } as unknown as AppDb;
+    const { service, audit } = makeDeps(db);
+
+    await service.updateBuilder(current.id, { commissionRatePercent: 1 }, 'admin@example.com');
+    const rateAudits = (audit.log as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { action: string }).action === 'admin_builder_commission_rate_changed',
+    );
+    expect(rateAudits).toHaveLength(0);
   });
 });

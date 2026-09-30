@@ -32,6 +32,8 @@ import { builderAllowlist, builders, commissionInvoices, leads, tenants } from '
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
+  effectiveRatePercent,
+  formatRatePercent,
   wholeDaysBetween,
 } from '../../lib/commission-math';
 import { isReportingOnTime } from '../../lib/billing-deadlines';
@@ -77,10 +79,20 @@ export interface CommissionInvoiceRecord {
   /** Off-session charge retry attempts made (BILL-03). */
   readonly retryCount: number;
   /**
-   * Admin override of the commission rate, in PERCENT. Null = the
-   * configured default (billing.commissionRate).
+   * Admin override of the commission rate, in PERCENT. Null = no override —
+   * the builder's rate at creation applies.
    */
   readonly commissionRateOverride: number | null;
+  /**
+   * The builder's `commissionRatePercent` snapshotted at invoice creation
+   * (billing/08). Null = legacy invoice created before the snapshot.
+   */
+  readonly commissionRatePercent: number | null;
+  /**
+   * The rate actually applied to this invoice, in PERCENT:
+   * `commissionRateOverride ?? commissionRatePercent ?? configured default`.
+   */
+  readonly effectiveRatePercent: number;
   /**
    * Off-Stripe payment method recorded by an admin mark-paid action.
    * Null unless the invoice was manually marked paid.
@@ -213,6 +225,12 @@ export interface CommissionService {
   findByLead(leadId: string): Promise<CommissionInvoiceRecord | null>;
   getById(invoiceId: string): Promise<CommissionInvoiceRecord>;
   /**
+   * The builder org's negotiated commission rate, in PERCENT (billing/08).
+   * Falls back to the configured default (`billing.commissionRate`) when
+   * the builder row is missing — a builder can always be billed.
+   */
+  getCommissionRatePercent(tenantKey: string): Promise<number>;
+  /**
    * BILL-04: paginated invoice list, newest first. Builders pass their
    * tenantKey (scoped); admins pass null (all tenants).
    */
@@ -288,30 +306,12 @@ const ALLOWED_TRANSITIONS: Record<
   void: new Set([]),
 };
 
-/**
- * The effective commission rate for an invoice, in PERCENT — the admin
- * override when set, otherwise the configured default.
- */
-function effectiveRatePercent(
-  row: { commissionRateOverride: number | null },
-  defaultRate: number,
-): number {
-  const pct = row.commissionRateOverride ?? defaultRate * 100;
-  // Round to 4 decimals so config fractions (0.01 → 1%) and 4-decimal
-  // overrides round-trip cleanly for display and audit payloads.
-  return Math.round(pct * 10_000) / 10_000;
-}
-
-/** '1%' / '1.5%' — for PaymentIntent descriptions and admin UI labels. */
-function formatRatePercent(ratePercent: number): string {
-  return `${effectiveRatePercent({ commissionRateOverride: ratePercent }, 0)}%`;
-}
-
 import { isUniqueViolation } from './pg-errors';
 
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
   leadName: string,
+  defaultRate: number,
 ): CommissionInvoiceRecord {
   return {
     id: row.id,
@@ -331,6 +331,8 @@ function toRecord(
     disputeReason: row.disputeReason,
     retryCount: row.retryCount,
     commissionRateOverride: row.commissionRateOverride,
+    commissionRatePercent: row.commissionRatePercent,
+    effectiveRatePercent: effectiveRatePercent(row, defaultRate),
     manualPaymentMethod: row.manualPaymentMethod as ManualPaymentMethod | null,
     paymentReference: row.paymentReference,
     createdAt: row.createdAt,
@@ -361,6 +363,22 @@ async function leadNamesById(
 /** Single-lead variant for the non-list invoice paths. */
 async function leadNameFor(db: AppDb, leadId: string): Promise<string> {
   return (await leadNamesById(db, [leadId])).get(leadId) ?? '';
+}
+
+/**
+ * The builder org's negotiated commission rate (PERCENT), or null when the
+ * builder row is missing (legacy tenant) — callers fall back to the
+ * configured default. Null is never a valid rate; the column is NOT NULL.
+ */
+async function builderRatePercentFor(
+  db: AppDb,
+  tenantKey: string,
+): Promise<number | null> {
+  const row = await db.query.builders.findFirst({
+    columns: { commissionRatePercent: true },
+    where: eq(builders.tenantKey, tenantKey),
+  });
+  return row?.commissionRatePercent ?? null;
 }
 
 export function createCommissionService(
@@ -439,7 +457,7 @@ export function createCommissionService(
         `Invoice "${id}" changed concurrently — expected '${from}'`,
       );
     }
-    const record = toRecord(updated, await leadNameFor(db, updated.leadId));
+    const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
     await audit.append({
       tenantKey: record.tenantKey,
       eventType,
@@ -529,6 +547,7 @@ export function createCommissionService(
         commissionCents: invoice.commissionCents,
         contractValueCents: invoice.contractValueCents,
         currency: invoice.currency,
+        commissionRatePercent: invoice.effectiveRatePercent,
         reviewDueAt: invoice.reviewDueAt,
       });
     } else if (kind === 'payment_received') {
@@ -591,7 +610,7 @@ export function createCommissionService(
         disputeReason: row.disputeReason,
       },
     });
-    return toRecord(row, await leadNameFor(db, row.leadId));
+    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
   }
 
   return {
@@ -632,7 +651,7 @@ export function createCommissionService(
           entityId: existing.id,
           payload: { attributionId },
         });
-        return toRecord(existing, await leadNameFor(db, existing.leadId));
+        return toRecord(existing, await leadNameFor(db, existing.leadId), billing.commissionRate);
       }
 
       const reportedAt = record.updatedAt;
@@ -641,9 +660,17 @@ export function createCommissionService(
         reportedAt,
         billing.reportingSlaDays,
       );
+      // The builder's negotiated rate, snapshotted onto the invoice
+      // (billing/08): future rate changes don't reprice this invoice.
+      // Missing builder row (legacy tenant) → configured default.
+      const builderRatePercent = await builderRatePercentFor(
+        db,
+        record.tenantKey,
+      );
+      const ratePercent = builderRatePercent ?? billing.commissionRate * 100;
       const commissionCents = computeCommissionCents(
         record.contractValueCents,
-        billing.commissionRate,
+        ratePercent / 100,
       );
 
       const [row] = await db
@@ -655,6 +682,7 @@ export function createCommissionService(
           leadId: record.leadId,
           contractValueCents: record.contractValueCents,
           commissionCents,
+          commissionRatePercent: ratePercent,
           slaBreached: !onTime,
         })
         .returning()
@@ -677,7 +705,7 @@ export function createCommissionService(
           });
           return [winner];
         });
-      const invoice = toRecord(row, await leadNameFor(db, row.leadId));
+      const invoice = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
       await audit.append({
         tenantKey: invoice.tenantKey,
         eventType: 'invoice.created',
@@ -687,6 +715,7 @@ export function createCommissionService(
           attributionId: record.id,
           contractValueCents: record.contractValueCents,
           commissionCents,
+          commissionRatePercent: ratePercent,
           slaBreached: !onTime,
         },
       });
@@ -952,7 +981,7 @@ export function createCommissionService(
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         // Webhook redelivery for an already-settled invoice: no-op, no
         // duplicate audit row.
-        return toRecord(row, await leadNameFor(db, row.leadId));
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
       }
       const invoice = await transition(
         row.id,
@@ -1124,7 +1153,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated, await leadNameFor(db, updated.leadId));
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.commission_rate_changed',
@@ -1160,7 +1189,7 @@ export function createCommissionService(
       const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
       if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
-        return toRecord(row, await leadNameFor(db, row.leadId));
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
       }
       const invoice = await transition(
         row.id,
@@ -1197,7 +1226,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? ''));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
     },
 
     async findByAttribution(
@@ -1210,7 +1239,7 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId));
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
     },
 
     async findByLead(leadId: string): Promise<CommissionInvoiceRecord | null> {
@@ -1221,12 +1250,20 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId));
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
       const invoiceRow = await requireInvoice(invoiceId);
-      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId));
+      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate);
+    },
+
+    async getCommissionRatePercent(tenantKey: string): Promise<number> {
+      requireCommissionModel();
+      return (
+        (await builderRatePercentFor(db, tenantKey)) ??
+        billing.commissionRate * 100
+      );
     },
 
     async listInvoices(
@@ -1249,7 +1286,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? ''));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
     },
   };
 }

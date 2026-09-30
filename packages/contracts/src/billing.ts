@@ -43,9 +43,21 @@ export interface CommissionInvoice {
   readonly disputeReason: string | null;
   /**
    * Admin override of the commission rate, in PERCENT (e.g. 1.5 = 1.5%).
-   * Null = the configured default rate (BILLING_COMMISSION_RATE).
+   * Null = no override — the builder's rate at creation applies.
    */
   readonly commissionRateOverride: number | null;
+  /**
+   * The builder's `commissionRatePercent` snapshotted at invoice creation
+   * (billing/08). Null = legacy invoice created before the snapshot —
+   * the configured default rate applies.
+   */
+  readonly commissionRatePercent: number | null;
+  /**
+   * The rate actually applied to this invoice, in PERCENT:
+   * `commissionRateOverride ?? commissionRatePercent ?? configured default`.
+   * Computed server-side so every surface displays one consistent figure.
+   */
+  readonly effectiveRatePercent: number;
   /**
    * Off-Stripe payment method recorded by an admin mark-paid action.
    * Null unless the invoice was manually marked paid.
@@ -123,6 +135,15 @@ export interface SetCommissionRateResponse {
   readonly currency: string;
 }
 
+/** GET /api/v1/billing/commission-rate — the caller's builder org rate. */
+export interface CommissionRateResponse {
+  /**
+   * The builder org's negotiated commission rate, in PERCENT (1 = 1%).
+   * Falls back to the configured default when the builder row is missing.
+   */
+  readonly commissionRatePercent: number;
+}
+
 /** Append-only billing audit event. */
 export interface BillingEvent {
   readonly id: string;
@@ -190,6 +211,12 @@ export interface DisputeEvidenceSnapshot {
   readonly disputedAt: string;
   /** True when backfilled for a disputed invoice with no dispute row. */
   readonly backfilled?: boolean;
+  /**
+   * The commission rate applied to this invoice (percent, e.g. 1.5),
+   * captured at dispute time. Snapshots written before billing/08 lack
+   * this field — readers must fall back to 1%.
+   */
+  readonly effectiveRatePercent?: number;
 }
 
 export interface DisputeListItem {

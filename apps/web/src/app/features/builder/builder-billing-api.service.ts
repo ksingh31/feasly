@@ -4,6 +4,7 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   CardOnFileStatus,
+  CommissionRateResponse,
   SetupIntentResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
@@ -111,6 +112,20 @@ export class BuilderBillingApiService {
       this.http.post<ReportContractResult>(
         `${this.billingBase}/report-contract`,
         body,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * The org's negotiated commission rate (percent), for the "Record signed
+   * contract" live preview (billing/08). Falls back to the 1% default
+   * client-side when the fetch fails — display-only.
+   */
+  getCommissionRate(): Observable<CommissionRateResponse> {
+    return this.call(
+      this.http.get<CommissionRateResponse>(
+        `${this.billingBase}/commission-rate`,
         { withCredentials: true },
       ),
     );

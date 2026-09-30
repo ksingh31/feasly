@@ -841,6 +841,163 @@ describe('retryCharge (BILL-03)', () => {
   });
 });
 
+describe('per-builder commission rate (billing/08)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  async function seedBuilderWithRate(
+    tenantKey: string,
+    ratePercent: number,
+  ): Promise<void> {
+    // commission_invoices.tenant_key FKs to tenants — seed both rows.
+    await testDb.db
+      .insert(tenants)
+      .values({
+        tenantKey,
+        businessName: `${tenantKey} Ltd.`,
+        displayName: tenantKey,
+        accentColor: '#B08D57',
+        allowedOrigins: ['https://example.com'],
+        stripeCustomerId: 'cus_test_123',
+      })
+      .onConflictDoNothing();
+    await testDb.db
+      .insert(builders)
+      .values({
+        id: randomUUID(),
+        tenantKey,
+        businessName: `${tenantKey} Ltd.`,
+        displayName: tenantKey,
+        commissionRatePercent: ratePercent,
+      })
+      .onConflictDoNothing();
+  }
+
+  it('snapshots the builder rate at invoice creation', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedBuilderWithRate('rate-builder', 1.5);
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'rate-builder',
+    );
+
+    const invoice = await commission.createDraftInvoice(attributionId);
+
+    // $500,000 × 1.5% = $7,500
+    expect(invoice.commissionCents).toBe(750_000);
+    expect(invoice.commissionRatePercent).toBe(1.5);
+    expect(invoice.effectiveRatePercent).toBe(1.5);
+  });
+
+  it('a later rate change does not reprice an existing invoice', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedBuilderWithRate('sticky-rate-builder', 1.5);
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'sticky-rate-builder',
+    );
+    const invoice = await commission.createDraftInvoice(attributionId);
+
+    // Admin renegotiates the builder to 2% AFTER the invoice exists.
+    await testDb.db
+      .update(builders)
+      .set({ commissionRatePercent: 2 })
+      .where(eq(builders.tenantKey, 'sticky-rate-builder'));
+
+    const reread = await commission.getById(invoice.id);
+    expect(reread.commissionCents).toBe(750_000);
+    expect(reread.commissionRatePercent).toBe(1.5);
+    expect(reread.effectiveRatePercent).toBe(1.5);
+
+    // …but the NEXT invoice for the same builder uses the new rate.
+    const attributionId2 = await seedAttribution(
+      testDb,
+      attribution,
+      'sticky-rate-builder',
+    );
+    const invoice2 = await commission.createDraftInvoice(attributionId2);
+    expect(invoice2.commissionCents).toBe(1_000_000);
+    expect(invoice2.effectiveRatePercent).toBe(2);
+  });
+
+  it('falls back to the configured default when the builder row is missing', async () => {
+    const { commission, attribution } = newServices(testDb);
+    // The tenants row exists (FK) but there is deliberately no builders
+    // row for 'legacy-builder' — the invoice still gets made at the 1%
+    // config default, and the snapshot records the rate that was
+    // actually applied.
+    await seedTenant(testDb, 'legacy-builder');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'legacy-builder',
+    );
+
+    const invoice = await commission.createDraftInvoice(attributionId);
+    expect(invoice.commissionCents).toBe(500_000);
+    expect(invoice.commissionRatePercent).toBe(1);
+    expect(invoice.effectiveRatePercent).toBe(1);
+  });
+
+  it('getCommissionRatePercent returns the builder rate, else the default', async () => {
+    const { commission } = newServices(testDb);
+    await seedBuilderWithRate('lookup-builder', 2.25);
+
+    await expect(
+      commission.getCommissionRatePercent('lookup-builder'),
+    ).resolves.toBe(2.25);
+    await expect(
+      commission.getCommissionRatePercent('no-such-builder'),
+    ).resolves.toBe(1);
+  });
+
+  it('supports a 0% builder rate (no commission owed)', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedBuilderWithRate('zero-rate-builder', 0);
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'zero-rate-builder',
+    );
+
+    const invoice = await commission.createDraftInvoice(attributionId);
+    expect(invoice.commissionCents).toBe(0);
+    expect(invoice.effectiveRatePercent).toBe(0);
+  });
+
+  it('the per-invoice override still wins over the builder rate', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedBuilderWithRate('override-builder', 1.5);
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'override-builder',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const invoice = await commission.submitForReview(draft.id);
+    expect(invoice.effectiveRatePercent).toBe(1.5);
+
+    const repriced = await commission.setCommissionRate(
+      invoice.id,
+      2,
+      'karanbirsingh667@gmail.com',
+    );
+    // The override wins; the creation snapshot is untouched.
+    expect(repriced.commissionRateOverride).toBe(2);
+    expect(repriced.commissionRatePercent).toBe(1.5);
+    expect(repriced.effectiveRatePercent).toBe(2);
+    expect(repriced.commissionCents).toBe(1_000_000);
+  });
+});
+
 describe('listInvoices (BILL-04)', () => {
   let testDb: TestDb;
 

@@ -86,6 +86,9 @@ function makeDeps(opts?: {
         ? all
         : all.filter((i) => i.tenantKey === tenantKey);
     }),
+    getCommissionRatePercent: vi.fn(async (tenantKey: string) =>
+      tenantKey === 'elite-craft' ? 1.5 : 1,
+    ),
   } as unknown as BillingService;
 
   const model = opts?.billingModel ?? 'commission';
@@ -200,6 +203,24 @@ describe('GET /api/v1/billing/invoices/{id}', () => {
     const { route } = makeDeps();
     await expect(route.getInvoice({}, 'nope')).rejects.toMatchObject({
       status: 400,
+    });
+  });
+});
+
+describe('GET /api/v1/billing/commission-rate (billing/08)', () => {
+  it('returns the calling builder\u2019s rate', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.getCommissionRate({});
+    expect(result).toEqual({ commissionRatePercent: 1.5 });
+    expect(billing.getCommissionRatePercent).toHaveBeenCalledWith(
+      'elite-craft',
+    );
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route } = makeDeps({ builderSession: null, admin: false });
+    await expect(route.getCommissionRate({})).rejects.toMatchObject({
+      status: 401,
     });
   });
 });
