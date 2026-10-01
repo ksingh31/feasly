@@ -2,6 +2,8 @@
 // language (design pass, 2026-09-28): panel container, underline tabs,
 // admin-style table, alert/error/empty/skeleton states. Uses the shared
 // --color-* tokens; no new shared components.
+@use '../../shared/form-controls' as *;
+
 .builder-invoices {
   display: flex;
   flex-direction: column;
@@ -23,6 +25,23 @@
   margin: 0;
   color: var(--color-text-muted, #6b6257);
   font-size: 0.95rem;
+}
+
+/* Per-invoice payment method (billing/12): shared select chrome. */
+.builder-invoices__select {
+  /* Shared select chrome: custom chevron with proper arrow spacing
+     (replaces the cramped native arrow on every browser). */
+  @include feasly-select;
+  width: 100%;
+  max-width: 20rem;
+  margin-bottom: 0.5rem;
+}
+
+.builder-invoices__alert-text {
+  margin: 0.5rem 0 0;
+  color: #a02323;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 /* Admin-style table (billing-panel__table treatment). The scroll wrapper

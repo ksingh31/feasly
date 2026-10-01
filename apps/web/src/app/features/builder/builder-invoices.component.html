@@ -55,6 +55,10 @@
         </h2>
         <dl class="builder-invoices__facts">
           <div>
+            <dt>{{ copy.invoicesNumberRow }}</dt>
+            <dd>{{ invoice.invoiceNumber }}</dd>
+          </div>
+          <div>
             <dt>{{ copy.invoicesColLead }}</dt>
             <dd>{{ invoice.leadName }}</dd>
           </div>
@@ -75,6 +79,53 @@
                 }}"
                 >{{ statusLabel(invoice.status) }}</span
               >
+            </dd>
+          </div>
+          <div>
+            <dt>{{ copy.invoicesPaymentMethodRow }}</dt>
+            <dd>
+              @if (paymentMethodEditable(invoice)) {
+                <label class="sr-only" for="invoice-payment-method">{{
+                  copy.invoicesPaymentMethodRow
+                }}</label>
+                <!-- [selected] on the option (not [value] on the select):
+                     Angular evaluates the select binding before @for options
+                     exist on first render, so it never takes effect;
+                     option-level selectedness is order-safe. -->
+                <select
+                  id="invoice-payment-method"
+                  class="builder-invoices__select"
+                  (change)="onInvoicePaymentMethodChange(invoice, $event)"
+                  [disabled]="paymentMethodSaveStatus() === 'saving'"
+                >
+                  @for (method of paymentMethodOptions(); track method) {
+                    <option
+                      [value]="method"
+                      [selected]="invoice.paymentMethod === method"
+                    >
+                      {{ methodLabel(method) }}
+                    </option>
+                  }
+                </select>
+                @if (manualMethodNote(invoice); as methodNote) {
+                  <p class="builder-invoices__note" role="note">
+                    {{ methodNote }}
+                  </p>
+                }
+                @if (paymentMethodSaveStatus() === 'error') {
+                  <p
+                    class="builder-invoices__alert-text"
+                    role="alert"
+                  >
+                    {{ copy.invoicesPaymentMethodSaveFailed }}
+                  </p>
+                }
+              } @else {
+                <span>{{ methodLabel(invoice.paymentMethod) }}</span>
+                <p class="builder-invoices__note" role="note">
+                  {{ copy.invoicesPaymentMethodLocked }}
+                </p>
+              }
             </dd>
           </div>
         </dl>

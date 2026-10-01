@@ -1,8 +1,9 @@
 /**
- * Builder invoices actions (BILL-04). All invoice state lives in
- * BuilderInvoicesState — components dispatch and render selectors, never
- * call the API directly.
+ * Builder invoices actions (BILL-04; per-invoice payment method
+ * billing/12). All invoice state lives in BuilderInvoicesState —
+ * components dispatch and render selectors, never call the API directly.
  */
+import type { BuilderPaymentMethod } from './builder-payment-methods';
 
 /** Loads a page of the tenant's commission invoices, newest first. */
 export class LoadInvoices {
@@ -14,6 +15,15 @@ export class LoadInvoices {
 export class SelectInvoice {
   static readonly type = '[BuilderInvoices] Select invoice';
   constructor(public readonly id: string) {}
+}
+
+/** Changes an invoice's payment method (billing/12). */
+export class UpdateInvoicePaymentMethod {
+  static readonly type = '[BuilderInvoices] Update payment method';
+  constructor(
+    public readonly id: string,
+    public readonly method: BuilderPaymentMethod,
+  ) {}
 }
 
 /** Closes the detail view (keeps the loaded list). */

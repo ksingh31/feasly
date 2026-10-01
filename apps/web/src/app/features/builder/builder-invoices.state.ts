@@ -3,25 +3,30 @@ import type { EnvironmentProviders } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { Action, NgxsOnInit, provideStates, Selector, State, StateContext } from '@ngxs/store';
-import type { CommissionInvoice } from '@feasly/contracts';
 import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import {
   BuilderInvoicesApiService,
+  type BuilderCommissionInvoice,
   type InvoiceListResponse,
 } from './builder-invoices-api.service';
+import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
   ClearInvoicesState,
   ClearInvoiceSelection,
   LoadInvoices,
   SelectInvoice,
+  UpdateInvoicePaymentMethod,
 } from './builder-invoices.actions';
 
 /** Loading lifecycle for the invoice list / detail. */
 export type InvoicesStatus = 'idle' | 'loading' | 'ready' | 'error';
 
+/** PUT lifecycle for the per-invoice payment method. */
+export type InvoicePaymentMethodSaveStatus = 'idle' | 'saving' | 'error';
+
 export interface BuilderInvoicesStateModel {
   /** Current page of invoices, newest first. Memory-only. */
-  invoices: readonly CommissionInvoice[];
+  invoices: readonly BuilderCommissionInvoice[];
   /** Total invoice count across all pages; null when the backend reports none. */
   total: number | null;
   /** 1-based current page. */
@@ -29,8 +34,9 @@ export interface BuilderInvoicesStateModel {
   pageSize: number;
   listStatus: InvoicesStatus;
   /** Selected invoice for the detail view; null when closed. */
-  selected: CommissionInvoice | null;
+  selected: BuilderCommissionInvoice | null;
   detailStatus: InvoicesStatus;
+  paymentMethodSaveStatus: InvoicePaymentMethodSaveStatus;
 }
 
 const defaults: BuilderInvoicesStateModel = {
@@ -44,6 +50,7 @@ const defaults: BuilderInvoicesStateModel = {
   listStatus: 'idle',
   selected: null,
   detailStatus: 'idle',
+  paymentMethodSaveStatus: 'idle',
 };
 
 /**
@@ -70,7 +77,9 @@ export class BuilderInvoicesState implements NgxsOnInit {
   }
 
   @Selector()
-  static invoices(state: BuilderInvoicesStateModel): readonly CommissionInvoice[] {
+  static invoices(
+    state: BuilderInvoicesStateModel,
+  ): readonly BuilderCommissionInvoice[] {
     return state.invoices;
   }
 
@@ -104,8 +113,17 @@ export class BuilderInvoicesState implements NgxsOnInit {
   }
 
   @Selector()
-  static selected(state: BuilderInvoicesStateModel): CommissionInvoice | null {
+  static selected(
+    state: BuilderInvoicesStateModel,
+  ): BuilderCommissionInvoice | null {
     return state.selected;
+  }
+
+  @Selector()
+  static paymentMethodSaveStatus(
+    state: BuilderInvoicesStateModel,
+  ): InvoicePaymentMethodSaveStatus {
+    return state.paymentMethodSaveStatus;
   }
 
   @Selector()
@@ -173,6 +191,31 @@ export class BuilderInvoicesState implements NgxsOnInit {
   @Action(ClearInvoiceSelection)
   clearSelection(ctx: StateContext<BuilderInvoicesStateModel>) {
     ctx.patchState({ selected: null, detailStatus: 'idle' });
+  }
+
+  @Action(UpdateInvoicePaymentMethod)
+  updatePaymentMethod(
+    ctx: StateContext<BuilderInvoicesStateModel>,
+    action: UpdateInvoicePaymentMethod,
+  ) {
+    ctx.patchState({ paymentMethodSaveStatus: 'saving' });
+    return this.api.setInvoicePaymentMethod(action.id, action.method).pipe(
+      tap((invoice) => {
+        const state = ctx.getState();
+        ctx.patchState({
+          selected:
+            state.selected?.id === invoice.id ? invoice : state.selected,
+          invoices: state.invoices.map((row) =>
+            row.id === invoice.id ? invoice : row,
+          ),
+          paymentMethodSaveStatus: 'idle',
+        });
+      }),
+      catchError(() => {
+        ctx.patchState({ paymentMethodSaveStatus: 'error' });
+        return of(null);
+      }),
+    );
   }
 
   @Action(ClearInvoicesState)

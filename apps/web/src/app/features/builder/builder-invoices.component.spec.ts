@@ -21,9 +21,12 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
-import type { CommissionInvoice } from '@feasly/contracts';
+import {
+  BuilderInvoicesApiService,
+  type BuilderCommissionInvoice,
+} from './builder-invoices-api.service';
+import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { BuilderBillingState } from './builder-billing.state';
-import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderInvoicesComponent } from './builder-invoices.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
@@ -33,7 +36,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
 /** Fixture invoices mirroring the live wire shape (one per visible status). */
-function testInvoices(): CommissionInvoice[] {
+function testInvoices(): BuilderCommissionInvoice[] {
   const day = 86_400_000;
   const now = Date.now();
   const iso = (t: number): string => new Date(t).toISOString();
@@ -51,11 +54,13 @@ function testInvoices(): CommissionInvoice[] {
   commissionRatePercent: 1,
   effectiveRatePercent: 1,
     leadName: 'Test Lead',
+    paymentMethod: 'card',
   } as const;
   return [
     {
       ...base,
       id: 'inv-test-001',
+      invoiceNumber: 'INV-0042',
       attributionId: 'a1',
       leadId: 'l1',
       leadName: 'Ava Brown',
@@ -69,6 +74,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-002',
+      invoiceNumber: 'INV-0041',
       attributionId: 'a2',
       leadId: 'l2',
       leadName: 'Liam Chen',
@@ -85,6 +91,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-003',
+      invoiceNumber: 'INV-0040',
       attributionId: 'a3',
       leadId: 'l3',
       contractValueCents: 59800000,
@@ -99,6 +106,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-004',
+      invoiceNumber: 'INV-0039',
       attributionId: 'a4',
       leadId: 'l4',
       contractValueCents: 81000000,
@@ -113,6 +121,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-005',
+      invoiceNumber: 'INV-0038',
       attributionId: 'a5',
       leadId: 'l5',
       contractValueCents: 65500000,
@@ -128,6 +137,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-006',
+      invoiceNumber: 'INV-0037',
       attributionId: 'a6',
       leadId: 'l6',
       contractValueCents: 70300000,
@@ -149,7 +159,7 @@ async function flushMock(fixture: ComponentFixture<BuilderInvoicesComponent>) {
 }
 
 async function setupWithInvoices(response: {
-  invoices: readonly CommissionInvoice[];
+  invoices: readonly BuilderCommissionInvoice[];
   total: number | null;
   page: number;
   pageSize: number;
@@ -164,6 +174,18 @@ async function setupWithInvoices(response: {
         throw new Error(`Test invoice not found: ${id}`);
       }
       return of(found);
+    },
+    // Mirrors the PUT /invoices/{id}/payment-method wire shape: the
+    // backend returns the updated invoice.
+    setInvoicePaymentMethod: (id: string, method: BuilderPaymentMethod) => {
+      const found = invoices.find((inv) => inv.id === id);
+      if (!found) {
+        throw new Error(`Test invoice not found: ${id}`);
+      }
+      const updated = { ...found, paymentMethod: method };
+      const index = invoices.findIndex((inv) => inv.id === id);
+      invoices[index] = updated;
+      return of(updated);
     },
   };
   TestBed.configureTestingModule({
@@ -322,6 +344,141 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Amount charged');
   });
 
+  it('shows the invoice number in the detail view (billing/12)', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Invoice number');
+    expect(text).toContain('INV-0042');
+  });
+
+  it('renders a payment-method select for an editable invoice (billing/12)', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Payment method');
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    expect(select.value).toBe('card');
+    const options = Array.from(select.options).map((o) => o.textContent?.trim());
+    expect(options).toEqual(['Card', 'Cheque', 'E-transfer', 'Bank draft']);
+  });
+
+  it('PUTs the per-invoice payment method on change and updates the UI (billing/12)', async () => {
+    const invoices = testInvoices();
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+
+    const updated = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    expect(updated.value).toBe('cheque');
+    const text = fixture.nativeElement.textContent as string;
+    // Manual-method explainer replaces the review note's card wording.
+    expect(text).toContain('Your card won’t be charged');
+    expect(text).toContain('cheque');
+  });
+
+  it('locks the payment method with an explainer for paid invoices (billing/12)', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[1].click(); // paid invoice
+    await flushMock(fixture);
+
+    expect(
+      fixture.nativeElement.querySelector('#invoice-payment-method'),
+    ).toBeNull();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain(
+      'Payment method can’t be changed once an invoice is settled.',
+    );
+  });
+
+  it('locks the payment method with an explainer for disputed invoices (billing/12)', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[3].click(); // disputed invoice
+    await flushMock(fixture);
+
+    expect(
+      fixture.nativeElement.querySelector('#invoice-payment-method'),
+    ).toBeNull();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain(
+      'Payment method can’t be changed once an invoice is settled.',
+    );
+  });
+
+  it('renders the manual review note for an in-review cheque invoice (billing/12)', async () => {
+    const invoices = testInvoices().map((inv, i) =>
+      i === 0 ? { ...inv, paymentMethod: 'cheque' as const } : inv,
+    );
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click();
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Your card won’t be charged — pay by cheque');
+  });
+
   it('renders no tabs: invoices is a top-level tab, not under billing', async () => {
     const { fixture } = await setup();
     fixture.detectChanges();
@@ -440,6 +597,8 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
       invoices: [
         {
           id: 'inv-1',
+          invoiceNumber: 'INV-0001',
+          paymentMethod: 'card',
           tenantKey: 't1',
           attributionId: 'a1',
           leadId: 'l1',
