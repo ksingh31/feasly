@@ -5,14 +5,6 @@ import { aggregateCostBuckets } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
 
 /**
- * Unicode characters above U+00FF that jsPDF's WinAnsi core-font path CAN
- * encode (the cp1252 extension block, e.g. the em dash and smart quotes the
- * AI narrative uses). Everything else above U+00FF has no WinAnsi mapping.
- */
-const WIN_ANSI_EXTRA =
-  '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
-
-/**
  * Strips characters jsPDF 4.x cannot encode in its WinAnsi core-font path.
  *
  * QA bug (feasly-estimate-1.pdf): AI narratives can carry stray invisible
@@ -25,27 +17,19 @@ const WIN_ANSI_EXTRA =
  * Plain C0 controls like \x11 do NOT flip the encoding, but they have no
  * WinAnsi glyph either, so they are stripped too.
  *
- * Kept: \n (paragraph splitting depends on it), \t, printable ASCII, the
- * WinAnsi-native U+00A0–U+00FF range, and the cp1252-mapped extras above
- * (WIN_ANSI_EXTRA) so legitimate punctuation like — ‘’ “” … survives.
+ * Kept: \t, \n (paragraph splitting depends on it), printable ASCII, the
+ * WinAnsi-native U+00A0–U+00FF range, and the cp1252-mapped extras
+ * (€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ) so legitimate punctuation like — ‘’ “”
+ * survives. Written as a single regex (not a char loop) to keep the
+ * production bundle small — the lighthouse script-size budget is tight.
  * Pure function: apply at generation time so past and future snapshots are
  * covered.
  */
 export function sanitizePdfText(value: string): string {
-  let out = '';
-  for (const ch of value) {
-    const code = ch.codePointAt(0) ?? 0;
-    if (code === 0x0a || code === 0x09) {
-      out += ch; // \n and \t are safe and meaningful
-    } else if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) {
-      // C0 controls, DEL, C1 controls: no WinAnsi glyph — drop.
-    } else if (code <= 0xff || WIN_ANSI_EXTRA.includes(ch)) {
-      out += ch; // WinAnsi can encode these; jsPDF stays single-byte.
-    }
-    // Anything else (U+200B, U+2028, arrows, emoji, …) would flip the whole
-    // line to UTF-16BE → drop it rather than clip the line.
-  }
-  return out;
+  return value.replace(
+    /[^\t\n\x20-\x7E\xA0-\u00FF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/g,
+    '',
+  );
 }
 
 export interface ReportPdfInput {
