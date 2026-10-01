@@ -3,9 +3,16 @@
  *
  * - Activation requires the `view_as` permission (defense in depth: the
  *   route enforces it too, but activation must never depend on one check).
+ * - Initiators: staff super_admin/admin and builder-side builder_admin.
+ *   viewer and builder_member can never initiate (403 + audit).
+ * - Targets: ADMIN TARGETS ARE REJECTED — staff super_admin/admin or any
+ *   builder_admin membership is a 403 + `authz.denied` audit. Regular
+ *   users (no staff role, no builder_admin membership) may be viewed-as.
  * - Targets must exist: unknown builder/user → 404, never a silent widen.
  * - Disabled users cannot be viewed-as.
- * - Every activation and exit is audit-logged under the REAL admin.
+ * - Activation requires an active ADMIN session: a token that isn't one
+ *   (e.g. a builder-portal token) is 401, never a lying `{active: true}`.
+ * - Every activation, denial, and exit is audit-logged under the REAL admin.
  * - switch-builder 403s unless the builder is one of the caller's
  *   memberships — a forged id is never honored.
  */
@@ -42,6 +49,26 @@ function adminCtx(overrides: Partial<AuthContext> = {}): AuthContext {
   };
 }
 
+function builderAdminCtx(
+  overrides: Partial<AuthContext> = {},
+): AuthContext {
+  return {
+    userId: 'user-builder-admin-actor',
+    email: 'builderadmin@example.com',
+    name: 'Builder Admin',
+    staffRole: null,
+    permissions: effectivePermissions(null, ['builder_admin']),
+    builderId: 'builder-1',
+    builderName: 'Elite Craft',
+    memberships: [
+      { builderId: 'builder-1', role: 'builder_admin' as const, createdAt: NOW },
+    ],
+    viewAs: null,
+    realUser: null,
+    ...overrides,
+  };
+}
+
 function sessionRecord(
   overrides: Partial<AdminSessionRecord> = {},
 ): AdminSessionRecord {
@@ -72,6 +99,8 @@ function makeService(): Fixture {
   const audit = { log: vi.fn(async () => {}) };
   const deps = {
     sessions: {
+      findActiveByHash: async (hash: string) =>
+        hash === HASH ? sessionRecord() : null,
       updateState: async (
         hash: string,
         patch: {
@@ -92,28 +121,44 @@ function makeService(): Fixture {
       },
     },
     users: {
-      findById: async (id: string) =>
-        id === 'user-target'
-          ? {
-              id: 'user-target',
-              email: 'target@example.com',
-              name: 'Target User',
-              status: 'active' as const,
-            }
-          : id === 'user-disabled'
-            ? {
-                id: 'user-disabled',
-                email: 'disabled@example.com',
-                name: 'Disabled',
-                status: 'disabled' as const,
-              }
-            : null,
+      findById: async (id: string) => {
+        const base = {
+          id,
+          email: `${id}@example.com`,
+          name: id,
+          status: 'active' as const,
+          staffRole: null as 'super_admin' | 'admin' | null,
+        };
+        switch (id) {
+          case 'user-target':
+          case 'user-member':
+            return base;
+          case 'user-disabled':
+            return { ...base, status: 'disabled' as const };
+          case 'user-superadmin':
+            return { ...base, staffRole: 'super_admin' as const };
+          case 'user-admin-target':
+            return { ...base, staffRole: 'admin' as const };
+          case 'user-builder-admin':
+            return base;
+          default:
+            return null;
+        }
+      },
     },
     memberships: {
-      listByUserId: async (userId: string) =>
-        userId === 'user-admin'
-          ? [{ builderId: 'builder-1', role: 'builder_admin' as const }]
-          : [],
+      listByUserId: async (userId: string) => {
+        switch (userId) {
+          case 'user-admin':
+            return [{ builderId: 'builder-1', role: 'builder_admin' as const }];
+          case 'user-builder-admin':
+            return [{ builderId: 'builder-9', role: 'builder_admin' as const }];
+          case 'user-member':
+            return [{ builderId: 'builder-9', role: 'builder_member' as const }];
+          default:
+            return [];
+        }
+      },
     },
     builders: {
       getBuilder: async (id: string) => {
@@ -152,6 +197,81 @@ describe('view-as activation (auth/04)', () => {
     const fx = makeService();
     await fx.service.activate(TOKEN, { userId: 'user-target' }, adminCtx());
     expect(fx.states.get(HASH)?.viewAs).toEqual({ userId: 'user-target' });
+  });
+
+  it('activates view-as on a regular builder_member target', async () => {
+    const fx = makeService();
+    await fx.service.activate(TOKEN, { userId: 'user-member' }, adminCtx());
+    expect(fx.states.get(HASH)?.viewAs).toEqual({ userId: 'user-member' });
+  });
+
+  it.each(['user-superadmin', 'user-admin-target', 'user-builder-admin'])(
+    'rejects admin target %s with 403 + audit (never escalates)',
+    async (targetId) => {
+      const fx = makeService();
+      const err = await fx.service
+        .activate(TOKEN, { userId: targetId }, adminCtx())
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+      expect(fx.states.get(HASH)?.viewAs).toBeNull();
+      expect(fx.audit.log).toHaveBeenCalledTimes(1);
+      const entry = fx.audit.log.mock.calls[0]![0] as {
+        action: string;
+        detail: string;
+      };
+      expect(entry.action).toBe('authz.denied');
+      expect(entry.detail).toContain('reason=admin-target');
+    },
+  );
+
+  it('builder-side admin can initiate view-as on a regular user', async () => {
+    const fx = makeService();
+    const out = await fx.service.activate(
+      TOKEN,
+      { userId: 'user-member' },
+      builderAdminCtx(),
+    );
+    expect(out).toEqual({ active: true });
+    expect(fx.states.get(HASH)?.viewAs).toEqual({ userId: 'user-member' });
+    const entry = fx.audit.log.mock.calls[0]![0] as { actorEmail: string };
+    expect(entry.actorEmail).toBe('builderadmin@example.com');
+  });
+
+  it('builder-side admin cannot view-as an admin target either', async () => {
+    const fx = makeService();
+    const err = await fx.service
+      .activate(TOKEN, { userId: 'user-superadmin' }, builderAdminCtx())
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect(fx.states.get(HASH)?.viewAs).toBeNull();
+  });
+
+  it('builder_member cannot initiate view-as (403, no view_as permission)', async () => {
+    const fx = makeService();
+    const member = adminCtx({
+      staffRole: null,
+      permissions: effectivePermissions(null, ['builder_member']),
+    });
+    const err = await fx.service
+      .activate(TOKEN, { userId: 'user-target' }, member)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect(fx.states.get(HASH)?.viewAs).toBeNull();
+  });
+
+  it('token that is not an active admin session is 401, never a lying success', async () => {
+    const fx = makeService();
+    const err = await fx.service
+      .activate('builder-portal-token', { userId: 'user-target' }, adminCtx())
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(401);
+    expect(fx.states.get(HASH)?.viewAs).toBeNull();
+    // No false activation was audit-logged.
+    expect(fx.audit.log.mock.calls).toHaveLength(0);
   });
 
   it('refuses activation without the view_as permission (no escalation)', async () => {

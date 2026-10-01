@@ -403,7 +403,8 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Activate view-as (`{ builderId }` or `{ userId }`): the session ' +
       'resolves permissions + tenant scoping to the target\u2019s view. ' +
-      'Never escalates; audit-logged under the real admin\u2019s identity.',
+      'Admin targets (staff admin/super_admin, any builder_admin) are ' +
+      'rejected 403; audit-logged under the real admin\u2019s identity.',
   },
   {
     method: 'DELETE',
