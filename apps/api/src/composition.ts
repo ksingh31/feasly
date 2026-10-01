@@ -1144,6 +1144,12 @@ export function createComposition(
     options.invitationStore ?? createDrizzleInvitationStore({ db: db.db });
   const membershipStore: MembershipStore =
     options.membershipStore ?? createDrizzleMembershipStore({ db: db.db });
+  // auth/05 hardening: created here (ahead of the builder-auth block) so
+  // UserService can revoke builder sessions on disable — a staff-side
+  // disable must kill portal sessions too, not just admin ones.
+  const builderSessionStore: BuilderSessionStore =
+    options.builderSessionStore ??
+    createDrizzleBuilderSessionStore({ db: db.db });
   const userService: UserService = createUserService({
     users: userStore,
     invitations: invitationStore,
@@ -1155,6 +1161,9 @@ export function createComposition(
     audit: adminAuditStore,
     // auth/03: disabling a user revokes their admin sessions server-side.
     sessions: adminSessionStore,
+    // auth/05 hardening: disabling a user revokes their builder-portal
+    // sessions server-side too.
+    builderSessions: builderSessionStore,
   });
   // auth/02 — callback. Resolves/links our user row through the typed
   // Drizzle stores above and mints the 7-day session in admin_sessions
@@ -1187,12 +1196,11 @@ export function createComposition(
       adminGuard,
     });
   // embed/09 — builder portal auth. The stores are injectable for tests.
+  // (builderSessionStore is created above, ahead of UserService, so a
+  // staff-side disable can revoke portal sessions too.)
   const builderAllowlistStore: BuilderAllowlistStore =
     options.builderAllowlistStore ??
     createDrizzleBuilderAllowlistStore({ db: db.db });
-  const builderSessionStore: BuilderSessionStore =
-    options.builderSessionStore ??
-    createDrizzleBuilderSessionStore({ db: db.db });
   const builderAuthService: BuilderAuthService = createBuilderAuthService({
     allowlist: builderAllowlistStore,
     sessions: builderSessionStore,
