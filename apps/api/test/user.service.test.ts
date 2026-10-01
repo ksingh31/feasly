@@ -37,6 +37,7 @@ interface Harness {
   auditLog: { action: string; actorEmail: string | null; detail?: string }[];
   invitations: InvitationRecord[];
   revokedSessionEmails: string[];
+  revokedBuilderSessionUserIds: string[];
   logLines: string[];
   failGraphCreate: boolean;
   failGraphToggle: boolean;
@@ -56,6 +57,7 @@ function makeHarness(): Harness {
     auditLog: [],
     invitations: [],
     revokedSessionEmails: [],
+    revokedBuilderSessionUserIds: [],
     logLines: [],
     failGraphCreate: false,
     failGraphToggle: false,
@@ -238,6 +240,12 @@ function makeHarness(): Harness {
         return 1;
       },
     },
+    builderSessions: {
+      async revokeByUserId(userId: string) {
+        h.revokedBuilderSessionUserIds.push(userId);
+        return 2;
+      },
+    },
     audit: {
       async append(entry) {
         h.auditLog.push(entry);
@@ -391,6 +399,40 @@ describe('UserService (Entra)', () => {
     expect(
       h.logLines.some((line) => line.startsWith('invite: email step took ')),
     ).toBe(true);
+  });
+
+  it('invite: a live invite to a DIFFERENT org is also rejected (only 1 invite per email)', async () => {
+    const h = makeHarness();
+    await h.service.invite({
+      email: 'bob@example.com',
+      name: 'Bob Builder',
+      role: 'builder_member',
+      builderId: 'builder-1',
+    });
+
+    // Same email, different org — Karan's rule is per email, not per
+    // email+org, so this must be rejected too.
+    const err = await expectHttpError(
+      h.service.invite({
+        email: 'bob@example.com',
+        name: 'Bob Builder',
+        role: 'builder_admin',
+        builderId: 'builder-2',
+      }),
+      409,
+    );
+    expect(err.message).toBe(
+      'An invite is already on its way to this email address.',
+    );
+
+    // Nothing stacked: still one invitation, one email, one Graph account.
+    expect(
+      h.invitations.filter((i) => i.status === 'pending'),
+    ).toHaveLength(1);
+    expect(h.sentEmails).toHaveLength(1);
+    expect(h.entraCalls.filter((c) => c.op === 'create')).toHaveLength(1);
+    const user = (await h.service.findByEmail('bob@example.com'))!;
+    expect(user.memberships).toHaveLength(1);
   });
 
   it('invite: an expired pending invitation does not block a fresh invite', async () => {
@@ -839,6 +881,20 @@ describe('UserService (auth/03 — admin user management guards)', () => {
           e.action === 'user.disabled' && e.actorEmail === 'boss@example.com',
       ),
     ).toBe(true);
+  });
+
+  it('disableUser: revokes builder-portal sessions server-side too', async () => {
+    const h = makeHarness();
+    const user = await seedActive(h, 'gone3@example.com', 'admin');
+    // auth/07: a second admin keeps the last-admin guard from tripping —
+    // this test is about session revocation, not the guard.
+    await seedActive(h, 'spare3@example.com', 'admin');
+    await h.service.disableUser(user.id, { actorEmail: 'boss@example.com' });
+    // Both session kinds are killed: admin (by email) and builder portal
+    // (by user id). Without the builder revoke, a staff-side disable left
+    // the user's portal session live until expiry.
+    expect(h.revokedSessionEmails).toEqual(['gone3@example.com']);
+    expect(h.revokedBuilderSessionUserIds).toEqual([user.id]);
   });
 
   it('changeStaffRole: self-demotion and last-super_admin demotion are blocked', async () => {

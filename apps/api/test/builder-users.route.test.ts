@@ -145,6 +145,33 @@ describe('builder users route', () => {
     expect(d.userService.invite).not.toHaveBeenCalled();
   });
 
+  it('update refuses to rename a staff account (403, staff-only rename)', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({ staffRole: 'admin' }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route
+      .update(HEADERS, TARGET_ID, { name: 'Renamed by builder' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect((err as HttpError).message).toBe(
+      'Staff accounts can only be renamed by Feasly staff.',
+    );
+    expect(d.userService.renameUser).not.toHaveBeenCalled();
+  });
+
+  it('update allows renaming a non-staff org member', async () => {
+    const route = createBuilderUsersRoute(d.deps);
+    const result = await route.update(HEADERS, TARGET_ID, { name: 'Renamed' });
+    expect(result.name).toBe('Renamed');
+    expect(d.userService.renameUser).toHaveBeenCalledWith(
+      TARGET_ID,
+      'Renamed',
+      expect.objectContaining({ actorEmail: 'admin@builder.com' }),
+    );
+  });
+
   it('update refuses targets outside the active org', async () => {
     vi.mocked(d.userService.findById).mockResolvedValue(
       publicUser({
