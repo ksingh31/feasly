@@ -12,7 +12,10 @@
  *   ignored entirely (never read).
  * - `PATCH /api/v1/builder/users/{id}` — rename, change org role, or
  *   activate/disable. The target must hold a membership in the active
- *   org. Disabling kills the user's builder sessions immediately.
+ *   org. Deactivate/reactivate is additionally org-scoped: the target must
+ *   belong solely to the caller's org and hold no staff role (otherwise
+ *   403 — global lifecycle is Feasly-staff-only). Disabling kills the
+ *   user's builder sessions immediately.
  * - `DELETE /api/v1/builder/users/{id}` — remove the user from the org
  *   (membership revoked; the user row is disabled when it has no other
  *   memberships, killing all sessions immediately).
@@ -163,6 +166,32 @@ export function createBuilderUsersRoute(
     }
   }
 
+  /**
+   * Lifecycle scoping: a builder_admin may only deactivate/reactivate users
+   * whose entire footprint is inside the caller's org — no staff role and
+   * no memberships in other orgs. Anything broader is Feasly-staff
+   * territory (the admin-users route keeps full global disable/enable).
+   */
+  function requireSoleOrgMember(
+    builderId: string,
+    target: PublicUser,
+    action: 'deactivate' | 'reactivate',
+  ): void {
+    const outside =
+      target.staffRole !== null ||
+      target.memberships.some((m) => m.builderId !== builderId);
+    if (outside) {
+      throw new HttpError(
+        403,
+        ErrorCodes.FORBIDDEN,
+        action === 'deactivate'
+          ? 'You can only deactivate members who belong solely to your organization.'
+          : 'You can only reactivate members who belong solely to your organization.',
+        false,
+      );
+    }
+  }
+
   return {
     async list(headers): Promise<BuilderOrgUserListResponse> {
       const { builderId } = await requireOrgContext(headers, ROUTE_LIST);
@@ -248,6 +277,10 @@ export function createBuilderUsersRoute(
         });
       }
       if (parsed.data.status === 'disabled' && updated.status !== 'disabled') {
+        // Org-scoped lifecycle: the global disable below is only safe when
+        // the target has no footprint outside the caller's org. The
+        // per-org last-admin guard still runs inside disableUser.
+        requireSoleOrgMember(builderId, updated, 'deactivate');
         updated = await userService.disableUser(userId, {
           actorEmail: ctx.email,
           actorId: ctx.userId ?? undefined,
@@ -259,6 +292,9 @@ export function createBuilderUsersRoute(
         parsed.data.status === 'active' &&
         updated.status === 'disabled'
       ) {
+        // Same scoping on reactivate: never undo lifecycle actions on
+        // users outside the caller's org or on staff accounts.
+        requireSoleOrgMember(builderId, updated, 'reactivate');
         updated = await userService.enableUser(userId, {
           actorEmail: ctx.email,
         });
