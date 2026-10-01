@@ -157,42 +157,44 @@
           No invoices awaiting review.
         </p>
       } @else {
-        <table class="billing-panel__table">
-          <thead>
-            <tr>
-              <th scope="col">Tenant</th>
-              <th scope="col">Amount</th>
-              <th scope="col">Rate</th>
-              <th scope="col">Review due</th>
-              <th scope="col">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (invoice of h.inReviewInvoices; track invoice.id) {
+        <div class="billing-panel__table-wrap">
+          <table class="billing-panel__table">
+            <thead>
               <tr>
-                <td>{{ invoice.tenantKey }}</td>
-                <td>{{ formatCents(invoice.commissionCents) }}</td>
-                <td>{{ formatRatePercent(invoice.commissionRatePercent) }}</td>
-                <td>
-                  @if (invoice.reviewDueAt) {
-                    {{ invoice.reviewDueAt | date: 'medium' }}
-                  } @else {
-                    —
-                  }
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    class="billing-panel__btn"
-                    (click)="openManageInReview(invoice)"
-                  >
-                    Manage
-                  </button>
-                </td>
+                <th scope="col">Tenant</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Review due</th>
+                <th scope="col">Action</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (invoice of h.inReviewInvoices; track invoice.id) {
+                <tr>
+                  <td>{{ invoice.tenantKey }}</td>
+                  <td>{{ formatCents(invoice.commissionCents) }}</td>
+                  <td>{{ formatRatePercent(invoice.commissionRatePercent) }}</td>
+                  <td>
+                    @if (invoice.reviewDueAt) {
+                      {{ invoice.reviewDueAt | date: 'medium' }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="billing-panel__btn"
+                      (click)="openManageInReview(invoice)"
+                    >
+                      Manage
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </section>
 
@@ -218,74 +220,76 @@
             {{ feedback.message }}
           </p>
         }
-        <table class="billing-panel__table">
-          <thead>
-            <tr>
-              <th scope="col">Tenant</th>
-              <th scope="col">Amount</th>
-              <th scope="col">Past due since</th>
-              <th scope="col">Days overdue</th>
-              <th scope="col">Retries</th>
-              <th scope="col">Last failure</th>
-              <th scope="col">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (invoice of h.dunning; track invoice.id) {
+        <div class="billing-panel__table-wrap">
+          <table class="billing-panel__table">
+            <thead>
               <tr>
-                <td>{{ invoice.tenantKey }}</td>
-                <td>{{ formatCents(invoice.commissionCents) }}</td>
-                <td>{{ invoice.pastDueSince | date: 'medium' }}</td>
-                <td>{{ daysOverdue(invoice.pastDueSince) }}</td>
-                <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
-                <td>{{ invoice.lastFailureReason ?? '—' }}</td>
-                <td>
-                  <button
-                    type="button"
-                    class="billing-panel__btn"
-                    (click)="openManageDunning(invoice)"
-                    title="Record an off-Stripe payment — cancels the scheduled auto-charge"
-                  >
-                    Mark as paid
-                  </button>
-                  @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
-                    <span class="billing-panel__muted">Manual handling</span>
-                  } @else if (isConfirming(invoice.id)) {
-                    <button
-                      type="button"
-                      class="billing-panel__btn billing-panel__btn--confirm"
-                      [disabled]="retryingInvoiceId() === invoice.id"
-                      (click)="confirmRetry(invoice.id)"
-                    >
-                      {{
-                        retryingInvoiceId() === invoice.id
-                          ? 'Retrying…'
-                          : 'Confirm retry'
-                      }}
-                    </button>
-                    <button
-                      type="button"
-                      class="billing-panel__btn"
-                      (click)="cancelRetry()"
-                    >
-                      Cancel
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="billing-panel__btn"
-                      (click)="requestRetry(invoice.id)"
-                    >
-                      {{
-                        retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
-                      }}
-                    </button>
-                  }
-                </td>
+                <th scope="col">Tenant</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Past due since</th>
+                <th scope="col">Days overdue</th>
+                <th scope="col">Retries</th>
+                <th scope="col">Last failure</th>
+                <th scope="col">Action</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (invoice of h.dunning; track invoice.id) {
+                <tr>
+                  <td>{{ invoice.tenantKey }}</td>
+                  <td>{{ formatCents(invoice.commissionCents) }}</td>
+                  <td>{{ invoice.pastDueSince | date: 'medium' }}</td>
+                  <td>{{ daysOverdue(invoice.pastDueSince) }}</td>
+                  <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
+                  <td>{{ invoice.lastFailureReason ?? '—' }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="billing-panel__btn"
+                      (click)="openManageDunning(invoice)"
+                      title="Record an off-Stripe payment — cancels the scheduled auto-charge"
+                    >
+                      Mark as paid
+                    </button>
+                    @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
+                      <span class="billing-panel__muted">Manual handling</span>
+                    } @else if (isConfirming(invoice.id)) {
+                      <button
+                        type="button"
+                        class="billing-panel__btn billing-panel__btn--confirm"
+                        [disabled]="retryingInvoiceId() === invoice.id"
+                        (click)="confirmRetry(invoice.id)"
+                      >
+                        {{
+                          retryingInvoiceId() === invoice.id
+                            ? 'Retrying…'
+                            : 'Confirm retry'
+                        }}
+                      </button>
+                      <button
+                        type="button"
+                        class="billing-panel__btn"
+                        (click)="cancelRetry()"
+                      >
+                        Cancel
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="billing-panel__btn"
+                        (click)="requestRetry(invoice.id)"
+                      >
+                        {{
+                          retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
+                        }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </section>
 
@@ -326,24 +330,26 @@
         </div>
       </dl>
       @if (h.webhooks.byType24h.length > 0) {
-        <table class="billing-panel__table">
-          <thead>
-            <tr>
-              <th scope="col">Event type</th>
-              <th scope="col">Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of h.webhooks.byType24h; track row.type) {
+        <div class="billing-panel__table-wrap">
+          <table class="billing-panel__table">
+            <thead>
               <tr>
-                <td>
-                  <code>{{ row.type }}</code>
-                </td>
-                <td>{{ row.count }}</td>
+                <th scope="col">Event type</th>
+                <th scope="col">Count</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (row of h.webhooks.byType24h; track row.type) {
+                <tr>
+                  <td>
+                    <code>{{ row.type }}</code>
+                  </td>
+                  <td>{{ row.count }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </section>
 
