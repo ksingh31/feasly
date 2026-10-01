@@ -89,6 +89,26 @@
         </div>
         }
 
+        <!-- TIER WHAT-IF TOGGLE (QA 2026-09-30): the other always-on adjust
+             control, next to the size stepper. New-build only: the tier
+             cards/descriptors assume new construction. Hidden in partner
+             view — partners get a read-only report. Pre-gate the preview
+             page carries the locked note instead. -->
+        @if (!partnerView() && !isReno()) {
+          <div class="tier-toggle-card no-print">
+            @if (loading()) {
+              <p class="updating" role="status">{{ copy.updatingLabel }}</p>
+            }
+            <app-option-selector
+              [selected]="activeTier()"
+              [options]="tierToggleOptions()"
+              [label]="copy.tierTitle"
+              [hint]="copy.tierToggleHint"
+              (selectedChange)="chooseTier($event)"
+            />
+          </div>
+        }
+
         <div class="hero-sub">
           <div class="figure-card build-highlight">
             <h2>{{ copy.buildLabel }}</h2>
