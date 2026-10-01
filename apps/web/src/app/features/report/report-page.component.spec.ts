@@ -18,7 +18,7 @@ import {
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
 import { LoadLeadEstimate, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
-import { ReportState } from './report.state';
+import { ReportState, serializeReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
 import { ReportPdfService } from './report-pdf.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -1106,6 +1106,69 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
+    });
+  });
+
+  describe('reload with a persisted snapshot (ai-summary-persistence)', () => {
+    it('renders the persisted snapshot as-is — the AI narrative survives a reload', async () => {
+      // First view: the token path lands the snapshot WITH the AI narrative.
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      expect(landed.narrative).toBeTruthy();
+      expect(landed.leadId).toBe(store.selectSnapshot(LeadState.leadId));
+
+      // The reload: the storage plugin strips the memory-only token (and
+      // other session state) but the snapshot — figures and narrative —
+      // persists. This is exactly what rehydration produces.
+      store.reset({
+        ...store.snapshot(),
+        report: serializeReportState(store.snapshot().report),
+      });
+      expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+      expect(store.selectSnapshot(ReportState.snapshot)).not.toBeNull();
+
+      // Re-create the page, as a browser reload would.
+      const estimateSpy = vi.spyOn(api, 'getEstimate');
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'restored unlock');
+
+      // The report renders from the persisted snapshot — it must NOT
+      // re-run the public estimate, which would drop the AI narrative
+      // (the narrative endpoint needs the memory-only token).
+      expect(estimateSpy).not.toHaveBeenCalled();
+      const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+      expect(snapshot.narrative).toBe(landed.narrative);
+      expect(snapshot.version).toBe(landed.version);
+      expect(text()).toContain('At 2,200 sq ft with premium finishes');
+      expect(text()).not.toContain('not available for this report right now');
+      estimateSpy.mockRestore();
+    });
+
+    it('a persisted snapshot from a different lead does not render — the current lead rebuilds', async () => {
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      // Stale snapshot from another lead's session (leadId mismatch).
+      store.reset({
+        ...store.snapshot(),
+        report: {
+          ...serializeReportState(store.snapshot().report),
+          snapshot: { ...landed, leadId: 'lead-someone-else' },
+        },
+      });
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      // The stale snapshot is ignored: the page rebuilds for the submitted
+      // lead instead of showing another lead's report.
+      await pollFor(
+        () =>
+          store.selectSnapshot(ReportState.snapshot)?.leadId ===
+          store.selectSnapshot(LeadState.leadId),
+        'rebuilt for current lead',
+      );
+      expect(store.selectSnapshot(ReportState.snapshot)?.leadId).not.toBe('lead-someone-else');
     });
   });
 });

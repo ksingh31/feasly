@@ -8,7 +8,7 @@ import type { PropertyRecord, TierRevisionRequest, TierRevisionResponse } from '
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { MockApiService } from '../../core/api/mock-api.service';
-import { mockReport } from '../../core/api/mock-data';
+import { mockPreviewEstimate, mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
@@ -21,7 +21,8 @@ import {
   SetReportToken,
   UnlockReport,
 } from './report.actions';
-import { ReportState } from './report.state';
+import { ReportState, serializeReportState } from './report.state';
+import type { ReportStateModel } from './report.state';
 
 /**
  * ReportState holds the blurred preview pre-gate and the verified snapshot
@@ -535,5 +536,110 @@ describe('ReportState', () => {
     expect(store.selectSnapshot(ReportState.snapshot)).toBeNull();
     expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
     expect(store.selectSnapshot(ReportState.status)).toBe('idle');
+  });
+
+  describe('AI narrative persistence (ai-summary-persistence)', () => {
+    /** A model with everything set, exactly as the live state can hold it. */
+    function fullModel(): ReportStateModel {
+      return {
+        preview: mockPreviewEstimate('calgary-918-16-ave-nw', { ...baseInputs }),
+        reportToken: 'tok-123',
+        partnerView: true,
+        snapshot: {
+          ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+          narrative: 'Persisted neighbourhood guide.',
+          narrativeSource: 'ai',
+          version: 3,
+        },
+        savedVersion: 3,
+        status: 'loading',
+        error: 'boom',
+        errorDetail: 'detail',
+      };
+    }
+
+    it('serializeReportState keeps the snapshot (figures + narrative) and strips session state', () => {
+      const snapshot = fullModel().snapshot!;
+      const out = serializeReportState(fullModel());
+      // The user's own figures AND the AI narrative survive a reload.
+      expect(out.snapshot).toBe(snapshot);
+      expect(out.snapshot?.narrative).toBe('Persisted neighbourhood guide.');
+      expect(out.snapshot?.narrativeSource).toBe('ai');
+      expect(out.savedVersion).toBe(3);
+      // Memory-only and session-scoped state never reaches localStorage.
+      expect(out.reportToken).toBeNull();
+      expect(out.partnerView).toBe(false);
+      expect(out.preview).toBeNull();
+      expect(out.error).toBeNull();
+      expect(out.errorDetail).toBeNull();
+      expect(out.status).toBe('ready');
+    });
+
+    it('serializeReportState settles to idle when there is no snapshot to restore', () => {
+      const out = serializeReportState({ ...fullModel(), snapshot: null, savedVersion: 0 });
+      expect(out.snapshot).toBeNull();
+      expect(out.status).toBe('idle');
+      expect(out.reportToken).toBeNull();
+    });
+
+    it('LoadLeadEstimate carries the existing narrative forward for the same lead (a retry keeps the guide)', async () => {
+      store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-1',
+          email: 'buyer@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      );
+      // The guide landed before the reload (token path); rebuilding the
+      // snapshot from the public endpoint must not drop it.
+      const withGuide = {
+        ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+        narrative: 'Persisted neighbourhood guide.',
+        narrativeSource: 'ai' as const,
+        version: 2,
+      };
+      store.reset({
+        ...store.snapshot(),
+        report: { ...store.snapshot().report, snapshot: withGuide, savedVersion: 2 },
+      });
+      store.dispatch(new LoadLeadEstimate());
+      await pollStatus('ready');
+      const rebuilt = store.selectSnapshot(ReportState.snapshot)!;
+      expect(rebuilt.leadId).toBe('lead-1');
+      expect(rebuilt.narrative).toBe('Persisted neighbourhood guide.');
+      expect(rebuilt.narrativeSource).toBe('ai');
+      // The figures are rebuilt from the public estimate, not stale copies.
+      expect(rebuilt.totalRange.base).toBeGreaterThan(0);
+    });
+
+    it('a snapshot rebuilt for a different lead never inherits the narrative', async () => {
+      store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ sqft: 2200, tier: 'premium' })]);
+      const otherLeadsGuide = {
+        ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+        narrative: 'Another lead\u2019s guide.',
+        narrativeSource: 'ai' as const,
+        version: 2,
+      };
+      store.reset({
+        ...store.snapshot(),
+        report: { ...store.snapshot().report, snapshot: otherLeadsGuide, savedVersion: 2 },
+      });
+      // A genuinely new lead: the old guide must not leak onto it.
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-2',
+          email: 'buyer@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      );
+      store.dispatch(new LoadLeadEstimate());
+      await pollStatus('ready');
+      const rebuilt = store.selectSnapshot(ReportState.snapshot)!;
+      expect(rebuilt.leadId).toBe('lead-2');
+      expect(rebuilt.narrative).toBe('');
+    });
   });
 });
