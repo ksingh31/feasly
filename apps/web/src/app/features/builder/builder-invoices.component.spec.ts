@@ -53,10 +53,9 @@ function testInvoices(): BuilderCommissionInvoice[] {
     paymentReference: null,
     invoiceNumber: 'INV-0001',
     paymentMethod: 'card',
-  commissionRatePercent: 1,
-  effectiveRatePercent: 1,
+    commissionRatePercent: 1,
+    effectiveRatePercent: 1,
     leadName: 'Test Lead',
-    paymentMethod: 'card',
   } as const;
   return [
     {
