@@ -63,9 +63,10 @@ describe('permission model (auth/04)', () => {
     }
   });
 
-  it('only super_admin and admin can view-as', () => {
+  it('only super_admin, admin, and builder_admin can view-as', () => {
     for (const role of ALL_ROLES) {
-      const expected = role === 'super_admin' || role === 'admin';
+      const expected =
+        role === 'super_admin' || role === 'admin' || role === 'builder_admin';
       expect(hasPermission(ROLE_PERMISSIONS[role], 'view_as'), role).toBe(
         expected,
       );
@@ -91,15 +92,20 @@ describe('permission model (auth/04)', () => {
     }
   });
 
-  it('builder roles never touch the admin surface', () => {
+  it('builder roles never touch the admin surface (except builder_admin view-as)', () => {
     for (const role of ['builder_admin', 'builder_member'] as const) {
       const perms = ROLE_PERMISSIONS[role];
       for (const p of PERMISSIONS) {
-        if (!p.startsWith('builder:')) {
-          expect(hasPermission(perms, p), `${role} must not have ${p}`).toBe(
-            false,
-          );
+        if (p.startsWith('builder:')) continue;
+        // 2026-09-30 (Karan): builder-side admins may initiate view-as —
+        // targets are restricted to regular users in view-as.service.ts.
+        if (role === 'builder_admin' && p === 'view_as') {
+          expect(hasPermission(perms, p)).toBe(true);
+          continue;
         }
+        expect(hasPermission(perms, p), `${role} must not have ${p}`).toBe(
+          false,
+        );
       }
     }
   });

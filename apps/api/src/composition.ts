@@ -1002,6 +1002,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
+    magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
   });
   const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
     magicLinks: magicLinkService,
@@ -1210,6 +1211,7 @@ export function createComposition(
     email: emailService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
     builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
     // Entra end-session URL for logout (kills the IdP session too once
     // builder Entra lands in AUTH #74; ignored by the frontend until then).

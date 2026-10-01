@@ -28,6 +28,7 @@ import type {
   BuilderAuthVerifyResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { createRateLimiter } from '../middleware/rate-limit';
 import type { EntraSignInConfig } from '../config';
 import type { EmailService } from './email/email.service';
 import type { AdminAuditStore } from './admin-audit.store';
@@ -181,6 +182,13 @@ export interface BuilderAuthServiceDeps {
   readonly appBaseUrl: string;
   /** Magic-link token TTL in seconds — from config. */
   readonly magicLinkTtlSeconds: number;
+  /**
+   * P1-6 (2026-09-30 security audit): max sign-in emails sent to one
+   * address per hour — the email-bombing guard the registry always
+   * claimed. In-memory per Functions instance, keyed by normalized
+   * email — same deliberate scale-out tradeoff as the pipeline limiters.
+   */
+  readonly magicLinkMaxSendsPerHour: number;
   /** Builder session TTL in seconds (7 days, same as admin) — from config. */
   readonly builderSessionTtlSeconds: number;
   /**
@@ -221,12 +229,26 @@ export function createBuilderAuthService(
     email,
     appBaseUrl,
     magicLinkTtlSeconds,
+    magicLinkMaxSendsPerHour,
     builderSessionTtlSeconds,
     clock = () => new Date(),
     onEmailError = () => {},
     builders,
     entraSignIn,
   } = deps;
+
+  /**
+   * P1-6: hourly per-email send budget (fixed window, shared rate-limiter
+   * primitive). Gated only on the allowlisted path — a non-allowlisted
+   * address never sends, so it never touches a budget. Exhaustion skips
+   * the send but the response stays identical (`{ sent: true }`).
+   */
+  const sendBudget = createRateLimiter({
+    windowMs: 3_600_000,
+    maxRequests: magicLinkMaxSendsPerHour,
+    maxTrackedKeys: 10_000,
+    clock: () => clock().getTime(),
+  });
 
   return {
     async requestMagicLink(body: unknown): Promise<BuilderAuthRequestResponse> {
@@ -243,6 +265,12 @@ export function createBuilderAuthService(
       const allowed = await allowlist.isAllowlisted(emailAddr);
 
       if (allowed) {
+        // P1-6: hourly per-email send budget — the email-bombing guard.
+        // Exhaustion skips the issue+send but the response is identical
+        // either way ({ sent: true }) — no send oracle.
+        if (!sendBudget.check(emailAddr).allowed) {
+          return { sent: true };
+        }
         const issued = await magicLinks.issue({
           leadId: null,
           purpose: 'builder',

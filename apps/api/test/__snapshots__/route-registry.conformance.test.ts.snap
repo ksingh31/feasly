@@ -433,6 +433,7 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
   "POST /api/v1/admin/view-as": [
     "super_admin",
     "admin",
+    "builder_admin",
   ],
   "POST /api/v1/billing/invoices/{id}/dispute": [
     "super_admin",

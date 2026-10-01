@@ -106,6 +106,12 @@ const EnvSchema = z.object({
   // the residual case (revoked/expired link + immediate re-request) so one
   // address can't be mail-bombed faster than this.
   MAGIC_LINK_REISSUE_COOLDOWN_MS: z.coerce.number().int().positive().default(60_000),
+  // P1-6 (2026-09-30 security audit): the registry claimed "5/hr per
+  // email+IP" on the magic-link reissue and builder-auth request endpoints,
+  // but only the 100/min/IP pipeline and the 60s reissue cooldown existed —
+  // an email-bombing vector against any known address. This caps actual
+  // magic-link *sends* per normalized email per rolling hour on both paths.
+  MAGIC_LINK_MAX_SENDS_PER_HOUR: z.coerce.number().int().positive().default(5),
   // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
   // lifetime it exchanges into (12 hours per story). Both from env so tests
   // and staging can shorten them without code changes.
@@ -442,6 +448,14 @@ export interface AuthConfig {
    * reissue path (from MAGIC_LINK_REISSUE_COOLDOWN_MS).
    */
   readonly magicLinkReissueCooldownMs: number;
+  /**
+   * P1-6 (2026-09-30 security audit): max magic-link emails sent to one
+   * address per hour, enforced per-email inside the reissue and
+   * builder-auth-request services (from MAGIC_LINK_MAX_SENDS_PER_HOUR).
+   * Exhaustion answers with the endpoint's normal non-send shape —
+   * never a 429 — so the budget can't become a send oracle.
+   */
+  readonly magicLinkMaxSendsPerHour: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -1124,6 +1138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       jwtTtlSeconds: e.JWT_TTL_SECONDS,
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
+      magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
       invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
