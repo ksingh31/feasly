@@ -112,6 +112,19 @@ export class ReportPageComponent implements OnInit {
   private readonly leadId = this.store.selectSignal(LeadState.leadId);
   protected readonly leadSubmitted = computed(() => this.leadId() !== null);
 
+  /**
+   * True when localStorage rehydration restored the report snapshot for the
+   * currently submitted lead (ai-summary-persistence): ngOnInit renders it
+   * directly instead of re-running the estimate, which would drop the AI
+   * narrative. A snapshot from a different lead never counts — the report
+   * is rebuilt from the current lead instead.
+   */
+  private restoredSnapshotForLead(): boolean {
+    const snapshot = this.snapshot();
+    const leadId = this.leadId();
+    return snapshot !== null && leadId !== null && snapshot.leadId === leadId;
+  }
+
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
   protected readonly loading = computed(() => this.status() === 'loading');
@@ -372,6 +385,11 @@ export class ReportPageComponent implements OnInit {
       .subscribe((sqft) => this.dispatchSqftRevision(sqft));
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());
+    } else if (this.restoredSnapshotForLead()) {
+      // A reload rehydrated the persisted snapshot for this lead: render it
+      // as-is (ai-summary-persistence). Re-running the public estimate would
+      // rebuild identical figures but drop the AI narrative — the narrative
+      // endpoint needs the memory-only token, which a reload clears.
     } else if (this.leadSubmitted()) {
       // Karan directive 2026-09-27: the submitted lead unlocks the report
       // immediately — no magic-link round-trip, no blurred dead-end.

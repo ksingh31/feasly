@@ -559,8 +559,9 @@ describe('ReportState', () => {
     }
 
     it('serializeReportState keeps the snapshot (figures + narrative) and strips session state', () => {
-      const snapshot = fullModel().snapshot!;
-      const out = serializeReportState(fullModel());
+      const model = fullModel();
+      const snapshot = model.snapshot!;
+      const out = serializeReportState(model);
       // The user's own figures AND the AI narrative survive a reload.
       expect(out.snapshot).toBe(snapshot);
       expect(out.snapshot?.narrative).toBe('Persisted neighbourhood guide.');
