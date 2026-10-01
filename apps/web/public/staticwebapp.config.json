@@ -19,6 +19,18 @@
   },
   "routes": [
     {
+      "route": "/llms.txt",
+      "headers": {
+        "Content-Type": "text/plain; charset=utf-8"
+      }
+    },
+    {
+      "route": "/llms-full.txt",
+      "headers": {
+        "Content-Type": "text/plain; charset=utf-8"
+      }
+    },
+    {
       "route": "/communities/arbour-lake",
       "redirect": "/communities/arbour-lake/",
       "statusCode": 301

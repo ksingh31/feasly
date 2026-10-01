@@ -24,6 +24,11 @@ export const SAMPLE_REPORT_TIER_NOTE =
 export const SAMPLE_REPORT_ADJUST_NOTE =
   'In your real report, adjusting the living area updates every figure instantly — no re-run button.';
 
+/** Uncalibrated-data note, reframed for the fictional sample (no City property record here). */
+export const SAMPLE_REPORT_UNCALIBRATED_NOTE =
+  'How we\u2019re sharpening these numbers: we\u2019re calibrating against real Calgary builder quotes. ' +
+  'In a real report, your range reflects current cost data and your City property record.';
+
 /** Notes for the inert action sections (never functional on the sample). */
 export const SAMPLE_REPORT_SHARE_NOTE =
   'Disabled on this sample page — in your real report this emails your partner a link to your exact report.';
@@ -137,6 +142,8 @@ export class SampleReportPageComponent implements OnInit {
 
   /** Report copy (config-owned) — same labels as the real report. */
   protected readonly copy = this.config.get('copy').report;
+  /** Sample-framed uncalibrated note (the shared config note assumes a real property). */
+  protected readonly uncalibratedNote = SAMPLE_REPORT_UNCALIBRATED_NOTE;
   /** Tier names live with the wizard copy — reused, never duplicated. */
   protected readonly tierOptions = this.config.get('copy').wizard.scopeTiers;
   protected readonly narrativeDisclaimer = this.config.get('copy').narrativeDisclaimer;

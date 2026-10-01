@@ -140,7 +140,7 @@ describe('LandingPageComponent', () => {
     );
     // The mock API harness answers refreshedMonth null → the honest
     // "Live City data" fallback; no hardcoded month, no accuracy claim.
-    expect(values).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+    expect(values).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);
     expect(labels).toEqual([
       'City of Calgary assessment records',
       'Latest data refresh',
@@ -171,14 +171,14 @@ describe('LandingPageComponent', () => {
       );
     }
 
-    it('renders "Refreshed <Month Year>" when the endpoint reports a month', async () => {
+    it('renders "<Month Year>" when the endpoint reports a month', async () => {
       await setup(
         { propertyData: { source: 'live' } },
         [freshnessProvider(of({ refreshedMonth: 'September 2026' }))],
       );
       fixture.detectChanges();
-      expect(trustValues()).toEqual(['600,000+', 'Refreshed September 2026', 'Deterministic math']);
-      expect(trustShorts()).toEqual(['600,000+', 'Refreshed Sep 2026', 'Deterministic math']);
+      expect(trustValues()).toEqual(['600,000+', 'September 2026', 'Same fixed formula']);
+      expect(trustShorts()).toEqual(['600,000+', 'Sep 2026', 'Same fixed formula']);
     });
 
     it('falls back to "Live City data" when the endpoint returns null', async () => {
@@ -187,7 +187,7 @@ describe('LandingPageComponent', () => {
         [freshnessProvider(of({ refreshedMonth: null }))],
       );
       fixture.detectChanges();
-      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);
     });
 
     it('falls back to "Live City data" when the request fails', async () => {
@@ -196,7 +196,7 @@ describe('LandingPageComponent', () => {
         [freshnessProvider(throwError(() => new Error('backend down')))],
       );
       fixture.detectChanges();
-      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+      expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);
     });
 
     it('never calls the freshness endpoint on the mock property path', async () => {
@@ -222,7 +222,7 @@ describe('LandingPageComponent', () => {
     const shorts = [...root.querySelectorAll('.trust-value-short')].map((el: Element) =>
       el.textContent?.trim(),
     );
-    expect(shorts).toEqual(['600,000+', 'Live City data', 'Deterministic math']);
+    expect(shorts).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);
     const cta = root.querySelector('.sample-report-link a') as HTMLAnchorElement;
     expect(cta?.getAttribute('href')).toBe('/sample-report');
     expect(cta?.textContent).toContain('See a sample report');
