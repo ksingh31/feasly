@@ -18,7 +18,7 @@ describe('CommunityPageComponent', () => {
 
   const communitiesCopy = {
     illustrativeBanner: 'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
-    titleTemplate: 'Cost to Build a Home in {name}, Calgary | Feasly',
+    titleTemplate: 'Feasly — Cost to build a home in {name}, Calgary',
     descriptionTemplate: 'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}.',
     statLabel: 'Average City-assessed value (not market value)',
     statNote: 'Stat note.',
@@ -84,7 +84,7 @@ describe('CommunityPageComponent', () => {
   it('sets the per-page title pattern', async () => {
     await setup('beltline');
     const title = TestBed.inject(Title);
-    expect(title.getTitle()).toBe('Cost to Build a Home in Beltline, Calgary | Feasly');
+    expect(title.getTitle()).toBe('Feasly — Cost to build a home in Beltline, Calgary');
   });
 
   it('sets a unique meta description carrying the real assessed value', async () => {

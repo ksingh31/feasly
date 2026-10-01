@@ -16,9 +16,9 @@ class BlankComponent {}
 
 /**
  * RENO-02: scope step renders two enabled project-type cards (New Build +
- * Renovation, no "coming soon"), stores the selection in NGXS, disables the
- * CTA until a card is chosen, and routes per project type (new build →
- * details, renovation → reno scope-inputs). No dollar figures on this step.
+ * Renovation, no "coming soon"), preselects New Build on first visit, stores
+ * the selection in NGXS, and routes per project type (new build → details,
+ * renovation → reno scope-inputs). No dollar figures on this step.
  */
 describe('ScopePageComponent', () => {
   let httpMock: HttpTestingController;
@@ -139,13 +139,17 @@ describe('ScopePageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toMatch(/coming soon/i);
   });
 
-  it('disables the CTA until a project type is chosen; either card enables it', () => {
-    expect(cta().disabled).toBe(true);
-    chooseCard('new-build');
+  it('preselects New Build on first visit (CTA enabled); cards still switch it', () => {
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+    expect(ptypeButton('new-build').getAttribute('aria-checked')).toBe('true');
     expect(cta().disabled).toBe(false);
 
-    store.dispatch(new ChooseProjectType('renovation'));
-    fixture.detectChanges();
+    chooseCard('renovation');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+    expect(cta().disabled).toBe(false);
+
+    chooseCard('new-build');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
     expect(cta().disabled).toBe(false);
   });
 
@@ -198,14 +202,16 @@ describe('ScopePageComponent', () => {
   });
 
   it('arrow keys move the card selection (radiogroup keyboard support)', () => {
+    // New Build is preselected on first visit.
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
     const group = fixture.nativeElement.querySelector('.ptypes');
     group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     fixture.detectChanges();
-    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
 
     group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     fixture.detectChanges();
-    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
   });
 
   it('shows new-build inputs only for New Build, and the reno note for Renovation', () => {

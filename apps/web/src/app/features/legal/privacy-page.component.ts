@@ -44,6 +44,13 @@ import { LegalReviewBannerComponent } from '../../shared/components/legal-review
         delivery), who are bound to protect it.
       </p>
 
+      <h2>Builders we work with</h2>
+      <p>
+        With your permission, we may share your contact details and project information with
+        builders associated with Feasly so they can contact you about your estimate. We never sell
+        your personal information, and you can opt out of builder contact at any time.
+      </p>
+
       <h2>On your device</h2>
       <p>
         Your in-progress estimate is saved in your browser's local storage so a refresh doesn't

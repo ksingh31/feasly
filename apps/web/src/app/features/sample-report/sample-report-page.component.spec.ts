@@ -68,6 +68,13 @@ describe('SampleReportPageComponent', () => {
     expect(watermark.textContent).toContain('SAMPLE');
   });
 
+  it('frames the uncalibrated-data note for the fictional sample, not a real property', () => {
+    const note = fixture.nativeElement.querySelector('.uncalibrated-note');
+    expect(note).not.toBeNull();
+    expect(note.textContent).toContain('In a real report, your range reflects current cost data');
+    expect(note.textContent).not.toContain('your property details');
+  });
+
   it('uses an obviously fictional address (denylisted against real Calgary addresses)', () => {
     expect(SAMPLE_REPORT_ADDRESS).toContain('Sample');
     for (const real of REAL_ADDRESS_DENYLIST) {

@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
+import type { CostRow } from '@feasly/contracts';
 import { mockReport } from '../../core/api/mock-data';
-import { ReportPdfService, type ReportPdfInput } from './report-pdf.service';
+import { ReportPdfService, sanitizePdfText, type ReportPdfInput } from './report-pdf.service';
 
 /**
  * ReportPdfService renders the verified snapshot to a real PDF via jsPDF
@@ -89,5 +90,89 @@ describe('ReportPdfService', () => {
     expect(raw).not.toContain('60+ line items');
     expect(raw).not.toContain('not in this estimate');
     expect(raw).not.toContain('Demolition of any existing home');
+  });
+
+  it('strips unencodable characters so jsPDF stays in WinAnsi (QA bug: feasly-estimate-1.pdf narrative clipped)', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    const dirty = input();
+    const blob = await service.generate({
+      ...dirty,
+      snapshot: {
+        ...dirty.snapshot,
+        // The real triggers (jsPDF 4.2.1 trigger matrix): U+200B/U+2028
+        // (which LLMs emit) flip the whole line to UTF-16BE
+        // (NUL-interleaved) and the line renders ~2x too wide, clipped at
+        // the page edge. C0 controls like \x11 have no WinAnsi glyph either.
+        narrative:
+          'Sunalta is a well\u200b-established\u200b\u2028inner city neighbourhood.\x11\x0BFees are calculated deterministically — no surprises…',
+      },
+    });
+    const raw = await blob.text();
+    // No UTF-16BE (NUL-interleaved) text anywhere in the output.
+    expect(raw).not.toContain('\x00');
+    // Words intact after the unencodable chars are stripped; legitimate
+    // WinAnsi-mapped punctuation (— …) survives.
+    expect(raw).toContain('Sunalta is a well-establishedinner city neighbourhood.');
+    expect(raw).toContain('Fees are calculated deterministically');
+    expect(raw).toContain('no surprises');
+  });
+
+  it('renders the same three cost buckets as the report page, land excluded', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    // The 10 raw engine rows of a real snapshot, including the land row that
+    // the PDF used to dump verbatim (QA bug: breakdown did not match the page).
+    const rows: CostRow[] = [
+      { key: 'land', label: 'Land (assessed value)', range: { low: 4930000, base: 4930000, high: 4930000 } },
+      { key: 'hard.framing', label: 'Framing & structure', range: { low: 80000, base: 90000, high: 100000 } },
+      { key: 'hard.foundation', label: 'Foundation', range: { low: 59000, base: 66000, high: 73000 } },
+      { key: 'hard.envelope', label: 'Envelope (roof, siding, windows)', range: { low: 65000, base: 72000, high: 79000 } },
+      { key: 'hard.sitePrep', label: 'Site preparation & excavation', range: { low: 41000, base: 46000, high: 51000 } },
+      { key: 'hard.finishes', label: 'Interior finishes', range: { low: 108000, base: 120000, high: 132000 } },
+      { key: 'hard.mep', label: 'Mechanical, electrical & plumbing', range: { low: 61000, base: 68000, high: 75000 } },
+      { key: 'soft.design', label: 'Design & engineering', range: { low: 23000, base: 26000, high: 29000 } },
+      { key: 'soft.permits', label: 'Permits & fees', range: { low: 5000, base: 7000, high: 9000 } },
+      { key: 'contingency', label: 'Contingency', range: { low: 52000, base: 52803, high: 52803 } },
+    ];
+    const bucketed = input();
+    const blob = await service.generate({
+      ...bucketed,
+      snapshot: { ...bucketed.snapshot, rows },
+    });
+    // jsPDF escapes parens in literal strings (\( \)); normalize so label
+    // assertions read like the on-screen text.
+    const raw = (await blob.text()).replace(/\\\(/g, '(').replace(/\\\)/g, ')');
+    // Exactly the three bucket labels the report page renders.
+    expect(raw).toContain('Structure & exterior');
+    expect(raw).toContain('Interior & home systems');
+    expect(raw).toContain('Design, permits & contingency');
+    // Each bucket's base figure, summed from the raw rows (land excluded).
+    expect(raw).toContain('$274,000'); // 90k+66k+72k+46k
+    expect(raw).toContain('$188,000'); // 120k+68k
+    expect(raw).toContain('$85,803'); // 26k+7k+52,803
+    // No per-row dump, and no land breakdown row duplicating the summary's.
+    expect(raw).not.toContain('Land (assessed value)');
+    expect(raw).not.toContain('Framing & structure');
+    expect(raw).not.toContain('Interior finishes');
+    // Land still has its own figure in the summary section.
+    expect(raw).toContain('Land (City assessed value)');
+  });
+});
+
+describe('sanitizePdfText', () => {
+  it('strips C0 controls, DEL and C1 controls but preserves newlines and tabs', () => {
+    expect(sanitizePdfText('a\x11b\x00c\x7Fde')).toBe('abcde');
+    expect(sanitizePdfText('line1\nline2\tline3')).toBe('line1\nline2\tline3');
+    expect(sanitizePdfText('plain text')).toBe('plain text');
+  });
+
+  it('strips unmapped >U+00FF chars that would flip jsPDF to UTF-16BE, keeps WinAnsi-mapped punctuation', () => {
+    // U+200B / U+2028 (LLM favourites) flip the whole line to UTF-16BE.
+    expect(sanitizePdfText('a\u200bb\u2028c')).toBe('abc');
+    // cp1252-mapped punctuation renders fine in WinAnsi — keep it.
+    expect(sanitizePdfText('em—dash ‘quote’ “double” ellipsis…')).toBe(
+      'em—dash ‘quote’ “double” ellipsis…',
+    );
+    // Surrogate-pair emoji would also flip the line — drop it.
+    expect(sanitizePdfText('hi 😀 bye')).toBe('hi  bye');
   });
 });

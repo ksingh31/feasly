@@ -198,21 +198,25 @@ export class AddressAutocompleteComponent {
   }
 
   /**
-   * Submit with no pickable suggestion: tell the user what to do next
-   * instead of silently doing nothing. Under 3 chars → the empty hint;
-   * 3+ chars with suggestions on screen → the select-from-suggestions
-   * hint; 3+ chars with none → the no-results/error UI already on screen
-   * speaks for itself. Never navigates — the parent must not proceed
-   * without a resolved address.
+   * Submit with no pickable suggestion: the CTA click always answers instead
+   * of silently doing nothing. Under 3 chars → the empty hint; 3+ chars
+   * with suggestions on screen → the select-from-suggestions hint; 3+ chars
+   * with nothing pickable → the search visibly re-runs (spinner, then the
+   * no-results/error state) so the user sees the click did something. Never
+   * navigates — the parent must not proceed without a resolved address.
    */
   nudgeOnSubmit(): void {
-    if (this.query.value.trim().length < 3) {
+    const q = this.query.value.trim();
+    if (q.length < 3) {
       this.nudgeIfEmpty();
       return;
     }
-    if (this.status() !== 'searching' && this.suggestions().length > 0) {
+    if (this.status() === 'searching') return;
+    if (this.suggestions().length > 0) {
       this.selectionHint.set(this.config.get('copy').search.selectHint);
+      return;
     }
+    this.searchNow(q);
   }
 
   /**
@@ -233,7 +237,18 @@ export class AddressAutocompleteComponent {
   }
 
 
+  /**
+   * Retry from an error state. Out-of-coverage is deterministic — re-running
+   * the same query can never succeed — so the retry resets the input and
+   * focuses it for a fresh Calgary address instead. Transient failures
+   * (resolve/address-not-found/generic) re-run the failed request.
+   */
   retry(): void {
+    if (this.outOfCoverage()) {
+      this.clearSearch();
+      this.focusInput();
+      return;
+    }
     const key = this.pendingKey;
     const q = this.query.value.trim();
     this.status.set('idle');

@@ -1,7 +1,36 @@
 import { Injectable, inject } from '@angular/core';
 import type { ReportSnapshot } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
+import { aggregateCostBuckets } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
+
+/**
+ * Strips characters jsPDF 4.x cannot encode in its WinAnsi core-font path.
+ *
+ * QA bug (feasly-estimate-1.pdf): AI narratives can carry stray invisible
+ * characters. jsPDF encodes any line containing a character it cannot map
+ * to WinAnsi as UTF-16BE (NUL-interleaved) while the font stays WinAnsi
+ * Helvetica — every affected line renders ~2x too wide and gets clipped at
+ * the page edge. Empirically (jsPDF 4.2.1 trigger matrix) the line-flipping
+ * triggers are: U+0000, and any character above U+00FF with no WinAnsi
+ * mapping — notably U+200B (zero-width space) and U+2028, which LLMs emit.
+ * Plain C0 controls like \x11 do NOT flip the encoding, but they have no
+ * WinAnsi glyph either, so they are stripped too.
+ *
+ * Kept: \t, \n (paragraph splitting depends on it), printable ASCII, the
+ * WinAnsi-native U+00A0–U+00FF range, and the cp1252-mapped extras
+ * (€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ) so legitimate punctuation like — ‘’ “”
+ * survives. Written as a single regex (not a char loop) to keep the
+ * production bundle small — the lighthouse script-size budget is tight.
+ * Pure function: apply at generation time so past and future snapshots are
+ * covered.
+ */
+export function sanitizePdfText(value: string): string {
+  return value.replace(
+    /[^\t\n\x20-\x7E\xA0-\u00FF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/g,
+    '',
+  );
+}
 
 export interface ReportPdfInput {
   readonly snapshot: ReportSnapshot;
@@ -30,7 +59,8 @@ export interface ReportPdfInput {
  * the published jsPDF CVEs is never touched.
  *
  * The PDF mirrors the on-screen report's core figures: hero total, planning
- * range, build cost, land, the cost-breakdown rows, the narrative (or its
+ * range, build cost, land, the three cost-bucket breakdown rows (shared
+ * helper — the same buckets the report page renders), the narrative (or its
  * honest absence), next steps, and the disclaimer.
  */
 @Injectable({ providedIn: 'root' })
@@ -73,7 +103,9 @@ export class ReportPdfService {
       doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
       doc.setFontSize(size);
       doc.setTextColor(...(opts.color ?? [35, 35, 35]));
-      const lines = doc.splitTextToSize(value, maxWidth);
+      // Sanitize BEFORE wrapping: a control char anywhere in the string
+      // poisons the whole line's encoding (see sanitizePdfText).
+      const lines = doc.splitTextToSize(sanitizePdfText(value), maxWidth);
       const lineHeight = size * 1.35;
       need(lines.length * lineHeight + (opts.gap ?? 6));
       doc.text(lines, margin, y);
@@ -122,29 +154,35 @@ export class ReportPdfService {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(110, 110, 110);
-      doc.text(label, margin, y);
+      doc.text(sanitizePdfText(label), margin, y);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(35, 35, 35);
-      doc.text(value, pageWidth - margin, y, { align: 'right' });
+      doc.text(sanitizePdfText(value), pageWidth - margin, y, { align: 'right' });
       y += 16;
     }
     y += 4;
     text(input.uncalibratedNote, { size: 8, gap: 10, color: [130, 130, 130] });
     rule();
 
-    // Cost breakdown.
+    // Cost breakdown — the same three buckets the on-screen report renders
+    // (shared aggregateCostBuckets helper, D-01). Land is its own figure in
+    // the summary above, never a breakdown row. The page shows each bucket's
+    // base figure, so the PDF mirrors that exactly.
+    const buckets = aggregateCostBuckets(snap.rows);
     if (snap.rows.length > 0) {
+      // Keep the heading with the first bucket row (no orphaned heading).
+      need(13 * 1.35 + 6 + 16);
       text('Cost breakdown', { size: 13, bold: true, gap: 6 });
-      for (const row of snap.rows) {
+      for (const bucket of buckets) {
         need(16);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         doc.setTextColor(35, 35, 35);
-        const labelLines = doc.splitTextToSize(row.label, maxWidth - 170);
+        const labelLines = doc.splitTextToSize(sanitizePdfText(bucket.label), maxWidth - 170);
         doc.text(labelLines, margin, y);
         doc.setFont('helvetica', 'bold');
         doc.text(
-          range(row.range.low, row.range.high),
+          formatWholeCad(bucket.range.base),
           pageWidth - margin,
           y,
           { align: 'right' },
@@ -160,6 +198,8 @@ export class ReportPdfService {
     // 'static-guide': render it under its own honest title, never as an
     // AI summary.
     const isStaticGuide = snap.narrativeSource === 'static-guide';
+    // Keep the heading with the first narrative line (no orphaned heading).
+    need(13 * 1.35 + 6 + 10 * 1.35 + 10);
     text(isStaticGuide ? reportCopy.staticGuideTitle : 'Summary', {
       size: 13,
       bold: true,

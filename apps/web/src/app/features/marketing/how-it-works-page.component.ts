@@ -11,9 +11,12 @@ import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
  * How it works (SEO-010): prerendered marketing page.
  *
  * The 4-step flow (address → scope → preview → unlock), the
- * deterministic-math note, and CTAs that preselect the project type in NGXS
- * before entering the wizard at the address step (`/`). The scope step reads
- * the preselected type and shows it as already chosen.
+ * deterministic-math note, and CTAs into the estimator. The new-build CTA
+ * preselects the project type in NGXS before entering the wizard at the
+ * address step (`/`); the scope step reads the preselected type and shows
+ * it as already chosen. Renovation estimates are out of launch scope, so
+ * the renovation CTA lands on the designed "coming soon" page instead of
+ * preselecting a type the wizard can't price.
  * All user-facing copy comes from ConfigService (no-hardcode tripwire).
  */
 @Component({
@@ -48,11 +51,19 @@ export class HowItWorksPageComponent implements OnInit {
   }
 
   /**
-   * CTA: preselect the project type in NGXS, then enter the wizard at the
-   * address step (`/`). The scope step reads the preselected type and shows
-   * it as already chosen.
+   * New-build CTA: preselect the project type in NGXS, then enter the
+   * wizard at the address step (`/`). The scope step reads the preselected
+   * type and shows it as already chosen.
+   *
+   * Renovation CTA: renovation estimates are out of launch scope — land on
+   * the designed "coming soon" page (never the home page with a renovation
+   * preselect the wizard can't price).
    */
   startEstimate(type: ProjectType): void {
+    if (type === 'renovation') {
+      void this.router.navigate(['/estimate/reno-coming-soon']);
+      return;
+    }
     this.store.dispatch(new ChooseProjectType(type));
     void this.router.navigate(['/']);
   }

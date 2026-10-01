@@ -406,6 +406,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
 
         // Fetch community stats for each slug.
         const avgLotSqftBySlug: Record<string, number | null> = {};
+        const assessedValueBySlug: Record<string, number | null> = {};
         for (const slug of neighbourhoods) {
           const stats = await deps.communityStats.getBySlug(slug);
           if (!stats) {
@@ -417,6 +418,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
             );
           }
           avgLotSqftBySlug[slug] = stats.avgLotSqft;
+          assessedValueBySlug[slug] = stats.avgAssessedValue;
         }
 
         let result: ComparisonResult;
@@ -427,16 +429,19 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
               buildSqft: sqft,
               tier,
               avgLotSqftBySlug,
+              assessedValueBySlug,
             },
             deps.costData,
           );
         } catch (error) {
           if (error instanceof EngineInputError) {
-            // Map null-lot-size errors to COMMUNITY_NOT_FOUND (data incomplete),
-            // other engine errors to VALIDATION_FAILED.
-            const code = error.message.includes('no lot size data')
-              ? ErrorCodes.COMMUNITY_NOT_FOUND
-              : ErrorCodes.VALIDATION_FAILED;
+            // Map missing-data errors to COMMUNITY_NOT_FOUND (data
+            // incomplete), other engine errors to VALIDATION_FAILED.
+            const code =
+              error.message.includes('no lot size data') ||
+              error.message.includes('no assessed value data')
+                ? ErrorCodes.COMMUNITY_NOT_FOUND
+                : ErrorCodes.VALIDATION_FAILED;
             throw new HttpError(422, code, error.message, false);
           }
           throw error;
