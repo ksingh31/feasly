@@ -346,6 +346,7 @@ describe('builder session resolution (auth/04)', () => {
     fx.builderSessions.set('builder-token', {
       email: 'portal@example.com',
       tenantKey: 'north-homes',
+      viewAs: null,
       builderId: 'builder-7',
     });
     const ctx = await fx.service.resolve(BUILDER_HEADERS('builder-token'));
@@ -366,6 +367,7 @@ describe('builder session resolution (auth/04)', () => {
     fx.builderSessions.set('builder-token', {
       email: 'member@example.com',
       tenantKey: 'north-homes',
+      viewAs: null,
       builderId: 'builder-7',
     });
     const u = user({
@@ -390,6 +392,7 @@ describe('builder session resolution (auth/04)', () => {
     fx.builderSessions.set('builder-token', {
       email: 'portal@example.com',
       tenantKey: 'ghost',
+      viewAs: null,
       builderId: 'builder-ghost',
     });
     await expect(
@@ -411,6 +414,7 @@ describe('builder session resolution (auth/04)', () => {
     fx.builderSessions.set('builder-token', {
       email: 'portal@example.com',
       tenantKey: 'north-homes',
+      viewAs: null,
       builderId: 'builder-7',
     });
     const ctx = await fx.service.resolve(HEADERS('builder-token'));
@@ -459,5 +463,142 @@ describe('view-as action auditing (auth/04)', () => {
       route: 'GET /api/v1/admin/leads',
     });
     expect(fx.audit.log).not.toHaveBeenCalled();
+  });
+});
+
+describe('builder-side view-as context resolution (2026-09-30, Karan)', () => {
+  function builderAdminFixture() {
+    const fx = makeService();
+    fx.buildersById.set('builder-7', {
+      id: 'builder-7',
+      displayName: 'North Homes',
+      status: 'active',
+    });
+    const adminUser = {
+      id: 'user-builder-admin',
+      email: 'builderadmin@example.com',
+      name: 'Builder Admin',
+      status: 'active',
+      staffRole: null,
+      entraObjectId: 'entra-b1',
+      isProtected: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    } as UserRecord;
+    fx.usersByEmail.set('builderadmin@example.com', adminUser);
+    fx.usersById.set('user-builder-admin', adminUser);
+    fx.membershipsByUser.set('user-builder-admin', [
+      { builderId: 'builder-7', role: 'builder_admin', createdAt: NOW },
+    ] as BuilderMembership[]);
+    const memberUser = {
+      id: 'user-member',
+      email: 'member@example.com',
+      name: 'Team Member',
+      status: 'active',
+      staffRole: null,
+      entraObjectId: 'entra-m1',
+      isProtected: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    } as UserRecord;
+    fx.usersById.set('user-member', memberUser);
+    fx.membershipsByUser.set('user-member', [
+      { builderId: 'builder-7', role: 'builder_member', createdAt: NOW },
+    ] as BuilderMembership[]);
+    return fx;
+  }
+
+  function resolveHeaders(token: string) {
+    return { cookie: `feasly_builder_session=${token}` };
+  }
+
+  it('resolves the target\u2019s view: fresh target permissions, target org, real identity on realUser', async () => {
+    const fx = builderAdminFixture();
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-member' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    // The target's view: their identity, their (member) permissions...
+    expect(ctx!.userId).toBe('user-member');
+    expect(ctx!.email).toBe('member@example.com');
+    expect(ctx!.name).toBe('Team Member');
+    expect(ctx!.permissions).toEqual(
+      effectivePermissions(null, ['builder_member']),
+    );
+    expect(ctx!.builderId).toBe('builder-7');
+    expect(ctx!.builderName).toBe('North Homes');
+    // ...the viewAs flag, and the REAL admin on realUser.
+    expect(ctx!.viewAs).toEqual({ userId: 'user-member' });
+    expect(ctx!.realUser).toEqual({
+      userId: 'user-builder-admin',
+      email: 'builderadmin@example.com',
+      name: 'Builder Admin',
+    });
+  });
+
+  it('is terminal: the borrowed view never carries view_as (no chaining)', async () => {
+    const fx = builderAdminFixture();
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-member' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx!.permissions).not.toContain('view_as');
+  });
+
+  it('fails closed on an unknown target: empty permissions, no builder context, banner state intact', async () => {
+    const fx = builderAdminFixture();
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-gone' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.permissions).toEqual([]);
+    expect(ctx!.builderId).toBeNull();
+    expect(ctx!.viewAs).toEqual({ userId: 'user-gone' });
+    expect(ctx!.realUser?.email).toBe('builderadmin@example.com');
+  });
+
+  it('fails closed on a disabled target', async () => {
+    const fx = builderAdminFixture();
+    fx.usersById.set('user-member', {
+      ...(fx.usersById.get('user-member') as UserRecord),
+      status: 'disabled',
+    } as UserRecord);
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-member' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.permissions).toEqual([]);
+    expect(ctx!.builderId).toBeNull();
+    expect(ctx!.realUser?.email).toBe('builderadmin@example.com');
+  });
+
+  it('a session without viewAs resolves normally with realUser null', async () => {
+    const fx = builderAdminFixture();
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: null,
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.viewAs).toBeNull();
+    expect(ctx!.realUser).toBeNull();
+    expect(ctx!.permissions).toContain('view_as');
   });
 });

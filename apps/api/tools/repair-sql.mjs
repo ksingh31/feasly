@@ -686,6 +686,7 @@ CREATE TABLE IF NOT EXISTS "builder_sessions" (
 	"revoked_at" timestamp with time zone,
 	"expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"view_as" jsonb,
 	CONSTRAINT "builder_sessions_session_token_hash_unique" UNIQUE("session_token_hash")
 );
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
@@ -698,6 +699,7 @@ ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "expires_at" timestamp w
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
 CREATE TABLE IF NOT EXISTS "embed_relay_codes" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

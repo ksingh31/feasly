@@ -1194,6 +1194,14 @@ export const builderSessions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * Builder-side view-as state (2026-09-30, Karan): `{ userId }` while
+     * the session is viewing-as an org team member, else null. Mirrors
+     * admin_sessions.view_as — effective permissions + tenant scoping
+     * resolve to the target's view; never escalates; audit-logged under
+     * the real builder admin's identity.
+     */
+    viewAs: jsonb('view_as').$type<{ userId?: string } | null>(),
   },
   (t) => [
     index('builder_sessions_token_hash_idx').on(t.sessionTokenHash),

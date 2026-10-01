@@ -391,6 +391,13 @@ describe('auth/04 session state migrations', () => {
     );
   });
 
+  it('adds view_as to builder_sessions (0040)', async () => {
+    const cols = await testDb.rows<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'builder_sessions' and column_name = 'view_as'`,
+    );
+    expect(cols).toHaveLength(1);
+  });
+
   it('admin session store round-trips activeBuilderId and viewAs', async () => {
     const store = createDrizzleAdminSessionStore({ db: testDb.db });
     const now = new Date();

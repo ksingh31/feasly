@@ -28,6 +28,8 @@ function toSessionRecord(
     builderId: row.builderId,
     // auth/05: the user this session belongs to (null for legacy rows).
     userId: row.userId,
+    // Builder-side view-as state (2026-09-30, Karan).
+    viewAs: row.viewAs ?? null,
     sessionTokenHash: row.sessionTokenHash,
     idToken: row.idToken,
     revokedAt: row.revokedAt,
@@ -136,6 +138,25 @@ export function createDrizzleBuilderSessionStore(
         )
         .returning({ id: builderSessions.id });
       return rows.length > 0;
+    },
+
+    async updateState(
+      sessionTokenHash: string,
+      patch: {
+        readonly viewAs?: { readonly userId?: string } | null;
+      },
+    ): Promise<void> {
+      const set: { viewAs?: { readonly userId?: string } | null } = {};
+      if ('viewAs' in patch) set.viewAs = patch.viewAs ?? null;
+      await db
+        .update(builderSessions)
+        .set(set)
+        .where(
+          and(
+            eq(builderSessions.sessionTokenHash, sessionTokenHash),
+            isNull(builderSessions.revokedAt),
+          ),
+        );
     },
   };
 }

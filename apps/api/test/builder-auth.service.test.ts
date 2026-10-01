@@ -41,6 +41,7 @@ function makeDeps(overrides?: {
     revokeByEmail: vi.fn(async () => 0),
     revokeByUserId: vi.fn(async () => 0),
     updateBuilderId: vi.fn(async () => false),
+    updateState: vi.fn(async () => {}),
   };
 
   const audit: AdminAuditStore = {

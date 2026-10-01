@@ -314,6 +314,68 @@ export function createAuthContextService(
       permissions = ROLE_PERMISSIONS[role];
     }
 
+    const realUser = { userId, email: session.email, name };
+
+    // Builder-side view-as (2026-09-30, Karan): while `session.viewAs` is
+    // set, permissions + scoping resolve to the TARGET's view — computed
+    // fresh from the target's roles, never unioned with the real user's
+    // (no escalation). Terminal (#394): the borrowed view never carries
+    // `view_as` itself, so a viewed-as session can never chain. An
+    // unknown/disabled target fails CLOSED: empty permissions and no
+    // builder context, never the real user's own context (which would
+    // silently restore elevated access). The real identity stays on
+    // `realUser` for the audit trail, and `viewAs` stays set so the shell
+    // can show "target unavailable" + an exit.
+    const closedBuilderViewAs: AuthContext = {
+      userId,
+      email: session.email,
+      name,
+      staffRole: null,
+      permissions: [],
+      builderId: null,
+      builderName: null,
+      memberships: [],
+      viewAs: session.viewAs,
+      realUser,
+    };
+    if (session.viewAs?.userId) {
+      const target = await users.findById(session.viewAs.userId);
+      if (target && target.status !== 'disabled') {
+        const targetMemberships = await memberships.listByUserId(target.id);
+        const targetMembership =
+          targetMemberships.find((m) => m.builderId === builder.id) ??
+          targetMemberships[0] ??
+          null;
+        let targetBuilderName: string | null = null;
+        if (targetMembership) {
+          try {
+            targetBuilderName = (
+              await builders.getBuilder(targetMembership.builderId)
+            ).displayName;
+          } catch {
+            targetBuilderName = null;
+          }
+        }
+        return {
+          userId: target.id,
+          email: target.email,
+          name: target.name,
+          staffRole: target.staffRole,
+          permissions: effectivePermissions(
+            target.staffRole,
+            targetMemberships.map((m) => m.role),
+          ).filter((p) => p !== 'view_as'),
+          builderId: targetMembership?.builderId ?? null,
+          builderName: targetBuilderName,
+          memberships: targetMemberships,
+          viewAs: session.viewAs,
+          realUser,
+        };
+      }
+      // Unknown/disabled target — fail closed (see above).
+      return closedBuilderViewAs;
+    }
+
     return {
       userId,
       email: session.email,

@@ -54,8 +54,9 @@ export interface BuilderAuthRoute {
   /**
    * GET /api/v1/builder/auth/me — returns the session identity plus the
    * server-authoritative active-org role (null when the session has no
-   * active builder membership).
-   * Requires a valid session (guarded by the adapter).
+   * active builder membership), plus the builder-side view-as display
+   * state (viewAs flag, target display name, real email) while view-as is
+   * active. Requires a valid session (guarded by the adapter).
    */
   me(
     headers: Record<string, string | string[] | undefined>,
@@ -148,15 +149,29 @@ export function createBuilderAuthRoute(
       // inactive or the session is legacy) and read the membership role for
       // the session's active builder. Null when there is no active builder
       // membership; the frontend keeps its previous role in that case.
+      // While view-as is active the auth context is the TARGET's view, so
+      // `role` is the target's role (the banner's exit restores the real
+      // admin's role).
       const ctx = await permissionGuard.getAuthContext(headers);
       const role =
         ctx?.memberships.find((m) => m.builderId === ctx.builderId)?.role ??
         null;
+      // Builder-side view-as display state (2026-09-30, Karan). The session
+      // carries the raw viewAs flag; the auth context tells us whether the
+      // target resolved — when it didn't (unknown/disabled target), the
+      // display name is null and the frontend shows "no longer available"
+      // copy with an exit.
+      const viewAsTargetUserId = session.viewAs?.userId ?? null;
+      const targetResolved =
+        !!viewAsTargetUserId && ctx?.userId === viewAsTargetUserId;
       return {
         authenticated: true as const,
-        email: session.email,
+        email: ctx?.email ?? session.email,
         tenantKey: session.tenantKey,
         role,
+        viewAs: viewAsTargetUserId ? { userId: viewAsTargetUserId } : null,
+        viewAsDisplayName: targetResolved && ctx ? ctx.name : null,
+        realEmail: viewAsTargetUserId ? session.email : null,
       };
     },
 
