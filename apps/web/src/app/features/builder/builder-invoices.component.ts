@@ -15,6 +15,10 @@ import { firstValueFrom } from 'rxjs';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
+import {
+  edmontonDayDiff,
+  formatEdmontonMediumDate,
+} from '../../shared/utils/edmonton';
 import { BuilderBillingState } from './builder-billing.state';
 import { LoadBillingCard } from './builder-billing.actions';
 import {
@@ -182,17 +186,7 @@ export class BuilderInvoicesComponent implements OnInit {
 
   /** ISO instant → America/Edmonton medium date (the billing calendar). */
   protected formatEdmontonDate(iso: string | null): string {
-    if (!iso) {
-      return '—';
-    }
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-      return '—';
-    }
-    return date.toLocaleDateString('en-CA', {
-      timeZone: 'America/Edmonton',
-      dateStyle: 'medium',
-    });
+    return formatEdmontonMediumDate(iso);
   }
 
   protected statusLabel(status: CommissionInvoiceStatus): string {
@@ -222,22 +216,8 @@ export class BuilderInvoicesComponent implements OnInit {
     if (invoice.status !== 'in_review' || !invoice.reviewDueAt) {
       return null;
     }
-    const due = new Date(invoice.reviewDueAt);
-    if (Number.isNaN(due.getTime())) {
-      return null;
-    }
-    const dayFmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Edmonton',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const days =
-      Math.round(
-        (Date.parse(dayFmt.format(due)) - Date.parse(dayFmt.format(new Date()))) /
-          86_400_000,
-      );
-    if (days < 0) {
+    const days = edmontonDayDiff(invoice.reviewDueAt);
+    if (days === null || days < 0) {
       return null;
     }
     if (days === 0) {

@@ -10,9 +10,12 @@ import type {
 } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
+import { DueInvoiceBannersComponent } from './due-invoice-banners.component';
 import { formatCommentTimestamp } from '../../shared/components/comment-thread';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
+import { LoadBillingCard } from './builder-billing.actions';
+import { LoadInvoices } from './builder-invoices.actions';
 
 /**
  * Builder pipeline dashboard (embed/09): the builder's lead list, in the
@@ -34,7 +37,7 @@ import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 @Component({
   selector: 'app-builder-dashboard',
   standalone: true,
-  imports: [RouterLink, BuilderLeadCommentsComponent],
+  imports: [RouterLink, BuilderLeadCommentsComponent, DueInvoiceBannersComponent],
   templateUrl: './builder-dashboard.component.html',
   styleUrls: ['./builder-dashboard.component.scss'],
 })
@@ -74,6 +77,13 @@ export class BuilderDashboardComponent implements OnInit {
   ngOnInit(): void {
     this.store
       .dispatch(new LoadBuilderLeads())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+    // Due-invoice banners: newest invoices for the banner set, plus the
+    // card summary for the banner's payment-method line. The banners
+    // component reads both from the store; both loads are fire-and-forget.
+    this.store
+      .dispatch([new LoadInvoices(1), new LoadBillingCard()])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }

@@ -43,6 +43,7 @@ const RECORDED_LEAD_ID = '22222222-2222-4222-8222-222222222222';
 
 const INVOICE: CommissionInvoice = {
   id: 'inv-1',
+  invoiceNumber: 'INV-0001',
   tenantKey: 'tenant-1',
   attributionId: 'attr-1',
   leadId: LEAD_ID,
@@ -60,7 +61,6 @@ const INVOICE: CommissionInvoice = {
   commissionRateOverride: null,
   manualPaymentMethod: null,
   paymentReference: null,
-  invoiceNumber: 'INV-0001',
   paymentMethod: 'card',
   commissionRatePercent: 1,
   effectiveRatePercent: 1,

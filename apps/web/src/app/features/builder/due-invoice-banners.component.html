@@ -1,0 +1,111 @@
+@let due = dueInvoices();
+@if (due.length > 0) {
+  @if (banners.stackCollapsed()) {
+    <!-- Slim summary bar: the whole stack folded into one line. -->
+    <div class="due-banners">
+      <div class="due">
+        <button
+          type="button"
+          class="due-bar due-bar--summary"
+          (click)="banners.setStackCollapsed(false)"
+          [attr.aria-expanded]="false"
+          [attr.aria-label]="heading(due.length)"
+        >
+          <span class="due-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="8.4" stroke="currentColor" stroke-width="1.8" />
+              <path d="M10 6.2v4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <circle cx="10" cy="13.4" r="1.15" fill="currentColor" />
+            </svg>
+          </span>
+          <span class="due-text">{{ heading(due.length) }}</span>
+          <span class="due-chev" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+              <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span
+            class="due-x"
+            role="button"
+            tabindex="0"
+            [attr.aria-label]="copy.dueBannersDismissAllLabel"
+            (click)="onDismissAll($event)"
+            (keydown)="onDismissAllKey($event)"
+          >×</span>
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div class="due-stack-head">
+      <span class="due-stack-head__count">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="8.4" stroke="currentColor" stroke-width="1.8" />
+          <path d="M10 6.2v4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          <circle cx="10" cy="13.4" r="1.15" fill="currentColor" />
+        </svg>
+        {{ heading(due.length) }}
+      </span>
+      <button type="button" (click)="banners.setStackCollapsed(true)">
+        {{ copy.dueBannersCollapseAll }}
+      </button>
+    </div>
+    <div class="due-banners">
+      @for (invoice of due; track invoice.id) {
+        <div class="due" [attr.data-open]="banners.isOpen(invoice.id)">
+          <button
+            type="button"
+            class="due-bar"
+            (click)="banners.toggleOpen(invoice.id)"
+            [attr.aria-expanded]="banners.isOpen(invoice.id)"
+          >
+            <span class="due-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="8.4" stroke="currentColor" stroke-width="1.8" />
+                <path d="M10 6.2v4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                <circle cx="10" cy="13.4" r="1.15" fill="currentColor" />
+              </svg>
+            </span>
+            <span class="due-text"><strong>{{ barLead(invoice) }}</strong> {{ barTail(invoice) }}</span>
+            <span class="due-chev" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+                <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span
+              class="due-x"
+              role="button"
+              tabindex="0"
+              [attr.aria-label]="dismissLabel(invoice)"
+              (click)="onDismiss(invoice, $event)"
+              (keydown)="onDismissKey(invoice, $event)"
+            >×</span>
+          </button>
+          @if (banners.isOpen(invoice.id)) {
+            <div class="due-body">
+              <div class="due-meta">{{ metaLine(invoice) }}</div>
+              <div class="due-method">{{ methodLine() }}</div>
+              <div class="due-actions">
+                @if (isFailed(invoice)) {
+                  <a class="btn btn-primary" routerLink="/builder/billing">{{
+                    copy.dueBannersUpdateCardCta
+                  }}</a>
+                } @else {
+                  <a
+                    class="btn btn-primary"
+                    [routerLink]="['/builder/invoices']"
+                    [queryParams]="{ invoice: invoice.id }"
+                  >{{ copy.dueBannersViewInvoiceCta }}</a>
+                }
+                <a
+                  class="btn-link"
+                  [routerLink]="['/builder/invoices']"
+                  [queryParams]="{ invoice: invoice.id }"
+                >{{ copy.dueBannersViewInvoiceLink }}</a>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+}

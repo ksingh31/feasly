@@ -403,6 +403,17 @@ export const routes: Routes = [
             (m) => m.BuilderDashboardComponent,
           ),
         pathMatch: 'full',
+        canActivate: [
+          // The dashboard's due-invoice banners read BuilderInvoicesState
+          // (lazy-loaded here so it stays out of the initial bundle,
+          // mirroring the invoices route) while BuilderBillingState is
+          // already root-provided for the banner's card summary.
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/builder-invoices.state'))
+                .builderInvoicesStateProvider,
+          ),
+        ],
       },
       {
         // Builder billing (billing/02, BILL-02): card-on-file section.
