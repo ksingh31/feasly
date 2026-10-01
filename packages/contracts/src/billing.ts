@@ -18,12 +18,6 @@ export type CommissionInvoiceStatus =
 
 export interface CommissionInvoice {
   readonly id: string;
-  /**
-   * Builder-facing invoice number, e.g. "INV-0042". Assigned server-side
-   * when the invoice is created; shown on dashboard banners, the invoice
-   * list, and receipts.
-   */
-  readonly invoiceNumber: string;
   readonly tenantKey: string;
   readonly attributionId: string;
   readonly leadId: string;
