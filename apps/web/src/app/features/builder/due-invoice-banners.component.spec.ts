@@ -56,6 +56,7 @@ function makeInvoice(
     effectiveRatePercent: 1,
     manualPaymentMethod: null,
     paymentReference: null,
+    paymentMethod: 'card',
     createdAt: iso(Date.now() - 7 * DAY_MS),
     updatedAt: iso(Date.now() - 7 * DAY_MS),
     ...overrides,
