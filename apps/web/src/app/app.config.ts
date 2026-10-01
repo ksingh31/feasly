@@ -16,7 +16,8 @@ import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
 import { EmbedState } from './features/embed';
 import { ComparisonState } from './features/compare';
-import { ReportState } from './features/report';
+import { ReportState, serializeReportState } from './features/report';
+import type { ReportStateModel } from './features/report';
 import { LeadState, WizardState } from './features/wizard';
 import { ConsentState } from './features/consent';
 import { AdminAuthState } from './features/admin/admin-auth.state';
@@ -71,7 +72,10 @@ export const appConfig: ApplicationConfig = {
     // the report token note below.
     // Security: the report token is a bearer credential — it lives in memory
     // only and is stripped before persistence. The snapshot (the user's own
-    // figures) persists, so the report still renders after a refresh;
+    // figures plus the AI narrative) persists, so the report still renders
+    // the SAME report after a refresh or a magic-link return — a rebuild
+    // from the public estimate endpoint would drop the narrative, which
+    // needs the memory-only token to re-fetch (ai-summary-persistence);
     // token-authenticated actions (tier/sqft re-run, share, callback) surface
     // an honest inline error when the token is missing (e.g. after a reload),
     // because the magic-link email is the only re-verification path.
@@ -131,16 +135,14 @@ export const appConfig: ApplicationConfig = {
           BuilderState,
         ],
         beforeSerialize: (obj, key) =>
-          // The report token, partner view, and loaded report data are
-          // session-scoped: strip them so a refresh re-gates instead of
-          // silently unlocking, and a persisted partnerView:true can never
-          // paint the "shared with you" banner on the owner's own report
-          // in a later session. `savedVersion` (the revision counter)
-          // deliberately persists alongside the wizard inputs so the
-          // rebuilt report keeps its honest version label. The report page
-          // re-dispatches LoadPreview on init, so nothing the UI needs is lost.
+          // The report token, partner view, pre-gate preview, and transient
+          // load state never reach localStorage — see serializeReportState
+          // (ai-summary-persistence): the snapshot itself persists, the
+          // rest is session-scoped or reset. `savedVersion` (the revision
+          // counter) deliberately persists alongside the snapshot so the
+          // rebuilt report keeps its honest version label.
           key === 'report'
-            ? { ...obj, reportToken: null, partnerView: false, preview: null, snapshot: null }
+            ? serializeReportState(obj as ReportStateModel)
             : key === 'comparison'
               ? { ...obj, leadId: null }
               : // The relay code is a single-use secret: memory-only, never
