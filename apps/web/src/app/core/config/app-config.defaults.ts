@@ -555,6 +555,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shareSending: 'Sending…',
       shareSent: 'Sent — {email} will receive their own secure link.',
       shareError: 'Couldn’t send the report. Check your connection and try again.',
+      shareSelfError:
+        'That’s the email you used for this report — enter your partner’s email address instead.',
       shareTokenError:
         'This report link is no longer available in this tab. Reopen it from the link in your email, then send again.',
       shareRetry: 'Try again',
