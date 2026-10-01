@@ -24,7 +24,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -46,6 +46,7 @@ import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
 import { EmailProviderError } from '../email';
 import type { ManualPaymentMethod } from '@feasly/contracts';
+import type { BuilderPaymentMethod } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -100,6 +101,19 @@ export interface CommissionInvoiceRecord {
   readonly manualPaymentMethod: ManualPaymentMethod | null;
   /** Cheque/trace number for a manual payment. Null otherwise. */
   readonly paymentReference: string | null;
+  /**
+   * Human-readable invoice number (billing/12): `INV-` + zero-padded
+   * sequence, min 4 digits. Shown in the builder portal.
+   */
+  readonly invoiceNumber: string;
+  /**
+   * How this invoice gets paid (billing/12): 'card' = the normal Stripe
+   * off-session auto-charge; cheque/e_transfer/bank_draft = manual — the
+   * invoice-reviewer timer skips it until staff marks it paid. Snapshot
+   * of the builder org's default payment method at creation; changeable
+   * per invoice while the invoice is unpaid.
+   */
+  readonly paymentMethod: BuilderPaymentMethod;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -115,6 +129,18 @@ export const MANUAL_PAYMENT_METHODS: ReadonlyArray<ManualPaymentMethod> = [
   'mastercard',
   'card_terminal',
   'other',
+];
+
+/**
+ * Builder-selectable payment methods (billing/12): the card on file, or
+ * a manual method (cheque, e-transfer, bank draft). Kept here (not in
+ * contracts — that package is types-only) next to MANUAL_PAYMENT_METHODS.
+ */
+export const BUILDER_PAYMENT_METHODS: ReadonlyArray<BuilderPaymentMethod> = [
+  'card',
+  'cheque',
+  'e_transfer',
+  'bank_draft',
 ];
 
 export interface ManualPaymentInput {
@@ -213,6 +239,13 @@ export interface CommissionService {
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
   /**
+   * In-review invoices whose review window has passed BUT whose
+   * paymentMethod is manual (billing/12) — the timer must skip these
+   * (no auto-charge, no card retry) until staff marks them paid.
+   * Returned for observability: the reviewer's `skipped` count.
+   */
+  countSkippedManualReviews(now: Date): Promise<number>;
+  /**
    * The invoice for an attribution, or null. Used by the billing won-flow
    * for idempotency: one attribution yields exactly one invoice.
    */
@@ -230,6 +263,38 @@ export interface CommissionService {
    * the builder row is missing — a builder can always be billed.
    */
   getCommissionRatePercent(tenantKey: string): Promise<number>;
+  /**
+   * The builder org's default payment method (billing/12), read from the
+   * `builders.settings` escape hatch (`defaultPaymentMethod`). 'card'
+   * when unset or when the builder row is missing — the card on file is
+   * charged.
+   */
+  getDefaultPaymentMethod(tenantKey: string): Promise<BuilderPaymentMethod>;
+  /**
+   * Set the builder org's default payment method (billing/12), merged
+   * into `builders.settings` — no migration, that's what the hatch is
+   * for. Applies to invoices created afterwards; existing invoices keep
+   * the method they were created with. 400 on an unknown method, 404
+   * when the builder row is missing. Audited.
+   */
+  setDefaultPaymentMethod(
+    tenantKey: string,
+    method: BuilderPaymentMethod,
+  ): Promise<BuilderPaymentMethod>;
+  /**
+   * Change the payment method on one invoice (billing/12). Allowed while
+   * the invoice is unpaid (draft, in_review, failed) — 409 otherwise.
+   * 403 when the invoice belongs to a different tenant, 404 when the
+   * invoice is unknown, 400 on an unknown method. Switching to a manual
+   * method pauses the Stripe auto-charge (the invoice-reviewer timer
+   * skips non-card invoices); switching back to 'card' re-arms it.
+   * Audited old → new in `billing_events`.
+   */
+  setInvoicePaymentMethod(
+    tenantKey: string,
+    invoiceId: string,
+    method: BuilderPaymentMethod,
+  ): Promise<CommissionInvoiceRecord>;
   /**
    * BILL-04: paginated invoice list, newest first. Builders pass their
    * tenantKey (scoped); admins pass null (all tenants).
@@ -335,6 +400,8 @@ function toRecord(
     effectiveRatePercent: effectiveRatePercent(row, defaultRate),
     manualPaymentMethod: row.manualPaymentMethod as ManualPaymentMethod | null,
     paymentReference: row.paymentReference,
+    invoiceNumber: row.invoiceNumber,
+    paymentMethod: row.paymentMethod as BuilderPaymentMethod,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -379,6 +446,81 @@ async function builderRatePercentFor(
     where: eq(builders.tenantKey, tenantKey),
   });
   return row?.commissionRatePercent ?? null;
+}
+
+/**
+ * The builder org's default payment method (billing/12), from
+ * `builders.settings.defaultPaymentMethod`. 'card' when unset, unknown,
+ * or the builder row is missing — the card on file is charged.
+ */
+async function builderDefaultPaymentMethodFor(
+  db: AppDb,
+  tenantKey: string,
+): Promise<BuilderPaymentMethod> {
+  const row = await db.query.builders.findFirst({
+    columns: { settings: true },
+    where: eq(builders.tenantKey, tenantKey),
+  });
+  return readDefaultPaymentMethod(row?.settings);
+}
+
+/**
+ * Next human-readable invoice number (billing/12): `INV-` + the
+ * `commission_invoice_number_seq` value, zero-padded to min 4 digits.
+ * The sequence hands out distinct numbers across concurrent creators;
+ * the UNIQUE constraint on `invoice_number` is the backstop.
+ */
+async function nextInvoiceNumber(db: AppDb): Promise<string> {
+  const result = (await db.execute(
+    sql`SELECT nextval('commission_invoice_number_seq') AS "n"`,
+  )) as unknown;
+  // node-postgres returns { rows: [...] }; other drivers may return the
+  // rows array directly. int8 arrives as string (pg) or number/bigint.
+  const rows = Array.isArray(result)
+    ? result
+    : (result as { rows?: unknown }).rows;
+  const first = (Array.isArray(rows) ? rows[0] : undefined) as
+    | { n?: unknown }
+    | undefined;
+  const n = Number(first?.n);
+  if (!Number.isSafeInteger(n) || n < 1) {
+    throw new Error(
+      'commission_invoice_number_seq returned an invalid value',
+    );
+  }
+  return `INV-${String(n).padStart(4, '0')}`;
+}
+
+/**
+ * Read a builder-selectable payment method out of
+ * `builders.settings.defaultPaymentMethod` (billing/12). Anything that
+ * isn't one of the four known values → 'card' (fail safe: the only
+ * behavior that existed before).
+ */
+function readDefaultPaymentMethod(
+  settings: Record<string, unknown> | null | undefined,
+): BuilderPaymentMethod {
+  const raw = settings?.['defaultPaymentMethod'];
+  return (
+    BUILDER_PAYMENT_METHODS as ReadonlyArray<string>
+  ).includes(typeof raw === 'string' ? raw : '')
+    ? (raw as BuilderPaymentMethod)
+    : 'card';
+}
+
+function requireKnownPaymentMethod(method: unknown): BuilderPaymentMethod {
+  if (
+    !(BUILDER_PAYMENT_METHODS as ReadonlyArray<string>).includes(
+      typeof method === 'string' ? method : '',
+    )
+  ) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      `Unknown payment method "${String(method)}" — expected one of: ${BUILDER_PAYMENT_METHODS.join(', ')}`,
+    );
+  }
+  return method as BuilderPaymentMethod;
 }
 
 export function createCommissionService(
@@ -673,6 +815,16 @@ export function createCommissionService(
         ratePercent / 100,
       );
 
+      // billing/12: the invoice is created with the builder org's default
+      // payment method (builders.settings.defaultPaymentMethod — 'card'
+      // when unset) snapshotted onto the invoice, and a human-readable
+      // invoice number (INV-0001…) from the sequence.
+      const invoiceNumber = await nextInvoiceNumber(db);
+      const paymentMethod = await builderDefaultPaymentMethodFor(
+        db,
+        record.tenantKey,
+      );
+
       const [row] = await db
         .insert(commissionInvoices)
         .values({
@@ -684,6 +836,8 @@ export function createCommissionService(
           commissionCents,
           commissionRatePercent: ratePercent,
           slaBreached: !onTime,
+          invoiceNumber,
+          paymentMethod,
         })
         .returning()
         .catch(async (error: unknown) => {
@@ -716,6 +870,8 @@ export function createCommissionService(
           contractValueCents: record.contractValueCents,
           commissionCents,
           commissionRatePercent: ratePercent,
+          invoiceNumber,
+          paymentMethod,
           slaBreached: !onTime,
         },
       });
@@ -1220,6 +1376,10 @@ export function createCommissionService(
         where: and(
           eq(commissionInvoices.status, 'in_review'),
           lte(commissionInvoices.reviewDueAt, reviewNow),
+          // billing/12: manual-method invoices are NEVER auto-charged —
+          // they sit until staff marks them paid via the admin mark-paid
+          // flow. Only 'card' invoices reach finalizeInvoice.
+          eq(commissionInvoices.paymentMethod, 'card'),
         ),
       });
       const names = await leadNamesById(
@@ -1227,6 +1387,19 @@ export function createCommissionService(
         rows.map((row) => row.leadId),
       );
       return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
+    },
+
+    async countSkippedManualReviews(reviewNow: Date): Promise<number> {
+      requireCommissionModel();
+      const rows = await db.query.commissionInvoices.findMany({
+        columns: { id: true },
+        where: and(
+          eq(commissionInvoices.status, 'in_review'),
+          lte(commissionInvoices.reviewDueAt, reviewNow),
+          ne(commissionInvoices.paymentMethod, 'card'),
+        ),
+      });
+      return rows.length;
     },
 
     async findByAttribution(
@@ -1264,6 +1437,122 @@ export function createCommissionService(
         (await builderRatePercentFor(db, tenantKey)) ??
         billing.commissionRate * 100
       );
+    },
+
+    async getDefaultPaymentMethod(
+      tenantKey: string,
+    ): Promise<BuilderPaymentMethod> {
+      requireCommissionModel();
+      return builderDefaultPaymentMethodFor(db, tenantKey);
+    },
+
+    async setDefaultPaymentMethod(
+      tenantKey: string,
+      method: BuilderPaymentMethod,
+    ): Promise<BuilderPaymentMethod> {
+      requireCommissionModel();
+      const validated = requireKnownPaymentMethod(method);
+      const row = await db.query.builders.findFirst({
+        where: eq(builders.tenantKey, tenantKey),
+      });
+      if (row === undefined) {
+        throw new HttpError(
+          404,
+          ErrorCodes.NOT_FOUND,
+          `Builder not found: "${tenantKey}"`,
+        );
+      }
+      const settings = {
+        ...(row.settings ?? {}),
+        defaultPaymentMethod: validated,
+      };
+      await db
+        .update(builders)
+        .set({ settings, updatedAt: now() })
+        .where(eq(builders.tenantKey, tenantKey));
+      await audit.append({
+        tenantKey,
+        eventType: 'builder.default_payment_method_changed',
+        entityType: 'builder',
+        entityId: row.id,
+        payload: {
+          from: readDefaultPaymentMethod(row.settings),
+          to: validated,
+        },
+      });
+      return validated;
+    },
+
+    async setInvoicePaymentMethod(
+      tenantKey: string,
+      invoiceId: string,
+      method: BuilderPaymentMethod,
+    ): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      const validated = requireKnownPaymentMethod(method);
+      const row = await requireInvoice(invoiceId);
+      if (row.tenantKey !== tenantKey) {
+        throw new HttpError(
+          403,
+          ErrorCodes.FORBIDDEN,
+          'This invoice belongs to a different builder.',
+        );
+      }
+      const status = row.status as CommissionInvoiceStatus;
+      // Unpaid invoices only: a settled/void invoice is never repriced or
+      // re-routed, a disputed invoice is frozen, and a finalized invoice
+      // owns an in-flight Stripe PaymentIntent this path cannot cancel.
+      if (
+        status !== 'draft' &&
+        status !== 'in_review' &&
+        status !== 'failed'
+      ) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${status}' — the payment method can only change while the invoice is unpaid (draft, in_review, failed)`,
+        );
+      }
+      const from = row.paymentMethod as BuilderPaymentMethod;
+      if (from === validated) {
+        // Idempotent: same method is a no-op (still returns the record).
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+      }
+      // Conditional update on the current status — a concurrent
+      // transition (e.g. the timer finalizing this invoice) surfaces as
+      // 409 instead of silently re-routing a charge.
+      const [updated] = await db
+        .update(commissionInvoices)
+        .set({ paymentMethod: validated, updatedAt: now() })
+        .where(
+          and(
+            eq(commissionInvoices.id, invoiceId),
+            eq(commissionInvoices.status, status),
+          ),
+        )
+        .returning();
+      if (updated === undefined) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
+        );
+      }
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
+      await audit.append({
+        tenantKey: record.tenantKey,
+        eventType: 'invoice.payment_method_changed',
+        entityType: 'commission_invoice',
+        entityId: record.id,
+        payload: {
+          from,
+          to: validated,
+          // Switching to manual pauses the Stripe auto-charge; back to
+          // card re-arms it. The audit row makes the pause visible.
+          autoChargePaused: validated !== 'card',
+        },
+      });
+      return record;
     },
 
     async listInvoices(

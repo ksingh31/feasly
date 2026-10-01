@@ -5,7 +5,10 @@
  * in-review commission invoice whose review window has passed and which is
  * NOT disputed, finalize → create the off-session PaymentIntent against the
  * saved card. Disputed rows are skipped — the dispute froze the charge
- * clock until a human resolves it.
+ * clock until a human resolves it. Invoices whose paymentMethod is manual
+ * (billing/12: cheque, e-transfer, bank draft) are skipped too — choosing
+ * a manual method pauses the auto-charge until staff marks the invoice
+ * paid.
  *
  * Never lets one bad invoice kill the batch: per-invoice errors are
  * collected and returned (the timer logs aggregates, never PII).
@@ -45,6 +48,9 @@ export function createInvoiceReviewerService(
         return { finalized: 0, skipped: 0, failed: 0, errors: [] };
       }
       const due = await commission.findDueReviews(reviewNow);
+      // billing/12: manual-method invoices are skipped by findDueReviews
+      // (no auto-charge, no card retry) — count them for observability.
+      const skipped = await commission.countSkippedManualReviews(reviewNow);
       let finalized = 0;
       let failed = 0;
       const errors: Array<{ invoiceId: string; message: string }> = [];
@@ -68,10 +74,10 @@ export function createInvoiceReviewerService(
         eventType: 'reviewer.cycle_completed',
         entityType: 'invoice_reviewer',
         entityId: `cycle-${reviewNow.toISOString()}`,
-        payload: { finalized, skipped: 0, failed, due: due.length },
+        payload: { finalized, skipped, failed, due: due.length },
       });
 
-      return { finalized, skipped: 0, failed, errors };
+      return { finalized, skipped, failed, errors };
     },
   };
 }

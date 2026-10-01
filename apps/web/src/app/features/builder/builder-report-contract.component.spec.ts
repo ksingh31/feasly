@@ -61,6 +61,8 @@ const INVOICE: CommissionInvoice = {
   commissionRateOverride: null,
   manualPaymentMethod: null,
   paymentReference: null,
+  invoiceNumber: 'INV-0001',
+  paymentMethod: 'card',
   commissionRatePercent: 1,
   effectiveRatePercent: 1,
   createdAt: '2026-09-29T10:00:00.000Z',

@@ -302,6 +302,9 @@ describe('commission service', () => {
     );
     const record = await attribution.getById(attributionId);
     // Raw inserts bypassing the service: the constraint itself must hold.
+    // billing/12: invoice_number is NOT NULL, so each raw insert gets a
+    // synthetic number (the duplicate insert keeps the same attribution
+    // but needs a distinct invoice number).
     const values = {
       id: randomUUID(),
       tenantKey: 'db-backstop-builder',
@@ -309,12 +312,13 @@ describe('commission service', () => {
       leadId: record.leadId,
       contractValueCents: 50_000_000,
       commissionCents: 500_000,
+      invoiceNumber: 'INV-TEST-DUP-1',
     };
     await testDb.db.insert(commissionInvoices).values(values);
     await expect(
       testDb.db
         .insert(commissionInvoices)
-        .values({ ...values, id: randomUUID() }),
+        .values({ ...values, id: randomUUID(), invoiceNumber: 'INV-TEST-DUP-2' }),
     ).rejects.toThrow();
   });
 
@@ -1582,5 +1586,336 @@ describe('setCommissionRate', () => {
       contractValueCents: 50_000_000,
       adminEmail: 'karanbirsingh667@gmail.com',
     });
+  });
+});
+
+describe('builder payment methods (billing/12)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  /** Seed a builders row (the tenant row must already exist). */
+  async function seedBuilder(
+    tenantKey: string,
+    settings?: Record<string, unknown>,
+  ): Promise<void> {
+    await testDb.db
+      .insert(builders)
+      .values({
+        id: randomUUID(),
+        tenantKey,
+        businessName: `${tenantKey} Ltd.`,
+        displayName: tenantKey,
+        ...(settings === undefined ? {} : { settings }),
+      })
+      .onConflictDoNothing();
+  }
+
+  /** Seed a tenant + attribution and create one draft invoice. */
+  async function seedDraftInvoice(tenantKey: string) {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, tenantKey);
+    const attributionId = await seedAttribution(testDb, attribution, tenantKey);
+    const invoice = await commission.createDraftInvoice(attributionId);
+    return { commission, attribution, invoice };
+  }
+
+  it('assigns the first invoice number INV-0001 in INV-NNNN format', async () => {
+    const { invoice } = await seedDraftInvoice('paynum-builder-1');
+    expect(invoice.invoiceNumber).toBe('INV-0001');
+    expect(invoice.paymentMethod).toBe('card');
+  });
+
+  it('invoice numbers are sequential and distinct across invoices', async () => {
+    const a = await seedDraftInvoice('paynum-builder-2');
+    const b = await seedDraftInvoice('paynum-builder-3');
+    expect(a.invoice.invoiceNumber).toBe('INV-0002');
+    expect(b.invoice.invoiceNumber).toBe('INV-0003');
+    expect(b.invoice.invoiceNumber).toMatch(/^INV-\d{4,}$/);
+  });
+
+  it("defaults the builder default and new invoices to 'card'", async () => {
+    const { commission } = newServices(testDb);
+    // No builders row at all → 'card'.
+    await seedTenant(testDb, 'paydef-builder-1');
+    expect(await commission.getDefaultPaymentMethod('paydef-builder-1')).toBe(
+      'card',
+    );
+    // Builders row without a settings.defaultPaymentMethod → 'card'.
+    await seedTenant(testDb, 'paydef-builder-2');
+    await seedBuilder('paydef-builder-2');
+    expect(await commission.getDefaultPaymentMethod('paydef-builder-2')).toBe(
+      'card',
+    );
+  });
+
+  it('new invoices inherit the builder default payment method', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'paydef-builder-3');
+    await seedBuilder('paydef-builder-3', {
+      defaultPaymentMethod: 'cheque',
+    });
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'paydef-builder-3',
+    );
+    const invoice = await commission.createDraftInvoice(attributionId);
+    expect(invoice.paymentMethod).toBe('cheque');
+  });
+
+  it('a later default change does not rewrite existing invoices', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'paydef-builder-4');
+    await seedBuilder('paydef-builder-4');
+    await commission.setDefaultPaymentMethod('paydef-builder-4', 'cheque');
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'paydef-builder-4',
+    );
+    const first = await commission.createDraftInvoice(attributionId);
+
+    await commission.setDefaultPaymentMethod('paydef-builder-4', 'bank_draft');
+
+    // Existing invoice keeps the method it was created with...
+    expect((await commission.getById(first.id)).paymentMethod).toBe('cheque');
+    // ...but the next invoice picks up the new default.
+    const attributionId2 = await seedAttribution(
+      testDb,
+      attribution,
+      'paydef-builder-4',
+    );
+    const second = await commission.createDraftInvoice(attributionId2);
+    expect(second.paymentMethod).toBe('bank_draft');
+  });
+
+  it('setDefaultPaymentMethod persists, returns the method, and audits from → to', async () => {
+    const { commission } = newServices(testDb);
+    await seedTenant(testDb, 'paydef-builder-5');
+    await seedBuilder('paydef-builder-5');
+
+    const result = await commission.setDefaultPaymentMethod(
+      'paydef-builder-5',
+      'e_transfer',
+    );
+    expect(result).toBe('e_transfer');
+    expect(await commission.getDefaultPaymentMethod('paydef-builder-5')).toBe(
+      'e_transfer',
+    );
+
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.eventType, 'builder.default_payment_method_changed'),
+          eq(billingEvents.tenantKey, 'paydef-builder-5'),
+        ),
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload as Record<string, unknown>).toMatchObject({
+      from: 'card',
+      to: 'e_transfer',
+    });
+  });
+
+  it('400s on an unknown default method, 404s when the builder row is missing', async () => {
+    const { commission } = newServices(testDb);
+    await seedTenant(testDb, 'paydef-builder-6');
+    await seedBuilder('paydef-builder-6');
+    await expect(
+      commission.setDefaultPaymentMethod(
+        'paydef-builder-6',
+        'bitcoin' as 'card',
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+    await expect(
+      commission.setDefaultPaymentMethod('no-such-builder', 'cheque'),
+    ).rejects.toMatchObject({ status: 404, code: ErrorCodes.NOT_FOUND });
+  });
+
+  it('changes the payment method on a draft invoice and audits the change', async () => {
+    const { commission, invoice } =
+      await seedDraftInvoice('payinv-builder-1');
+
+    const updated = await commission.setInvoicePaymentMethod(
+      'payinv-builder-1',
+      invoice.id,
+      'e_transfer',
+    );
+    expect(updated.paymentMethod).toBe('e_transfer');
+
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.entityId, invoice.id),
+          eq(billingEvents.eventType, 'invoice.payment_method_changed'),
+        ),
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload as Record<string, unknown>).toMatchObject({
+      from: 'card',
+      to: 'e_transfer',
+      autoChargePaused: true,
+    });
+  });
+
+  it('is a no-op when the method is unchanged (no audit row)', async () => {
+    const { commission, invoice } =
+      await seedDraftInvoice('payinv-builder-2');
+
+    const updated = await commission.setInvoicePaymentMethod(
+      'payinv-builder-2',
+      invoice.id,
+      'card',
+    );
+    expect(updated.paymentMethod).toBe('card');
+
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.entityId, invoice.id),
+          eq(billingEvents.eventType, 'invoice.payment_method_changed'),
+        ),
+      );
+    expect(events).toHaveLength(0);
+  });
+
+  it("400s on an unknown method, 403s for another tenant's invoice, 404s for an unknown invoice", async () => {
+    const { commission, invoice } =
+      await seedDraftInvoice('payinv-builder-3');
+    await seedTenant(testDb, 'payinv-builder-4');
+
+    await expect(
+      commission.setInvoicePaymentMethod(
+        'payinv-builder-3',
+        invoice.id,
+        'bitcoin' as 'card',
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+    await expect(
+      commission.setInvoicePaymentMethod(
+        'payinv-builder-4',
+        invoice.id,
+        'cheque',
+      ),
+    ).rejects.toMatchObject({ status: 403, code: ErrorCodes.FORBIDDEN });
+    await expect(
+      commission.setInvoicePaymentMethod(
+        'payinv-builder-3',
+        randomUUID(),
+        'cheque',
+      ),
+    ).rejects.toMatchObject({ status: 404, code: ErrorCodes.NOT_FOUND });
+  });
+
+  it('409s once the invoice is finalized, paid, or disputed', async () => {
+    const { commission, invoice } =
+      await seedDraftInvoice('payinv-builder-5');
+    const inReview = await commission.submitForReview(invoice.id);
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    await expect(
+      commission.setInvoicePaymentMethod(
+        'payinv-builder-5',
+        finalized.id,
+        'cheque',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
+
+    const { commission: commission2, invoice: invoice2 } =
+      await seedDraftInvoice('payinv-builder-6');
+    const inReview2 = await commission2.submitForReview(invoice2.id);
+    const disputed = await commission2.disputeInvoice(
+      inReview2.id,
+      'prior relationship claim',
+    );
+    await expect(
+      commission2.setInvoicePaymentMethod(
+        'payinv-builder-6',
+        disputed.id,
+        'cheque',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
+  });
+
+  it('findDueReviews skips manual-method invoices — the timer never auto-charges them', async () => {
+    const { commission, attribution } = newServices(testDb);
+    // Manual-method invoice: default set BEFORE creation.
+    await seedTenant(testDb, 'payskip-builder-1');
+    await seedBuilder('payskip-builder-1', {
+      defaultPaymentMethod: 'cheque',
+    });
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'payskip-builder-1',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+
+    // Card invoice for comparison.
+    await seedTenant(testDb, 'payskip-builder-2');
+    const attributionId2 = await seedAttribution(
+      testDb,
+      attribution,
+      'payskip-builder-2',
+    );
+    const draft2 = await commission.createDraftInvoice(attributionId2);
+    const inReview2 = await commission.submitForReview(draft2.id);
+
+    const pastDue = new Date('2026-12-01T00:00:00.000Z');
+    const due = await commission.findDueReviews(pastDue);
+    expect(due.find((i) => i.id === inReview.id)).toBeUndefined();
+    expect(due.find((i) => i.id === inReview2.id)).toBeDefined();
+    expect(await commission.countSkippedManualReviews(pastDue)).toBe(1);
+  });
+
+  it('switching a manual invoice back to card re-arms the auto-charge', async () => {
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, 'payskip-builder-3');
+    await seedBuilder('payskip-builder-3', {
+      defaultPaymentMethod: 'e_transfer',
+    });
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      'payskip-builder-3',
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+
+    const pastDue = new Date('2026-12-01T00:00:00.000Z');
+    expect(
+      (await commission.findDueReviews(pastDue)).find(
+        (i) => i.id === inReview.id,
+      ),
+    ).toBeUndefined();
+
+    // in_review is an allowed state for the change.
+    const rearmed = await commission.setInvoicePaymentMethod(
+      'payskip-builder-3',
+      inReview.id,
+      'card',
+    );
+    expect(rearmed.paymentMethod).toBe('card');
+    const due = await commission.findDueReviews(pastDue);
+    expect(due.find((i) => i.id === inReview.id)).toBeDefined();
   });
 });

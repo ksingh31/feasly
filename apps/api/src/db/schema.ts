@@ -870,6 +870,24 @@ export const commissionInvoices = pgTable(
     manualPaymentMethod: text('manual_payment_method'),
     /** Cheque/trace number for a manual payment. Null otherwise. */
     paymentReference: text('payment_reference'),
+    /**
+     * Human-readable invoice number (billing/12): `INV-` + zero-padded
+     * sequence, min 4 digits (INV-0001, INV-0002, …). Assigned at
+     * creation from `commission_invoice_number_seq`; migration 0046
+     * backfilled existing rows in `created_at` order. Shown in the
+     * builder portal.
+     */
+    invoiceNumber: text('invoice_number').notNull().unique(),
+    /**
+     * How this invoice gets paid (billing/12): 'card' = the normal
+     * Stripe off-session auto-charge; anything else (cheque,
+     * e_transfer, bank_draft) = manual — the invoice-reviewer timer
+     * skips it and it sits until staff marks it paid via the existing
+     * admin mark-paid flow. Snapshot of the builder org's
+     * `defaultPaymentMethod` at creation; changeable per invoice while
+     * the invoice is unpaid.
+     */
+    paymentMethod: text('payment_method').notNull().default('card'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

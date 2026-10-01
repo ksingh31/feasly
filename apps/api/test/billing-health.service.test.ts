@@ -101,6 +101,10 @@ function makeService(model: 'commission' | 'flat'): BillingHealthService {
   });
 }
 
+// billing/12: invoice_number is NOT NULL — seeded rows get synthetic
+// numbers in creation order.
+let testDbInvoiceSeq = 1;
+
 async function seedParents(): Promise<{
   attributionId: string;
   leadId: string;
@@ -185,6 +189,10 @@ async function seedInvoice(
     paidAt: seed.paidAt ?? null,
     createdAt: seed.createdAt,
     updatedAt: seed.updatedAt ?? seed.createdAt,
+    // billing/12: invoice_number is NOT NULL — seeded rows get synthetic
+    // numbers in creation order (the sequence starts at 1 in tests, so
+    // these stay clear of service-created invoices).
+    invoiceNumber: `INV-TEST-${String(testDbInvoiceSeq++).padStart(4, '0')}`,
   });
   return id;
 }
