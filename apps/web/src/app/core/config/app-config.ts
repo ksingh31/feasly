@@ -242,6 +242,11 @@ export interface BuilderCopy {
   teamRemoveLabel: string;
   teamRemoving: string;
   teamDeactivating: string;
+  /** Builder-side view-as (2026-09-30, Karan): row action + error copy. */
+  teamViewAsLabel: string;
+  teamViewAsStarting: string;
+  teamViewAsError: string;
+  teamViewAsForbidden: string;
   teamDeactivateConfirm: string;
   teamRemoveConfirm: string;
   /** auth/07: explainer shown under the disabled role select / Deactivate

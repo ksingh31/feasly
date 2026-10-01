@@ -84,6 +84,11 @@ describe('builder auth route — bearer conformance (embed/09)', () => {
       email: 'builder@example.com',
       tenantKey: 'elite-craft',
       role: null,
+      // Builder-side view-as display state (2026-09-30, Karan): null when
+      // the session is not viewing-as.
+      viewAs: null,
+      viewAsDisplayName: null,
+      realEmail: null,
     });
     expect(builderAuth.validateSession).toHaveBeenCalledWith('bearer-tok');
     expect(permissionGuard.getAuthContext).toHaveBeenCalledWith({

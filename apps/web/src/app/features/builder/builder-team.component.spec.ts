@@ -16,11 +16,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Store } from '@ngxs/store';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BuilderTeamComponent } from './builder-team.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
+import { ActivateBuilderViewAs } from './builder.actions';
 import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { BuilderTeamState } from './builder-team.state';
 import { BuilderState } from './builder.state';
@@ -97,14 +98,31 @@ function setup(opts: {
   actionError?: boolean;
   actionErrorUserId?: string | null;
   actionErrorMessage?: string | null;
+  canInitiateViewAs?: boolean;
+  viewAsBusy?: boolean;
+  viewAsError?: 'forbidden' | 'failed' | null;
+  sessionEmail?: string;
+  /**
+   * When true, the mock dispatch of `ActivateBuilderViewAs` returns a
+   * pending Subject (exposed via the returned `viewAsPending` array) so
+   * the test can hold the per-row busy state, then complete it to land
+   * the error. Avoids timing races: Subject completion is synchronous.
+   */
+  deferredViewAs?: boolean;
 } = {}) {
   const isAdmin = opts.isAdmin ?? true;
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn() };
   const dispatched: unknown[] = [];
+  const viewAsPending: Subject<unknown>[] = [];
   const store = {
     dispatch: vi.fn((action: unknown) => {
       dispatched.push(action);
+      if (opts.deferredViewAs && action instanceof ActivateBuilderViewAs) {
+        const pending = new Subject<unknown>();
+        viewAsPending.push(pending);
+        return pending.asObservable();
+      }
       return of(null);
     }),
     selectSignal: vi.fn((selector: unknown) => {
@@ -124,6 +142,15 @@ function setup(opts: {
       if (selector === BuilderTeamState.updatingUserId) return () => null;
       if (selector === BuilderState.activeBuilderName) return () => 'Acme Builders';
       if (selector === BuilderState.isBuilderAdmin) return () => isAdmin;
+      // Builder-side view-as (2026-09-30, Karan).
+      if (selector === BuilderState.canInitiateViewAs)
+        return () => opts.canInitiateViewAs ?? isAdmin;
+      if (selector === BuilderState.viewAsBusy)
+        return () => opts.viewAsBusy ?? false;
+      if (selector === BuilderState.viewAsError)
+        return () => opts.viewAsError ?? null;
+      if (selector === BuilderState.session)
+        return () => ({ email: opts.sessionEmail ?? 'admin@example.com' });
       return () => undefined;
     }),
     selectSnapshot: vi.fn((selector: unknown) => {
@@ -150,7 +177,7 @@ function setup(opts: {
   const fixture: ComponentFixture<BuilderTeamComponent> =
     TestBed.createComponent(BuilderTeamComponent);
   fixture.detectChanges();
-  return { fixture, dispatched };
+  return { fixture, dispatched, viewAsPending };
 }
 
 function openInviteModal(fixture: ComponentFixture<BuilderTeamComponent>) {
@@ -670,5 +697,90 @@ describe('BuilderTeamComponent (auth/07 — last-admin protection)', () => {
     expect(
       rowFor(fixture, 1).querySelector('.builder-team__note--error'),
     ).toBeNull();
+  });
+});
+
+describe('BuilderTeamComponent (builder-side view-as, 2026-09-30)', () => {
+  const VIEW_AS_USERS: BuilderTeamUser[] = [
+    { id: 'u1', name: 'Alice Admin', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+    { id: 'u2', name: 'Bob Member', email: 'bob@example.com', role: 'builder_member', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+    { id: 'u3', name: 'Cara Invited', email: 'cara@example.com', role: 'builder_member', status: 'invited', createdAt: '2026-09-28T00:00:00.000Z' },
+    { id: 'u4', name: 'Dan Off', email: 'dan@example.com', role: 'builder_member', status: 'deactivated', createdAt: '2026-09-28T00:00:00.000Z' },
+    { id: 'u5', name: 'Self Admin', email: 'admin@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+  ];
+
+  function rowFor(fixture: ComponentFixture<BuilderTeamComponent>, index: number): HTMLElement {
+    return fixture.nativeElement.querySelectorAll('tbody tr')[index];
+  }
+
+  function viewAsButtons(fixture: ComponentFixture<BuilderTeamComponent>): HTMLButtonElement[] {
+    return (
+      Array.from(
+        fixture.nativeElement.querySelectorAll('tbody tr button'),
+      ) as HTMLButtonElement[]
+    ).filter((b) =>
+      /View as|Starting…/.test(b.textContent ?? ''),
+    );
+  }
+
+  it('shows "View as" only on eligible rows (active members, not admins, not self)', () => {
+    const { fixture } = setup({ users: VIEW_AS_USERS });
+    // Bob (u2) is the only eligible row: Alice and Self are admins, Cara
+    // is invited, Dan is deactivated.
+    const buttons = viewAsButtons(fixture);
+    expect(buttons).toHaveLength(1);
+    expect(rowFor(fixture, 1).contains(buttons[0])).toBe(true);
+  });
+
+  it('hides "View as" when the session cannot initiate', () => {
+    const { fixture } = setup({ users: VIEW_AS_USERS, canInitiateViewAs: false });
+    expect(viewAsButtons(fixture)).toHaveLength(0);
+  });
+
+  it('dispatches ActivateBuilderViewAs with the row user id', () => {
+    const { fixture, dispatched } = setup({ users: VIEW_AS_USERS });
+    const buttons = viewAsButtons(fixture);
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    // ngOnInit also dispatches LoadBuilderTeam — the view-as dispatch is
+    // the last one.
+    expect(dispatched).toHaveLength(2);
+    const action = dispatched[dispatched.length - 1] as ActivateBuilderViewAs;
+    expect(action).toBeInstanceOf(ActivateBuilderViewAs);
+    expect(action.userId).toBe('u2');
+  });
+
+  it('shows the busy copy on the targeted row while starting', () => {
+    // viewAsBusy stays false here so the button is clickable; the per-row
+    // "Starting…" copy is driven by viewAsStartingUserId, which holds while
+    // the (deferred) dispatch is pending.
+    const { fixture } = setup({ users: VIEW_AS_USERS, deferredViewAs: true });
+    const buttons = viewAsButtons(fixture);
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    fixture.detectChanges();
+    const refreshed = viewAsButtons(fixture);
+    expect(refreshed).toHaveLength(1);
+    expect(refreshed[0].textContent).toContain('Starting…');
+  });
+
+  it('renders the failure note inline on the targeted row', () => {
+    const { fixture, viewAsPending } = setup({
+      users: VIEW_AS_USERS,
+      viewAsError: 'failed',
+      deferredViewAs: true,
+    });
+    viewAsButtons(fixture)[0].click();
+    fixture.detectChanges();
+    // Complete the mocked dispatch: busy clears, the failure anchors to
+    // the row via viewAsLastTargetUserId (never a generic banner).
+    viewAsPending[0].next(null);
+    viewAsPending[0].complete();
+    fixture.detectChanges();
+    const note = rowFor(fixture, 1).querySelector('.builder-team__note--error');
+    expect(note).not.toBeNull();
+    expect(note?.textContent).toContain('Could not start viewing as this member');
+    // Other rows stay clean.
+    expect(rowFor(fixture, 0).querySelector('.builder-team__note--error')).toBeNull();
   });
 });

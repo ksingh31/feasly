@@ -17,8 +17,11 @@ import { BuilderAuthApiService } from './builder-auth-api.service';
 import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import {
+  ActivateBuilderViewAs,
   ClearBuilderState,
+  ClearBuilderViewAsError,
   CompleteBuilderEntraSignIn,
+  ExitBuilderViewAs,
   FailBuilderEntraSignIn,
   LoadBuilderLeads,
   LoadBuilderMemberships,
@@ -27,6 +30,7 @@ import {
   SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
 } from './builder.actions';
+import { BuilderViewAsApiService } from './builder-view-as-api.service';
 
 /** Auth lifecycle for the builder portal. */
 export type BuilderAuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
@@ -70,6 +74,16 @@ export interface BuilderStateModel {
   updatingLeadId: string | null;
   /** Last lead-update failure: 'forbidden' | 'failed' | null. */
   updateError: string | null;
+  /**
+   * Builder-side view-as (2026-09-30, Karan): true while an activate/exit
+   * request is in flight. Memory-only.
+   */
+  viewAsBusy: boolean;
+  /**
+   * Last view-as failure: 'forbidden' | 'failed' | null. The backend is
+   * authoritative — this is display only.
+   */
+  viewAsError: 'forbidden' | 'failed' | null;
 }
 
 export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
@@ -95,6 +109,8 @@ const defaults: BuilderStateModel = {
   leadsStatus: 'idle',
   updatingLeadId: null,
   updateError: null,
+  viewAsBusy: false,
+  viewAsError: null,
 };
 
 /**
@@ -120,6 +136,7 @@ export class BuilderState {
   private readonly authApi = inject(BuilderAuthApiService);
   private readonly entraAuth = inject(BuilderEntraAuthService);
   private readonly leadsApi = inject(BuilderLeadsApiService);
+  private readonly viewAsApi = inject(BuilderViewAsApiService);
 
   @Selector()
   static session(state: BuilderStateModel): BuilderSessionIdentity | null {
@@ -228,6 +245,45 @@ export class BuilderState {
     return state.leadsStatus === 'error';
   }
 
+  /**
+   * Builder-side view-as banner model (2026-09-30, Karan). Null when the
+   * session is not viewing-as. `displayName` is null when the target no
+   * longer resolves — the banner then shows "no longer available" copy
+   * with an exit.
+   */
+  @Selector()
+  static viewAsBanner(
+    state: BuilderStateModel,
+  ): { displayName: string | null; realEmail: string | null } | null {
+    const session = state.session;
+    if (!session?.viewAs) return null;
+    return {
+      displayName: session.viewAsDisplayName,
+      realEmail: session.realEmail,
+    };
+  }
+
+  /**
+   * True when the signed-in user may initiate view-as: a builder_admin
+   * who is not already viewing-as. The backend enforces this too (the
+   * borrowed view strips `view_as`, so a viewed-as session can never
+   * chain) — this is display-only gating for the Team page button.
+   */
+  @Selector()
+  static canInitiateViewAs(state: BuilderStateModel): boolean {
+    return state.session?.role === 'builder_admin' && !state.session?.viewAs;
+  }
+
+  @Selector()
+  static viewAsBusy(state: BuilderStateModel): boolean {
+    return state.viewAsBusy;
+  }
+
+  @Selector()
+  static viewAsError(state: BuilderStateModel): 'forbidden' | 'failed' | null {
+    return state.viewAsError;
+  }
+
   @Action(LoadBuilderSession)
   loadBuilderSession(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.authApi.me().pipe(
@@ -289,6 +345,9 @@ export class BuilderState {
         builderName: null,
         role: null,
         memberships: action.memberships,
+        viewAs: null,
+        viewAsDisplayName: null,
+        realEmail: null,
       },
       memberships: action.memberships,
       authStatus: 'authenticated',
@@ -443,4 +502,66 @@ export class BuilderState {
   clearBuilderState(ctx: StateContext<BuilderStateModel>): void {
     ctx.setState({ ...defaults });
   }
+
+  // ------------------------------------------------------------------
+  // Builder-side view-as (2026-09-30, Karan).
+  //
+  // Activation re-probes the session after success so the state flips to
+  // the TARGET's view (role, org, banner). Exit re-probes too, restoring
+  // the real admin's view. Both are display-only flips — the backend
+  // resolves every permission from the session's view-as state.
+  // ------------------------------------------------------------------
+
+  @Action(ActivateBuilderViewAs)
+  activateBuilderViewAs(
+    ctx: StateContext<BuilderStateModel>,
+    action: ActivateBuilderViewAs,
+  ): Observable<unknown> {
+    ctx.patchState({ viewAsBusy: true, viewAsError: null });
+    return this.viewAsApi.activateViewAs(action.userId).pipe(
+      tap(() => {
+        ctx.patchState({ viewAsBusy: false });
+        ctx.dispatch(new LoadBuilderSession());
+      }),
+      catchError((error: unknown) => {
+        ctx.patchState({
+          viewAsBusy: false,
+          viewAsError: viewAsErrorKind(error),
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(ExitBuilderViewAs)
+  exitBuilderViewAs(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    ctx.patchState({ viewAsBusy: true, viewAsError: null });
+    return this.viewAsApi.exitViewAs().pipe(
+      tap(() => {
+        ctx.patchState({ viewAsBusy: false });
+        ctx.dispatch(new LoadBuilderSession());
+      }),
+      catchError((error: unknown) => {
+        ctx.patchState({
+          viewAsBusy: false,
+          viewAsError: viewAsErrorKind(error),
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(ClearBuilderViewAsError)
+  clearBuilderViewAsError(ctx: StateContext<BuilderStateModel>): void {
+    ctx.patchState({ viewAsError: null });
+  }
+}
+
+/** Maps an API failure to the view-as error bucket (display only). */
+function viewAsErrorKind(error: unknown): 'forbidden' | 'failed' {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { code: unknown }).code
+      : null;
+  return code === 'FORBIDDEN' ? 'forbidden' : 'failed';
 }

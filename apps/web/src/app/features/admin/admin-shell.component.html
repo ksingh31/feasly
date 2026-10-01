@@ -26,7 +26,7 @@
       <button type="button" (click)="signOut()">Sign out</button>
     </nav>
   </header>
-  <app-view-as-banner />
+  <app-view-as-banner [banner]="viewAsBanner()" (exit)="exitViewAs()" />
   <main class="admin-shell__main">
     <router-outlet />
   </main>

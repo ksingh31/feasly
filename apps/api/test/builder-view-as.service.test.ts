@@ -72,6 +72,7 @@ function sessionRecord(
     userId: 'user-builder-admin',
     viewAs: null,
     sessionTokenHash: HASH,
+    idToken: null,
     revokedAt: null,
     expiresAt: new Date(NOW.getTime() + 7 * 24 * 3600 * 1000),
     createdAt: NOW,

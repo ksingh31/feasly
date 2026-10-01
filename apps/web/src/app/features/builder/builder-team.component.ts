@@ -5,6 +5,7 @@ import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { BUILDER_COPY } from './builder-copy';
+import { ActivateBuilderViewAs } from './builder.actions';
 import { BuilderState } from './builder.state';
 import {
   BuilderTeamState,
@@ -88,6 +89,29 @@ export class BuilderTeamComponent implements OnInit {
    * can never surface manage controls to a builder_member.
    */
   protected readonly isBuilderAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
+
+  /**
+   * Builder-side view-as (2026-09-30, Karan): true for a builder_admin
+   * who is not already viewing-as. The "View as" row buttons render only
+   * behind this — the backend enforces the same rules (plus the #394
+   * admin-target lockdown) regardless of what the UI shows.
+   */
+  protected readonly canInitiateViewAs = this.store.selectSignal(
+    BuilderState.canInitiateViewAs,
+  );
+  /** True while a view-as activate/exit request is in flight. */
+  protected readonly viewAsBusy = this.store.selectSignal(BuilderState.viewAsBusy);
+  /** Last view-as failure bucket ('forbidden' | 'failed' | null). */
+  protected readonly viewAsError = this.store.selectSignal(BuilderState.viewAsError);
+  /** Id of the row whose view-as activation is in flight (per-row busy). */
+  protected readonly viewAsStartingUserId = signal<string | null>(null);
+  /**
+   * Id of the last row targeted by view-as — the failure note renders on
+   * this row (never as a generic banner).
+   */
+  protected readonly viewAsLastTargetUserId = signal<string | null>(null);
+  /** The signed-in session — used to exclude "view as yourself". */
+  protected readonly builderSession = this.store.selectSignal(BuilderState.session);
 
   readonly inviteForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -369,5 +393,56 @@ export class BuilderTeamComponent implements OnInit {
    */
   protected rowActionsDisabled(): boolean {
     return this.confirmAction !== null || this.updatingUserId() !== null;
+  }
+
+  /**
+   * Builder-side view-as eligibility (2026-09-30, Karan): only active
+   * members, never other administrators, never yourself. The backend
+   * re-checks everything (org scope + #394 admin-target lockdown) — this
+   * just keeps the button off rows it could never apply to.
+   */
+  protected canViewAs(user: BuilderTeamUser): boolean {
+    if (user.status !== 'active' || user.role !== 'builder_member') {
+      return false;
+    }
+    const selfEmail = this.builderSession()?.email?.toLowerCase() ?? null;
+    return selfEmail === null || user.email.toLowerCase() !== selfEmail;
+  }
+
+  /**
+   * Starts view-as for a team member. On success the shell's /me probe
+   * flips the portal to the member's view with the banner; on failure the
+   * row shows inline error copy.
+   */
+  protected viewAs(user: BuilderTeamUser): void {
+    this.viewAsStartingUserId.set(user.id);
+    this.viewAsLastTargetUserId.set(user.id);
+    this.store
+      .dispatch(new ActivateBuilderViewAs(user.id))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.viewAsStartingUserId.set(null);
+      });
+  }
+
+  /** Buyer-grade copy for the last view-as failure. */
+  protected viewAsErrorMessage(): string | null {
+    const error = this.viewAsError();
+    if (!error) return null;
+    return error === 'forbidden'
+      ? this.copy.teamViewAsForbidden
+      : this.copy.teamViewAsError;
+  }
+
+  /**
+   * View-as failures surface inline on the row they targeted, never as a
+   * generic banner.
+   */
+  protected showViewAsError(user: BuilderTeamUser): boolean {
+    return (
+      this.viewAsError() !== null &&
+      this.viewAsStartingUserId() === null &&
+      this.viewAsLastTargetUserId() === user.id
+    );
   }
 }

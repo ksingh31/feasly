@@ -74,3 +74,27 @@ export class SetBuilderActiveOrg {
 export class LoadBuilderMemberships {
   static readonly type = '[Builder] Load memberships';
 }
+
+// ------------------------------------------------------------------
+// Builder-side view-as (2026-09-30, Karan) — a builder_admin views the
+// portal as a regular team member of their own org.
+// ------------------------------------------------------------------
+
+/**
+ * Activates view-as for an org team member (userId). On success the
+ * session is re-probed so the state flips to the target's view + banner.
+ */
+export class ActivateBuilderViewAs {
+  static readonly type = '[Builder] Activate view-as';
+  constructor(public readonly userId: string) {}
+}
+
+/** Exits view-as on the current session (session-only — never requires `view_as`). */
+export class ExitBuilderViewAs {
+  static readonly type = '[Builder] Exit view-as';
+}
+
+/** Clears a stale view-as error (e.g. when the Team page reloads). */
+export class ClearBuilderViewAsError {
+  static readonly type = '[Builder] Clear view-as error';
+}

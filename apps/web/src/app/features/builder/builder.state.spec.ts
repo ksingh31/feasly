@@ -12,6 +12,7 @@ import {
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
+import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BuilderAuthMeResponse,
@@ -19,6 +20,8 @@ import type {
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
+  ActivateBuilderViewAs,
+  ExitBuilderViewAs,
   LoadBuilderLeads,
   LoadBuilderSession,
   LogoutBuilder,
@@ -33,6 +36,9 @@ const SESSION: BuilderAuthMeResponse = {
   email: 'builder@example.com',
   tenantKey: 'elite-craft',
   role: 'builder_admin',
+  viewAs: null,
+  viewAsDisplayName: null,
+  realEmail: null,
 };
 
 const LEADS_RESPONSE: BuilderLeadListResponse = {
@@ -307,5 +313,101 @@ describe('BuilderState (embed/09)', () => {
     expect(s.session?.role).toBe('builder_admin');
     expect(store.selectSnapshot(BuilderState.isBuilderAdmin)).toBe(true);
     httpMock.verify();
+  });
+
+  describe('builder-side view-as (2026-09-30, Karan)', () => {
+    function loadAdminSession(): Promise<void> {
+      const probe = store.dispatch(new LoadBuilderSession());
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me'))
+        .flush(SESSION);
+      return firstValueFrom(probe).then(() => undefined);
+    }
+
+    it('viewAsBanner is null when the session is not viewing-as', async () => {
+      await loadAdminSession();
+      expect(store.selectSnapshot(BuilderState.viewAsBanner)).toBeNull();
+      expect(store.selectSnapshot(BuilderState.canInitiateViewAs)).toBe(true);
+      httpMock.verify();
+    });
+
+    it('ActivateBuilderViewAs re-probes the session into the target view + banner', async () => {
+      await loadAdminSession();
+      const done = store.dispatch(new ActivateBuilderViewAs('user-1'));
+      expect(store.selectSnapshot(BuilderState.viewAsBusy)).toBe(true);
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url.endsWith('/api/v1/builder/view-as') && r.method === 'POST',
+        )
+        .flush({ active: true, target: { kind: 'user', id: 'user-1', displayName: 'Team Member' } });
+      // Activation re-probes /me so the state flips to the target's view.
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me'))
+        .flush({
+          ...SESSION,
+          email: 'member@example.com',
+          role: 'builder_member',
+          viewAs: { userId: 'user-1' },
+          viewAsDisplayName: 'Team Member',
+          realEmail: 'builder@example.com',
+        });
+      await done;
+
+      const banner = store.selectSnapshot(BuilderState.viewAsBanner);
+      expect(banner).toEqual({
+        displayName: 'Team Member',
+        realEmail: 'builder@example.com',
+      });
+      // The borrowed view is the member's: no view_as, no re-initiation.
+      expect(store.selectSnapshot(BuilderState.canInitiateViewAs)).toBe(false);
+      expect(store.selectSnapshot(BuilderState.viewAsBusy)).toBe(false);
+      expect(store.selectSnapshot(BuilderState.viewAsError)).toBeNull();
+      httpMock.verify();
+    });
+
+    it('ActivateBuilderViewAs surfaces a 403 as "forbidden"', async () => {
+      await loadAdminSession();
+      const done = store.dispatch(new ActivateBuilderViewAs('user-1'));
+      const req = httpMock.expectOne((r) =>
+        r.url.endsWith('/api/v1/builder/view-as'),
+      );
+      req.flush(
+        { message: 'Forbidden', code: 'FORBIDDEN' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+      await done;
+      expect(store.selectSnapshot(BuilderState.viewAsError)).toBe('forbidden');
+      expect(store.selectSnapshot(BuilderState.viewAsBusy)).toBe(false);
+      httpMock.verify();
+    });
+
+    it('ExitBuilderViewAs re-probes the session back to the real admin view', async () => {
+      await loadAdminSession();
+      const done = store.dispatch(new ExitBuilderViewAs());
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url.endsWith('/api/v1/builder/view-as') && r.method === 'DELETE',
+        )
+        .flush({ active: false });
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me'))
+        .flush(SESSION);
+      await done;
+      expect(store.selectSnapshot(BuilderState.viewAsBanner)).toBeNull();
+      expect(store.selectSnapshot(BuilderState.canInitiateViewAs)).toBe(true);
+      httpMock.verify();
+    });
+
+    it('canInitiateViewAs is false for builder_member sessions', async () => {
+      const probe = store.dispatch(new LoadBuilderSession());
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/builder/auth/me'))
+        .flush({ ...SESSION, role: 'builder_member' });
+      await probe;
+      expect(store.selectSnapshot(BuilderState.canInitiateViewAs)).toBe(false);
+      httpMock.verify();
+    });
   });
 });

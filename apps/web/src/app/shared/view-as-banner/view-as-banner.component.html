@@ -1,7 +1,11 @@
-@if (banner(); as viewAs) {
+@if (banner; as viewAs) {
   <div class="view-as-banner" role="status" aria-live="polite">
     <span class="view-as-banner__text">
-      Viewing as <strong>{{ viewAs.displayName }}</strong>
+      @if (viewAs.displayName) {
+        Viewing as <strong>{{ viewAs.displayName }}</strong>
+      } @else {
+        The account you were viewing is no longer available
+      }
       @if (viewAs.realEmail) {
         <span class="view-as-banner__real"
           >(signed in as {{ viewAs.realEmail }} — actions are logged)</span

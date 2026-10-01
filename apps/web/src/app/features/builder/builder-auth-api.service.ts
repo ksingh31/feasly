@@ -103,6 +103,11 @@ export class BuilderAuthApiService {
               builderName: null,
               role: response.role,
               memberships: [],
+              // Builder-side view-as display state (2026-09-30, Karan):
+              // set while the session is viewing-as an org team member.
+              viewAs: response.viewAs,
+              viewAsDisplayName: response.viewAsDisplayName,
+              realEmail: response.realEmail,
             }),
           ),
         ),
