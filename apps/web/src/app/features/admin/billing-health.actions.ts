@@ -83,7 +83,7 @@ export class DismissInvoiceFeedback {
  * state reloads the dashboard payload on success.
  */
 export class SetInvoicePlannedPaymentMethod {
-  static readonly type = '[BillingHealth] Set invoice planned payment method';
+  static readonly type = '[BillingHealth] Set invoice payment method';
   constructor(
     public readonly invoiceId: string,
     public readonly method: BuilderPaymentMethod,
