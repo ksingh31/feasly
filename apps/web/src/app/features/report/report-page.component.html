@@ -340,7 +340,7 @@
           <p class="form-success" role="status">{{ shareSentMessage() }}</p>
         }
         @if (shareStatus() === 'send-error') {
-          <p class="field-error" role="alert">{{ copy.shareError }}</p>
+          <p class="field-error" role="alert">{{ shareErrorMessage() }}</p>
         }
         @if (shareStatus() === 'token-error') {
           <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
