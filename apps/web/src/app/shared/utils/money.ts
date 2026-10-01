@@ -43,6 +43,15 @@ export function formatWholeCad(value: number): string {
 }
 
 /**
+ * Converts a dollar amount to integer cents (rounds the float).
+ * Centralizes the dollars→cents conversion so components never carry a
+ * magic 100 — the per-sqft rate on the report is a dollar float.
+ */
+export function dollarsToCents(dollars: number): number {
+  return Math.round(dollars * 100);
+}
+
+/**
  * Parses a CAD dollars string into integer cents with integer math only
  * (no float multiplication — "650000.50" -> 65000050, not 65000049.99…).
  *

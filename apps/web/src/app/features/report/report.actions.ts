@@ -67,3 +67,13 @@ export class ReviseReport {
 export class ClearReport {
   static readonly type = '[Report] Clear';
 }
+
+/**
+ * Next-steps checklist toggle (report page). The checked set is keyed by
+ * leadId in the state so progress persists per report — across reloads and
+ * across devices via the magic link — and resets when a new report loads.
+ */
+export class ToggleStep {
+  static readonly type = '[Report] Toggle step';
+  constructor(public readonly stepId: string) {}
+}
