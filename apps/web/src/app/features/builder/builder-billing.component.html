@@ -102,6 +102,70 @@
       }
     </section>
 
+    <section
+      class="builder-billing__panel"
+      aria-label="{{ copy.billingDefaultMethodTitle }}"
+    >
+      <h2 class="builder-billing__panel-title">
+        {{ copy.billingDefaultMethodTitle }}
+      </h2>
+      <p class="builder-billing__sub">{{ copy.billingDefaultMethodHelper }}</p>
+
+      @if (defaultMethodStatus() === 'loading') {
+        <div
+          class="builder-billing__skeleton"
+          role="status"
+          aria-label="{{ copy.billingLoading }}"
+        >
+          <span class="builder-billing__skeleton-line" aria-hidden="true"></span>
+          <span class="sr-only">{{ copy.billingLoading }}</span>
+        </div>
+      } @else if (defaultMethodStatus() === 'error') {
+        <div class="builder-billing__alert" role="alert">
+          <p>{{ copy.billingLoadError }}</p>
+          <button type="button" (click)="retryDefaultMethodLoad()">
+            {{ copy.retryLabel }}
+          </button>
+        </div>
+      } @else {
+        <div class="builder-billing__field">
+          <label for="builder-default-method">{{
+            copy.billingDefaultMethodLabel
+          }}</label>
+          <!-- [selected] on the option (not [value] on the select):
+               Angular evaluates the select binding before @for options
+               exist on first render, so it never takes effect;
+               option-level selectedness is order-safe. -->
+          <select
+            id="builder-default-method"
+            class="builder-billing__select"
+            (change)="onDefaultMethodChange($event)"
+            [disabled]="defaultMethodSaveStatus() === 'saving'"
+          >
+            @for (method of defaultMethodOptions(); track method) {
+              <option
+                [value]="method"
+                [selected]="defaultMethod() === method"
+                [disabled]="method === 'card' && isCardOptionDisabled()"
+              >
+                {{ defaultMethodOptionLabel(method) }}
+              </option>
+            }
+          </select>
+        </div>
+
+        @if (defaultMethodSaveStatus() === 'error') {
+          <div class="builder-billing__alert" role="alert">
+            <p>{{ copy.billingDefaultMethodSaveFailed }}</p>
+          </div>
+        } @else if (defaultMethodSaved()) {
+          <p class="builder-billing__success" role="status">
+            {{ defaultMethodSavedText() }}
+          </p>
+        }
+      }
+    </section>
+
     @if (saveSuccess()) {
       <p class="builder-billing__success" role="status">
         {{ copy.billingCardSaved }}

@@ -7,6 +7,7 @@ import type {
   CommissionRateResponse,
   SetupIntentResponse,
 } from '@feasly/contracts';
+import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -41,6 +42,15 @@ export type ReportContractResult =
         | 'flat_subscription_covers'
         | 'awaiting_contract_details';
     };
+
+/**
+ * GET /api/v1/billing/payment-method — the builder's default payment
+ * method for new invoices (billing/12). `{ defaultMethod: 'card' }`
+ * when nothing was chosen yet.
+ */
+export interface DefaultPaymentMethodResponse {
+  readonly defaultMethod: BuilderPaymentMethod;
+}
 
 /**
  * Builder billing API client (billing/02, BILL-02).
@@ -126,6 +136,35 @@ export class BuilderBillingApiService {
     return this.call(
       this.http.get<CommissionRateResponse>(
         `${this.billingBase}/commission-rate`,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * The builder's default payment method for new invoices (billing/12).
+   * New invoices inherit it at creation server-side.
+   */
+  getDefaultPaymentMethod(): Observable<DefaultPaymentMethodResponse> {
+    return this.call(
+      this.http.get<DefaultPaymentMethodResponse>(
+        `${this.billingBase}/payment-method`,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * Change the builder's default payment method (billing/12). Applies
+   * to invoices created after the change; existing invoices keep theirs.
+   */
+  setDefaultPaymentMethod(
+    method: BuilderPaymentMethod,
+  ): Observable<DefaultPaymentMethodResponse> {
+    return this.call(
+      this.http.put<DefaultPaymentMethodResponse>(
+        `${this.billingBase}/payment-method`,
+        { method },
         { withCredentials: true },
       ),
     );

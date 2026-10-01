@@ -2,6 +2,8 @@
 // language (design pass, 2026-09-28): panel container, underline tabs,
 // white-card panels, stat facts, alert/error states. Uses the shared
 // --color-* tokens; no new shared components.
+@use '../../shared/form-controls' as *;
+
 .builder-billing {
   display: flex;
   flex-direction: column;
@@ -33,6 +35,25 @@
 .builder-billing__panel-title {
   font-size: 1.125rem;
   margin: 0;
+}
+
+/* Default payment method (billing/12): label + shared select chrome. */
+.builder-billing__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.builder-billing__field label {
+  font-weight: 600;
+}
+
+.builder-billing__select {
+  /* Shared select chrome: custom chevron with proper arrow spacing
+     (replaces the cramped native arrow on every browser). */
+  @include feasly-select;
+  width: 100%;
+  max-width: 24rem;
 }
 
 .builder-billing__facts {
