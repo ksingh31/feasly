@@ -115,6 +115,19 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   billingCancel: 'Cancel',
   billingExplainer:
     'When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. The invoice auto-charges 7 days later unless disputed.',
+  billingDefaultMethodTitle: 'Default payment method',
+  billingDefaultMethodHelper:
+    'New invoices use this unless you change it on the invoice.',
+  billingDefaultMethodLabel: 'Default payment method',
+  billingDefaultMethodSaved: 'Saved — new invoices will use {method}.',
+  billingDefaultMethodSaveFailed:
+    'We couldn’t save your default payment method. Please try again.',
+  billingMethodCard: 'Card',
+  billingMethodCardWithLast4: 'Card •••• {last4}',
+  billingMethodCardNoCard: 'Card — no card on file',
+  billingMethodCheque: 'Cheque',
+  billingMethodETransfer: 'E-transfer',
+  billingMethodBankDraft: 'Bank draft',
   invoicesHeading: 'Invoices',
   invoicesExplainer:
     'Every commission invoice on your account, newest first. Each invoice shows the commission rate applied to the signed contract value, excluding land.',
@@ -142,6 +155,16 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesPaymentFailed:
     'Your card was declined \u2014 update it to avoid collection.',
   invoicesPaymentReceived: 'Payment received \u2014 thank you.',
+  invoicesNumberRow: 'Invoice number',
+  invoicesPaymentMethodRow: 'Payment method',
+  invoicesPaymentMethodLocked:
+    'Payment method can\u2019t be changed once an invoice is settled.',
+  invoicesPaymentMethodSaveFailed:
+    'We couldn\u2019t change the payment method. Please try again.',
+  invoicesPaymentMethodManualNote:
+    'Your card won\u2019t be charged for this invoice \u2014 we\u2019ll confirm your {method} payment when it arrives.',
+  invoicesReviewNoteManual:
+    'The 7-day review window ends {date}. Your card won\u2019t be charged \u2014 pay by {method} and we\u2019ll confirm it when it arrives.',
   invoicesUpdateCardCta: 'Update your card',
   invoicesBackToList: 'Back to invoices',
   invoicesReceiptHeading: 'Receipt',

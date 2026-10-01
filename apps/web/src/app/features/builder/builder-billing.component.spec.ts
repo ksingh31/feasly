@@ -214,4 +214,152 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain('Card setup isn’t available yet');
     expect(text).not.toContain('Add card');
   });
+
+  it('renders the default payment method panel with all four options (billing/12)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'card' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Default payment method');
+    expect(text).toContain(
+      'New invoices use this unless you change it on the invoice.',
+    );
+    const options = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '#builder-default-method option',
+      ),
+    ).map((o) => (o as HTMLOptionElement).textContent?.trim());
+    expect(options).toEqual([
+      'Card •••• 4242',
+      'Cheque',
+      'E-transfer',
+      'Bank draft',
+    ]);
+    const select = fixture.nativeElement.querySelector(
+      '#builder-default-method',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('card');
+  });
+
+  it('disables the card option when no card is on file (billing/12)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(NO_CARD);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'cheque' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const cardOption = fixture.nativeElement.querySelector(
+      '#builder-default-method option[value="card"]',
+    ) as HTMLOptionElement;
+    expect(cardOption.disabled).toBe(true);
+    expect(cardOption.textContent).toContain('no card on file');
+  });
+
+  it('PUTs the new default and shows the saved confirmation on change (billing/12)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'card' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = fixture.nativeElement.querySelector(
+      '#builder-default-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    const put = httpMock.expectOne(
+      (r) =>
+        r.url.endsWith('/api/v1/billing/payment-method') &&
+        r.method === 'PUT',
+    );
+    expect(put.request.body).toEqual({ method: 'cheque' });
+    put.flush({ defaultMethod: 'cheque' });
+    // The saved confirmation is set in a promise continuation after the
+    // dispatch resolves — let microtasks drain before rendering.
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Saved — new invoices will use cheque.');
+  });
+
+  it('shows the save-failed copy when the default-method PUT errors (billing/12)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'card' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = fixture.nativeElement.querySelector(
+      '#builder-default-method',
+    ) as HTMLSelectElement;
+    select.value = 'e_transfer';
+    select.dispatchEvent(new Event('change'));
+    httpMock
+      .expectOne(
+        (r) =>
+          r.url.endsWith('/api/v1/billing/payment-method') &&
+          r.method === 'PUT',
+      )
+      .error(new ProgressEvent('error'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain(
+      'We couldn’t save your default payment method. Please try again.',
+    );
+  });
+
+  it('retries the default payment method load after an error (billing/12)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .error(new ProgressEvent('error'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    let text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('We couldn’t load your billing details.');
+
+    const retry = fixture.nativeElement.querySelector(
+      '.builder-billing__alert button',
+    ) as HTMLButtonElement;
+    retry.click();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'bank_draft' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Bank draft');
+    const select = fixture.nativeElement.querySelector(
+      '#builder-default-method',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('bank_draft');
+  });
 });

@@ -45,7 +45,10 @@
                 {
                   "type": "initial",
                   "maximumWarning": "740kB",
-                  "maximumError": "790kB"
+                  // billing/12: the builder default-payment-method panel + per-invoice
+                  // payment-method UI moved the initial bundle from 789.73 kB to
+                  // ~791.3 kB (main was already at 99.97% of the old 790 kB cap).
+                  "maximumError": "795kB"
                 },
                 {
                   "type": "anyComponentStyle",

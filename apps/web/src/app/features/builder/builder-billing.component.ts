@@ -16,8 +16,16 @@ import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import {
+  BUILDER_PAYMENT_METHODS,
+  isBuilderPaymentMethod,
+  paymentMethodLabel,
+  type BuilderPaymentMethod,
+} from './builder-payment-methods';
+import {
   ClearBillingState,
   LoadBillingCard,
+  LoadDefaultPaymentMethod,
+  SetDefaultPaymentMethod,
 } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
 
@@ -61,6 +69,15 @@ export class BuilderBillingComponent implements OnInit {
   protected readonly cardStatus = this.store.selectSignal(
     BuilderBillingState.cardStatus,
   );
+  protected readonly defaultMethod = this.store.selectSignal(
+    BuilderBillingState.defaultMethod,
+  );
+  protected readonly defaultMethodStatus = this.store.selectSignal(
+    BuilderBillingState.defaultMethodStatus,
+  );
+  protected readonly defaultMethodSaveStatus = this.store.selectSignal(
+    BuilderBillingState.defaultMethodSaveStatus,
+  );
 
   /** True while the card form is visible. */
   protected readonly formOpen = signal(false);
@@ -70,6 +87,11 @@ export class BuilderBillingComponent implements OnInit {
   protected readonly saveSuccess = signal(false);
   /** True when the card form failed to initialize or save. */
   protected readonly saveError = signal(false);
+  /**
+   * Durable confirmation after the default payment method is saved.
+   * Cleared on the next change.
+   */
+  protected readonly defaultMethodSaved = signal(false);
 
   private stripe: Stripe | null = null;
   private cardElement: StripeCardElement | null = null;
@@ -89,6 +111,7 @@ export class BuilderBillingComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.dispatch(new LoadBillingCard());
+    this.store.dispatch(new LoadDefaultPaymentMethod());
   }
 
   /** The Stripe publishable key; empty = card setup unavailable. */
@@ -99,6 +122,68 @@ export class BuilderBillingComponent implements OnInit {
   protected retryLoad(): void {
     this.saveError.set(false);
     this.store.dispatch(new LoadBillingCard());
+  }
+
+  protected retryDefaultMethodLoad(): void {
+    this.store.dispatch(new LoadDefaultPaymentMethod());
+  }
+
+  /** Payment-method options in display order (billing/12). */
+  protected defaultMethodOptions(): readonly BuilderPaymentMethod[] {
+    return BUILDER_PAYMENT_METHODS;
+  }
+
+  /**
+   * Buyer-grade option label. The card option carries the on-file last4
+   * when a card exists; otherwise it is disabled (see
+   * isCardOptionDisabled).
+   */
+  protected defaultMethodOptionLabel(method: BuilderPaymentMethod): string {
+    if (method === 'card') {
+      const card = this.card();
+      if (card?.hasCard && card.last4) {
+        return paymentMethodLabel(method, this.copy, card.last4);
+      }
+      return this.copy.billingMethodCardNoCard;
+    }
+    return paymentMethodLabel(method, this.copy);
+  }
+
+  /** The card option is unusable until a card is on file. */
+  protected isCardOptionDisabled(): boolean {
+    return !this.card()?.hasCard;
+  }
+
+  /**
+   * Persists the new default on change (billing/12). The select is
+   * disabled while the PUT is in flight; the saved confirmation is
+   * durable until the next change.
+   */
+  protected async onDefaultMethodChange(event: Event): Promise<void> {
+    const value = (event.target as HTMLSelectElement).value;
+    if (!isBuilderPaymentMethod(value) || value === this.defaultMethod()) {
+      return;
+    }
+    this.defaultMethodSaved.set(false);
+    await firstValueFrom(
+      this.store.dispatch(new SetDefaultPaymentMethod(value)),
+    );
+    if (
+      this.store.selectSnapshot(
+        BuilderBillingState.defaultMethodSaveStatus,
+      ) === 'idle'
+    ) {
+      this.defaultMethodSaved.set(true);
+    }
+  }
+
+  /** "Saved — new invoices will use cheque." */
+  protected defaultMethodSavedText(): string {
+    const method = this.defaultMethod();
+    const label = method
+      ? this.defaultMethodOptionLabel(method).toLowerCase()
+      : '';
+    return this.copy.billingDefaultMethodSaved.replace('{method}', label);
   }
 
   /** Opens the card form: fetches a SetupIntent and mounts Elements. */

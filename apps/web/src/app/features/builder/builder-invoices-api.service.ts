@@ -5,6 +5,20 @@ import type { Observable } from 'rxjs';
 import type { CommissionInvoice } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
+import type { BuilderPaymentMethod } from './builder-payment-methods';
+
+/**
+ * Commission invoice with the billing/12 payment-method fields. The
+ * backend includes `invoiceNumber` + `paymentMethod` on the invoice list
+ * and detail endpoints; new invoices inherit the builder's default
+ * payment method at creation.
+ */
+export interface BuilderCommissionInvoice extends CommissionInvoice {
+  /** Human-readable invoice number, e.g. "INV-0042". */
+  readonly invoiceNumber: string;
+  /** How this invoice will be paid (card auto-charge or manual). */
+  readonly paymentMethod: BuilderPaymentMethod;
+}
 
 /**
  * Paginated invoice list — normalized wire shape for
@@ -15,7 +29,7 @@ import { toApiError } from '../../core/api/api-error';
  * degrades gracefully to prev/next without "of N pages".
  */
 export interface InvoiceListResponse {
-  readonly invoices: readonly CommissionInvoice[];
+  readonly invoices: readonly BuilderCommissionInvoice[];
   readonly total: number | null;
   readonly page: number;
   readonly pageSize: number;
@@ -62,7 +76,7 @@ export class BuilderInvoicesApiService {
       : 20;
     const offset = (safePage - 1) * safePageSize;
     return this.call(
-      this.http.get<readonly CommissionInvoice[]>(
+      this.http.get<readonly BuilderCommissionInvoice[]>(
         `${this.billingBase}/invoices`,
         {
           params: { limit: String(safePageSize), offset: String(offset) },
@@ -82,11 +96,32 @@ export class BuilderInvoicesApiService {
   }
 
   /** Single invoice detail. */
-  getInvoice(id: string): Observable<CommissionInvoice> {
+  getInvoice(id: string): Observable<BuilderCommissionInvoice> {
     return this.call(
-      this.http.get<CommissionInvoice>(`${this.billingBase}/invoices/${id}`, {
-        withCredentials: true,
-      }),
+      this.http.get<BuilderCommissionInvoice>(
+        `${this.billingBase}/invoices/${id}`,
+        {
+          withCredentials: true,
+        },
+      ),
+    );
+  }
+
+  /**
+   * Change an invoice's payment method (billing/12). Returns the updated
+   * invoice. Choosing a manual method pauses the scheduled Stripe
+   * auto-charge until staff confirm the payment.
+   */
+  setInvoicePaymentMethod(
+    id: string,
+    method: BuilderPaymentMethod,
+  ): Observable<BuilderCommissionInvoice> {
+    return this.call(
+      this.http.put<BuilderCommissionInvoice>(
+        `${this.billingBase}/invoices/${id}/payment-method`,
+        { method },
+        { withCredentials: true },
+      ),
     );
   }
 }
