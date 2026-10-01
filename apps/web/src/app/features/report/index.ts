@@ -1,5 +1,5 @@
 /** @features/report barrel. */
-export { ReportState } from './report.state';
+export { ReportState, serializeReportState } from './report.state';
 export type { ReportStateModel, ReportStatus } from './report.state';
 export { ClearReport, LoadPreview, ReviseReport, SetReportToken, UnlockReport } from './report.actions';
 export { reportEstimateGuard } from './report-estimate.guard';
