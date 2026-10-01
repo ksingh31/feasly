@@ -1,16 +1,23 @@
 /**
  * View-as service (auth/04).
  *
- * `super_admin` / `admin` holders (anyone with the `view_as` permission)
- * can activate a view-as session: the session's `view_as` field is set to
- * `{ builderId }` or `{ userId }`, and from then on the AuthContextService
- * resolves effective permissions + tenant scoping to the TARGET's view.
+ * Staff admins and builder-side admins (anyone holding the `view_as`
+ * permission — viewers and builder_members never do) can activate a
+ * view-as session: the session's `view_as` field is set to `{ builderId }`
+ * or `{ userId }`, and from then on the AuthContextService resolves
+ * effective permissions + tenant scoping to the TARGET's view.
  *
  * Guarantees:
- * - Never escalates: the target's permissions are computed fresh from the
- *   target's roles — never unioned with the real admin's.
- * - Every activation, action, and exit is audit-logged under the REAL
- *   admin's identity (never the target's).
+ * - Never escalates: ADMIN TARGETS ARE REJECTED OUTRIGHT. A staff
+ *   `super_admin`/`admin`, or anyone holding a `builder_admin` membership,
+ *   can never be viewed-as (403 + `authz.denied` audit). For regular-user
+ *   targets, permissions are computed fresh from the target's roles —
+ *   never unioned with the real admin's.
+ * - Activation requires an active ADMIN session: a token that doesn't
+ *   resolve in the admin session store (e.g. a builder-portal token) is a
+ *   401, never a lying `{active: true}`.
+ * - Every activation, action, denial, and exit is audit-logged under the
+ *   REAL admin's identity (never the target's).
  * - Targets must exist (and users must be active); a missing target is a
  *   404, never a silent widen.
  */
@@ -64,6 +71,8 @@ export interface ViewAsServiceDeps {
   readonly memberships: MembershipStore;
   readonly builders: Pick<BuilderService, 'getBuilder'>;
   readonly audit: AdminAuditStore;
+  /** Injectable clock for session-expiry checks. Defaults to wall time. */
+  readonly clock?: () => Date;
 }
 
 function requireToken(sessionToken: string | null): string {
@@ -80,6 +89,7 @@ function requireToken(sessionToken: string | null): string {
 
 export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
   const { sessions, users, memberships, builders, audit } = deps;
+  const clock = deps.clock ?? (() => new Date());
 
   return {
     async activate(sessionToken, target, actor) {
@@ -101,6 +111,19 @@ export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
       }
       const token = requireToken(sessionToken);
       const hash = hashSessionToken(token);
+      // Fail closed: view-as state lives in the ADMIN session store. A
+      // token that isn't an active admin session (e.g. a builder-portal
+      // token presented to this endpoint) must never get a lying
+      // `{active: true}` — the updateState below would silently no-op.
+      const session = await sessions.findActiveByHash(hash, clock());
+      if (!session) {
+        throw new HttpError(
+          401,
+          ErrorCodes.UNAUTHENTICATED,
+          'Authentication required.',
+          false,
+        );
+      }
 
       if ('builderId' in target) {
         // getBuilder throws 404 when unknown — a missing target is a 404,
@@ -123,6 +146,29 @@ export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
       const targetUser = await users.findById(target.userId);
       if (!targetUser || targetUser.status === 'disabled') {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.', false);
+      }
+      // Lockdown (2026-09-30, Karan): nobody may view-as an admin — a staff
+      // super_admin/admin, or anyone holding a builder_admin membership.
+      // Admin powers must never be borrowable, so the target's rank is
+      // checked here at activation: the single gate. auth-context.service.ts
+      // only resolves whatever target activation stored.
+      const targetMemberships = await memberships.listByUserId(targetUser.id);
+      const isAdminTarget =
+        targetUser.staffRole === 'super_admin' ||
+        targetUser.staffRole === 'admin' ||
+        targetMemberships.some((m) => m.role === 'builder_admin');
+      if (isAdminTarget) {
+        await audit.log({
+          actorEmail: actor.realUser?.email ?? actor.email,
+          action: 'authz.denied',
+          detail: `route=view-as target=user:${targetUser.id} reason=admin-target`,
+        });
+        throw new HttpError(
+          403,
+          ErrorCodes.FORBIDDEN,
+          'You can\u2019t view this account.',
+          false,
+        );
       }
       await sessions.updateState(hash, {
         viewAs: { userId: targetUser.id },
