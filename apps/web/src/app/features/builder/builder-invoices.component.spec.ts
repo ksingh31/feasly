@@ -813,3 +813,126 @@ describe('BuilderInvoices ?invoice= deep link', () => {
     expect(back).not.toBeNull();
   });
 });
+
+describe('BuilderInvoices invoice-number column + filter', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    vi.clearAllMocks();
+  });
+
+  /** Polls the store's committed filter with a deadline (debounce-safe). */
+  async function waitForFilter(
+    store: Store,
+    expected: string,
+    timeoutMs = 4000,
+  ): Promise<void> {
+    // Grace period: don't return before the 400ms debounce has a chance to fire.
+    await new Promise((r) => setTimeout(r, 500));
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const current = store.selectSnapshot(
+        BuilderInvoicesState.invoiceNumberFilter,
+      );
+      if (current === expected) {
+        return;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Timed out waiting for invoice-number filter ${JSON.stringify(expected)} (got ${JSON.stringify(current)})`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  function filterInput(fixture: ComponentFixture<BuilderInvoicesComponent>) {
+    return fixture.nativeElement.querySelector(
+      '#invoice-number-filter',
+    ) as HTMLInputElement;
+  }
+
+  it('renders the invoice number as the first column and row link', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const headers = [
+      ...fixture.nativeElement.querySelectorAll(
+        '.builder-invoices__table thead th',
+      ),
+    ].map((th: Element) => th.textContent?.trim());
+    expect(headers[0]).toBe('Invoice #');
+
+    const firstRowLink = fixture.nativeElement.querySelector(
+      '.builder-invoices__table tbody tr:first-child .builder-invoices__row-link',
+    ) as HTMLButtonElement;
+    expect(firstRowLink.textContent?.trim()).toBe('INV-0042');
+
+    // Clicking the number opens the detail view.
+    firstRowLink.click();
+    await flushMock(fixture);
+    const { store } = { store: TestBed.inject(Store) };
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.id).toBe(
+      'inv-test-001',
+    );
+  });
+
+  it('searches by invoice number as you type (debounced)', async () => {
+    const { fixture, store } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const input = filterInput(fixture);
+    expect(input).not.toBeNull();
+    expect(input.placeholder).toBe('e.g. INV-0042');
+
+    input.value = 'inv-0042';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    await waitForFilter(store, 'inv-0042');
+  });
+
+  it('clear button empties the search and resets the filter', async () => {
+    const { fixture, store } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const input = filterInput(fixture);
+    input.value = 'inv-0042';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    await waitForFilter(store, 'inv-0042');
+
+    const clear = fixture.nativeElement.querySelector(
+      '.builder-invoices__filter-row .builder-invoices__btn',
+    ) as HTMLButtonElement;
+    expect(clear).not.toBeNull();
+    clear.click();
+    fixture.detectChanges();
+
+    expect(input.value).toBe('');
+    await waitForFilter(store, '');
+  });
+
+  it('shows the no-match empty state while a filter is active', async () => {
+    const { fixture } = await setupWithInvoices({
+      invoices: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    // Seed the typed text directly: the empty list + active filter text
+    // renders the filter-specific empty state with a clear action.
+    const input = filterInput(fixture);
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('No invoices match your search.');
+  });
+});

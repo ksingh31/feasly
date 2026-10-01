@@ -395,6 +395,20 @@ describe('GET /api/v1/billing/invoices (BILL-04)', () => {
     });
   });
 
+  it('passes an invoice-number search through to the service', async () => {
+    const { route, billing } = makeDeps();
+    await route.listInvoices(
+      {},
+      { limit: '20', offset: '0', invoiceNumber: '  inv-0042 ' },
+    );
+
+    expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
+      limit: 20,
+      offset: 0,
+      invoiceNumber: 'inv-0042',
+    });
+  });
+
   it('rejects out-of-range pagination with 400', async () => {
     const { route, billing } = makeDeps();
     await expect(

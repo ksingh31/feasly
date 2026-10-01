@@ -24,7 +24,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, lte, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -298,10 +298,14 @@ export interface CommissionService {
   /**
    * BILL-04: paginated invoice list, newest first. Builders pass their
    * tenantKey (scoped); admins pass null (all tenants).
+   *
+   * `invoiceNumber` is an optional case-insensitive partial match on the
+   * human-readable invoice number (e.g. "42" matches "INV-0042") — powers
+   * the builder portal's invoice-number search.
    */
   listInvoices(
     tenantKey: string | null,
-    opts: { limit: number; offset: number },
+    opts: { limit: number; offset: number; invoiceNumber?: string },
   ): Promise<CommissionInvoiceRecord[]>;
 }
 
@@ -372,6 +376,15 @@ const ALLOWED_TRANSITIONS: Record<
 };
 
 import { isUniqueViolation } from './pg-errors';
+
+/**
+ * Escapes the LIKE wildcards (`%`, `_`, and the escape char itself) so a
+ * user-supplied invoice-number search is a literal substring match —
+ * "%" in the input can't widen the match.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
 
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
@@ -1525,16 +1538,27 @@ export function createCommissionService(
 
     async listInvoices(
       tenantKey: string | null,
-      opts: { limit: number; offset: number },
+      opts: { limit: number; offset: number; invoiceNumber?: string },
     ): Promise<CommissionInvoiceRecord[]> {
       requireCommissionModel();
       const limit = Math.min(Math.max(opts.limit, 1), 100);
       const offset = Math.max(opts.offset, 0);
+      // Case-insensitive partial match on the invoice number. LIKE
+      // wildcards in the user's input are escaped so "%" can't widen the
+      // match beyond a literal substring search.
+      const invoiceNumber = opts.invoiceNumber?.trim();
       const rows = await db.query.commissionInvoices.findMany({
-        where:
+        where: and(
           tenantKey === null
             ? undefined
             : eq(commissionInvoices.tenantKey, tenantKey),
+          invoiceNumber
+            ? ilike(
+                commissionInvoices.invoiceNumber,
+                `%${escapeLikePattern(invoiceNumber)}%`,
+              )
+            : undefined,
+        ),
         orderBy: desc(commissionInvoices.createdAt),
         limit,
         offset,

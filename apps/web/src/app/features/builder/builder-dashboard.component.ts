@@ -262,6 +262,30 @@ export class BuilderDashboardComponent implements OnInit {
     return this.copy.leadsStatusControlLabel.replace('{name}', name);
   }
 
+  /**
+   * "View invoice INV-0042" — the lead's recorded invoice number when the
+   * lead summary carries one, falling back to the numberless CTA.
+   */
+  protected invoiceCtaLabel(lead: BuilderLeadListItem): string {
+    const number = lead.invoiceSummary?.invoiceNumber;
+    if (!number) {
+      return this.copy.leadsViewInvoiceCta;
+    }
+    return this.copy.leadsViewInvoiceWithNumber.replace('{number}', number);
+  }
+
+  /**
+   * Deep link to the invoice detail: the invoices page opens `?invoice=<id>`
+   * directly (see BuilderInvoicesComponent ngOnInit). Falls back to the
+   * plain list when the summary id is absent.
+   */
+  protected invoiceLinkParams(
+    lead: BuilderLeadListItem,
+  ): Record<string, string> | null {
+    const id = lead.invoiceSummary?.id;
+    return id ? { invoice: id } : null;
+  }
+
   /** Filter-select change handler (template-bound). */
   protected onFilterChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;

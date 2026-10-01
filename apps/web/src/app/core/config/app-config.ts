@@ -165,6 +165,7 @@ export interface BuilderCopy {
   invoicesLoadError: string;
   invoicesEmpty: string;
   invoicesColDate: string;
+  invoicesColInvoiceNumber: string;
   invoicesColContract: string;
   invoicesColCommission: string;
   invoicesColStatus: string;
@@ -184,6 +185,10 @@ export interface BuilderCopy {
   invoicesPaymentReceived: string;
   invoicesUpdateCardCta: string;
   invoicesNumberRow: string;
+  invoicesFilterNumberLabel: string;
+  invoicesFilterNumberPlaceholder: string;
+  invoicesFilterNumberClear: string;
+  invoicesFilterEmpty: string;
   invoicesPaymentMethodRow: string;
   invoicesPaymentMethodLocked: string;
   invoicesPaymentMethodSaveFailed: string;
@@ -323,6 +328,7 @@ export interface BuilderCopy {
   leadsWonReportCta: string;
   leadsRecordedCta: string;
   leadsViewInvoiceCta: string;
+  leadsViewInvoiceWithNumber: string;
   teamColAdded: string;
   teamInviteButton: string;
   teamInviteModalSub: string;

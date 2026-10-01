@@ -66,8 +66,14 @@ export class BuilderInvoicesApiService {
    *
    * Params are clamped to the backend's contract (limit 1–100, offset ≥ 0)
    * so a bad caller can never produce a 400 from the zod validation.
+   * `invoiceNumber` is an optional case-insensitive partial match on the
+   * human-readable invoice number (e.g. "42" matches "INV-0042").
    */
-  listInvoices(page: number, pageSize: number): Observable<InvoiceListResponse> {
+  listInvoices(
+    page: number,
+    pageSize: number,
+    invoiceNumber?: string,
+  ): Observable<InvoiceListResponse> {
     const safePage = Number.isFinite(page)
       ? Math.max(1, Math.floor(page))
       : 1;
@@ -75,11 +81,19 @@ export class BuilderInvoicesApiService {
       ? Math.min(100, Math.max(1, Math.floor(pageSize)))
       : 20;
     const offset = (safePage - 1) * safePageSize;
+    const params: Record<string, string> = {
+      limit: String(safePageSize),
+      offset: String(offset),
+    };
+    const trimmed = invoiceNumber?.trim();
+    if (trimmed) {
+      params['invoiceNumber'] = trimmed;
+    }
     return this.call(
       this.http.get<readonly BuilderCommissionInvoice[]>(
         `${this.billingBase}/invoices`,
         {
-          params: { limit: String(safePageSize), offset: String(offset) },
+          params,
           withCredentials: true,
         },
       ),

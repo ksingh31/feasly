@@ -15,6 +15,7 @@ import {
   ClearInvoiceSelection,
   LoadInvoices,
   SelectInvoice,
+  SetInvoiceNumberFilter,
   UpdateInvoicePaymentMethod,
 } from './builder-invoices.actions';
 
@@ -37,6 +38,11 @@ export interface BuilderInvoicesStateModel {
   selected: BuilderCommissionInvoice | null;
   detailStatus: InvoicesStatus;
   paymentMethodSaveStatus: InvoicePaymentMethodSaveStatus;
+  /**
+   * Server-side invoice-number search (partial, case-insensitive). Empty
+   * means no filter. Persists across pagination; cleared with the state.
+   */
+  invoiceNumberFilter: string;
 }
 
 const defaults: BuilderInvoicesStateModel = {
@@ -51,6 +57,7 @@ const defaults: BuilderInvoicesStateModel = {
   selected: null,
   detailStatus: 'idle',
   paymentMethodSaveStatus: 'idle',
+  invoiceNumberFilter: '',
 };
 
 /**
@@ -131,6 +138,12 @@ export class BuilderInvoicesState implements NgxsOnInit {
     return state.detailStatus;
   }
 
+  /** The active invoice-number search filter ('' = none). */
+  @Selector()
+  static invoiceNumberFilter(state: BuilderInvoicesStateModel): string {
+    return state.invoiceNumberFilter;
+  }
+
   @Action(LoadInvoices)
   loadPage(ctx: StateContext<BuilderInvoicesStateModel>, action: LoadInvoices) {
     // Pagination guard (2026-09-29): the state must never send the backend
@@ -158,20 +171,40 @@ export class BuilderInvoicesState implements NgxsOnInit {
         ? Math.min(100, Math.floor(statePageSize))
         : safeConfigured;
     ctx.patchState({ listStatus: 'loading', page, pageSize });
-    return this.api.listInvoices(page, pageSize).pipe(
-      tap((res: InvoiceListResponse) =>
-        ctx.patchState({
-          invoices: res.invoices,
-          total: res.total,
-          page: res.page,
-          listStatus: 'ready',
+    const invoiceNumberFilter = ctx.getState().invoiceNumberFilter.trim();
+    return this.api
+      .listInvoices(
+        page,
+        pageSize,
+        invoiceNumberFilter === '' ? undefined : invoiceNumberFilter,
+      )
+      .pipe(
+        tap((res: InvoiceListResponse) =>
+          ctx.patchState({
+            invoices: res.invoices,
+            total: res.total,
+            page: res.page,
+            listStatus: 'ready',
+          }),
+        ),
+        catchError(() => {
+          ctx.patchState({ listStatus: 'error' });
+          return of(null);
         }),
-      ),
-      catchError(() => {
-        ctx.patchState({ listStatus: 'error' });
-        return of(null);
-      }),
-    );
+      );
+  }
+
+  @Action(SetInvoiceNumberFilter)
+  setInvoiceNumberFilter(
+    ctx: StateContext<BuilderInvoicesStateModel>,
+    action: SetInvoiceNumberFilter,
+  ) {
+    const invoiceNumber = action.invoiceNumber.trim();
+    if (invoiceNumber === ctx.getState().invoiceNumberFilter) {
+      return;
+    }
+    ctx.patchState({ invoiceNumberFilter: invoiceNumber });
+    ctx.dispatch(new LoadInvoices(1));
   }
 
   @Action(SelectInvoice)

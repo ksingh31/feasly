@@ -125,6 +125,10 @@ const uuidSchema = z.string().trim().uuid();
 const listInvoicesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  // Optional case-insensitive partial match on the human-readable invoice
+  // number (e.g. "42" matches "INV-0042") — the builder portal's
+  // invoice-number search. Empty/whitespace is treated as no filter.
+  invoiceNumber: z.string().trim().min(1).max(32).optional(),
 });
 
 const reportContractBodySchema = z.object({
@@ -310,6 +314,7 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
       const parsed = listInvoicesQuerySchema.safeParse({
         limit: firstQueryValue(query['limit']),
         offset: firstQueryValue(query['offset']),
+        invoiceNumber: firstQueryValue(query['invoiceNumber']),
       });
       if (!parsed.success) {
         throw new HttpError(

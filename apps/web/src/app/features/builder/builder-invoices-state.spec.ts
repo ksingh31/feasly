@@ -17,6 +17,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
 import { ConfigService } from '../../core/config/config.service';
 import {
   BuilderInvoicesState,
@@ -43,5 +44,85 @@ describe('builderInvoicesStateProvider', () => {
     const store = TestBed.inject(Store);
     expect(store.selectSnapshot(BuilderInvoicesState.invoices)).toEqual([]);
     expect(store.selectSnapshot(BuilderInvoicesState.pageSize)).toBe(10);
+  });
+});
+
+describe('BuilderInvoicesState invoice-number filter', () => {
+  async function setup() {
+    TestBed.resetTestingModule();
+    const calls: Array<{ page: number; invoiceNumber?: string }> = [];
+    const apiStub = {
+      listInvoices: (page: number, _pageSize: number, invoiceNumber?: string) => {
+        calls.push({ page, invoiceNumber });
+        return of({ invoices: [], total: null, page, pageSize: 10 });
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideStore([]),
+        provideHttpClient(),
+        {
+          provide: ConfigService,
+          useValue: { getServedBuilderCopy: () => null },
+        },
+        builderInvoicesStateProvider,
+        {
+          provide: (await import('./builder-invoices-api.service'))
+            .BuilderInvoicesApiService,
+          useValue: apiStub,
+        },
+      ],
+    });
+    const store = TestBed.inject(Store);
+    return { store, calls };
+  }
+
+  it('sends no invoice-number param without a filter', async () => {
+    const { store, calls } = await setup();
+    store.dispatch(new (await import('./builder-invoices.actions')).LoadInvoices(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ page: 1, invoiceNumber: undefined });
+  });
+
+  it('SetInvoiceNumberFilter commits the filter and reloads page 1 with it', async () => {
+    const { store, calls } = await setup();
+    const { SetInvoiceNumberFilter } = await import('./builder-invoices.actions');
+    store.dispatch(new SetInvoiceNumberFilter('INV-0042'));
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(store.selectSnapshot(BuilderInvoicesState.invoiceNumberFilter)).toBe(
+      'INV-0042',
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ page: 1, invoiceNumber: 'INV-0042' });
+  });
+
+  it('trims the filter and ignores a no-op set', async () => {
+    const { store, calls } = await setup();
+    const { SetInvoiceNumberFilter } = await import('./builder-invoices.actions');
+    store.dispatch(new SetInvoiceNumberFilter('  inv-42  '));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(store.selectSnapshot(BuilderInvoicesState.invoiceNumberFilter)).toBe(
+      'inv-42',
+    );
+
+    store.dispatch(new SetInvoiceNumberFilter('inv-42'));
+    await new Promise((r) => setTimeout(r, 50));
+    // No reload for an unchanged filter.
+    expect(calls).toHaveLength(1);
+  });
+
+  it('clearing the filter reloads without the param', async () => {
+    const { store, calls } = await setup();
+    const { SetInvoiceNumberFilter } = await import('./builder-invoices.actions');
+    store.dispatch(new SetInvoiceNumberFilter('INV-0042'));
+    await new Promise((r) => setTimeout(r, 50));
+    store.dispatch(new SetInvoiceNumberFilter(''));
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(store.selectSnapshot(BuilderInvoicesState.invoiceNumberFilter)).toBe('');
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual({ page: 1, invoiceNumber: undefined });
   });
 });

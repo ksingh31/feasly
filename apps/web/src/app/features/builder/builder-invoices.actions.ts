@@ -11,6 +11,16 @@ export class LoadInvoices {
   constructor(public readonly page: number) {}
 }
 
+/**
+ * Sets the invoice-number search filter and reloads from page 1. The
+ * filter is server-side (partial, case-insensitive match) so it finds
+ * invoices on any page; an empty value clears the filter.
+ */
+export class SetInvoiceNumberFilter {
+  static readonly type = '[BuilderInvoices] Set invoice number filter';
+  constructor(public readonly invoiceNumber: string) {}
+}
+
 /** Loads a single invoice into the detail view. */
 export class SelectInvoice {
   static readonly type = '[BuilderInvoices] Select invoice';

@@ -301,3 +301,10 @@ apps/web/src/app/features/builder/builder-invoices.state.ts
 # tunables. This file is deleted when BILL-06's real component merges; the
 # entry goes stale harmlessly with it.
 apps/web/src/app/shared/components/comment-thread/comment-thread.component.ts
+
+# Invoice-number search debounce (billing/invoice-number display):
+# INVOICE_NUMBER_FILTER_DEBOUNCE_MS=400 is a UI-responsiveness timing —
+# balances per-keystroke API calls against search snappiness. It changes
+# with the UX (code review), not by deploy tuning. Debounce-pinned by
+# builder-invoices.component.spec.ts (waits out the debounce via polling).
+apps/web/src/app/features/builder/builder-invoices.component.ts

@@ -1014,7 +1014,7 @@ describe('listInvoices (BILL-04)', () => {
 
   async function seedInvoice(
     tenantKey: string,
-  ): Promise<{ id: string; createdAt: Date }> {
+  ): Promise<{ id: string; createdAt: Date; invoiceNumber: string }> {
     const { commission, attribution } = newServices(testDb);
     // seedTenant is not idempotent — only insert once per key.
     const existing = await testDb.db.query.tenants.findFirst({
@@ -1029,7 +1029,11 @@ describe('listInvoices (BILL-04)', () => {
       tenantKey,
     );
     const invoice = await commission.createDraftInvoice(attributionId);
-    return { id: invoice.id, createdAt: invoice.createdAt };
+    return {
+      id: invoice.id,
+      createdAt: invoice.createdAt,
+      invoiceNumber: invoice.invoiceNumber,
+    };
   }
 
   it('lists a tenant\'s invoices newest first', async () => {
@@ -1110,6 +1114,54 @@ describe('listInvoices (BILL-04)', () => {
     const list = await commission.listInvoices(key, { limit: 500, offset: 0 });
     // Clamped to 100, but only 1 row exists.
     expect(list.length).toBe(1);
+  });
+
+  it('filters by invoice number (case-insensitive partial match)', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-invnum';
+    const first = await seedInvoice(key);
+    const second = await seedInvoice(key);
+
+    const exact = await commission.listInvoices(key, {
+      limit: 20,
+      offset: 0,
+      invoiceNumber: first.invoiceNumber,
+    });
+    expect(exact.length).toBe(1);
+    expect(exact[0].id).toBe(first.id);
+
+    // Partial, case-insensitive: the numeric suffix alone matches.
+    const digits = first.invoiceNumber.replace(/\D/g, '');
+    const partial = await commission.listInvoices(key, {
+      limit: 20,
+      offset: 0,
+      invoiceNumber: `inv-${digits}`,
+    });
+    expect(partial.length).toBe(1);
+    expect(partial[0].id).toBe(first.id);
+    expect(partial.some((i) => i.id === second.id)).toBe(false);
+
+    const none = await commission.listInvoices(key, {
+      limit: 20,
+      offset: 0,
+      invoiceNumber: 'ZZZ-NOMATCH-999',
+    });
+    expect(none.length).toBe(0);
+  });
+
+  it('treats LIKE wildcards in the invoice-number filter as literals', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-invlike';
+    await seedInvoice(key);
+
+    // A bare "%" must not match every invoice — it is escaped to a
+    // literal, and no invoice number contains one.
+    const list = await commission.listInvoices(key, {
+      limit: 20,
+      offset: 0,
+      invoiceNumber: '%',
+    });
+    expect(list.length).toBe(0);
   });
 });
 
