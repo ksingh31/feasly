@@ -202,14 +202,16 @@ describe('ScopePageComponent', () => {
   });
 
   it('arrow keys move the card selection (radiogroup keyboard support)', () => {
+    // New Build is preselected on first visit.
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
     const group = fixture.nativeElement.querySelector('.ptypes');
     group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     fixture.detectChanges();
-    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
 
     group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     fixture.detectChanges();
-    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
   });
 
   it('shows new-build inputs only for New Build, and the reno note for Renovation', () => {
