@@ -50,14 +50,10 @@ export class HowItWorksPageComponent implements OnInit {
   /**
    * CTA: preselect the project type in NGXS, then enter the wizard at the
    * address step (`/`). The scope step reads the preselected type and shows
-   * it as already chosen. Renovation is out of launch scope (Karan
-   * 2026-09-27), so the renovation CTA goes straight to the designed
-   * "Renovations are coming soon" page instead of home — the route's
-   * property guard still bounces property-less visits to `/`, so this is
-   * never a dead end.
+   * it as already chosen.
    */
   startEstimate(type: ProjectType): void {
     this.store.dispatch(new ChooseProjectType(type));
-    void this.router.navigate([type === 'renovation' ? '/estimate/reno-coming-soon' : '/']);
+    void this.router.navigate(['/']);
   }
 }
