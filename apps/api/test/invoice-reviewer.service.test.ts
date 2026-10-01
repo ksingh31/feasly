@@ -26,7 +26,7 @@ import {
 } from '../src/services/billing/attribution.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
-import { estimates, leads, tenants } from '../src/db/schema';
+import { estimates, leads, tenants, builders } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 
 import type { BillingConfig } from '../src/config';
@@ -134,6 +134,9 @@ async function seedInvoice(
   attribution: AttributionService,
   commission: CommissionService,
   contractValueCents: number,
+  // billing/12: when set, the builder's default payment method is seeded
+  // BEFORE invoice creation so the invoice inherits it.
+  defaultPaymentMethod?: 'cheque' | 'e_transfer' | 'bank_draft',
 ): Promise<string> {
   tenantCounter += 1;
   const tenantKey = `reviewer-builder-${tenantCounter}`;
@@ -145,6 +148,15 @@ async function seedInvoice(
     allowedOrigins: ['https://example.com'],
     stripeCustomerId: 'cus_test_123',
   });
+  if (defaultPaymentMethod !== undefined) {
+    await testDb.db.insert(builders).values({
+      id: randomUUID(),
+      tenantKey,
+      businessName: `Reviewer Builder ${tenantCounter}`,
+      displayName: `Reviewer ${tenantCounter}`,
+      settings: { defaultPaymentMethod },
+    });
+  }
   const estimateId = randomUUID();
   await testDb.db.insert(estimates).values({
     id: estimateId,
@@ -269,6 +281,33 @@ describe('invoice reviewer timer', () => {
     const invoice = await commission.getById(invoiceId);
     expect(invoice.status).toBe('disputed');
     expect(result.finalized).toBe(0);
+  });
+
+  it('skips manual-method invoices (billing/12) and reports them as skipped', async () => {
+    const { reviewer, commission, attribution } = newFixtures(
+      testDb,
+      fakeStripe(),
+    );
+    const manualId = await seedInvoice(
+      testDb,
+      attribution,
+      commission,
+      40_000_000,
+      'cheque',
+    );
+    const cardId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+
+    const result = await reviewer.runReviewCycle(
+      new Date('2026-10-02T00:00:00.000Z'),
+    );
+
+    // The card invoice charged; the manual one was skipped, not failed.
+    expect(result.finalized).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toHaveLength(0);
+    expect((await commission.getById(manualId)).status).toBe('in_review');
+    expect((await commission.getById(cardId)).status).toBe('finalized');
   });
 
   it('is a no-op under BILLING_MODEL=flat', async () => {

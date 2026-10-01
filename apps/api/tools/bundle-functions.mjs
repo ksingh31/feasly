@@ -348,6 +348,16 @@ const targets = [
     entry: 'src/functions/billing-commission-rate.ts',
     out: 'billing-commission-rate/index.js',
   },
+  // billing/12 — builder default payment method (GET + PUT).
+  {
+    entry: 'src/functions/billing-payment-method.ts',
+    out: 'billing-payment-method/index.js',
+  },
+  // billing/12 — per-invoice payment-method change (PUT).
+  {
+    entry: 'src/functions/billing-invoice-payment-method.ts',
+    out: 'billing-invoice-payment-method/index.js',
+  },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
     entry: 'src/functions/admin-disputes.ts',
