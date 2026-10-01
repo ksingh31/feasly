@@ -127,7 +127,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/magic-link/reissue',
     auth: 'none',
     permissions: [] as const,
-    rateLimit: '60s cooldown · 5/hr per email+IP',
+    rateLimit: '60s cooldown · 5 sends/hr per email · 100/min per IP',
     status: 'live',
     summary:
       'Idempotent "resend my link". Unknown emails get the same response ' +
@@ -508,7 +508,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/auth/request',
     auth: 'none',
     permissions: [] as const,
-    rateLimit: '5/hr per email+IP',
+    rateLimit: '5 sends/hr per email · 100/min per IP',
     status: 'live',
     summary:
       'Request a builder magic link. Identical response for allowlisted and ' +

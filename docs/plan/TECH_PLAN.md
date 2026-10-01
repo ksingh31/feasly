@@ -321,7 +321,7 @@ Step-by-step with concrete contracts:
    Container Apps) is an M6 option, not M1 scope.
 
 Rate limits (public-anon tier): autocomplete 60/min/IP · property 60/min/IP ·
-estimates 20/hr/IP · gate 10/hr/IP · resend 5/hr per (email+IP) with 60s
+estimates 20/hr/IP · gate 10/hr/IP · resend 5 sends/hr per email with 60s
 per-email cooldown · report 120/hr/IP (bearer-gated anyway).
 
 ### 2.2 Embed flow + cross-iframe auth token relay (Model B)
@@ -574,7 +574,7 @@ scheduled rebuild; §6.2).
   break S8/S10. The **embed relay codes** (§2.2) are the strictly single-use
   instrument where replay would be dangerous.
 - **Resend:** `POST /api/v1/magic-links/resend {email}` — 60s per-email cooldown,
-  5/hr per (email+IP); **always returns 200** with the same copy whether or not
+  5 sends/hr per email (plus the 100/min per-IP pipeline); **always returns 200** with the same copy whether or not
   the email exists (enumeration resistance); issuing a new link revokes prior
   unexpired links for the same `(user_id, estimate_id)`.
 - **Validation:** constant-time hash compare; expired/revoked → generic
@@ -1131,7 +1131,7 @@ on violation.
 | Tier | Scope | Limits (per window) |
 |---|---|---|
 | public-anon | IP | autocomplete 60/min · property 60/min · estimates 20/hr · gate 10/hr |
-| email-gated | email+IP | resend: 60s cooldown, 5/hr |
+| email-gated | email (+ 100/min per IP pipeline) | resend: 60s cooldown, 5 sends/hr per email |
 | embed | tenant key | config 120/min · session exchange 30/min |
 | builder | session | pipeline reads 300/min · mutations 60/min |
 | agent (M5) | API key | per-key `rate_limit`/min (default 100), hard cap 1000/min |
@@ -1265,7 +1265,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/estimates/preview` | none | — | 20/hr per IP | live | Pre-gate estimate preview (same deterministic engine as /estimate; real figures — UI renders them blurred pre-gate — rows empty). |
 | POST | `/api/v1/leads` | none | — | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
 | GET | `/api/v1/magic-link/verify` | magic-token | — | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |
-| POST | `/api/v1/magic-link/reissue` | none | — | 60s cooldown · 5/hr per email+IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
+| POST | `/api/v1/magic-link/reissue` | none | — | 60s cooldown · 5 sends/hr per email · 100/min per IP | live | Idempotent "resend my link". Unknown emails get the same response (no enumeration oracle). |
 | GET | `/api/v1/reports/{reportToken}` | magic-token | — | 100/min per IP | live | Resolve a report snapshot by token (immutable shared snapshot; see report redesign). Token IS the credential. |
 | POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | — | 20/hr per IP | live | Tier/sqft what-if: recompute through the deterministic engine and append a new immutable report snapshot version. Token IS the credential. |
 | POST | `/api/v1/callbacks` | magic-token | — | 10/min per IP | live | Record a callback request (name/phone/preferred window) for a report lead. Token IS the credential. |
@@ -1299,7 +1299,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | DELETE | `/api/v1/admin/users/{id}` | admin | users:manage | 20/min per session | live | Hard delete — only users who never accepted (status invited); anyone who signed in is deactivated via PATCH instead. Deletes the Graph account first. Protected/self/last-super_admin guarded. |
 | POST | `/api/v1/admin/users/{id}/resend-invite` | admin | users:manage, builder:users:manage | 20/min per session | live | Re-issue a pending invitation (retries the Graph account create when the first attempt failed). Same scoping as invite. |
 | POST | `/api/v1/admin/auth/switch-builder` | admin | — | 60/min per session | live | Switch the session’s active builder (org switcher). The builder must be one of the caller’s memberships — anything else is 403, never honored. Audit-logged. |
-| POST | `/api/v1/builder/auth/request` | none | — | 5/hr per email+IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
+| POST | `/api/v1/builder/auth/request` | none | — | 5 sends/hr per email · 100/min per IP | live | Request a builder magic link. Identical response for allowlisted and non-allowlisted emails (no enumeration oracle). |
 | GET | `/api/v1/builder/auth/verify` | magic-token | — | 10/min per IP | live | Consume the builder magic link (?token=…) → httpOnly Secure SameSite=None session cookie (cross-origin: SWA Free SKU has no linked backend), 7-day expiry. Single-use (replay-safe). |
 | GET | `/api/v1/builder/auth/me` | builder-session | — | 100/min per session | live | Return the current builder session identity (email + tenant). |
 | POST | `/api/v1/builder/auth/logout` | builder-session | — | 10/min per session | live | Revoke the builder session; clears the session cookie. |
