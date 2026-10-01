@@ -126,6 +126,10 @@
   background: #fff;
 }
 
+.billing-panel__table-wrap {
+  overflow-x: auto;
+}
+
 .billing-panel__table {
   width: 100%;
   border-collapse: collapse;
