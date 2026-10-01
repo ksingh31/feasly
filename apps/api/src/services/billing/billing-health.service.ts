@@ -34,12 +34,14 @@ import {
 } from '../../db/schema';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import { effectiveRatePercent } from '../../lib/commission-math';
+import { BUILDER_PAYMENT_METHODS } from '../../lib/payment-method';
 import type { StripeService } from './stripe.service';
 import type {
   BillingHealthBucket,
   BillingHealthDunningInvoice,
   BillingHealthInReviewInvoice,
   BillingHealthResponse,
+  BuilderPaymentMethod,
 } from '@feasly/contracts';
 
 export interface BillingHealthService {
@@ -73,6 +75,8 @@ interface InvoiceRow {
   readonly commissionRateOverride: number | null;
   readonly commissionRatePercent: number | null;
   readonly contractValueCents: number;
+  /** Raw `payment_method` text; mapped to a planned method with a safe fallback. */
+  readonly paymentMethod: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -82,6 +86,19 @@ const IN_REVIEW_WORK_QUEUE_LIMIT = 50;
 
 function emptyBucket(): BillingHealthBucket {
   return { count: 0, commissionCents: 0 };
+}
+
+/**
+ * The invoice's planned payment method for the admin work queue.
+ * Unknown/legacy values fail safe to 'card' (the auto-charge) — the
+ * same fallback the builder portal uses.
+ */
+function plannedPaymentMethod(row: InvoiceRow): BuilderPaymentMethod {
+  return (BUILDER_PAYMENT_METHODS as ReadonlyArray<string>).includes(
+    row.paymentMethod ?? '',
+  )
+    ? (row.paymentMethod as BuilderPaymentMethod)
+    : 'card';
 }
 
 function addToBucket(
@@ -261,6 +278,7 @@ export function createBillingHealthService(
         commissionRateOverride: commissionInvoices.commissionRateOverride,
         commissionRatePercent: commissionInvoices.commissionRatePercent,
         contractValueCents: commissionInvoices.contractValueCents,
+        paymentMethod: commissionInvoices.paymentMethod,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,
       })
@@ -331,6 +349,7 @@ export function createBillingHealthService(
         pastDueSince: failure.at.toISOString(),
         retryCount: row.retryCount,
         lastFailureReason: failure.reason,
+        paymentMethod: plannedPaymentMethod(row),
       });
     }
     // Oldest past-due first — the dunning work queue order.
@@ -351,6 +370,7 @@ export function createBillingHealthService(
           billing.commissionRate,
         ),
         contractValueCents: row.contractValueCents,
+        paymentMethod: plannedPaymentMethod(row),
         sortKey: row.reviewDueAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
       }))
       .sort((a, b) => a.sortKey - b.sortKey)

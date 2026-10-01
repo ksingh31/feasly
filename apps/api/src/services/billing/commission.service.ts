@@ -37,6 +37,10 @@ import {
   wholeDaysBetween,
 } from '../../lib/commission-math';
 import { isReportingOnTime } from '../../lib/billing-deadlines';
+import {
+  readDefaultPaymentMethod,
+  requireKnownPaymentMethod,
+} from '../../lib/payment-method';
 import type {
   AttributionService,
   AttributionRecord,
@@ -133,15 +137,11 @@ export const MANUAL_PAYMENT_METHODS: ReadonlyArray<ManualPaymentMethod> = [
 
 /**
  * Builder-selectable payment methods (billing/12): the card on file, or
- * a manual method (cheque, e-transfer, bank draft). Kept here (not in
- * contracts — that package is types-only) next to MANUAL_PAYMENT_METHODS.
+ * a manual method (cheque, e-transfer, bank draft). Lives in
+ * `src/lib/payment-method.ts` (shared with the builder service);
+ * re-exported here so existing importers keep working.
  */
-export const BUILDER_PAYMENT_METHODS: ReadonlyArray<BuilderPaymentMethod> = [
-  'card',
-  'cheque',
-  'e_transfer',
-  'bank_draft',
-];
+export { BUILDER_PAYMENT_METHODS } from '../../lib/payment-method';
 
 export interface ManualPaymentInput {
   readonly paymentMethod: ManualPaymentMethod;
@@ -489,38 +489,6 @@ async function nextInvoiceNumber(db: AppDb): Promise<string> {
     );
   }
   return `INV-${String(n).padStart(4, '0')}`;
-}
-
-/**
- * Read a builder-selectable payment method out of
- * `builders.settings.defaultPaymentMethod` (billing/12). Anything that
- * isn't one of the four known values → 'card' (fail safe: the only
- * behavior that existed before).
- */
-function readDefaultPaymentMethod(
-  settings: Record<string, unknown> | null | undefined,
-): BuilderPaymentMethod {
-  const raw = settings?.['defaultPaymentMethod'];
-  return (
-    BUILDER_PAYMENT_METHODS as ReadonlyArray<string>
-  ).includes(typeof raw === 'string' ? raw : '')
-    ? (raw as BuilderPaymentMethod)
-    : 'card';
-}
-
-function requireKnownPaymentMethod(method: unknown): BuilderPaymentMethod {
-  if (
-    !(BUILDER_PAYMENT_METHODS as ReadonlyArray<string>).includes(
-      typeof method === 'string' ? method : '',
-    )
-  ) {
-    throw new HttpError(
-      400,
-      ErrorCodes.VALIDATION_FAILED,
-      `Unknown payment method "${String(method)}" — expected one of: ${BUILDER_PAYMENT_METHODS.join(', ')}`,
-    );
-  }
-  return method as BuilderPaymentMethod;
 }
 
 export function createCommissionService(

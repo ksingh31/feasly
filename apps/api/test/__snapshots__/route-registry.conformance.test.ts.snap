@@ -651,6 +651,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "PUT /api/v1/admin/billing/invoices/{id}/payment-method": [
+    "super_admin",
+    "admin",
+  ],
   "PUT /api/v1/billing/invoices/{id}/payment-method": [
     "super_admin",
     "admin",

@@ -11,6 +11,10 @@
       <dd>{{ statusLabel() }}</dd>
     </div>
     <div>
+      <dt>Planned payment method</dt>
+      <dd>{{ plannedMethodLabel(invoice().paymentMethod) }}</dd>
+    </div>
+    <div>
       <dt>Current commission</dt>
       <dd>
         {{ formatCad(invoice().commissionCents) }}
@@ -39,6 +43,13 @@
           <strong>Invoice marked as paid.</strong>
           The scheduled auto-charge was cancelled — the builder will not be
           charged again for this invoice.
+        </p>
+      } @else if (confirmedMethod()) {
+        <p>
+          <strong>Payment method updated.</strong>
+          This invoice will now be paid via
+          <strong>{{ confirmedMethodLabel() }}</strong
+          >.
         </p>
       } @else {
         <p>
@@ -151,6 +162,89 @@
                 Updating…
               } @else {
                 Update rate
+              }
+            </button>
+          </div>
+        }
+      </form>
+    </div>
+
+    <div
+      class="manage-invoice__card"
+      role="region"
+      aria-label="Planned payment method"
+    >
+      <h3>Planned payment method</h3>
+      <p class="manage-invoice__note">
+        How this invoice will be collected. Choosing cheque, e-transfer, or
+        bank draft <strong>pauses the Stripe auto-charge</strong> until staff
+        records the payment; going back to the card on file re-arms it.
+      </p>
+      <form [formGroup]="methodForm" (ngSubmit)="startMethodConfirm()">
+        <div class="manage-invoice__field">
+          <label for="manage-planned-method">Payment method</label>
+          <select id="manage-planned-method" formControlName="method">
+            @for (option of plannedMethodOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+          <p class="manage-invoice__hint">
+            Currently planned:
+            {{ plannedMethodLabel(invoice().paymentMethod) }}.
+          </p>
+        </div>
+        @if (confirmingMethod()) {
+          <div
+            class="manage-invoice__confirm"
+            role="region"
+            aria-label="Confirm payment method change"
+          >
+            <p>
+              Change the planned payment method to
+              <strong>{{
+                plannedMethodLabel(methodForm.controls.method.value)
+              }}</strong
+              >?
+              @if (methodForm.controls.method.value === 'card') {
+                The Stripe auto-charge will be re-armed.
+              } @else {
+                The Stripe auto-charge will be paused until the payment is
+                recorded.
+              }
+            </p>
+            <div class="manage-invoice__actions">
+              <button
+                type="button"
+                class="manage-invoice__btn manage-invoice__btn--primary"
+                (click)="confirmMethodUpdate()"
+                [disabled]="busy()"
+              >
+                @if (busy()) {
+                  Updating…
+                } @else {
+                  Confirm update method
+                }
+              </button>
+              <button
+                type="button"
+                class="manage-invoice__btn"
+                (click)="backFromMethodConfirm()"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="manage-invoice__actions">
+            <button
+              type="submit"
+              class="manage-invoice__btn"
+              [disabled]="busy() || !methodChanged()"
+            >
+              @if (inflight() === 'method') {
+                Updating…
+              } @else {
+                Update method
               }
             </button>
           </div>

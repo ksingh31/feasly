@@ -7,6 +7,8 @@
  * aggregated payload for `GET /api/v1/admin/billing`.
  */
 
+import type { BuilderPaymentMethod } from './billing';
+
 /** Active billing model (Karan 2026-09-24: commission; config-switchable). */
 export type BillingHealthModel = 'commission' | 'flat';
 
@@ -38,6 +40,12 @@ export interface BillingHealthDunningInvoice {  readonly id: string;
    * or null when no reason was recorded. Shown in the dunning queue.
    */
   readonly lastFailureReason: string | null;
+  /**
+   * How this invoice gets paid (billing/12): 'card' = the normal Stripe
+   * off-session auto-charge; cheque/e_transfer/bank_draft = manual — the
+   * invoice sits until staff marks it paid.
+   */
+  readonly paymentMethod: BuilderPaymentMethod;
 }
 
 /** An in-review commission invoice, for the admin billing work queue. */
@@ -56,6 +64,12 @@ export interface BillingHealthInReviewInvoice {
   readonly commissionRatePercent: number;
   /** Signed construction contract value in integer cents, EXCLUDING land. */
   readonly contractValueCents: number;
+  /**
+   * How this invoice gets paid (billing/12): 'card' = the normal Stripe
+   * off-session auto-charge; cheque/e_transfer/bank_draft = manual — the
+   * invoice sits until staff marks it paid.
+   */
+  readonly paymentMethod: BuilderPaymentMethod;
 }
 
 /** MRR as reported by the dashboard. */
@@ -125,7 +139,8 @@ export interface BillingHealthResponse {
   readonly dunning: ReadonlyArray<BillingHealthDunningInvoice>;
   /**
    * In-review invoices for the admin work queue — the rows an admin can
-   * mark as paid (off-Stripe) or override the commission rate on.
+   * mark as paid (off-Stripe), override the commission rate on, or change
+   * the planned payment method on.
    * Ordered by review window (most urgent first), bounded.
    */
   readonly inReviewInvoices: ReadonlyArray<BillingHealthInReviewInvoice>;

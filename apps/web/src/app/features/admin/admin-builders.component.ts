@@ -11,6 +11,7 @@ import { Store } from '@ngxs/store';
 import type {
   Builder,
   BuilderCreateBody,
+  BuilderPaymentMethod,
   BuilderStatus,
   BuilderUpdateBody,
 } from '@feasly/contracts';
@@ -24,6 +25,12 @@ import {
   UpdateBuilder,
 } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
+import {
+  PLANNED_PAYMENT_METHOD_LABELS,
+} from './admin-billing-api.service';
+import {
+  isBuilderPaymentMethod,
+} from '../builder/builder-payment-methods';
 
 /** Tenant-key shape enforced by the backend (lowercase alphanumeric with dashes). */
 const TENANT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -36,6 +43,14 @@ const PLAN_OPTIONS = [
   { value: 'flat', label: 'Flat — monthly fee' },
   { value: 'commission', label: 'Commission — share of signed builds' },
 ] as const;
+
+/** Default payment method for new invoices (billing/12), stored on settings. */
+function readBuilderDefaultPaymentMethod(
+  settings: Record<string, unknown> | null | undefined,
+): BuilderPaymentMethod {
+  const raw = settings?.['defaultPaymentMethod'];
+  return isBuilderPaymentMethod(raw) ? raw : 'card';
+}
 
 /** Valid JSON (or empty) for the advanced settings field. */
 function jsonValidator(control: AbstractControl): ValidationErrors | null {
@@ -84,6 +99,9 @@ export class AdminBuildersComponent implements OnInit {
 
   protected readonly planOptions = PLAN_OPTIONS;
 
+  /** Planned payment-method options for the default-method dropdown. */
+  protected readonly paymentMethodOptions = PLANNED_PAYMENT_METHOD_LABELS;
+
   /** Logo images that failed to load — those avatars fall back to initials. */
   protected readonly logoFailed = signal<ReadonlySet<string>>(new Set());
 
@@ -114,6 +132,16 @@ export class AdminBuildersComponent implements OnInit {
     commissionRatePercent: [
       1,
       [Validators.min(0), Validators.max(10)],
+    ],
+    /**
+     * Default payment method for new invoices (billing/12). 'card' = the
+     * card on file with the Stripe auto-charge; the manual options pause
+     * it. On create it merges into the settings JSON; on edit the backend
+     * also accepts it as a dedicated field (dedicated wins).
+     */
+    defaultPaymentMethod: [
+      'card' as BuilderPaymentMethod,
+      [Validators.required],
     ],
     settings: ['', [jsonValidator]],
   });
@@ -154,6 +182,7 @@ export class AdminBuildersComponent implements OnInit {
       plan: '',
       status: 'active',
       commissionRatePercent: 1,
+      defaultPaymentMethod: 'card' as BuilderPaymentMethod,
       settings: '',
     });
     this.form.get('tenantKey')?.enable();
@@ -181,6 +210,7 @@ export class AdminBuildersComponent implements OnInit {
       plan: builder.plan ?? '',
       status: builder.status,
       commissionRatePercent: builder.commissionRatePercent,
+      defaultPaymentMethod: readBuilderDefaultPaymentMethod(builder.settings),
       settings: Object.keys(builder.settings).length > 0 ? JSON.stringify(builder.settings, null, 2) : '',
     });
     // Tenant key is the builder's identity everywhere (embeds, sessions,
@@ -274,6 +304,9 @@ export class AdminBuildersComponent implements OnInit {
         plan: v.plan === '' ? null : v.plan,
         status: v.status!,
         settings,
+        // The default method ships as the dedicated field (it wins over a
+        // stale value inside the wholesale settings JSON above).
+        defaultPaymentMethod: v.defaultPaymentMethod!,
         // A cleared field means "no change" — 0 is a real rate, so only
         // null is omitted.
         ...(v.commissionRatePercent !== null
@@ -307,7 +340,12 @@ export class AdminBuildersComponent implements OnInit {
         allowedOrigins: origins,
         plan: v.plan === '' ? null : v.plan,
         status: v.status!,
-        settings,
+        // The create endpoint has no dedicated field — the default
+        // payment method merges into the settings JSON it already sends.
+        settings: {
+          ...settings,
+          defaultPaymentMethod: v.defaultPaymentMethod!,
+        },
         // Blank on create falls back to the 1% default server-side.
         ...(v.commissionRatePercent !== null
           ? { commissionRatePercent: v.commissionRatePercent! }
@@ -334,6 +372,13 @@ export class AdminBuildersComponent implements OnInit {
   protected planLabel(plan: string | null): string {
     const found = PLAN_OPTIONS.find((o) => o.value === (plan ?? ''));
     return found && found.value !== '' ? found.label : 'Undecided';
+  }
+
+  protected methodLabel(settings: Record<string, unknown>): string {
+    const method = readBuilderDefaultPaymentMethod(settings);
+    return (
+      this.paymentMethodOptions.find((o) => o.value === method)?.label ?? method
+    );
   }
 
   protected statusLabel(status: BuilderStatus): string {

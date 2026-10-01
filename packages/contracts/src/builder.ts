@@ -10,7 +10,7 @@
  * httpOnly `Set-Cookie` for a same-origin future. The client only ever
  * sees the opaque magic-link token from the email URL before that.
  */
-import type { CommissionInvoiceStatus } from './billing';
+import type { BuilderPaymentMethod, CommissionInvoiceStatus } from './billing';
 
 export interface BuilderAuthRequestBody {
   readonly email: string;
@@ -253,6 +253,12 @@ export interface BuilderUpdateBody {
    * Rejected with 400 INVALID_RATE outside 0–10.
    */
   readonly commissionRatePercent?: number;
+  /**
+   * The builder org's default payment method for new invoices (billing/12).
+   * Omitted = unchanged. Existing invoices keep the method they were
+   * created with. Merged into `settings.defaultPaymentMethod`.
+   */
+  readonly defaultPaymentMethod?: BuilderPaymentMethod;
 }
 
 export interface LeadAssignBuilderBody {

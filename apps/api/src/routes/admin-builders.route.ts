@@ -112,6 +112,14 @@ const builderUpdateSchema = z.object({
    * non-numeric input here.
    */
   commissionRatePercent: z.number().nullish(),
+  /**
+   * The builder org's default payment method for new invoices
+   * (billing/12). Merged into `settings.defaultPaymentMethod` by
+   * BuilderService; changing it affects future invoices only.
+   */
+  defaultPaymentMethod: z
+    .enum(['card', 'cheque', 'e_transfer', 'bank_draft'])
+    .nullish(),
 });
 
 function parseBuilderId(id: unknown): string {
@@ -200,6 +208,9 @@ export function createAdminBuildersRoute(
       : {}),
     ...(data.commissionRatePercent !== undefined && data.commissionRatePercent !== null
       ? { commissionRatePercent: data.commissionRatePercent }
+      : {}),
+    ...(data.defaultPaymentMethod !== undefined && data.defaultPaymentMethod !== null
+      ? { defaultPaymentMethod: data.defaultPaymentMethod }
       : {}),
   });
 

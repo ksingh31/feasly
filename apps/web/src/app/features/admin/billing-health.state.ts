@@ -2,12 +2,17 @@ import { inject, Injectable } from '@angular/core';
 import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
 import { catchError, of, tap } from 'rxjs';
 import type {
+  AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
+  BuilderPaymentMethod,
   ManualInvoiceResponse,
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
 } from '@feasly/contracts';
-import { AdminBillingApiService } from './admin-billing-api.service';
+import {
+  AdminBillingApiService,
+  PLANNED_PAYMENT_METHOD_LABELS,
+} from './admin-billing-api.service';
 import {
   CreateManualInvoice,
   DismissCreateInvoiceFeedback,
@@ -16,6 +21,7 @@ import {
   MarkInvoicePaid,
   RetryInvoiceCharge,
   SetCommissionRate,
+  SetInvoicePlannedPaymentMethod,
 } from './billing-health.actions';
 
 /** Loading lifecycle for the billing-health dashboard. */
@@ -53,14 +59,18 @@ export interface BillingHealthStateModel {
   /** Mark-paid / rate-override submit lifecycle in the manage modal. */
   invoiceActionStatus: InvoiceActionStatus;
   /**
-   * One-shot mark-paid / rate-override feedback; carries the updated
-   * invoice. Shown in the manage modal; a success also reloads the
-   * dashboard so the work queue reflects the new state.
+   * One-shot mark-paid / rate-override / payment-method feedback; carries
+   * the updated invoice. Shown in the manage modal; a success also
+   * reloads the dashboard so the work queue reflects the new state.
    */
   invoiceFeedback: {
     ok: boolean;
     message: string;
-    invoice: MarkInvoicePaidResponse | SetCommissionRateResponse | null;
+    invoice:
+      | MarkInvoicePaidResponse
+      | SetCommissionRateResponse
+      | AdminSetInvoicePaymentMethodResponse
+      | null;
   } | null;
 }
 
@@ -351,12 +361,55 @@ export class BillingHealthState {
   dismissInvoiceFeedback(ctx: StateContext<BillingHealthStateModel>) {
     ctx.patchState({ invoiceActionStatus: 'idle', invoiceFeedback: null });
   }
+
+  /**
+   * Change the planned payment method on one invoice. On success the
+   * dashboard payload reloads so the work queue shows the new method.
+   */
+  @Action(SetInvoicePlannedPaymentMethod)
+  setInvoicePlannedPaymentMethod(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: SetInvoicePlannedPaymentMethod,
+  ) {
+    ctx.patchState({ invoiceActionStatus: 'submitting', invoiceFeedback: null });
+    return this.api
+      .setInvoicePaymentMethod(action.invoiceId, action.method)
+      .pipe(
+        tap((invoice) => {
+          const manual = invoice.paymentMethod !== 'card';
+          ctx.patchState({
+            invoiceActionStatus: 'idle',
+            invoiceFeedback: {
+              ok: true,
+              message:
+                `Payment method set to ${plannedMethodLabel(invoice.paymentMethod)}. ` +
+                (manual
+                  ? 'The Stripe auto-charge is paused until the payment is recorded.'
+                  : 'The scheduled Stripe auto-charge is armed.'),
+              invoice,
+            },
+          });
+          ctx.dispatch(new LoadBillingHealth());
+        }),
+        catchError((err: unknown) => {
+          ctx.patchState({
+            invoiceActionStatus: 'error',
+            invoiceFeedback: {
+              ok: false,
+              message: friendlyInvoiceActionError(err),
+              invoice: null,
+            },
+          });
+          return of(null);
+        }),
+      );
+  }
 }
 
 /**
- * Map a mark-paid / rate-override failure to user-facing copy. The raw
- * error never reaches the UI; specific cases are named so the admin can
- * act on them.
+ * Map a mark-paid / rate-override / payment-method failure to
+ * user-facing copy. The raw error never reaches the UI; specific cases
+ * are named so the admin can act on them.
  */
 function friendlyInvoiceActionError(err: unknown): string {
   const status =
@@ -407,6 +460,14 @@ function friendlyCreateError(err: unknown): string {
   if (status === 422)
     return 'The current billing model does not support per-event invoices.';
   return 'Invoice creation failed — check the details and try again.';
+}
+
+/** Plain admin label for a planned payment method. */
+function plannedMethodLabel(method: BuilderPaymentMethod): string {
+  return (
+    PLANNED_PAYMENT_METHOD_LABELS.find((option) => option.value === method)
+      ?.label ?? method
+  );
 }
 
 /**

@@ -156,6 +156,8 @@ interface SeedInvoice {
   reviewDueAt?: Date | null;
   paidAt?: Date | null;
   updatedAt?: Date;
+  /** Planned payment method; defaults to the DB 'card' default. */
+  paymentMethod?: 'card' | 'cheque' | 'e_transfer' | 'bank_draft';
 }
 
 async function seedInvoice(
@@ -185,6 +187,7 @@ async function seedInvoice(
     commissionCents: seed.commissionCents,
     currency: 'CAD',
     status: seed.status,
+    paymentMethod: seed.paymentMethod ?? 'card',
     reviewDueAt: seed.reviewDueAt ?? null,
     paidAt: seed.paidAt ?? null,
     createdAt: seed.createdAt,
@@ -304,6 +307,7 @@ describe('billing-health service', () => {
       reviewDueAt: soon.toISOString(),
       commissionRatePercent: 1,
       contractValueCents: 1_000_000,
+      paymentMethod: 'card',
     });
     expect(byId.get(laterId)).toMatchObject({
       reviewDueAt: later.toISOString(),
@@ -320,6 +324,7 @@ describe('billing-health service', () => {
       commissionCents: 15_000,
       createdAt: hoursAgo(100),
       updatedAt: hoursAgo(29),
+      paymentMethod: 'cheque',
     });
     await seedAudit({
       tenantKey: 'test-builder',
@@ -348,11 +353,13 @@ describe('billing-health service', () => {
       commissionCents: 5_000,
       currency: 'CAD',
       pastDueSince: legacyFailedAt.toISOString(),
+      paymentMethod: 'card',
     });
     expect(health.dunning[1]).toMatchObject({
       id: failedId,
       commissionCents: 15_000,
       pastDueSince: failedAt.toISOString(),
+      paymentMethod: 'cheque',
     });
   });
 
