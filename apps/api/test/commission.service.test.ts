@@ -1673,6 +1673,7 @@ describe('builder payment methods (billing/12)', () => {
   it('a later default change does not rewrite existing invoices', async () => {
     const { commission, attribution } = newServices(testDb);
     await seedTenant(testDb, 'paydef-builder-4');
+    await seedBuilder('paydef-builder-4');
     await commission.setDefaultPaymentMethod('paydef-builder-4', 'cheque');
     const attributionId = await seedAttribution(
       testDb,

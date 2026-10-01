@@ -28,13 +28,18 @@ SET "invoice_number" = 'INV-' || LPAD("o"."rn"::text, 4, '0')
 FROM "ordered" "o"
 WHERE "ci"."id" = "o"."id";
 --> statement-breakpoint
-SELECT setval(
-  'commission_invoice_number_seq',
-  (SELECT COALESCE(MAX("rn"), 0) FROM (
+-- Advance the sequence past the backfilled rows. Skipped on an empty
+-- table (MAX(rn) IS NULL): the sequence then starts at 1, so the first
+-- invoice is INV-0001. setval(..., 0) is out of bounds, so it must be
+-- guarded this way rather than defaulting to 0.
+SELECT setval('commission_invoice_number_seq', "m"."max_n")
+FROM (
+  SELECT MAX("rn") AS "max_n" FROM (
     SELECT ROW_NUMBER() OVER (ORDER BY "created_at", "id") AS "rn"
     FROM "commission_invoices"
-  ) "t")
-);
+  ) "t"
+) AS "m"
+WHERE "m"."max_n" IS NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "commission_invoices" ALTER COLUMN "invoice_number" SET NOT NULL;
 --> statement-breakpoint

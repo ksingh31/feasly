@@ -90,9 +90,7 @@ function makeDeps(opts?: {
       tenantKey === 'elite-craft' ? 1.5 : 1,
     ),
     getDefaultPaymentMethod: vi.fn(async () => 'cheque'),
-    setDefaultPaymentMethod: vi.fn(async (tenantKey: string, method: string) => ({
-      defaultMethod: method,
-    })),
+    setDefaultPaymentMethod: vi.fn(async (_tenantKey: string, method: string) => method),
     setInvoicePaymentMethod: vi.fn(
       async (invoiceId: string, tenantKey: string, method: string) => ({
         id: invoiceId,
