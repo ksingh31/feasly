@@ -273,6 +273,11 @@ const targets = [
     entry: 'src/functions/builder-auth-verify.ts',
     out: 'builder-auth-verify/index.js',
   },
+  // Builder-side view-as initiation (2026-09-30, Karan).
+  {
+    entry: 'src/functions/builder-view-as.ts',
+    out: 'builder-view-as/index.js',
+  },
   {
     entry: 'src/functions/builder-auth-logout.ts',
     out: 'builder-auth-logout/index.js',
