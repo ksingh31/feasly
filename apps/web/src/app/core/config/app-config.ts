@@ -865,6 +865,8 @@ export interface AppConfig {
       exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
+      /** What-if toggle hint (report page, post-gate): instant-plain, mirrors adjustHint. */
+      tierToggleHint: string;
       adjustTitle: string;
       decreaseLabel: string;
       increaseLabel: string;
