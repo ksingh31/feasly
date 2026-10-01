@@ -15,11 +15,16 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
 import type { BuilderLeadListResponse, Comment } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderState } from './builder.state';
+import { BuilderBillingState } from './builder-billing.state';
+import { BuilderBillingApiService } from './builder-billing-api.service';
+import { BuilderInvoicesState } from './builder-invoices.state';
+import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 
 /** A minimal full Comment fixture for the expanded-thread flushes. */
 function threadComment(overrides: Partial<Comment> = {}): Comment {
@@ -130,7 +135,21 @@ async function setup() {
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      provideStore([BuilderState]),
+      // The dashboard's due-invoice banners read the invoices and billing
+      // states; the APIs behind them are stubbed so the banner loads never
+      // hit HttpTestingController (its verify() would flag them).
+      provideStore([BuilderState, BuilderBillingState, BuilderInvoicesState]),
+      {
+        provide: BuilderInvoicesApiService,
+        useValue: {
+          listInvoices: () =>
+            of({ invoices: [], total: 0, page: 1, pageSize: 20 }),
+        },
+      },
+      {
+        provide: BuilderBillingApiService,
+        useValue: { getCard: () => of({ hasCard: false }) },
+      },
     ],
   });
   const fixture: ComponentFixture<BuilderDashboardComponent> =
@@ -172,6 +191,28 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     );
     expect(labels[0]).toBe('Total leads');
     expect(labels[1]).toBe('New');
+    httpMock.verify();
+  });
+
+  it('renders the due-invoice banners region above the pipeline heading', async () => {
+    const { fixture, httpMock } = await setup();
+    loadLeads(httpMock, EMPTY_RESPONSE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const banners = fixture.nativeElement.querySelector(
+      'app-due-invoice-banners',
+    ) as HTMLElement;
+    const heading = fixture.nativeElement.querySelector(
+      '#builder-dashboard-heading',
+    ) as HTMLElement;
+    expect(banners).toBeTruthy();
+    expect(heading).toBeTruthy();
+    // Banners sit above the page heading in document order.
+    expect(
+      banners.compareDocumentPosition(heading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     httpMock.verify();
   });
 

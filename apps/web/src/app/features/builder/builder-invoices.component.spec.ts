@@ -56,6 +56,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-001',
+      invoiceNumber: 'INV-0001',
       attributionId: 'a1',
       leadId: 'l1',
       leadName: 'Ava Brown',
@@ -69,6 +70,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-002',
+      invoiceNumber: 'INV-0002',
       attributionId: 'a2',
       leadId: 'l2',
       leadName: 'Liam Chen',
@@ -85,6 +87,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-003',
+      invoiceNumber: 'INV-0003',
       attributionId: 'a3',
       leadId: 'l3',
       contractValueCents: 59800000,
@@ -99,6 +102,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-004',
+      invoiceNumber: 'INV-0004',
       attributionId: 'a4',
       leadId: 'l4',
       contractValueCents: 81000000,
@@ -113,6 +117,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-005',
+      invoiceNumber: 'INV-0005',
       attributionId: 'a5',
       leadId: 'l5',
       contractValueCents: 65500000,
@@ -128,6 +133,7 @@ function testInvoices(): CommissionInvoice[] {
     {
       ...base,
       id: 'inv-test-006',
+      invoiceNumber: 'INV-0006',
       attributionId: 'a6',
       leadId: 'l6',
       contractValueCents: 70300000,
@@ -440,6 +446,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
       invoices: [
         {
           id: 'inv-1',
+          invoiceNumber: 'INV-0001',
           tenantKey: 't1',
           attributionId: 'a1',
           leadId: 'l1',
