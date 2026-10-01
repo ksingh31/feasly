@@ -505,7 +505,7 @@ describe('ReportPageComponent', () => {
         const dispatchSpy = vi.spyOn(store, 'dispatch');
         tierCard('luxury').click();
         fixture.detectChanges();
-        const dispatched = dispatchSpy.mock.calls.flat();
+        const dispatched = dispatchSpy.mock.calls.flat().flat();
         const revise = dispatched.find((a) => a instanceof ReviseReport) as
           | ReviseReport
           | undefined;
@@ -540,11 +540,15 @@ describe('ReportPageComponent', () => {
         tierCard('premium').click();
         fixture.detectChanges();
         expect(
-          dispatchSpy.mock.calls.flat().some((a) => a instanceof ReviseReport),
+          dispatchSpy.mock.calls.flat().flat().some((a) => a instanceof ReviseReport),
         ).toBe(false);
       });
 
-      it('is hidden pre-gate (the preview page carries the locked note instead)', () => {
+      it('is hidden pre-gate (the preview page carries the locked note instead)', async () => {
+        // Fresh pre-gate preview: the post-gate describe's beforeEach
+        // unlocked the shared fixture, so re-run setup without a lead.
+        await setup();
+        fixture.detectChanges();
         expect(fixture.nativeElement.querySelector('.tier-toggle-card')).toBeNull();
       });
 
