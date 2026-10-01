@@ -200,6 +200,7 @@ export function createBuilderLeadsService(
         if (!byLeadId.has(summary.leadId)) {
           byLeadId.set(summary.leadId, {
             id: summary.id,
+            invoiceNumber: summary.invoiceNumber,
             contractValueCents: summary.contractValueCents,
             commissionCents: summary.commissionCents,
             status: summary.status as CommissionInvoiceStatus,

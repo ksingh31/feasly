@@ -97,6 +97,7 @@ const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
       hasInvoice: true,
       invoiceSummary: {
         id: 'inv-1',
+        invoiceNumber: 'INV-0042',
         contractValueCents: 65000000,
         status: 'in_review',
         commissionCents: 650000,
@@ -351,10 +352,15 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     ) as HTMLElement;
     const text = card.textContent as string;
     expect(text).toContain('Contract recorded');
-    expect(text).toContain('View your invoice');
+    // The lead card shows the invoice number…
+    expect(text).toContain('View invoice INV-0042');
     expect(text).not.toContain('Record the signed contract');
-    const link = card.querySelector('a[href="/builder/invoices"]');
+    // …and deep-links to the invoice detail (?invoice=<id>).
+    const link = card.querySelector(
+      '.builder-lead-card__won--recorded a',
+    ) as HTMLAnchorElement;
     expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/builder/invoices?invoice=inv-1');
     httpMock.verify();
   });
 

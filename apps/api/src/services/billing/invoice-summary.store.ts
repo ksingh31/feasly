@@ -19,6 +19,8 @@ import { commissionInvoices } from '../../db/schema';
 export interface InvoiceSummaryRecord {
   readonly id: string;
   readonly leadId: string;
+  /** Human-readable invoice number, e.g. "INV-0042". */
+  readonly invoiceNumber: string;
   readonly contractValueCents: number;
   readonly commissionCents: number;
   readonly status: string;
@@ -61,6 +63,7 @@ export function createInvoiceSummaryStore(
         .select({
           id: commissionInvoices.id,
           leadId: commissionInvoices.leadId,
+          invoiceNumber: commissionInvoices.invoiceNumber,
           contractValueCents: commissionInvoices.contractValueCents,
           commissionCents: commissionInvoices.commissionCents,
           status: commissionInvoices.status,

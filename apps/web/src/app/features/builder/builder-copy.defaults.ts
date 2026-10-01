@@ -137,6 +137,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesEmpty:
     'No invoices yet — they’ll appear here when you record a signed contract.',
   invoicesColDate: 'Date',
+  invoicesColInvoiceNumber: 'Invoice #',
   invoicesColContract: 'Contract value',
   invoicesColCommission: 'Commission',
   invoicesColStatus: 'Status',
@@ -156,6 +157,10 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'Your card was declined \u2014 update it to avoid collection.',
   invoicesPaymentReceived: 'Payment received \u2014 thank you.',
   invoicesNumberRow: 'Invoice number',
+  invoicesFilterNumberLabel: 'Search by invoice number',
+  invoicesFilterNumberPlaceholder: 'e.g. INV-0042',
+  invoicesFilterNumberClear: 'Clear',
+  invoicesFilterEmpty: 'No invoices match your search.',
   invoicesPaymentMethodRow: 'Payment method',
   invoicesPaymentMethodLocked:
     'Payment method can\u2019t be changed once an invoice is settled.',
@@ -312,6 +317,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   leadsWonReportCta: 'Record the signed contract',
   leadsRecordedCta: 'Contract recorded',
   leadsViewInvoiceCta: 'View your invoice',
+  leadsViewInvoiceWithNumber: 'View invoice {number}',
   teamColAdded: 'Added',
   teamInviteButton: 'Invite team member',
   teamInviteModalSub:

@@ -44,6 +44,42 @@
   font-weight: 600;
 }
 
+/* Invoice-number search (above the list). */
+.builder-invoices__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.builder-invoices__filter-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.builder-invoices__filter-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.builder-invoices__filter-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 20rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border, #d8d2c7);
+  border-radius: 0.5rem;
+  background: var(--color-surface, #fff);
+  font: inherit;
+  font-size: 0.9375rem;
+  color: inherit;
+  min-height: 44px;
+
+  &::placeholder {
+    color: var(--color-text-muted, #6b6257);
+  }
+}
+
 /* Admin-style table (billing-panel__table treatment). The scroll wrapper
  * keeps 390px viewports usable without collapsing columns. */
 .builder-invoices__table-scroll {

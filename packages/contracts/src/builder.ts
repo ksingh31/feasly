@@ -108,6 +108,8 @@ export type BuilderLeadStatus =
  */
 export interface BuilderLeadInvoiceSummary {
   readonly id: string;
+  /** Human-readable invoice number, e.g. "INV-0042". */
+  readonly invoiceNumber: string;
   /** Signed construction contract value, integer cents, excl. land. */
   readonly contractValueCents: number;
   /** round(contractValueCents * rate), integer cents. */

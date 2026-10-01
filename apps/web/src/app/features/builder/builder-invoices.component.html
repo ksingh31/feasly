@@ -196,16 +196,55 @@
       <p>{{ copy.invoicesLoadError }}</p>
       <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
     </div>
-  } @else if (invoices().length === 0) {
-    <div class="builder-invoices__empty" role="status">
-      <p class="builder-invoices__empty-body">{{ copy.invoicesEmpty }}</p>
-    </div>
   } @else {
-    <!-- Invoice list -->
-    <div class="builder-invoices__table-scroll">
+    <!-- Invoice-number search: stays visible once loaded so a no-match
+         search never strands the user without a way to clear it. -->
+    <div class="builder-invoices__filter">
+      <label class="builder-invoices__filter-label" for="invoice-number-filter">{{
+        copy.invoicesFilterNumberLabel
+      }}</label>
+      <div class="builder-invoices__filter-row">
+        <input
+          id="invoice-number-filter"
+          type="search"
+          class="builder-invoices__filter-input"
+          [value]="filterText()"
+          (input)="onFilterInput($event)"
+          [placeholder]="copy.invoicesFilterNumberPlaceholder"
+          autocomplete="off"
+        />
+        @if (filterText()) {
+          <button
+            type="button"
+            class="builder-invoices__btn"
+            (click)="clearFilter()"
+          >
+            {{ copy.invoicesFilterNumberClear }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (invoices().length === 0) {
+      @if (filterText()) {
+        <div class="builder-invoices__empty" role="status">
+          <p class="builder-invoices__empty-body">{{ copy.invoicesFilterEmpty }}</p>
+          <button type="button" (click)="clearFilter()">
+            {{ copy.invoicesFilterNumberClear }}
+          </button>
+        </div>
+      } @else {
+        <div class="builder-invoices__empty" role="status">
+          <p class="builder-invoices__empty-body">{{ copy.invoicesEmpty }}</p>
+        </div>
+      }
+    } @else {
+      <!-- Invoice list -->
+      <div class="builder-invoices__table-scroll">
       <table class="builder-invoices__table">
         <thead>
           <tr>
+            <th scope="col">{{ copy.invoicesColInvoiceNumber }}</th>
             <th scope="col">{{ copy.invoicesColDate }}</th>
             <th scope="col">{{ copy.invoicesColLead }}</th>
             <th scope="col">{{ copy.invoicesColContract }}</th>
@@ -223,9 +262,10 @@
                   class="builder-invoices__row-link"
                   (click)="openInvoice(invoice.id)"
                 >
-                  {{ formatEdmontonDate(invoice.createdAt) }}
+                  {{ invoice.invoiceNumber }}
                 </button>
               </td>
+              <td>{{ formatEdmontonDate(invoice.createdAt) }}</td>
               <td>{{ invoice.leadName }}</td>
               <td>{{ money(invoice.contractValueCents) }}</td>
               <td>{{ money(invoice.commissionCents) }}</td>
@@ -269,5 +309,6 @@
         {{ copy.invoicesNextPage }}
       </button>
     </nav>
+    }
   }
 </section>

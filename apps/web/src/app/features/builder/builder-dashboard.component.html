@@ -151,7 +151,11 @@
                   @if (lead.hasInvoice) {
                     <p class="builder-lead-card__won builder-lead-card__won--recorded">
                       {{ copy.leadsRecordedCta }} —
-                      <a routerLink="/builder/invoices">{{ copy.leadsViewInvoiceCta }}</a>
+                      <a
+                        [routerLink]="['/builder/invoices']"
+                        [queryParams]="invoiceLinkParams(lead)"
+                        >{{ invoiceCtaLabel(lead) }}</a
+                      >
                     </p>
                   } @else {
                     <p class="builder-lead-card__won">

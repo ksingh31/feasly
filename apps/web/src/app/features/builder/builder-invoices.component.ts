@@ -3,6 +3,7 @@ import {
   DestroyRef,
   OnInit,
   inject,
+  signal,
 } from '@angular/core';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -11,7 +12,8 @@ import type {
   CommissionInvoice,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
@@ -32,6 +34,7 @@ import {
   ClearInvoicesState,
   LoadInvoices,
   SelectInvoice,
+  SetInvoiceNumberFilter,
   UpdateInvoicePaymentMethod,
 } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
@@ -42,6 +45,13 @@ interface TimelineEntry {
   readonly label: string;
   readonly date: string;
 }
+
+/**
+ * Invoice-number search debounce (UI-responsiveness timing, not a tunable:
+ * balances per-keystroke API calls against search snappiness; changes with
+ * the UX, not by deploy tuning). See the hardcode allowlist.
+ */
+const INVOICE_NUMBER_FILTER_DEBOUNCE_MS = 400;
 
 /**
  * Builder invoices page (BILL-04): `/builder/invoices`.
@@ -101,6 +111,16 @@ export class BuilderInvoicesComponent implements OnInit {
   );
   protected readonly card = this.store.selectSignal(BuilderBillingState.card);
 
+  /**
+   * Invoice-number search box text (what the user typed). The committed
+   * server-side filter lives in the state; typing debounces into
+   * {@link SetInvoiceNumberFilter} so the list searches as you type.
+   */
+  protected readonly filterText = signal('');
+
+  /** Raw keystrokes → debounced filter dispatch (no leaked subscription). */
+  private readonly filterInput$ = new Subject<string>();
+
   constructor() {
     this.seo.setPage({
       title: 'Invoices — Feasly builder portal',
@@ -110,6 +130,14 @@ export class BuilderInvoicesComponent implements OnInit {
     this.destroyRef.onDestroy(() => {
       this.store.dispatch(new ClearInvoicesState());
     });
+    this.filterInput$
+      .pipe(
+        debounceTime(INVOICE_NUMBER_FILTER_DEBOUNCE_MS),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => {
+        this.store.dispatch(new SetInvoiceNumberFilter(value));
+      });
   }
 
   ngOnInit(): void {
@@ -131,6 +159,19 @@ export class BuilderInvoicesComponent implements OnInit {
 
   protected retryLoad(): void {
     this.store.dispatch(new LoadInvoices(this.page()));
+  }
+
+  /** Keystroke in the invoice-number search box — debounced into the state. */
+  protected onFilterInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.filterText.set(value);
+    this.filterInput$.next(value);
+  }
+
+  /** Clears the invoice-number search and reloads the full list. */
+  protected clearFilter(): void {
+    this.filterText.set('');
+    this.store.dispatch(new SetInvoiceNumberFilter(''));
   }
 
   protected openInvoice(id: string): void {

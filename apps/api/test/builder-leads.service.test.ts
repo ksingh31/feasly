@@ -524,6 +524,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
     summaries: ReadonlyArray<{
       readonly id: string;
       readonly leadId: string;
+      readonly invoiceNumber: string;
       readonly contractValueCents: number;
       readonly commissionCents: number;
       readonly status: string;
@@ -551,6 +552,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       {
         id: 'inv-1',
         leadId: 'lead-1',
+        invoiceNumber: 'INV-0042',
         contractValueCents: 50000000,
         commissionCents: 500000,
         status: 'in_review',
@@ -563,6 +565,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
     expect(item?.hasInvoice).toBe(true);
     expect(item?.invoiceSummary).toEqual({
       id: 'inv-1',
+      invoiceNumber: 'INV-0042',
       contractValueCents: 50000000,
       commissionCents: 500000,
       status: 'in_review',
@@ -592,6 +595,7 @@ describe('builder-leads status lock (2026-09-29)', () => {
       {
         id: 'inv-1',
         leadId,
+        invoiceNumber: 'INV-0042',
         contractValueCents: 50000000,
         commissionCents: 500000,
         status: 'in_review',
