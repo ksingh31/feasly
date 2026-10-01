@@ -19,6 +19,7 @@ import {
   ReviseReport,
   SetPartnerView,
   SetReportToken,
+  ToggleStep,
   UnlockReport,
 } from './report.actions';
 import { ReportState, serializeReportState } from './report.state';
