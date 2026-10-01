@@ -265,4 +265,44 @@ describe('admin-leads-export adapter', () => {
     // Invalid dates serialize empty rather than "Invalid Date".
     expect(body).not.toContain('Invalid Date');
   });
+
+  it('quotes real newlines and neutralizes spreadsheet formula prefixes', async () => {
+    // P1-3 (2026-09-30 security audit): escapeCsv checked for a literal
+    // backslash-n instead of a real newline, and never neutralized
+    // = + - @ prefixes. Both are pinned here end to end.
+    storeListLeads.mockResolvedValue({
+      rows: [
+        makeLeadRow({ id: 'lead-newline', name: 'John\nDoe' }),
+        makeLeadRow({ id: 'lead-formula-eq', name: '=1+1' }),
+        makeLeadRow({ id: 'lead-formula-plus', name: '+cmd' }),
+        makeLeadRow({ id: 'lead-formula-at', name: '@evil' }),
+        makeLeadRow({ id: 'lead-formula-dash', name: '-2+3' }),
+        makeLeadRow({ id: 'lead-plain', name: 'Plain Name' }),
+      ],
+      nextCursor: null,
+      totalCount: 6,
+      statusCounts: STATUS_COUNTS,
+    });
+    const ctx = context();
+    await adminLeadsExportHandler(ctx, {
+      method: 'GET',
+      headers: { cookie: SESSION_COOKIE },
+      query: {},
+    });
+
+    const res = ctx.res as { status: number; body: unknown };
+    expect(res.status).toBe(200);
+    const body = res.body as string;
+    // A real newline inside a cell must be quoted (legal CSV) so the row
+    // stays intact instead of splitting the file.
+    expect(body).toContain('"John\nDoe"');
+    // Formula prefixes get a leading single quote so Excel/Sheets treat
+    // the cell as text instead of evaluating it.
+    expect(body).toContain("'=1+1");
+    expect(body).toContain("'+cmd");
+    expect(body).toContain("'@evil");
+    expect(body).toContain("'-2+3");
+    // Ordinary values stay unquoted.
+    expect(body).toContain(',Plain Name,');
+  });
 });
