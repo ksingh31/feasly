@@ -33,11 +33,11 @@ export interface ReportStateModel {
   snapshot: ReportSnapshot | null;
   /**
    * Highest report revision number reached this browser, persisted across
-   * reloads (the snapshot itself is session-scoped and stripped before
-   * persistence). After a reload the report is rebuilt from the persisted
-   * wizard inputs — the version label keeps counting from here instead of
-   * restarting at 1, so "Report version 3" still reads "version 3" with the
-   * v3 figures. Reset by ClearReport (a new property starts a new count).
+   * reloads alongside the snapshot itself (ai-summary-persistence). After a
+   * reload the persisted snapshot renders as-is and the version label keeps
+   * counting from here instead of restarting at 1, so "Report version 3"
+   * still reads "version 3" with the v3 figures. Reset by ClearReport (a new
+   * property starts a new count).
    */
   savedVersion: number;
   status: ReportStatus;
@@ -61,6 +61,31 @@ const defaults: ReportStateModel = {
   error: null,
   errorDetail: null,
 };
+
+/**
+ * Storage-plugin serializer for the report slice (ai-summary-persistence).
+ *
+ * The Bearer report token is memory-only by design, the partner view and
+ * the pre-gate preview (real figures, rendered blurred) are session-scoped,
+ * and load/error state is transient — none of them reach localStorage. The
+ * snapshot (the user's own figures AND the AI narrative) persists, so a
+ * reload — or a magic-link return on another device — renders the SAME
+ * report instead of rebuilding one from the public estimate endpoint that
+ * drops the narrative (the narrative endpoint needs the memory-only token,
+ * which a reload clears). Token-gated actions (share, callback, revise)
+ * still fail honestly without the token.
+ */
+export function serializeReportState(model: ReportStateModel): ReportStateModel {
+  return {
+    ...model,
+    reportToken: null,
+    partnerView: false,
+    preview: null,
+    status: model.snapshot ? 'ready' : 'idle',
+    error: null,
+    errorDetail: null,
+  };
+}
 
 /**
  * Report state: the single source of truth for the estimate report page.
@@ -153,8 +178,8 @@ export class ReportState {
 
   /**
    * Single place that lands a new snapshot: the revision counter travels
-   * with it, so a reload (which strips the snapshot but keeps
-   * `savedVersion`) rebuilds the same version instead of restarting at 1.
+   * with it, and both persist across reloads (ai-summary-persistence), so a
+   * reloaded report renders the same version instead of restarting at 1.
    */
   private setSnapshot(ctx: StateContext<ReportStateModel>, snapshot: ReportSnapshot): void {
     ctx.patchState({ snapshot, savedVersion: snapshot.version, status: 'ready' });
@@ -242,15 +267,25 @@ export class ReportState {
    * Maps a public full-estimate response onto the report snapshot the page
    * renders. The figures and cost rows are the same deterministic engine
    * output the token path would return; the token-only extras stay empty —
-   * the AI narrative, token revise, share, and callback still need the
-   * magic-link email (now return-access for other devices, not the unlock
-   * key for this session). `leadId` ties the snapshot to the submitted lead.
+   * the token revise, share, and callback still need the magic-link email
+   * (now return-access for other devices, not the unlock key for this
+   * session). `leadId` ties the snapshot to the submitted lead.
+   *
+   * `carryNarrativeFrom` keeps the already-fetched AI narrative when a
+   * snapshot is rebuilt for the SAME lead (a size/tier stepper revision or
+   * a retry after a failed load). The narrative is figure-free neighbourhood
+   * prose — the LLM never produces dollar figures — so it stays valid across
+   * local revisions, and without it the page would drop to the empty state
+   * with no way to re-fetch (the narrative endpoint needs the memory-only
+   * token). A snapshot from a different lead never donates its narrative.
    */
   private toLeadSnapshot(
     estimate: EstimateResponse,
     leadId: string,
     version: number,
+    carryNarrativeFrom?: ReportSnapshot | null,
   ): ReportSnapshot {
+    const sameLead = carryNarrativeFrom?.leadId === leadId;
     return {
       snapshotId: `lead-${estimate.estimateId}`,
       estimateId: estimate.estimateId,
@@ -260,9 +295,11 @@ export class ReportState {
       totalRange: estimate.figures.total,
       landValue: estimate.figures.land,
       rows: estimate.rows,
-      // No token in this path, so no narrative fetch is possible — the page
-      // shows the honest empty state, never mock text.
-      narrative: '',
+      // No token in this path, so no narrative fetch is possible — keep the
+      // existing guide when rebuilding for the same lead, otherwise the
+      // honest empty state, never mock text.
+      narrative: sameLead ? (carryNarrativeFrom?.narrative ?? '') : '',
+      narrativeSource: sameLead ? carryNarrativeFrom?.narrativeSource : undefined,
       preparedAt: estimate.createdAt,
       version,
       projectType: estimate.projectType,
@@ -292,12 +329,16 @@ export class ReportState {
       tap((estimate) => {
         // This action never starts a new revision — it (re)builds the
         // CURRENT one: fresh unlocks start at 1, reloads keep the persisted
-        // counter (the snapshot is session-scoped, the wizard inputs are
-        // not), and retries of a failed load keep the last good version.
+        // counter, and retries of a failed load keep the last good version.
+        // The existing snapshot's narrative carries forward for the same
+        // lead (ai-summary-persistence) — a retry must not drop the guide.
         const state = ctx.getState();
         const version =
           state.snapshot?.version ?? (state.savedVersion > 0 ? state.savedVersion : 1);
-        this.setSnapshot(ctx, this.toLeadSnapshot(estimate, leadId, version));
+        this.setSnapshot(
+          ctx,
+          this.toLeadSnapshot(estimate, leadId, version, state.snapshot),
+        );
       }),
       catchError((err: unknown) => {
         this.fail(ctx, err);
@@ -411,10 +452,19 @@ export class ReportState {
       tap((estimate) =>
         // A stepper/tier change IS a new revision — keep counting from the
         // persisted counter so a revise after a reload continues the
-        // sequence instead of restarting at 1.
+        // sequence instead of restarting at 1. The current snapshot's
+        // narrative carries forward (ai-summary-persistence): it is
+        // figure-free neighbourhood prose, so it stays valid for the
+        // revised size/tier, and the narrative endpoint needs the
+        // memory-only token which a reload clears.
         this.setSnapshot(
           ctx,
-          this.toLeadSnapshot(estimate, leadId, this.nextLocalVersion(ctx)),
+          this.toLeadSnapshot(
+            estimate,
+            leadId,
+            this.nextLocalVersion(ctx),
+            ctx.getState().snapshot,
+          ),
         ),
       ),
       catchError((err: unknown) => {
