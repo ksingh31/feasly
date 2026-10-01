@@ -305,6 +305,15 @@
   margin: 0;
 }
 
+/* TIER WHAT-IF TOGGLE — same card box treatment as the sqft stepper. The
+   option cards inside carry their own (shared, mobile-tested) styles. */
+.tier-toggle-card {
+  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
 /* Reno scope line. */
 .reno-scope-line {
   font-weight: 600;
