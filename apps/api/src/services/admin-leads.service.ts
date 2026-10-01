@@ -566,8 +566,20 @@ export function createAdminLeadsService(
       // after the null-date fix proved insufficient).
       const escapeCsv = (value: unknown): string => {
         if (value === null || value === undefined) return '';
-        const str = String(value);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        let str = String(value);
+        // CSV formula injection: a cell whose first non-whitespace character
+        // is = + - @ (or tab/CR) evaluates as a formula when the export is
+        // opened in Excel/Sheets. Prefix with a single quote so spreadsheet
+        // apps treat the cell as plain text.
+        if (/^\s*[=+\-@\t\r]/.test(str)) {
+          str = `'${str}`;
+        }
+        if (
+          str.includes(',') ||
+          str.includes('"') ||
+          str.includes('\n') ||
+          str.includes('\r')
+        ) {
           return `"${str.replace(/"/g, '""')}"`;
         }
         return str;
