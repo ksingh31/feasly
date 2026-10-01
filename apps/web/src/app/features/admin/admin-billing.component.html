@@ -59,7 +59,21 @@
   }
 
   @if (managedInvoice(); as managed) {
-    <app-admin-manage-invoice [invoice]="managed" (closed)="closeManage()" />
+    <!-- Manage-invoice modal: backdrop click or Esc closes (lead-detail pattern). -->
+    <div
+      class="billing-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Manage invoice"
+      (keydown)="onManageKeydown($event)"
+    >
+      <div class="billing-modal__backdrop" (click)="closeManage()"></div>
+      <app-admin-manage-invoice
+        class="billing-modal__dialog"
+        [invoice]="managed"
+        (closed)="closeManage()"
+      />
+    </div>
   }
 
   @if (loadStatus() === 'loading' && !health()) {

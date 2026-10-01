@@ -123,9 +123,9 @@
                 type="button"
                 class="manage-invoice__btn manage-invoice__btn--primary"
                 (click)="confirmRateUpdate()"
-                [disabled]="actionStatus() === 'submitting'"
+                [disabled]="busy()"
               >
-                @if (actionStatus() === 'submitting') {
+                @if (busy()) {
                   Updating…
                 } @else {
                   Confirm update rate
@@ -145,9 +145,13 @@
             <button
               type="submit"
               class="manage-invoice__btn"
-              [disabled]="actionStatus() === 'submitting'"
+              [disabled]="busy()"
             >
-              Update rate
+              @if (inflight() === 'rate') {
+                Updating…
+              } @else {
+                Update rate
+              }
             </button>
           </div>
         }
@@ -229,9 +233,9 @@
                 type="button"
                 class="manage-invoice__btn manage-invoice__btn--primary"
                 (click)="confirmMarkPaid()"
-                [disabled]="actionStatus() === 'submitting'"
+                [disabled]="busy()"
               >
-                @if (actionStatus() === 'submitting') {
+                @if (busy()) {
                   Marking paid…
                 } @else {
                   Confirm mark paid
@@ -251,9 +255,13 @@
             <button
               type="submit"
               class="manage-invoice__btn manage-invoice__btn--primary"
-              [disabled]="actionStatus() === 'submitting'"
+              [disabled]="busy()"
             >
-              Mark as paid
+              @if (inflight() === 'paid') {
+                Marking paid…
+              } @else {
+                Mark as paid
+              }
             </button>
           </div>
         }
