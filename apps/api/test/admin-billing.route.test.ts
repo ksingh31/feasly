@@ -80,6 +80,8 @@ function makeDeps(): AdminBillingRouteDeps {
     } as unknown as import('../src/services/billing/commission.service').CommissionService,
     billing: {
       reportContract: vi.fn(),
+      getInvoice: vi.fn(),
+      setInvoicePaymentMethod: vi.fn(),
     } as unknown as import('../src/services/billing/billing.service').BillingService,
   };
 }
@@ -466,6 +468,94 @@ describe('admin-billing route setCommissionRate', () => {
       .mockRejectedValue(new HttpError(409, ErrorCodes.CONFLICT, 'Settled.'));
     await expect(
       route.setCommissionRate(ADMIN_HEADERS, INVOICE_ID, { rate: 1.5 }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+  });
+});
+
+describe('admin-billing route setInvoicePaymentMethod', () => {
+  const INVOICE_ID = '44444444-4444-4444-8444-444444444444';
+
+  function stubBilling(deps: ReturnType<typeof makeDeps>) {
+    const getInvoice = deps.billing
+      .getInvoice as unknown as ReturnType<typeof vi.fn>;
+    const setMethod = deps.billing
+      .setInvoicePaymentMethod as unknown as ReturnType<typeof vi.fn>;
+    getInvoice.mockResolvedValue({ id: INVOICE_ID, tenantKey: 'elite-craft' });
+    setMethod.mockResolvedValue({
+      id: INVOICE_ID,
+      status: 'in_review',
+      paymentMethod: 'cheque',
+    });
+    return { getInvoice, setMethod };
+  }
+
+  it('changes the planned method for an admin session and maps the response', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const { getInvoice, setMethod } = stubBilling(deps);
+    const result = await route.setInvoicePaymentMethod(
+      ADMIN_HEADERS,
+      INVOICE_ID,
+      { method: 'cheque' },
+    );
+    expect(result).toEqual({
+      invoiceId: INVOICE_ID,
+      status: 'in_review',
+      paymentMethod: 'cheque',
+    });
+    expect(getInvoice).toHaveBeenCalledWith(INVOICE_ID, null);
+    expect(setMethod).toHaveBeenCalledWith(INVOICE_ID, 'elite-craft', 'cheque');
+  });
+
+  it('rejects non-admin callers with 401 before touching the service', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.setInvoicePaymentMethod({}, INVOICE_ID, { method: 'cheque' }),
+    ).rejects.toMatchObject({ status: 401, code: ErrorCodes.UNAUTHENTICATED });
+    expect(deps.billing.getInvoice).not.toHaveBeenCalled();
+    expect(deps.billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('422s on an unknown method', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.setInvoicePaymentMethod(ADMIN_HEADERS, INVOICE_ID, {
+        method: 'bitcoin',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION_FAILED });
+    expect(deps.billing.getInvoice).not.toHaveBeenCalled();
+    expect(deps.billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('propagates the service 404 when the invoice does not exist', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    (
+      deps.billing.getInvoice as unknown as ReturnType<typeof vi.fn>
+    ).mockRejectedValue(
+      new HttpError(404, ErrorCodes.NOT_FOUND, 'Invoice not found.', false),
+    );
+    await expect(
+      route.setInvoicePaymentMethod(ADMIN_HEADERS, INVOICE_ID, {
+        method: 'cheque',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.NOT_FOUND });
+    expect(deps.billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('propagates the service 409 for a settled invoice', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    const { setMethod } = stubBilling(deps);
+    setMethod.mockRejectedValue(
+      new HttpError(409, ErrorCodes.CONFLICT, 'Settled.'),
+    );
+    await expect(
+      route.setInvoicePaymentMethod(ADMIN_HEADERS, INVOICE_ID, {
+        method: 'cheque',
+      }),
     ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
   });
 });

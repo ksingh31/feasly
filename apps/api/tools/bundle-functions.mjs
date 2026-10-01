@@ -404,6 +404,11 @@ const targets = [
     entry: 'src/functions/admin-billing-set-rate.ts',
     out: 'admin-billing-set-rate/index.js',
   },
+  // Admin per-invoice planned payment method (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-invoice-payment-method.ts',
+    out: 'admin-billing-invoice-payment-method/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

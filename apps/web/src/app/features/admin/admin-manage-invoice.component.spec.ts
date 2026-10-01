@@ -16,6 +16,7 @@ const INVOICE: ManageInvoiceInput = {
   currency: 'CAD',
   commissionRatePercent: 1,
   contractValueCents: 50_000_000,
+  paymentMethod: 'card',
   reviewDueAt: '2026-10-03T12:00:00.000Z',
   status: 'in_review',
 };
@@ -41,6 +42,20 @@ function setInput(
   fixture.detectChanges();
 }
 
+function setSelect(
+  fixture: ComponentFixture<AdminManageInvoiceComponent>,
+  selector: string,
+  value: string,
+): void {
+  const select = fixture.nativeElement.querySelector(
+    selector,
+  ) as HTMLSelectElement;
+  expect(select, `select ${selector}`).not.toBeNull();
+  select.value = value;
+  select.dispatchEvent(new Event('change'));
+  fixture.detectChanges();
+}
+
 function clickButton(
   fixture: ComponentFixture<AdminManageInvoiceComponent>,
   label: string,
@@ -60,6 +75,7 @@ describe('AdminManageInvoiceComponent', () => {
   let api: {
     markInvoicePaid: ReturnType<typeof vi.fn>;
     setCommissionRate: ReturnType<typeof vi.fn>;
+    setInvoicePaymentMethod: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -81,6 +97,13 @@ describe('AdminManageInvoiceComponent', () => {
           contractValueCents: 50_000_000,
           commissionCents: 750_000,
           currency: 'CAD',
+        }),
+      ),
+      setInvoicePaymentMethod: vi.fn().mockReturnValue(
+        of({
+          invoiceId: 'inv-2',
+          status: 'in_review',
+          paymentMethod: 'cheque',
         }),
       ),
     };
@@ -145,6 +168,58 @@ describe('AdminManageInvoiceComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Enter a rate over 0% and at most 10%.',
     );
+  });
+
+  it('pre-populates the planned payment method with the invoice method', () => {
+    const select = fixture.nativeElement.querySelector(
+      '#manage-planned-method',
+    ) as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    expect(select.value).toBe('card');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Card on file (auto-charge)',
+    );
+  });
+
+  it('disables Update method until the selected method changes', () => {
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) =>
+      (b as HTMLButtonElement).textContent?.trim().startsWith('Update method'),
+    ) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    setSelect(fixture, '#manage-planned-method', 'cheque');
+    expect(button.disabled).toBe(false);
+  });
+
+  it('requires a confirm click before dispatching the payment-method change', async () => {
+    setSelect(fixture, '#manage-planned-method', 'cheque');
+    clickButton(fixture, 'Update method');
+    // First click only arms the confirm — no API call yet.
+    expect(api.setInvoicePaymentMethod).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Confirm update method',
+    );
+    clickButton(fixture, 'Confirm update method');
+    await fixture.whenStable();
+    expect(api.setInvoicePaymentMethod).toHaveBeenCalledWith(
+      'inv-2',
+      'cheque',
+    );
+  });
+
+  it('shows the server-confirmed payment method result', async () => {
+    setSelect(fixture, '#manage-planned-method', 'cheque');
+    clickButton(fixture, 'Update method');
+    clickButton(fixture, 'Confirm update method');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Payment method updated.');
+    expect(text).toContain('Cheque');
+    // The rate/paid confirmation copy must not render for this result.
+    expect(text).not.toContain('Commission rate updated.');
+    expect(text).not.toContain('Invoice marked as paid.');
   });
 
   it('requires a confirm click before dispatching mark-paid with the body shape', async () => {

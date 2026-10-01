@@ -197,6 +197,22 @@ export interface SetInvoicePaymentMethodRequest {
   readonly method: BuilderPaymentMethod;
 }
 
+/**
+ * PUT /api/v1/admin/billing/invoices/{id}/payment-method — an admin
+ * changes the planned payment method on one commission invoice.
+ *
+ * Same rules as the builder endpoint (unpaid invoices only: draft,
+ * in_review, failed; 409 otherwise). Choosing a manual method pauses the
+ * Stripe auto-charge until staff marks the invoice paid. Admins act
+ * across builders, so there is no tenant check — the change is audited
+ * with the admin identity.
+ */
+export interface AdminSetInvoicePaymentMethodResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  readonly paymentMethod: BuilderPaymentMethod;
+}
+
 /** Append-only billing audit event. */
 export interface BillingEvent {
   readonly id: string;

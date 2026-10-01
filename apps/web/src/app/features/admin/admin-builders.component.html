@@ -48,6 +48,7 @@
             <th scope="col">Status</th>
             <th scope="col">Plan</th>
             <th scope="col">Commission rate</th>
+            <th scope="col">Default method</th>
             <th scope="col">Email</th>
             <th scope="col"><span class="builders-page__sr">Actions</span></th>
           </tr>
@@ -88,6 +89,7 @@
               </td>
               <td>{{ planLabel(builder.plan) }}</td>
               <td>{{ rateLabel(builder.commissionRatePercent) }}</td>
+              <td>{{ methodLabel(builder.settings) }}</td>
               <td>{{ builder.email ?? '—' }}</td>
               <td>
                 <button
@@ -243,6 +245,23 @@
               the rate they were created with.
             </span>
             @if (fieldError('commissionRatePercent'); as err) {
+              <span class="builders-page__field-error" role="alert">{{ err }}</span>
+            }
+          </label>
+
+          <label class="builders-page__field">
+            <span class="builders-page__label">Default payment method</span>
+            <select formControlName="defaultPaymentMethod">
+              @for (option of paymentMethodOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <span class="builders-page__hint">
+              How new invoices are collected by default. A manual choice
+              (cheque, e-transfer, bank draft) pauses the Stripe auto-charge
+              on each new invoice until staff records the payment.
+            </span>
+            @if (fieldError('defaultPaymentMethod'); as err) {
               <span class="builders-page__field-error" role="alert">{{ err }}</span>
             }
           </label>

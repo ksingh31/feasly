@@ -3,7 +3,9 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
+  BuilderPaymentMethod,
   ManualInvoiceRequest,
   ManualInvoiceResponse,
   ManualPaymentMethod,
@@ -11,6 +13,7 @@ import type {
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
 } from '@feasly/contracts';
+import { BUILDER_PAYMENT_METHODS } from '../builder/builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
 
@@ -136,6 +139,27 @@ export class AdminBillingApiService {
   }
 
   /**
+   * PUT /api/v1/admin/billing/invoices/{id}/payment-method — change the
+   * planned payment method on one commission invoice (card, cheque,
+   * e_transfer, bank_draft). Admin-gated, `billing:manage`. Unpaid
+   * invoices only; choosing a manual method pauses the Stripe
+   * auto-charge until staff marks the invoice paid.
+   */
+  setInvoicePaymentMethod(
+    invoiceId: string,
+    method: BuilderPaymentMethod,
+  ): Observable<AdminSetInvoicePaymentMethodResponse> {
+    return this.call(
+      this.http.put<AdminSetInvoicePaymentMethodResponse>(
+        this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) +
+          '/payment-method',
+        { method },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
    * POST /api/v1/admin/billing/invoices — manually create a commission
    * invoice for a builder's converted lead. Admin-gated, `billing:manage`.
    * The body mirrors the builder-reported contract shape
@@ -168,3 +192,25 @@ export const MANUAL_PAYMENT_METHOD_LABELS: ReadonlyArray<{
   { value: 'card_terminal', label: 'Card terminal' },
   { value: 'other', label: 'Other' },
 ];
+
+/**
+ * Planned payment-method labels for the admin manage-invoice modal and
+ * the admin builder form. Plain admin copy (not the builder portal's
+ * buyer-grade copy): derived from the shared BUILDER_PAYMENT_METHODS
+ * list so a future method shows up everywhere without a second edit.
+ */
+const PLANNED_PAYMENT_METHOD_LABEL_MAP: Record<BuilderPaymentMethod, string> =
+  {
+    card: 'Card on file (auto-charge)',
+    cheque: 'Cheque',
+    e_transfer: 'E-transfer',
+    bank_draft: 'Bank draft',
+  };
+
+export const PLANNED_PAYMENT_METHOD_LABELS: ReadonlyArray<{
+  value: BuilderPaymentMethod;
+  label: string;
+}> = BUILDER_PAYMENT_METHODS.map((value) => ({
+  value,
+  label: PLANNED_PAYMENT_METHOD_LABEL_MAP[value],
+}));
