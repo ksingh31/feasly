@@ -4,23 +4,39 @@ import { catchError, tap } from 'rxjs/operators';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type { CardOnFileStatus } from '@feasly/contracts';
 import { BuilderBillingApiService } from './builder-billing-api.service';
+import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
   ClearBillingState,
   LoadBillingCard,
+  LoadDefaultPaymentMethod,
+  SetDefaultPaymentMethod,
 } from './builder-billing.actions';
 
 /** Loading lifecycle for the card-on-file status. */
 export type BillingCardStatus = 'idle' | 'loading' | 'ready' | 'error';
 
+/** PUT lifecycle for the default payment method. */
+export type DefaultPaymentMethodSaveStatus = 'idle' | 'saving' | 'error';
+
 export interface BuilderBillingStateModel {
   /** Card-on-file status, memory-only (no PAN ever reaches the client). */
   card: CardOnFileStatus | null;
   cardStatus: BillingCardStatus;
+  /**
+   * Builder-level default payment method for new invoices (billing/12).
+   * Null until loaded.
+   */
+  defaultMethod: BuilderPaymentMethod | null;
+  defaultMethodStatus: BillingCardStatus;
+  defaultMethodSaveStatus: DefaultPaymentMethodSaveStatus;
 }
 
 const defaults: BuilderBillingStateModel = {
   card: null,
   cardStatus: 'idle',
+  defaultMethod: null,
+  defaultMethodStatus: 'idle',
+  defaultMethodSaveStatus: 'idle',
 };
 
 /**
@@ -50,6 +66,27 @@ export class BuilderBillingState {
     return state.cardStatus;
   }
 
+  @Selector()
+  static defaultMethod(
+    state: BuilderBillingStateModel,
+  ): BuilderPaymentMethod | null {
+    return state.defaultMethod;
+  }
+
+  @Selector()
+  static defaultMethodStatus(
+    state: BuilderBillingStateModel,
+  ): BillingCardStatus {
+    return state.defaultMethodStatus;
+  }
+
+  @Selector()
+  static defaultMethodSaveStatus(
+    state: BuilderBillingStateModel,
+  ): DefaultPaymentMethodSaveStatus {
+    return state.defaultMethodSaveStatus;
+  }
+
   @Action(LoadBillingCard)
   loadCard(ctx: StateContext<BuilderBillingStateModel>) {
     ctx.patchState({ cardStatus: 'loading' });
@@ -57,6 +94,43 @@ export class BuilderBillingState {
       tap((card) => ctx.patchState({ card, cardStatus: 'ready' })),
       catchError(() => {
         ctx.patchState({ cardStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(LoadDefaultPaymentMethod)
+  loadDefaultMethod(ctx: StateContext<BuilderBillingStateModel>) {
+    ctx.patchState({ defaultMethodStatus: 'loading' });
+    return this.api.getDefaultPaymentMethod().pipe(
+      tap((res) =>
+        ctx.patchState({
+          defaultMethod: res.defaultMethod,
+          defaultMethodStatus: 'ready',
+        }),
+      ),
+      catchError(() => {
+        ctx.patchState({ defaultMethodStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(SetDefaultPaymentMethod)
+  setDefaultMethod(
+    ctx: StateContext<BuilderBillingStateModel>,
+    action: SetDefaultPaymentMethod,
+  ) {
+    ctx.patchState({ defaultMethodSaveStatus: 'saving' });
+    return this.api.setDefaultPaymentMethod(action.method).pipe(
+      tap((res) =>
+        ctx.patchState({
+          defaultMethod: res.defaultMethod,
+          defaultMethodSaveStatus: 'idle',
+        }),
+      ),
+      catchError(() => {
+        ctx.patchState({ defaultMethodSaveStatus: 'error' });
         return of(null);
       }),
     );

@@ -11,6 +11,7 @@ import type {
   CommissionInvoice,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
+import { firstValueFrom } from 'rxjs';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
@@ -21,12 +22,20 @@ import {
 import { BuilderBillingState } from './builder-billing.state';
 import { LoadBillingCard } from './builder-billing.actions';
 import {
+  BUILDER_PAYMENT_METHODS,
+  isBuilderPaymentMethod,
+  paymentMethodLabel,
+  type BuilderPaymentMethod,
+} from './builder-payment-methods';
+import {
   ClearInvoiceSelection,
   ClearInvoicesState,
   LoadInvoices,
   SelectInvoice,
+  UpdateInvoicePaymentMethod,
 } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
+import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
 
 /** One row of the invoice status timeline. */
 interface TimelineEntry {
@@ -86,6 +95,9 @@ export class BuilderInvoicesComponent implements OnInit {
   );
   protected readonly detailStatus = this.store.selectSignal(
     BuilderInvoicesState.detailStatus,
+  );
+  protected readonly paymentMethodSaveStatus = this.store.selectSignal(
+    BuilderInvoicesState.paymentMethodSaveStatus,
   );
   protected readonly card = this.store.selectSignal(BuilderBillingState.card);
 
@@ -217,13 +229,75 @@ export class BuilderInvoicesComponent implements OnInit {
     return this.copy.invoicesAutoChargeIn.replace('{days}', String(days));
   }
 
-  protected reviewNote(invoice: CommissionInvoice): string | null {
+  protected reviewNote(invoice: BuilderCommissionInvoice): string | null {
     if (invoice.status !== 'in_review' || !invoice.reviewDueAt) {
       return null;
     }
-    return this.copy.invoicesReviewNote.replace(
-      '{date}',
-      this.formatEdmontonDate(invoice.reviewDueAt),
+    const date = this.formatEdmontonDate(invoice.reviewDueAt);
+    if (invoice.paymentMethod === 'card') {
+      return this.copy.invoicesReviewNote.replace('{date}', date);
+    }
+    // Manual method: the card will not be charged — say so plainly.
+    return this.copy.invoicesReviewNoteManual
+      .replace('{date}', date)
+      .replace('{method}', this.methodLabel(invoice.paymentMethod).toLowerCase());
+  }
+
+  /** Payment-method options in display order (billing/12). */
+  protected paymentMethodOptions(): readonly BuilderPaymentMethod[] {
+    return BUILDER_PAYMENT_METHODS;
+  }
+
+  /**
+   * The method can be changed until the invoice is settled: paid, void,
+   * and disputed invoices are locked with an explainer.
+   */
+  protected paymentMethodEditable(invoice: BuilderCommissionInvoice): boolean {
+    return (
+      invoice.status !== 'paid' &&
+      invoice.status !== 'void' &&
+      invoice.status !== 'disputed'
+    );
+  }
+
+  /** Buyer-grade label, e.g. "Card •••• 4242" or "Cheque". */
+  protected methodLabel(method: BuilderPaymentMethod): string {
+    return paymentMethodLabel(method, this.copy, this.card()?.last4);
+  }
+
+  /**
+   * Persists the per-invoice payment method on change (billing/12). The
+   * select is disabled while the PUT is in flight; a failure surfaces
+   * the save-failed copy under the control.
+   */
+  protected async onInvoicePaymentMethodChange(
+    invoice: BuilderCommissionInvoice,
+    event: Event,
+  ): Promise<void> {
+    const value = (event.target as HTMLSelectElement).value;
+    if (
+      !isBuilderPaymentMethod(value) ||
+      value === invoice.paymentMethod ||
+      !this.paymentMethodEditable(invoice)
+    ) {
+      return;
+    }
+    await firstValueFrom(
+      this.store.dispatch(new UpdateInvoicePaymentMethod(invoice.id, value)),
+    );
+  }
+
+  /**
+   * Explainer under the method control for manual methods outside the
+   * review window (in-review invoices get the review-note variant).
+   */
+  protected manualMethodNote(invoice: BuilderCommissionInvoice): string | null {
+    if (invoice.paymentMethod === 'card' || invoice.status === 'in_review') {
+      return null;
+    }
+    return this.copy.invoicesPaymentMethodManualNote.replace(
+      '{method}',
+      this.methodLabel(invoice.paymentMethod).toLowerCase(),
     );
   }
 
