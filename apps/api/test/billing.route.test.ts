@@ -89,6 +89,17 @@ function makeDeps(opts?: {
     getCommissionRatePercent: vi.fn(async (tenantKey: string) =>
       tenantKey === 'elite-craft' ? 1.5 : 1,
     ),
+    getDefaultPaymentMethod: vi.fn(async () => 'cheque'),
+    setDefaultPaymentMethod: vi.fn(async (tenantKey: string, method: string) => ({
+      defaultMethod: method,
+    })),
+    setInvoicePaymentMethod: vi.fn(
+      async (invoiceId: string, tenantKey: string, method: string) => ({
+        id: invoiceId,
+        tenantKey,
+        paymentMethod: method,
+      }),
+    ),
   } as unknown as BillingService;
 
   const model = opts?.billingModel ?? 'commission';
@@ -410,5 +421,95 @@ describe('GET /api/v1/billing/invoices (BILL-04)', () => {
       status: 401,
     });
     expect(billing.listInvoices).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/billing/payment-method (billing/12)', () => {
+  it('returns the calling builder\u2019s default payment method', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.getDefaultPaymentMethod({});
+    expect(result).toEqual({ defaultMethod: 'cheque' });
+    expect(billing.getDefaultPaymentMethod).toHaveBeenCalledWith(
+      'elite-craft',
+    );
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: false });
+    await expect(route.getDefaultPaymentMethod({})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(billing.getDefaultPaymentMethod).not.toHaveBeenCalled();
+  });
+});
+
+describe('PUT /api/v1/billing/payment-method (billing/12)', () => {
+  it('sets the builder\u2019s default with the session tenant key', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.setDefaultPaymentMethod({}, { method: 'cheque' });
+    expect(result).toEqual({ defaultMethod: 'cheque' });
+    expect(billing.setDefaultPaymentMethod).toHaveBeenCalledWith(
+      'elite-craft',
+      'cheque',
+    );
+  });
+
+  it('rejects an unknown method with 400 before touching the service', async () => {
+    const { route, billing } = makeDeps();
+    await expect(
+      route.setDefaultPaymentMethod({}, { method: 'bitcoin' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(billing.setDefaultPaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: false });
+    await expect(
+      route.setDefaultPaymentMethod({}, { method: 'cheque' }),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(billing.setDefaultPaymentMethod).not.toHaveBeenCalled();
+  });
+});
+
+describe('PUT /api/v1/billing/invoices/{id}/payment-method (billing/12)', () => {
+  const id = '00000000-0000-4000-8000-000000000012';
+
+  it('delegates with the session tenant key, invoice id, and method', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.setInvoicePaymentMethod(
+      {},
+      id,
+      { method: 'e_transfer' },
+    );
+    expect(billing.setInvoicePaymentMethod).toHaveBeenCalledWith(
+      id,
+      'elite-craft',
+      'e_transfer',
+    );
+    expect(result).toMatchObject({ id, paymentMethod: 'e_transfer' });
+  });
+
+  it('rejects an unknown method with 400 before touching the service', async () => {
+    const { route, billing } = makeDeps();
+    await expect(
+      route.setInvoicePaymentMethod({}, id, { method: 'bitcoin' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-uuid id with 400', async () => {
+    const { route, billing } = makeDeps();
+    await expect(
+      route.setInvoicePaymentMethod({}, 'nope', { method: 'cheque' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: false });
+    await expect(
+      route.setInvoicePaymentMethod({}, id, { method: 'cheque' }),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,15 @@
  * - `GET /api/v1/billing/commission-rate` — builder reads their org's
  *   negotiated commission rate (percent) for the "Record signed contract"
  *   live preview. Builder-gated; tenant-scoped.
+ * - `GET /api/v1/billing/payment-method` — builder reads their org's
+ *   default payment method (billing/12). Builder-gated; tenant-scoped.
+ * - `PUT /api/v1/billing/payment-method` — builder sets their org's
+ *   default payment method (billing/12). Applies to future invoices.
+ *   Builder-gated; tenant-scoped.
+ * - `PUT /api/v1/billing/invoices/{id}/payment-method` — builder changes
+ *   the payment method on one of their invoices (billing/12). Unpaid
+ *   invoices only; choosing a manual method pauses the Stripe auto-charge.
+ *   Builder-gated; tenant-scoped (403 for another tenant's invoice).
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -42,6 +51,10 @@ import type {
 } from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
 import type { CommissionRateResponse } from '@feasly/contracts';
+import type {
+  DefaultPaymentMethodResponse,
+  SetDefaultPaymentMethodResponse,
+} from '@feasly/contracts';
 
 export interface BillingRouteDeps {
   readonly billing: BillingService;
@@ -90,6 +103,21 @@ export interface BillingRoute {
   getCommissionRate(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<CommissionRateResponse>;
+  /** GET /api/v1/billing/payment-method */
+  getDefaultPaymentMethod(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<DefaultPaymentMethodResponse>;
+  /** PUT /api/v1/billing/payment-method */
+  setDefaultPaymentMethod(
+    headers: Record<string, string | string[] | undefined>,
+    body: unknown,
+  ): Promise<SetDefaultPaymentMethodResponse>;
+  /** PUT /api/v1/billing/invoices/{id}/payment-method */
+  setInvoicePaymentMethod(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    body: unknown,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 const uuidSchema = z.string().trim().uuid();
@@ -112,6 +140,10 @@ const disputeBodySchema = z.object({
 
 const resolveBodySchema = z.object({
   outcome: z.enum(['resume', 'void']),
+});
+
+const paymentMethodBodySchema = z.object({
+  method: z.enum(['card', 'cheque', 'e_transfer', 'bank_draft']),
 });
 
 function parseInvoiceId(id: unknown): string {
@@ -191,6 +223,61 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
           session.tenantKey,
         ),
       };
+    },
+
+    async getDefaultPaymentMethod(
+      headers: Record<string, string | string[] | undefined>,
+    ): Promise<DefaultPaymentMethodResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return {
+        defaultMethod: await billing.getDefaultPaymentMethod(
+          session.tenantKey,
+        ),
+      };
+    },
+
+    async setDefaultPaymentMethod(
+      headers: Record<string, string | string[] | undefined>,
+      body: unknown,
+    ): Promise<SetDefaultPaymentMethodResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      const parsed = paymentMethodBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid payment method: expected one of card, cheque, e_transfer, bank_draft.',
+          false,
+        );
+      }
+      return {
+        defaultMethod: await billing.setDefaultPaymentMethod(
+          session.tenantKey,
+          parsed.data.method,
+        ),
+      };
+    },
+
+    async setInvoicePaymentMethod(
+      headers: Record<string, string | string[] | undefined>,
+      id: unknown,
+      body: unknown,
+    ): Promise<CommissionInvoiceRecord> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      const parsed = paymentMethodBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid payment method: expected one of card, cheque, e_transfer, bank_draft.',
+          false,
+        );
+      }
+      return billing.setInvoicePaymentMethod(
+        parseInvoiceId(id),
+        session.tenantKey,
+        parsed.data.method,
+      );
     },
 
     async createSetupIntent(

@@ -65,6 +65,20 @@ export interface CommissionInvoice {
   readonly manualPaymentMethod: ManualPaymentMethod | null;
   /** Cheque/trace number for a manual payment. Null otherwise. */
   readonly paymentReference: string | null;
+  /**
+   * Human-readable invoice number (billing/12): `INV-` + zero-padded
+   * sequence, min 4 digits (INV-0001, INV-0002, …). Shown in the builder
+   * portal.
+   */
+  readonly invoiceNumber: string;
+  /**
+   * How this invoice gets paid (billing/12): 'card' = the normal Stripe
+   * off-session auto-charge; anything else (cheque, e_transfer,
+   * bank_draft) = manual — the invoice-reviewer timer skips it and it
+   * sits until staff marks it paid. Snapshot of the builder org's default
+   * payment method at creation; changeable per invoice while unpaid.
+   */
+  readonly paymentMethod: 'card' | ManualPaymentMethod;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -142,6 +156,45 @@ export interface CommissionRateResponse {
    * Falls back to the configured default when the builder row is missing.
    */
   readonly commissionRatePercent: number;
+}
+
+/**
+ * Builder-selectable payment methods (billing/12): the card on file, or
+ * a manual method (cheque, e-transfer, bank draft). Choosing a manual
+ * method pauses the Stripe auto-charge — the invoice sits until staff
+ * marks it paid via the admin mark-paid flow.
+ */
+export type BuilderPaymentMethod = 'card' | 'cheque' | 'e_transfer' | 'bank_draft';
+
+/**
+ * GET /api/v1/billing/payment-method — the builder org's default payment
+ * method. Every new commission invoice is created with this method (the
+ * builder can change it per invoice while the invoice is unpaid).
+ */
+export interface DefaultPaymentMethodResponse {
+  /** 'card' when the builder never chose — the card on file is charged. */
+  readonly defaultMethod: BuilderPaymentMethod;
+}
+
+/**
+ * PUT /api/v1/billing/payment-method — set the builder org's default
+ * payment method. Applies to invoices created afterwards; existing
+ * invoices keep the method they were created with.
+ */
+export interface SetDefaultPaymentMethodRequest {
+  readonly method: BuilderPaymentMethod;
+}
+
+/** PUT /api/v1/billing/payment-method — result. */
+export type SetDefaultPaymentMethodResponse = DefaultPaymentMethodResponse;
+
+/**
+ * PUT /api/v1/billing/invoices/{id}/payment-method — change the payment
+ * method on one invoice. Allowed while the invoice is unpaid (draft,
+ * in_review, failed); 409 otherwise. 403 for another tenant's invoice.
+ */
+export interface SetInvoicePaymentMethodRequest {
+  readonly method: BuilderPaymentMethod;
 }
 
 /** Append-only billing audit event. */
