@@ -13,7 +13,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
-import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, ToggleStep, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
 export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -49,6 +49,16 @@ export interface ReportStateModel {
    * buyer-grade copy — never rendered verbatim.
    */
   errorDetail: string | null;
+  /**
+   * Next-steps checklist: which step ids are checked. Persisted (not
+   * stripped by beforeSerialize) and keyed by `stepsLeadId` — the leadId is
+   * stable across reloads and magic-link devices, unlike the per-request
+   * estimateId. Reset when a different report loads; cleared by
+   * ClearReport (a new property starts fresh).
+   */
+  stepsChecked: Record<string, boolean>;
+  /** leadId the stepsChecked map belongs to; null before the first report. */
+  stepsLeadId: string | null;
 }
 
 const defaults: ReportStateModel = {
@@ -60,6 +70,8 @@ const defaults: ReportStateModel = {
   status: 'idle',
   error: null,
   errorDetail: null,
+  stepsChecked: {},
+  stepsLeadId: null,
 };
 
 /**
@@ -154,6 +166,18 @@ export class ReportState {
     return state.snapshot !== null;
   }
 
+  /** Checked ids of the next-steps checklist (keyed by stepsLeadId). */
+  @Selector()
+  static stepsChecked(state: ReportStateModel): Record<string, boolean> {
+    return state.stepsChecked;
+  }
+
+  /** leadId the persisted checklist belongs to. */
+  @Selector()
+  static stepsLeadId(state: ReportStateModel): string | null {
+    return state.stepsLeadId;
+  }
+
   private beginLoad(ctx: StateContext<ReportStateModel>): void {
     ctx.patchState({ status: 'loading', error: null, errorDetail: null });
   }
@@ -180,9 +204,20 @@ export class ReportState {
    * Single place that lands a new snapshot: the revision counter travels
    * with it, and both persist across reloads (ai-summary-persistence), so a
    * reloaded report renders the same version instead of restarting at 1.
+   * The next-steps checklist resets when a DIFFERENT report loads (a new
+   * leadId) but survives reloads and sqft revises of the same report —
+   * the leadId is stable across both, unlike the per-request estimateId.
    */
   private setSnapshot(ctx: StateContext<ReportStateModel>, snapshot: ReportSnapshot): void {
-    ctx.patchState({ snapshot, savedVersion: snapshot.version, status: 'ready' });
+    const state = ctx.getState();
+    const sameReport = state.stepsLeadId !== null && state.stepsLeadId === snapshot.leadId;
+    ctx.patchState({
+      snapshot,
+      savedVersion: snapshot.version,
+      status: 'ready',
+      stepsLeadId: snapshot.leadId,
+      stepsChecked: sameReport ? state.stepsChecked : {},
+    });
   }
 
   /**
@@ -477,5 +512,20 @@ export class ReportState {
   @Action(ClearReport)
   clearReport(ctx: StateContext<ReportStateModel>): void {
     ctx.setState({ ...defaults });
+  }
+
+  /**
+   * Next-steps checklist toggle. Keyed by the current snapshot's leadId so
+   * a toggle before the first snapshot lands (or after ClearReport) starts
+   * a fresh map instead of inheriting another report's checks.
+   */
+  @Action(ToggleStep)
+  toggleStep(ctx: StateContext<ReportStateModel>, action: ToggleStep): void {
+    const state = ctx.getState();
+    const leadId = state.snapshot?.leadId ?? null;
+    const checked =
+      leadId !== null && leadId === state.stepsLeadId ? { ...state.stepsChecked } : {};
+    checked[action.stepId] = !checked[action.stepId];
+    ctx.patchState({ stepsLeadId: leadId, stepsChecked: checked });
   }
 }

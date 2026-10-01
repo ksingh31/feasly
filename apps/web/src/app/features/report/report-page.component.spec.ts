@@ -469,7 +469,7 @@ describe('ReportPageComponent', () => {
       expect(panel).not.toBeNull();
       expect(panel.textContent).toContain('$674,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
-      expect(panel.textContent).toContain('$306 per sq ft');
+      expect(panel.textContent).toContain('$306.36 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
@@ -755,18 +755,91 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    it('renders the three locked next steps (match scores on the builder step, save-and-share restored)', () => {
-      const items = [...fixture.nativeElement.querySelectorAll('.steps li')];
+    it('renders the three next steps as an honest checklist (no matched-builder promises)', () => {
+      const items = [...fixture.nativeElement.querySelectorAll('.steps.checklist li')];
       const titles = items.map((li: Element) => li.querySelector('strong')?.textContent?.trim());
       const bodies = items.map((li: Element) => li.querySelector('p')?.textContent?.trim());
       // Locked story: exactly 3 distinct steps — never 2, never duplicated.
-      expect(titles).toEqual(['Meet your matched builder', 'Refine your project brief', 'Save and share']);
+      expect(titles).toEqual(['Talk to a builder', 'Refine your project brief', 'Save and share']);
       expect(new Set(bodies).size).toBe(3);
-      // The builder step promises match scores (the builder-matching
-      // explainer beneath defines how matching works).
-      expect(bodies[0]).toContain('match scores');
+      // M1 honesty: the builder step points at the callback — no builders,
+      // no match scores, no matching promises anywhere on the report.
+      expect(bodies[0]).toContain('callback');
+      expect(bodies[0]).not.toContain('match scores');
+      expect(text()).not.toContain('match scores');
+      // Terminology alignment: the stepper updates figures instantly —
+      // there is no re-run button, so the steps never say "re-run".
+      expect(bodies[1]).toContain('no re-run button');
+      expect(text()).not.toContain('re-run the estimate');
       // The save-and-share step covers PDF, partner email, and callback.
       expect(bodies[2]).toContain('Download the PDF');
+      // Every step is a checkbox with a visible progress line.
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')];
+      expect(boxes).toHaveLength(3);
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
+    });
+
+    it('checklist ticks persist per report and drive the progress line', async () => {
+      await setup({ leadSubmitted: true });
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
+      expect(boxes).toHaveLength(3);
+      boxes[0].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': true });
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('1 of 3 steps done');
+      // Unchecking toggles back off.
+      boxes[0].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': false });
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
+    });
+
+    it('checklist state resets when a different report loads', async () => {
+      await setup({ leadSubmitted: true });
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
+      boxes[1].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'refine-brief': true });
+      // A new report (new lead) wipes the previous report's ticks.
+      store.dispatch(new StoreLeadResult({ leadId: 'lead-new', email: 'b@example.com', magicLinkSent: false, expiresInDays: 7 }));
+      store.dispatch(new LoadLeadEstimate());
+      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.leadId === 'lead-new', 'second report');
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({});
+    });
+
+    it('per-sqft line uses cents precision so the shown rate reconciles with the shown build cost', async () => {
+      await setup({ leadSubmitted: true });
+      const snap = store.selectSnapshot(ReportState.snapshot)!;
+      const line = fixture.nativeElement.querySelector('.per-sqft')?.textContent ?? '';
+      const m = line.match(/\$([\d,]+(?:\.\d{2})?) per sq ft · ([\d,]+) sq ft/);
+      expect(m).not.toBeNull();
+      const rate = parseFloat(m![1].replace(/,/g, ''));
+      const sqft = parseInt(m![2].replace(/,/g, ''), 10);
+      expect(sqft).toBe(snap.inputs.sqft);
+      // The displayed rate is the exact quotient rounded to cents: the
+      // residual against the build base is pure display rounding (< $0.005/sqft).
+      expect(Math.abs(rate * sqft - snap.buildRange.base)).toBeLessThan(sqft * 0.005 + 1);
+    });
+
+    it('formatPerSqft renders whole dollars without cents and fractional rates with cents', async () => {
+      await setup({ leadSubmitted: true });
+      const cmp = fixture.componentInstance as unknown as { formatPerSqft(v: number): string };
+      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242.01');
+      expect(cmp.formatPerSqft(242)).toBe('$242');
+      expect(cmp.formatPerSqft(0)).toBe('$0');
+    });
+
+    it('shows the whole-building lot notice for unit addresses', async () => {
+      await setup({ leadSubmitted: true });
+      // Sanity: an ordinary street address shows no unit notice.
+      expect(fixture.nativeElement.querySelector('.unit-note')).toBeNull();
+      // A condo unit address gets the honest whole-building note.
+      store.dispatch([
+        new SelectProperty({ ...fakeProperty, address: '225 823 5 Av NW, Calgary, AB' }),
+      ]);
+      fixture.detectChanges();
+      const note = fixture.nativeElement.querySelector('.unit-note')?.textContent ?? '';
+      expect(note).toContain('whole building');
     });
 
     it('stepper tap updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {
