@@ -4,18 +4,19 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import type { CallbackWindow, CostRange, FinishTier } from '@feasly/contracts';
+import type { CallbackWindow, CostRange, FinishTier, ApiError } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent, OptionSelectorComponent } from '../../shared/components';
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
-import { formatWholeCad } from '../../shared/utils/money';
+import { isUnitLikeAddress } from '../../shared/utils/address';
+import { dollarsToCents, formatCentsToCad, formatWholeCad } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
-import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, ToggleStep, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 import { ReportPdfService } from './report-pdf.service';
 
@@ -37,6 +38,26 @@ type FormStatus = 'idle' | 'sending' | 'sent' | 'error';
 
 /** Partner-share flow lifecycle: the backend mints the partner's own link. */
 type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
+
+/**
+ * Extracts a user-facing message from a failed API call. Backend validation
+ * failures (400/429) carry buyer-safe copy in the ApiError `message` — the
+ * share form surfaces it instead of the generic connection error. Network
+ * failures and 5xx (`retryable: true`, or an unshaped error) keep the
+ * generic copy: nothing actionable to say. Module-local: only partner share
+ * needs it today.
+ */
+function userFacingApiErrorMessage(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) {
+    return null;
+  }
+  const candidate = error as Partial<ApiError>;
+  if (candidate.retryable !== false || typeof candidate.message !== 'string') {
+    return null;
+  }
+  const message = candidate.message.trim();
+  return message.length > 0 ? message : null;
+}
 
 /**
  * Estimate report page (the payoff screen).
@@ -312,7 +333,11 @@ export class ReportPageComponent implements OnInit {
   /**
    * Per-sq-ft context from the SERVER's build base and sqft — display only.
    * New-build only: the reno engine deliberately avoids per-sqft framing
-   * (reno/04), so reno reports never surface this figure.
+   * (reno/04), so reno reports never surface this figure. The exact
+   * quotient (not a rounded dollar) so the shown rate × the shown sqft
+   * reconciles with the shown build cost as closely as display rounding
+   * allows — "$242 × 2,400" used to imply $580,800 against a $580,830
+   * build cost; the cents-precision display below closes that gap.
    */
   protected readonly perSqft = computed(() => {
     if (this.isReno()) {
@@ -323,11 +348,55 @@ export class ReportPageComponent implements OnInit {
     if (!snap || !f || snap.inputs.sqft <= 0) {
       return null;
     }
-    return Math.round(f.build.base / snap.inputs.sqft);
+    return f.build.base / snap.inputs.sqft;
   });
+
+  /**
+   * Formats a per-sq-ft rate: whole dollars when exact ("$242"), otherwise
+   * cents precision ("$242.01") — so the shown rate × the shown sqft
+   * reconciles with the shown build cost. Delegates to the shared money
+   * util (integer-cent math only, no float formatting drift).
+   */
+  protected formatPerSqft(value: number): string {
+    if (!Number.isFinite(value) || value < 0) {
+      return this.formatCad(0);
+    }
+    return formatCentsToCad(dollarsToCents(value));
+  }
 
   protected readonly snapshotSqft = computed(() => this.snapshot()?.inputs.sqft ?? 0);
   protected readonly version = computed(() => this.snapshot()?.version ?? null);
+
+  /**
+   * Next-steps checklist state (NGXS, persisted per report by leadId).
+   * The steps themselves are config copy; only the checked ids live here.
+   */
+  protected readonly stepsChecked = this.store.selectSignal(ReportState.stepsChecked);
+  protected isStepChecked(stepId: string): boolean {
+    return this.stepsChecked()[stepId] === true;
+  }
+  protected toggleStep(stepId: string): void {
+    this.store.dispatch(new ToggleStep(stepId));
+  }
+  protected readonly stepsDoneCount = computed(
+    () => this.copy.steps.filter((s) => this.isStepChecked(s.id)).length,
+  );
+  protected readonly stepsProgressLabel = computed(() =>
+    fillTemplate(this.copy.stepsProgress, {
+      done: String(this.stepsDoneCount()),
+      total: String(this.copy.steps.length),
+    }),
+  );
+
+  /**
+   * Unit-address honesty: a condo/apartment unit's City record carries the
+   * WHOLE building's lot size and assessed land value. The land card says
+   * so instead of implying the lot belongs to the unit.
+   */
+  protected readonly isUnitAddress = computed(() => {
+    const address = this.property()?.address;
+    return address ? isUnitLikeAddress(address) : false;
+  });
 
   /** Sqft stepper draft, seeded from the latest snapshot (or wizard inputs). */
   protected readonly sqftDraft = signal(0);
@@ -522,6 +591,16 @@ export class ReportPageComponent implements OnInit {
   protected readonly shareSentMessage = computed(() =>
     fillTemplate(this.copy.shareSent, { email: this.shareSentTo() }),
   );
+  /**
+   * Specific failure message for the current share attempt: the backend's
+   * own buyer-safe copy for validation failures, or the self-share message
+   * for the client-side owner-email check. Null falls back to the generic
+   * connection-error copy.
+   */
+  protected readonly shareErrorDetail = signal<string | null>(null);
+  protected readonly shareErrorMessage = computed(
+    () => this.shareErrorDetail() ?? this.copy.shareError,
+  );
 
   shareViaEmail(): void {
     const token = this.reportToken();
@@ -545,19 +624,36 @@ export class ReportPageComponent implements OnInit {
       return;
     }
     const partnerEmail = this.shareForm.controls.email.value.trim();
+    // Self-share never leaves the browser: the backend rejects it with a
+    // CAP-008 400, so say so up front instead of failing with a misleading
+    // connection error. The owner's email is persisted in LeadState.
+    const ownerEmail = this.leadEmail()?.trim().toLowerCase();
+    if (ownerEmail && partnerEmail.toLowerCase() === ownerEmail) {
+      this.shareErrorDetail.set(this.copy.shareSelfError);
+      this.shareStatus.set('send-error');
+      return;
+    }
+    this.shareErrorDetail.set(null);
     this.shareStatus.set('sending');
     this.api
       .shareWithPartner({ reportToken: token, partnerEmail })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          this.shareErrorDetail.set(null);
           this.shareStatus.set('sent');
           this.shareSentTo.set(partnerEmail);
           // Consent-gated inside AnalyticsService: declined/pending banner
           // means this is a silent no-op.
           this.analytics.track('partner_share');
         },
-        error: () => this.shareStatus.set('send-error'),
+        error: (error: unknown) => {
+          // Backend validation failures (e.g. the CAP-008 self-share 400
+          // when the owner email wasn't known client-side) carry their own
+          // buyer-safe copy — surface it instead of the generic message.
+          this.shareErrorDetail.set(userFacingApiErrorMessage(error));
+          this.shareStatus.set('send-error');
+        },
       });
   }
 

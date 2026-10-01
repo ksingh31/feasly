@@ -289,6 +289,26 @@ describe('share service', () => {
     expect(issuedLinkIds).toHaveLength(0);
   });
 
+  it('the self-share 400 carries the buyer-safe message the UI surfaces', async () => {
+    // The report page surfaces the backend's own `message` for non-retryable
+    // share failures instead of the generic connection error — the copy here
+    // is the UI contract (QA 2026-09-30: the self-share 400 must explain
+    // itself, never read as a connection problem).
+    const { service } = fakeStores();
+    const failure = await service
+      .shareWithPartner({ reportToken: OWNER_TOKEN, partnerEmail: 'homeowner@example.com' })
+      .then(
+        () => { throw new Error('expected the self-share to be rejected'); },
+        (error: unknown) => error,
+      );
+    expect(failure).toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+      message: 'The partner email must be different from your own email address.',
+      retryable: false,
+    });
+  });
+
   it('rejects the 6th share in 24h with 429 RATE_LIMITED — no side effects', async () => {
     const { service, persisted, sentEmails, issuedLinkIds } = fakeStores({
       recentShares: 5,

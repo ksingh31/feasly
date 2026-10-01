@@ -515,6 +515,44 @@
   color: var(--muted);
 }
 
+/* CHECKLIST: the next-steps list is interactive — the number circle becomes
+   a checkbox; the layout (44px gutter) is unchanged. */
+.steps-progress {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.steps.checklist li::before {
+  display: none;
+}
+
+.step-check {
+  display: block;
+  cursor: pointer;
+}
+
+.step-check input[type='checkbox'] {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.step-text.done strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.unit-note {
+  margin-top: 8px;
+}
+
 /* FORMS */
 .form {
   display: flex;

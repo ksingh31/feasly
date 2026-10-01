@@ -117,7 +117,7 @@
             <p class="build-note" role="note">{{ copy.buildSourceNote }}</p>
             @if (perSqft(); as psqft) {
               <p class="per-sqft">
-                {{ formatCad(psqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(snapshotSqft()) }}
+                {{ formatPerSqft(psqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(snapshotSqft()) }}
               </p>
             }
             <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierLabel() }}</p>
@@ -135,6 +135,9 @@
               <h2>{{ copy.landLabel }}</h2>
               <p class="figure-single">{{ formatCad(f.landValue.value) }}</p>
               <p class="land-note">{{ copy.landFixedNote }}</p>
+              @if (isUnitAddress()) {
+                <p class="land-note unit-note" role="note">{{ copy.unitAddressNote }}</p>
+              }
             </div>
           }
         </div>
@@ -275,14 +278,26 @@
       </section>
     }
 
-    <!-- NEXT 3 STEPS -->
+    <!-- NEXT 3 STEPS: a real checklist — checkboxes with progress,
+         persisted per report (NGXS, keyed by leadId) so ticks survive
+         reloads and magic-link return visits. -->
     <section class="card" [attr.aria-label]="copy.stepsTitle">
       <h2>{{ copy.stepsTitle }}</h2>
-      <ol class="steps">
-        @for (s of copy.steps; track s.title) {
+      <p class="steps-progress" role="status">{{ stepsProgressLabel() }}</p>
+      <ol class="steps checklist">
+        @for (s of copy.steps; track s.id) {
           <li>
-            <strong>{{ s.title }}</strong>
-            <p>{{ s.body }}</p>
+            <label class="step-check">
+              <input
+                type="checkbox"
+                [checked]="isStepChecked(s.id)"
+                (change)="toggleStep(s.id)"
+              />
+              <span class="step-text" [class.done]="isStepChecked(s.id)">
+                <strong>{{ s.title }}</strong>
+                <p>{{ s.body }}</p>
+              </span>
+            </label>
           </li>
         }
       </ol>
@@ -340,7 +355,7 @@
           <p class="form-success" role="status">{{ shareSentMessage() }}</p>
         }
         @if (shareStatus() === 'send-error') {
-          <p class="field-error" role="alert">{{ copy.shareError }}</p>
+          <p class="field-error" role="alert">{{ shareErrorMessage() }}</p>
         }
         @if (shareStatus() === 'token-error') {
           <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>

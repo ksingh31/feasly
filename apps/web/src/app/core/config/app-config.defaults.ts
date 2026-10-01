@@ -438,6 +438,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       buildSourceNote: 'Current construction cost data · same fixed formula',
       landLabel: 'Land (assessed value)',
       landFixedNote: 'City of Calgary assessment · refreshed September 2026 · not a market price',
+      unitAddressNote:
+        'This looks like a unit address — the lot size and land value shown are for the whole building, not just your unit.',
       lowLabel: 'Low',
       baseLabel: 'Base',
       highLabel: 'High',
@@ -523,16 +525,20 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
       stepsTitle: 'Your next three steps',
+      stepsProgress: '{done} of {total} steps done',
       steps: [
         {
-          title: 'Meet your matched builder',
-          body: 'See your system-matched builders and their match scores — builders in Calgary whose work fits your project and area. When you’re ready, we can introduce you, only with your permission. Opt out anytime.',
+          id: 'talk-to-builder',
+          title: 'Talk to a builder',
+          body: 'Request a callback below and we will walk through the numbers with you — free, with no pressure.',
         },
         {
+          id: 'refine-brief',
           title: 'Refine your project brief',
-          body: 'Adjust your inputs and re-run the estimate, compare the Standard and Luxury tiers, and lock in your must-haves — a clear brief is what turns this estimate into quotes you can actually compare.',
+          body: 'Adjust your inputs and every figure updates instantly — no re-run button. Compare the Standard and Luxury tiers, and lock in your must-haves — a clear brief is what turns this estimate into quotes you can actually compare.',
         },
         {
+          id: 'save-share',
           title: 'Save and share',
           body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
@@ -555,6 +561,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shareSending: 'Sending…',
       shareSent: 'Sent — {email} will receive their own secure link.',
       shareError: 'Couldn’t send the report. Check your connection and try again.',
+      shareSelfError:
+        'That’s the email you used for this report — enter your partner’s email address instead.',
       shareTokenError:
         'This report link is no longer available in this tab. Reopen it from the link in your email, then send again.',
       shareRetry: 'Try again',
