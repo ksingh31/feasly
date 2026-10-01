@@ -469,7 +469,7 @@ describe('ReportPageComponent', () => {
       expect(panel).not.toBeNull();
       expect(panel.textContent).toContain('$674,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
-      expect(panel.textContent).toContain('$306 per sq ft');
+      expect(panel.textContent).toContain('$306.36 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
