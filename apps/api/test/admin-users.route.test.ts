@@ -472,8 +472,8 @@ describe('admin-users route (auth/03)', () => {
       isProtected: false,
       createdAt: new Date(),
       updatedAt: new Date(),
-    } as never;
-    vi.mocked(userService.findById).mockResolvedValue(target);
+    };
+    vi.mocked(userService.findById).mockResolvedValue(target as never);
     vi.mocked(userService.disableUser).mockResolvedValue({
       ...target,
       status: 'disabled',
