@@ -136,6 +136,13 @@ export class AdminBillingComponent implements OnInit {
     this.managedInvoice.set(null);
   }
 
+  /** Esc closes the manage modal (same rule as the lead-detail modal). */
+  protected onManageKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.managedInvoice()) {
+      this.closeManage();
+    }
+  }
+
   /**
    * BILL-03 retry flow. First click arms the confirm state ("Retry charge"
    * becomes "Confirm retry"); the second click dispatches. A charge retry
