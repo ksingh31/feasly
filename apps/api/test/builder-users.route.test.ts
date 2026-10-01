@@ -6,6 +6,9 @@
  * - list is org-scoped via the session's active builder
  * - invite forces builder roles and takes the builder id from the session
  * - update/remove require the target to hold a membership in the active org
+ * - deactivating/reactivating additionally requires the target to belong
+ *   solely to the caller's org with no staff role (global lifecycle is
+ *   Feasly-staff-only)
  * - disabling / removing kills the user's builder sessions immediately
  * - callers cannot change or remove their own membership
  */
@@ -178,6 +181,86 @@ describe('builder users route', () => {
     expect(d.builderSessions.revokeByUserId).toHaveBeenCalledWith(
       TARGET_ID,
       expect.any(Date),
+    );
+  });
+
+  it('deactivate refuses a user with a membership in another org', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({
+        memberships: [
+          { builderId: BUILDER_ID, role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
+          { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
+        ],
+      }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route
+      .update(HEADERS, TARGET_ID, { status: 'disabled' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect((err as HttpError).message).toContain('solely');
+    expect(d.userService.disableUser).not.toHaveBeenCalled();
+    expect(d.builderSessions.revokeByUserId).not.toHaveBeenCalled();
+  });
+
+  it('deactivate refuses a user holding a staff role', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({ staffRole: 'viewer' }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route
+      .update(HEADERS, TARGET_ID, { status: 'disabled' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect(d.userService.disableUser).not.toHaveBeenCalled();
+  });
+
+  it('reactivate refuses a user holding a staff role', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({ staffRole: 'admin', status: 'disabled' }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route
+      .update(HEADERS, TARGET_ID, { status: 'active' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect(d.userService.enableUser).not.toHaveBeenCalled();
+  });
+
+  it('reactivate refuses a user with a membership in another org', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({
+        status: 'disabled',
+        memberships: [
+          { builderId: BUILDER_ID, role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
+          { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_admin', createdAt: new Date('2026-01-01T00:00:00Z') },
+        ],
+      }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route
+      .update(HEADERS, TARGET_ID, { status: 'active' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(403);
+    expect(d.userService.enableUser).not.toHaveBeenCalled();
+  });
+
+  it('reactivate allows a sole-org member', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({ status: 'disabled' }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const result = await route.update(HEADERS, TARGET_ID, {
+      status: 'active',
+    });
+    expect(result.status).toBe('active');
+    expect(d.userService.enableUser).toHaveBeenCalledWith(
+      TARGET_ID,
+      expect.objectContaining({ actorEmail: 'admin@builder.com' }),
     );
   });
 
