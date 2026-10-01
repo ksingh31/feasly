@@ -17,7 +17,7 @@
  *   - `viewer` — read-only (e.g. accountant seeing invoices).
  * - Builder org (`builder_memberships.role`):
  *   - `builder_admin` — their builder's leads, invoices, disputes + manage
- *     their org's users.
+ *     their org's users + initiate view-as (regular-user targets only).
  *   - `builder_member` — their builder's leads (read + status updates), no
  *     user management.
  *
@@ -124,6 +124,10 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    // 2026-09-30 (Karan): builder-side admins may initiate view-as (regular
+    // users only as targets — enforced in view-as.service.ts). viewer and
+    // builder_member never hold this.
+    'view_as',
   ],
   builder_member: ['builder:leads:read', 'builder:leads:manage'],
 };

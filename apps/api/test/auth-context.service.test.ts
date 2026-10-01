@@ -240,8 +240,14 @@ describe('view-as resolution (auth/04)', () => {
     );
     const ctx = await fx.service.resolve(HEADERS('admin-token'));
     expect(ctx).not.toBeNull();
+    // The borrowed builder view is the builder_admin set MINUS view_as:
+    // view-as is terminal — a view-as session can never chain into another.
     expect(ctx!.permissions).toEqual(
-      expect.arrayContaining(effectivePermissions(null, ['builder_admin'])),
+      expect.arrayContaining(
+        effectivePermissions(null, ['builder_admin']).filter(
+          (p) => p !== 'view_as',
+        ),
+      ),
     );
     expect(ctx!.permissions).not.toContain('view_as');
     expect(ctx!.builderId).toBe('builder-1');
