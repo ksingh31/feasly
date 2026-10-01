@@ -302,6 +302,13 @@
 			"when": 1759260000000,
 			"tag": "0045_per_builder_commission_rate",
 			"breakpoints": true
+		},
+		{
+			"idx": 43,
+			"version": "7",
+			"when": 1790872448387,
+			"tag": "0046_invoice_number_and_payment_method",
+			"breakpoints": true
 		}
 	]
 }

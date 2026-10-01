@@ -1186,6 +1186,45 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/billing/payment-method',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder reads their org\'s default payment method (billing/12): ' +
+      'card (card on file), cheque, e_transfer, or bank_draft. Every new ' +
+      'commission invoice is created with this method. \'card\' when the ' +
+      'builder never chose one.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/billing/payment-method',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder sets their org\'s default payment method (billing/12). ' +
+      'Applies to invoices created afterwards; existing invoices keep ' +
+      'the method they were created with. 400 on an unknown method.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/billing/invoices/{id}/payment-method',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder changes the payment method on one of their invoices ' +
+      '(billing/12). Unpaid invoices only (draft, in_review, failed) — ' +
+      '409 otherwise; 403 for another tenant\'s invoice. Choosing a ' +
+      'manual method pauses the Stripe auto-charge: the invoice-reviewer ' +
+      'timer skips non-card invoices until staff marks them paid.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,

@@ -427,10 +427,13 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"commission_rate_percent" real,
 	"manual_payment_method" text,
 	"payment_reference" text,
+	"invoice_number" text,
+	"payment_method" text DEFAULT 'card' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "commission_invoices_stripe_payment_intent_id_unique" UNIQUE("stripe_payment_intent_id")
 );
+CREATE SEQUENCE IF NOT EXISTS "commission_invoice_number_seq";
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "attribution_id" uuid NOT NULL;
@@ -450,6 +453,28 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_over
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "commission_rate_percent" real;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "manual_payment_method" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_reference" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "invoice_number" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_method" text DEFAULT 'card' NOT NULL;
+-- billing/12 safety net: rows created while migration 0046 was missing get
+-- human-readable invoice numbers (INV-0001… in created_at order), then the
+-- sequence advances past every assigned number — never backwards, so a
+-- deleted invoice's number is never reused. No-op when the migration ran
+-- (no NULL invoice_numbers remain and the sequence is already ahead).
+WITH "ordered" AS (
+	SELECT "id", ROW_NUMBER() OVER (ORDER BY "created_at", "id") AS "rn"
+	FROM "commission_invoices"
+	WHERE "invoice_number" IS NULL
+)
+UPDATE "commission_invoices" AS "ci" SET "invoice_number" =
+	'INV-' || LPAD("o"."rn"::text, 4, '0')
+FROM "ordered" AS "o"
+WHERE "ci"."id" = "o"."id" AND "ci"."invoice_number" IS NULL;
+SELECT setval('commission_invoice_number_seq', "m"."max_n")
+FROM (
+	SELECT COALESCE(MAX((regexp_match("invoice_number", '(\d+)$'))[1]::bigint), 0) AS "max_n"
+	FROM "commission_invoices"
+) AS "m"
+WHERE "m"."max_n" > (SELECT "last_value" FROM "commission_invoice_number_seq");
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "stripe_events" (

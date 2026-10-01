@@ -32,6 +32,7 @@ import type {
   CommissionInvoiceRecord,
   CommissionService,
 } from './commission.service';
+import type { BuilderPaymentMethod } from '@feasly/contracts';
 import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
 import type { BuilderService } from '../builder.service';
@@ -84,6 +85,30 @@ export interface BillingService {
    * Powers the builder portal's "Record signed contract" live preview.
    */
   getCommissionRatePercent(tenantKey: string): Promise<number>;
+  /**
+   * The builder org's default payment method (billing/12): 'card' when
+   * the builder never chose one.
+   */
+  getDefaultPaymentMethod(tenantKey: string): Promise<BuilderPaymentMethod>;
+  /**
+   * Set the builder org's default payment method (billing/12). The
+   * builder must exist (404 otherwise). Applies to invoices created
+   * afterwards; existing invoices keep their method.
+   */
+  setDefaultPaymentMethod(
+    tenantKey: string,
+    method: BuilderPaymentMethod,
+  ): Promise<BuilderPaymentMethod>;
+  /**
+   * Change the payment method on one invoice (billing/12). Builders may
+   * only touch their own tenant's invoices (403 otherwise, enforced in
+   * the commission service); unpaid invoices only (409 otherwise).
+   */
+  setInvoicePaymentMethod(
+    invoiceId: string,
+    tenantKey: string,
+    method: BuilderPaymentMethod,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 export interface BillingServiceDeps {
@@ -223,6 +248,31 @@ export function createBillingService(
 
     async getCommissionRatePercent(tenantKey: string): Promise<number> {
       return commission.getCommissionRatePercent(tenantKey);
+    },
+
+    async getDefaultPaymentMethod(
+      tenantKey: string,
+    ): Promise<BuilderPaymentMethod> {
+      return commission.getDefaultPaymentMethod(tenantKey);
+    },
+
+    async setDefaultPaymentMethod(
+      tenantKey: string,
+      method: BuilderPaymentMethod,
+    ): Promise<BuilderPaymentMethod> {
+      await requireBuilder(tenantKey);
+      return commission.setDefaultPaymentMethod(tenantKey, method);
+    },
+
+    async setInvoicePaymentMethod(
+      invoiceId: string,
+      tenantKey: string,
+      method: BuilderPaymentMethod,
+    ): Promise<CommissionInvoiceRecord> {
+      // Tenant isolation is enforced inside
+      // commission.setInvoicePaymentMethod: 403 for another tenant's
+      // invoice, 404 for an unknown invoice.
+      return commission.setInvoicePaymentMethod(tenantKey, invoiceId, method);
     },
   };
 }

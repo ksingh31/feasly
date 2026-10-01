@@ -198,6 +198,38 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(modal).toBeNull();
   });
 
+  it('renders the manage modal with a dialog shell, backdrop close, and Esc close', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage');
+    (manageButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const modal = fixture.nativeElement.querySelector('.billing-modal');
+    expect(modal).not.toBeNull();
+    expect(modal.getAttribute('role')).toBe('dialog');
+    expect(modal.getAttribute('aria-modal')).toBe('true');
+    // Backdrop click closes the modal.
+    (
+      modal.querySelector('.billing-modal__backdrop') as HTMLElement
+    ).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
+    // Re-open, then Esc closes it.
+    (manageButton as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const reopened = fixture.nativeElement.querySelector('.billing-modal');
+    expect(reopened).not.toBeNull();
+    reopened.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
+  });
+
   it('opens the manage modal from a dunning Mark as paid button', async () => {
     const markPaidButton = Array.from(
       fixture.nativeElement.querySelectorAll('button'),

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AdminBillingApiService } from './admin-billing-api.service';
 import { BillingHealthState } from './billing-health.state';
 import {
@@ -223,6 +223,71 @@ describe('AdminManageInvoiceComponent', () => {
     });
     clickButton(fixture, 'Done');
     expect(closed).toBe(true);
+  });
+
+
+  it('never dispatches the same action twice on rapid confirm clicks', async () => {
+    // A request that stays in flight, like a real HTTP call.
+    const pending = new Subject<unknown>();
+    api.setCommissionRate.mockReturnValue(pending.asObservable());
+    setInput(fixture, '#manage-rate', '1.5');
+    fixture.detectChanges();
+    clickButton(fixture, 'Update rate');
+    const component = fixture.componentInstance;
+    // Direct calls simulate clicks racing before change detection runs.
+    component.confirmRateUpdate();
+    component.confirmRateUpdate();
+    expect(api.setCommissionRate).toHaveBeenCalledTimes(1);
+    pending.error({ status: 500 });
+    await fixture.whenStable();
+  });
+
+  it('disables the rate buttons while the update is in flight and re-enables on error', async () => {
+    const pending = new Subject<unknown>();
+    api.setCommissionRate.mockReturnValue(pending.asObservable());
+    setInput(fixture, '#manage-rate', '2');
+    fixture.detectChanges();
+    clickButton(fixture, 'Update rate');
+    const component = fixture.componentInstance;
+    component.confirmRateUpdate();
+    fixture.detectChanges();
+    expect(component.busy()).toBe(true);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Updating\u2026');
+    const disabledButtons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).filter((b) => (b as HTMLButtonElement).disabled);
+    expect(disabledButtons.length).toBeGreaterThan(0);
+    // Settle with an error: the buttons come back and the error shows.
+    pending.error({ status: 409, error: { code: 'CONFLICT' } });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.busy()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain(
+      'That invoice changed state',
+    );
+    const updateRateButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Update rate');
+    expect((updateRateButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('never dispatches mark-paid twice on rapid confirm clicks', async () => {
+    const pending = new Subject<unknown>();
+    api.markInvoicePaid.mockReturnValue(pending.asObservable());
+    const method = fixture.nativeElement.querySelector(
+      '#manage-method',
+    ) as HTMLSelectElement;
+    method.value = 'cheque';
+    method.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    clickButton(fixture, 'Mark as paid');
+    const component = fixture.componentInstance;
+    component.confirmMarkPaid();
+    component.confirmMarkPaid();
+    expect(api.markInvoicePaid).toHaveBeenCalledTimes(1);
+    pending.error({ status: 500 });
+    await fixture.whenStable();
   });
 
   it('emits closed when the Close button is clicked', () => {

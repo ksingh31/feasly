@@ -19,7 +19,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { startWith } from 'rxjs';
+import { finalize, startWith } from 'rxjs';
 import { Store } from '@ngxs/store';
 import type {
   ManualPaymentMethod,
@@ -74,9 +74,10 @@ function isRateResponse(
 }
 
 /**
- * Manage-invoice panel for /admin/billing — the admin-only work queue
+ * Manage-invoice modal for /admin/billing — the admin-only work queue
  * actions for one commission invoice. Never rendered in the builder
- * portal.
+ * portal. Opened from the billing page's Manage button (modal shell lives
+ * in admin-billing); Esc and backdrop clicks close it.
  *
  * Two independent money actions, each with a deliberate two-click
  * confirm (the BILL-03 retry pattern):
@@ -88,8 +89,12 @@ function isRateResponse(
  *   Confirming marks the invoice paid AND cancels the scheduled
  *   auto-charge — the builder can never be charged twice.
  *
- * Success shows the server's authoritative figures with a Done button;
- * the state reloads the dashboard payload so the work queue refreshes.
+ * Every action button is disabled from the first click until the request
+ * settles (the `inflight` signal, fed by the store's `submitting` status),
+ * so double-clicks and repeated Enters can never fire a money action
+ * twice. Success shows the server's authoritative figures with a Done
+ * button; the state reloads the dashboard payload so the work queue
+ * refreshes.
  */
 @Component({
   selector: 'app-admin-manage-invoice',
@@ -120,6 +125,19 @@ export class AdminManageInvoiceComponent implements OnDestroy {
   readonly confirmingRate = signal(false);
   /** "Mark as paid" armed — the deliberate second click. */
   readonly confirmingPaid = signal(false);
+
+  /**
+   * Which money action currently has a request in flight. The arm step
+   * carries no request, so this is only set on the deliberate second
+   * click; it drives both the disabled state and the loading labels, and
+   * clears when the store's action settles (success or error).
+   */
+  protected readonly inflight = signal<'rate' | 'paid' | null>(null);
+
+  /** True while either money action's request is in flight. */
+  readonly busy = computed(
+    () => this.inflight() !== null || this.actionStatus() === 'submitting',
+  );
 
   readonly rateForm = new FormGroup({
     rate: new FormControl<number | null>(null, {
@@ -226,14 +244,23 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     this.confirmingRate.set(false);
   }
 
-  /** The deliberate second click: dispatch the rate override. */
+  /**
+   * The deliberate second click: dispatch the rate override.
+   * Double-submit guard: a second click before change detection runs is
+   * impossible because the confirm UI unmounts on the first click, and
+   * `busy()` rejects any re-dispatch until the request settles.
+   */
   confirmRateUpdate(): void {
     const rate = this.rateForm.controls.rate.value;
-    if (rate === null || rate <= 0 || rate > 10) return;
+    if (rate === null || rate <= 0 || rate > 10 || this.busy()) return;
     this.confirmingRate.set(false);
+    this.inflight.set('rate');
     this.store
       .dispatch(new SetCommissionRate(this.invoice().id, rate))
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.inflight.set(null)),
+      )
       .subscribe();
   }
 
@@ -248,16 +275,17 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     this.confirmingPaid.set(false);
   }
 
-  /** The deliberate second click: record the payment. */
+  /** The deliberate second click: record the payment. Same guard as above. */
   confirmMarkPaid(): void {
     const { method, reference, paidDate } = this.payForm.getRawValue();
-    if (method === '' || paidDate === '') return;
+    if (method === '' || paidDate === '' || this.busy()) return;
     const body: MarkInvoicePaidRequest = {
       paymentMethod: method,
       paidAt: dateOnlyToIsoWithOffset(paidDate),
     };
     const trimmed = reference.trim();
     this.confirmingPaid.set(false);
+    this.inflight.set('paid');
     this.store
       .dispatch(
         new MarkInvoicePaid(
@@ -265,7 +293,10 @@ export class AdminManageInvoiceComponent implements OnDestroy {
           trimmed.length > 0 ? { ...body, reference: trimmed } : body,
         ),
       )
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.inflight.set(null)),
+      )
       .subscribe();
   }
 
