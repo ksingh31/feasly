@@ -12,10 +12,13 @@
  *   ignored entirely (never read).
  * - `PATCH /api/v1/builder/users/{id}` — rename, change org role, or
  *   activate/disable. The target must hold a membership in the active
- *   org. Deactivate/reactivate is additionally org-scoped: the target must
- *   belong solely to the caller's org and hold no staff role (otherwise
- *   403 — global lifecycle is Feasly-staff-only). Disabling kills the
- *   user's builder sessions immediately.
+ *   org. Renaming is additionally staff-gated: staff accounts can only
+ *   be renamed by Feasly staff, never by a builder admin. Deactivate/
+ *   reactivate is additionally org-scoped: the target must belong solely
+ *   to the caller's org and hold no staff role (otherwise 403 — global
+ *   lifecycle is Feasly-staff-only). Disabling kills the user's builder
+ *   sessions immediately (the service also revokes admin + builder
+ *   sessions server-side).
  * - `DELETE /api/v1/builder/users/{id}` — remove the user from the org
  *   (membership revoked; the user row is disabled when it has no other
  *   memberships, killing all sessions immediately).
@@ -272,6 +275,18 @@ export function createBuilderUsersRoute(
         ]);
       }
       if (parsed.data.name && parsed.data.name !== updated.name) {
+        // Hardening: a name is a platform-global field — a builder admin
+        // may rename members of their own org, but staff accounts are
+        // renamed by Feasly staff only (via the admin-users route with
+        // `users:manage`), even when they hold a membership in this org.
+        if (target.staffRole !== null) {
+          throw new HttpError(
+            403,
+            ErrorCodes.FORBIDDEN,
+            'Staff accounts can only be renamed by Feasly staff.',
+            false,
+          );
+        }
         updated = await userService.renameUser(userId, parsed.data.name, {
           actorEmail: ctx.email,
         });

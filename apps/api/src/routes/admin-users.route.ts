@@ -16,7 +16,9 @@
  * - `GET /api/v1/admin/users/{id}` — one user. Requires `users:manage`.
  * - `PATCH /api/v1/admin/users/{id}` — name, staff role, status,
  *   memberships. Staff: full power. Builder admins: only users inside
- *   their own orgs, and only name/status/their-org memberships.
+ *   their own orgs, and only name (never staff accounts')/their-org
+ *   memberships; status changes are additionally sole-org-scoped (no
+ *   staff accounts, no multi-org users — mirrors the builder route).
  * - `DELETE /api/v1/admin/users/{id}` — hard delete, only for users who
  *   never accepted (everyone else is deactivated). Requires
  *   `users:manage`.
@@ -247,6 +249,36 @@ export function createAdminUsersRoute(
     }
   }
 
+  /**
+   * Builder-admin lifecycle scoping (mirrors the builder users route):
+   * a builder admin may only change the status of users whose entire
+   * footprint sits inside the orgs they administer — no staff role and
+   * no memberships in other orgs. Anything broader (including
+   * deactivating/reactivating staff accounts or multi-org users) is
+   * Feasly-staff territory. Without this, PATCH on the admin route
+   * bypassed the sole-org scoping #390 put on the builder route.
+   */
+  function requireSoleOrgLifecycleTarget(
+    ctx: AuthContext,
+    target: PublicUser,
+    action: 'deactivate' | 'reactivate',
+  ): void {
+    const orgs = adminOrgIds(ctx);
+    const outside =
+      target.staffRole !== null ||
+      target.memberships.some((m) => !orgs.includes(m.builderId));
+    if (outside) {
+      throw new HttpError(
+        403,
+        ErrorCodes.FORBIDDEN,
+        action === 'deactivate'
+          ? 'You can only deactivate members who belong solely to your organization.'
+          : 'You can only reactivate members who belong solely to your organization.',
+        false,
+      );
+    }
+  }
+
   return {
     async list(headers, query): Promise<AdminUserListResponse> {
       const ctx = await permissionGuard.requirePermission(
@@ -378,6 +410,16 @@ export function createAdminUsersRoute(
 
       let result = target;
       if (parsed.name !== undefined && parsed.name !== target.name) {
+        // Builder admins may rename org members, but staff accounts are
+        // renamed by Feasly staff only (same rule as the builder route).
+        if (!staffManager && target.staffRole !== null) {
+          throw new HttpError(
+            403,
+            ErrorCodes.FORBIDDEN,
+            'Staff accounts can only be renamed by Feasly staff.',
+            false,
+          );
+        }
         result = await userService.renameUser(userId, parsed.name, actor);
       }
       if (
@@ -391,6 +433,16 @@ export function createAdminUsersRoute(
         });
       }
       if (parsed.status !== undefined && parsed.status !== result.status) {
+        // Builder admins get the same sole-org lifecycle scoping as the
+        // builder route — without this a builder admin could disable a
+        // staff account or a multi-org user from the admin route.
+        if (!staffManager) {
+          requireSoleOrgLifecycleTarget(
+            ctx,
+            result,
+            parsed.status === 'disabled' ? 'deactivate' : 'reactivate',
+          );
+        }
         result =
           parsed.status === 'disabled'
             ? await userService.disableUser(userId, actor)
