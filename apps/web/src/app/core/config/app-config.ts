@@ -820,6 +820,8 @@ export interface AppConfig {
       landLabel: string;
       /** Fixed-figure explainer: City assessment, never a range. */
       landFixedNote: string;
+      /** Unit-address honesty note: lot figures are for the whole building. */
+      unitAddressNote: string;
       lowLabel: string;
       baseLabel: string;
       highLabel: string;
@@ -894,7 +896,9 @@ export interface AppConfig {
       /** Honest sub-note under the static guide title — never implies AI prose. */
       staticGuideNote: string;
       stepsTitle: string;
-      steps: { title: string; body: string }[];
+      steps: { id: string; title: string; body: string }[];
+      /** Checklist progress line; `{done}` and `{total}` are the counts. */
+      stepsProgress: string;
       /** "Planning ahead" card: financing + timeline honesty for prospects. */
       planningTitle: string;
       financingTitle: string;
