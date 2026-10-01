@@ -234,6 +234,13 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   teamConfirmYes: 'Yes, continue',
   teamConfirmNo: 'Cancel',
   teamActionError: 'Something went wrong. Please try again.',
+  // Builder-side view-as (2026-09-30, Karan): a builder_admin sees the
+  // portal exactly as a team member sees it — "View as" on each eligible
+  // row (active members only; never other admins, never yourself).
+  teamViewAsLabel: 'View as',
+  teamViewAsStarting: 'Starting…',
+  teamViewAsError: 'Could not start viewing as this member. Please try again.',
+  teamViewAsForbidden: 'Only administrators can view as a team member.',
   shellHomeLabel: 'Feasly Builder home',
   shellMenuOpenLabel: 'Open menu',
   shellMenuCloseLabel: 'Close menu',

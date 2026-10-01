@@ -236,6 +236,14 @@ import {
   type ViewAsService,
 } from './services/view-as.service';
 import {
+  createBuilderViewAsService,
+  type BuilderViewAsService,
+} from './services/builder-view-as.service';
+import {
+  createBuilderViewAsRoute,
+  type BuilderViewAsRoute,
+} from './routes/builder/view-as.route';
+import {
   createAdminViewAsRoute,
   type AdminViewAsRoute,
 } from './routes/admin-view-as.route';
@@ -597,6 +605,8 @@ export interface AppComposition {
   /** auth/04: view-as activation/exit + org switcher. */
   readonly viewAsService: ViewAsService;
   readonly adminViewAsRoute: AdminViewAsRoute;
+  /** Builder-side view-as route (POST/DELETE /api/v1/builder/view-as). */
+  readonly builderViewAsRoute: BuilderViewAsRoute;
   /** auth/03: admin user management (invite, edit, deactivate, delete). */
   readonly adminUsersRoute: AdminUsersRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
@@ -1304,6 +1314,20 @@ export function createComposition(
     builders: builderService,
     userService,
   });
+  // Builder-side view-as (2026-09-30, Karan): a builder_admin views the
+  // portal as a regular team member of their own org. The builder session
+  // store holds the view_as state (same token mechanism as admin view-as).
+  const builderViewAsService: BuilderViewAsService = createBuilderViewAsService({
+    sessions: builderSessionStore,
+    users: userStore,
+    memberships: membershipStore,
+    audit: adminAuditStore,
+  });
+  const builderViewAsRoute: BuilderViewAsRoute = createBuilderViewAsRoute({
+    viewAs: builderViewAsService,
+    permissionGuard,
+    userService,
+  });
   // auth/03 — admin user management routes (thin adapters over
   // UserService; permission + org scoping inside the route).
   const adminUsersRoute: AdminUsersRoute = createAdminUsersRoute({
@@ -1826,6 +1850,7 @@ export function createComposition(
     permissionGuard,
     viewAsService,
     adminViewAsRoute,
+    builderViewAsRoute,
     adminUsersRoute,
     userService,
     userStore,

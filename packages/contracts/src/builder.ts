@@ -58,6 +58,19 @@ export interface BuilderAuthMeResponse {
    * a builder_admin.
    */
   readonly role: 'builder_admin' | 'builder_member' | null;
+  /**
+   * Builder-side view-as state (2026-09-30, Karan): set while the session
+   * is viewing-as an org team member. Drives the view-as banner + exit.
+   * Display only; the backend stays authoritative.
+   */
+  readonly viewAs: { readonly userId: string } | null;
+  /** Display name for the view-as banner ("Viewing the portal as X"). */
+  readonly viewAsDisplayName: string | null;
+  /**
+   * The real signed-in user's email while viewing-as (null otherwise).
+   * Shown in the banner so it's always clear who you really are.
+   */
+  readonly realEmail: string | null;
 }
 
 export interface BuilderAuthLogoutResponse {
@@ -350,6 +363,35 @@ export interface BuilderOrgUser {
 /** `GET /api/v1/builder/users` response. */
 export interface BuilderOrgUserListResponse {
   readonly users: readonly BuilderOrgUser[];
+}
+
+/**
+ * Builder-side view-as contracts (2026-09-30, Karan).
+ *
+ * A `builder_admin` (the only builder role holding `view_as`) can view the
+ * portal as a regular team member of their own org. While active, effective
+ * permissions + tenant scoping resolve to the target's; every activation
+ * and exit is audit-logged under the REAL builder admin's identity.
+ */
+
+/** `POST /api/v1/builder/view-as` request body — user targets only. */
+export interface BuilderViewAsRequestBody {
+  /**
+   * The org team member to view the portal as. Must be a regular user
+   * (never an admin) holding a membership in the caller's own org.
+   */
+  readonly userId: string;
+}
+
+/** `POST /api/v1/builder/view-as` + `DELETE /api/v1/builder/view-as` response. */
+export interface BuilderViewAsResponse {
+  readonly active: boolean;
+  /** Present while view-as is active (echo of the target). */
+  readonly target?: {
+    readonly kind: 'user';
+    readonly id: string;
+    readonly displayName: string;
+  };
 }
 
 /** `POST /api/v1/builder/users/invite` request body. */

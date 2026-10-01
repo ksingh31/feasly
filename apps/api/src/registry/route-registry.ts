@@ -592,6 +592,31 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/builder/view-as',
+    auth: 'builder-session',
+    permissions: ['view_as'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Builder-side view-as (2026-09-30, Karan): a builder_admin views the ' +
+      'portal as a regular team member of their own org. Targets are ' +
+      'userId-only, org-scoped, and never admins (#394 lockdown). ' +
+      'Audit-logged under the real builder admin\u2019s identity.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/builder/view-as',
+    auth: 'builder-session',
+    permissions: [] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Exit builder-side view-as on the session. Session-only (exiting ' +
+      'can never escalate — the borrowed view strips `view_as`); ' +
+      'audit-logged.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/builder/users/invite',
     auth: 'builder-session',
     permissions: ['builder:users:manage'] as const,

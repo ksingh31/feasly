@@ -84,6 +84,16 @@ export interface BuilderSessionIdentity {
   readonly builderName: string | null;
   readonly role: 'builder_admin' | 'builder_member' | null;
   readonly memberships: readonly BuilderOrgMembership[];
+  /**
+   * Builder-side view-as state (2026-09-30, Karan): set while the session
+   * is viewing-as an org team member. Mirrors `BuilderAuthMeResponse`.
+   * Display only — the backend stays authoritative.
+   */
+  readonly viewAs: { readonly userId: string } | null;
+  /** Target display name for the banner (null when the target is gone). */
+  readonly viewAsDisplayName: string | null;
+  /** The real signed-in user's email while viewing-as (null otherwise). */
+  readonly realEmail: string | null;
 }
 
 /** A user in the builder's organization (team page). */
@@ -128,3 +138,6 @@ export interface BuilderTeamUpdateBody {
 export interface BuilderTeamDeleteResponse {
   readonly deleted: true;
 }
+
+/** `POST /api/v1/builder/view-as` response — mirrors `@feasly/contracts`. */
+export type { BuilderViewAsResponse } from '@feasly/contracts';

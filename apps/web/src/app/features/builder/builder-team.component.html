@@ -164,6 +164,24 @@
                         {{ copy.teamRemoveLabel }}
                       </button>
                     }
+                    <!-- Builder-side view-as (2026-09-30, Karan): see the
+                         portal exactly as this member sees it. Only for
+                         active members — never other admins, never
+                         yourself (canViewAs); the backend re-checks org
+                         scope + the admin-target lockdown regardless. -->
+                    @if (canInitiateViewAs() && canViewAs(user)) {
+                      <button
+                        type="button"
+                        [disabled]="rowActionsDisabled() || viewAsBusy()"
+                        (click)="viewAs(user)"
+                      >
+                        @if (viewAsStartingUserId() === user.id) {
+                          {{ copy.teamViewAsStarting }}
+                        } @else {
+                          {{ copy.teamViewAsLabel }}
+                        }
+                      </button>
+                    }
                   }
                   <!-- auth/07: a backend 409 (e.g. the last-admin race)
                        surfaces inline on the row it targeted, never as a
@@ -171,6 +189,13 @@
                   @if (actionError() && actionErrorUserId() === user.id) {
                     <p class="builder-team__note builder-team__note--error" role="alert">
                       {{ actionErrorMessage() ?? copy.teamActionError }}
+                    </p>
+                  }
+                  <!-- View-as failures surface inline on the row they
+                       targeted, never as a generic banner. -->
+                  @if (showViewAsError(user)) {
+                    <p class="builder-team__note builder-team__note--error" role="alert">
+                      {{ viewAsErrorMessage() }}
                     </p>
                   }
                 </td>

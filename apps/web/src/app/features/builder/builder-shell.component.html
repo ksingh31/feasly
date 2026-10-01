@@ -61,6 +61,7 @@
       <button type="button" (click)="signOut()">{{ copy.signOutLabel }}</button>
     </nav>
   </header>
+  <app-view-as-banner [banner]="viewAsBanner()" (exit)="exitViewAs()" />
   <main class="builder-shell__main">
     <router-outlet />
   </main>

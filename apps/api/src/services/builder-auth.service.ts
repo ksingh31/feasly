@@ -53,6 +53,13 @@ export interface BuilderSessionRecord {
   /** SHA-256 hex — never the raw token. */
   readonly sessionTokenHash: string;
   /**
+   * Builder-side view-as state (2026-09-30, Karan): `{ userId }` while the
+   * session is viewing-as an org team member, else null. Mirrors
+   * AdminSessionRecord.viewAs — effective permissions + tenant scoping
+   * resolve to the target's view.
+   */
+  readonly viewAs: { readonly userId?: string } | null;
+  /**
    * Entra id_token captured at sign-in (logout UX, 2026-09-28). Returned as
    * `entraIdTokenHint` on logout so the frontend can pass `id_token_hint`
    * to the end-session endpoint. Null for pre-change / non-Entra sessions.
@@ -110,6 +117,17 @@ export interface BuilderSessionStore {
     sessionTokenHash: string,
     builderId: string,
   ): Promise<boolean>;
+  /**
+   * Builder-side view-as (2026-09-30, Karan): set or clear the session's
+   * `view_as` state. Only the listed fields may change — never the
+   * identity. The service fail-closes on unknown hashes before calling.
+   */
+  updateState(
+    sessionTokenHash: string,
+    patch: {
+      readonly viewAs?: { readonly userId?: string } | null;
+    },
+  ): Promise<void>;
 }
 
 export interface BuilderAllowlistStore {
@@ -128,6 +146,11 @@ export interface BuilderSession {
    * value). Null for legacy sessions.
    */
   readonly builderId: string | null;
+  /**
+   * Builder-side view-as state (2026-09-30, Karan): `{ userId }` while the
+   * session is viewing-as an org team member, else null.
+   */
+  readonly viewAs: { readonly userId?: string } | null;
 }
 
 export interface BuilderAuthService {
@@ -432,6 +455,7 @@ export function createBuilderAuthService(
             email: session.email,
             tenantKey: session.tenantKey,
             builderId: session.builderId,
+            viewAs: session.viewAs,
           }
         : null;
     },

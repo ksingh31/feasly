@@ -12,7 +12,8 @@ import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
-import { LogoutBuilder } from './builder.actions';
+import { ViewAsBannerComponent } from '../../shared/view-as-banner';
+import { ExitBuilderViewAs, LogoutBuilder } from './builder.actions';
 import { BuilderState } from './builder.state';
 
 /**
@@ -32,6 +33,7 @@ import { BuilderState } from './builder.state';
     RouterLink,
     RouterLinkActive,
     RouterOutlet,
+    ViewAsBannerComponent,
   ],
   providers: [provideBuilderCopy()],
   templateUrl: './builder-shell.component.html',
@@ -52,6 +54,14 @@ export class BuilderShellComponent {
   );
   protected readonly isBuilderAdmin = this.store.selectSignal(
     BuilderState.isBuilderAdmin,
+  );
+
+  /**
+   * Builder-side view-as banner model (2026-09-30, Karan): null when the
+   * session is not viewing-as. Rendered by the shared view-as banner.
+   */
+  protected readonly viewAsBanner = this.store.selectSignal(
+    BuilderState.viewAsBanner,
   );
 
   /** Mobile nav menu open state. Desktop shows the nav inline. */
@@ -80,6 +90,13 @@ export class BuilderShellComponent {
 
   protected closeMenu(): void {
     this.menuOpen.set(false);
+  }
+
+  protected exitViewAs(): void {
+    this.store
+      .dispatch(new ExitBuilderViewAs())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   protected signOut(): void {

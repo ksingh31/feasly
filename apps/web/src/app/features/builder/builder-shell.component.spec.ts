@@ -17,7 +17,7 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BuilderShellComponent } from './builder-shell.component';
 import { BuilderState } from './builder.state';
-import { LogoutBuilder } from './builder.actions';
+import { LogoutBuilder, ExitBuilderViewAs } from './builder.actions';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -35,13 +35,19 @@ const SESSION: BuilderSessionIdentity = {
   builderName: 'Acme Builds',
   role: 'builder_admin',
   memberships: [],
+  viewAs: null,
+  viewAsDisplayName: null,
+  realEmail: null,
 };
 
 /**
  * Sets up the shell with a mock store. `isAdmin` toggles the
  * isBuilderAdmin selector so admin-only links can be covered both ways.
  */
-async function setup(isAdmin = true) {
+async function setup(
+  isAdmin = true,
+  viewAsBanner: { displayName: string | null; realEmail: string | null } | null = null,
+) {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
   const configStub = {
@@ -58,6 +64,8 @@ async function setup(isAdmin = true) {
       if (selector === BuilderState.activeBuilderName)
         return signal(SESSION.builderName);
       if (selector === BuilderState.isBuilderAdmin) return signal(isAdmin);
+      // Builder-side view-as banner (2026-09-30, Karan).
+      if (selector === BuilderState.viewAsBanner) return signal(viewAsBanner);
       return signal(null);
     },
   };
@@ -234,5 +242,38 @@ describe('BuilderShellComponent', () => {
     signOut.click();
     await fixture.whenStable();
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(LogoutBuilder));
+  });
+
+  it('hides the view-as banner when the session is not viewing-as', async () => {
+    const { fixture } = await setup();
+    expect(
+      fixture.nativeElement.querySelector('.view-as-banner'),
+    ).toBeNull();
+  });
+
+  it('shows the shared view-as banner while viewing-as', async () => {
+    const { fixture } = await setup(true, {
+      displayName: 'Team Member',
+      realEmail: 'admin@builder.com',
+    });
+    const banner = fixture.nativeElement.querySelector('.view-as-banner');
+    expect(banner).not.toBeNull();
+    expect(banner.textContent).toContain('Viewing as');
+    expect(banner.textContent).toContain('Team Member');
+    expect(banner.textContent).toContain('admin@builder.com');
+  });
+
+  it('dispatches ExitBuilderViewAs when the banner exit is clicked', async () => {
+    const { fixture, store } = await setup(true, {
+      displayName: 'Team Member',
+      realEmail: 'admin@builder.com',
+    });
+    const exit = fixture.nativeElement.querySelector(
+      '.view-as-banner__exit',
+    ) as HTMLButtonElement;
+    expect(exit).not.toBeNull();
+    exit.click();
+    await fixture.whenStable();
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(ExitBuilderViewAs));
   });
 });

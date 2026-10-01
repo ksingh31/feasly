@@ -6,8 +6,10 @@ import { Store } from '@ngxs/store';
 import { SeoService } from '../../core/seo/seo.service';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { LogoutAdmin } from './admin-auth.actions';
+import { AdminAuthState } from './admin-auth.state';
+import { ExitViewAs } from './admin-auth.actions';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
-import { ViewAsBannerComponent } from './view-as-banner';
+import { ViewAsBannerComponent } from '../../shared/view-as-banner';
 
 /**
  * Admin shell (admin/01): layout for the guarded `/admin` route group.
@@ -59,6 +61,18 @@ export class AdminShellComponent {
 
   protected closeMenu(): void {
     this.menuOpen.set(false);
+  }
+
+  /** View-as banner model (null when the session is not viewing-as). */
+  protected readonly viewAsBanner = this.store.selectSignal(
+    AdminAuthState.viewAsBanner,
+  );
+
+  protected exitViewAs(): void {
+    this.store
+      .dispatch(new ExitViewAs())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   protected signOut(): void {

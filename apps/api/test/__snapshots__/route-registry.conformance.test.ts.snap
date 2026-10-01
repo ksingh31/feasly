@@ -23,6 +23,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "DELETE /api/v1/builder/view-as": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "GET /api/health": [
     "super_admin",
     "admin",
@@ -501,6 +509,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
   ],
   "POST /api/v1/builder/users/invite": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/builder/view-as": [
     "super_admin",
     "admin",
     "builder_admin",
