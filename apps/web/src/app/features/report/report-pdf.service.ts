@@ -5,18 +5,47 @@ import { aggregateCostBuckets } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
 
 /**
+ * Unicode characters above U+00FF that jsPDF's WinAnsi core-font path CAN
+ * encode (the cp1252 extension block, e.g. the em dash and smart quotes the
+ * AI narrative uses). Everything else above U+00FF has no WinAnsi mapping.
+ */
+const WIN_ANSI_EXTRA =
+  '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
+
+/**
  * Strips characters jsPDF 4.x cannot encode in its WinAnsi core-font path.
  *
- * QA bug (feasly-estimate-1.pdf): AI narratives can carry stray C0 controls
- * (e.g. \x11 mid-word). jsPDF sees one non-WinAnsi char and encodes the
- * WHOLE line as UTF-16BE while the font stays WinAnsi Helvetica — every
- * affected line renders ~2x too wide and gets clipped at the page edge.
- * Stripping C0 controls (except \n, which paragraph splitting depends on),
- * DEL, and C1 controls keeps the entire PDF in WinAnsi. Pure function:
- * apply at generation time so past and future snapshots are covered.
+ * QA bug (feasly-estimate-1.pdf): AI narratives can carry stray invisible
+ * characters. jsPDF encodes any line containing a character it cannot map
+ * to WinAnsi as UTF-16BE (NUL-interleaved) while the font stays WinAnsi
+ * Helvetica — every affected line renders ~2x too wide and gets clipped at
+ * the page edge. Empirically (jsPDF 4.2.1 trigger matrix) the line-flipping
+ * triggers are: U+0000, and any character above U+00FF with no WinAnsi
+ * mapping — notably U+200B (zero-width space) and U+2028, which LLMs emit.
+ * Plain C0 controls like \x11 do NOT flip the encoding, but they have no
+ * WinAnsi glyph either, so they are stripped too.
+ *
+ * Kept: \n (paragraph splitting depends on it), \t, printable ASCII, the
+ * WinAnsi-native U+00A0–U+00FF range, and the cp1252-mapped extras above
+ * (WIN_ANSI_EXTRA) so legitimate punctuation like — ‘’ “” … survives.
+ * Pure function: apply at generation time so past and future snapshots are
+ * covered.
  */
 export function sanitizePdfText(value: string): string {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  let out = '';
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code === 0x0a || code === 0x09) {
+      out += ch; // \n and \t are safe and meaningful
+    } else if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) {
+      // C0 controls, DEL, C1 controls: no WinAnsi glyph — drop.
+    } else if (code <= 0xff || WIN_ANSI_EXTRA.includes(ch)) {
+      out += ch; // WinAnsi can encode these; jsPDF stays single-byte.
+    }
+    // Anything else (U+200B, U+2028, arrows, emoji, …) would flip the whole
+    // line to UTF-16BE → drop it rather than clip the line.
+  }
+  return out;
 }
 
 export interface ReportPdfInput {

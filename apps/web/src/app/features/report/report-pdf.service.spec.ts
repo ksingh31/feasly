@@ -92,26 +92,29 @@ describe('ReportPdfService', () => {
     expect(raw).not.toContain('Demolition of any existing home');
   });
 
-  it('strips control characters so jsPDF stays in WinAnsi (QA bug: feasly-estimate-1.pdf narrative clipped)', async () => {
+  it('strips unencodable characters so jsPDF stays in WinAnsi (QA bug: feasly-estimate-1.pdf narrative clipped)', async () => {
     const service = TestBed.inject(ReportPdfService);
     const dirty = input();
     const blob = await service.generate({
       ...dirty,
       snapshot: {
         ...dirty.snapshot,
-        // A stray \x11 (DC1) mid-word is what jsPDF 4.x choked on: one
-        // non-WinAnsi char flips the whole line to UTF-16BE (NUL-interleaved)
-        // and the line renders ~2x too wide, clipped at the page edge.
+        // The real triggers (jsPDF 4.2.1 trigger matrix): U+200B/U+2028
+        // (which LLMs emit) flip the whole line to UTF-16BE
+        // (NUL-interleaved) and the line renders ~2x too wide, clipped at
+        // the page edge. C0 controls like \x11 have no WinAnsi glyph either.
         narrative:
-          'Sunalta is a well\x11e\x00s\x00tablished inner city neighbourhood.\x0BFees are calculated deterministically.',
+          'Sunalta is a well\u200b-established\u200b\u2028inner city neighbourhood.\x11\x0BFees are calculated deterministically — no surprises…',
       },
     });
     const raw = await blob.text();
     // No UTF-16BE (NUL-interleaved) text anywhere in the output.
     expect(raw).not.toContain('\x00');
-    // Words intact after the control chars are stripped.
-    expect(raw).toContain('Sunalta is a wellestablished inner city neighbourhood.');
-    expect(raw).toContain('Fees are calculated deterministically.');
+    // Words intact after the unencodable chars are stripped; legitimate
+    // WinAnsi-mapped punctuation (— …) survives.
+    expect(raw).toContain('Sunalta is a well-establishedinner city neighbourhood.');
+    expect(raw).toContain('Fees are calculated deterministically');
+    expect(raw).toContain('no surprises');
   });
 
   it('renders the same three cost buckets as the report page, land excluded', async () => {
@@ -157,8 +160,19 @@ describe('ReportPdfService', () => {
 
 describe('sanitizePdfText', () => {
   it('strips C0 controls, DEL and C1 controls but preserves newlines and tabs', () => {
-    expect(sanitizePdfText('a\x11b\x00c\x7Fd\u0085e')).toBe('abcde');
+    expect(sanitizePdfText('a\x11b\x00c\x7Fde')).toBe('abcde');
     expect(sanitizePdfText('line1\nline2\tline3')).toBe('line1\nline2\tline3');
     expect(sanitizePdfText('plain text')).toBe('plain text');
+  });
+
+  it('strips unmapped >U+00FF chars that would flip jsPDF to UTF-16BE, keeps WinAnsi-mapped punctuation', () => {
+    // U+200B / U+2028 (LLM favourites) flip the whole line to UTF-16BE.
+    expect(sanitizePdfText('a\u200bb\u2028c')).toBe('abc');
+    // cp1252-mapped punctuation renders fine in WinAnsi — keep it.
+    expect(sanitizePdfText('em—dash ‘quote’ “double” ellipsis…')).toBe(
+      'em—dash ‘quote’ “double” ellipsis…',
+    );
+    // Surrogate-pair emoji would also flip the line — drop it.
+    expect(sanitizePdfText('hi 😀 bye')).toBe('hi  bye');
   });
 });
