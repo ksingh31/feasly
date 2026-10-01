@@ -17,8 +17,8 @@ import {
   UpdateRenoInputs,
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
-import { LoadLeadEstimate, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
-import { ReportState } from './report.state';
+import { LoadLeadEstimate, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { ReportState, serializeReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
 import { ReportPdfService } from './report-pdf.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -473,16 +473,91 @@ describe('ReportPageComponent', () => {
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
-    it('has NO tier toggle — the chosen tier is display-only (consumer/04 AC8)', () => {
-      // Karan 2026-09-25: the finish-tier what-if switcher is removed from
-      // the report page entirely; the tier is shown, never switched here.
-      expect(fixture.nativeElement.querySelector('.tier-card')).toBeNull();
-      expect(fixture.nativeElement.querySelector('app-option-selector')).toBeNull();
-      // The chosen tier is still SHOWN (display-only) so the user knows
-      // which finishes the numbers assume.
-      expect(fixture.nativeElement.querySelector('.tier-display')?.textContent).toContain(
-        'Selected finish level — Premium',
-      );
+    describe('tier what-if toggle (QA 2026-09-30)', () => {
+      function tierCard(id: string): HTMLButtonElement {
+        const found = fixture.nativeElement.querySelector(
+          `.tier-toggle-card [data-option="${id}"]`,
+        ) as HTMLButtonElement;
+        expect(found).not.toBeNull();
+        return found;
+      }
+
+      it('renders the toggle post-gate with the active tier selected', async () => {
+        await setup({ leadSubmitted: true });
+        fixture.detectChanges();
+        const toggle = fixture.nativeElement.querySelector('.tier-toggle-card app-option-selector');
+        expect(toggle).not.toBeNull();
+        expect(toggle.textContent).toContain('What if you change the finish tier?');
+        expect(toggle.textContent).toContain('Pick a finish level');
+        // The setup wizard inputs carry tier 'premium'.
+        expect(toggle.querySelector('[aria-checked="true"]')?.getAttribute('data-option')).toBe(
+          'premium',
+        );
+        expect(
+          [...toggle.querySelectorAll('[data-option]')].map((b: Element) =>
+            b.getAttribute('data-option'),
+          ),
+        ).toEqual(['standard', 'premium', 'luxury']);
+      });
+
+      it('switching tiers revises the report server-side with the new tier and current size', async () => {
+        await setup({ leadSubmitted: true });
+        const dispatchSpy = vi.spyOn(store, 'dispatch');
+        tierCard('luxury').click();
+        fixture.detectChanges();
+        const dispatched = dispatchSpy.mock.calls.flat().flat();
+        const revise = dispatched.find((a) => a instanceof ReviseReport) as
+          | ReviseReport
+          | undefined;
+        expect(revise?.tier).toBe('luxury');
+        expect(revise?.sqft).toBe(2200);
+        const sync = dispatched.find((a) => a instanceof UpdateInputs) as
+          | UpdateInputs
+          | undefined;
+        expect(sync?.inputs.tier).toBe('luxury');
+        // The new snapshot lands with the new tier AND a bumped version —
+        // the PDF's "Home size & finishes" line and filename read these, so
+        // the download stays consistent with the screen.
+        await pollFor(
+          () => store.selectSnapshot(ReportState.snapshot)?.inputs.tier === 'luxury',
+          'tier revise snapshot',
+        );
+        const snap = store.selectSnapshot(ReportState.snapshot);
+        expect(snap?.version).toBeGreaterThan(1);
+        fixture.detectChanges();
+        const toggle = fixture.nativeElement.querySelector('.tier-toggle-card app-option-selector');
+        expect(toggle.querySelector('[aria-checked="true"]')?.getAttribute('data-option')).toBe(
+          'luxury',
+        );
+        // Deterministic math: buckets still sum to the build base.
+        expect(text()).toContain('Selected finish level — Luxury');
+      });
+
+      it('selecting the already-active tier dispatches nothing', async () => {
+        await setup({ leadSubmitted: true });
+        const dispatchSpy = vi.spyOn(store, 'dispatch');
+        dispatchSpy.mockClear();
+        tierCard('premium').click();
+        fixture.detectChanges();
+        expect(
+          dispatchSpy.mock.calls.flat().flat().some((a) => a instanceof ReviseReport),
+        ).toBe(false);
+      });
+
+      it('is hidden pre-gate (the preview page carries the locked note instead)', async () => {
+        // Fresh pre-gate preview: the post-gate describe's beforeEach
+        // unlocked the shared fixture, so re-run setup without a lead.
+        await setup();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.tier-toggle-card')).toBeNull();
+      });
+
+      it('is hidden in partner view (read-only report)', async () => {
+        await setup({ leadSubmitted: true });
+        store.dispatch(new SetPartnerView());
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.tier-toggle-card')).toBeNull();
+      });
     });
 
     it('shows land as ONE fixed number — never a range', () => {
@@ -1106,6 +1181,69 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
+    });
+  });
+
+  describe('reload with a persisted snapshot (ai-summary-persistence)', () => {
+    it('renders the persisted snapshot as-is — the AI narrative survives a reload', async () => {
+      // First view: the token path lands the snapshot WITH the AI narrative.
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      expect(landed.narrative).toBeTruthy();
+      expect(landed.leadId).toBe(store.selectSnapshot(LeadState.leadId));
+
+      // The reload: the storage plugin strips the memory-only token (and
+      // other session state) but the snapshot — figures and narrative —
+      // persists. This is exactly what rehydration produces.
+      store.reset({
+        ...store.snapshot(),
+        report: serializeReportState(store.snapshot().report),
+      });
+      expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+      expect(store.selectSnapshot(ReportState.snapshot)).not.toBeNull();
+
+      // Re-create the page, as a browser reload would.
+      const estimateSpy = vi.spyOn(api, 'getEstimate');
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'restored unlock');
+
+      // The report renders from the persisted snapshot — it must NOT
+      // re-run the public estimate, which would drop the AI narrative
+      // (the narrative endpoint needs the memory-only token).
+      expect(estimateSpy).not.toHaveBeenCalled();
+      const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+      expect(snapshot.narrative).toBe(landed.narrative);
+      expect(snapshot.version).toBe(landed.version);
+      expect(text()).toContain('At 2,200 sq ft with premium finishes');
+      expect(text()).not.toContain('not available for this report right now');
+      estimateSpy.mockRestore();
+    });
+
+    it('a persisted snapshot from a different lead does not render — the current lead rebuilds', async () => {
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      // Stale snapshot from another lead's session (leadId mismatch).
+      store.reset({
+        ...store.snapshot(),
+        report: {
+          ...serializeReportState(store.snapshot().report),
+          snapshot: { ...landed, leadId: 'lead-someone-else' },
+        },
+      });
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      // The stale snapshot is ignored: the page rebuilds for the submitted
+      // lead instead of showing another lead's report.
+      await pollFor(
+        () =>
+          store.selectSnapshot(ReportState.snapshot)?.leadId ===
+          store.selectSnapshot(LeadState.leadId),
+        'rebuilt for current lead',
+      );
+      expect(store.selectSnapshot(ReportState.snapshot)?.leadId).not.toBe('lead-someone-else');
     });
   });
 });

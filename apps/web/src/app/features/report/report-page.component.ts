@@ -4,11 +4,12 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import type { CallbackWindow, CostRange } from '@feasly/contracts';
+import type { CallbackWindow, CostRange, FinishTier } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent } from '../../shared/components';
+import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent, OptionSelectorComponent } from '../../shared/components';
+import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { formatWholeCad } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
@@ -63,7 +64,7 @@ type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
 @Component({
   selector: 'app-report-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent],
+  imports: [ReactiveFormsModule, RouterLink, BuilderMatchingExplainerComponent, OptionSelectorComponent, SiteFooterComponent, SiteNavComponent],
   templateUrl: './report-page.component.html',
   styleUrls: ['../wizard/wizard-shell.scss', './report-page.component.scss'],
 })
@@ -111,6 +112,19 @@ export class ReportPageComponent implements OnInit {
    */
   private readonly leadId = this.store.selectSignal(LeadState.leadId);
   protected readonly leadSubmitted = computed(() => this.leadId() !== null);
+
+  /**
+   * True when localStorage rehydration restored the report snapshot for the
+   * currently submitted lead (ai-summary-persistence): ngOnInit renders it
+   * directly instead of re-running the estimate, which would drop the AI
+   * narrative. A snapshot from a different lead never counts — the report
+   * is rebuilt from the current lead instead.
+   */
+  private restoredSnapshotForLead(): boolean {
+    const snapshot = this.snapshot();
+    const leadId = this.leadId();
+    return snapshot !== null && leadId !== null && snapshot.leadId === leadId;
+  }
 
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
@@ -216,15 +230,25 @@ export class ReportPageComponent implements OnInit {
     return this.copy.updatedLabel.replace('{date}', date);
   });
 
+  /** Active finish tier: verified snapshot post-gate, wizard inputs pre-gate. */
+  protected readonly activeTier = computed<FinishTier>(
+    () => this.snapshot()?.inputs.tier ?? this.wizardInputs().tier,
+  );
+
+  /** Tier options for the what-if toggle — the same cards as the wizard scope step (DRY). */
+  protected readonly tierToggleOptions = computed<readonly TierOption[]>(() =>
+    this.tierOptions.map((t) => ({ id: t.id as FinishTier, name: t.name, blurb: t.blurb })),
+  );
+
   /** Chosen finish tier, display-only (snapshot post-gate, wizard inputs pre-gate). */
   protected readonly tierLabel = computed(() => {
-    const tier = this.snapshot()?.inputs.tier ?? this.wizardInputs().tier;
+    const tier = this.activeTier();
     return this.tierOptions.find((t) => t.id === tier)?.name ?? tier;
   });
 
   /** Honest one-line descriptor of the selected finish tier (no prices). */
   protected readonly tierDescriptor = computed(() => {
-    const tier = this.snapshot()?.inputs.tier ?? this.wizardInputs().tier;
+    const tier = this.activeTier();
     const d = this.copy.tierDescriptors;
     return tier === 'luxury' ? d.luxury : tier === 'premium' ? d.premium : d.standard;
   });
@@ -372,6 +396,11 @@ export class ReportPageComponent implements OnInit {
       .subscribe((sqft) => this.dispatchSqftRevision(sqft));
     if (this.reportToken()) {
       this.store.dispatch(new UnlockReport());
+    } else if (this.restoredSnapshotForLead()) {
+      // A reload rehydrated the persisted snapshot for this lead: render it
+      // as-is (ai-summary-persistence). Re-running the public estimate would
+      // rebuild identical figures but drop the AI narrative — the narrative
+      // endpoint needs the memory-only token, which a reload clears.
     } else if (this.leadSubmitted()) {
       // Karan directive 2026-09-27: the submitted lead unlocks the report
       // immediately — no magic-link round-trip, no blurred dead-end.
@@ -448,6 +477,27 @@ export class ReportPageComponent implements OnInit {
       return;
     }
     this.store.dispatch([new ReviseReport(undefined, sqft), new UpdateInputs({ sqft })]);
+  }
+
+  /**
+   * Tier what-if toggle (QA 2026-09-30): switching tiers re-runs the
+   * estimate server-side via ReviseReport — every figure on the page (build
+   * cost, per-sq-ft, buckets, total) comes back deterministically in the new
+   * snapshot; the component still never computes a dollar figure itself.
+   * `cancelUncompleted` on the handler gives last-write-wins, so tapping
+   * through tiers can never land on a stale tier's figures.
+   */
+  chooseTier(tier: FinishTier): void {
+    if (!this.unlocked() || this.partnerView() || tier === this.activeTier()) {
+      return;
+    }
+    // Consent-gated inside AnalyticsService: declined/pending banner means
+    // this is a silent no-op.
+    this.analytics.track('tier_toggle');
+    // Keep the current size (the stepper draft is the freshest intent when a
+    // debounced revise is still pending).
+    const sqft = this.sqftDraft() || this.snapshotSqft();
+    this.store.dispatch([new ReviseReport(tier, sqft), new UpdateInputs({ tier })]);
   }
 
   retry(): void {

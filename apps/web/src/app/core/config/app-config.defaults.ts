@@ -494,6 +494,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
       ],
       tierTitle: 'What if you change the finish tier?',
+      tierToggleHint: 'Pick a finish level — every figure on this page updates to match.',
       tierLockedNote: 'Unlock your report to see the full cost breakdown and next steps.',
       adjustTitle: 'Adjust the size',
       decreaseLabel: 'Decrease square footage',
