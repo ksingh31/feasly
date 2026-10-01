@@ -325,7 +325,9 @@ export function createAuthContextService(
     // builder context, never the real user's own context (which would
     // silently restore elevated access). The real identity stays on
     // `realUser` for the audit trail, and `viewAs` stays set so the shell
-    // can show "target unavailable" + an exit.
+    // can show "target unavailable" + an exit. A target who loses their
+    // membership in the session's org mid-session fails CLOSED too — the
+    // resolution never re-scopes to another tenant (cross-org exposure).
     const closedBuilderViewAs: AuthContext = {
       userId,
       email: session.email,
@@ -342,32 +344,32 @@ export function createAuthContextService(
       const target = await users.findById(session.viewAs.userId);
       if (target && target.status !== 'disabled') {
         const targetMemberships = await memberships.listByUserId(target.id);
+        // Strict session-org scoping: the target's view is only meaningful
+        // in the org the session is scoped to. A first-membership fallback
+        // here would re-scope a builder admin's session to another tenant
+        // when the target loses their session-org membership mid-session
+        // (cross-org exposure) — so a missing session-org membership fails
+        // CLOSED instead.
         const targetMembership =
-          targetMemberships.find((m) => m.builderId === builder.id) ??
-          targetMemberships[0] ??
-          null;
-        let targetBuilderName: string | null = null;
-        if (targetMembership) {
-          try {
-            targetBuilderName = (
-              await builders.getBuilder(targetMembership.builderId)
-            ).displayName;
-          } catch {
-            targetBuilderName = null;
-          }
+          targetMemberships.find((m) => m.builderId === builder.id) ?? null;
+        if (!targetMembership) {
+          return closedBuilderViewAs;
         }
         return {
           userId: target.id,
           email: target.email,
           name: target.name,
           staffRole: target.staffRole,
+          // Scoped to the session-org role only: roles the target holds in
+          // other orgs must never widen the borrowed view (a mid-session
+          // promotion elsewhere is not a promotion here).
           permissions: effectivePermissions(
             target.staffRole,
-            targetMemberships.map((m) => m.role),
+            [targetMembership.role],
           ).filter((p) => p !== 'view_as'),
-          builderId: targetMembership?.builderId ?? null,
-          builderName: targetBuilderName,
-          memberships: targetMemberships,
+          builderId: builder.id,
+          builderName: builder.displayName,
+          memberships: [targetMembership],
           viewAs: session.viewAs,
           realUser,
         };

@@ -601,4 +601,71 @@ describe('builder-side view-as context resolution (2026-09-30, Karan)', () => {
     expect(ctx!.realUser).toBeNull();
     expect(ctx!.permissions).toContain('view_as');
   });
+
+  it('fails closed when the target loses their session-org membership mid-session (never re-scopes to another tenant)', async () => {
+    const fx = builderAdminFixture();
+    fx.buildersById.set('builder-9', {
+      id: 'builder-9',
+      displayName: 'Other Homes',
+      status: 'active',
+    });
+    // The target was removed from the session org (builder-7) but still
+    // belongs to builder-9. The old first-membership fallback would have
+    // re-scoped this session to builder-9's portal — cross-tenant exposure.
+    fx.membershipsByUser.set('user-member', [
+      { builderId: 'builder-9', role: 'builder_member', createdAt: NOW },
+    ] as BuilderMembership[]);
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-member' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.permissions).toEqual([]);
+    expect(ctx!.builderId).toBeNull();
+    expect(ctx!.builderName).toBeNull();
+    // Banner state intact: the shell shows "target unavailable" + an exit,
+    // and the real admin stays on realUser for the audit trail.
+    expect(ctx!.viewAs).toEqual({ userId: 'user-member' });
+    expect(ctx!.realUser?.email).toBe('builderadmin@example.com');
+  });
+
+  it('scopes the borrowed view to the session org when the target holds memberships in two orgs', async () => {
+    const fx = builderAdminFixture();
+    fx.buildersById.set('builder-9', {
+      id: 'builder-9',
+      displayName: 'Other Homes',
+      status: 'active',
+    });
+    // Mid-session promotion in the OTHER org: the borrowed view in the
+    // session org must not widen to the other org's role.
+    fx.membershipsByUser.set('user-member', [
+      { builderId: 'builder-7', role: 'builder_member', createdAt: NOW },
+      { builderId: 'builder-9', role: 'builder_admin', createdAt: NOW },
+    ] as BuilderMembership[]);
+    fx.builderSessions.set('builder-token', {
+      email: 'builderadmin@example.com',
+      tenantKey: 'north-homes',
+      viewAs: { userId: 'user-member' },
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(resolveHeaders('builder-token'));
+    expect(ctx).not.toBeNull();
+    expect(ctx!.builderId).toBe('builder-7');
+    expect(ctx!.builderName).toBe('North Homes');
+    // Permissions come from the session-org role only — the union across
+    // orgs would have granted builder_admin permissions here.
+    expect(ctx!.permissions).toEqual(
+      effectivePermissions(null, ['builder_member']).filter(
+        (p) => p !== 'view_as',
+      ),
+    );
+    expect(ctx!.memberships).toEqual([
+      { builderId: 'builder-7', role: 'builder_member', createdAt: NOW },
+    ]);
+    expect(ctx!.viewAs).toEqual({ userId: 'user-member' });
+    expect(ctx!.realUser?.email).toBe('builderadmin@example.com');
+  });
 });
