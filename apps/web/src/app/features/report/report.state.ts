@@ -13,7 +13,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
-import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, ToggleStep, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
 export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -33,11 +33,11 @@ export interface ReportStateModel {
   snapshot: ReportSnapshot | null;
   /**
    * Highest report revision number reached this browser, persisted across
-   * reloads (the snapshot itself is session-scoped and stripped before
-   * persistence). After a reload the report is rebuilt from the persisted
-   * wizard inputs — the version label keeps counting from here instead of
-   * restarting at 1, so "Report version 3" still reads "version 3" with the
-   * v3 figures. Reset by ClearReport (a new property starts a new count).
+   * reloads alongside the snapshot itself (ai-summary-persistence). After a
+   * reload the persisted snapshot renders as-is and the version label keeps
+   * counting from here instead of restarting at 1, so "Report version 3"
+   * still reads "version 3" with the v3 figures. Reset by ClearReport (a new
+   * property starts a new count).
    */
   savedVersion: number;
   status: ReportStatus;
@@ -49,6 +49,16 @@ export interface ReportStateModel {
    * buyer-grade copy — never rendered verbatim.
    */
   errorDetail: string | null;
+  /**
+   * Next-steps checklist: which step ids are checked. Persisted (not
+   * stripped by beforeSerialize) and keyed by `stepsLeadId` — the leadId is
+   * stable across reloads and magic-link devices, unlike the per-request
+   * estimateId. Reset when a different report loads; cleared by
+   * ClearReport (a new property starts fresh).
+   */
+  stepsChecked: Record<string, boolean>;
+  /** leadId the stepsChecked map belongs to; null before the first report. */
+  stepsLeadId: string | null;
 }
 
 const defaults: ReportStateModel = {
@@ -60,7 +70,34 @@ const defaults: ReportStateModel = {
   status: 'idle',
   error: null,
   errorDetail: null,
+  stepsChecked: {},
+  stepsLeadId: null,
 };
+
+/**
+ * Storage-plugin serializer for the report slice (ai-summary-persistence).
+ *
+ * The Bearer report token is memory-only by design, the partner view and
+ * the pre-gate preview (real figures, rendered blurred) are session-scoped,
+ * and load/error state is transient — none of them reach localStorage. The
+ * snapshot (the user's own figures AND the AI narrative) persists, so a
+ * reload — or a magic-link return on another device — renders the SAME
+ * report instead of rebuilding one from the public estimate endpoint that
+ * drops the narrative (the narrative endpoint needs the memory-only token,
+ * which a reload clears). Token-gated actions (share, callback, revise)
+ * still fail honestly without the token.
+ */
+export function serializeReportState(model: ReportStateModel): ReportStateModel {
+  return {
+    ...model,
+    reportToken: null,
+    partnerView: false,
+    preview: null,
+    status: model.snapshot ? 'ready' : 'idle',
+    error: null,
+    errorDetail: null,
+  };
+}
 
 /**
  * Report state: the single source of truth for the estimate report page.
@@ -129,6 +166,18 @@ export class ReportState {
     return state.snapshot !== null;
   }
 
+  /** Checked ids of the next-steps checklist (keyed by stepsLeadId). */
+  @Selector()
+  static stepsChecked(state: ReportStateModel): Record<string, boolean> {
+    return state.stepsChecked;
+  }
+
+  /** leadId the persisted checklist belongs to. */
+  @Selector()
+  static stepsLeadId(state: ReportStateModel): string | null {
+    return state.stepsLeadId;
+  }
+
   private beginLoad(ctx: StateContext<ReportStateModel>): void {
     ctx.patchState({ status: 'loading', error: null, errorDetail: null });
   }
@@ -153,11 +202,22 @@ export class ReportState {
 
   /**
    * Single place that lands a new snapshot: the revision counter travels
-   * with it, so a reload (which strips the snapshot but keeps
-   * `savedVersion`) rebuilds the same version instead of restarting at 1.
+   * with it, and both persist across reloads (ai-summary-persistence), so a
+   * reloaded report renders the same version instead of restarting at 1.
+   * The next-steps checklist resets when a DIFFERENT report loads (a new
+   * leadId) but survives reloads and sqft revises of the same report —
+   * the leadId is stable across both, unlike the per-request estimateId.
    */
   private setSnapshot(ctx: StateContext<ReportStateModel>, snapshot: ReportSnapshot): void {
-    ctx.patchState({ snapshot, savedVersion: snapshot.version, status: 'ready' });
+    const state = ctx.getState();
+    const sameReport = state.stepsLeadId !== null && state.stepsLeadId === snapshot.leadId;
+    ctx.patchState({
+      snapshot,
+      savedVersion: snapshot.version,
+      status: 'ready',
+      stepsLeadId: snapshot.leadId,
+      stepsChecked: sameReport ? state.stepsChecked : {},
+    });
   }
 
   /**
@@ -242,15 +302,25 @@ export class ReportState {
    * Maps a public full-estimate response onto the report snapshot the page
    * renders. The figures and cost rows are the same deterministic engine
    * output the token path would return; the token-only extras stay empty —
-   * the AI narrative, token revise, share, and callback still need the
-   * magic-link email (now return-access for other devices, not the unlock
-   * key for this session). `leadId` ties the snapshot to the submitted lead.
+   * the token revise, share, and callback still need the magic-link email
+   * (now return-access for other devices, not the unlock key for this
+   * session). `leadId` ties the snapshot to the submitted lead.
+   *
+   * `carryNarrativeFrom` keeps the already-fetched AI narrative when a
+   * snapshot is rebuilt for the SAME lead (a size/tier stepper revision or
+   * a retry after a failed load). The narrative is figure-free neighbourhood
+   * prose — the LLM never produces dollar figures — so it stays valid across
+   * local revisions, and without it the page would drop to the empty state
+   * with no way to re-fetch (the narrative endpoint needs the memory-only
+   * token). A snapshot from a different lead never donates its narrative.
    */
   private toLeadSnapshot(
     estimate: EstimateResponse,
     leadId: string,
     version: number,
+    carryNarrativeFrom?: ReportSnapshot | null,
   ): ReportSnapshot {
+    const sameLead = carryNarrativeFrom?.leadId === leadId;
     return {
       snapshotId: `lead-${estimate.estimateId}`,
       estimateId: estimate.estimateId,
@@ -260,9 +330,11 @@ export class ReportState {
       totalRange: estimate.figures.total,
       landValue: estimate.figures.land,
       rows: estimate.rows,
-      // No token in this path, so no narrative fetch is possible — the page
-      // shows the honest empty state, never mock text.
-      narrative: '',
+      // No token in this path, so no narrative fetch is possible — keep the
+      // existing guide when rebuilding for the same lead, otherwise the
+      // honest empty state, never mock text.
+      narrative: sameLead ? (carryNarrativeFrom?.narrative ?? '') : '',
+      narrativeSource: sameLead ? carryNarrativeFrom?.narrativeSource : undefined,
       preparedAt: estimate.createdAt,
       version,
       projectType: estimate.projectType,
@@ -292,12 +364,16 @@ export class ReportState {
       tap((estimate) => {
         // This action never starts a new revision — it (re)builds the
         // CURRENT one: fresh unlocks start at 1, reloads keep the persisted
-        // counter (the snapshot is session-scoped, the wizard inputs are
-        // not), and retries of a failed load keep the last good version.
+        // counter, and retries of a failed load keep the last good version.
+        // The existing snapshot's narrative carries forward for the same
+        // lead (ai-summary-persistence) — a retry must not drop the guide.
         const state = ctx.getState();
         const version =
           state.snapshot?.version ?? (state.savedVersion > 0 ? state.savedVersion : 1);
-        this.setSnapshot(ctx, this.toLeadSnapshot(estimate, leadId, version));
+        this.setSnapshot(
+          ctx,
+          this.toLeadSnapshot(estimate, leadId, version, state.snapshot),
+        );
       }),
       catchError((err: unknown) => {
         this.fail(ctx, err);
@@ -411,10 +487,19 @@ export class ReportState {
       tap((estimate) =>
         // A stepper/tier change IS a new revision — keep counting from the
         // persisted counter so a revise after a reload continues the
-        // sequence instead of restarting at 1.
+        // sequence instead of restarting at 1. The current snapshot's
+        // narrative carries forward (ai-summary-persistence): it is
+        // figure-free neighbourhood prose, so it stays valid for the
+        // revised size/tier, and the narrative endpoint needs the
+        // memory-only token which a reload clears.
         this.setSnapshot(
           ctx,
-          this.toLeadSnapshot(estimate, leadId, this.nextLocalVersion(ctx)),
+          this.toLeadSnapshot(
+            estimate,
+            leadId,
+            this.nextLocalVersion(ctx),
+            ctx.getState().snapshot,
+          ),
         ),
       ),
       catchError((err: unknown) => {
@@ -427,5 +512,20 @@ export class ReportState {
   @Action(ClearReport)
   clearReport(ctx: StateContext<ReportStateModel>): void {
     ctx.setState({ ...defaults });
+  }
+
+  /**
+   * Next-steps checklist toggle. Keyed by the current snapshot's leadId so
+   * a toggle before the first snapshot lands (or after ClearReport) starts
+   * a fresh map instead of inheriting another report's checks.
+   */
+  @Action(ToggleStep)
+  toggleStep(ctx: StateContext<ReportStateModel>, action: ToggleStep): void {
+    const state = ctx.getState();
+    const leadId = state.snapshot?.leadId ?? null;
+    const checked =
+      leadId !== null && leadId === state.stepsLeadId ? { ...state.stepsChecked } : {};
+    checked[action.stepId] = !checked[action.stepId];
+    ctx.patchState({ stepsLeadId: leadId, stepsChecked: checked });
   }
 }

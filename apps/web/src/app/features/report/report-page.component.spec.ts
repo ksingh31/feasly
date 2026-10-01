@@ -18,7 +18,7 @@ import {
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
 import { LoadLeadEstimate, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
-import { ReportState } from './report.state';
+import { ReportState, serializeReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
 import { ReportPdfService } from './report-pdf.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -469,7 +469,7 @@ describe('ReportPageComponent', () => {
       expect(panel).not.toBeNull();
       expect(panel.textContent).toContain('$674,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
-      expect(panel.textContent).toContain('$306 per sq ft');
+      expect(panel.textContent).toContain('$306.36 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
@@ -755,18 +755,91 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    it('renders the three locked next steps (match scores on the builder step, save-and-share restored)', () => {
-      const items = [...fixture.nativeElement.querySelectorAll('.steps li')];
+    it('renders the three next steps as an honest checklist (no matched-builder promises)', () => {
+      const items = [...fixture.nativeElement.querySelectorAll('.steps.checklist li')];
       const titles = items.map((li: Element) => li.querySelector('strong')?.textContent?.trim());
       const bodies = items.map((li: Element) => li.querySelector('p')?.textContent?.trim());
       // Locked story: exactly 3 distinct steps — never 2, never duplicated.
-      expect(titles).toEqual(['Meet your matched builder', 'Refine your project brief', 'Save and share']);
+      expect(titles).toEqual(['Talk to a builder', 'Refine your project brief', 'Save and share']);
       expect(new Set(bodies).size).toBe(3);
-      // The builder step promises match scores (the builder-matching
-      // explainer beneath defines how matching works).
-      expect(bodies[0]).toContain('match scores');
+      // M1 honesty: the builder step points at the callback — no builders,
+      // no match scores, no matching promises anywhere on the report.
+      expect(bodies[0]).toContain('callback');
+      expect(bodies[0]).not.toContain('match scores');
+      expect(text()).not.toContain('match scores');
+      // Terminology alignment: the stepper updates figures instantly —
+      // there is no re-run button, so the steps never say "re-run".
+      expect(bodies[1]).toContain('no re-run button');
+      expect(text()).not.toContain('re-run the estimate');
       // The save-and-share step covers PDF, partner email, and callback.
       expect(bodies[2]).toContain('Download the PDF');
+      // Every step is a checkbox with a visible progress line.
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')];
+      expect(boxes).toHaveLength(3);
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
+    });
+
+    it('checklist ticks persist per report and drive the progress line', async () => {
+      await setup({ leadSubmitted: true });
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
+      expect(boxes).toHaveLength(3);
+      boxes[0].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': true });
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('1 of 3 steps done');
+      // Unchecking toggles back off.
+      boxes[0].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': false });
+      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
+    });
+
+    it('checklist state resets when a different report loads', async () => {
+      await setup({ leadSubmitted: true });
+      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
+      boxes[1].click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'refine-brief': true });
+      // A new report (new lead) wipes the previous report's ticks.
+      store.dispatch(new StoreLeadResult({ leadId: 'lead-new', email: 'b@example.com', magicLinkSent: false, expiresInDays: 7 }));
+      store.dispatch(new LoadLeadEstimate());
+      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.leadId === 'lead-new', 'second report');
+      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({});
+    });
+
+    it('per-sqft line uses cents precision so the shown rate reconciles with the shown build cost', async () => {
+      await setup({ leadSubmitted: true });
+      const snap = store.selectSnapshot(ReportState.snapshot)!;
+      const line = fixture.nativeElement.querySelector('.per-sqft')?.textContent ?? '';
+      const m = line.match(/\$([\d,]+(?:\.\d{2})?) per sq ft · ([\d,]+) sq ft/);
+      expect(m).not.toBeNull();
+      const rate = parseFloat(m![1].replace(/,/g, ''));
+      const sqft = parseInt(m![2].replace(/,/g, ''), 10);
+      expect(sqft).toBe(snap.inputs.sqft);
+      // The displayed rate is the exact quotient rounded to cents: the
+      // residual against the build base is pure display rounding (< $0.005/sqft).
+      expect(Math.abs(rate * sqft - snap.buildRange.base)).toBeLessThan(sqft * 0.005 + 1);
+    });
+
+    it('formatPerSqft renders whole dollars without cents and fractional rates with cents', async () => {
+      await setup({ leadSubmitted: true });
+      const cmp = fixture.componentInstance as unknown as { formatPerSqft(v: number): string };
+      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242.01');
+      expect(cmp.formatPerSqft(242)).toBe('$242');
+      expect(cmp.formatPerSqft(0)).toBe('$0');
+    });
+
+    it('shows the whole-building lot notice for unit addresses', async () => {
+      await setup({ leadSubmitted: true });
+      // Sanity: an ordinary street address shows no unit notice.
+      expect(fixture.nativeElement.querySelector('.unit-note')).toBeNull();
+      // A condo unit address gets the honest whole-building note.
+      store.dispatch([
+        new SelectProperty({ ...fakeProperty, address: '225 823 5 Av NW, Calgary, AB' }),
+      ]);
+      fixture.detectChanges();
+      const note = fixture.nativeElement.querySelector('.unit-note')?.textContent ?? '';
+      expect(note).toContain('whole building');
     });
 
     it('stepper tap updates the draft immediately and dispatches ONE debounced revise that refreshes every figure', async () => {
@@ -852,6 +925,68 @@ describe('ReportPageComponent', () => {
       expect(retry.textContent?.trim()).toBe('Try again');
       retry.click();
       await pollFor(() => text().includes('will receive their own secure link'), 'share retry success');
+    });
+
+    it('share blocks the owner’s own email up front with a clear message (QA 2026-09-30)', () => {
+      // The QA repro: the owner entered their own address as the partner.
+      // The backend answers that with a CAP-008 400 — the form must catch
+      // it before the network call and say what’s wrong, not "check your
+      // connection".
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-1',
+          email: 'buyer@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      );
+      fixture.detectChanges();
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'Buyer@Example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareButton().click();
+      fixture.detectChanges();
+      expect(shareSpy).not.toHaveBeenCalled();
+      expect(text()).toContain('enter your partner’s email address instead');
+    });
+
+    it('share surfaces the backend’s own message for validation failures', async () => {
+      // Post-reload the owner email may be unknown client-side, so the
+      // CAP-008 self-share 400 can still arrive from the backend — its
+      // buyer-safe copy must win over the generic connection error.
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareSpy.mockReturnValueOnce(
+        throwError(() => ({
+          code: 'validation_failed',
+          message: 'The partner email must be different from your own email address.',
+          retryable: false,
+        })),
+      );
+      shareButton().click();
+      await pollFor(
+        () => text().includes('must be different from your own email address'),
+        'backend validation message',
+      );
+      expect(text()).not.toContain('Check your connection');
+    });
+
+    it('share keeps the generic message for network/transient failures', async () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareSpy.mockReturnValueOnce(
+        throwError(() => ({ code: 'http_0', message: 'Http failure', retryable: true })),
+      );
+      shareButton().click();
+      await pollFor(() => text().includes('Check your connection'), 'generic share error');
     });
 
     it('share fails honestly when the report token is gone (memory-only after reload)', () => {
@@ -1181,6 +1316,69 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
+    });
+  });
+
+  describe('reload with a persisted snapshot (ai-summary-persistence)', () => {
+    it('renders the persisted snapshot as-is — the AI narrative survives a reload', async () => {
+      // First view: the token path lands the snapshot WITH the AI narrative.
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      expect(landed.narrative).toBeTruthy();
+      expect(landed.leadId).toBe(store.selectSnapshot(LeadState.leadId));
+
+      // The reload: the storage plugin strips the memory-only token (and
+      // other session state) but the snapshot — figures and narrative —
+      // persists. This is exactly what rehydration produces.
+      store.reset({
+        ...store.snapshot(),
+        report: serializeReportState(store.snapshot().report),
+      });
+      expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+      expect(store.selectSnapshot(ReportState.snapshot)).not.toBeNull();
+
+      // Re-create the page, as a browser reload would.
+      const estimateSpy = vi.spyOn(api, 'getEstimate');
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      await pollFor(() => store.selectSnapshot(ReportState.unlocked), 'restored unlock');
+
+      // The report renders from the persisted snapshot — it must NOT
+      // re-run the public estimate, which would drop the AI narrative
+      // (the narrative endpoint needs the memory-only token).
+      expect(estimateSpy).not.toHaveBeenCalled();
+      const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+      expect(snapshot.narrative).toBe(landed.narrative);
+      expect(snapshot.version).toBe(landed.version);
+      expect(text()).toContain('At 2,200 sq ft with premium finishes');
+      expect(text()).not.toContain('not available for this report right now');
+      estimateSpy.mockRestore();
+    });
+
+    it('a persisted snapshot from a different lead does not render — the current lead rebuilds', async () => {
+      await setup({ leadSubmitted: true });
+      const landed = store.selectSnapshot(ReportState.snapshot)!;
+      // Stale snapshot from another lead's session (leadId mismatch).
+      store.reset({
+        ...store.snapshot(),
+        report: {
+          ...serializeReportState(store.snapshot().report),
+          snapshot: { ...landed, leadId: 'lead-someone-else' },
+        },
+      });
+      fixture.destroy();
+      fixture = TestBed.createComponent(ReportPageComponent);
+      fixture.detectChanges();
+      // The stale snapshot is ignored: the page rebuilds for the submitted
+      // lead instead of showing another lead's report.
+      await pollFor(
+        () =>
+          store.selectSnapshot(ReportState.snapshot)?.leadId ===
+          store.selectSnapshot(LeadState.leadId),
+        'rebuilt for current lead',
+      );
+      expect(store.selectSnapshot(ReportState.snapshot)?.leadId).not.toBe('lead-someone-else');
     });
   });
 });
