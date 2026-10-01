@@ -11,7 +11,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { isUnitLikeAddress } from '../../shared/utils/address';
-import { formatWholeCad } from '../../shared/utils/money';
+import { dollarsToCents, formatCentsToCad, formatWholeCad } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
@@ -309,19 +309,15 @@ export class ReportPageComponent implements OnInit {
 
   /**
    * Formats a per-sq-ft rate: whole dollars when exact ("$242"), otherwise
-   * cents precision ("$242.01"). Integer-cent math only — no float
-   * formatting drift.
+   * cents precision ("$242.01") — so the shown rate × the shown sqft
+   * reconciles with the shown build cost. Delegates to the shared money
+   * util (integer-cent math only, no float formatting drift).
    */
   protected formatPerSqft(value: number): string {
     if (!Number.isFinite(value) || value < 0) {
       return this.formatCad(0);
     }
-    const cents = Math.round(value * 100);
-    if (cents % 100 === 0) {
-      return this.formatCad(cents / 100);
-    }
-    const dollars = Math.trunc(cents / 100).toLocaleString('en-CA');
-    return `$${dollars}.${String(cents % 100).padStart(2, '0')}`;
+    return formatCentsToCad(dollarsToCents(value));
   }
 
   protected readonly snapshotSqft = computed(() => this.snapshot()?.inputs.sqft ?? 0);
