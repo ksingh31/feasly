@@ -168,16 +168,21 @@ describe('AddressAutocompleteComponent', () => {
       httpMock.expectNone(() => true);
     });
 
-    it('offers a working retry path from the out-of-coverage state', async () => {
+    it('retry from the out-of-coverage state resets the input for a fresh search', async () => {
       const fixture = create();
+      const component = fixture.componentInstance;
       await type(fixture, '123 King St W, Toronto');
-      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+      expect(component.outOfCoverage()).toBe(true);
       const retry = fixture.nativeElement.querySelector('.ac-out-of-coverage .ac-retry');
       expect(retry).toBeTruthy();
       retry.click();
-      await awaitSearchSettled(fixture);
-      // Retry re-runs the same query → still out of coverage (no dead end).
-      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+      fixture.detectChanges();
+      // Out-of-coverage is deterministic: re-running the same query could
+      // never succeed, so retry clears the input (no dead end) instead.
+      expect(component.query.value).toBe('');
+      expect(component.outOfCoverage()).toBe(false);
+      expect(component.status()).toBe('idle');
+      expect(fixture.nativeElement.querySelector('.ac-out-of-coverage')).toBeNull();
     });
 
     it('clears the out-of-coverage state when the user types a Calgary query', async () => {
@@ -265,14 +270,19 @@ describe('AddressAutocompleteComponent', () => {
     );
   });
 
-  it('nudgeOnSubmit stays silent when 3+ chars match nothing (no-results UI covers it)', async () => {
+  it('nudgeOnSubmit re-runs the search when 3+ chars match nothing (visible feedback)', async () => {
     const fixture = create();
     const component = fixture.componentInstance;
     await type(fixture, 'zzz no such street');
     expect(component.suggestions()).toEqual([]);
     component.nudgeOnSubmit();
-    fixture.detectChanges();
+    // The CTA click visibly re-runs the search instead of silently doing
+    // nothing: searching state first, then the no-results UI again.
+    expect(component.status()).toBe('searching');
+    await awaitSearchSettled(fixture);
+    expect(component.suggestions()).toEqual([]);
     expect(component.selectionHint()).toBeNull();
+    expect(fixture.nativeElement.querySelector('.ac-empty')).toBeTruthy();
   });
 
   it('typing again clears the selection hint', async () => {

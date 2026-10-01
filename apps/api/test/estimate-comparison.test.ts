@@ -233,6 +233,48 @@ describe('estimate service — comparison (NBH-02)', () => {
     expect(saved.id).toBe(result.estimateId);
   });
 
+  it('flags lowestLand by assessed value when modelled land disagrees (Beltline/Panorama regression)', async () => {
+    const service = createService();
+    // beltline-like: smaller lot (cheaper *modelled* land) but HIGHER
+    // assessed value; panorama-like: bigger lot but LOWER assessed value.
+    // The badge must follow the assessed value — the figure the page shows.
+    await testDb.db.insert(communityStats).values([
+      {
+        slug: 'beltline-like',
+        name: 'Beltline Like',
+        avgAssessedValue: 898964,
+        assessmentCount: 100,
+        avgLotSqft: 4000,
+        refreshedAt: new Date(),
+      },
+      {
+        slug: 'panorama-like',
+        name: 'Panorama Like',
+        avgAssessedValue: 785312,
+        assessmentCount: 100,
+        avgLotSqft: 6000,
+        refreshedAt: new Date(),
+      },
+    ]);
+
+    const result = await service.estimate({
+      projectType: 'comparison',
+      neighbourhoods: ['beltline-like', 'panorama-like'],
+      sqft: 2000,
+      tier: 'standard',
+    });
+
+    const comparison = expectComparisonResponse(result);
+    const beltline = comparison.rowSets.find((rs) => rs.slug === 'beltline-like')!;
+    const panorama = comparison.rowSets.find((rs) => rs.slug === 'panorama-like')!;
+    // Sanity: modelled land ordering really does disagree with assessed…
+    expect(beltline.land.low).toBeLessThan(panorama.land.low);
+    // …but exactly one badge, on the lower assessed value.
+    expect(comparison.rowSets.filter((rs) => rs.lowestLand)).toHaveLength(1);
+    expect(panorama.lowestLand).toBe(true);
+    expect(beltline.lowestLand).toBe(false);
+  });
+
   it('tie goes to first slug (deterministic)', async () => {
     const service = createService();
     // community-a and community-e have same lot size
