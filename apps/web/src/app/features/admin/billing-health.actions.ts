@@ -2,6 +2,7 @@
  * Billing-health dashboard actions (billing/03 follow-on — /admin/billing).
  */
 import type {
+  BuilderPaymentMethod,
   ManualInvoiceRequest,
   MarkInvoicePaidRequest,
 } from '@feasly/contracts';
@@ -71,4 +72,20 @@ export class SetCommissionRate {
 /** Dismiss the mark-paid / rate-override feedback banner. */
 export class DismissInvoiceFeedback {
   static readonly type = '[BillingHealth] Dismiss invoice feedback';
+}
+
+/**
+ * Change the planned payment method on one commission invoice (card,
+ * cheque, e_transfer, bank_draft). Not a money action in the charge
+ * sense, but it re-routes how the invoice gets paid — so the UI still
+ * requires the deliberate two-click confirm. Choosing a manual method
+ * pauses the Stripe auto-charge until staff marks the invoice paid. The
+ * state reloads the dashboard payload on success.
+ */
+export class SetInvoicePlannedPaymentMethod {
+  static readonly type = '[BillingHealth] Set invoice planned payment method';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly method: BuilderPaymentMethod,
+  ) {}
 }

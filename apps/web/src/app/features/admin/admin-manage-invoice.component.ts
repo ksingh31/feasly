@@ -3,6 +3,7 @@ import {
   DestroyRef,
   EventEmitter,
   OnDestroy,
+  OnInit,
   Output,
   computed,
   inject,
@@ -22,6 +23,8 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { finalize, startWith } from 'rxjs';
 import { Store } from '@ngxs/store';
 import type {
+  AdminSetInvoicePaymentMethodResponse,
+  BuilderPaymentMethod,
   ManualPaymentMethod,
   MarkInvoicePaidRequest,
   MarkInvoicePaidResponse,
@@ -37,15 +40,18 @@ import {
   DismissInvoiceFeedback,
   MarkInvoicePaid,
   SetCommissionRate,
+  SetInvoicePlannedPaymentMethod,
 } from './billing-health.actions';
 import {
   MANUAL_PAYMENT_METHOD_LABELS,
+  PLANNED_PAYMENT_METHOD_LABELS,
 } from './admin-billing-api.service';
 
 /**
  * Invoice handed to the manage modal — either an in-review work-queue
- * row or a dunning row. Both carry the effective rate and the contract
- * value so the rate preview is exact.
+ * row or a dunning row. Both carry the effective rate, the contract
+ * value, and the planned payment method so the modal sections render
+ * without a second fetch.
  */
 export interface ManageInvoiceInput {
   readonly id: string;
@@ -54,6 +60,7 @@ export interface ManageInvoiceInput {
   readonly currency: string;
   readonly commissionRatePercent: number;
   readonly contractValueCents: number;
+  readonly paymentMethod: BuilderPaymentMethod;
   readonly reviewDueAt: string | null;
   readonly status: 'in_review' | 'failed';
 }
@@ -66,11 +73,31 @@ function greaterThanZero(
   return typeof value === 'number' && value > 0 ? null : { greaterThanZero: true };
 }
 
+/** The confirmed result carries one of three server shapes. */
+type ConfirmedInvoiceResult =
+  | MarkInvoicePaidResponse
+  | SetCommissionRateResponse
+  | AdminSetInvoicePaymentMethodResponse;
+
+/** True for a mark-paid result (it carries paidAt). */
+function isMarkPaidResponse(
+  confirmed: ConfirmedInvoiceResult,
+): confirmed is MarkInvoicePaidResponse {
+  return 'paidAt' in confirmed;
+}
+
 /** True for a rate-override result (it carries the recalculated amount). */
 function isRateResponse(
-  confirmed: MarkInvoicePaidResponse | SetCommissionRateResponse,
+  confirmed: ConfirmedInvoiceResult,
 ): confirmed is SetCommissionRateResponse {
-  return !('paymentMethod' in confirmed);
+  return 'commissionCents' in confirmed;
+}
+
+/** True for a planned-payment-method result (method, no paidAt). */
+function isPlannedMethodResponse(
+  confirmed: ConfirmedInvoiceResult,
+): confirmed is AdminSetInvoicePaymentMethodResponse {
+  return 'paymentMethod' in confirmed && !('paidAt' in confirmed);
 }
 
 /**
@@ -88,6 +115,11 @@ function isRateResponse(
  *   (defaults to today). "Mark as paid" → "Confirm mark paid".
  *   Confirming marks the invoice paid AND cancels the scheduled
  *   auto-charge — the builder can never be charged twice.
+ * - Planned payment method: pre-populated with the current method,
+ *   "Update method" → "Confirm update method". Choosing a manual method
+ *   pauses the Stripe auto-charge until staff records the payment; going
+ *   back to card re-arms it. Unpaid invoices only — once paid, the method
+ *   is the historical payment method and the section is locked.
  *
  * Every action button is disabled from the first click until the request
  * settles (the `inflight` signal, fed by the store's `submitting` status),
@@ -103,7 +135,7 @@ function isRateResponse(
   templateUrl: './admin-manage-invoice.component.html',
   styleUrl: './admin-manage-invoice.component.scss',
 })
-export class AdminManageInvoiceComponent implements OnDestroy {
+export class AdminManageInvoiceComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -118,13 +150,18 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     BillingHealthState.invoiceFeedback,
   );
 
-  /** Payment-method options for the dropdown. */
+  /** Payment-method options for the record-payment dropdown. */
   protected readonly paymentMethods = MANUAL_PAYMENT_METHOD_LABELS;
+
+  /** Planned payment-method options for the change-method dropdown. */
+  protected readonly plannedMethodOptions = PLANNED_PAYMENT_METHOD_LABELS;
 
   /** "Update rate" armed — the deliberate second click. */
   readonly confirmingRate = signal(false);
   /** "Mark as paid" armed — the deliberate second click. */
   readonly confirmingPaid = signal(false);
+  /** "Update method" armed — the deliberate second click. */
+  readonly confirmingMethod = signal(false);
 
   /**
    * Which money action currently has a request in flight. The arm step
@@ -132,7 +169,7 @@ export class AdminManageInvoiceComponent implements OnDestroy {
    * click; it drives both the disabled state and the loading labels, and
    * clears when the store's action settles (success or error).
    */
-  protected readonly inflight = signal<'rate' | 'paid' | null>(null);
+  protected readonly inflight = signal<'rate' | 'paid' | 'method' | null>(null);
 
   /** True while either money action's request is in flight. */
   readonly busy = computed(
@@ -165,6 +202,33 @@ export class AdminManageInvoiceComponent implements OnDestroy {
   });
 
   /**
+   * Planned payment method. Seeded from the invoice's current method in
+   * ngOnInit (inputs are not set during field initialization).
+   */
+  readonly methodForm = new FormGroup({
+    method: new FormControl<BuilderPaymentMethod>('card', {
+      validators: [Validators.required],
+      nonNullable: true,
+    }),
+  });
+
+  /**
+   * Live selected method. Tracked through `valueChanges` because
+   * `FormControl.value` is a plain property read, not a signal.
+   */
+  private readonly methodValue = toSignal(
+    this.methodForm.controls.method.valueChanges.pipe(
+      startWith(this.methodForm.controls.method.value),
+    ),
+    { initialValue: 'card' as BuilderPaymentMethod },
+  );
+
+  /** True when the selected method differs from the invoice's. */
+  protected readonly methodChanged = computed(
+    () => this.methodValue() !== this.invoice().paymentMethod,
+  );
+
+  /**
    * Live recalculated commission for the entered rate. Tracked through
    * `valueChanges` because `FormControl.value` is a plain property read, not
    * a signal — a computed reading it directly would never re-evaluate.
@@ -190,10 +254,16 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     () => this.feedback()?.invoice ?? null,
   );
 
-  /** True when the confirmed result is a mark-paid (no recalculated amount). */
+  /** True when the confirmed result is a mark-paid (it carries paidAt). */
   readonly confirmedPaid = computed(() => {
     const confirmed = this.confirmedInvoice();
-    return confirmed !== null && !isRateResponse(confirmed);
+    return confirmed !== null && isMarkPaidResponse(confirmed);
+  });
+
+  /** True when the confirmed result is a planned-payment-method change. */
+  readonly confirmedMethod = computed(() => {
+    const confirmed = this.confirmedInvoice();
+    return confirmed !== null && isPlannedMethodResponse(confirmed);
   });
 
   /** Authoritative figures from the confirmed server response. */
@@ -209,6 +279,16 @@ export class AdminManageInvoiceComponent implements OnDestroy {
       ? confirmed.commissionRatePercent
       : null;
   });
+  readonly confirmedMethodLabel = computed(() => {
+    const confirmed = this.confirmedInvoice();
+    return confirmed !== null && isPlannedMethodResponse(confirmed)
+      ? this.plannedMethodLabel(confirmed.paymentMethod)
+      : null;
+  });
+
+  ngOnInit(): void {
+    this.methodForm.controls.method.setValue(this.invoice().paymentMethod);
+  }
 
   ngOnDestroy(): void {
     this.store.dispatch(new DismissInvoiceFeedback());
@@ -230,6 +310,13 @@ export class AdminManageInvoiceComponent implements OnDestroy {
     return (
       this.paymentMethods.find((option) => option.value === method)?.label ??
       method
+    );
+  }
+
+  plannedMethodLabel(method: BuilderPaymentMethod | ''): string {
+    return (
+      this.plannedMethodOptions.find((option) => option.value === method)
+        ?.label ?? method
     );
   }
 
@@ -293,6 +380,35 @@ export class AdminManageInvoiceComponent implements OnDestroy {
           trimmed.length > 0 ? { ...body, reference: trimmed } : body,
         ),
       )
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.inflight.set(null)),
+      )
+      .subscribe();
+  }
+
+  /** First click: arm the planned-method confirm (validates first). */
+  startMethodConfirm(): void {
+    this.methodForm.markAllAsTouched();
+    if (this.methodForm.invalid) return;
+    this.confirmingMethod.set(true);
+  }
+
+  backFromMethodConfirm(): void {
+    this.confirmingMethod.set(false);
+  }
+
+  /**
+   * The deliberate second click: change the planned payment method.
+   * Same double-submit guard as the other actions.
+   */
+  confirmMethodUpdate(): void {
+    const method = this.methodForm.controls.method.value;
+    if (method === this.invoice().paymentMethod || this.busy()) return;
+    this.confirmingMethod.set(false);
+    this.inflight.set('method');
+    this.store
+      .dispatch(new SetInvoicePlannedPaymentMethod(this.invoice().id, method))
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.inflight.set(null)),

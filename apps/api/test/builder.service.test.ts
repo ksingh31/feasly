@@ -255,3 +255,94 @@ describe('BuilderService commission rate (billing/08)', () => {
     expect(rateAudits).toHaveLength(0);
   });
 });
+
+describe('BuilderService.updateBuilder defaultPaymentMethod', () => {
+  function makeUpdateDb(current: ReturnType<typeof makeRow>, returning: ReturnType<typeof makeRow>) {
+    const updateCalls: unknown[] = [];
+    const db = {
+      query: {
+        builders: { findFirst: vi.fn(async () => current) },
+      },
+      update: vi.fn(() => ({
+        set: vi.fn((patch: unknown) => {
+          updateCalls.push(patch);
+          return {
+            where: vi.fn(() => ({
+              returning: vi.fn(async () => [returning]),
+            })),
+          };
+        }),
+      })),
+    } as unknown as AppDb;
+    return { db, updateCalls };
+  }
+
+  it('merges the default method into settings and audits old->new', async () => {
+    const current = makeRow({ settings: {} });
+    const { db, updateCalls } = makeUpdateDb(
+      current,
+      makeRow({ settings: { defaultPaymentMethod: 'cheque' } }),
+    );
+    const { service, audit } = makeDeps(db);
+
+    const builder = await service.updateBuilder(
+      current.id,
+      { defaultPaymentMethod: 'cheque' },
+      'admin@example.com',
+    );
+    expect(updateCalls[0]).toMatchObject({
+      settings: { defaultPaymentMethod: 'cheque' },
+    });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_builder_default_payment_method_changed',
+        detail: expect.stringContaining('from=card to=cheque'),
+      }),
+    );
+    expect(builder.settings).toMatchObject({ defaultPaymentMethod: 'cheque' });
+  });
+
+  it('dedicated field wins over a stale defaultPaymentMethod in a settings patch', async () => {
+    const current = makeRow({
+      settings: { defaultPaymentMethod: 'cheque' },
+    });
+    const { db, updateCalls } = makeUpdateDb(
+      current,
+      makeRow({ settings: { defaultPaymentMethod: 'e_transfer' } }),
+    );
+    const { service } = makeDeps(db);
+
+    await service.updateBuilder(
+      current.id,
+      {
+        settings: { defaultPaymentMethod: 'card' },
+        defaultPaymentMethod: 'e_transfer',
+      },
+      'admin@example.com',
+    );
+    expect(updateCalls[0]).toMatchObject({
+      settings: { defaultPaymentMethod: 'e_transfer' },
+    });
+  });
+
+  it('does not audit or patch settings when the method is unchanged', async () => {
+    const current = makeRow({
+      settings: { defaultPaymentMethod: 'cheque' },
+    });
+    const { db, updateCalls } = makeUpdateDb(current, current);
+    const { service, audit } = makeDeps(db);
+
+    await service.updateBuilder(
+      current.id,
+      { defaultPaymentMethod: 'cheque' },
+      'admin@example.com',
+    );
+    const methodAudits = (audit.log as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { action: string }).action ===
+        'admin_builder_default_payment_method_changed',
+    );
+    expect(methodAudits).toHaveLength(0);
+    expect(updateCalls[0]).not.toHaveProperty('settings');
+  });
+});

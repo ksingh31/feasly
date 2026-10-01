@@ -399,4 +399,62 @@ describe('AdminBuildersComponent', () => {
     await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
     expect(rows()[1].textContent).toContain('1.5%');
   });
+
+  it('shows the default payment method in the table', async () => {
+    await setup();
+    await loadPage([BUILDER_A]);
+
+    expect(rows()[0].textContent).toContain('Card on file (auto-charge)');
+  });
+
+  it('pre-fills the default payment method on edit and sends the dedicated field', async () => {
+    await setup();
+    await loadPage();
+
+    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
+    editButtons[0].nativeElement.click();
+    fixture.detectChanges();
+
+    const methodSelect = fixture.debugElement.query(
+      By.css('[formControlName="defaultPaymentMethod"]'),
+    ).nativeElement as HTMLSelectElement;
+    expect(methodSelect.value).toBe('card');
+
+    setField('defaultPaymentMethod', 'e_transfer');
+    clickSubmit();
+
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toMatchObject({ defaultPaymentMethod: 'e_transfer' });
+    req.flush({
+      ...BUILDER_A,
+      settings: { defaultPaymentMethod: 'e_transfer' },
+    });
+
+    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
+    expect(rows()[0].textContent).toContain('E-transfer');
+  });
+
+  it('merges the default payment method into the settings JSON on create', async () => {
+    await setup();
+    await loadPage([BUILDER_A]);
+
+    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
+    fixture.detectChanges();
+
+    setField('businessName', 'North Homes Ltd');
+    setField('displayName', 'North Homes');
+    setField('tenantKey', 'north-homes');
+    setField('defaultPaymentMethod', 'cheque');
+    clickSubmit();
+
+    const req = httpMock.expectOne(
+      (r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST',
+    );
+    expect(req.request.body.settings).toMatchObject({
+      defaultPaymentMethod: 'cheque',
+    });
+    expect(req.request.body).not.toHaveProperty('defaultPaymentMethod');
+    req.flush({ ...BUILDER_B });
+  });
 });

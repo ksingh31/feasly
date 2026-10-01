@@ -113,6 +113,7 @@ export class AdminBillingComponent implements OnInit {
       currency: invoice.currency,
       commissionRatePercent: invoice.commissionRatePercent,
       contractValueCents: invoice.contractValueCents,
+      paymentMethod: invoice.paymentMethod,
       reviewDueAt: invoice.reviewDueAt,
       status: 'in_review',
     });
@@ -125,8 +126,9 @@ export class AdminBillingComponent implements OnInit {
       tenantKey: invoice.tenantKey,
       commissionCents: invoice.commissionCents,
       currency: invoice.currency,
-      commissionRatePercent: invoice.commissionRatePercent,
       contractValueCents: invoice.contractValueCents,
+      commissionRatePercent: invoice.commissionRatePercent,
+      paymentMethod: invoice.paymentMethod,
       reviewDueAt: null,
       status: 'failed',
     });
