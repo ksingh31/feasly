@@ -51,13 +51,12 @@ export class LoadLeadEstimate {
 export class ReviseReport {
   static readonly type = '[Report] Revise report';
   /**
-   * Live revision input. The report drives this from the sqft stepper, which
-   * dispatches through a trailing debounce from config, so rapid changes
-   * coalesce into one backend revision. `cancelUncompleted` on the handler
-   * gives last-write-wins, so a stale in-flight response can never overwrite
-   * a newer snapshot. (consumer/04 AC8: the tier what-if toggle was removed
-   * from the report page — the tier is display-only there. The optional tier
-   * parameter remains for other revise callers.)
+   * Live revision input. The report drives this from the sqft stepper (via a
+   * trailing debounce from config) and the finish-tier what-if toggle —
+   * rapid changes coalesce or cancel, so a stale in-flight response can
+   * never overwrite a newer snapshot. `cancelUncompleted` on the handler
+   * gives last-write-wins. The optional tier parameter also serves other
+   * revise callers (e.g. the compare page's what-if).
    */
   constructor(
     public readonly tier?: 'standard' | 'premium' | 'luxury',

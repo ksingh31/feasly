@@ -46,7 +46,8 @@
         <p class="figure-single">{{ formatCad(data.build.base) }}</p>
         <p class="build-note">{{ copy.buildCostNote }}</p>
         <p class="per-sqft">{{ formatCad(perSqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(data.sqft) }}</p>
-        <!-- Finish tier is display-only on the real report (no toggle) — same here. -->
+        <!-- The sample is a static fictional example — the tier stays
+             display-only here, while the real report has the what-if toggle. -->
         <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierName }}</p>
         <p class="hint">{{ tierNote }}</p>
       </div>
