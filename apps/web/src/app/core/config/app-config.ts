@@ -16,12 +16,12 @@ import type { BasementOption, CallbackWindow, FinishTier, GarageOption, Timeline
  * - `valueShort`: optional compact value shown on narrow screens
  *   (e.g. "Sep 2026" instead of "September 2026"); falls back to `value`.
  * - `badge`: renders a brass check badge above the value instead of the
- *   large display number (for non-numeric stats like "Deterministic math").
+ *   large display number (for non-numeric stats like "Same fixed formula").
  * - `key` + `refreshedValue`/`refreshedValueShort`: runtime-rewritten items.
  *   The item with `key: 'city-data-freshness'` gets its `value` replaced at
  *   runtime with the live dataset-refresh month from
- *   GET /api/v1/city-data/freshness ("Refreshed {monthYear}" → "Refreshed
- *   September 2026"). While the month is unknown the item keeps its
+ *   GET /api/v1/city-data/freshness ("{monthYear}" → "September 2026").
+ *   While the month is unknown the item keeps its
  *   configured `value` fallback ("Live City data") — never a hardcoded
  *   month that goes stale.
  */
@@ -34,10 +34,10 @@ export interface TrustStat {
   key?: string;
   /**
    * Display template used when the live refresh month is known, e.g.
-   * "Refreshed {monthYear}". Only meaningful with `key`.
+   * "{monthYear}". Only meaningful with `key`.
    */
   refreshedValue?: string;
-  /** Compact template for narrow screens, e.g. "Refreshed {monthYearShort}". */
+  /** Compact template for narrow screens, e.g. "{monthYearShort}". */
   refreshedValueShort?: string;
 }
 

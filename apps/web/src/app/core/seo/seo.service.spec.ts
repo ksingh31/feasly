@@ -135,6 +135,17 @@ describe('SeoService', () => {
     );
   });
 
+  it('sets og:image:alt from the page title so it matches the current page', () => {
+    service.setPage({ title: 'Feasly — Test page', description: 'D', path: '/x' });
+    expect(TestBed.inject(Meta).getTag('property="og:image:alt"')?.content).toBe(
+      'Feasly — Test page',
+    );
+    service.setPage({ title: 'Feasly — Other page', description: 'D', path: '/y' });
+    expect(TestBed.inject(Meta).getTag('property="og:image:alt"')?.content).toBe(
+      'Feasly — Other page',
+    );
+  });
+
   it('setForRoute resolves title/description from config copy per the route table', () => {
     service.setForRoute('privacy');
     expect(TestBed.inject(Title).getTitle()).toBe('Feasly — Privacy');

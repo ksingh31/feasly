@@ -71,7 +71,7 @@ export class LandingPageComponent implements OnInit {
    * the property backend is an independent switch.
    *
    * On the live path the "Latest data refresh" item is dynamic: once
-   * GET /api/v1/city-data/freshness resolves, it reads "Refreshed <Month
+   * GET /api/v1/city-data/freshness resolves, it reads "<Month
    * Year>"; until then (or when the metadata is unreachable) it keeps the
    * honest "Live City data" fallback from config — never a hardcoded month
    * that goes stale.
@@ -85,8 +85,8 @@ export class LandingPageComponent implements OnInit {
       if (item.key !== CITY_DATA_FRESHNESS_KEY || !month) return item;
       return {
         ...item,
-        value: (item.refreshedValue ?? 'Refreshed {monthYear}').replace('{monthYear}', month),
-        valueShort: (item.refreshedValueShort ?? 'Refreshed {monthYearShort}').replace(
+        value: (item.refreshedValue ?? '{monthYear}').replace('{monthYear}', month),
+        valueShort: (item.refreshedValueShort ?? '{monthYearShort}').replace(
           '{monthYearShort}',
           shortMonthYear(month),
         ),
