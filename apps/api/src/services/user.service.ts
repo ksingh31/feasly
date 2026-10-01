@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
 import type { AdminSessionStore } from './admin-auth.service';
+import type { BuilderSessionStore } from './builder-auth.service';
 import type { EmailService } from './email';
 import type { EntraUserService } from './entra-user.service';
 
@@ -236,6 +237,14 @@ export interface UserServiceDeps {
    * makes it immediate server-side as well.
    */
   readonly sessions?: Pick<AdminSessionStore, 'revokeByEmail'>;
+  /**
+   * auth/05 hardening: builder-portal session rows. Disabling a user
+   * revokes their builder sessions here too — the admin-users route (a
+   * staff disable of a builder user) never touches the builder session
+   * store, so without this their portal session stayed live until it
+   * expired. Same fail-closed story as `sessions` above.
+   */
+  readonly builderSessions?: Pick<BuilderSessionStore, 'revokeByUserId'>;
   readonly clock?: () => Date;
   readonly uuid?: () => string;
   readonly invitationTtlSeconds?: number;
@@ -527,6 +536,7 @@ export function createUserService(deps: UserServiceDeps): UserService {
     audit,
     appBaseUrl,
     sessions,
+    builderSessions,
   } = deps;
   const clock = deps.clock ?? (() => new Date());
   const uuid = deps.uuid ?? randomUUID;
@@ -617,15 +627,14 @@ export function createUserService(deps: UserServiceDeps): UserService {
         }
       }
 
-      // One live invite per email+org (Karan's rule). A pending,
-      // non-expired invitation means the invite is already on its way —
-      // reject with buyer-grade copy instead of stacking another user
-      // update, membership, invitation row, and invite email.
+      // Karan's rule, exactly: "Only 1 invite per email." A pending,
+      // non-expired invitation for this email — to ANY org — means the
+      // invite is already on its way. Reject with buyer-grade copy
+      // instead of stacking another user update, membership, invitation
+      // row, and invite email.
       const pendingInvites = await invitations.findPendingByEmail(email);
       const liveInvite = pendingInvites.find(
-        (invite) =>
-          (invite.builderId ?? null) === builderId &&
-          invite.expiresAt.getTime() > now.getTime(),
+        (invite) => invite.expiresAt.getTime() > now.getTime(),
       );
       if (liveInvite) {
         throw new HttpError(
@@ -856,6 +865,12 @@ export function createUserService(deps: UserServiceDeps): UserService {
       // either way.
       if (sessions) {
         await sessions.revokeByEmail(user.email, clock());
+      }
+      // auth/05 hardening: same for the builder portal — a staff-side
+      // disable must kill builder sessions too, or the user keeps a live
+      // portal session until it expires.
+      if (builderSessions) {
+        await builderSessions.revokeByUserId(user.id, clock());
       }
       await audit.log({
         actorEmail: opts?.actorEmail ?? null,
