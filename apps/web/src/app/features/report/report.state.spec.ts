@@ -19,6 +19,7 @@ import {
   ReviseReport,
   SetPartnerView,
   SetReportToken,
+  ToggleStep,
   UnlockReport,
 } from './report.actions';
 import { ReportState, serializeReportState } from './report.state';
@@ -555,6 +556,8 @@ describe('ReportState', () => {
         status: 'loading',
         error: 'boom',
         errorDetail: 'detail',
+        stepsChecked: {},
+        stepsLeadId: null,
       };
     }
 
