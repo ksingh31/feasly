@@ -779,6 +779,68 @@ describe('ReportPageComponent', () => {
       await pollFor(() => text().includes('will receive their own secure link'), 'share retry success');
     });
 
+    it('share blocks the owner’s own email up front with a clear message (QA 2026-09-30)', () => {
+      // The QA repro: the owner entered their own address as the partner.
+      // The backend answers that with a CAP-008 400 — the form must catch
+      // it before the network call and say what’s wrong, not "check your
+      // connection".
+      store.dispatch(
+        new StoreLeadResult({
+          leadId: 'lead-1',
+          email: 'buyer@example.com',
+          magicLinkSent: true,
+          expiresInDays: 7,
+        }),
+      );
+      fixture.detectChanges();
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'Buyer@Example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareButton().click();
+      fixture.detectChanges();
+      expect(shareSpy).not.toHaveBeenCalled();
+      expect(text()).toContain('enter your partner’s email address instead');
+    });
+
+    it('share surfaces the backend’s own message for validation failures', async () => {
+      // Post-reload the owner email may be unknown client-side, so the
+      // CAP-008 self-share 400 can still arrive from the backend — its
+      // buyer-safe copy must win over the generic connection error.
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareSpy.mockReturnValueOnce(
+        throwError(() => ({
+          code: 'validation_failed',
+          message: 'The partner email must be different from your own email address.',
+          retryable: false,
+        })),
+      );
+      shareButton().click();
+      await pollFor(
+        () => text().includes('must be different from your own email address'),
+        'backend validation message',
+      );
+      expect(text()).not.toContain('Check your connection');
+    });
+
+    it('share keeps the generic message for network/transient failures', async () => {
+      const shareSpy = vi.spyOn(api, 'shareWithPartner');
+      const email = shareEmailInput();
+      email.value = 'partner@example.com';
+      email.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      shareSpy.mockReturnValueOnce(
+        throwError(() => ({ code: 'http_0', message: 'Http failure', retryable: true })),
+      );
+      shareButton().click();
+      await pollFor(() => text().includes('Check your connection'), 'generic share error');
+    });
+
     it('share fails honestly when the report token is gone (memory-only after reload)', () => {
       const shareSpy = vi.spyOn(api, 'shareWithPartner');
       // Simulate the post-reload state: snapshot visible but the

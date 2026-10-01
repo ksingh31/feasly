@@ -912,6 +912,11 @@ export interface AppConfig {
       shareSent: string;
       /** Partner-share send failure (retry stays available on the button). */
       shareError: string;
+      /**
+       * Partner-share when the recipient address is the owner's own —
+       * caught client-side before the backend's CAP-008 self-share 400.
+       */
+      shareSelfError: string;
       /** Partner share when the memory-only report token is gone. */
       shareTokenError: string;
       /** Partner-share button label after a send failure. */

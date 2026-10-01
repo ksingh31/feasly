@@ -4,7 +4,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import type { CallbackWindow, CostRange } from '@feasly/contracts';
+import type { CallbackWindow, CostRange, ApiError } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
@@ -36,6 +36,26 @@ type FormStatus = 'idle' | 'sending' | 'sent' | 'error';
 
 /** Partner-share flow lifecycle: the backend mints the partner's own link. */
 type ShareStatus = 'idle' | 'sending' | 'sent' | 'send-error' | 'token-error';
+
+/**
+ * Extracts a user-facing message from a failed API call. Backend validation
+ * failures (400/429) carry buyer-safe copy in the ApiError `message` — the
+ * share form surfaces it instead of the generic connection error. Network
+ * failures and 5xx (`retryable: true`, or an unshaped error) keep the
+ * generic copy: nothing actionable to say. Module-local: only partner share
+ * needs it today.
+ */
+function userFacingApiErrorMessage(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) {
+    return null;
+  }
+  const candidate = error as Partial<ApiError>;
+  if (candidate.retryable !== false || typeof candidate.message !== 'string') {
+    return null;
+  }
+  const message = candidate.message.trim();
+  return message.length > 0 ? message : null;
+}
 
 /**
  * Estimate report page (the payoff screen).
@@ -472,6 +492,16 @@ export class ReportPageComponent implements OnInit {
   protected readonly shareSentMessage = computed(() =>
     fillTemplate(this.copy.shareSent, { email: this.shareSentTo() }),
   );
+  /**
+   * Specific failure message for the current share attempt: the backend's
+   * own buyer-safe copy for validation failures, or the self-share message
+   * for the client-side owner-email check. Null falls back to the generic
+   * connection-error copy.
+   */
+  protected readonly shareErrorDetail = signal<string | null>(null);
+  protected readonly shareErrorMessage = computed(
+    () => this.shareErrorDetail() ?? this.copy.shareError,
+  );
 
   shareViaEmail(): void {
     const token = this.reportToken();
@@ -495,19 +525,36 @@ export class ReportPageComponent implements OnInit {
       return;
     }
     const partnerEmail = this.shareForm.controls.email.value.trim();
+    // Self-share never leaves the browser: the backend rejects it with a
+    // CAP-008 400, so say so up front instead of failing with a misleading
+    // connection error. The owner's email is persisted in LeadState.
+    const ownerEmail = this.leadEmail()?.trim().toLowerCase();
+    if (ownerEmail && partnerEmail.toLowerCase() === ownerEmail) {
+      this.shareErrorDetail.set(this.copy.shareSelfError);
+      this.shareStatus.set('send-error');
+      return;
+    }
+    this.shareErrorDetail.set(null);
     this.shareStatus.set('sending');
     this.api
       .shareWithPartner({ reportToken: token, partnerEmail })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          this.shareErrorDetail.set(null);
           this.shareStatus.set('sent');
           this.shareSentTo.set(partnerEmail);
           // Consent-gated inside AnalyticsService: declined/pending banner
           // means this is a silent no-op.
           this.analytics.track('partner_share');
         },
-        error: () => this.shareStatus.set('send-error'),
+        error: (error: unknown) => {
+          // Backend validation failures (e.g. the CAP-008 self-share 400
+          // when the owner email wasn't known client-side) carry their own
+          // buyer-safe copy — surface it instead of the generic message.
+          this.shareErrorDetail.set(userFacingApiErrorMessage(error));
+          this.shareStatus.set('send-error');
+        },
       });
   }
 
