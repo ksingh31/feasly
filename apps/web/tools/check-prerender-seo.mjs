@@ -186,7 +186,7 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
       failures.push(`"${route}" H1 does not match the required pattern: "${h1}"`);
     }
     const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? '';
-    if (!/^Cost to Build a Home in .+, Calgary \| Feasly$/.test(title)) {
+    if (!/^Feasly — Cost to build a home in .+, Calgary$/.test(title)) {
       failures.push(`"${route}" title does not match the required pattern: "${title}"`);
     }
     if (titles.has(title)) failures.push(`duplicate community page title: "${title}"`);
