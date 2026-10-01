@@ -1024,6 +1024,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'new rate with the admin identity.',
   },
   {
+    method: 'PUT',
+    path: '/api/v1/admin/billing/invoices/{id}/payment-method',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin changes the planned payment method on one commission ' +
+      'invoice (card | cheque | e_transfer | bank_draft). Unpaid invoices ' +
+      'only (draft, in_review, failed — 409 otherwise). Choosing a manual ' +
+      'method pauses the Stripe auto-charge until staff marks the invoice ' +
+      'paid. Same service path as the builder endpoint; audited with the ' +
+      'admin identity.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/admin/billing/invoices',
     auth: 'admin',

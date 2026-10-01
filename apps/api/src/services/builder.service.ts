@@ -23,6 +23,7 @@ import type { AppDb } from '../db/client';
 import { builders, leads } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
+import { readDefaultPaymentMethod } from '../lib/payment-method';
 import type { AdminAuditStore } from './admin-audit.store';
 
 export interface BuilderService {
@@ -262,6 +263,20 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         newRatePercent !== undefined &&
         newRatePercent !== current.commissionRatePercent;
       if (rateChanged) patch.commissionRatePercent = newRatePercent;
+      // Default payment method (billing/12): merged into settings JSON so
+      // the builder portal's GET /api/v1/billing/payment-method reads the
+      // same value the admin set. The dedicated field wins over a stale
+      // `defaultPaymentMethod` inside a wholesale settings patch.
+      const fromDefaultMethod = readDefaultPaymentMethod(current.settings);
+      const methodChanged =
+        input.defaultPaymentMethod !== undefined &&
+        input.defaultPaymentMethod !== fromDefaultMethod;
+      if (methodChanged) {
+        patch.settings = {
+          ...(patch.settings ?? current.settings),
+          defaultPaymentMethod: input.defaultPaymentMethod,
+        };
+      }
       const [row] = await db
         .update(builders)
         .set(patch)
@@ -279,6 +294,15 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           detail:
             `builderId=${row.id} tenantKey=${row.tenantKey} ` +
             `from=${current.commissionRatePercent} to=${newRatePercent}`,
+        });
+      }
+      if (methodChanged) {
+        await audit.log({
+          actorEmail: adminEmail,
+          action: 'admin_builder_default_payment_method_changed',
+          detail:
+            `builderId=${row.id} tenantKey=${row.tenantKey} ` +
+            `from=${fromDefaultMethod} to=${input.defaultPaymentMethod}`,
         });
       }
       return toContract(row);

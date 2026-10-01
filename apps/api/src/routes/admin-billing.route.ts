@@ -17,6 +17,11 @@
  *   the per-invoice commission rate (percent). Admin-gated,
  *   `billing:manage`. Unpaid, undisputed invoices only; a disputed or
  *   settled invoice is never silently repriced.
+ * - `PUT /api/v1/admin/billing/invoices/{id}/payment-method` — change the
+ *   planned payment method on one commission invoice (card, cheque,
+ *   e_transfer, bank_draft). Admin-gated, `billing:manage`. Unpaid
+ *   invoices only; choosing a manual method pauses the Stripe auto-charge
+ *   until staff marks it paid. Audited with the admin identity.
  * - `POST /api/v1/admin/billing/invoices` — manually create a commission
  *   invoice for a builder's converted lead (manual invoicing). Mirrors the
  *   builder-reported contract shape
@@ -37,6 +42,7 @@
  */
 import { z } from 'zod';
 import type {
+  AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
   ManualInvoiceRequest,
   ManualInvoiceResponse,
@@ -73,6 +79,15 @@ const markPaidBodySchema = z.object({
 const setCommissionRateBodySchema = z.object({
   /** Percent, e.g. 1.5 = 1.5%. Must satisfy 0 < rate <= 10. */
   rate: z.number().finite().gt(0).lte(10),
+});
+
+/**
+ * Planned payment method for one invoice (billing/12) — the same four
+ * choices the builder gets. Choosing a manual method pauses the Stripe
+ * auto-charge until staff marks the invoice paid.
+ */
+const plannedPaymentMethodBodySchema = z.object({
+  method: z.enum(['card', 'cheque', 'e_transfer', 'bank_draft']),
 });
 
 const manualInvoiceBodySchema: z.ZodType<ManualInvoiceRequest> = z.object({
@@ -112,6 +127,12 @@ export interface AdminBillingRoute {
     invoiceId: unknown,
     body: unknown,
   ): Promise<SetCommissionRateResponse>;
+  /** PUT /api/v1/admin/billing/invoices/{id}/payment-method */
+  setInvoicePaymentMethod(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<AdminSetInvoicePaymentMethodResponse>;
   /** POST /api/v1/admin/billing/invoices */
   createInvoice(
     headers: Record<string, string | string[] | undefined>,
@@ -208,6 +229,42 @@ export function createAdminBillingRoute(
         contractValueCents: invoice.contractValueCents,
         commissionCents: invoice.commissionCents,
         currency: invoice.currency,
+      };
+    },
+
+    /**
+     * Admin changes the planned payment method on one invoice. The
+     * invoice's own tenant key is read admin-scoped first, so the
+     * service's tenant check passes trivially — the exact same code
+     * path (unpaid-only 409, conditional update, audit) as the builder
+     * flow, with no widening of the builder route.
+     */
+    async setInvoicePaymentMethod(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<AdminSetInvoicePaymentMethodResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = plannedPaymentMethodBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid payment method: expected one of card, cheque, e_transfer, bank_draft.',
+          false,
+        );
+      }
+      const id = invoiceIdSchema.parse(invoiceId);
+      const invoice = await billing.getInvoice(id, null);
+      const updated = await billing.setInvoicePaymentMethod(
+        id,
+        invoice.tenantKey,
+        parsed.data.method,
+      );
+      return {
+        invoiceId: updated.id,
+        status: updated.status,
+        paymentMethod: updated.paymentMethod,
       };
     },
 
