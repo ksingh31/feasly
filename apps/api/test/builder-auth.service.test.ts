@@ -21,6 +21,7 @@ function makeDeps(overrides?: {
   readonly tenantKey?: string | null;
   readonly emailSendFails?: boolean;
   readonly onEmailError?: (error: unknown) => void;
+  readonly maxSendsPerHour?: number;
 }) {
   const allowlisted = overrides?.allowlisted ?? true;
   const tenantKey = overrides?.tenantKey ?? 'elite-craft';
@@ -87,6 +88,7 @@ function makeDeps(overrides?: {
     // auth/04: resolves tenant_key → builder row at session creation.
     builders: { getByTenantKey: async () => null },
     magicLinkTtlSeconds: 900,
+    magicLinkMaxSendsPerHour: overrides?.maxSendsPerHour ?? 5,
     builderSessionTtlSeconds: 604800,
     entraSignIn: {
       configured: true,
@@ -121,6 +123,50 @@ describe('builder-auth service (embed/09)', () => {
   it('requestMagicLink does NOT mint for non-allowlisted email', async () => {
     const { service, magicLinks } = makeDeps({ allowlisted: false });
     await service.requestMagicLink({ email: 'stranger@example.com' });
+    expect(magicLinks.issue).not.toHaveBeenCalled();
+  });
+
+  it('P1-6: stops minting after the hourly per-email budget is exhausted (still sent:true, no oracle)', async () => {
+    const { service, magicLinks } = makeDeps({ maxSendsPerHour: 2 });
+    for (let i = 0; i < 2; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await service.requestMagicLink({
+        email: 'builder@example.com',
+      });
+      expect(result.sent).toBe(true);
+    }
+    expect(magicLinks.issue).toHaveBeenCalledTimes(2);
+    // 3rd attempt: budget exhausted — no new link minted, but the response
+    // is identical ({ sent: true }) so the budget can't become a send oracle.
+    const throttled = await service.requestMagicLink({
+      email: 'builder@example.com',
+    });
+    expect(throttled.sent).toBe(true);
+    expect(magicLinks.issue).toHaveBeenCalledTimes(2);
+  });
+
+  it('P1-6: the hourly budget is per-email — a different address is unaffected', async () => {
+    const { service, magicLinks } = makeDeps({ maxSendsPerHour: 1 });
+    await service.requestMagicLink({ email: 'a@example.com' });
+    // a@example.com is now throttled…
+    await service.requestMagicLink({ email: 'a@example.com' });
+    expect(magicLinks.issue).toHaveBeenCalledTimes(1);
+    // …but b@example.com has its own budget.
+    await service.requestMagicLink({ email: 'b@example.com' });
+    expect(magicLinks.issue).toHaveBeenCalledTimes(2);
+  });
+
+  it('P1-6: non-allowlisted requests never touch the per-email budget', async () => {
+    const { service, magicLinks } = makeDeps({
+      allowlisted: false,
+      maxSendsPerHour: 1,
+    });
+    // Hammering a non-allowlisted address mints nothing and consumes no
+    // budget — an allowlisted address afterwards still gets its link.
+    for (let i = 0; i < 3; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await service.requestMagicLink({ email: 'stranger@example.com' });
+    }
     expect(magicLinks.issue).not.toHaveBeenCalled();
   });
 

@@ -36,6 +36,8 @@ describe('loadConfig', () => {
         magicLinkTtlSeconds: 604_800,
         // HRD-03: per-email magic-link resend cooldown (default 60s).
         magicLinkReissueCooldownMs: 60_000,
+        // P1-6: max magic-link sends per email per hour (default 5).
+        magicLinkMaxSendsPerHour: 5,
         adminApiKey: undefined,
         adminSessionTtlSeconds: 604_800,
         // AUTH-01: Entra invitations expire after 7 days.

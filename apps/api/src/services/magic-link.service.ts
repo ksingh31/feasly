@@ -29,6 +29,7 @@ import type {
 } from '@feasly/contracts';
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { createRateLimiter } from '../middleware/rate-limit';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
@@ -62,6 +63,13 @@ export interface MagicLinkServiceDeps {
    * scale-out tradeoff as the pipeline rate limiters.
    */
   readonly magicLinkReissueCooldownMs: number;
+  /**
+   * P1-6 (2026-09-30 security audit): max reissue emails sent to one
+   * address per hour — the email-bombing guard the registry always
+   * claimed. In-memory per Functions instance, keyed by normalized
+   * email — same deliberate scale-out tradeoff as the cooldown above.
+   */
+  readonly magicLinkMaxSendsPerHour: number;
   readonly clock?: () => Date;
 }
 
@@ -188,6 +196,7 @@ export function createMagicLinkService(
     appBaseUrl,
     magicLinkTtlSeconds,
     magicLinkReissueCooldownMs,
+    magicLinkMaxSendsPerHour,
     clock = () => new Date(),
   } = deps;
 
@@ -202,6 +211,20 @@ export function createMagicLinkService(
    * can't be used as a send oracle.
    */
   const lastResendAtMs = new Map<string, number>();
+
+  /**
+   * P1-6: hourly per-email send budget (fixed window, shared rate-limiter
+   * primitive). Checked only on the genuine send path — after the
+   * unknown-email, live-link, and cooldown short-circuits — so hammering
+   * an unknown address can never burn (or reveal) a budget. Exhaustion
+   * answers `{ sent: false }`, identical to every other non-send outcome.
+   */
+  const sendBudget = createRateLimiter({
+    windowMs: 3_600_000,
+    maxRequests: magicLinkMaxSendsPerHour,
+    maxTrackedKeys: 10_000,
+    clock: () => clock().getTime(),
+  });
 
   return {
     async verify(token: string): Promise<MagicLinkVerifyResponse> {
@@ -275,6 +298,11 @@ export function createMagicLinkService(
       const nowMs = now.getTime();
       const lastSent = lastResendAtMs.get(lead.email);
       if (lastSent !== undefined && nowMs - lastSent < magicLinkReissueCooldownMs) {
+        return { sent: false };
+      }
+      // P1-6: hourly per-email send budget — the email-bombing guard.
+      // Same `{ sent: false }` shape as every other non-send outcome.
+      if (!sendBudget.check(lead.email).allowed) {
         return { sent: false };
       }
       const delivery = await issueAndSendMagicLink({

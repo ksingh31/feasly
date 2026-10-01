@@ -191,6 +191,11 @@ export function createAuthContextService(
     // context (which would silently restore elevated access). The real
     // identity stays on `realUser` for the audit trail, and `viewAs`
     // stays set so the shell can show "target unavailable" + an exit.
+    //
+    // View-as is TERMINAL: the target view never carries `view_as` itself,
+    // so a view-as session can never chain into another view-as (the
+    // builder_admin role holds `view_as` for initiators, but the borrowed
+    // builder view must not).
     const closedViewAs = {
       userId: user.id,
       email: user.email,
@@ -211,7 +216,9 @@ export function createAuthContextService(
           email: user.email,
           name: user.name,
           staffRole: null,
-          permissions: ROLE_PERMISSIONS.builder_admin,
+          permissions: ROLE_PERMISSIONS.builder_admin.filter(
+            (p) => p !== 'view_as',
+          ),
           builderId: target.id,
           builderName: target.displayName,
           memberships: [] as readonly BuilderMembership[],
@@ -245,7 +252,7 @@ export function createAuthContextService(
           permissions: effectivePermissions(
             target.staffRole,
             targetMemberships.map((m) => m.role),
-          ),
+          ).filter((p) => p !== 'view_as'),
           builderId: targetBuilder?.builderId ?? null,
           builderName: targetBuilderName,
           memberships: targetMemberships,

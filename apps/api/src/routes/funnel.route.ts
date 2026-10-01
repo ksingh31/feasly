@@ -10,7 +10,9 @@
  * - `tenant_key`: omitted = all traffic; `direct` = Feasly-direct only
  *   (events with no tenant attribution); otherwise one embed tenant's key.
  *
- * Auth: admin only (via `AdminGuard`, session-cookie auth — admin/01).
+ * Auth: the adapter enforces the registry's `analytics:read` permission
+ * before the route runs; the route itself additionally requires an admin
+ * session (via `AdminGuard`, session-cookie auth — admin/01).
  * Numbers only — no PII in the response by construction.
  *
  * Hard rules (enforced by test/boundaries.test.ts):

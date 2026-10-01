@@ -193,6 +193,7 @@ function makeService(opts?: {
   email?: EmailService & { sends: MagicLinkEmailInput[] };
   ttlSeconds?: number;
   reissueCooldownMs?: number;
+  maxSendsPerHour?: number;
   clock?: () => Date;
 }) {
   const magicLinks = opts?.magicLinks ?? fakeMagicLinks();
@@ -206,6 +207,7 @@ function makeService(opts?: {
     appBaseUrl: APP_BASE_URL,
     magicLinkTtlSeconds: opts?.ttlSeconds ?? 7 * 86_400,
     magicLinkReissueCooldownMs: opts?.reissueCooldownMs ?? 60_000,
+    magicLinkMaxSendsPerHour: opts?.maxSendsPerHour ?? 5,
     clock: opts?.clock ?? (() => NOW),
   });
   return { service, magicLinks, leads, email };
@@ -484,6 +486,73 @@ describe('magic-link reissue', () => {
       sent: true,
     });
     expect(email.sends).toHaveLength(2);
+  });
+
+  it('P1-6: blocks the 6th send within the hourly per-email budget', async () => {
+    const email = fakeEmail();
+    let nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      reissueCooldownMs: 60_000,
+      maxSendsPerHour: 5,
+      clock: () => new Date(nowMs),
+    });
+    // Five sends, each past the 60s cooldown but inside the same hour.
+    for (let i = 0; i < 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+        sent: true,
+      });
+      nowMs += 61_000;
+    }
+    expect(email.sends).toHaveLength(5);
+    // 6th attempt: budget exhausted — same { sent: false } shape as every
+    // other non-send outcome, no send oracle.
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: false,
+    });
+    expect(email.sends).toHaveLength(5);
+  });
+
+  it('P1-6: the hourly budget resets after the window and is per-email', async () => {
+    const email = fakeEmail();
+    const otherLead = leadFixture({
+      id: 'other-lead-id',
+      email: 'other@example.com',
+    });
+    const baseLeads = fakeLeads();
+    const leads: LeadStore = {
+      ...baseLeads,
+      findAllByEmail: async (addr: string) =>
+        addr === 'other@example.com' ? [otherLead] : baseLeads.findAllByEmail(addr),
+    };
+    let nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      leads,
+      reissueCooldownMs: 60_000,
+      maxSendsPerHour: 1,
+      clock: () => new Date(nowMs),
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    nowMs += 61_000;
+    // Budget exhausted for sam…
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: false,
+    });
+    // …but a different address is unaffected.
+    expect(await service.reissue({ email: 'other@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(2);
+    // …and sam's budget resets once the hour window passes.
+    nowMs += 3_600_000;
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(email.sends).toHaveLength(3);
   });
 });
 

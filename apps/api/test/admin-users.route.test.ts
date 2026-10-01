@@ -274,13 +274,13 @@ describe('admin-users route (auth/03)', () => {
     expect(userService.invite).not.toHaveBeenCalled();
   });
 
-  it('update: builder admin can patch name but not role', async () => {
+  it('update: builder admin can patch name of a non-staff member but not role, and never rename staff accounts', async () => {
     const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
     vi.mocked(userService.findById).mockResolvedValue({
       id: '523e4567-e89b-12d3-a456-426614174000',
       email: 'm@example.com',
       name: 'M',
-      staffRole: 'viewer',
+      staffRole: null,
       memberships: [
         {
           builderId: '11111111-1111-4111-8111-111111111111',
@@ -297,7 +297,7 @@ describe('admin-users route (auth/03)', () => {
       id: '523e4567-e89b-12d3-a456-426614174000',
       email: 'm@example.com',
       name: 'Renamed',
-      staffRole: 'viewer',
+      staffRole: null,
       memberships: [],
       status: 'active',
       isProtected: false,
@@ -320,6 +320,175 @@ describe('admin-users route (auth/03)', () => {
       }),
     ).rejects.toThrow(expect.objectContaining({ status: 403 }));
     expect(userService.changeStaffRole).not.toHaveBeenCalled();
+  });
+
+  it('update: builder admin cannot rename a staff account (403)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '523e4567-e89b-12d3-a456-426614174000',
+      email: 'staff@example.com',
+      name: 'Staff',
+      staffRole: 'viewer',
+      memberships: [
+        {
+          builderId: '11111111-1111-4111-8111-111111111111',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'active',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.update(ADMIN_HEADERS, '523e4567-e89b-12d3-a456-426614174000', {
+        name: 'Renamed by builder',
+      }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        status: 403,
+        message: 'Staff accounts can only be renamed by Feasly staff.',
+      }),
+    );
+    expect(userService.renameUser).not.toHaveBeenCalled();
+  });
+
+  it('update: builder admin cannot disable a staff account (403)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '523e4567-e89b-12d3-a456-426614174000',
+      email: 'staff@example.com',
+      name: 'Staff',
+      staffRole: 'viewer',
+      memberships: [
+        {
+          builderId: '11111111-1111-4111-8111-111111111111',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'active',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.update(ADMIN_HEADERS, '523e4567-e89b-12d3-a456-426614174000', {
+        status: 'disabled',
+      }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        status: 403,
+        message: 'You can only deactivate members who belong solely to your organization.',
+      }),
+    );
+    expect(userService.disableUser).not.toHaveBeenCalled();
+  });
+
+  it('update: builder admin cannot disable a user with memberships in other orgs (403)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '523e4567-e89b-12d3-a456-426614174000',
+      email: 'm@example.com',
+      name: 'M',
+      staffRole: null,
+      memberships: [
+        {
+          builderId: '11111111-1111-4111-8111-111111111111',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+        {
+          builderId: '22222222-2222-4222-8222-222222222222',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'active',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.update(ADMIN_HEADERS, '523e4567-e89b-12d3-a456-426614174000', {
+        status: 'disabled',
+      }),
+    ).rejects.toThrow(expect.objectContaining({ status: 403 }));
+    expect(userService.disableUser).not.toHaveBeenCalled();
+  });
+
+  it('update: builder admin cannot reactivate a staff account (403)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '523e4567-e89b-12d3-a456-426614174000',
+      email: 'staff@example.com',
+      name: 'Staff',
+      staffRole: 'admin',
+      memberships: [
+        {
+          builderId: '11111111-1111-4111-8111-111111111111',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'disabled',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.update(ADMIN_HEADERS, '523e4567-e89b-12d3-a456-426614174000', {
+        status: 'active',
+      }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        status: 403,
+        message: 'You can only reactivate members who belong solely to your organization.',
+      }),
+    );
+    expect(userService.enableUser).not.toHaveBeenCalled();
+  });
+
+  it('update: builder admin can disable a sole-org member', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    const target = {
+      id: '523e4567-e89b-12d3-a456-426614174000',
+      email: 'm@example.com',
+      name: 'M',
+      staffRole: null,
+      memberships: [
+        {
+          builderId: '11111111-1111-4111-8111-111111111111',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'active',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    vi.mocked(userService.findById).mockResolvedValue(target as never);
+    vi.mocked(userService.disableUser).mockResolvedValue({
+      ...target,
+      status: 'disabled',
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    const result = await route.update(
+      ADMIN_HEADERS,
+      '523e4567-e89b-12d3-a456-426614174000',
+      { status: 'disabled' },
+    );
+    expect(userService.disableUser).toHaveBeenCalledWith(
+      '523e4567-e89b-12d3-a456-426614174000',
+      expect.anything(),
+    );
+    expect(result.status).toBe('disabled');
   });
 
   it('remove: builder admin cannot delete even org users (staff-only)', async () => {

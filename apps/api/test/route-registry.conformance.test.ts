@@ -229,7 +229,7 @@ describe('route registry', () => {
         'admin',
         'builder_admin',
       ],
-      'POST /api/v1/admin/view-as': ['super_admin', 'admin'],
+      'POST /api/v1/admin/view-as': ['super_admin', 'admin', 'builder_admin'],
       // No permission check — the credential mechanism is the authorization.
       'POST /api/v1/estimate': [
         'super_admin',
