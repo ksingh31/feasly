@@ -19,6 +19,10 @@ describe('createComparisonEstimate', () => {
           'community-a': 5000,
           'community-b': 6000,
         },
+        assessedValueBySlug: {
+          'community-a': 500000,
+          'community-b': 600000,
+        },
       },
       PLACEHOLDER_COST_DATA,
     );
@@ -26,7 +30,7 @@ describe('createComparisonEstimate', () => {
     expect(result.rowSets).toHaveLength(2);
     expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
 
-    // Exactly one has lowestLand: true (community-a has smaller lot → cheaper land)
+    // Exactly one has lowestLand: true (community-a has the lower assessed value)
     const lowest = result.rowSets.filter((rs) => rs.lowestLand);
     expect(lowest).toHaveLength(1);
     expect(lowest[0].slug).toBe('community-a');
@@ -39,6 +43,7 @@ describe('createComparisonEstimate', () => {
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: { a: 5000, b: 6000, c: 5500 },
+        assessedValueBySlug: { a: 500000, b: 600000, c: 550000 },
       },
       PLACEHOLDER_COST_DATA,
     );
@@ -49,16 +54,20 @@ describe('createComparisonEstimate', () => {
     expect(lowest[0].slug).toBe('a'); // smallest lot
   });
 
-  it('flags the cheapest land by low (not base)', () => {
-    // Use lot sizes that produce different lows
+  it('flags the cheapest land by assessed value (not modelled land)', () => {
+    // Use lot sizes that produce different modelled land lows
     const result = createComparisonEstimate(
       {
         neighbourhoods: ['expensive', 'cheap'],
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: {
-          expensive: 10000, // bigger lot → higher land
-          cheap: 4000, // smaller lot → lower land
+          expensive: 10000, // bigger lot → higher modelled land
+          cheap: 4000, // smaller lot → lower modelled land
+        },
+        assessedValueBySlug: {
+          expensive: 800000,
+          cheap: 300000,
         },
       },
       PLACEHOLDER_COST_DATA,
@@ -71,7 +80,38 @@ describe('createComparisonEstimate', () => {
     expect(cheap.land.low).toBeLessThan(expensive.land.low);
   });
 
-  it('tie goes to the first slug (deterministic)', () => {
+  it('flags the badge by assessed value when modelled land disagrees (Beltline/Panorama regression)', () => {
+    // Reported bug: Beltline got the "Lowest land cost" badge because its
+    // smaller lot produced a cheaper *modelled* land band, while Panorama
+    // Hills had the lower City-assessed value — the figure the page shows.
+    // The badge must follow the displayed assessed value.
+    const result = createComparisonEstimate(
+      {
+        neighbourhoods: ['beltline-like', 'panorama-like'],
+        buildSqft: 2000,
+        tier: TIER,
+        avgLotSqftBySlug: {
+          'beltline-like': 4000, // smaller lot → cheaper modelled land.low
+          'panorama-like': 6000,
+        },
+        assessedValueBySlug: {
+          'beltline-like': 898964, // higher assessed value…
+          'panorama-like': 785312, // …but the lower one — badge goes here
+        },
+      },
+      PLACEHOLDER_COST_DATA,
+    );
+
+    const beltline = result.rowSets.find((rs) => rs.slug === 'beltline-like')!;
+    const panorama = result.rowSets.find((rs) => rs.slug === 'panorama-like')!;
+    expect(beltline.land.low).toBeLessThan(panorama.land.low); // modelled order disagrees…
+    expect(panorama.lowestLand).toBe(true); // …but the badge follows assessed
+    expect(beltline.lowestLand).toBe(false);
+    const lowest = result.rowSets.filter((rs) => rs.lowestLand);
+    expect(lowest).toHaveLength(1);
+  });
+
+  it('tie on assessed value goes to the first slug (deterministic)', () => {
     const result = createComparisonEstimate(
       {
         neighbourhoods: ['first', 'second'],
@@ -79,7 +119,11 @@ describe('createComparisonEstimate', () => {
         tier: TIER,
         avgLotSqftBySlug: {
           first: 5000,
-          second: 5000, // same lot size → tie
+          second: 6000, // different lot sizes…
+        },
+        assessedValueBySlug: {
+          first: 500000,
+          second: 500000, // …same assessed value → tie
         },
       },
       PLACEHOLDER_COST_DATA,
@@ -98,6 +142,7 @@ describe('createComparisonEstimate', () => {
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: { a: 5000, b: 6000 },
+        assessedValueBySlug: { a: 500000, b: 600000 },
       },
       PLACEHOLDER_COST_DATA,
     );
@@ -117,6 +162,7 @@ describe('createComparisonEstimate', () => {
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: { a: avgLotSqft, b: 6000 },
+        assessedValueBySlug: { a: 500000, b: 600000 },
       },
       PLACEHOLDER_COST_DATA,
     );
@@ -137,6 +183,7 @@ describe('createComparisonEstimate', () => {
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: { a: 5000, b: 6000 },
+        assessedValueBySlug: { a: 500000, b: 600000 },
       },
       PLACEHOLDER_COST_DATA,
     );
@@ -158,6 +205,7 @@ describe('createComparisonEstimate', () => {
           buildSqft: 2000,
           tier: TIER,
           avgLotSqftBySlug: { 'only-one': 5000 },
+          assessedValueBySlug: { 'only-one': 500000 },
         },
         PLACEHOLDER_COST_DATA,
       ),
@@ -172,6 +220,7 @@ describe('createComparisonEstimate', () => {
           buildSqft: 2000,
           tier: TIER,
           avgLotSqftBySlug: { a: 5000, b: 6000, c: 5500, d: 5200 },
+          assessedValueBySlug: { a: 500000, b: 600000, c: 550000, d: 520000 },
         },
         PLACEHOLDER_COST_DATA,
       ),
@@ -186,6 +235,22 @@ describe('createComparisonEstimate', () => {
           buildSqft: 2000,
           tier: TIER,
           avgLotSqftBySlug: { a: 5000, b: null },
+          assessedValueBySlug: { a: 500000, b: 600000 },
+        },
+        PLACEHOLDER_COST_DATA,
+      ),
+    ).toThrow(EngineInputError);
+  });
+
+  it('rejects null assessed value', () => {
+    expect(() =>
+      createComparisonEstimate(
+        {
+          neighbourhoods: ['a', 'b'],
+          buildSqft: 2000,
+          tier: TIER,
+          avgLotSqftBySlug: { a: 5000, b: 6000 },
+          assessedValueBySlug: { a: 500000, b: null },
         },
         PLACEHOLDER_COST_DATA,
       ),
@@ -200,6 +265,7 @@ describe('createComparisonEstimate', () => {
           buildSqft: 2000,
           tier: 'ultra' as any,
           avgLotSqftBySlug: { a: 5000, b: 6000 },
+          assessedValueBySlug: { a: 500000, b: 600000 },
         },
         PLACEHOLDER_COST_DATA,
       ),
@@ -213,6 +279,7 @@ describe('createComparisonEstimate', () => {
         buildSqft: 2000,
         tier: TIER,
         avgLotSqftBySlug: { a: 5000, b: 6000 },
+        assessedValueBySlug: { a: 500000, b: 600000 },
       },
       PLACEHOLDER_COST_DATA,
     );

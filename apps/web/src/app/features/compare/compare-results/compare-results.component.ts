@@ -26,7 +26,8 @@ import { WizardState } from '../../wizard/wizard.state';
  * (per the API's visibility hints).
  *
  * Exactly one card carries the "Lowest land cost" badge, driven by the
- * API's `lowestLand` flag (ties broken server-side by input order).
+ * API's `lowestLand` flag — the cheapest City-assessed value (the land
+ * figure the cards display); ties broken server-side by input order.
  *
  * Post-gate the total is derived transparently as assessed + build range
  * (low/high), with the math shown under each total; the chart bars use the

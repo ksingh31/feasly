@@ -48,20 +48,23 @@ function addBands(a: RangedAmount, b: RangedAmount): RangedAmount {
  *   across communities (same house design, same sqft, same tier)
  * - Total = land + build (componentwise)
  *
- * Exactly one row-set carries lowestLand: true — the cheapest by land.low.
- * Ties go to the first slug in input order (documented, deterministic).
+ * Exactly one row-set carries lowestLand: true — the cheapest by
+ * City-assessed value (`assessedValueBySlug`), which is the land figure the
+ * comparison page displays. Ties go to the first slug in input order
+ * (documented, deterministic).
  *
  * Throws EngineInputError for:
  * - neighbourhoods.length not in [2, 3]
  * - unknown tier (via the underlying engine)
  * - null avgLotSqft for any slug (data incomplete)
+ * - null assessed value for any slug (data incomplete)
  * - buildSqft outside the cost-data bounds (via the underlying engine)
  */
 export function createComparisonEstimate(
   input: ComparisonInput,
   costData: CostData,
 ): ComparisonResult {
-  const { neighbourhoods, buildSqft, tier, avgLotSqftBySlug } = input;
+  const { neighbourhoods, buildSqft, tier, avgLotSqftBySlug, assessedValueBySlug } = input;
 
   // Validate neighbourhood count.
   if (neighbourhoods.length < 2 || neighbourhoods.length > 3) {
@@ -95,6 +98,7 @@ export function createComparisonEstimate(
 
   // Build one row-set per community.
   const rowSets: ComparisonRowSet[] = [];
+  const assessedValues: number[] = [];
   for (const slug of neighbourhoods) {
     const avgLotSqft = avgLotSqftBySlug[slug];
     if (avgLotSqft === null || avgLotSqft === undefined) {
@@ -107,6 +111,18 @@ export function createComparisonEstimate(
         `community '${slug}' has invalid lot size: ${String(avgLotSqft)}`,
       );
     }
+    const assessedValue = assessedValueBySlug[slug];
+    if (assessedValue === null || assessedValue === undefined) {
+      throw new EngineInputError(
+        `community '${slug}' has no assessed value data (avgAssessedValue is null)`,
+      );
+    }
+    if (!Number.isFinite(assessedValue) || assessedValue < 0) {
+      throw new EngineInputError(
+        `community '${slug}' has invalid assessed value: ${String(assessedValue)}`,
+      );
+    }
+    assessedValues.push(assessedValue);
 
     // Land: avgLotSqft × landRatePerSqft ± landSpread.
     const landBase = wholeDollars(avgLotSqft) * costData.comparison.landRatePerSqft;
@@ -129,10 +145,11 @@ export function createComparisonEstimate(
     });
   }
 
-  // Flag the cheapest land by `low`. Ties → first slug wins (deterministic).
+  // Flag the cheapest land by City-assessed value — the figure the
+  // comparison page displays. Ties → first slug wins (deterministic).
   let cheapestIdx = 0;
-  for (let i = 1; i < rowSets.length; i++) {
-    if (rowSets[i].land.low < rowSets[cheapestIdx].land.low) {
+  for (let i = 1; i < assessedValues.length; i++) {
+    if (assessedValues[i] < assessedValues[cheapestIdx]) {
       cheapestIdx = i;
     }
   }

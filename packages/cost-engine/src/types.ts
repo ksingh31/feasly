@@ -249,13 +249,25 @@ export interface ComparisonInput {
    * Keyed by slug; null when the dataset lacks lot size data.
    */
   readonly avgLotSqftBySlug: Readonly<Record<string, number | null>>;
+  /**
+   * Per-community City-assessed land values from community_stats (NBH-01).
+   * Keyed by slug; null when the dataset lacks assessed-value data. This
+   * is the land figure the comparison page displays ("Land (assessed
+   * value)"), so it — not the modelled lot-size land band — decides the
+   * `lowestLand` badge.
+   */
+  readonly assessedValueBySlug: Readonly<Record<string, number | null>>;
 }
 
 /** One neighbourhood's row-set in a comparison result (NBH-02). */
 export interface ComparisonRowSet {
   /** Community slug. */
   readonly slug: string;
-  /** True for exactly one row-set: the cheapest land by `low`. */
+  /**
+   * True for exactly one row-set: the cheapest land by City-assessed
+   * value (the figure the comparison page displays). Ties go to the
+   * first slug in input order.
+   */
   readonly lowestLand: boolean;
   /** Land range: avgLotSqft × landRatePerSqft ± landSpread. */
   readonly land: RangedAmount;

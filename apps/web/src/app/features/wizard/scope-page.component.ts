@@ -21,12 +21,14 @@ import {
  * S2 scope step (FE-2, RENO-02): project type + scope inputs.
  *
  * The step opens with two enabled project-type cards — New Build and
- * Renovation (no "coming soon"). The selection writes straight into the NGXS
- * wizard store (persisted via the storage plugin, so a refresh or a trip
- * back restores it) and decides what follows: new builds keep the living-area
- * slider + finish tier sections below; renovations get a note and continue
- * to the reno scope-inputs step. The CTA stays disabled until a type is
- * chosen. No dollar figures appear on this step: the estimate numbers
+ * Renovation (no "coming soon"). New Build is preselected on first visit
+ * (the marketed path — the step never opens on Renovation); a stored
+ * choice (refresh/back, marketing preselect) is respected. The selection
+ * writes straight into the NGXS wizard store (persisted via the storage
+ * plugin, so a refresh or a trip back restores it) and decides what
+ * follows: new builds keep the living-area slider + finish tier sections
+ * below; renovations get a note and continue to the reno scope-inputs
+ * step. No dollar figures appear on this step: the estimate numbers
  * surface later, blurred pre-gate.
  */
 @Component({
@@ -62,6 +64,12 @@ export class ScopePageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/scope');
+    // New builds are the marketed path: preselect New Build when no choice
+    // exists yet, so the scope step never opens on Renovation. A stored
+    // choice (refresh/back, marketing preselect) is always respected.
+    if (this.projectType() == null) {
+      this.store.dispatch(new ChooseProjectType('new-build'));
+    }
   }
 
   /** Project-type card: stores the selection in NGXS (persisted). */
