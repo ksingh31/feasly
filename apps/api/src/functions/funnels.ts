@@ -4,7 +4,9 @@
  * Consumer funnel dashboard (admin/07): per-step counts + step-to-step
  * conversion rates from the analytics events table, over an optional date
  * range, optionally filtered to one tenant (or Feasly-direct only).
- * Admin-only via `AdminGuard` (session-cookie auth, admin/01).
+ * Admin-only: the registry declares `analytics:read` for this route and the
+ * adapter enforces it via `enforceRoutePermissions` before the route runs
+ * (the route itself also requires an admin session via `AdminGuard`).
  *
  * Bundled by `npm run bundle:functions` into `funnels/index.js`
  * (self-contained — the Function App has no node_modules).
@@ -72,7 +74,17 @@ export async function funnelsHandler(
 
   const result = await app.requestPipeline.run(
     { headers, clientIp: clientIpFrom(req) },
-    () => app.funnelRoute.getFunnel(headers, req.query ?? {}),
+    async () => {
+      // auth/04: registry permissions are REAL authorization — enforced
+      // here before the route runs ('analytics:read' for this endpoint).
+      await middleware.enforceRoutePermissions(
+        app.permissionGuard,
+        req.method,
+        '/api/v1/admin/funnels',
+        headers,
+      );
+      return app.funnelRoute.getFunnel(headers, req.query ?? {});
+    },
   );
 
   if (middleware.isProblemDetails(result)) {
