@@ -556,6 +556,8 @@ describe('ReportState', () => {
         status: 'loading',
         error: 'boom',
         errorDetail: 'detail',
+        stepsChecked: {},
+        stepsLeadId: null,
       };
     }
 
