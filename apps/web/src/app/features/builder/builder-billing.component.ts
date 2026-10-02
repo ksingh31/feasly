@@ -93,6 +93,14 @@ export class BuilderBillingComponent implements OnInit {
    */
   protected readonly defaultMethodSaved = signal(false);
 
+  /**
+   * Staged (not yet applied) default payment method. The select only stages
+   * a choice — nothing is saved until the builder clicks Apply (Karan
+   * 2026-10-02: no auto-save on select). `null` means no pending change;
+   * the select then shows the saved method.
+   */
+  protected readonly pendingDefaultMethod = signal<BuilderPaymentMethod | null>(null);
+
   private stripe: Stripe | null = null;
   private cardElement: StripeCardElement | null = null;
 
@@ -159,15 +167,58 @@ export class BuilderBillingComponent implements OnInit {
    * disabled while the PUT is in flight; the saved confirmation is
    * durable until the next change.
    */
-  protected async onDefaultMethodChange(event: Event): Promise<void> {
+  /**
+   * The method the select shows: the staged choice while one is pending,
+   * otherwise the saved method.
+   */
+  protected displayedDefaultMethod(): BuilderPaymentMethod | null {
+    return this.pendingDefaultMethod() ?? this.defaultMethod();
+  }
+
+  /** Apply is only meaningful when a real change is staged. */
+  protected canApplyDefaultMethod(): boolean {
+    const pending = this.pendingDefaultMethod();
+    const saved = this.defaultMethod();
+    return pending !== null && pending !== saved;
+  }
+
+  /**
+   * Stages the dropdown choice without saving (Karan 2026-10-02: changing
+   * the default method must not apply on select). Re-selecting the saved
+   * method clears the staged change.
+   */
+  protected onDefaultMethodSelect(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
-    if (!isBuilderPaymentMethod(value) || value === this.defaultMethod()) {
+    if (!isBuilderPaymentMethod(value)) {
+      return;
+    }
+    this.defaultMethodSaved.set(false);
+    this.pendingDefaultMethod.set(value === this.defaultMethod() ? null : value);
+  }
+
+  /** Discards the staged choice; the select snaps back to the saved method. */
+  protected resetPendingDefaultMethod(): void {
+    this.pendingDefaultMethod.set(null);
+  }
+
+  /**
+   * Applies the staged default payment method. Disabled until the staged
+   * choice differs from the saved method. On success the saved method
+   * updates and a confirmation shows; on failure the select reverts to
+   * the saved value.
+   */
+  protected async applyDefaultMethod(): Promise<void> {
+    const pending = this.pendingDefaultMethod();
+    if (pending === null || pending === this.defaultMethod()) {
       return;
     }
     this.defaultMethodSaved.set(false);
     await firstValueFrom(
-      this.store.dispatch(new SetDefaultPaymentMethod(value)),
+      this.store.dispatch(new SetDefaultPaymentMethod(pending)),
     );
+    // The staged choice is consumed either way: on success the select
+    // shows the new saved method; on failure it reverts to the old one.
+    this.pendingDefaultMethod.set(null);
     if (
       this.store.selectSnapshot(
         BuilderBillingState.defaultMethodSaveStatus,
