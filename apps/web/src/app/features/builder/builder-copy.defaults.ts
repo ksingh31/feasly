@@ -168,6 +168,10 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'We couldn\u2019t change the payment method. Please try again.',
   invoicesPaymentMethodManualNote:
     'Your card won\u2019t be charged for this invoice \u2014 we\u2019ll confirm your {method} payment when it arrives.',
+  invoicesPaymentMethodApply: 'Apply',
+  invoicesPaymentMethodApplying: 'Applying\u2026',
+  invoicesPaymentMethodSaved: 'Payment method updated.',
+  invoicesPaymentMethodReset: 'Reset',
   invoicesReviewNoteManual:
     'The 7-day review window ends {date}. Your card won\u2019t be charged \u2014 pay by {method} and we\u2019ll confirm it when it arrives.',
   invoicesUpdateCardCta: 'Update your card',

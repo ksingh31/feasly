@@ -193,6 +193,10 @@ export interface BuilderCopy {
   invoicesPaymentMethodLocked: string;
   invoicesPaymentMethodSaveFailed: string;
   invoicesPaymentMethodManualNote: string;
+  invoicesPaymentMethodApply: string;
+  invoicesPaymentMethodApplying: string;
+  invoicesPaymentMethodSaved: string;
+  invoicesPaymentMethodReset: string;
   invoicesReviewNoteManual: string;
   invoicesBackToList: string;
   invoicesReceiptHeading: string;

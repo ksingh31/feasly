@@ -20,7 +20,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
 import {
   BuilderInvoicesApiService,
   type BuilderCommissionInvoice,
@@ -159,15 +160,26 @@ async function flushMock(fixture: ComponentFixture<BuilderInvoicesComponent>) {
   await fixture.whenStable();
 }
 
-async function setupWithInvoices(response: {
-  invoices: readonly BuilderCommissionInvoice[];
-  total: number | null;
-  page: number;
-  pageSize: number;
-}) {
+async function setupWithInvoices(
+  response: {
+    invoices: readonly BuilderCommissionInvoice[];
+    total: number | null;
+    page: number;
+    pageSize: number;
+  },
+  overrides?: {
+    setInvoicePaymentMethod?: (
+      id: string,
+      method: BuilderPaymentMethod,
+    ) => Observable<BuilderCommissionInvoice>;
+  },
+) {
   TestBed.resetTestingModule();
   const invoices = [...response.invoices];
+  const putCalls: Array<{ id: string; method: BuilderPaymentMethod }> = [];
   const apiMock = {
+    /** Every PUT /invoices/{id}/payment-method call, in order. */
+    putCalls,
     listInvoices: () => of(response),
     getInvoice: (id: string) => {
       const found = invoices.find((inv) => inv.id === id);
@@ -178,7 +190,14 @@ async function setupWithInvoices(response: {
     },
     // Mirrors the PUT /invoices/{id}/payment-method wire shape: the
     // backend returns the updated invoice.
-    setInvoicePaymentMethod: (id: string, method: BuilderPaymentMethod) => {
+    setInvoicePaymentMethod: (
+      id: string,
+      method: BuilderPaymentMethod,
+    ): Observable<BuilderCommissionInvoice> => {
+      putCalls.push({ id, method });
+      if (overrides?.setInvoicePaymentMethod) {
+        return overrides.setInvoicePaymentMethod(id, method);
+      }
       const found = invoices.find((inv) => inv.id === id);
       if (!found) {
         throw new Error(`Test invoice not found: ${id}`);
@@ -204,7 +223,7 @@ async function setupWithInvoices(response: {
   const fixture: ComponentFixture<BuilderInvoicesComponent> =
     TestBed.createComponent(BuilderInvoicesComponent);
   const store = TestBed.inject(Store);
-  return { fixture, store };
+  return { fixture, store, apiMock };
 }
 
 async function setup() {
@@ -383,9 +402,9 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(options).toEqual(['Card', 'Cheque', 'E-transfer', 'Bank draft']);
   });
 
-  it('PUTs the per-invoice payment method on change and updates the UI (billing/12)', async () => {
+  it('does not save the payment method on select alone — Apply is required (Karan 2026-10-02)', async () => {
     const invoices = testInvoices();
-    const { fixture } = await setupWithInvoices({
+    const { fixture, apiMock } = await setupWithInvoices({
       invoices,
       total: invoices.length,
       page: 1,
@@ -407,14 +426,197 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     select.dispatchEvent(new Event('change'));
     await flushMock(fixture);
 
+    // The choice is staged in the dropdown, but nothing hits the API.
+    expect(apiMock.putCalls).toEqual([]);
+    expect(select.value).toBe('cheque');
+    // The review note still describes the SAVED method (card auto-charge).
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('charged automatically');
+    expect(text).not.toContain('Your card won’t be charged');
+  });
+
+  it('disables Apply until the selection differs from the saved method', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-invoices__apply',
+    ) as HTMLButtonElement;
+    expect(apply).not.toBeNull();
+    expect(apply.disabled).toBe(true);
+
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+    expect(apply.disabled).toBe(false);
+
+    // Re-selecting the saved method clears the staged change.
+    select.value = 'card';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+    expect(apply.disabled).toBe(true);
+  });
+
+  it('Apply PUTs the staged method and switches the review note to the manual copy', async () => {
+    const invoices = testInvoices();
+    const { fixture, apiMock } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+
+    (
+      fixture.nativeElement.querySelector(
+        '.builder-invoices__apply',
+      ) as HTMLButtonElement
+    ).click();
+    await flushMock(fixture);
+
+    expect(apiMock.putCalls).toEqual([
+      { id: 'inv-test-001', method: 'cheque' },
+    ]);
     const updated = fixture.nativeElement.querySelector(
       '#invoice-payment-method',
     ) as HTMLSelectElement;
     expect(updated.value).toBe('cheque');
     const text = fixture.nativeElement.textContent as string;
-    // Manual-method explainer replaces the review note's card wording.
-    expect(text).toContain('Your card won’t be charged');
-    expect(text).toContain('cheque');
+    // The SAVED method is now cheque: the manual review note replaces the
+    // card auto-charge wording, and the saved confirmation shows.
+    expect(text).toContain('Your card won’t be charged — pay by cheque');
+    expect(text).not.toContain('charged automatically');
+    expect(text).toContain('Payment method updated.');
+    // Apply is disabled again — nothing left to apply.
+    expect(
+      (
+        fixture.nativeElement.querySelector(
+          '.builder-invoices__apply',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it('reverts the select to the saved method and shows the error when Apply fails', async () => {
+    const invoices = testInvoices();
+    const { fixture, apiMock } = await setupWithInvoices(
+      {
+        invoices,
+        total: invoices.length,
+        page: 1,
+        pageSize: 10,
+      },
+      {
+        setInvoicePaymentMethod: () =>
+          throwError(() => new Error('PUT failed')),
+      },
+    );
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+
+    (
+      fixture.nativeElement.querySelector(
+        '.builder-invoices__apply',
+      ) as HTMLButtonElement
+    ).click();
+    await flushMock(fixture);
+
+    // The PUT was attempted…
+    expect(apiMock.putCalls).toEqual([
+      { id: 'inv-test-001', method: 'cheque' },
+    ]);
+    // …but the dropdown snapped back to the saved method and the
+    // failure copy surfaced.
+    const reverted = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    expect(reverted.value).toBe('card');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('We couldn’t change the payment method');
+    // The review note still describes the SAVED method (card auto-charge).
+    expect(text).toContain('charged automatically');
+  });
+
+  it('Reset discards the staged change without saving', async () => {
+    const invoices = testInvoices();
+    const { fixture, apiMock } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+
+    const select = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    await flushMock(fixture);
+
+    const reset = fixture.nativeElement.querySelector(
+      '.builder-invoices__reset',
+    ) as HTMLButtonElement;
+    expect(reset).not.toBeNull();
+    reset.click();
+    await flushMock(fixture);
+
+    expect(apiMock.putCalls).toEqual([]);
+    const reverted = fixture.nativeElement.querySelector(
+      '#invoice-payment-method',
+    ) as HTMLSelectElement;
+    expect(reverted.value).toBe('card');
+    expect(
+      (
+        fixture.nativeElement.querySelector(
+          '.builder-invoices__apply',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 
   it('locks the payment method with an explainer for paid invoices (billing/12)', async () => {
