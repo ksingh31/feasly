@@ -58,12 +58,18 @@ describe('detectCoverageSignal', () => {
   });
 });
 
-import { pricingCoverageIssue, type PricingCoverageBounds } from './coverage';
+import {
+  pricingCoverageIssue,
+  type PricingCoverageBounds,
+  type PricingCoverageFacts,
+} from './coverage';
 
 /**
  * Pricing-coverage guard: lot size is NEVER a coverage issue (Karan,
- * 2026-09-28) — any lot prices, quoted off the house size. Only the
- * assessed value is checked, with the engine's whole-dollar rounding.
+ * 2026-09-28) — any lot prices, quoted off the house size. Checked, in
+ * precedence order: non-residential, unsupported property type (strict
+ * single-family-only, Karan 2026-10-02), assessed value. Blank/unknown
+ * zoning never blocks (fail open).
  */
 describe('pricingCoverageIssue', () => {
   const bounds: PricingCoverageBounds = {
@@ -73,49 +79,56 @@ describe('pricingCoverageIssue', () => {
     maxAssessedLandValue: 10000000,
   };
 
-  it('returns null for ordinary lots', () => {
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1200, assessedValue: 25000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 20000, assessedValue: 10000000, isNonResidential: false }, bounds)).toBeNull();
+  const facts = (overrides: Partial<PricingCoverageFacts> = {}): PricingCoverageFacts => ({
+    lotSqft: 5000,
+    assessedValue: 729000,
+    isNonResidential: false,
+    zoning: 'R-C1',
+    ...overrides,
+  });
+
+  it('returns null for ordinary single-family lots', () => {
+    expect(pricingCoverageIssue(facts(), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1200, assessedValue: 25000 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 20000, assessedValue: 10000000 }), bounds)).toBeNull();
+  });
+
+  it('keeps R-C1, R-C1S and R-C2 eligible (case-insensitive, whitespace-tolerant)', () => {
+    // R-C2 (duplex) is eligible — single-family homes do get built in
+    // duplex-zoned areas (Karan, 2026-10-02).
+    for (const zoning of ['R-C1', 'R-C1S', 'R-C2', 'r-c1', 'r-c2', '  R-C1S  ']) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBeNull();
+    }
   });
 
   it("never blocks on lot size — Karan's 21,577 sq ft lot prices (lot-size block bug, 2026-09-28)", () => {
-    expect(pricingCoverageIssue({ lotSqft: 21577, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 21577 }), bounds)).toBeNull();
   });
 
   it('never blocks on very large or very small lots', () => {
     // Supersedes the old 643,811 sq ft regression: no lot size may block.
     // (assessed values below are in range — only the lot varies.)
-    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1199, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 0, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: NaN, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
-    expect(pricingCoverageIssue({ lotSqft: 1199.4, assessedValue: 729000, isNonResidential: false }, bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 643811 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1199 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 0 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: NaN }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1199.4 }), bounds)).toBeNull();
   });
 
   it("flags missing/out-of-range assessed values as 'assessed-value'", () => {
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0, isNonResidential: false }, bounds)).toBe('assessed-value');
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 24999, isNonResidential: false }, bounds)).toBe(
-      'assessed-value',
-    );
-    expect(pricingCoverageIssue({ lotSqft: 5000, assessedValue: 10000001, isNonResidential: false }, bounds)).toBe(
-      'assessed-value',
-    );
+    expect(pricingCoverageIssue(facts({ assessedValue: 0 }), bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ assessedValue: 24999 }), bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ assessedValue: 10000001 }), bounds)).toBe('assessed-value');
   });
 
   it('still flags assessed value when the lot is also extreme (lot never wins)', () => {
-    expect(pricingCoverageIssue({ lotSqft: 643811, assessedValue: 0, isNonResidential: false }, bounds)).toBe(
-      'assessed-value',
-    );
+    expect(pricingCoverageIssue(facts({ lotSqft: 643811, assessedValue: 0 }), bounds)).toBe('assessed-value');
   });
 
   it("flags non-residential parcels as 'non-residential' (industrial/commercial)", () => {
-    expect(
-      pricingCoverageIssue(
-        { lotSqft: 452960, assessedValue: 729000, isNonResidential: true },
-        bounds,
-      ),
-    ).toBe('non-residential');
+    expect(pricingCoverageIssue(facts({ lotSqft: 452960, isNonResidential: true }), bounds)).toBe(
+      'non-residential',
+    );
   });
 
   it("non-residential takes precedence over the assessed-value issue (Karan's 12345 40 St SE industrial case)", () => {
@@ -123,13 +136,36 @@ describe('pricingCoverageIssue', () => {
     // cap — the user must see the specific commercial/industrial message,
     // not the generic can't-price card.
     expect(
-      pricingCoverageIssue(
-        { lotSqft: 452960, assessedValue: 61580000, isNonResidential: true },
-        bounds,
-      ),
+      pricingCoverageIssue(facts({ lotSqft: 452960, assessedValue: 61580000, isNonResidential: true }), bounds),
     ).toBe('non-residential');
+    expect(pricingCoverageIssue(facts({ assessedValue: 0, isNonResidential: true }), bounds)).toBe(
+      'non-residential',
+    );
+  });
+
+  it("flags R-CG and M-* zoning as 'unsupported-property-type'", () => {
+    for (const zoning of ['R-CG', 'M-C1', 'M-C2', 'M-CG', 'M-H1', 'M-H2', 'M-H3', 'M-X1', 'M-X2']) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBe('unsupported-property-type');
+    }
+  });
+
+  it('fails open on blank zoning and DC — never blocks on missing data', () => {
+    expect(pricingCoverageIssue(facts({ zoning: '' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: '   ' }), bounds)).toBeNull();
+    // Direct Control is common for new-community greenfield lots: eligible.
+    expect(pricingCoverageIssue(facts({ zoning: 'DC' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: 'dc' }), bounds)).toBeNull();
+  });
+
+  it("precedence: non-residential > unsupported-property-type > assessed-value (Karan, 2026-10-02)", () => {
+    // An M-C2 parcel whose assessed value also breaks the cap: the user
+    // sees the single-family message, not the generic can't-price card.
+    expect(pricingCoverageIssue(facts({ zoning: 'M-C2', assessedValue: 61580000 }), bounds)).toBe(
+      'unsupported-property-type',
+    );
+    // Commercial/industrial wins even on an unsupported designation.
     expect(
-      pricingCoverageIssue({ lotSqft: 5000, assessedValue: 0, isNonResidential: true }, bounds),
+      pricingCoverageIssue(facts({ zoning: 'M-X2', assessedValue: 0, isNonResidential: true }), bounds),
     ).toBe('non-residential');
   });
 });

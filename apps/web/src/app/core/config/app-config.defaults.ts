@@ -422,6 +422,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
       validationNonResidentialBody:
         'This looks like a commercial or industrial property — Feasly only prices residential Calgary homes right now.',
+      validationUnsupportedPropertyTypeBody:
+        'This property isn’t a single-family home — our estimator only quotes single-family new builds in Calgary right now.',
       validationBackLabel: '← Try a different address',
     },
     propertyCard: {
