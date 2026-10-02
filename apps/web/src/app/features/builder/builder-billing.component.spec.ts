@@ -372,6 +372,14 @@ describe('BuilderBillingComponent (billing/02)', () => {
     ) as HTMLSelectElement;
     select.value = 'e_transfer';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Apply the staged change; the PUT fails.
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-billing__apply',
+    ) as HTMLButtonElement;
+    apply.click();
     httpMock
       .expectOne(
         (r) =>
@@ -386,6 +394,8 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain(
       'We couldn’t save your default payment method. Please try again.',
     );
+    // Failure reverts the select to the saved value.
+    expect(select.value).toBe('card');
   });
 
   it('retries the default payment method load after an error (billing/12)', async () => {
