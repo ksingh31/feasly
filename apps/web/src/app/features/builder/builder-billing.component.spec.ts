@@ -353,7 +353,10 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(
       fixture.nativeElement.querySelector('.builder-billing__apply'),
     ).toBeFalsy();
-    expect(select.value).toBe('card');
+    const selectedOption = fixture.nativeElement.querySelector(
+      '#builder-default-method option:checked',
+    ) as HTMLOptionElement;
+    expect(selectedOption?.value).toBe('card');
   });
 
   it('shows the save-failed copy when the default-method PUT errors (billing/12)', async () => {
@@ -394,8 +397,12 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain(
       'We couldn’t save your default payment method. Please try again.',
     );
-    // Failure reverts the select to the saved value.
-    expect(select.value).toBe('card');
+    // Failure reverts the select to the saved value (the 'card' option
+    // is selected; the staged 'e_transfer' choice is discarded).
+    const selectedOption = fixture.nativeElement.querySelector(
+      '#builder-default-method option:checked',
+    ) as HTMLOptionElement;
+    expect(selectedOption?.value).toBe('card');
   });
 
   it('retries the default payment method load after an error (billing/12)', async () => {
