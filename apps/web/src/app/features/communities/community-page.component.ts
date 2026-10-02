@@ -24,7 +24,6 @@ import type {
 } from '@feasly/contracts';
 import type { CommunityProfilePageComponent } from './community-profile-page.component';
 import { toDisplayName } from './community-names';
-import { CommunityProfileCopyLoader } from './community-profile-copy-loader.service';
 
 interface TierRow {
   key: 'standard' | 'premium' | 'luxury';
@@ -86,7 +85,19 @@ export interface CommunityPageData {
  *
  * Returns null for unknown slugs (the component redirects to the 404).
  */
-export const communityPageResolver: ResolveFn<CommunityPageData | null> = async (route) => {
+export interface CommunityPageResolved {
+  readonly pageData: CommunityPageData;
+  /** Preloaded profile component class (only for type='profile'). Passed via
+   * resolver so ngOnInit can create it synchronously during SSR/prerender —
+   * dynamic import in ngOnInit doesn't complete before serialization. */
+  readonly profileComponent?: typeof import('./community-profile-page.component').CommunityProfilePageComponent;
+  /** Preloaded resolveProfileCopy fn (only for type='profile'). */
+  readonly resolveProfileCopy?: typeof import('./community-profile-page.component').resolveProfileCopy;
+  /** Preloaded raw profile copy (only for type='profile'). */
+  readonly profileCopyRaw?: import('@feasly/contracts').RawCommunityProfileCopy;
+}
+
+export const communityPageResolver: ResolveFn<CommunityPageResolved | null> = async (route) => {
   const slug = route.paramMap.get('slug') ?? '';
   // Validate the slug to prevent path traversal — only lowercase alphanumerics and hyphens.
   if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -94,7 +105,20 @@ export const communityPageResolver: ResolveFn<CommunityPageData | null> = async 
   }
   try {
     const mod = await import(`../../../content/data/community-pages/${slug}.json`);
-    return (mod.default ?? mod) as CommunityPageData;
+    const pageData = (mod.default ?? mod) as CommunityPageData;
+    if (pageData.type === 'profile') {
+      const [profileMod, copyMod] = await Promise.all([
+        import('./community-profile-page.component'),
+        import('./community-profile-copy.defaults'),
+      ]);
+      return {
+        pageData,
+        profileComponent: profileMod.CommunityProfilePageComponent,
+        resolveProfileCopy: profileMod.resolveProfileCopy,
+        profileCopyRaw: copyMod.DEFAULT_COMMUNITY_PROFILE_COPY,
+      };
+    }
+    return { pageData };
   } catch {
     return null;
   }
@@ -156,7 +180,6 @@ export class CommunityPageComponent implements OnInit {
    */
   private readonly profileHost = viewChild('profileHost', { read: ViewContainerRef });
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly profileCopyLoader = inject(CommunityProfileCopyLoader);
 
   /** Cost-data version for the meta tag (from the page-data JSON). */
   costDataVersion = '';
@@ -173,7 +196,8 @@ export class CommunityPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const pageData = this.route.snapshot.data['pageData'] as CommunityPageData | null;
+    const resolved = this.route.snapshot.data['pageData'] as CommunityPageResolved | null;
+    const pageData = resolved?.pageData ?? null;
     if (!pageData) {
       // Unknown slug — the branded 404 route (path is a route, not a tunable).
       void this.router.navigate([NOT_FOUND_PATH]);
@@ -191,7 +215,8 @@ export class CommunityPageComponent implements OnInit {
     this.buildSqft = pageData.range?.buildSqft ?? 0;
 
     if (pageData.type === 'profile') {
-      void this.renderProfile(view, pageData);
+      // resolved is non-null here (pageData came from it).
+      this.renderProfileSync(view, pageData, resolved as CommunityPageResolved);
       return;
     }
     this.community = view;
@@ -261,17 +286,23 @@ export class CommunityPageComponent implements OnInit {
   }
 
   /**
-   * Renders the property-profile variant: lazily loads the profile component
-   * and its copy (neither ships with build-guide pages), builds the view
-   * model from the page-data JSON (mix + nearby are already in the per-slug
-   * file — no full-dataset imports), and sets profile SEO (honest titles —
-   * no build-cost claims) with FAQPage + LocalBusiness JSON-LD.
+   * Renders the property-profile variant synchronously (for SSR/prerender).
+   * The profile component class and copy are preloaded by the resolver —
+   * no dynamic import here, so the content exists before serialization.
+   * Builds the view model from the page-data JSON (mix + nearby are already
+   * in the per-slug file), and sets profile SEO with FAQPage JSON-LD.
    */
-  private async renderProfile(view: CommunityView, pageData: CommunityPageData): Promise<void> {
-    const [{ CommunityProfilePageComponent, resolveProfileCopy }, profileCopyRaw] = await Promise.all([
-      import('./community-profile-page.component'),
-      this.profileCopyLoader.load(),
-    ]);
+  private renderProfileSync(
+    view: CommunityView,
+    pageData: CommunityPageData,
+    resolved: CommunityPageResolved,
+  ): void {
+    const ProfileComponent = resolved.profileComponent;
+    const resolveFn = resolved.resolveProfileCopy;
+    const profileCopyRaw = resolved.profileCopyRaw;
+    if (!ProfileComponent || !resolveFn || !profileCopyRaw) {
+      return;
+    }
     const mix = pageData.mix;
     const nearby = pageData.nearby.map((n) => ({
       slug: n.slug,
@@ -287,7 +318,7 @@ export class CommunityPageComponent implements OnInit {
       mostCommonType: (mix?.mostCommonType as CommunityProfileView['mostCommonType']) ?? 'multiFamily',
       nearby,
     };
-    const resolved = resolveProfileCopy(
+    const resolvedCopy = resolveFn(
       {
         ...profileCopyRaw,
         // Reuse the guide's assessed-value label/note — same figure semantics.
@@ -297,17 +328,17 @@ export class CommunityPageComponent implements OnInit {
       profileView,
     );
     this.profileView = profileView;
-    this.profileCopy = resolved;
-    // Render the @if branch so the anchor exists, then create the lazily
-    // loaded profile component with its inputs (works in SSR/prerender too).
+    this.profileCopy = resolvedCopy;
+    // Render the @if branch so the anchor exists, then create the preloaded
+    // profile component with its inputs (synchronous — works in prerender).
     this.cdr.detectChanges();
     const host = this.profileHost();
     if (!host) {
       return;
     }
-    const ref = host.createComponent(CommunityProfilePageComponent);
+    const ref = host.createComponent(ProfileComponent);
     ref.setInput('view', profileView);
-    ref.setInput('copy', resolved);
+    ref.setInput('copy', resolvedCopy);
 
     const title = profileCopyRaw.titleTemplate.replace('{name}', view.displayName);
     const description = profileCopyRaw.descriptionTemplate
@@ -320,7 +351,7 @@ export class CommunityPageComponent implements OnInit {
     });
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
     const pagePath = `/communities/${view.slug}/`;
-    this.seo.setJsonLdScript('faq', buildFaqPageSchema(resolved.faqItems));
+    this.seo.setJsonLdScript('faq', buildFaqPageSchema(resolvedCopy.faqItems));
     this.seo.setJsonLdScript(
       'business',
       buildLocalBusinessSchema(this.seo.getSiteUrl(), `${this.seo.getSiteUrl()}${pagePath}`),

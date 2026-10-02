@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
-import { CommunityProfileCopyLoader } from './community-profile-copy-loader.service';
+import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
 import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
 
@@ -159,19 +159,25 @@ describe('CommunityPageComponent', () => {
   async function setup(slug: string): Promise<void> {
     TestBed.resetTestingModule();
     const navigate = vi.fn();
+    const pageData = mockPageData(slug) as { type: string };
+    // Mirror the resolver: profile slugs get the preloaded component + copy.
+    const resolved =
+      pageData.type === 'profile'
+        ? {
+            pageData,
+            profileComponent: CommunityProfilePageComponent,
+            resolveProfileCopy,
+            profileCopyRaw: mockProfileCopy,
+          }
+        : { pageData };
     TestBed.configureTestingModule({
       imports: [CommunityPageComponent],
       providers: [
         provideRouter([]),
         { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
-        // Profile copy is lazy-loaded in production; substitute the mock here.
-        {
-          provide: CommunityProfileCopyLoader,
-          useValue: { load: () => Promise.resolve(mockProfileCopy) },
-        },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { data: { pageData: mockPageData(slug) } } },
+          useValue: { snapshot: { data: { pageData: resolved } } },
         },
         // SeoService subscribes to router.events in its constructor — the stub
         // must expose an events observable (empty here; no navigation in these tests).
