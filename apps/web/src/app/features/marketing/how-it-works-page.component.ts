@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
@@ -22,7 +22,7 @@ import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
 @Component({
   selector: 'app-how-it-works-page',
   standalone: true,
-  imports: [SiteFooterComponent, SiteNavComponent],
+  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
   templateUrl: './how-it-works-page.component.html',
   styleUrl: './marketing.scss',
 })

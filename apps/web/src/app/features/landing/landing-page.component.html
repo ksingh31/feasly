@@ -27,6 +27,13 @@
       <div class="coverage-block" role="alert">
         <p class="coverage-heading">{{ previewCopy.validationHeading }}</p>
         <p>{{ coverageMessage(block) }}</p>
+        @if (block.issue === 'unsupported-property-type') {
+          <p>
+            <a routerLink="/guides/calgary-zoning-explained" fragment="why-single-family-only">{{
+              previewCopy.validationZoningGuideLink
+            }}</a>
+          </p>
+        }
         <button class="coverage-cta" type="button" (click)="tryDifferentAddress()">
           {{ previewCopy.validationBackLabel }}
         </button>

@@ -340,6 +340,25 @@ describe('LandingPageComponent', () => {
       expect(card.textContent).toContain('single-family');
     });
 
+    it('links the zoning guide from the unsupported-property-type block', () => {
+      component.onSelected({ ...fakeProperty, zoning: 'M-C2' });
+      fixture.detectChanges();
+      const link = fixture.nativeElement.querySelector(
+        '.coverage-block a[href^="/guides/calgary-zoning-explained"]',
+      ) as HTMLAnchorElement | null;
+      expect(link).not.toBeNull();
+      expect(link?.getAttribute('href')).toContain('#why-single-family-only');
+      expect(link?.textContent).toContain('Learn about Calgary zoning');
+    });
+
+    it('does not link the zoning guide for other coverage issues', () => {
+      component.onSelected({ ...fakeProperty, isNonResidential: true });
+      fixture.detectChanges();
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.querySelector('a[href^="/guides/calgary-zoning-explained"]')).toBeNull();
+    });
+
     it('still shows the commercial/industrial message for non-residential parcels', () => {
       component.onSelected({ ...fakeProperty, isNonResidential: true });
       fixture.detectChanges();

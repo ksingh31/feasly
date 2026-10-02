@@ -24,6 +24,14 @@
     <p>{{ copy.mathNoteBody }}</p>
   </aside>
 
+  <aside class="math-note" [attr.aria-label]="copy.zoningCardTitle">
+    <h2>{{ copy.zoningCardTitle }}</h2>
+    <p>{{ copy.zoningCardBody }}</p>
+    <p>
+      <a routerLink="/guides/calgary-zoning-explained">{{ copy.zoningCardCta }}</a>
+    </p>
+  </aside>
+
   <div class="cta-row">
     <button type="button" class="cta" (click)="startEstimate('new-build')">{{ copy.ctaNewBuild }}</button>
     <button type="button" class="cta cta-secondary" (click)="startEstimate('renovation')">{{ copy.ctaReno }}</button>

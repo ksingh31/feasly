@@ -77,6 +77,13 @@ describe('HowItWorksPageComponent', () => {
     expect(text).toContain('Real math, not guesses');
   });
 
+  it('renders the zoning cross-link card to the zoning guide', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Why we ask about your address');
+    const link = el.querySelector('a[href="/guides/calgary-zoning-explained"]');
+    expect(link?.textContent).toContain('Learn about Calgary zoning');
+  });
+
   it('preselects the project type via NGXS when a CTA is clicked', () => {
     const buttons = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button.cta'),

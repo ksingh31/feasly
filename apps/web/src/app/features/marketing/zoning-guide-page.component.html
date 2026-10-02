@@ -1,0 +1,90 @@
+<app-site-nav />
+<main class="marketing" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede">{{ copy.lede }}</p>
+
+  <section aria-labelledby="zoning-intro">
+    <h2 class="guide-h2" id="zoning-intro">{{ copy.introTitle }}</h2>
+    <p class="guide-body">{{ copy.introBody }}</p>
+  </section>
+
+  <section aria-labelledby="zoning-table">
+    <h2 class="guide-h2" id="zoning-table">{{ copy.tableTitle }}</h2>
+    <p class="guide-body">{{ copy.tableIntro }}</p>
+    <table class="guide-table">
+      <caption class="sr-only">{{ copy.tableTitle }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ copy.tableHeaders.zone }}</th>
+          <th scope="col">{{ copy.tableHeaders.name }}</th>
+          <th scope="col">{{ copy.tableHeaders.allows }}</th>
+          <th scope="col">{{ copy.tableHeaders.build }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (zone of copy.zones; track zone.code) {
+          <tr>
+            <th scope="row">{{ zone.code }}</th>
+            <td>{{ zone.name }}</td>
+            <td>{{ zone.allows }}</td>
+            <td>{{ zone.build }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="math-note" aria-label="{{ copy.recentTitle }}">
+    <h2>{{ copy.recentTitle }}</h2>
+    <p>{{ copy.recentBody }}</p>
+  </aside>
+
+  <section aria-labelledby="zoning-lookup">
+    <h2 class="guide-h2" id="zoning-lookup">{{ copy.lookupTitle }}</h2>
+    <p class="guide-body">{{ copy.lookupBody }}</p>
+  </section>
+
+  <section aria-labelledby="zoning-faq">
+    <h2 class="guide-h2" id="zoning-faq">{{ copy.faqTitle }}</h2>
+    <div class="faq-list">
+      @for (item of copy.faqs; track item.q; let i = $index) {
+        <div class="faq-item" [class.open]="openIndex() === i" [attr.id]="item.anchor || null">
+          <button
+            type="button"
+            class="faq-q"
+            [attr.aria-expanded]="openIndex() === i"
+            [attr.aria-controls]="'zoning-faq-a-' + i"
+            (click)="toggle(i)"
+          >
+            {{ item.q }}
+            <span class="faq-chevron" aria-hidden="true">›</span>
+          </button>
+          <div class="faq-a" [id]="'zoning-faq-a-' + i" [hidden]="openIndex() !== i">
+            <p>{{ item.a }}</p>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section aria-labelledby="zoning-sources">
+    <h2 class="guide-h2" id="zoning-sources">{{ copy.sourceTitle }}</h2>
+    <p class="guide-body">
+      {{ copy.sourceBody }}
+      <a [href]="copy.sourceUrl" target="_blank" rel="noopener">{{ copy.sourceLinkLabel }}</a>
+    </p>
+    <p class="guide-body">{{ copy.verifyNote }}</p>
+  </section>
+
+  <div class="cta-row">
+    <button type="button" class="cta" (click)="startEstimate()">{{ copy.ctaEstimate }}</button>
+    <a class="cta cta-secondary" routerLink="/guides/cost-to-build-a-house-calgary">{{
+      copy.ctaCostGuide
+    }}</a>
+  </div>
+</main>
+<app-site-footer />

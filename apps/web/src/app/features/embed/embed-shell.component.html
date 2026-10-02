@@ -44,8 +44,20 @@
       </button>
       @if (coverageIssue() !== null) {
         <!-- Early coverage guard: the picked lot can't be priced. The funnel
-             never starts; pick another address instead. -->
-        <p class="embed-coverage-note" role="alert">{{ coverageMessage() }}</p>
+             never starts; pick another address instead. The zoning guide opens
+             in a new tab — the embed itself lives in a builder's iframe, so
+             in-frame navigation would strand the widget. -->
+        <p class="embed-coverage-note" role="alert">
+          {{ coverageMessage() }}
+          @if (coverageIssue() === 'unsupported-property-type') {
+            <a
+              href="/guides/calgary-zoning-explained#why-single-family-only"
+              target="_blank"
+              rel="noopener"
+              >{{ previewCopy.validationZoningGuideLink }}</a
+            >
+          }
+        </p>
       }
       @if (hasContact()) {
         <p class="embed-contact">

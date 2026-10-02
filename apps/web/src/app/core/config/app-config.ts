@@ -846,6 +846,12 @@ export interface AppConfig {
        * (landing + embed).
        */
       validationUnsupportedPropertyTypeBody: string;
+      /**
+       * Zoning-guide cross-link (SEO guides): shown under the
+       * unsupported-property-type message, linking to the
+       * "why Feasly only quotes single-family homes" FAQ anchor.
+       */
+      validationZoningGuideLink: string;
       validationBackLabel: string;
     };
     /** Property card (shared) copy. */
@@ -1128,6 +1134,8 @@ export interface AppConfig {
       faq: string;
       pillarGuideTitle: string;
       pillarGuide: string;
+      zoningGuideTitle: string;
+      zoningGuide: string;
       developersTitle: string;
       developers: string;
       communitiesTitle: string;
@@ -1184,6 +1192,10 @@ export interface AppConfig {
         mathNoteBody: string;
         ctaNewBuild: string;
         ctaReno: string;
+        /** Zoning cross-link card (SEO guides): why the address/zoning matters. */
+        zoningCardTitle: string;
+        zoningCardBody: string;
+        zoningCardCta: string;
       };
       faq: {
         eyebrow: string;
@@ -1220,6 +1232,36 @@ export interface AppConfig {
         mathNoteBody: string;
         ctaEstimate: string;
         ctaCommunities: string;
+      };
+      /**
+       * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
+       * guide at `/guides/calgary-zoning-explained`. Zone facts follow the
+       * City of Calgary Land Use Bylaw 1P2007 — no invented designations.
+       */
+      zoningGuide: {
+        eyebrow: string;
+        title: string;
+        lede: string;
+        introTitle: string;
+        introBody: string;
+        tableTitle: string;
+        tableIntro: string;
+        tableHeaders: { zone: string; name: string; allows: string; build: string };
+        zones: { code: string; name: string; allows: string; build: string }[];
+        recentTitle: string;
+        recentBody: string;
+        lookupTitle: string;
+        lookupBody: string;
+        faqTitle: string;
+        /** `anchor` is optional: deep-link target for cross-page links. */
+        faqs: { q: string; a: string; anchor?: string }[];
+        sourceTitle: string;
+        sourceBody: string;
+        sourceLinkLabel: string;
+        sourceUrl: string;
+        verifyNote: string;
+        ctaEstimate: string;
+        ctaCostGuide: string;
       };
       /**
        * Community index (SEO-05). Copy for `/communities/` and the landing
@@ -1310,6 +1352,8 @@ export interface AppConfig {
        * lazy-loaded with the profile variant (Lighthouse script-size budget).
        * The shape is CommunityProfileCopy in `@feasly/contracts`.
        */
+      /** One-link cross-reference to the zoning explainer guide (SEO guides). */
+      zoningGuideLink: string;
     };
     /**
      * Builder portal wiring. Only infrastructure config lives in the root
