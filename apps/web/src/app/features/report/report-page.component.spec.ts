@@ -619,6 +619,15 @@ describe('ReportPageComponent', () => {
         expect(body).not.toContain('10–14 months');
         expect(body).toContain('your builder can confirm a timeline');
       });
+
+      it('keeps the how-we-calculate h2 inline with the disclosure marker (bug 2026-10-02)', () => {
+        // The block-level h2 inside <summary> used to drop below the native
+        // marker on desktop; .disclosure-heading (display: inline-block)
+        // keeps it on the same line as the marker icon.
+        const h2 = fixture.nativeElement.querySelector('.howcalc summary h2');
+        expect(h2).not.toBeNull();
+        expect(h2.classList.contains('disclosure-heading')).toBe(true);
+      });
     });
 
     it('renders exactly the three D-01 buckets in the breakdown (land excluded)', () => {      const items = [...fixture.nativeElement.querySelectorAll('.bucket-legend li')];
