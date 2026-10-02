@@ -843,6 +843,75 @@ describe('retryCharge (BILL-03)', () => {
       code: ErrorCodes.BILLING_NOT_CONFIGURED,
     });
   });
+
+  it('409s on a manual-method failed invoice and creates NO Stripe charge', async () => {
+    const tenantKey = 'retry-builder-manual';
+    const { commission, stripe, invoiceId } =
+      await seedFailedInvoice(tenantKey);
+    // Staff switches the failed invoice to manual (cheque) — the billing/12
+    // flow. The retry must respect the switch, not charge the card anyway.
+    const manual = await commission.setInvoicePaymentMethod(
+      tenantKey,
+      invoiceId,
+      'cheque',
+    );
+    expect(manual.paymentMethod).toBe('cheque');
+
+    const piCallsBefore = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ).length;
+    await expect(commission.retryCharge(invoiceId)).rejects.toMatchObject({
+      code: ErrorCodes.CONFLICT,
+      message: expect.stringContaining('manual payment'),
+    });
+    const piCallsAfter = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    ).length;
+    // The refused retry created no Stripe charge.
+    expect(piCallsAfter).toBe(piCallsBefore);
+
+    // The invoice is untouched: still failed, retry budget not consumed.
+    const invoice = await commission.getById(invoiceId);
+    expect(invoice.status).toBe('failed');
+    expect(invoice.retryCount).toBe(0);
+  });
+
+  it('still retries a card-method failed invoice (no regression)', async () => {
+    const { commission, stripe, invoiceId } =
+      await seedFailedInvoice('retry-builder-card');
+    const retried = await commission.retryCharge(invoiceId);
+    expect(retried.status).toBe('finalized');
+    expect(retried.retryCount).toBe(1);
+    const piCalls = stripe.calls.filter(
+      (c) => (c as { op: string }).op === 'createOffSessionPaymentIntent',
+    );
+    // Seed finalize (1) + this retry (1).
+    expect(piCalls).toHaveLength(2);
+  });
+
+  it('finalizeInvoice 409s on a manual-method invoice (defense-in-depth)', async () => {
+    const tenantKey = 'retry-builder-manual-finalize';
+    const { commission, attribution } = newServices(testDb);
+    await seedTenant(testDb, tenantKey);
+    const attributionId = await seedAttribution(
+      testDb,
+      attribution,
+      tenantKey,
+    );
+    const draft = await commission.createDraftInvoice(attributionId);
+    const inReview = await commission.submitForReview(draft.id);
+    await commission.setInvoicePaymentMethod(
+      tenantKey,
+      inReview.id,
+      'e_transfer',
+    );
+    await expect(
+      commission.finalizeInvoice(inReview.id),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.CONFLICT,
+      message: expect.stringContaining('manual payment'),
+    });
+  });
 });
 
 describe('per-builder commission rate (billing/08)', () => {

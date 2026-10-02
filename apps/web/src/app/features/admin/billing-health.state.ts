@@ -222,13 +222,23 @@ export class BillingHealthState {
         // Reload the dashboard so the dunning queue shows the fresh status.
         ctx.dispatch(new LoadBillingHealth());
       }),
-      catchError(() => {
+      catchError((error: unknown) => {
+        // Prefer the server's message (e.g. the manual-method 409 explains
+        // the retry was refused and what to do instead); fall back to the
+        // generic copy when the failure has no useful message.
+        const rawMessage = (error as { message?: unknown } | null)?.message;
+        const serverMessage: string | null =
+          typeof rawMessage === 'string' && rawMessage.length > 0
+            ? rawMessage
+            : null;
         ctx.patchState({
           retryingInvoiceId: null,
           retryFeedback: {
             invoiceId: action.invoiceId,
             ok: false,
-            message: 'Retry failed. Check the card on file and try again.',
+            message:
+              serverMessage ??
+              'Retry failed. Check the card on file and try again.',
           },
         });
         return of(null);

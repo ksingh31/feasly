@@ -397,6 +397,27 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
+/**
+ * billing/12 + Karan (2026-10-01): choosing a manual payment method pauses
+ * the Stripe auto-charge. Every charge path must refuse non-card invoices —
+ * charging a card after staff deliberately switched an invoice to manual
+ * risks double-collection (e.g. cheque + card).
+ */
+function requireCardPaymentMethod(
+  invoiceId: string,
+  paymentMethod: string,
+): void {
+  if (paymentMethod === 'card') {
+    return;
+  }
+  throw new HttpError(
+    409,
+    ErrorCodes.CONFLICT,
+    `Invoice "${invoiceId}" is on manual payment (${paymentMethod}) — ` +
+      'card charges are paused. Mark it paid once the payment arrives.',
+  );
+}
+
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
   leadName: string,
@@ -935,6 +956,10 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is '${row.status}' — only 'in_review' can be finalized`,
         );
       }
+      // Defense-in-depth: the reviewer timer only feeds card invoices via
+      // findDueReviews, but finalizeInvoice owns the no-manual-charge
+      // invariant itself so no future caller can bypass it.
+      requireCardPaymentMethod(invoiceId, row.paymentMethod);
       const customerId = await stripe.getCustomerId(row.tenantKey);
       if (!customerId) {
         throw new HttpError(
@@ -982,6 +1007,10 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is '${row.status}' — only 'failed' can be retried`,
         );
       }
+      // The retry must respect the invoice's current payment method: staff
+      // may have switched a failed invoice to manual (e.g. cheque) — a card
+      // retry here would double-collect.
+      requireCardPaymentMethod(invoiceId, row.paymentMethod);
       const maxRetries = deps.billing.maxChargeRetries ?? 3;
       if (row.retryCount >= maxRetries) {
         throw new HttpError(
