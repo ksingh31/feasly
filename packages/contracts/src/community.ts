@@ -20,3 +20,31 @@ export interface CommunityAggregatesFile {
   readonly costDataVersion: string;
   readonly communities: readonly CommunityAggregate[];
 }
+
+/**
+ * Community page type. `build-guide` communities get the single-family
+ * build-cost guide; `profile` communities (condo/apartment-dominated, where
+ * a per-house build figure would be misleading) get the property-values
+ * profile instead.
+ */
+export type CommunityType = 'build-guide' | 'profile';
+
+/** Dwelling-mix buckets, from City assessment `sub_property_use` codes. */
+export type DwellingBucket = 'singleDetached' | 'semiDuplex' | 'multiFamily';
+
+export interface CommunityDwellingMix {
+  /** kebab-case, matches community-aggregates.json. */
+  readonly slug: string;
+  readonly communityType: CommunityType;
+  /** Residential dwelling assessment records (excludes condo common elements, parking, storage). */
+  readonly dwellingUnits: number;
+  readonly mix: Readonly<Record<DwellingBucket, number>>;
+  readonly mostCommonType: DwellingBucket;
+}
+
+export interface CommunityMixFile {
+  readonly generatedAt: string;
+  /** Assessment roll year the mix was computed from, e.g. "2026". */
+  readonly assessmentYear: string;
+  readonly communities: readonly CommunityDwellingMix[];
+}
