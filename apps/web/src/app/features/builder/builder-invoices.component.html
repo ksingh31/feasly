@@ -88,25 +88,62 @@
                 <label class="sr-only" for="invoice-payment-method">{{
                   copy.invoicesPaymentMethodRow
                 }}</label>
-                <!-- [selected] on the option (not [value] on the select):
-                     Angular evaluates the select binding before @for options
-                     exist on first render, so it never takes effect;
-                     option-level selectedness is order-safe. -->
-                <select
-                  id="invoice-payment-method"
-                  class="builder-invoices__select"
-                  (change)="onInvoicePaymentMethodChange(invoice, $event)"
-                  [disabled]="paymentMethodSaveStatus() === 'saving'"
-                >
-                  @for (method of paymentMethodOptions(); track method) {
-                    <option
-                      [value]="method"
-                      [selected]="invoice.paymentMethod === method"
+                <!-- Method changes are staged, never auto-saved: the
+                     builder picks a method, then confirms with Apply
+                     (Karan 2026-10-02). [selected] on the option (not
+                     [value] on the select): Angular evaluates the select
+                     binding before @for options exist on first render, so
+                     it never takes effect; option-level selectedness is
+                     order-safe. -->
+                <div class="builder-invoices__method-row">
+                  <select
+                    id="invoice-payment-method"
+                    class="builder-invoices__select builder-invoices__select--inline"
+                    (change)="onInvoicePaymentMethodSelect(invoice, $event)"
+                    [disabled]="paymentMethodSaveStatus() === 'saving'"
+                  >
+                    @for (method of paymentMethodOptions(); track method) {
+                      <option
+                        [value]="method"
+                        [selected]="displayedPaymentMethod(invoice) === method"
+                      >
+                        {{ methodLabel(method) }}
+                      </option>
+                    }
+                  </select>
+                  <button
+                    type="button"
+                    class="builder-invoices__apply"
+                    (click)="applyInvoicePaymentMethod(invoice)"
+                    [disabled]="
+                      !canApplyPaymentMethod(invoice) ||
+                      paymentMethodSaveStatus() === 'saving'
+                    "
+                  >
+                    {{
+                      paymentMethodSaveStatus() === 'saving'
+                        ? copy.invoicesPaymentMethodApplying
+                        : copy.invoicesPaymentMethodApply
+                    }}
+                  </button>
+                  @if (
+                    canApplyPaymentMethod(invoice) &&
+                    paymentMethodSaveStatus() !== 'saving'
+                  ) {
+                    <button
+                      type="button"
+                      class="builder-invoices__reset"
+                      (click)="resetPendingPaymentMethod()"
                     >
-                      {{ methodLabel(method) }}
-                    </option>
+                      {{ copy.invoicesPaymentMethodReset }}
+                    </button>
                   }
-                </select>
+                </div>
+                @if (paymentMethodSavedFlash()) {
+                  <p class="builder-invoices__saved" role="status">
+                    {{ copy.invoicesPaymentMethodSaved }}
+                  </p>
+                }
                 @if (manualMethodNote(invoice); as methodNote) {
                   <p class="builder-invoices__note" role="note">
                     {{ methodNote }}

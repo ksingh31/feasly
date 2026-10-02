@@ -37,6 +37,63 @@
   margin-bottom: 0.5rem;
 }
 
+/* Apply flow (Karan 2026-10-02): the select stages a choice; Apply
+   confirms it. The row wraps so select + Apply never overflow at 390px. */
+.builder-invoices__method-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.builder-invoices__select--inline {
+  flex: 1 1 13rem;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.builder-invoices__apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-accent, #a8761a);
+  border-radius: 0.375rem;
+  background: var(--color-accent, #a8761a);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.builder-invoices__reset {
+  background: none;
+  border: none;
+  padding: 0.5rem 0.25rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: inherit;
+  min-height: 44px;
+}
+
+.builder-invoices__saved {
+  margin: 0 0 0.5rem;
+  color: #2e7d32;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .builder-invoices__alert-text {
   margin: 0.5rem 0 0;
   color: #a02323;
