@@ -221,7 +221,7 @@
     @if (unlocked()) {
       <section class="card howcalc" [attr.aria-label]="copy.howWeCalculateTitle">
         <details>
-          <summary><h2>{{ copy.howWeCalculateTitle }}</h2></summary>
+          <summary><h2 class="disclosure-heading">{{ copy.howWeCalculateTitle }}</h2></summary>
           <ul>
             @for (item of copy.howWeCalculateItems; track item) {
               <li>{{ item }}</li>

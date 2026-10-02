@@ -169,3 +169,12 @@ app-terms-page > main {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Disclosure headings ────────────────────── */
+/* Common fix for <details>/<summary> accordions whose summary pairs the
+   native disclosure marker with a block-level heading: without this the
+   heading drops below the marker. Apply `.disclosure-heading` to the
+   heading element inside such summaries only. */
+.disclosure-heading {
+  display: inline-block;
+}
