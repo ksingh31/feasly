@@ -226,12 +226,11 @@ export class BillingHealthState {
         // Prefer the server's message (e.g. the manual-method 409 explains
         // the retry was refused and what to do instead); fall back to the
         // generic copy when the failure has no useful message.
-        const serverMessage =
-          typeof (error as { message?: unknown } | null)?.message ===
-            'string' &&
-          ((error as { message: string }).message.length > 0
-            ? (error as { message: string }).message
-            : null);
+        const rawMessage = (error as { message?: unknown } | null)?.message;
+        const serverMessage: string | null =
+          typeof rawMessage === 'string' && rawMessage.length > 0
+            ? rawMessage
+            : null;
         ctx.patchState({
           retryingInvoiceId: null,
           retryFeedback: {
