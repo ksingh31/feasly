@@ -70,4 +70,19 @@ export class CommunityService {
   bySlug(slug: string): CommunityDescriptor | undefined {
     return CommunityService.COMMUNITIES.find((c) => c.slug === slug);
   }
+
+  /**
+   * Look up a community by City `comm_name` (undefined when unknown).
+   *
+   * City names arrive as SCREAMING_CASE ("BELTLINE", "MCKENZIE TOWNE",
+   * "DOUGLASDALE/GLEN"); matching is case-insensitive so both raw API
+   * values and Title Case display names resolve. Used by the estimator's
+   * coverage redirect: a rejected address lands on its community's profile
+   * page instead of a dead-end message.
+   */
+  byName(name: string): CommunityDescriptor | undefined {
+    const needle = name.trim().toLowerCase();
+    if (!needle) return undefined;
+    return CommunityService.COMMUNITIES.find((c) => c.name.toLowerCase() === needle);
+  }
 }
