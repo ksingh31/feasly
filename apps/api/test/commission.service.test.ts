@@ -1909,21 +1909,59 @@ describe('builder payment methods (billing/12)', () => {
     ).rejects.toMatchObject({ status: 404, code: ErrorCodes.NOT_FOUND });
   });
 
-  it('409s once the invoice is finalized, paid, or disputed', async () => {
+  it('changes the payment method on an unpaid finalized invoice (Karan: every unpaid invoice is changeable)', async () => {
     const { commission, invoice } =
       await seedDraftInvoice('payinv-builder-5');
     const inReview = await commission.submitForReview(invoice.id);
     const finalized = await commission.finalizeInvoice(inReview.id);
+    expect(finalized.status).toBe('finalized');
+
+    const updated = await commission.setInvoicePaymentMethod(
+      'payinv-builder-5',
+      finalized.id,
+      'cheque',
+    );
+    expect(updated.paymentMethod).toBe('cheque');
+    expect(updated.status).toBe('finalized');
+
+    const events = await testDb.db
+      .select({ payload: billingEvents.payload })
+      .from(billingEvents)
+      .where(
+        and(
+          eq(billingEvents.entityId, invoice.id),
+          eq(billingEvents.eventType, 'invoice.payment_method_changed'),
+        ),
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload as Record<string, unknown>).toMatchObject({
+      from: 'card',
+      to: 'cheque',
+      autoChargePaused: true,
+    });
+  });
+
+  it('409s once the invoice is paid, void, or disputed', async () => {
+    const { commission, invoice } =
+      await seedDraftInvoice('payinv-builder-6');
+    const inReview = await commission.submitForReview(invoice.id);
+    const paid = await commission.markPaidManually(inReview.id, {
+      paymentMethod: 'cheque',
+      reference: 'CHQ-1',
+      paidAt: new Date('2026-10-01T12:00:00-06:00'),
+      adminEmail: null,
+    });
+    expect(paid.status).toBe('paid');
     await expect(
       commission.setInvoicePaymentMethod(
-        'payinv-builder-5',
-        finalized.id,
-        'cheque',
+        'payinv-builder-6',
+        paid.id,
+        'e_transfer',
       ),
     ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
 
     const { commission: commission2, invoice: invoice2 } =
-      await seedDraftInvoice('payinv-builder-6');
+      await seedDraftInvoice('payinv-builder-7');
     const inReview2 = await commission2.submitForReview(invoice2.id);
     const disputed = await commission2.disputeInvoice(
       inReview2.id,
@@ -1931,8 +1969,18 @@ describe('builder payment methods (billing/12)', () => {
     );
     await expect(
       commission2.setInvoicePaymentMethod(
-        'payinv-builder-6',
+        'payinv-builder-7',
         disputed.id,
+        'cheque',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
+
+    const voided = await commission2.resolveDispute(disputed.id, 'void');
+    expect(voided.status).toBe('void');
+    await expect(
+      commission2.setInvoicePaymentMethod(
+        'payinv-builder-7',
+        voided.id,
         'cheque',
       ),
     ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
