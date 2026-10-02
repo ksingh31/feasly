@@ -1,6 +1,16 @@
-import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { DatePipe, DOCUMENT } from '@angular/common';
+import {
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { fromEvent } from 'rxjs';
 import { Store } from '@ngxs/store';
 import type {
   BillingHealthDunningInvoice,
@@ -14,6 +24,15 @@ import {
   type ManageInvoiceInput,
 } from './admin-manage-invoice.component';
 import { formatCentsToCad } from '../../shared/utils/money';
+
+/**
+ * Focusable controls inside the manage-invoice dialog. Mirrors the
+ * lead-detail modal's selector; deliberately no offsetParent filter so it
+ * stays testable under jsdom, where offsetParent is always null.
+ */
+const MANAGE_DIALOG_FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+  'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Billing-health dashboard (billing/03 follow-on — `/admin/billing`,
@@ -80,6 +99,26 @@ export class AdminBillingComponent implements OnInit {
   /** Invoice open in the manage modal, or null. */
   protected readonly managedInvoice = signal<ManageInvoiceInput | null>(null);
 
+  private readonly document = inject(DOCUMENT);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  /** The manage dialog wrapper (role=dialog); present only while open. */
+  private readonly manageDialog =
+    viewChild<ElementRef<HTMLElement>>('manageDialog');
+
+  /** Button that opened the manage dialog — focus returns here on close. */
+  private manageInvoker: HTMLElement | null = null;
+
+  constructor() {
+    // Esc must close the dialog wherever focus is (a keydown binding on
+    // the dialog div only fired when focus was already inside — which
+    // never happened on open), and Tab must cycle inside the dialog
+    // while it is open. One document-level listener, no-op when closed.
+    fromEvent<KeyboardEvent>(this.document, 'keydown')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => this.onManageDialogKeydown(event));
+  }
+
   ngOnInit(): void {
     this.store
       .dispatch(new LoadBillingHealth())
@@ -105,7 +144,11 @@ export class AdminBillingComponent implements OnInit {
   }
 
   /** Open the manage modal for an in-review invoice. */
-  protected openManageInReview(invoice: BillingHealthInReviewInvoice): void {
+  protected openManageInReview(
+    invoice: BillingHealthInReviewInvoice,
+    event?: Event,
+  ): void {
+    this.captureManageInvoker(event);
     this.managedInvoice.set({
       id: invoice.id,
       tenantKey: invoice.tenantKey,
@@ -117,10 +160,15 @@ export class AdminBillingComponent implements OnInit {
       reviewDueAt: invoice.reviewDueAt,
       status: 'in_review',
     });
+    this.finalizeManageOpen();
   }
 
   /** Open the manage modal from a dunning row (failed charge paid offline). */
-  protected openManageDunning(invoice: BillingHealthDunningInvoice): void {
+  protected openManageDunning(
+    invoice: BillingHealthDunningInvoice,
+    event?: Event,
+  ): void {
+    this.captureManageInvoker(event);
     this.managedInvoice.set({
       id: invoice.id,
       tenantKey: invoice.tenantKey,
@@ -132,17 +180,112 @@ export class AdminBillingComponent implements OnInit {
       reviewDueAt: null,
       status: 'failed',
     });
+    this.finalizeManageOpen();
   }
 
+  /**
+   * Render the freshly opened dialog and move focus into it, synchronously
+   * (no timer — deterministic in tests and immediate for screen readers).
+   */
+  private finalizeManageOpen(): void {
+    this.cdr.detectChanges();
+    this.focusFirstInManageDialog();
+  }
+
+  /**
+   * Remember the button that opened the dialog so focus can return to it
+   * on close. currentTarget (not activeElement) is the reliable source —
+   * Safari doesn't move focus to buttons on mouse click.
+   */
+  private captureManageInvoker(event?: Event): void {
+    const target = event?.currentTarget;
+    this.manageInvoker = target instanceof HTMLElement ? target : null;
+  }
+
+  /** Close the manage modal — every close path funnels through here. */
   protected closeManage(): void {
     this.managedInvoice.set(null);
+    const invoker = this.manageInvoker;
+    this.manageInvoker = null;
+    // The work queue can re-render while the dialog is open (health
+    // reloads after a successful action); only restore focus when the
+    // invoking button is still in the document.
+    if (invoker && this.document.contains(invoker)) {
+      invoker.focus();
+    }
   }
 
-  /** Esc closes the manage modal (same rule as the lead-detail modal). */
-  protected onManageKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.managedInvoice()) {
-      this.closeManage();
+  /** Document-level keydown while the manage dialog is open. */
+  private onManageDialogKeydown(event: KeyboardEvent): void {
+    if (!this.managedInvoice()) {
+      return;
     }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeManage();
+      return;
+    }
+    if (event.key === 'Tab') {
+      this.trapManageDialogTab(event);
+    }
+  }
+
+  /** Focus the dialog's first control (the @if block has rendered). */
+  private focusFirstInManageDialog(): void {
+    if (!this.managedInvoice()) {
+      return;
+    }
+    const dialog = this.manageDialog()?.nativeElement;
+    if (!dialog) {
+      return;
+    }
+    const first = this.manageDialogFocusables()[0];
+    if (first) {
+      first.focus();
+    } else {
+      // No focusable control yet — make the dialog itself the target.
+      dialog.setAttribute('tabindex', '-1');
+      dialog.focus();
+    }
+  }
+
+  /** Keep Tab / Shift+Tab cycling inside the open dialog. */
+  private trapManageDialogTab(event: KeyboardEvent): void {
+    const dialog = this.manageDialog()?.nativeElement;
+    if (!dialog) {
+      return;
+    }
+    const focusables = this.manageDialogFocusables();
+    if (focusables.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = this.document.activeElement as HTMLElement | null;
+    if (!active || !dialog.contains(active)) {
+      // Focus escaped the dialog somehow — pull it back in.
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+      return;
+    }
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  private manageDialogFocusables(): HTMLElement[] {
+    const dialog = this.manageDialog()?.nativeElement;
+    if (!dialog) {
+      return [];
+    }
+    return Array.from(
+      dialog.querySelectorAll<HTMLElement>(MANAGE_DIALOG_FOCUSABLE),
+    );
   }
 
   /**

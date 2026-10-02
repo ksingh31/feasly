@@ -59,13 +59,15 @@
   }
 
   @if (managedInvoice(); as managed) {
-    <!-- Manage-invoice modal: backdrop click or Esc closes (lead-detail pattern). -->
+    <!-- Manage-invoice modal: backdrop click or Esc closes. Focus moves
+         into the dialog on open, Tab cycles inside it, and focus returns
+         to the invoking button on close (see the component). -->
     <div
+      #manageDialog
       class="billing-modal"
       role="dialog"
       aria-modal="true"
       aria-label="Manage invoice"
-      (keydown)="onManageKeydown($event)"
     >
       <div class="billing-modal__backdrop" (click)="closeManage()"></div>
       <app-admin-manage-invoice
@@ -199,7 +201,7 @@
                     <button
                       type="button"
                       class="billing-panel__btn"
-                      (click)="openManageInReview(invoice)"
+                      (click)="openManageInReview(invoice, $event)"
                     >
                       Manage
                     </button>
@@ -260,7 +262,7 @@
                     <button
                       type="button"
                       class="billing-panel__btn"
-                      (click)="openManageDunning(invoice)"
+                      (click)="openManageDunning(invoice, $event)"
                       title="Record an off-Stripe payment — cancels the scheduled auto-charge"
                     >
                       Mark as paid

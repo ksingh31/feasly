@@ -232,6 +232,112 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
   });
 
+  it('moves focus into the dialog when the manage modal opens', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
+    ) as HTMLButtonElement;
+    manageButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector(
+      '.billing-modal',
+    ) as HTMLElement;
+    expect(dialog).not.toBeNull();
+    const active = document.activeElement as HTMLElement;
+    // Focus lands on the dialog's first control (the rate input), not body.
+    expect(dialog.contains(active)).toBe(true);
+    expect(active.id).toBe('manage-rate');
+  });
+
+  it('traps Tab and Shift+Tab cycling inside the manage modal', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
+    ) as HTMLButtonElement;
+    manageButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector(
+      '.billing-modal',
+    ) as HTMLElement;
+    const focusables = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), ' +
+          'select:not([disabled]), textarea:not([disabled]), ' +
+          '[tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    expect(focusables.length).toBeGreaterThan(1);
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    // Tab on the last control wraps to the first.
+    last.focus();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
+    );
+    expect(document.activeElement).toBe(first);
+    // Shift+Tab on the first control wraps to the last.
+    first.focus();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+      }),
+    );
+    expect(document.activeElement).toBe(last);
+    // Focus that escaped the dialog is pulled back in on Tab.
+    (document.activeElement as HTMLElement).blur();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
+    );
+    expect(dialog.contains(document.activeElement as Node)).toBe(true);
+  });
+
+  it('closes on Esc even when focus is outside the dialog', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
+    ) as HTMLButtonElement;
+    manageButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).not.toBeNull();
+    // Focus never entered the dialog (the pre-fix bug: Esc was bound on the
+    // dialog div, so it only fired when focus was already inside).
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
+  });
+
+  it('returns focus to the invoking button when the modal closes', async () => {
+    const manageButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find(
+      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
+    ) as HTMLButtonElement;
+    manageButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).not.toBeNull();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
+    expect(document.activeElement).toBe(manageButton);
+  });
+
   it('opens the manage modal from a dunning Mark as paid button', async () => {
     const markPaidButton = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
