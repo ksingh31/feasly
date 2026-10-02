@@ -156,6 +156,122 @@ describe('ReportPdfService', () => {
     // Land still has its own figure in the summary section.
     expect(raw).toContain('Land (City assessed value)');
   });
+
+  it('never draws text past the right margin, even with adversarial input', async () => {
+    const service = TestBed.inject(ReportPdfService);
+    const nasty = input();
+    const blob = await service.generate({
+      ...nasty,
+      address: 'A'.repeat(120) + ' 1234 99 Street NW, Calgary, AB',
+      snapshot: {
+        ...nasty.snapshot,
+        narrative:
+          'Well\x00formed\x11text\u200bwith\u2028zero-width\x7Fchars and a supercalifragilisticexpialidociousantidisestablishmentarianism token ' +
+          'plus emoji 😀 and curly “quotes” — em dashes… repeated '.repeat(6),
+      },
+      steps: [
+        {
+          title: 'A very long step title that should wrap ' + 'x'.repeat(80),
+          body: 'Body with\x02control chars andaverylongunbrokenstring'.repeat(4) + ' end.',
+        },
+      ],
+      disclaimer: 'Disclaimer '.repeat(40) + '\x00\x11 tail.',
+    });
+
+    // Byte-accurate latin1 decode so WinAnsi bytes stay 1:1.
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let raw = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      raw += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]);
+    }
+
+    // Map font refs (F1/F2/...) to helvetica bold or not.
+    const fontBold = new Map<string, boolean>();
+    const objBold = new Map<string, boolean>();
+    const fontObjRe = /(\d+) 0 obj\s*<<\s*\/Type\s*\/Font\s*\/BaseFont\s*\/([A-Za-z-]+)/g;
+    let fontMatch: RegExpExecArray | null;
+    while ((fontMatch = fontObjRe.exec(raw)) !== null) {
+      objBold.set(fontMatch[1], fontMatch[2].toLowerCase().includes('bold'));
+    }
+    const resRe = /\/Font\s*<<([^>]*)>>/g;
+    let resMatch: RegExpExecArray | null;
+    while ((resMatch = resRe.exec(raw)) !== null) {
+      const refRe = /\/F(\d+)\s+(\d+) 0 R/g;
+      let refMatch: RegExpExecArray | null;
+      while ((refMatch = refRe.exec(resMatch[1])) !== null) {
+        fontBold.set(`F${refMatch[1]}`, objBold.get(refMatch[2]) ?? false);
+      }
+    }
+
+    const { jsPDF } = await import('jspdf');
+    const measurer = new jsPDF({ unit: 'pt', format: 'letter' });
+    const margin = 48;
+    const limit = 612 - margin; // letter width minus right margin
+
+    const decodeLiteral = (s: string): string =>
+      s.replace(/\\(\d{3}|.)/g, (_m, code: string) =>
+        /^\d{3}$/.test(code) ? String.fromCharCode(parseInt(code, 8)) : code,
+      );
+
+    const streamRe = /stream\r?\n([\s\S]*?)endstream/g;
+    let streamMatch: RegExpExecArray | null;
+    let checked = 0;
+    const violations: string[] = [];
+    const tokRe =
+      /(-?\d+(?:\.\d*)?)\s+(-?\d+(?:\.\d*)?)\s+Td|\/F(\d+)\s+(-?\d+(?:\.\d*)?)\s+Tf|(\((?:\\.|[^\\()])*\))(\s*Tj)|\[((?:\((?:\\.|[^\\()])*\)|[\s\d.\-]+)*)\](\s*TJ)|T\*/g;
+    while ((streamMatch = streamRe.exec(raw)) !== null) {
+      const stream = streamMatch[1];
+      let x: number | null = null;
+      let size = 10;
+      let bold = false;
+      let tok: RegExpExecArray | null;
+      tokRe.lastIndex = 0;
+      while ((tok = tokRe.exec(stream)) !== null) {
+        if (tok[1] !== undefined) {
+          x = parseFloat(tok[1]);
+        } else if (tok[3] !== undefined) {
+          bold = fontBold.get(`F${tok[3]}`) ?? false;
+          size = parseFloat(tok[4]);
+        } else if (tok[5] !== undefined) {
+          // (...) Tj
+          if (x === null) continue;
+          const str = decodeLiteral(tok[5].slice(1, -1));
+          measurer.setFont('helvetica', bold ? 'bold' : 'normal');
+          measurer.setFontSize(size);
+          const w = measurer.getTextWidth(str);
+          checked++;
+          if (x + w > limit + 1) {
+            violations.push(`"${str.slice(0, 40)}…" at x=${x.toFixed(1)} width=${w.toFixed(1)}`);
+          }
+        } else if (tok[7] !== undefined) {
+          // [...] TJ
+          if (x === null) continue;
+          const inner = tok[7];
+          let w = 0;
+          const partRe = /\((?:\\.|[^\\()])*\)|-?\d+(?:\.\d+)?/g;
+          let part: RegExpExecArray | null;
+          measurer.setFont('helvetica', bold ? 'bold' : 'normal');
+          measurer.setFontSize(size);
+          while ((part = partRe.exec(inner)) !== null) {
+            const p = part[0];
+            if (p.startsWith('(')) {
+              w += measurer.getTextWidth(decodeLiteral(p.slice(1, -1)));
+            } else {
+              w -= (parseFloat(p) / 1000) * size;
+            }
+          }
+          checked++;
+          if (x + w > limit + 1) {
+            violations.push(`TJ array at x=${x.toFixed(1)} width=${w.toFixed(1)}`);
+          }
+        }
+        // T* keeps x — nothing to do.
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
 });
 
 describe('sanitizePdfText', () => {
