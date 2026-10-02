@@ -105,21 +105,25 @@ export interface PricingCoverageFacts {
  * and wins over the unsupported-property-type issue, which in turn wins over
  * the assessed-value issue: the user always gets the most specific message.
  *
- * Eligibility (Karan, 2026-10-02 — single-family-only, R-C2 included):
- * the estimator quotes single-family parcels. Eligible: blank/unknown zoning
- * (fail open — never block on missing data), 'DC' (Direct Control — common
- * for new-community greenfield lots, fail open), or 'R-C1'/'R-C1S'
- * (single-detached) and 'R-C2' (duplex — single-family homes do get built in
- * duplex-zoned areas). Everything else — R-CG (rowhouse), M-*
- * (multi-residential: apartments/condos), etc. — is not supported.
+ * Eligibility (Karan, 2026-10-02 — final rule): the estimator quotes every
+ * zone where a single-family home can legally be built. Eligible:
+ * blank/unknown zoning (fail open — never block on missing data), 'DC'
+ * (Direct Control — common for new-community greenfield lots, fail open),
+ * 'R-C1'/'R-C1S' (single-detached), 'R-C2' (duplex — single-family homes do
+ * get built in duplex-zoned areas), 'R-CG' (rowhouse), 'R-G' and 'H-GO'.
+ * Rationale: per the City's Land Use Bylaw 1P2007 these are exactly the
+ * districts where a single-detached dwelling is a listed use — R-CG/R-G
+ * cover most inner-city infill teardown lots, which are prime rebuild
+ * leads. Everything else — M-* (multi-residential), C-*, I-*, S-*, etc. —
+ * is not supported.
  */
 export type PricingCoverageIssue = 'non-residential' | 'unsupported-property-type' | 'assessed-value';
 
 /**
- * Single-family land-use designations the estimator supports, matched
- * case-insensitively against the City `land_use_designation`.
+ * Land-use designations where a single-family home can legally be built,
+ * matched case-insensitively against the City `land_use_designation`.
  */
-const SINGLE_FAMILY_ZONING = new Set(['R-C1', 'R-C1S', 'R-C2', 'DC']);
+const SINGLE_FAMILY_ZONING = new Set(['R-C1', 'R-C1S', 'R-C2', 'R-CG', 'R-G', 'H-GO', 'DC']);
 
 /**
  * True when the parcel's zoning is outside the single-family set the
