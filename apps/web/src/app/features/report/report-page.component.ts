@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, Injector, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,7 +18,10 @@ import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '..
 import { AnalyticsService } from '../consent';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, ToggleStep, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
-import { ReportPdfService } from './report-pdf.service';
+// NOTE: ReportPdfService is intentionally NOT statically imported — it is
+// lazy-loaded inside downloadPdf() so its layout engine never lands in the
+// initial bundle (Lighthouse total-script budget).
+import type { ReportPdfInput } from './report-pdf.service';
 
 /**
  * Fills a `{token}` config template (FE0-002: user-facing copy lives in
@@ -97,7 +100,7 @@ export class ReportPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly analytics = inject(AnalyticsService);
   private readonly router = inject(Router);
-  private readonly pdfService = inject(ReportPdfService);
+  private readonly injector = inject(Injector);
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
@@ -704,11 +707,23 @@ export class ReportPageComponent implements OnInit {
   private lastPdfUrl: string | null = null;
 
   /**
+   * Lazy-loads the PDF service module on demand. The dynamic import keeps the
+   * layout engine out of the initial bundle; resolving through the root
+   * injector returns the same singleton tests and DI expect.
+   */
+  private async loadPdfService(): Promise<{ generate(input: ReportPdfInput): Promise<Blob> }> {
+    const { ReportPdfService } = await import('./report-pdf.service');
+    return this.injector.get(ReportPdfService);
+  }
+
+  /**
    * Real client-side PDF download (QA finding: the old window.print() call
    * appeared inert — no download, no feedback). Generates the PDF from the
    * verified snapshot, triggers a real file download, and surfaces
    * generating/error states on the button. jsPDF is lazy-loaded by the
-   * service so the public bundle never pays for it until clicked.
+   * service so the public bundle never pays for it until clicked. The service
+   * module itself is also lazy-loaded here (dynamic import + root injector)
+   * so its layout engine stays out of the initial bundle.
    */
   async downloadPdf(): Promise<void> {
     const snapshot = this.snapshot();
@@ -726,16 +741,18 @@ export class ReportPageComponent implements OnInit {
         month: 'long',
         day: 'numeric',
       });
-      const blob = await this.pdfService.generate({
-        snapshot,
-        address: property.address,
-        title: this.isReno() ? 'Renovation estimate' : 'New-build cost report',
-        preparedLine: `Prepared ${preparedDate}`,
-        versionLine: `${this.copy.versionLabel} ${snapshot.version}`,
-        steps: this.copy.steps,
-        disclaimer: this.config.get('copy').narrativeDisclaimer,
-        uncalibratedNote: this.copy.uncalibratedNote,
-      });
+      const blob = await this.loadPdfService().then((pdfService) =>
+        pdfService.generate({
+          snapshot,
+          address: property.address,
+          title: this.isReno() ? 'Renovation estimate' : 'New-build cost report',
+          preparedLine: `Prepared ${preparedDate}`,
+          versionLine: `${this.copy.versionLabel} ${snapshot.version}`,
+          steps: this.copy.steps,
+          disclaimer: this.config.get('copy').narrativeDisclaimer,
+          uncalibratedNote: this.copy.uncalibratedNote,
+        }),
+      );
       // Revoke the previous download URL before minting a new one.
       if (this.lastPdfUrl) {
         URL.revokeObjectURL(this.lastPdfUrl);
