@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare';
-import { CommunitiesIndexPageComponent } from './features/communities/communities-index-page.component';
 import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
 import { DetailsPageComponent } from './features/wizard/details-page.component';
@@ -15,7 +14,6 @@ import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
-import { CommunityPageComponent } from './features/communities/community-page.component';
 import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
@@ -126,11 +124,16 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
   },
   // Community index (SEO-05): prerendered hub listing all 40 community
-  // cost guides. Indexable — no `noindex` data. The `communities/:slug`
+  // guides. Indexable — no `noindex` data. The `communities/:slug`
   // pages (SEO-04) link back here; this page links out to each of them.
+  // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
+  // unaffected; the community JSON payloads stay out of the initial bundle.
   {
     path: 'communities',
-    component: CommunitiesIndexPageComponent,
+    loadComponent: () =>
+      import('./features/communities/communities-index-page.component').then(
+        (m) => m.CommunitiesIndexPageComponent,
+      ),
     canActivate: [robotsGuard],
   },
   // Labelled sample report (seo/09): fictional data, watermarked, never
@@ -210,11 +213,16 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  // Community pages (SEO-04): prerendered per-community cost guides.
+  // Community pages (SEO-04): prerendered per-community guides/profiles.
   // Indexable — no `noindex` data, so crawlers rank them.
+  // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
+  // unaffected; the per-community JSON payloads stay out of the initial bundle.
   {
     path: 'communities/:slug',
-    component: CommunityPageComponent,
+    loadComponent: () =>
+      import('./features/communities/community-page.component').then(
+        (m) => m.CommunityPageComponent,
+      ),
     canActivate: [robotsGuard],
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via

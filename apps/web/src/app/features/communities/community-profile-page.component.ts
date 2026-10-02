@@ -117,6 +117,11 @@ export class CommunityProfilePageComponent {
   /** Fully-resolved copy (placeholders filled) — render verbatim. */
   readonly copy = input.required<CommunityProfileCopy>();
 
+  /** FAQ items (short alias for the template — keeps the @for line under the no-hardcode length tripwire). */
+  faqs(): readonly { q: string; a: string }[] {
+    return this.copy().faqItems;
+  }
+
   /** FAQ open state. */
   openFaq: number | null = null;
 

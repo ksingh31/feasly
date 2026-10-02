@@ -245,7 +245,7 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
       if (!/, Calgary$/.test(h1)) {
         failures.push(`"${route}" profile H1 does not match the required pattern: "${h1}"`);
       }
-      if (!/ Property Values & Assessed Values \| Feasly$/.test(title)) {
+      if (!/ Property Values &amp; Assessed Values \| Feasly$/.test(title)) {
         failures.push(`"${route}" profile title does not match the required pattern: "${title}"`);
       }
       if (/Cost to build a home in/i.test(title)) {

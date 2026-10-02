@@ -204,7 +204,15 @@ export class CommunityPageComponent implements OnInit {
       mostCommonType: mix?.mostCommonType ?? 'multiFamily',
       nearby,
     };
-    const resolved = resolveProfileCopy(this.copy.profile, profileView);
+    const resolved = resolveProfileCopy(
+      {
+        ...this.copy.profile,
+        // Reuse the guide's assessed-value label/note — same figure semantics.
+        statLabel: this.copy.statLabel,
+        statNote: this.copy.statNote,
+      },
+      profileView,
+    );
     this.profileView = profileView;
     this.profileCopy = resolved;
 

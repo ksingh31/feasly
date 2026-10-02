@@ -41,6 +41,43 @@ describe('CommunityPageComponent', () => {
     ctaTitle: 'Building in {name}?',
     ctaBody: 'CTA body.',
     ctaLabel: 'Get your address-specific estimate →',
+    profile: {
+      kicker: 'Community property profile',
+      titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+      descriptionTemplate: 'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
+      lede: 'Most homes in {name} are apartments, condos, and townhouses.',
+      homesAssessedLabel: 'Homes assessed',
+      homesAssessedSub: '{year} assessment roll',
+      mostCommonTypeLabel: 'Most common home type',
+      assessmentYearLabel: 'Assessment year',
+      mixTitle: 'What people live in here',
+      mixBody: 'Dwelling mix for {name}.',
+      mixBarLabelTemplate: 'Dwelling mix: {multiPct}% multi, {semiPct}% semi, {singlePct}% single.',
+      typeLabels: {
+        singleDetached: 'Single-detached',
+        semiDuplex: 'Semi-detached / duplex',
+        multiFamily: 'Apartments, condos & townhouses',
+      },
+      noBuildTitle: "Why you won't see build prices on this page",
+      noBuildBody: 'No build prices for {name}.',
+      noBuildGuideLink: 'See the Calgary build-cost guide →',
+      explainerTitle: 'How Calgary assessments work',
+      explainerItems: [{ title: 'T1.', body: 'B1.' }],
+      faqTitle: 'Common questions',
+      faqItems: [
+        { q: 'PQ1 for {name}?', a: 'PA1 {year}.' },
+        { q: 'PQ2?', a: 'PA2.' },
+        { q: 'PQ3?', a: 'PA3.' },
+      ],
+      nearbyTitle: 'Nearby communities',
+      ctaTitle: 'Building a home elsewhere in Calgary?',
+      ctaBody: 'CTA body.',
+      ctaEstimateLabel: 'Get a free estimate →',
+      ctaGuideLabel: 'Calgary build-cost guide',
+      finePrint: 'Figures from the {year} roll for {name}.',
+      statLabel: 'Average City-assessed value (not market value)',
+      statNote: 'Stat note.',
+    },
   };
 
   const baseConfig = {
@@ -76,37 +113,37 @@ describe('CommunityPageComponent', () => {
   });
 
   it('renders the H1 with the community display name', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const h1 = fixture.nativeElement.querySelector('h1');
-    expect(h1?.textContent).toContain('How much does it cost to build a home in Beltline, Calgary?');
+    expect(h1?.textContent).toContain('How much does it cost to build a home in Mahogany, Calgary?');
   });
 
   it('sets the per-page title pattern', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const title = TestBed.inject(Title);
-    expect(title.getTitle()).toBe('Feasly — Cost to build a home in Beltline, Calgary');
+    expect(title.getTitle()).toBe('Feasly — Cost to build a home in Mahogany, Calgary');
   });
 
   it('sets a unique meta description carrying the real assessed value', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const meta = TestBed.inject(Meta);
     const description = meta.getTag('name="description"')?.content ?? '';
-    // Beltline's average from the aggregates fixture data — the description
+    // Mahogany's average from the aggregates fixture data — the description
     // must carry the real figure so all 40 community pages are unique.
-    expect(description).toContain('Beltline');
-    expect(description).toContain('$607,351');
+    expect(description).toContain('Mahogany');
+    expect(description).toContain('$719,666');
   });
 
   it('shows the real average assessed value with the fixed-value label', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('Average City-assessed value (not market value)');
-    // Beltline's average from the aggregates fixture data.
-    expect(html).toContain('$607,351');
+    // Mahogany's average from the aggregates fixture data.
+    expect(html).toContain('$719,666');
   });
 
   it('renders all three tier ranges', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const cards = fixture.nativeElement.querySelectorAll('.tier-card');
     expect(cards.length).toBe(3);
     const labels = [...cards].map((c: Element) => c.querySelector('h3')?.textContent);
@@ -114,18 +151,18 @@ describe('CommunityPageComponent', () => {
   });
 
   it('leads each tier card with one hero total-investment number', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const heroes = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-value');
     expect(heroes.length).toBe(3);
-    // Beltline Standard: total 1132040 – 1310570.
-    expect(heroes[0]?.textContent).toContain('$1,132,040');
-    expect(heroes[0]?.textContent).toContain('$1,310,570');
+    // Mahogany Standard: total 1244355 – 1422885.
+    expect(heroes[0]?.textContent).toContain('$1,244,355');
+    expect(heroes[0]?.textContent).toContain('$1,422,885');
     const eyebrows = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-label');
     expect([...eyebrows].every((e: Element) => e.textContent === 'Total investment')).toBe(true);
   });
 
   it('does not repeat the assessed land figure inside tier cards', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const cards = fixture.nativeElement.querySelectorAll('.tier-card');
     for (const card of cards) {
       // The old "Land (assessed)" line is gone — land lives in the stat block now.
@@ -135,14 +172,14 @@ describe('CommunityPageComponent', () => {
   });
 
   it('renders a split bar with a text equivalent (never color-only)', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const bars = fixture.nativeElement.querySelectorAll('.tier-card .split-bar');
     expect(bars.length).toBe(3);
     const label = bars[0]?.getAttribute('aria-label') ?? '';
     expect(bars[0]?.getAttribute('role')).toBe('img');
-    // Beltline Standard: land 607351, build mid 613954 → land ≈ 50%.
-    expect(label).toContain('Cost split: land $607,351 is about 50% of the total');
-    expect(label).toContain('build $524,689–$703,219 makes up about 50%');
+    // Mahogany Standard: land 719666, build mid 613954 → land ≈ 54%.
+    expect(label).toContain('Cost split: land $719,666 is about 54% of the total');
+    expect(label).toContain('build $524,689–$703,219 makes up about 46%');
     // Segment widths sum to 100%.
     const segments = bars[0]?.querySelectorAll('.split-segment');
     const widths = [...segments].map((s: Element) => parseFloat((s as HTMLElement).style.width));
@@ -150,23 +187,23 @@ describe('CommunityPageComponent', () => {
   });
 
   it('captions each card with build range and land in small text', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const captions = fixture.nativeElement.querySelectorAll('.tier-card .split-caption');
     expect(captions.length).toBe(3);
     expect(captions[0]?.textContent).toContain('Land');
-    expect(captions[0]?.textContent).toContain('~$607,351');
+    expect(captions[0]?.textContent).toContain('~$719,666');
     expect(captions[0]?.textContent).toContain('Build');
     expect(captions[0]?.textContent).toContain('$524,689');
   });
 
   it('renders exactly 5 FAQ items', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const items = fixture.nativeElement.querySelectorAll('.faq details');
     expect(items.length).toBe(5);
   });
 
   it('links the CTA to the homepage address step', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const cta = fixture.nativeElement.querySelector('.cta-card a');
     const html = (cta?.outerHTML ?? '').toLowerCase();
     // RouterLink renders without href in the test bed; assert the binding exists.
@@ -178,17 +215,76 @@ describe('CommunityPageComponent', () => {
   });
 
   it('emits the feasly:cost-data-version meta tag', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const meta = TestBed.inject(Meta);
     const tag = meta.getTag('name="feasly:cost-data-version"');
     expect(tag?.content).toBeTruthy();
   });
 
   it('shows the illustrative banner while uncalibrated', async () => {
-    await setup('beltline');
+    await setup('mahogany');
     const banner = fixture.nativeElement.querySelector('.banner');
     // The checked-in ranges are uncalibrated (placeholder cost data).
     expect(banner?.textContent).toContain('Illustrative ranges');
+  });
+
+  describe('property-profile variant', () => {
+    it('renders the profile layout for a condo-dominated community', async () => {
+      await setup('beltline');
+      const h1 = fixture.nativeElement.querySelector('h1');
+      expect(h1?.textContent).toBe('Beltline, Calgary');
+      const html = fixture.nativeElement.innerHTML as string;
+      expect(html).toContain('Community property profile');
+      expect(html).toContain('Most homes in Beltline are apartments, condos, and townhouses.');
+    });
+
+    it('sets the honest profile title (no build-cost claim)', async () => {
+      await setup('beltline');
+      const title = TestBed.inject(Title);
+      expect(title.getTitle()).toBe('Beltline Calgary Property Values & Assessed Values | Feasly');
+      expect(title.getTitle()).not.toContain('Cost to build');
+    });
+
+    it('sets a profile meta description carrying the real assessed value', async () => {
+      await setup('beltline');
+      const meta = TestBed.inject(Meta);
+      const description = meta.getTag('name="description"')?.content ?? '';
+      expect(description).toContain('Beltline');
+      expect(description).toContain('$607,351');
+    });
+
+    it('renders the dwelling-mix bar with a text equivalent and no build prices', async () => {
+      await setup('beltline');
+      const html = fixture.nativeElement.innerHTML as string;
+      const bar = fixture.nativeElement.querySelector('.mix-bar');
+      expect(bar?.getAttribute('role')).toBe('img');
+      expect(bar?.getAttribute('aria-label')).toContain('Dwelling mix:');
+      // Beltline is ~100% multi-family per the mix fixture data.
+      expect(bar?.getAttribute('aria-label')).toContain('100% multi');
+      expect(fixture.nativeElement.querySelectorAll('.tier-card').length).toBe(0);
+      expect(html).not.toContain('Total investment');
+      expect(html).toContain("Why you won't see build prices on this page");
+    });
+
+    it('shows the real assessed value and dwelling stats', async () => {
+      await setup('beltline');
+      const html = fixture.nativeElement.innerHTML as string;
+      expect(html).toContain('$607,351');
+      expect(html).toContain('Homes assessed');
+      expect(html).toContain('Most common home type');
+      expect(html).toContain('Apartments, condos &amp; townhouses');
+    });
+
+    it('renders profile FAQs with placeholders filled', async () => {
+      await setup('beltline');
+      const items = fixture.nativeElement.querySelectorAll('.faq details');
+      expect(items.length).toBe(3);
+      const html = fixture.nativeElement.innerHTML as string;
+      expect(html).toContain('PQ1 for Beltline?');
+      expect(html).toContain('PA1 2026.');
+      expect(html).not.toContain('{name}');
+      expect(html).not.toContain('{year}');
+    });
   });
 
   afterEach(() => {

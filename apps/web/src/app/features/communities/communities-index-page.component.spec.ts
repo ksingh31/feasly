@@ -46,7 +46,7 @@ describe('CommunitiesIndexPageComponent', () => {
   it('renders the exact H1', () => {
     fixture.detectChanges();
     const h1 = fixture.nativeElement.querySelector('h1');
-    expect(h1?.textContent?.trim()).toBe('Calgary Community Build-Cost Guides');
+    expect(h1?.textContent?.trim()).toBe('Calgary Community Guides');
   });
 
   it('renders 40 cards each linking to its community page', () => {
@@ -97,5 +97,19 @@ describe('CommunitiesIndexPageComponent', () => {
     expect(items[0]['@type']).toBe('ListItem');
     expect(items[0]['position']).toBe(1);
     expect(String(items[0]['url'])).toMatch(/\/communities\/[a-z-]+\/$/);
+  });
+
+  it('shows "View community profile" for profile communities, "View cost guide" otherwise', () => {
+    fixture.detectChanges();
+    const cards = [...fixture.nativeElement.querySelectorAll('.community-card')];
+    const ctaFor = (name: string): string =>
+      cards.find((c: Element) => c.querySelector('h2')?.textContent === name)
+        ?.querySelector('.card-cta')?.textContent ?? '';
+    // Profile communities (condo/apartment-dominated per community-mix.json).
+    expect(ctaFor('BELTLINE')).toBe('View community profile →');
+    expect(ctaFor('SAGE HILL')).toBe('View community profile →');
+    // Build-guide communities keep the cost-guide CTA.
+    expect(ctaFor('MAHOGANY')).toBe('View cost guide →');
+    expect(ctaFor('PANORAMA HILLS')).toBe('View cost guide →');
   });
 });

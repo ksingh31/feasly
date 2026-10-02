@@ -73,8 +73,8 @@ for (const slug of expectedSlugs) {
 }
 
 // H1 must be exact.
-if (!indexHtml.includes('<h1') || !indexHtml.includes('Calgary Community Build-Cost Guides')) {
-  fail('index H1 "Calgary Community Build-Cost Guides" not found');
+if (!indexHtml.includes('<h1') || !indexHtml.includes('Calgary Community Guides')) {
+  fail('index H1 "Calgary Community Guides" not found');
 }
 
 // 3. Landing page must link to /communities/.
