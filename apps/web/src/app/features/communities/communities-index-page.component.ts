@@ -3,24 +3,32 @@ import { RouterLink } from '@angular/router';
 import type {
   CommunityAggregate,
   CommunityAggregatesFile,
+  CommunityMixFile,
+  CommunityType,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildItemListSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import aggregates from '../../../content/data/community-aggregates.json';
+import mixData from '../../../content/data/community-mix.json';
 import { toDisplayName } from './community-names';
 
 /**
  * Community index (SEO-05): prerendered `/communities/` listing all 40
- * Calgary community build-cost guides. Each card links to its community
- * page (`/communities/{slug}`); the page is the single crawl hub so no
+ * Calgary community guides. Each card links to its community page
+ * (`/communities/{slug}`); the page is the single crawl hub so no
  * community guide is orphaned.
  *
- * Data: `community-aggregates.json` is a static import — bundled at build
- * time, so teasers render at prerender with no runtime fetch (a dynamic
- * import previously 404'd on the deployed site because the JSON was never
- * in `angular.json` assets).
+ * Two card variants: build-guide communities link to the cost guide,
+ * profile communities (condo/apartment-dominated) link to the
+ * property-values profile. The CTA copy says which is which — never
+ * promising a cost guide that doesn't exist.
+ *
+ * Data: `community-aggregates.json` + `community-mix.json` are static
+ * imports — bundled at build time, so cards render at prerender with no
+ * runtime fetch (a dynamic import previously 404'd on the deployed site
+ * because the JSON was never in `angular.json` assets).
  *
  * U1 (2026-09-28): cards no longer show a "New build from $X" teaser. The
  * build-cost side of the ranges file is not community-specific (28 of 40
@@ -47,9 +55,14 @@ export class CommunitiesIndexPageComponent implements OnInit {
     aggregates as CommunityAggregatesFile
   ).communities;
 
+  /** slug → page type ('build-guide' | 'profile'); unknown slugs default to 'build-guide'. */
+  private readonly communityTypes: ReadonlyMap<string, CommunityType> = new Map(
+    (mixData as CommunityMixFile).communities.map((c) => [c.slug, c.communityType]),
+  );
+
   ngOnInit(): void {
     this.seo.setForRoute('communities');
-    // SEO: ItemList of every community cost guide — crawlers discover all
+    // SEO: ItemList of every community guide — crawlers discover all
     // 40 guides from the hub's structured data, not just the anchor links.
     const siteUrl = this.seo.getSiteUrl();
     this.seo.setJsonLd(
@@ -68,9 +81,19 @@ export class CommunitiesIndexPageComponent implements OnInit {
     return this.formatCad(community.avgAssessedValue);
   }
 
-  /** Router link to the community's cost-guide page. */
+  /** Router link to the community's page (guide or profile). */
   communityLink(community: CommunityAggregate): string {
     return `/communities/${community.slug}`;
+  }
+
+  /** Whether the community gets the property-profile page instead of the cost guide. */
+  isProfile(community: CommunityAggregate): boolean {
+    return (this.communityTypes.get(community.slug) ?? 'build-guide') === 'profile';
+  }
+
+  /** Card CTA: honest about which page the card leads to. */
+  cardCta(community: CommunityAggregate): string {
+    return this.isProfile(community) ? 'View community profile →' : 'View cost guide →';
   }
 
   private formatCad(value: number): string {

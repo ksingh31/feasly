@@ -197,14 +197,25 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
 }
 
 // --- Community pages (SEO-04): all 40 prerendered, full tag set, honest copy. ---
+// Two page variants: build-guide (cost guide) and profile (property-values
+// profile for condo/apartment-dominated communities). The H1/title patterns
+// are type-aware — profile pages must NOT carry build-cost titles.
 {
   const aggPath = join(ROOT, 'src', 'content', 'data', 'community-aggregates.json');
+  const mixPath = join(ROOT, 'src', 'content', 'data', 'community-mix.json');
   let slugs = [];
+  let typesBySlug = {};
   try {
     const agg = JSON.parse(readFileSync(aggPath, 'utf8'));
     slugs = agg.communities.map((c) => c.slug);
   } catch {
     failures.push('community SEO check: cannot read src/content/data/community-aggregates.json');
+  }
+  try {
+    const mix = JSON.parse(readFileSync(mixPath, 'utf8'));
+    for (const c of mix.communities) typesBySlug[c.slug] = c.communityType;
+  } catch {
+    failures.push('community SEO check: cannot read src/content/data/community-mix.json');
   }
   if (slugs.length === 0) {
     failures.push('community SEO check: no community slugs found');
@@ -216,6 +227,7 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
     const route = `/communities/${slug}`;
     const html = htmlFor(route);
     if (html === null) continue;
+    const isProfile = typesBySlug[slug] === 'profile';
     // Indexable tag set.
     mustContain(html, route, '<title>', 'document title');
     mustMeta(html, route, [['name', 'description']], 'meta description');
@@ -223,14 +235,29 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
     mustMeta(html, route, [['name', 'feasly:cost-data-version']], 'feasly:cost-data-version');
     mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
     mustCanonical(html, route, `${route}/`);
-    // H1 pattern + unique titles.
+    // H1 pattern + unique titles (type-aware).
     const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1]?.replace(/<[^>]*>/g, '').trim() ?? '';
-    if (!/^How much does it cost to build a home in .+, Calgary\?$/.test(h1)) {
-      failures.push(`"${route}" H1 does not match the required pattern: "${h1}"`);
-    }
     const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? '';
-    if (!/^Feasly — Cost to build a home in .+, Calgary$/.test(title)) {
-      failures.push(`"${route}" title does not match the required pattern: "${title}"`);
+    if (isProfile) {
+      if (/^How much does it cost to build a home in /.test(h1)) {
+        failures.push(`"${route}" is a profile page but carries a build-cost H1: "${h1}"`);
+      }
+      if (!/, Calgary$/.test(h1)) {
+        failures.push(`"${route}" profile H1 does not match the required pattern: "${h1}"`);
+      }
+      if (!/ Property Values & Assessed Values \| Feasly$/.test(title)) {
+        failures.push(`"${route}" profile title does not match the required pattern: "${title}"`);
+      }
+      if (/Cost to build a home in/i.test(title)) {
+        failures.push(`"${route}" is a profile page but carries a build-cost title: "${title}"`);
+      }
+    } else {
+      if (!/^How much does it cost to build a home in .+, Calgary\?$/.test(h1)) {
+        failures.push(`"${route}" H1 does not match the required pattern: "${h1}"`);
+      }
+      if (!/^Feasly — Cost to build a home in .+, Calgary$/.test(title)) {
+        failures.push(`"${route}" title does not match the required pattern: "${title}"`);
+      }
     }
     if (titles.has(title)) failures.push(`duplicate community page title: "${title}"`);
     titles.add(title);

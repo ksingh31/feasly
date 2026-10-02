@@ -1303,6 +1303,43 @@ export interface AppConfig {
       ctaTitle: string;
       ctaBody: string;
       ctaLabel: string;
+      /**
+       * Property-profile page variant (condo/apartment-dominated
+       * communities). Rendered instead of the build-cost guide when the
+       * community's type is 'profile'. Placeholders: {name}, {year},
+       * {avgAssessed}, {multiPct}, {semiPct}, {singlePct}.
+       */
+      profile: {
+        kicker: string;
+        titleTemplate: string;
+        descriptionTemplate: string;
+        lede: string;
+        homesAssessedLabel: string;
+        homesAssessedSub: string;
+        mostCommonTypeLabel: string;
+        assessmentYearLabel: string;
+        mixTitle: string;
+        mixBody: string;
+        mixBarLabelTemplate: string;
+        typeLabels: {
+          singleDetached: string;
+          semiDuplex: string;
+          multiFamily: string;
+        };
+        noBuildTitle: string;
+        noBuildBody: string;
+        noBuildGuideLink: string;
+        explainerTitle: string;
+        explainerItems: { title: string; body: string }[];
+        faqTitle: string;
+        faqItems: { q: string; a: string }[];
+        nearbyTitle: string;
+        ctaTitle: string;
+        ctaBody: string;
+        ctaEstimateLabel: string;
+        ctaGuideLabel: string;
+        finePrint: string;
+      };
     };
     /**
      * Builder portal wiring. Only infrastructure config lives in the root

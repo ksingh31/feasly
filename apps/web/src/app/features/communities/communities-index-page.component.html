@@ -2,7 +2,7 @@
 <main class="communities-index" id="main-content" tabindex="-1">
   <div class="communities-index__inner">
     <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>Calgary</p>
-    <h1>Calgary Community Build-Cost Guides</h1>
+    <h1>Calgary Community Guides</h1>
     <p class="lede">{{ indexCopy.intro }}</p>
 
     <ul class="community-grid">
@@ -14,7 +14,7 @@
               Avg. assessed value
               <strong>{{ assessedValue(community) }}</strong>
             </p>
-            <span class="card-cta" aria-hidden="true">View cost guide →</span>
+            <span class="card-cta" aria-hidden="true">{{ cardCta(community) }}</span>
           </a>
         </li>
       }
