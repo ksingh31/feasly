@@ -282,13 +282,16 @@ export interface CommissionService {
     method: BuilderPaymentMethod,
   ): Promise<BuilderPaymentMethod>;
   /**
-   * Change the payment method on one invoice (billing/12). Allowed while
-   * the invoice is unpaid (draft, in_review, failed) — 409 otherwise.
-   * 403 when the invoice belongs to a different tenant, 404 when the
-   * invoice is unknown, 400 on an unknown method. Switching to a manual
-   * method pauses the Stripe auto-charge (the invoice-reviewer timer
-   * skips non-card invoices); switching back to 'card' re-arms it.
-   * Audited old → new in `billing_events`.
+   * Change the payment method on one invoice (billing/12). Allowed on every
+   * unpaid invoice (draft, in_review, failed, finalized) — 409 otherwise
+   * (paid, void, disputed). 403 when the invoice belongs to a different
+   * tenant, 404 when the invoice is unknown, 400 on an unknown method.
+   * On a finalized invoice the in-flight Stripe PaymentIntent is not
+   * cancelled — it resolves via webhook; the new method governs what
+   * happens next. Switching to a manual method pauses the Stripe
+   * auto-charge (the invoice-reviewer timer skips non-card invoices);
+   * switching back to 'card' re-arms it. Audited old → new in
+   * `billing_events`.
    */
   setInvoicePaymentMethod(
     tenantKey: string,
@@ -1488,18 +1491,23 @@ export function createCommissionService(
         );
       }
       const status = row.status as CommissionInvoiceStatus;
-      // Unpaid invoices only: a settled/void invoice is never repriced or
-      // re-routed, a disputed invoice is frozen, and a finalized invoice
-      // owns an in-flight Stripe PaymentIntent this path cannot cancel.
+      // Every unpaid invoice is changeable (Karan): draft, in_review,
+      // failed, and finalized. A finalized invoice owns an in-flight Stripe
+      // PaymentIntent that this path does not cancel — the intent resolves
+      // via webhook (paid/failed) regardless; the new method governs what
+      // happens next (a failed charge is retried/handled manually, never
+      // auto-charged when the method is manual). Paid, void, and disputed
+      // invoices stay locked: settled, no balance, and dispute-frozen.
       if (
         status !== 'draft' &&
         status !== 'in_review' &&
-        status !== 'failed'
+        status !== 'failed' &&
+        status !== 'finalized'
       ) {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
-          `Invoice "${invoiceId}" is '${status}' — the payment method can only change while the invoice is unpaid (draft, in_review, failed)`,
+          `Invoice "${invoiceId}" is '${status}' — the payment method can only change while the invoice is unpaid (draft, in_review, failed, finalized)`,
         );
       }
       const from = row.paymentMethod as BuilderPaymentMethod;
