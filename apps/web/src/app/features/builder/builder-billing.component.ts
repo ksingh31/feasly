@@ -62,6 +62,9 @@ export class BuilderBillingComponent implements OnInit {
 
   @ViewChild('cardElement') private cardElementRef?: ElementRef<HTMLElement>;
 
+  /** Reference to the default-method select for resetting its DOM value. */
+  @ViewChild('defaultMethodSelect') private defaultMethodSelectRef?: ElementRef<HTMLSelectElement>;
+
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(BUILDER_COPY);
 
@@ -199,6 +202,21 @@ export class BuilderBillingComponent implements OnInit {
   /** Discards the staged choice; the select snaps back to the saved method. */
   protected resetPendingDefaultMethod(): void {
     this.pendingDefaultMethod.set(null);
+    this.syncSelectToSaved();
+  }
+
+  /**
+   * Resets the select element's DOM value to the saved method. The
+   * `[selected]` option bindings don't override a user-set `select.value`
+   * property — without this, a discarded/failed staged choice would leave
+   * the dropdown visually stuck on the wrong value.
+   */
+  private syncSelectToSaved(): void {
+    const select = this.defaultMethodSelectRef?.nativeElement;
+    const saved = this.defaultMethod();
+    if (select && saved) {
+      select.value = saved;
+    }
   }
 
   /**
@@ -219,6 +237,7 @@ export class BuilderBillingComponent implements OnInit {
     // The staged choice is consumed either way: on success the select
     // shows the new saved method; on failure it reverts to the old one.
     this.pendingDefaultMethod.set(null);
+    this.syncSelectToSaved();
     if (
       this.store.selectSnapshot(
         BuilderBillingState.defaultMethodSaveStatus,
