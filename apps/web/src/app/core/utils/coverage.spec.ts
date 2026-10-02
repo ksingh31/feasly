@@ -67,9 +67,10 @@ import {
 /**
  * Pricing-coverage guard: lot size is NEVER a coverage issue (Karan,
  * 2026-09-28) — any lot prices, quoted off the house size. Checked, in
- * precedence order: non-residential, unsupported property type (strict
- * single-family-only, Karan 2026-10-02), assessed value. Blank/unknown
- * zoning never blocks (fail open).
+ * precedence order: non-residential, unsupported property type (final rule,
+ * Karan 2026-10-02: every zone where a single-detached dwelling is a listed
+ * use per Land Use Bylaw 1P2007 — R-C1/R-C1S/R-C2/R-CG/R-G/H-GO), assessed
+ * value. Blank/unknown zoning and DC never block (fail open).
  */
 describe('pricingCoverageIssue', () => {
   const bounds: PricingCoverageBounds = {
@@ -93,10 +94,12 @@ describe('pricingCoverageIssue', () => {
     expect(pricingCoverageIssue(facts({ lotSqft: 20000, assessedValue: 10000000 }), bounds)).toBeNull();
   });
 
-  it('keeps R-C1, R-C1S and R-C2 eligible (case-insensitive, whitespace-tolerant)', () => {
+  it('keeps single-family-buildable zones eligible (case-insensitive, whitespace-tolerant)', () => {
+    // Final rule (Karan, 2026-10-02): every zone where a single-detached
+    // dwelling is a listed use per the City's Land Use Bylaw 1P2007.
     // R-C2 (duplex) is eligible — single-family homes do get built in
-    // duplex-zoned areas (Karan, 2026-10-02).
-    for (const zoning of ['R-C1', 'R-C1S', 'R-C2', 'r-c1', 'r-c2', '  R-C1S  ']) {
+    // duplex-zoned areas; R-CG/R-G cover most inner-city infill teardowns.
+    for (const zoning of ['R-C1', 'R-C1S', 'R-C2', 'R-CG', 'R-G', 'H-GO', 'r-cg', 'h-go', '  R-G  ']) {
       expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBeNull();
     }
   });
@@ -143,8 +146,8 @@ describe('pricingCoverageIssue', () => {
     );
   });
 
-  it("flags R-CG and M-* zoning as 'unsupported-property-type'", () => {
-    for (const zoning of ['R-CG', 'M-C1', 'M-C2', 'M-CG', 'M-H1', 'M-H2', 'M-H3', 'M-X1', 'M-X2']) {
+  it("flags M-*, C-*, I-* and other non-single-family zoning as 'unsupported-property-type'", () => {
+    for (const zoning of ['M-C1', 'M-C2', 'M-H1', 'M-X1', 'C-COR1', 'C-COR2', 'I-G', 'I-C', 'S-CRI', 'S-R']) {
       expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBe('unsupported-property-type');
     }
   });

@@ -316,16 +316,24 @@ describe('LandingPageComponent', () => {
       expect(navigate).toHaveBeenCalledWith(['/estimate/scope']);
     });
 
-    it('shows the single-family message for R-CG (rowhouse) zoning', () => {
+    it('lets R-CG (rowhouse/infill teardown) parcels flow to scope — prime rebuild leads (Karan, 2026-10-02)', () => {
+      const navigate = vi.spyOn(router, 'navigate');
       component.onSelected({ ...fakeProperty, zoning: 'R-CG' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/estimate/scope']);
+    });
+
+    it('shows the single-family message for M-C2 (apartment/condo) zoning', () => {
+      component.onSelected({ ...fakeProperty, zoning: 'M-C2' });
       fixture.detectChanges();
       const card = fixture.nativeElement.querySelector('.coverage-block');
       expect(card).not.toBeNull();
       expect(card.textContent).toContain('single-family');
     });
 
-    it('shows the single-family message for M-C2 (apartment/condo) zoning', () => {
-      component.onSelected({ ...fakeProperty, zoning: 'M-C2' });
+    it('shows the single-family message for commercial (C-COR1) zoning', () => {
+      component.onSelected({ ...fakeProperty, zoning: 'C-COR1' });
       fixture.detectChanges();
       const card = fixture.nativeElement.querySelector('.coverage-block');
       expect(card).not.toBeNull();
