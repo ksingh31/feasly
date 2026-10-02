@@ -409,6 +409,31 @@ describe('GET /api/v1/billing/invoices (BILL-04)', () => {
     });
   });
 
+  it('passes a comma-separated status filter through to the service', async () => {
+    const { route, billing } = makeDeps();
+    await route.listInvoices(
+      {},
+      { limit: '100', offset: '0', status: 'failed,in_review' },
+    );
+
+    expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
+      limit: 100,
+      offset: 0,
+      status: ['failed', 'in_review'],
+    });
+  });
+
+  it('ignores unknown status values (fail open to no filter)', async () => {
+    const { route, billing } = makeDeps();
+    await route.listInvoices({}, { limit: '20', offset: '0', status: 'bogus' });
+
+    expect(billing.listInvoices).toHaveBeenCalledWith('elite-craft', {
+      limit: 20,
+      offset: 0,
+      status: undefined,
+    });
+  });
+
   it('rejects out-of-range pagination with 400', async () => {
     const { route, billing } = makeDeps();
     await expect(

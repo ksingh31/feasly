@@ -122,6 +122,17 @@ export interface BillingRoute {
 
 const uuidSchema = z.string().trim().uuid();
 
+/** Invoice statuses a caller may filter the list by. */
+const invoiceStatusFilterSchema = z.enum([
+  'draft',
+  'in_review',
+  'finalized',
+  'paid',
+  'failed',
+  'disputed',
+  'void',
+]);
+
 const listInvoicesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
@@ -129,6 +140,29 @@ const listInvoicesQuerySchema = z.object({
   // number (e.g. "42" matches "INV-0042") — the builder portal's
   // invoice-number search. Empty/whitespace is treated as no filter.
   invoiceNumber: z.string().trim().min(1).max(32).optional(),
+  // Optional comma-separated status filter (e.g. "failed,in_review") for
+  // the dashboard's due-invoice banners, which must see every actionable
+  // invoice — not just the first page. Unknown values are ignored (fail
+  // open to no filter) rather than 400ing.
+  status: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional()
+    .transform((raw) => {
+      if (!raw) return undefined;
+      const valid = new Set<string>(invoiceStatusFilterSchema.options);
+      const out = [
+        ...new Set(
+          raw
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => valid.has(s)),
+        ),
+      ];
+      return out.length > 0 ? out : undefined;
+    }),
 });
 
 const reportContractBodySchema = z.object({
@@ -315,6 +349,7 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
         limit: firstQueryValue(query['limit']),
         offset: firstQueryValue(query['offset']),
         invoiceNumber: firstQueryValue(query['invoiceNumber']),
+        status: firstQueryValue(query['status']),
       });
       if (!parsed.success) {
         throw new HttpError(

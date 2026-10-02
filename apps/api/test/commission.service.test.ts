@@ -1106,6 +1106,37 @@ describe('listInvoices (BILL-04)', () => {
     expect(keys.has('list-builder-admin-b')).toBe(true);
   });
 
+  it('filters by status for the due-invoice banner query', async () => {
+    const { commission } = newServices(testDb);
+    const key = 'list-builder-status';
+    const failed = await seedInvoice(key);
+    const inReview = await seedInvoice(key);
+    const paid = await seedInvoice(key);
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'failed' })
+      .where(eq(commissionInvoices.id, failed.id));
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'in_review' })
+      .where(eq(commissionInvoices.id, inReview.id));
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'paid' })
+      .where(eq(commissionInvoices.id, paid.id));
+
+    const list = await commission.listInvoices(key, {
+      limit: 100,
+      offset: 0,
+      status: ['failed', 'in_review'],
+    });
+
+    const ids = new Set(list.map((i) => i.id));
+    expect(ids.has(failed.id)).toBe(true);
+    expect(ids.has(inReview.id)).toBe(true);
+    expect(ids.has(paid.id)).toBe(false);
+  });
+
   it('clamps limit to 1–100', async () => {
     const { commission } = newServices(testDb);
     const key = 'list-builder-clamp';
