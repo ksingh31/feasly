@@ -846,6 +846,12 @@ export interface AppConfig {
        * (landing + embed).
        */
       validationUnsupportedPropertyTypeBody: string;
+      /**
+       * Zoning-guide cross-link (SEO guides): shown under the
+       * unsupported-property-type message, linking to the
+       * "why Feasly only quotes single-family homes" FAQ anchor.
+       */
+      validationZoningGuideLink: string;
       validationBackLabel: string;
     };
     /** Property card (shared) copy. */

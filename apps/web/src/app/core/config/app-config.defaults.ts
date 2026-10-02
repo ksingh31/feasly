@@ -424,6 +424,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'This looks like a commercial or industrial property — Feasly only prices residential Calgary homes right now.',
       validationUnsupportedPropertyTypeBody:
         'This property isn’t a single-family home — our estimator only quotes single-family new builds in Calgary right now.',
+      validationZoningGuideLink: 'Learn about Calgary zoning →',
       validationBackLabel: '← Try a different address',
     },
     propertyCard: {

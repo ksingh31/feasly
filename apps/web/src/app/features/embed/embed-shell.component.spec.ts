@@ -231,6 +231,27 @@ describe('EmbedShellComponent', () => {
     expect(fixture.nativeElement.querySelector('.embed-coverage-note')).toBeNull();
   });
 
+  it('links the zoning guide from the unsupported-property-type coverage note', () => {
+    const fixture = setup('elite-craft');
+    flushConfig(fixture);
+    const component = fixture.componentInstance;
+    component.onPropertySelected({
+      lotSqft: 5000,
+      assessedValue: 729000,
+      zoning: 'M-C2',
+    } as PropertyRecord);
+    fixture.nativeElement.querySelector('.embed-cta')?.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
+    const note = fixture.nativeElement.querySelector('.embed-coverage-note');
+    expect(note).not.toBeNull();
+    const link = note.querySelector(
+      'a[href^="/guides/calgary-zoning-explained"]',
+    ) as HTMLAnchorElement | null;
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toContain('#why-single-family-only');
+    expect(link?.textContent).toContain('Learn about Calgary zoning');
+  });
+
   describe('Calgary-only gate (D-03)', () => {
     it('shows the shared Calgary-only gate on an out-of-coverage query', async () => {
       // Entry-point integration: the embed funnel must surface the exact
