@@ -161,7 +161,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesDueTomorrow: 'Due tomorrow',
   invoicesDueToday: 'Due today',
   invoicesPaymentFailed:
-    'Your card was declined \u2014 update it to avoid collection.',
+    'Your card was declined \u2014 please update your payment details so this invoice can be paid.',
   invoicesPaymentReceived: 'Payment received \u2014 thank you.',
   invoicesNumberRow: 'Invoice number',
   invoicesFilterNumberLabel: 'Search by invoice number',
