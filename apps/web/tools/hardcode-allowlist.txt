@@ -103,6 +103,11 @@ apps/web/src/app/features/landing/landing-page.component.ts
 # standard, not a tunable.
 apps/web/src/app/features/marketing/pillar-guide-page.component.ts
 
+# Zoning guide Article+FAQPage JSON-LD context (SEO guides): same
+# `https://schema.org` fixed vocabulary URI as the pillar guide above — a web
+# standard, not a tunable.
+apps/web/src/app/features/marketing/zoning-guide-page.component.ts
+
 # API docs prose (api-mcp/03): endpoint docs, code samples, and the changelog
 # change with the API (code review), not by deploy tuning — same category as
 # the legal pages above. Copy-pinned by developers-page.component.spec.ts.

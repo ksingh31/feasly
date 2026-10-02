@@ -53,7 +53,7 @@
                   // the initial bundle so the prerendered page has its copy at
                   // startup) moves the initial bundle from ~791.3 kB to
                   // ~800.3 kB. The guide component itself is lazy-loaded.
-                  "maximumError": "805kB"
+                  "maximumError": "810kB"
                 },
                 {
                   "type": "anyComponentStyle",

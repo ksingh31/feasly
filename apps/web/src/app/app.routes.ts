@@ -111,6 +111,18 @@ export const routes: Routes = [
       ),
     canActivate: [robotsGuard],
   },
+  // Zoning explainer (SEO guides): long-form Calgary zoning guide —
+  // indexable like the pillar guide. Lazy-loaded: prerendering follows
+  // loadComponent routes, so SEO is unaffected (same pattern as the
+  // pillar guide and /developers).
+  {
+    path: 'guides/calgary-zoning-explained',
+    loadComponent: () =>
+      import('./features/marketing/zoning-guide-page.component').then(
+        (m) => m.ZoningGuidePageComponent,
+      ),
+    canActivate: [robotsGuard],
+  },
   // API docs (api-mcp/03): indexable like the other marketing pages — no
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
   // crawlable. Sitemap already reserves /developers (seo/02). Lazy-loaded:

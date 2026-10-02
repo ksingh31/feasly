@@ -42,6 +42,13 @@ const ROUTES: SeoRouteConfig[] = [
     titleKey: 'pillarGuideTitle',
     descriptionKey: 'pillarGuide',
   },
+  // Zoning explainer (SEO guides): long-form "Calgary zoning explained"
+  // guide — indexable like the pillar guide.
+  {
+    pattern: 'guides/calgary-zoning-explained',
+    titleKey: 'zoningGuideTitle',
+    descriptionKey: 'zoningGuide',
+  },
   // API docs (api-mcp/03): indexable like the marketing pages above.
   { pattern: 'developers', titleKey: 'developersTitle', descriptionKey: 'developers' },
   // Community index (SEO-05): indexable guide listing — no `noindex`.

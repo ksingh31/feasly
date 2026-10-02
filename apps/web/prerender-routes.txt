@@ -4,6 +4,7 @@
 /how-it-works
 /faq
 /guides/cost-to-build-a-house-calgary
+/guides/calgary-zoning-explained
 /developers
 /communities/
 /404
