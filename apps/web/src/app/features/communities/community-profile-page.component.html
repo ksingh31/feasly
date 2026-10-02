@@ -1,0 +1,107 @@
+@if (view(); as v) {
+  <app-site-nav />
+  <main class="community-profile" id="main-content" tabindex="-1">
+    <p class="eyebrow">{{ copy().kicker }}</p>
+    <h1>{{ v.displayName }}, Calgary</h1>
+    <p class="lede">{{ copy().lede }}</p>
+
+    <section class="stat-block" aria-label="Community statistics">
+      <div class="stat">
+        <span class="stat-value">{{ formatCad(v.avgAssessedValue) }}</span>
+        <span class="stat-label">{{ copy().statLabel }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ formatInt(v.dwellingUnits) }}</span>
+        <span class="stat-label">{{ copy().homesAssessedLabel }}</span>
+        <span class="stat-sub">{{ copy().homesAssessedSub }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value stat-value--wrap">{{ copy().typeLabels[v.mostCommonType] }}</span>
+        <span class="stat-label">{{ copy().mostCommonTypeLabel }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ v.assessmentYear }}</span>
+        <span class="stat-label">{{ copy().assessmentYearLabel }}</span>
+      </div>
+      <p class="stat-note">{{ copy().statNote }}</p>
+    </section>
+
+    <section class="mix" aria-label="Dwelling mix">
+      <h2>{{ copy().mixTitle }}</h2>
+      <p class="sub">{{ copy().mixBody }}</p>
+      <div class="mix-bar" role="img" [attr.aria-label]="mixBarLabel()">
+        @for (segment of mixSegments(); track segment.bucket) {
+          <span
+            class="mix-segment mix-{{ segment.bucket }}"
+            [style.width.%]="segment.pct"
+            aria-hidden="true"
+          ></span>
+        }
+      </div>
+      <ul class="legend">
+        @for (segment of mixSegments(); track segment.bucket) {
+          <li>
+            <span class="legend-swatch mix-{{ segment.bucket }}" aria-hidden="true"></span>
+            {{ segment.label }} — {{ segment.pct }}%
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="no-build-note" aria-label="Why no build prices">
+      <h2>{{ copy().noBuildTitle }}</h2>
+      <p>{{ copy().noBuildBody }}</p>
+      <p>
+        <a routerLink="/guides/cost-to-build-a-house-calgary">{{ copy().noBuildGuideLink }}</a>
+      </p>
+    </section>
+
+    <section class="explainer" aria-label="How assessments work">
+      <h2>{{ copy().explainerTitle }}</h2>
+      <ul>
+        @for (item of copy().explainerItems; track item.title) {
+          <li>
+            <strong>{{ item.title }}</strong> {{ item.body }}
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="faq" aria-label="Frequently asked questions">
+      <h2>{{ copy().faqTitle }}</h2>
+      @for (item of faqs(); track item.q; let i = $index) {
+        <details [open]="openFaq === i" (toggle)="toggleFaq(i)">
+          <summary>{{ item.q }}</summary>
+          <p>{{ item.a }}</p>
+        </details>
+      }
+    </section>
+
+    @if (v.nearby.length > 0) {
+      <section class="nearby" aria-label="Nearby communities">
+        <h2>{{ copy().nearbyTitle }}</h2>
+        <ul>
+          @for (n of v.nearby; track n.slug) {
+            <li>
+              <a [routerLink]="['/communities', n.slug]">{{ n.displayName }} →</a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section class="cta-card" aria-label="Get your estimate">
+      <h2>{{ copy().ctaTitle }}</h2>
+      <p>{{ copy().ctaBody }}</p>
+      <p class="cta-row">
+        <a class="cta" routerLink="/">{{ copy().ctaEstimateLabel }}</a>
+        <a class="cta-link" routerLink="/guides/cost-to-build-a-house-calgary">{{
+          copy().ctaGuideLabel
+        }}</a>
+      </p>
+    </section>
+
+    <p class="fine-print">{{ copy().finePrint }}</p>
+  </main>
+  <app-site-footer />
+}

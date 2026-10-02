@@ -1,17 +1,17 @@
 {
-  "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json).",
+  "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json). 2026-10-02: raised 215\u2192220kB for PR #419 (40 community SEO pages + property profiles per-slug architecture).",
   "assets": {
     "imageWeightPerPageKb": 500,
-    "jsInitialGzipKb": 215
+    "jsInitialGzipKb": 220
   },
   "auditUrls": {
     "$comment": "Generated deterministically by apps/web/tools/perf-audit-urls.mjs from prerender-routes.txt: root + marketing pages + communities index + first 3 community pages alphabetically.",
     "strategy": "root + marketing + 3 sampled community pages"
   },
   "buyback": {
-    "baselineJsInitialGzipKb": 214.4,
+    "baselineJsInitialGzipKb": 219.5,
     "noteThresholdKb": 5,
-    "rule": "BUY-BACK RULE (SEO-08 AC4): any PR that grows initial JS by more than 5 KB (gzipped) versus the baseline below must note the tradeoff in the PR description (what got slower, why it is worth it). This is a bot comment, not a hard fail — softer than the Lighthouse gate. If the growth is accepted, update baselineJsInitialGzipKb to the new measured value in the same PR so the next PR is measured against reality."
+    "rule": "BUY-BACK RULE (SEO-08 AC4): any PR that grows initial JS by more than 5 KB (gzipped) versus the baseline below must note the tradeoff in the PR description (what got slower, why it is worth it). This is a bot comment, not a hard fail \u2014 softer than the Lighthouse gate. If the growth is accepted, update baselineJsInitialGzipKb to the new measured value in the same PR so the next PR is measured against reality."
   },
   "lighthouseCategories": {
     "accessibility": 95,

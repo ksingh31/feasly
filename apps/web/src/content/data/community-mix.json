@@ -1,0 +1,446 @@
+{
+  "generatedAt": "2026-10-02T15:56:19.977Z",
+  "assessmentYear": "2026",
+  "communities": [
+    {
+      "slug": "beltline",
+      "communityType": "profile",
+      "dwellingUnits": 11642,
+      "mix": {
+        "singleDetached": 28,
+        "semiDuplex": 2,
+        "multiFamily": 11612
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "panorama-hills",
+      "communityType": "build-guide",
+      "dwellingUnits": 8150,
+      "mix": {
+        "singleDetached": 5424,
+        "semiDuplex": 559,
+        "multiFamily": 2167
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "cranston",
+      "communityType": "build-guide",
+      "dwellingUnits": 8167,
+      "mix": {
+        "singleDetached": 5849,
+        "semiDuplex": 377,
+        "multiFamily": 1941
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "saddle-ridge",
+      "communityType": "build-guide",
+      "dwellingUnits": 7541,
+      "mix": {
+        "singleDetached": 5150,
+        "semiDuplex": 546,
+        "multiFamily": 1845
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "mckenzie-towne",
+      "communityType": "build-guide",
+      "dwellingUnits": 7156,
+      "mix": {
+        "singleDetached": 3550,
+        "semiDuplex": 749,
+        "multiFamily": 2857
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "evergreen",
+      "communityType": "build-guide",
+      "dwellingUnits": 7427,
+      "mix": {
+        "singleDetached": 5333,
+        "semiDuplex": 264,
+        "multiFamily": 1830
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "mahogany",
+      "communityType": "build-guide",
+      "dwellingUnits": 7212,
+      "mix": {
+        "singleDetached": 4492,
+        "semiDuplex": 782,
+        "multiFamily": 1938
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "tuscany",
+      "communityType": "build-guide",
+      "dwellingUnits": 6757,
+      "mix": {
+        "singleDetached": 5610,
+        "semiDuplex": 97,
+        "multiFamily": 1050
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "sage-hill",
+      "communityType": "profile",
+      "dwellingUnits": 5334,
+      "mix": {
+        "singleDetached": 1889,
+        "semiDuplex": 172,
+        "multiFamily": 3273
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "auburn-bay",
+      "communityType": "build-guide",
+      "dwellingUnits": 6342,
+      "mix": {
+        "singleDetached": 3817,
+        "semiDuplex": 638,
+        "multiFamily": 1887
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "skyview-ranch",
+      "communityType": "profile",
+      "dwellingUnits": 4622,
+      "mix": {
+        "singleDetached": 1459,
+        "semiDuplex": 228,
+        "multiFamily": 2935
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "evanston",
+      "communityType": "build-guide",
+      "dwellingUnits": 6152,
+      "mix": {
+        "singleDetached": 4467,
+        "semiDuplex": 424,
+        "multiFamily": 1261
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "signal-hill",
+      "communityType": "build-guide",
+      "dwellingUnits": 5303,
+      "mix": {
+        "singleDetached": 3401,
+        "semiDuplex": 239,
+        "multiFamily": 1663
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "copperfield",
+      "communityType": "build-guide",
+      "dwellingUnits": 5391,
+      "mix": {
+        "singleDetached": 3286,
+        "semiDuplex": 60,
+        "multiFamily": 2045
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "legacy",
+      "communityType": "build-guide",
+      "dwellingUnits": 4526,
+      "mix": {
+        "singleDetached": 2230,
+        "semiDuplex": 598,
+        "multiFamily": 1698
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "seton",
+      "communityType": "profile",
+      "dwellingUnits": 4111,
+      "mix": {
+        "singleDetached": 1224,
+        "semiDuplex": 370,
+        "multiFamily": 2517
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "varsity",
+      "communityType": "build-guide",
+      "dwellingUnits": 4926,
+      "mix": {
+        "singleDetached": 2599,
+        "semiDuplex": 107,
+        "multiFamily": 2220
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "cornerstone",
+      "communityType": "build-guide",
+      "dwellingUnits": 4979,
+      "mix": {
+        "singleDetached": 2739,
+        "semiDuplex": 931,
+        "multiFamily": 1309
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "springbank-hill",
+      "communityType": "build-guide",
+      "dwellingUnits": 4263,
+      "mix": {
+        "singleDetached": 2790,
+        "semiDuplex": 46,
+        "multiFamily": 1427
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "west-springs",
+      "communityType": "build-guide",
+      "dwellingUnits": 4625,
+      "mix": {
+        "singleDetached": 2808,
+        "semiDuplex": 169,
+        "multiFamily": 1648
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "douglasdale-glen",
+      "communityType": "build-guide",
+      "dwellingUnits": 4893,
+      "mix": {
+        "singleDetached": 3943,
+        "semiDuplex": 8,
+        "multiFamily": 942
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "coventry-hills",
+      "communityType": "build-guide",
+      "dwellingUnits": 5513,
+      "mix": {
+        "singleDetached": 5069,
+        "semiDuplex": 176,
+        "multiFamily": 268
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "edgemont",
+      "communityType": "build-guide",
+      "dwellingUnits": 5317,
+      "mix": {
+        "singleDetached": 4393,
+        "semiDuplex": 218,
+        "multiFamily": 706
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "royal-oak",
+      "communityType": "build-guide",
+      "dwellingUnits": 4171,
+      "mix": {
+        "singleDetached": 2900,
+        "semiDuplex": 3,
+        "multiFamily": 1268
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "lake-bonavista",
+      "communityType": "build-guide",
+      "dwellingUnits": 4086,
+      "mix": {
+        "singleDetached": 3253,
+        "semiDuplex": 4,
+        "multiFamily": 829
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "huntington-hills",
+      "communityType": "build-guide",
+      "dwellingUnits": 4514,
+      "mix": {
+        "singleDetached": 3075,
+        "semiDuplex": 453,
+        "multiFamily": 986
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "bridlewood",
+      "communityType": "build-guide",
+      "dwellingUnits": 4168,
+      "mix": {
+        "singleDetached": 2864,
+        "semiDuplex": 275,
+        "multiFamily": 1029
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "mckenzie-lake",
+      "communityType": "build-guide",
+      "dwellingUnits": 4582,
+      "mix": {
+        "singleDetached": 4238,
+        "semiDuplex": 6,
+        "multiFamily": 338
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "livingston",
+      "communityType": "build-guide",
+      "dwellingUnits": 3812,
+      "mix": {
+        "singleDetached": 2638,
+        "semiDuplex": 410,
+        "multiFamily": 764
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "taradale",
+      "communityType": "build-guide",
+      "dwellingUnits": 4362,
+      "mix": {
+        "singleDetached": 3316,
+        "semiDuplex": 215,
+        "multiFamily": 831
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "downtown-commercial-core",
+      "communityType": "profile",
+      "dwellingUnits": 2498,
+      "mix": {
+        "singleDetached": 0,
+        "semiDuplex": 0,
+        "multiFamily": 2498
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "chaparral",
+      "communityType": "build-guide",
+      "dwellingUnits": 4194,
+      "mix": {
+        "singleDetached": 3295,
+        "semiDuplex": 282,
+        "multiFamily": 617
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "arbour-lake",
+      "communityType": "build-guide",
+      "dwellingUnits": 3813,
+      "mix": {
+        "singleDetached": 2823,
+        "semiDuplex": 174,
+        "multiFamily": 816
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "new-brighton",
+      "communityType": "build-guide",
+      "dwellingUnits": 4368,
+      "mix": {
+        "singleDetached": 3262,
+        "semiDuplex": 143,
+        "multiFamily": 963
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "beddington-heights",
+      "communityType": "build-guide",
+      "dwellingUnits": 4280,
+      "mix": {
+        "singleDetached": 2595,
+        "semiDuplex": 881,
+        "multiFamily": 804
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "bowness",
+      "communityType": "build-guide",
+      "dwellingUnits": 4050,
+      "mix": {
+        "singleDetached": 2176,
+        "semiDuplex": 928,
+        "multiFamily": 946
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "dover",
+      "communityType": "build-guide",
+      "dwellingUnits": 3898,
+      "mix": {
+        "singleDetached": 2075,
+        "semiDuplex": 672,
+        "multiFamily": 1151
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "rocky-ridge",
+      "communityType": "build-guide",
+      "dwellingUnits": 3318,
+      "mix": {
+        "singleDetached": 2004,
+        "semiDuplex": 138,
+        "multiFamily": 1176
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "bridgeland-riverside",
+      "communityType": "profile",
+      "dwellingUnits": 2755,
+      "mix": {
+        "singleDetached": 748,
+        "semiDuplex": 193,
+        "multiFamily": 1814
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "walden",
+      "communityType": "build-guide",
+      "dwellingUnits": 3596,
+      "mix": {
+        "singleDetached": 1840,
+        "semiDuplex": 510,
+        "multiFamily": 1246
+      },
+      "mostCommonType": "singleDetached"
+    }
+  ]
+}

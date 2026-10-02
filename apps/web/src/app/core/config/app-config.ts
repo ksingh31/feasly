@@ -1303,6 +1303,13 @@ export interface AppConfig {
       ctaTitle: string;
       ctaBody: string;
       ctaLabel: string;
+      /**
+       * Property-profile page variant copy (condo/apartment-dominated
+       * communities). NOT in global config anymore — lives in
+       * `app/features/communities/community-profile-copy.defaults.ts` and is
+       * lazy-loaded with the profile variant (Lighthouse script-size budget).
+       * The shape is CommunityProfileCopy in `@feasly/contracts`.
+       */
     };
     /**
      * Builder portal wiring. Only infrastructure config lives in the root

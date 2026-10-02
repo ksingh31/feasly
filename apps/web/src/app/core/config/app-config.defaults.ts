@@ -712,9 +712,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       developersTitle: 'Feasly — API docs for developers',
       developers:
         'Build on the Feasly API: address-aware property data, deterministic build estimates, and lead capture. Quickstart, auth, scopes, rate limits, errors, sandbox, and the live OpenAPI spec.',
-      communitiesTitle: 'Feasly — Calgary community build-cost guides',
+      communitiesTitle: 'Feasly — Calgary community guides',
       communities:
-        'Browse build-cost guides for 40 Calgary communities: average assessed values, lot sizes, and estimated new-build cost ranges by finish tier.',
+        'Browse guides for 40 Calgary communities: average assessed values and dwelling mix, plus estimated new-build cost ranges by finish tier where single-family homes get built.',
       notFoundTitle: 'Feasly — Page not found',
       notFound: "The page you're looking for moved or never existed.",
       errorTitle: 'Feasly — Something went wrong',
@@ -915,9 +915,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       communities: {
         landingTitle: 'Browse community guides',
         landingBody:
-          'Build-cost guides for 40 Calgary communities — assessed values, lot sizes, and cost ranges by finish tier.',
+          'Guides for 40 Calgary communities — assessed values, dwelling mix, and cost ranges by finish tier where single-family homes get built.',
         intro:
-          'Every community, one page: average assessed values, lot sizes, and estimated new-build cost ranges by finish tier — built from City of Calgary assessment data and current construction costs. Pick a community to see the full cost guide.',
+          'Every community, one page: average assessed values and dwelling mix from City of Calgary assessment data — plus estimated new-build cost ranges by finish tier in communities where single-family homes get built. Pick a community to see its guide.',
       },
     },
     builderMatching: {
@@ -986,6 +986,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ctaBody:
         'Get figures for your actual lot — assessed land value, lot size, and zoning pulled from your City property record.',
       ctaLabel: 'Get your address-specific estimate →',
+      // NOTE: the property-profile page copy used to live here. It moved to
+      // `app/features/communities/community-profile-copy.defaults.ts` and is
+      // lazy-loaded with the profile variant so the initial bundle doesn't
+      // carry it (Lighthouse script-size budget).
     },
     /**
      * Builder portal wiring. Only infrastructure config lives in the root

@@ -1,0 +1,362 @@
+/* Property-profile page variant: /communities/:slug/ for condo/apartment-dominated
+   communities. Same cream/charcoal/brass language as the build-cost guide. */
+
+.community-profile {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 120px 24px 80px;
+  background: var(--cream);
+  color: var(--text);
+}
+
+.eyebrow {
+  font-size: var(--type-eyebrow);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+.community-profile h1 {
+  font-family: var(--font-headline);
+  font-size: clamp(30px, 4.5vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+}
+
+.community-profile h2 {
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.lede {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--text);
+  max-width: 62ch;
+  margin: 0 0 40px;
+}
+
+/* Stat block. */
+.stat-block {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 56px;
+}
+
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-value {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.stat-value--wrap {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat-note {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Dwelling-mix stacked bar (CSS-only). Text equivalent via aria-label + legend. */
+.mix {
+  margin-bottom: 56px;
+}
+
+.mix .sub {
+  color: var(--muted);
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+
+.mix-bar {
+  display: flex;
+  height: 44px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--cream-2);
+  margin: 0 0 12px;
+}
+
+.mix-segment {
+  height: 100%;
+  min-width: 0;
+}
+
+.mix-multiFamily {
+  background: var(--text);
+}
+
+.mix-semiDuplex {
+  background: var(--accent);
+}
+
+.mix-singleDetached {
+  background: var(--cream-2);
+  border: 1px solid var(--border);
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex: none;
+}
+
+.legend-swatch.mix-multiFamily {
+  background: var(--text);
+}
+
+.legend-swatch.mix-semiDuplex {
+  background: var(--accent);
+}
+
+.legend-swatch.mix-singleDetached {
+  background: var(--cream-2);
+  border: 1px solid var(--border);
+}
+
+/* Honest no-build note. */
+.no-build-note {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 56px;
+}
+
+.no-build-note h2 {
+  font-size: clamp(20px, 2.6vw, 26px);
+  margin-bottom: 12px;
+}
+
+.no-build-note p {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.no-build-note p:last-child {
+  margin-bottom: 0;
+}
+
+.no-build-note a {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+/* Assessment explainer. */
+.explainer {
+  margin-bottom: 56px;
+}
+
+.explainer h2 {
+  margin-bottom: 16px;
+}
+
+.explainer ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.explainer li {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.explainer li:first-child {
+  border-top: none;
+}
+
+.explainer strong {
+  color: var(--text);
+}
+
+/* FAQ accordion. */
+.faq {
+  margin-bottom: 56px;
+}
+
+.faq h2 {
+  margin-bottom: 20px;
+}
+
+.faq details {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.faq summary {
+  padding: 18px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq details p {
+  padding: 0 20px 18px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* Nearby communities. */
+.nearby {
+  margin-bottom: 56px;
+}
+
+.nearby h2 {
+  margin-bottom: 16px;
+}
+
+.nearby ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nearby a {
+  display: inline-block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 20px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.nearby a:hover {
+  border-color: var(--accent);
+}
+
+/* CTA card. */
+.cta-card {
+  background: var(--canvas);
+  color: var(--on-dark);
+  border-radius: 20px;
+  padding: 40px 32px;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.cta-card h2 {
+  color: var(--on-dark);
+  margin-bottom: 12px;
+}
+
+.cta-card p {
+  color: var(--on-dark);
+  opacity: 0.85;
+  max-width: 52ch;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+}
+
+.cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.community-profile .cta-card .cta {
+  display: inline-block;
+  background: var(--accent-deep);
+  color: #fff;
+  border-radius: 12px;
+  padding: 17px 28px;
+  font-weight: 600;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.community-profile .cta-card .cta:hover {
+  background: #5e470c;
+}
+
+.cta-link {
+  color: var(--on-dark);
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+.fine-print {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .stat-block {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .community-profile {
+    padding: 96px 20px 64px;
+  }
+}

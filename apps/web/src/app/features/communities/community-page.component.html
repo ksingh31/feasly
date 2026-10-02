@@ -1,4 +1,6 @@
-@if (community) {
+@if (profileView && profileCopy) {
+  <ng-template #profileHost />
+} @else if (community) {
   <app-site-nav />
   <main class="community" id="main-content" tabindex="-1">
     @if (!calibrated) {
@@ -57,8 +59,8 @@
 
     <section class="faq" aria-label="Frequently asked questions">
       <h2>{{ copy.faqTitle }}</h2>
-      @for (item of faqs; track item.q; let i = $index) {
-        <details [open]="openFaq === i" (toggle)="toggleFaq(i)">
+      @for (item of faqs; track item.q) {
+        <details>
           <summary>{{ item.q }}</summary>
           <p>{{ item.a }}</p>
         </details>
