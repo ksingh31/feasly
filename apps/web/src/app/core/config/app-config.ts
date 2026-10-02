@@ -1114,6 +1114,8 @@ export interface AppConfig {
       howItWorks: string;
       faqTitle: string;
       faq: string;
+      pillarGuideTitle: string;
+      pillarGuide: string;
       developersTitle: string;
       developers: string;
       communitiesTitle: string;
@@ -1176,6 +1178,36 @@ export interface AppConfig {
         title: string;
         sub: string;
         items: { q: string; a: string }[];
+      };
+      /**
+       * Pillar guide (SEO pillar): long-form "cost to build a house in
+       * Calgary" guide at `/guides/cost-to-build-a-house-calgary`.
+       * Figures are planning ranges from the cost model — never accuracy
+       * claims (banned-phrase tripwire).
+       */
+      pillarGuide: {
+        eyebrow: string;
+        title: string;
+        lede: string;
+        tiersTitle: string;
+        tiersIntro: string;
+        tiers: { name: string; range: string; blurb: string }[];
+        exampleTitle: string;
+        exampleBody: string;
+        includedTitle: string;
+        includedBody: string;
+        excludedTitle: string;
+        excludedBody: string;
+        infillTitle: string;
+        infillBody: string;
+        financingTitle: string;
+        financingBody: string;
+        faqTitle: string;
+        faqs: { q: string; a: string }[];
+        mathNoteTitle: string;
+        mathNoteBody: string;
+        ctaEstimate: string;
+        ctaCommunities: string;
       };
       /**
        * Community index (SEO-05). Copy for `/communities/` and the landing

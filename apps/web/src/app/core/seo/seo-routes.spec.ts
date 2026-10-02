@@ -19,6 +19,11 @@ describe('seo-routes', () => {
     // API docs (api-mcp/03): indexable, own title/description keys.
     expect(findSeoRoute('developers').titleKey).toBe('developersTitle');
     expect(findSeoRoute('/developers/').noindex).toBeFalsy();
+    // Pillar guide (SEO pillar): indexable, own title/description keys.
+    expect(findSeoRoute('guides/cost-to-build-a-house-calgary').titleKey).toBe(
+      'pillarGuideTitle',
+    );
+    expect(findSeoRoute('/guides/cost-to-build-a-house-calgary/').noindex).toBeFalsy();
   });
 
   it('matches :param segments', () => {

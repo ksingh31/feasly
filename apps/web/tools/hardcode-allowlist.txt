@@ -86,6 +86,11 @@ apps/web/src/app/features/marketing/faq-page.component.ts
 # fixed vocabulary URI as the FAQ page above — a web standard, not a tunable.
 apps/web/src/app/features/landing/landing-page.component.ts
 
+# Pillar guide Article+FAQPage JSON-LD context (SEO pillar): same
+# `https://schema.org` fixed vocabulary URI as the FAQ page above — a web
+# standard, not a tunable.
+apps/web/src/app/features/marketing/pillar-guide-page.component.ts
+
 # API docs prose (api-mcp/03): endpoint docs, code samples, and the changelog
 # change with the API (code review), not by deploy tuning — same category as
 # the legal pages above. Copy-pinned by developers-page.component.spec.ts.

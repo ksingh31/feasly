@@ -44,6 +44,7 @@ const STATIC_ROUTES: ReadonlyArray<{ path: string; changefreq: string; priority:
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
   { path: '/how-it-works', changefreq: 'monthly', priority: '0.8' },
   { path: '/faq', changefreq: 'monthly', priority: '0.8' },
+  { path: '/guides/cost-to-build-a-house-calgary', changefreq: 'monthly', priority: '0.9' },
   { path: '/communities/', changefreq: 'weekly', priority: '0.9' },
   { path: '/developers', changefreq: 'monthly', priority: '0.5' },
 ];

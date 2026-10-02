@@ -3,6 +3,7 @@
 /terms
 /how-it-works
 /faq
+/guides/cost-to-build-a-house-calgary
 /developers
 /communities/
 /404
