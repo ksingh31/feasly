@@ -834,6 +834,14 @@ export interface AppConfig {
        * body in the early coverage guard (landing + embed).
        */
       validationNonResidentialBody: string;
+      /**
+       * Unsupported-property-type coverage explainer: shown when the City
+       * land-use designation is outside the single-family set the estimator
+       * quotes (R-C2, R-CG, M-*, …). Takes precedence over the generic body,
+       * after the non-residential check, in the early coverage guard
+       * (landing + embed).
+       */
+      validationUnsupportedPropertyTypeBody: string;
       validationBackLabel: string;
     };
     /** Property card (shared) copy. */

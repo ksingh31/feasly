@@ -93,6 +93,8 @@ export interface PricingCoverageFacts {
   readonly lotSqft: number;
   readonly assessedValue: number;
   readonly isNonResidential: boolean;
+  /** City land-use designation, verbatim (e.g. 'R-C2', 'M-C1'). Blank when unknown. */
+  readonly zoning: string;
 }
 
 /**
@@ -100,10 +102,35 @@ export interface PricingCoverageFacts {
  * is priceable. Lot size is NEVER a coverage issue (Karan, 2026-09-28) —
  * any lot prices, quoted off the house size. A non-residential parcel
  * (industrial/commercial, per the City's assessment class) is checked FIRST
- * and wins over the assessed-value issue: the user gets the specific
- * commercial/industrial message, not the generic can't-price card.
+ * and wins over the unsupported-property-type issue, which in turn wins over
+ * the assessed-value issue: the user always gets the most specific message.
+ *
+ * Eligibility (Karan, 2026-10-02 — single-family-only, R-C2 included):
+ * the estimator quotes single-family parcels. Eligible: blank/unknown zoning
+ * (fail open — never block on missing data), 'DC' (Direct Control — common
+ * for new-community greenfield lots, fail open), or 'R-C1'/'R-C1S'
+ * (single-detached) and 'R-C2' (duplex — single-family homes do get built in
+ * duplex-zoned areas). Everything else — R-CG (rowhouse), M-*
+ * (multi-residential: apartments/condos), etc. — is not supported.
  */
-export type PricingCoverageIssue = 'non-residential' | 'assessed-value';
+export type PricingCoverageIssue = 'non-residential' | 'unsupported-property-type' | 'assessed-value';
+
+/**
+ * Single-family land-use designations the estimator supports, matched
+ * case-insensitively against the City `land_use_designation`.
+ */
+const SINGLE_FAMILY_ZONING = new Set(['R-C1', 'R-C1S', 'R-C2', 'DC']);
+
+/**
+ * True when the parcel's zoning is outside the single-family set the
+ * estimator quotes. Fails open: blank/unknown/missing zoning returns false —
+ * never block on missing data.
+ */
+function isUnsupportedPropertyType(zoning: string | null | undefined): boolean {
+  const district = (zoning ?? '').trim().toUpperCase();
+  if (district.length === 0) return false;
+  return !SINGLE_FAMILY_ZONING.has(district);
+}
 
 export function pricingCoverageIssue(
   facts: PricingCoverageFacts,
@@ -111,6 +138,9 @@ export function pricingCoverageIssue(
 ): PricingCoverageIssue | null {
   if (facts.isNonResidential) {
     return 'non-residential';
+  }
+  if (isUnsupportedPropertyType(facts.zoning)) {
+    return 'unsupported-property-type';
   }
   const assessed = Math.round(facts.assessedValue);
   if (

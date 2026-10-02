@@ -77,7 +77,7 @@ export function mockSuggestions(): AutocompleteSuggestion[] {
  * derives a stable, obviously-fake record deterministically from its
  * addressKey so values never shift between page loads. */
 const MOCK_LOT_SQFT = [4200, 4800, 5200, 5600, 6100] as const;
-const MOCK_ZONING = ['R-C1', 'R-C2', 'R-CG'] as const;
+const MOCK_ZONING = ['R-C1', 'R-C1S', 'R-C2'] as const;
 const MOCK_ASSESSED = [612400, 748500, 823000, 915000] as const;
 const MOCK_YEAR_BUILT = [1951, 1958, 1974, 1983] as const;
 
@@ -98,11 +98,11 @@ const MOCK_PROPERTY_DETAILS: Record<
   string,
   { lotSqft: number; zoning: string; assessedValue: number; yearBuilt: number }
 > = {
-  'calgary-1410-14-st-nw': { lotSqft: 4800, zoning: 'R-CG', assessedValue: 748500, yearBuilt: 1958 },
+  'calgary-1410-14-st-nw': { lotSqft: 4800, zoning: 'R-C1', assessedValue: 748500, yearBuilt: 1958 },
   'calgary-222-7-ave-ne': { lotSqft: 5600, zoning: 'R-C2', assessedValue: 915000, yearBuilt: 1983 },
   'calgary-918-16-ave-nw': { lotSqft: 6100, zoning: 'R-C1', assessedValue: 823000, yearBuilt: 1974 },
   'calgary-4708-22-st-nw': { lotSqft: 5200, zoning: 'R-C2', assessedValue: 612400, yearBuilt: 1951 },
-  'calgary-3311-33-ave-sw': { lotSqft: 4200, zoning: 'R-CG', assessedValue: 685000, yearBuilt: 1962 },
+  'calgary-3311-33-ave-sw': { lotSqft: 4200, zoning: 'R-C1S', assessedValue: 685000, yearBuilt: 1962 },
   'calgary-101-8-ave-se': { lotSqft: 3900, zoning: 'R-C2', assessedValue: 742000, yearBuilt: 1948 },
   'calgary-2704-24-st-sw': { lotSqft: 5900, zoning: 'R-C1', assessedValue: 879000, yearBuilt: 1967 },
 };

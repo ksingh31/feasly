@@ -75,7 +75,7 @@ describe('LandingPageComponent', () => {
     address: '1234 14 St NW, Calgary, AB',
     community: 'Capitol Hill',
     lotSqft: 5000,
-    zoning: 'R-CG',
+    zoning: 'R-C1',
     assessedValue: 729000,
     assessmentYear: 2025,
     yearBuilt: 1978,
@@ -306,6 +306,38 @@ describe('LandingPageComponent', () => {
       expect(card).not.toBeNull();
       expect(card.textContent).toContain('We can’t price this property yet');
       expect(card.textContent).not.toContain('sq ft');
+    });
+
+    it('lets R-C2 (duplex) parcels flow to scope — single-family builds happen there (Karan, 2026-10-02)', () => {
+      const navigate = vi.spyOn(router, 'navigate');
+      component.onSelected({ ...fakeProperty, zoning: 'R-C2' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coverage-block')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/estimate/scope']);
+    });
+
+    it('shows the single-family message for R-CG (rowhouse) zoning', () => {
+      component.onSelected({ ...fakeProperty, zoning: 'R-CG' });
+      fixture.detectChanges();
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.textContent).toContain('single-family');
+    });
+
+    it('shows the single-family message for M-C2 (apartment/condo) zoning', () => {
+      component.onSelected({ ...fakeProperty, zoning: 'M-C2' });
+      fixture.detectChanges();
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.textContent).toContain('single-family');
+    });
+
+    it('still shows the commercial/industrial message for non-residential parcels', () => {
+      component.onSelected({ ...fakeProperty, isNonResidential: true });
+      fixture.detectChanges();
+      const card = fixture.nativeElement.querySelector('.coverage-block');
+      expect(card).not.toBeNull();
+      expect(card.textContent).toContain('commercial or industrial');
     });
 
     it('a big lot still flows to scope and clears a previous block', () => {
