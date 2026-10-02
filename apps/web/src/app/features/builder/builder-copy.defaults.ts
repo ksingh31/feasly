@@ -122,6 +122,9 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   billingDefaultMethodSaved: 'Saved — new invoices will use {method}.',
   billingDefaultMethodSaveFailed:
     'We couldn’t save your default payment method. Please try again.',
+  billingDefaultMethodApply: 'Apply',
+  billingDefaultMethodApplying: 'Applying…',
+  billingDefaultMethodReset: 'Reset',
   billingMethodCard: 'Card',
   billingMethodCardWithLast4: 'Card •••• {last4}',
   billingMethodCardNoCard: 'Card — no card on file',

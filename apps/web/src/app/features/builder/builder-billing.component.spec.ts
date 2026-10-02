@@ -266,7 +266,7 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(cardOption.textContent).toContain('no card on file');
   });
 
-  it('PUTs the new default and shows the saved confirmation on change (billing/12)', async () => {
+  it('stages the selection without an API call; Apply PUTs and shows saved (billing/12 rework)', async () => {
     const { fixture, httpMock } = await setup();
     httpMock
       .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
@@ -282,6 +282,23 @@ describe('BuilderBillingComponent (billing/02)', () => {
     ) as HTMLSelectElement;
     select.value = 'cheque';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Selection alone stages — no PUT yet (Karan 2026-10-02: no auto-save).
+    httpMock.expectNone(
+      (r) =>
+        r.url.endsWith('/api/v1/billing/payment-method') &&
+        r.method === 'PUT',
+    );
+    // Apply button is visible and enabled (staged differs from saved).
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-billing__apply',
+    ) as HTMLButtonElement;
+    expect(apply).toBeTruthy();
+    expect(apply.disabled).toBe(false);
+
+    apply.click();
     const put = httpMock.expectOne(
       (r) =>
         r.url.endsWith('/api/v1/billing/payment-method') &&
@@ -297,6 +314,46 @@ describe('BuilderBillingComponent (billing/02)', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Saved — new invoices will use cheque.');
+  });
+
+  it('Reset discards the staged choice without an API call', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/card'))
+      .flush(CARD_ON_FILE);
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+      .flush({ defaultMethod: 'card' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = fixture.nativeElement.querySelector(
+      '#builder-default-method',
+    ) as HTMLSelectElement;
+    select.value = 'cheque';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const reset = fixture.nativeElement.querySelector(
+      '.builder-billing__reset',
+    ) as HTMLButtonElement;
+    expect(reset).toBeTruthy();
+    reset.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // No PUT — the staged choice was discarded.
+    httpMock.expectNone(
+      (r) =>
+        r.url.endsWith('/api/v1/billing/payment-method') &&
+        r.method === 'PUT',
+    );
+    // Apply/Reset buttons disappear; select shows the saved method.
+    expect(
+      fixture.nativeElement.querySelector('.builder-billing__apply'),
+    ).toBeFalsy();
+    expect(select.value).toBe('card');
   });
 
   it('shows the save-failed copy when the default-method PUT errors (billing/12)', async () => {
@@ -315,6 +372,14 @@ describe('BuilderBillingComponent (billing/02)', () => {
     ) as HTMLSelectElement;
     select.value = 'e_transfer';
     select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Apply the staged change; the PUT fails.
+    const apply = fixture.nativeElement.querySelector(
+      '.builder-billing__apply',
+    ) as HTMLButtonElement;
+    apply.click();
     httpMock
       .expectOne(
         (r) =>
@@ -329,6 +394,8 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain(
       'We couldn’t save your default payment method. Please try again.',
     );
+    // Failure reverts the select to the saved value.
+    expect(select.value).toBe('card');
   });
 
   it('retries the default payment method load after an error (billing/12)', async () => {

@@ -137,15 +137,16 @@
                exist on first render, so it never takes effect;
                option-level selectedness is order-safe. -->
           <select
+            #defaultMethodSelect
             id="builder-default-method"
             class="builder-billing__select"
-            (change)="onDefaultMethodChange($event)"
+            (change)="onDefaultMethodSelect($event)"
             [disabled]="defaultMethodSaveStatus() === 'saving'"
           >
             @for (method of defaultMethodOptions(); track method) {
               <option
                 [value]="method"
-                [selected]="defaultMethod() === method"
+                [selected]="displayedDefaultMethod() === method"
                 [disabled]="method === 'card' && isCardOptionDisabled()"
               >
                 {{ defaultMethodOptionLabel(method) }}
@@ -153,6 +154,31 @@
             }
           </select>
         </div>
+
+        @if (pendingDefaultMethod() !== null) {
+          <div class="builder-billing__actions">
+            <button
+              type="button"
+              class="builder-billing__apply"
+              (click)="applyDefaultMethod()"
+              [disabled]="!canApplyDefaultMethod() || defaultMethodSaveStatus() === 'saving'"
+            >
+              @if (defaultMethodSaveStatus() === 'saving') {
+                {{ copy.billingDefaultMethodApplying }}
+              } @else {
+                {{ copy.billingDefaultMethodApply }}
+              }
+            </button>
+            <button
+              type="button"
+              class="builder-billing__reset"
+              (click)="resetPendingDefaultMethod()"
+              [disabled]="defaultMethodSaveStatus() === 'saving'"
+            >
+              {{ copy.billingDefaultMethodReset }}
+            </button>
+          </div>
+        }
 
         @if (defaultMethodSaveStatus() === 'error') {
           <div class="builder-billing__alert" role="alert">

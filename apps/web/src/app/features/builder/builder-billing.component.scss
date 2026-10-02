@@ -255,3 +255,47 @@
     justify-content: center;
   }
 }
+
+/* Apply flow (Karan 2026-10-02): the select stages a choice; Apply
+   confirms it. Mobile-safe: buttons wrap below the select at 390px. */
+.builder-billing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.builder-billing__apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-accent, #a8761a);
+  border-radius: 0.375rem;
+  background: var(--color-accent, #a8761a);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.builder-billing__reset {
+  background: none;
+  border: none;
+  padding: 0.5rem 0.25rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: inherit;
+  min-height: 44px;
+}

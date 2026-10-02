@@ -153,6 +153,9 @@ export interface BuilderCopy {
   billingDefaultMethodLabel: string;
   billingDefaultMethodSaved: string;
   billingDefaultMethodSaveFailed: string;
+  billingDefaultMethodApply: string;
+  billingDefaultMethodApplying: string;
+  billingDefaultMethodReset: string;
   billingMethodCard: string;
   billingMethodCardWithLast4: string;
   billingMethodCardNoCard: string;
