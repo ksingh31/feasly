@@ -38,13 +38,17 @@ import {
   communityMixFileSchema,
 } from './community-mix.schema.js';
 import { scanDenyList } from './community-aggregates.schema.js';
+import { communityTypesFileSchema } from './community-mix.schema.js';
 import type {
   CommunityDwellingMix,
   CommunityMixFile,
+  CommunityTypesFile,
 } from './community-mix.schema.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-mix.json');
+/** Slim slug → page-type lookup written next to the full mix file. */
+const TYPES_OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-types.json');
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
 
 /** Max age of the checked-in JSON before it must be regenerated. */
@@ -233,6 +237,29 @@ export function writeMix(
   }
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, serialized);
+  writeTypesFile(parsed.data);
+  return parsed.data;
+}
+
+/**
+ * Writes the slim slug → page-type lookup next to the full mix file, so the
+ * community index and variant chooser can import ~1 KB instead of ~10 KB.
+ */
+export function writeTypesFile(
+  mixFile: CommunityMixFile,
+  typesOutputPath: string = TYPES_OUTPUT_PATH,
+): CommunityTypesFile {
+  const typesFile: CommunityTypesFile = {
+    generatedAt: mixFile.generatedAt,
+    assessmentYear: mixFile.assessmentYear,
+    types: Object.fromEntries(mixFile.communities.map((c) => [c.slug, c.communityType])),
+  };
+  const parsed = communityTypesFileSchema.safeParse(typesFile);
+  if (!parsed.success) {
+    throw new Error(`build-community-mix: types schema validation failed: ${parsed.error.message}`);
+  }
+  mkdirSync(dirname(typesOutputPath), { recursive: true });
+  writeFileSync(typesOutputPath, JSON.stringify(parsed.data) + '\n');
   return parsed.data;
 }
 

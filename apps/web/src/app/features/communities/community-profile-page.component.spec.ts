@@ -4,9 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CommunityProfilePageComponent,
   resolveProfileCopy,
-  type CommunityProfileCopy,
-  type CommunityProfileView,
 } from './community-profile-page.component';
+import type { CommunityProfileCopy, CommunityProfileView } from '@feasly/contracts';
 
 /**
  * Property-profile variant: /communities/:slug/ for condo/apartment-dominated
@@ -17,6 +16,9 @@ describe('CommunityProfilePageComponent', () => {
 
   const rawCopy: CommunityProfileCopy = {
     kicker: 'Community property profile',
+    titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+    descriptionTemplate:
+      'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
     lede: 'Most homes in {name} are apartments, condos, and townhouses.',
     homesAssessedLabel: 'Homes assessed',
     homesAssessedSub: '{year} assessment roll',

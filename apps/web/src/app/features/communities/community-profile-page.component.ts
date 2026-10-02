@@ -1,56 +1,7 @@
 import { Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import type { DwellingBucket } from '@feasly/contracts';
-
-/** View model for one property-profile community page. All figures are real City assessment data. */
-export interface CommunityProfileView {
-  readonly slug: string;
-  readonly displayName: string;
-  /** All-residential average City-assessed value (same figure as the index card). */
-  readonly avgAssessedValue: number;
-  /** Assessment roll year, e.g. "2026". */
-  readonly assessmentYear: string;
-  /** Residential dwelling records behind the mix (excludes common elements/parking/storage). */
-  readonly dwellingUnits: number;
-  readonly mix: Readonly<Record<DwellingBucket, number>>;
-  readonly mostCommonType: DwellingBucket;
-  /** Up to 3 nearby community slugs (display names resolved from the aggregates). */
-  readonly nearby: readonly { slug: string; displayName: string }[];
-}
-
-/**
- * Raw profile copy from config — carries {name}, {year}, {avgAssessed},
- * {multiPct}, {semiPct}, {singlePct} placeholders. Use
- * `resolveProfileCopy` to fill them; never render raw.
- */
-export interface CommunityProfileCopy {
-  readonly kicker: string;
-  readonly lede: string;
-  readonly homesAssessedLabel: string;
-  readonly homesAssessedSub: string;
-  readonly mostCommonTypeLabel: string;
-  readonly assessmentYearLabel: string;
-  readonly mixTitle: string;
-  readonly mixBody: string;
-  readonly mixBarLabelTemplate: string;
-  readonly typeLabels: Readonly<Record<DwellingBucket, string>>;
-  readonly noBuildTitle: string;
-  readonly noBuildBody: string;
-  readonly noBuildGuideLink: string;
-  readonly explainerTitle: string;
-  readonly explainerItems: readonly { title: string; body: string }[];
-  readonly faqTitle: string;
-  readonly faqItems: readonly { q: string; a: string }[];
-  readonly nearbyTitle: string;
-  readonly ctaTitle: string;
-  readonly ctaBody: string;
-  readonly ctaEstimateLabel: string;
-  readonly ctaGuideLabel: string;
-  readonly finePrint: string;
-  readonly statLabel: string;
-  readonly statNote: string;
-}
+import type { CommunityProfileCopy, CommunityProfileView, DwellingBucket } from '@feasly/contracts';
 
 function formatCad(value: number): string {
   return new Intl.NumberFormat('en-CA', {

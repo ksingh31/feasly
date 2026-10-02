@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { Routes, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -217,12 +217,22 @@ export const routes: Routes = [
   // Indexable — no `noindex` data, so crawlers rank them.
   // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
   // unaffected; the per-community JSON payloads stay out of the initial bundle.
+  // The resolver loads the slug's page-data JSON (one tiny file per community)
+  // before activation — the component reads it synchronously, so server
+  // prerender and client hydration see identical state. The resolver itself is
+  // lazily imported so the component file stays out of the initial bundle.
   {
     path: 'communities/:slug',
     loadComponent: () =>
       import('./features/communities/community-page.component').then(
         (m) => m.CommunityPageComponent,
       ),
+    resolve: {
+      pageData: (route: ActivatedRouteSnapshot, state: RouterStateSnapshot) =>
+        import('./features/communities/community-page.component').then((m) =>
+          m.communityPageResolver(route, state),
+        ),
+    },
     canActivate: [robotsGuard],
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via

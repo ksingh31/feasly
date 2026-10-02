@@ -48,3 +48,85 @@ export interface CommunityMixFile {
   readonly assessmentYear: string;
   readonly communities: readonly CommunityDwellingMix[];
 }
+
+/**
+ * Slim slug → page-type lookup (`community-types.json`).
+ * The community index and the community-page variant chooser import this
+ * (~1 KB) instead of the full mix file; the full mix is only loaded by the
+ * lazily-loaded profile variant.
+ */
+export interface CommunityTypesFile {
+  readonly generatedAt: string;
+  /** Assessment roll year the mix was computed from, e.g. "2026". */
+  readonly assessmentYear: string;
+  /** slug → page type. Unknown slugs default to 'build-guide'. */
+  readonly types: Readonly<Record<string, CommunityType>>;
+}
+
+/**
+ * View model for one property-profile community page. All figures are real
+ * City assessment data. Built by the route component, rendered by the
+ * lazily-loaded profile variant.
+ */
+export interface CommunityProfileView {
+  readonly slug: string;
+  readonly displayName: string;
+  /** All-residential average City-assessed value (same figure as the index card). */
+  readonly avgAssessedValue: number;
+  /** Assessment roll year, e.g. "2026". */
+  readonly assessmentYear: string;
+  /** Residential dwelling records behind the mix (excludes common elements/parking/storage). */
+  readonly dwellingUnits: number;
+  readonly mix: Readonly<Record<DwellingBucket, number>>;
+  readonly mostCommonType: DwellingBucket;
+  /** Up to 3 nearby community slugs (display names resolved from the aggregates). */
+  readonly nearby: readonly { slug: string; displayName: string }[];
+}
+
+/**
+ * Raw profile copy as stored in `community-profile-copy.defaults.ts`.
+ * `statLabel`/`statNote` are intentionally absent: the route component
+ * merges the build-guide's assessed-value wording over the raw copy (same
+ * figure, same wording, one source of truth) before resolving placeholders.
+ */
+export type RawCommunityProfileCopy = Omit<CommunityProfileCopy, 'statLabel' | 'statNote'>;
+
+/**
+ * Resolved profile copy — raw copy with every {name}, {year},
+ * {avgAssessed}, {multiPct}, {semiPct}, {singlePct} placeholder filled by
+ * `resolveProfileCopy`. Never render the raw copy.
+ */
+export interface CommunityProfileCopy {
+  readonly kicker: string;
+  readonly titleTemplate: string;
+  readonly descriptionTemplate: string;
+  readonly lede: string;
+  readonly homesAssessedLabel: string;
+  readonly homesAssessedSub: string;
+  readonly mostCommonTypeLabel: string;
+  readonly assessmentYearLabel: string;
+  readonly mixTitle: string;
+  readonly mixBody: string;
+  readonly mixBarLabelTemplate: string;
+  readonly typeLabels: Readonly<Record<DwellingBucket, string>>;
+  readonly noBuildTitle: string;
+  readonly noBuildBody: string;
+  readonly noBuildGuideLink: string;
+  readonly explainerTitle: string;
+  readonly explainerItems: readonly { title: string; body: string }[];
+  readonly faqTitle: string;
+  readonly faqItems: readonly { q: string; a: string }[];
+  readonly nearbyTitle: string;
+  readonly ctaTitle: string;
+  readonly ctaBody: string;
+  readonly ctaEstimateLabel: string;
+  readonly ctaGuideLabel: string;
+  readonly finePrint: string;
+  /**
+   * Assessed-value label/note. Not stored with the raw copy — the route
+   * component merges the guide's wording over the raw copy (same figure,
+   * same wording, one source of truth) before resolving placeholders.
+   */
+  readonly statLabel: string;
+  readonly statNote: string;
+}

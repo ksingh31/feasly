@@ -6,7 +6,46 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
+import { CommunityProfileCopyLoader } from './community-profile-copy-loader.service';
+import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
+
+const mockProfileCopy: RawCommunityProfileCopy = {
+  kicker: 'Community property profile',
+  titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+  descriptionTemplate:
+    'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
+  lede: 'Most homes in {name} are apartments, condos, and townhouses.',
+  homesAssessedLabel: 'Homes assessed',
+  homesAssessedSub: '{year} assessment roll',
+  mostCommonTypeLabel: 'Most common home type',
+  assessmentYearLabel: 'Assessment year',
+  mixTitle: 'What people live in here',
+  mixBody: 'Dwelling mix for {name}.',
+  mixBarLabelTemplate: 'Dwelling mix: {multiPct}% multi, {semiPct}% semi, {singlePct}% single.',
+  typeLabels: {
+    singleDetached: 'Single-detached',
+    semiDuplex: 'Semi-detached / duplex',
+    multiFamily: 'Apartments, condos & townhouses',
+  },
+  noBuildTitle: "Why you won't see build prices on this page",
+  noBuildBody: 'No build prices for {name}.',
+  noBuildGuideLink: 'See the Calgary build-cost guide →',
+  explainerTitle: 'How Calgary assessments work',
+  explainerItems: [{ title: 'T1.', body: 'B1.' }],
+  faqTitle: 'Common questions',
+  faqItems: [
+    { q: 'PQ1 for {name}?', a: 'PA1 {year}.' },
+    { q: 'PQ2?', a: 'PA2.' },
+    { q: 'PQ3?', a: 'PA3.' },
+  ],
+  nearbyTitle: 'Nearby communities',
+  ctaTitle: 'Building a home elsewhere in Calgary?',
+  ctaBody: 'CTA body.',
+  ctaEstimateLabel: 'Get a free estimate →',
+  ctaGuideLabel: 'Calgary build-cost guide',
+  finePrint: 'Figures from the {year} roll for {name}.',
+};
 
 /**
  * SEO-04: /communities/:slug renders the H1, stat block, 3 tier ranges,
@@ -17,9 +56,11 @@ describe('CommunityPageComponent', () => {
   let fixture: ComponentFixture<CommunityPageComponent>;
 
   const communitiesCopy = {
-    illustrativeBanner: 'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
+    illustrativeBanner:
+      'Illustrative ranges — our cost data is being calibrated. Final figures coming soon.',
     titleTemplate: 'Feasly — Cost to build a home in {name}, Calgary',
-    descriptionTemplate: 'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}.',
+    descriptionTemplate:
+      'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}.',
     statLabel: 'Average City-assessed value (not market value)',
     statNote: 'Stat note.',
     basisNote: 'Basis note.',
@@ -41,49 +82,79 @@ describe('CommunityPageComponent', () => {
     ctaTitle: 'Building in {name}?',
     ctaBody: 'CTA body.',
     ctaLabel: 'Get your address-specific estimate →',
-    profile: {
-      kicker: 'Community property profile',
-      titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
-      descriptionTemplate: 'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
-      lede: 'Most homes in {name} are apartments, condos, and townhouses.',
-      homesAssessedLabel: 'Homes assessed',
-      homesAssessedSub: '{year} assessment roll',
-      mostCommonTypeLabel: 'Most common home type',
-      assessmentYearLabel: 'Assessment year',
-      mixTitle: 'What people live in here',
-      mixBody: 'Dwelling mix for {name}.',
-      mixBarLabelTemplate: 'Dwelling mix: {multiPct}% multi, {semiPct}% semi, {singlePct}% single.',
-      typeLabels: {
-        singleDetached: 'Single-detached',
-        semiDuplex: 'Semi-detached / duplex',
-        multiFamily: 'Apartments, condos & townhouses',
-      },
-      noBuildTitle: "Why you won't see build prices on this page",
-      noBuildBody: 'No build prices for {name}.',
-      noBuildGuideLink: 'See the Calgary build-cost guide →',
-      explainerTitle: 'How Calgary assessments work',
-      explainerItems: [{ title: 'T1.', body: 'B1.' }],
-      faqTitle: 'Common questions',
-      faqItems: [
-        { q: 'PQ1 for {name}?', a: 'PA1 {year}.' },
-        { q: 'PQ2?', a: 'PA2.' },
-        { q: 'PQ3?', a: 'PA3.' },
-      ],
-      nearbyTitle: 'Nearby communities',
-      ctaTitle: 'Building a home elsewhere in Calgary?',
-      ctaBody: 'CTA body.',
-      ctaEstimateLabel: 'Get a free estimate →',
-      ctaGuideLabel: 'Calgary build-cost guide',
-      finePrint: 'Figures from the {year} roll for {name}.',
-      statLabel: 'Average City-assessed value (not market value)',
-      statNote: 'Stat note.',
-    },
   };
 
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
     copy: { seo: {}, communities: communitiesCopy },
   };
+
+  /**
+   * Mock per-slug page data (mirrors the shape generated by
+   * `scripts/build-community-pages.ts`). The resolver normally supplies this
+   * via `ActivatedRoute.data`; tests inject it directly.
+   */
+  function mockPageData(slug: string): unknown {
+    const isProfile = slug === 'beltline';
+    const displayName = slug === 'beltline' ? 'Beltline' : 'Mahogany';
+    return {
+      slug,
+      type: isProfile ? 'profile' : 'build-guide',
+      assessmentYear: '2026',
+      aggregate: {
+        slug,
+        name: slug.toUpperCase(),
+        count: isProfile ? 11642 : 8689,
+        avgAssessedValue: isProfile ? 607351 : 719666,
+        avgLotSqft: isProfile ? 0 : 43382,
+      },
+      range: isProfile
+        ? null
+        : {
+            slug,
+            tiers: {
+              standard: {
+                buildLow: 400000,
+                buildHigh: 500000,
+                landValue: 300000,
+                totalLow: 700000,
+                totalHigh: 800000,
+              },
+              premium: {
+                buildLow: 500000,
+                buildHigh: 650000,
+                landValue: 300000,
+                totalLow: 800000,
+                totalHigh: 950000,
+              },
+              luxury: {
+                buildLow: 650000,
+                buildHigh: 850000,
+                landValue: 300000,
+                totalLow: 950000,
+                totalHigh: 1150000,
+              },
+            },
+            costDataVersion: 'test',
+            calibrated: false,
+            buildSqft: 2400,
+          },
+      nearby: [
+        { slug: 'copperfield', name: 'COPPERFIELD' },
+        { slug: 'mckenzie-towne', name: 'MCKENZIE TOWNE' },
+        { slug: 'auburn-bay', name: 'AUBURN BAY' },
+      ],
+      ...(isProfile
+        ? {
+            mix: {
+              dwellingUnits: 11642,
+              mix: { singleDetached: 28, semiDuplex: 2, multiFamily: 11612 },
+              mostCommonType: 'multiFamily',
+            },
+          }
+        : {}),
+    };
+  }
 
   async function setup(slug: string): Promise<void> {
     TestBed.resetTestingModule();
@@ -93,9 +164,14 @@ describe('CommunityPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
+        // Profile copy is lazy-loaded in production; substitute the mock here.
+        {
+          provide: CommunityProfileCopyLoader,
+          useValue: { load: () => Promise.resolve(mockProfileCopy) },
+        },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => slug } } },
+          useValue: { snapshot: { data: { pageData: mockPageData(slug) } } },
         },
         // SeoService subscribes to router.events in its constructor — the stub
         // must expose an events observable (empty here; no navigation in these tests).
@@ -104,6 +180,15 @@ describe('CommunityPageComponent', () => {
     });
     // Router is injected via `inject(Router)` — override the token used above.
     fixture = TestBed.createComponent(CommunityPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // The profile variant lazy-loads its component via dynamic import — poll
+    // for whichever variant resolves (profileView for profiles, community
+    // for build guides) instead of sleeping a fixed timeout.
+    await vi.waitFor(() => {
+      const cmp = fixture.componentInstance;
+      expect(cmp.profileView ?? cmp.community).toBeTruthy();
+    });
     fixture.detectChanges();
     await fixture.whenStable();
   }
@@ -115,7 +200,9 @@ describe('CommunityPageComponent', () => {
   it('renders the H1 with the community display name', async () => {
     await setup('mahogany');
     const h1 = fixture.nativeElement.querySelector('h1');
-    expect(h1?.textContent).toContain('How much does it cost to build a home in Mahogany, Calgary?');
+    expect(h1?.textContent).toContain(
+      'How much does it cost to build a home in Mahogany, Calgary?',
+    );
   });
 
   it('sets the per-page title pattern', async () => {
@@ -154,9 +241,9 @@ describe('CommunityPageComponent', () => {
     await setup('mahogany');
     const heroes = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-value');
     expect(heroes.length).toBe(3);
-    // Mahogany Standard: total 1244355 – 1422885.
-    expect(heroes[0]?.textContent).toContain('$1,244,355');
-    expect(heroes[0]?.textContent).toContain('$1,422,885');
+    // Mock Standard tier: total 700000 – 800000.
+    expect(heroes[0]?.textContent).toContain('$700,000');
+    expect(heroes[0]?.textContent).toContain('$800,000');
     const eyebrows = fixture.nativeElement.querySelectorAll('.tier-card .total-hero-label');
     expect([...eyebrows].every((e: Element) => e.textContent === 'Total investment')).toBe(true);
   });
@@ -177,9 +264,9 @@ describe('CommunityPageComponent', () => {
     expect(bars.length).toBe(3);
     const label = bars[0]?.getAttribute('aria-label') ?? '';
     expect(bars[0]?.getAttribute('role')).toBe('img');
-    // Mahogany Standard: land 719666, build mid 613954 → land ≈ 54%.
-    expect(label).toContain('Cost split: land $719,666 is about 54% of the total');
-    expect(label).toContain('build $524,689–$703,219 makes up about 46%');
+    // Mock Standard tier: land 300000, build 400000–500000 (mid 450000) → land = 40%.
+    expect(label).toContain('Cost split: land $300,000 is about 40% of the total');
+    expect(label).toContain('build $400,000–$500,000 makes up about 60%');
     // Segment widths sum to 100%.
     const segments = bars[0]?.querySelectorAll('.split-segment');
     const widths = [...segments].map((s: Element) => parseFloat((s as HTMLElement).style.width));
@@ -191,9 +278,9 @@ describe('CommunityPageComponent', () => {
     const captions = fixture.nativeElement.querySelectorAll('.tier-card .split-caption');
     expect(captions.length).toBe(3);
     expect(captions[0]?.textContent).toContain('Land');
-    expect(captions[0]?.textContent).toContain('~$719,666');
+    expect(captions[0]?.textContent).toContain('~$300,000');
     expect(captions[0]?.textContent).toContain('Build');
-    expect(captions[0]?.textContent).toContain('$524,689');
+    expect(captions[0]?.textContent).toContain('$400,000');
   });
 
   it('renders exactly 5 FAQ items', async () => {

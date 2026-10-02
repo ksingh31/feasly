@@ -986,74 +986,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ctaBody:
         'Get figures for your actual lot — assessed land value, lot size, and zoning pulled from your City property record.',
       ctaLabel: 'Get your address-specific estimate →',
-      profile: {
-        kicker: 'Community property profile',
-        titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
-        descriptionTemplate:
-          'Property values in {name}, Calgary — average City-assessed value {avgAssessed}, dwelling mix, and how Calgary assessments work, from City of Calgary data.',
-        lede:
-          'Most homes in {name} are apartments, condos, and townhouses rather than single-detached houses. A single-family build-cost guide would be misleading here, so this page shows what City of Calgary assessment data says about property values in {name} instead.',
-        homesAssessedLabel: 'Homes assessed',
-        homesAssessedSub: '{year} assessment roll',
-        mostCommonTypeLabel: 'Most common home type',
-        assessmentYearLabel: 'Assessment year',
-        mixTitle: 'What people live in here',
-        mixBody:
-          'Dwelling mix from City assessment records. This is why {name} gets a property profile instead of a build-cost guide — with this mix, a per-house construction estimate would be misleading.',
-        mixBarLabelTemplate:
-          'Dwelling mix: {multiPct}% apartments, condos and townhouses, {semiPct}% semi-detached and duplexes, {singlePct}% single-detached.',
-        typeLabels: {
-          singleDetached: 'Single-detached',
-          semiDuplex: 'Semi-detached / duplex',
-          multiFamily: 'Apartments, condos & townhouses',
-        } as const,
-        noBuildTitle: "Why you won't see build prices on this page",
-        noBuildBody:
-          'Our build-cost guides assume a single-family home on its own lot. In {name}, that scenario is the exception — publishing a "cost to build in {name}" figure would be misleading. If you are evaluating a multi-family or mixed-use project, that is a conversation, not a calculator.',
-        noBuildGuideLink: 'See the Calgary build-cost guide →',
-        explainerTitle: 'How Calgary assessments work',
-        explainerItems: [
-          {
-            title: 'Assessed value is not market value.',
-            body: "It's the City's estimate for property-tax purposes, based on sales in the area — usually trailing the live market by months.",
-          },
-          {
-            title: 'Condos are assessed as units.',
-            body: "Your unit's value plus a share of common property — land value isn't broken out the way it is for a house lot.",
-          },
-          {
-            title: 'Useful for comparing neighbourhoods,',
-            body: 'not for pricing a specific purchase. Always pair it with recent comparable sales.',
-          },
-        ],
-        faqTitle: 'Common questions',
-        faqItems: [
-          {
-            q: 'What is a City-assessed value?',
-            a: 'The value the City of Calgary assigns to a property for property-tax purposes. It is based on market activity in the area and is reassessed every year — it is a tax basis, not an appraisal or a listing price.',
-          },
-          {
-            q: 'Why is there no build-cost guide for {name}?',
-            a: 'Our build-cost guides assume a single-family home on its own lot. Most homes in {name} are apartments, condos, or townhouses, so a per-house build figure would be misleading. This page shows assessed property values instead.',
-          },
-          {
-            q: 'Are assessed values the same as sale prices?',
-            a: 'No. Assessed values are set for tax purposes and can trail actual sale prices by months. They are useful for comparing neighbourhoods because they are public, consistent, and cover every property — but price a specific purchase off recent comparable sales.',
-          },
-          {
-            q: 'How current is this data?',
-            a: 'Figures on this page come from the City of Calgary {year} property assessment roll, the most recent published roll.',
-          },
-        ],
-        nearbyTitle: 'Nearby communities',
-        ctaTitle: 'Building a home elsewhere in Calgary?',
-        ctaBody:
-          'Get a free build-cost estimate for a single-family home — standard, premium, and luxury finish tiers.',
-        ctaEstimateLabel: 'Get a free estimate →',
-        ctaGuideLabel: 'Calgary build-cost guide',
-        finePrint:
-          'Figures from the City of Calgary {year} property assessment roll. Averages cover all residential assessment records in {name}; dwelling mix counts residential dwelling records only (excludes condo common elements, parking, and storage).',
-      },
+      // NOTE: the property-profile page copy used to live here. It moved to
+      // `app/features/communities/community-profile-copy.defaults.ts` and is
+      // lazy-loaded with the profile variant so the initial bundle doesn't
+      // carry it (Lighthouse script-size budget).
     },
     /**
      * Builder portal wiring. Only infrastructure config lives in the root
