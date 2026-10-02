@@ -475,6 +475,23 @@ FROM (
 	FROM "commission_invoices"
 ) AS "m"
 WHERE "m"."max_n" > (SELECT "last_value" FROM "commission_invoice_number_seq");
+-- migration 0046 parity: invoice_number must be NOT NULL and UNIQUE. The
+-- backfill above guarantees no NULLs remain, so SET NOT NULL is a no-op on
+-- a healthy database; the UNIQUE constraint is (re)created only when
+-- missing, keeping the script safe to run repeatedly.
+ALTER TABLE "commission_invoices" ALTER COLUMN "invoice_number" SET NOT NULL;
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM "pg_constraint"
+		WHERE "conname" = 'commission_invoices_invoice_number_unique'
+	) THEN
+		ALTER TABLE "commission_invoices"
+			ADD CONSTRAINT "commission_invoices_invoice_number_unique"
+			UNIQUE("invoice_number");
+	END IF;
+END
+$$;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE TABLE IF NOT EXISTS "stripe_events" (

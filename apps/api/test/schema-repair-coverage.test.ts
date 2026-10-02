@@ -63,6 +63,22 @@ describe('schema repair coverage', () => {
     },
   );
 
+  it('recreates migration 0046 column constraints (UNIQUE + NOT NULL on invoice_number)', () => {
+    // Migration 0046 applies ALTER COLUMN invoice_number SET NOT NULL and
+    // ADD CONSTRAINT commission_invoices_invoice_number_unique AFTER the
+    // backfill. A DB repaired by this script (rather than migrated forward)
+    // must end up with the same constraints — ADD COLUMN IF NOT EXISTS
+    // alone leaves invoice_number nullable with no uniqueness.
+    expect(
+      REPAIR.includes('ALTER COLUMN "invoice_number" SET NOT NULL'),
+      'repair SQL must enforce NOT NULL on commission_invoices.invoice_number (migration 0046)',
+    ).toBe(true);
+    expect(
+      REPAIR.includes('"commission_invoices_invoice_number_unique"'),
+      'repair SQL must recreate the commission_invoices_invoice_number_unique constraint (migration 0046)',
+    ).toBe(true);
+  });
+
   it('creates every referenced table before its first foreign key (2026-09-28 P0)', () => {
     // Postgres requires the referenced table to EXIST when a FOREIGN KEY /
     // REFERENCES clause is created — `IF NOT EXISTS` on the column does not
