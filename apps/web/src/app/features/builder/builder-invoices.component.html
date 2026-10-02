@@ -287,6 +287,7 @@
             <th scope="col">{{ copy.invoicesColContract }}</th>
             <th scope="col">{{ copy.invoicesColCommission }}</th>
             <th scope="col">{{ copy.invoicesColStatus }}</th>
+            <th scope="col">{{ copy.invoicesColMethod }}</th>
             <th scope="col">{{ copy.invoicesColDue }}</th>
           </tr>
         </thead>
@@ -312,6 +313,12 @@
                     invoice.status
                   }}"
                   >{{ statusLabel(invoice.status) }}</span
+                >
+              </td>
+              <td>
+                <span
+                  class="builder-invoices__method"
+                  >{{ methodLabel(invoice.paymentMethod) }}</span
                 >
               </td>
               <td>

@@ -276,6 +276,9 @@ export class BuilderInvoicesComponent implements OnInit {
   /**
    * Day-level review-deadline countdown on the America/Edmonton calendar.
    * Returns null when the invoice is not in review or has no deadline.
+   * Method-aware (Karan 2026-10-02): "Auto-charges" only for card on file —
+   * manual methods (cheque, e-transfer, bank draft) never auto-charge, so
+   * they get a plain "Due in X days".
    */
   protected reviewCountdown(invoice: CommissionInvoice): string | null {
     if (invoice.status !== 'in_review' || !invoice.reviewDueAt) {
@@ -285,13 +288,17 @@ export class BuilderInvoicesComponent implements OnInit {
     if (days === null || days < 0) {
       return null;
     }
+    const autoCharge = invoice.paymentMethod === 'card';
     if (days === 0) {
-      return this.copy.invoicesAutoChargeToday;
+      return autoCharge ? this.copy.invoicesAutoChargeToday : this.copy.invoicesDueToday;
     }
     if (days === 1) {
-      return this.copy.invoicesAutoChargeTomorrow;
+      return autoCharge
+        ? this.copy.invoicesAutoChargeTomorrow
+        : this.copy.invoicesDueTomorrow;
     }
-    return this.copy.invoicesAutoChargeIn.replace('{days}', String(days));
+    const template = autoCharge ? this.copy.invoicesAutoChargeIn : this.copy.invoicesDueIn;
+    return template.replace('{days}', String(days));
   }
 
   protected reviewNote(invoice: BuilderCommissionInvoice): string | null {

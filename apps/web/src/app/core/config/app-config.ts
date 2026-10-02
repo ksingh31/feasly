@@ -173,6 +173,7 @@ export interface BuilderCopy {
   invoicesColCommission: string;
   invoicesColStatus: string;
   invoicesColDue: string;
+  invoicesColMethod: string;
   invoicesColLead: string;
   invoiceStatusDraft: string;
   invoiceStatusInReview: string;
@@ -184,6 +185,9 @@ export interface BuilderCopy {
   invoicesAutoChargeIn: string;
   invoicesAutoChargeTomorrow: string;
   invoicesAutoChargeToday: string;
+  invoicesDueIn: string;
+  invoicesDueTomorrow: string;
+  invoicesDueToday: string;
   invoicesPaymentFailed: string;
   invoicesPaymentReceived: string;
   invoicesUpdateCardCta: string;

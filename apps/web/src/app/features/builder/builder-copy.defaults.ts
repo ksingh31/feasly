@@ -145,6 +145,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesColCommission: 'Commission',
   invoicesColStatus: 'Status',
   invoicesColDue: 'Review deadline',
+  invoicesColMethod: 'Payment method',
   invoicesColLead: 'Lead',
   invoiceStatusDraft: 'Draft',
   invoiceStatusInReview: 'In review',
@@ -156,6 +157,9 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesAutoChargeIn: 'Auto-charges in {days} days',
   invoicesAutoChargeTomorrow: 'Auto-charges tomorrow',
   invoicesAutoChargeToday: 'Auto-charges today',
+  invoicesDueIn: 'Due in {days} days',
+  invoicesDueTomorrow: 'Due tomorrow',
+  invoicesDueToday: 'Due today',
   invoicesPaymentFailed:
     'Your card was declined \u2014 update it to avoid collection.',
   invoicesPaymentReceived: 'Payment received \u2014 thank you.',
