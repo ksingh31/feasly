@@ -302,10 +302,18 @@ export interface CommissionService {
    * `invoiceNumber` is an optional case-insensitive partial match on the
    * human-readable invoice number (e.g. "42" matches "INV-0042") — powers
    * the builder portal's invoice-number search.
+   *
+   * `status` optionally restricts to the given invoice statuses (dashboard
+   * due-invoice banners: failed + in_review).
    */
   listInvoices(
     tenantKey: string | null,
-    opts: { limit: number; offset: number; invoiceNumber?: string },
+    opts: {
+      limit: number;
+      offset: number;
+      invoiceNumber?: string;
+      status?: string[];
+    },
   ): Promise<CommissionInvoiceRecord[]>;
 }
 

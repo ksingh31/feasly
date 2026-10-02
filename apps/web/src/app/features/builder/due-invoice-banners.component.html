@@ -1,13 +1,13 @@
 @let due = dueInvoices();
 @if (due.length > 0) {
-  @if (banners.stackCollapsed()) {
+  @if (stackCollapsed()) {
     <!-- Slim summary bar: the whole stack folded into one line. -->
     <div class="due-banners">
       <div class="due">
         <button
           type="button"
           class="due-bar due-bar--summary"
-          (click)="banners.setStackCollapsed(false)"
+          (click)="setStackCollapsed(false)"
           [attr.aria-expanded]="false"
           [attr.aria-label]="heading(due.length)"
         >
@@ -45,18 +45,18 @@
         </svg>
         {{ heading(due.length) }}
       </span>
-      <button type="button" (click)="banners.setStackCollapsed(true)">
+      <button type="button" (click)="setStackCollapsed(true)">
         {{ copy.dueBannersCollapseAll }}
       </button>
     </div>
     <div class="due-banners">
       @for (invoice of due; track invoice.id) {
-        <div class="due" [attr.data-open]="banners.isOpen(invoice.id)">
+        <div class="due" [attr.data-open]="isOpen(invoice.id)">
           <button
             type="button"
             class="due-bar"
-            (click)="banners.toggleOpen(invoice.id)"
-            [attr.aria-expanded]="banners.isOpen(invoice.id)"
+            (click)="toggleOpen(invoice.id)"
+            [attr.aria-expanded]="isOpen(invoice.id)"
           >
             <span class="due-icon" aria-hidden="true">
               <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
@@ -80,7 +80,7 @@
               (keydown)="onDismissKey(invoice, $event)"
             >×</span>
           </button>
-          @if (banners.isOpen(invoice.id)) {
+          @if (isOpen(invoice.id)) {
             <div class="due-body">
               <div class="due-meta">{{ metaLine(invoice) }}</div>
               <div class="due-method">{{ methodLine() }}</div>

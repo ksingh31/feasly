@@ -15,7 +15,9 @@ import { formatCommentTimestamp } from '../../shared/components/comment-thread';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
 import { LoadBillingCard } from './builder-billing.actions';
-import { LoadInvoices } from './builder-invoices.actions';
+import { LoadActionableInvoices } from './builder-invoices.actions';
+import { BuilderInvoicesState } from './builder-invoices.state';
+import { PruneBannerState } from './due-invoice-banners.actions';
 
 /**
  * Builder pipeline dashboard (embed/09): the builder's lead list, in the
@@ -79,13 +81,23 @@ export class BuilderDashboardComponent implements OnInit {
       .dispatch(new LoadBuilderLeads())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
-    // Due-invoice banners: newest invoices for the banner set, plus the
-    // card summary for the banner's payment-method line. The banners
-    // component reads both from the store; both loads are fire-and-forget.
+    // Due-invoice banners: EVERY actionable invoice for the banner set
+    // (dedicated status-filtered query — never the paginated first page),
+    // plus the card summary for the banner's payment-method line. The
+    // banners component reads both from the store; the loads are
+    // fire-and-forget. Stale banner dismissals are pruned once the
+    // actionable set lands.
     this.store
-      .dispatch([new LoadInvoices(1), new LoadBillingCard()])
+      .dispatch([new LoadActionableInvoices(), new LoadBillingCard()])
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+      .subscribe({
+        next: () => {
+          const actionableIds = this.store
+            .selectSnapshot(BuilderInvoicesState.actionableInvoices)
+            .map((invoice) => invoice.id);
+          this.store.dispatch(new PruneBannerState(actionableIds));
+        },
+      });
   }
 
   /** Lead ids whose notes thread is expanded (ephemeral UI state, not persisted). */
