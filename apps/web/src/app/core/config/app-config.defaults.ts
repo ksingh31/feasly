@@ -1037,7 +1037,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             a: 'Our build-cost guides assume a single-family home on its own lot. Most homes in {name} are apartments, condos, or townhouses, so a per-house build figure would be misleading. This page shows assessed property values instead.',
           },
           {
-            q: 'Are assessed values the same as market values?',
+            q: 'Are assessed values the same as sale prices?',
             a: 'No. Assessed values are set for tax purposes and can trail actual sale prices by months. They are useful for comparing neighbourhoods because they are public, consistent, and cover every property — but price a specific purchase off recent comparable sales.',
           },
           {
