@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertNoNulls,
+  buildArticleSchema,
   buildFaqPageSchema,
   buildHowToSchema,
   buildItemListSchema,
@@ -140,6 +141,28 @@ describe('buildHowToSchema', () => {
   it('emits no null values', () => {
     expect(() =>
       assertNoNulls(buildHowToSchema('https://feasly.ca/how-it-works/', 't', 'd', steps)),
+    ).not.toThrow();
+  });
+});
+
+describe('buildArticleSchema', () => {
+  it('builds an Article with Feasly as author/publisher', () => {
+    const schema = buildArticleSchema(
+      'https://feasly.ca',
+      'https://feasly.ca/guides/cost-to-build-a-house-calgary/',
+      'How much does it cost to build a house in Calgary?',
+      'Planning ranges for building a house in Calgary.',
+    );
+    expect(schema['@type']).toBe('Article');
+    expect(schema['headline']).toBe('How much does it cost to build a house in Calgary?');
+    expect(schema['url']).toBe('https://feasly.ca/guides/cost-to-build-a-house-calgary/');
+    expect(schema['author']).toMatchObject({ '@type': 'Organization', name: 'Feasly' });
+    expect(schema['inLanguage']).toBe('en-CA');
+  });
+
+  it('emits no null values', () => {
+    expect(() =>
+      assertNoNulls(buildArticleSchema('https://feasly.ca', 'https://feasly.ca/g/', 'h', 'd')),
     ).not.toThrow();
   });
 });

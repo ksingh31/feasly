@@ -109,6 +109,69 @@
   margin: 0;
 }
 
+/* Pillar guide sections. */
+.guide-h2 {
+  font-family: var(--font-ui);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 48px 0 12px;
+  color: var(--text);
+}
+
+.guide-body {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--text);
+  margin: 0 0 16px;
+  max-width: 680px;
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  font-size: 15px;
+}
+
+.guide-table th,
+.guide-table td {
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.guide-table thead th {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--accent-bg);
+}
+
+.guide-table tbody tr:last-child th,
+.guide-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.guide-table tbody th {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.guide-table td {
+  color: var(--text);
+  line-height: 1.6;
+}
+
 /* FAQ accordion. Answers stay in the DOM for crawlers/no-JS readers. */
 .faq-list {
   display: grid;

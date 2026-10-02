@@ -72,7 +72,8 @@ function mustCanonical(html, route, expectedPath) {
 // --- Indexable routes: full tag set + trailing-slash canonical. ---
 // SEO-010 added /how-it-works and /faq: same bar as the other indexable pages.
 // api-mcp/03 added /developers: same bar.
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/404']) {
+// SEO pillar added /guides/cost-to-build-a-house-calgary: same bar.
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/guides/cost-to-build-a-house-calgary', '/404']) {
   const html = htmlFor(route);
   const expectedPath = route === '/' ? '/' : `${route}/`;
   mustCanonical(html, route, expectedPath);
@@ -111,7 +112,7 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
 }
 
 // --- Indexable routes must NOT be noindexed. ---
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers']) {
+for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/guides/cost-to-build-a-house-calgary']) {
   const html = htmlFor(route);
   mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
 }
@@ -146,6 +147,48 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
           }
           if (!a) {
             failures.push(`"/faq" ld+json answer missing for question: "${String(q).slice(0, 50)}"`);
+          }
+        }
+      }
+    }
+  }
+}
+
+// --- Pillar guide JSON-LD (SEO pillar): @graph with Article + FAQPage,
+// questions mirroring the visible FAQ. ---
+{
+  const route = '/guides/cost-to-build-a-house-calgary';
+  const html = htmlFor(route);
+  if (html !== null) {
+    const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+    if (scripts.length === 0) {
+      failures.push(`"${route}" missing application/ld+json script`);
+    } else {
+      let data = null;
+      try {
+        data = JSON.parse(scripts[0][1]);
+      } catch {
+        failures.push(`"${route}" ld+json is not valid JSON`);
+      }
+      if (data !== null) {
+        const graph = data['@graph'] ?? [];
+        const types = graph.map((n) => n?.['@type']);
+        if (!types.includes('Article')) {
+          failures.push(`"${route}" ld+json @graph missing Article`);
+        }
+        const faqNode = graph.find((n) => n?.['@type'] === 'FAQPage');
+        if (!faqNode) {
+          failures.push(`"${route}" ld+json @graph missing FAQPage`);
+        } else {
+          const entities = faqNode.mainEntity ?? [];
+          if (!Array.isArray(entities) || entities.length < 4) {
+            failures.push(`"${route}" ld+json FAQPage mainEntity should have 4+ questions`);
+          }
+          for (const entity of entities) {
+            const q = entity?.name ?? '';
+            if (!q || !html.includes(q)) {
+              failures.push(`"${route}" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
+            }
           }
         }
       }

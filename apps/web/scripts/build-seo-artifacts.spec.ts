@@ -17,7 +17,7 @@ describe('build-seo-artifacts (SEO-02)', () => {
     const { sitemapXml, urlCount } = buildSeoArtifacts({ siteUrl: 'https://example.com', outputDir: dir });
 
     // Static routes present.
-    for (const path of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/communities/', '/developers']) {
+    for (const path of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/guides/cost-to-build-a-house-calgary', '/communities/', '/developers']) {
       expect(sitemapXml).toContain(`<loc>https://example.com${path}</loc>`);
     }
 
@@ -28,9 +28,9 @@ describe('build-seo-artifacts (SEO-02)', () => {
     // 40 community pages (the /communities/ index is matched separately above).
     expect(communityUrls.length).toBe(40);
 
-    // Total: 7 static + 40 community. /sample-report is deliberately
+    // Total: 8 static + 40 community. /sample-report is deliberately
     // excluded (noindex route — must never appear in the sitemap).
-    expect(urlCount).toBe(47);
+    expect(urlCount).toBe(48);
 
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf-8')).toBe(sitemapXml);
   });

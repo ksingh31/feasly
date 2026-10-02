@@ -35,6 +35,13 @@ const ROUTES: SeoRouteConfig[] = [
   // Marketing pages (SEO-010): indexable — no `noindex`, so crawlers rank them.
   { pattern: 'how-it-works', titleKey: 'howItWorksTitle', descriptionKey: 'howItWorks' },
   { pattern: 'faq', titleKey: 'faqTitle', descriptionKey: 'faq' },
+  // Pillar guide (SEO pillar): long-form "cost to build a house in Calgary"
+  // guide — indexable like the other marketing pages.
+  {
+    pattern: 'guides/cost-to-build-a-house-calgary',
+    titleKey: 'pillarGuideTitle',
+    descriptionKey: 'pillarGuide',
+  },
   // API docs (api-mcp/03): indexable like the marketing pages above.
   { pattern: 'developers', titleKey: 'developersTitle', descriptionKey: 'developers' },
   // Community index (SEO-05): indexable guide listing — no `noindex`.

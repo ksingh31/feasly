@@ -101,6 +101,18 @@ export const routes: Routes = [
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
   { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // Pillar guide (SEO pillar): long-form cost guide — indexable like the
+  // other marketing pages. Anchors the /guides/ section for future guides.
+  // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
+  // unaffected (same pattern as /developers).
+  {
+    path: 'guides/cost-to-build-a-house-calgary',
+    loadComponent: () =>
+      import('./features/marketing/pillar-guide-page.component').then(
+        (m) => m.PillarGuidePageComponent,
+      ),
+    canActivate: [robotsGuard],
+  },
   // API docs (api-mcp/03): indexable like the other marketing pages — no
   // `noindex` data, so the SEO table + check-prerender-seo.mjs treat it as
   // crawlable. Sitemap already reserves /developers (seo/02). Lazy-loaded:
