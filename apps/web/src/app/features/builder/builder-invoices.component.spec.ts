@@ -326,6 +326,75 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Auto-charges in 3 days');
   });
 
+  it('shows "Due in X days" (no auto-charge) for manual-method in-review invoices', async () => {
+    const invoices = testInvoices().map((inv) =>
+      inv.status === 'in_review' ? { ...inv, paymentMethod: 'cheque' as const } : inv,
+    );
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Due in 3 days');
+    expect(text).not.toContain('Auto-charges');
+  });
+
+  it('shows "Due tomorrow" for a manual-method invoice due tomorrow', async () => {
+    const day = 86_400_000;
+    const invoices = testInvoices().map((inv) =>
+      inv.status === 'in_review'
+        ? {
+            ...inv,
+            paymentMethod: 'e_transfer' as const,
+            reviewDueAt: new Date(Date.now() + 1 * day).toISOString(),
+          }
+        : inv,
+    );
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Due tomorrow');
+    expect(text).not.toContain('Auto-charges');
+  });
+
+  it('renders the payment method label in its own column', async () => {
+    const invoices = testInvoices().map((inv, i) =>
+      i === 0 ? { ...inv, paymentMethod: 'cheque' as const } : inv,
+    );
+    const { fixture } = await setupWithInvoices({
+      invoices,
+      total: invoices.length,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const headers = [
+      ...fixture.nativeElement.querySelectorAll(
+        '.builder-invoices__table thead th',
+      ),
+    ].map((th: Element) => th.textContent?.trim());
+    expect(headers).toContain('Payment method');
+
+    const methodCells = [
+      ...fixture.nativeElement.querySelectorAll('.builder-invoices__method'),
+    ].map((el: Element) => el.textContent?.trim());
+    expect(methodCells).toContain('Cheque');
+  });
+
   it('opens the detail view with a failed-charge banner and update-card CTA', async () => {
     const { fixture } = await setup();
     fixture.detectChanges();
