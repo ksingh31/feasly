@@ -12,7 +12,7 @@ import type {
   CommissionInvoice,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
-import { firstValueFrom, Subject } from 'rxjs';
+import { firstValueFrom, Subject, timer } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
@@ -112,6 +112,26 @@ export class BuilderInvoicesComponent implements OnInit {
   protected readonly card = this.store.selectSignal(BuilderBillingState.card);
 
   /**
+   * Staged (not yet applied) payment method for the open detail view.
+   * The select only stages a choice — nothing is saved until the builder
+   * clicks Apply (Karan 2026-10-02: no auto-save on select). `null` means
+   * no pending change; the select then shows the saved method. Cleared
+   * whenever the detail view opens/closes so a staged choice never leaks
+   * into another invoice.
+   */
+  protected readonly pendingPaymentMethod =
+    signal<BuilderPaymentMethod | null>(null);
+
+  /**
+   * Transient "saved" confirmation after a successful Apply. Cleared on
+   * the next selection, Apply, or detail-view change.
+   */
+  protected readonly paymentMethodSavedFlash = signal(false);
+
+  /** How long the "Payment method updated." confirmation stays visible. */
+  private static readonly PAYMENT_METHOD_SAVED_FLASH_MS = 4000;
+
+  /**
    * Invoice-number search box text (what the user typed). The committed
    * server-side filter lives in the state; typing debounces into
    * {@link SetInvoiceNumberFilter} so the list searches as you type.
@@ -175,10 +195,14 @@ export class BuilderInvoicesComponent implements OnInit {
   }
 
   protected openInvoice(id: string): void {
+    this.pendingPaymentMethod.set(null);
+    this.paymentMethodSavedFlash.set(false);
     this.store.dispatch(new SelectInvoice(id));
   }
 
   protected closeDetail(): void {
+    this.pendingPaymentMethod.set(null);
+    this.paymentMethodSavedFlash.set(false);
     this.store.dispatch(new ClearInvoiceSelection());
     // Drop the deep-link param so a closed detail doesn't reopen on the
     // next visit within this session.
@@ -307,25 +331,87 @@ export class BuilderInvoicesComponent implements OnInit {
   }
 
   /**
-   * Persists the per-invoice payment method on change (billing/12). The
-   * select is disabled while the PUT is in flight; a failure surfaces
-   * the save-failed copy under the control.
+   * The method the select shows: the staged choice while one is pending,
+   * otherwise the saved method. The review note and manual-method
+   * explainer always read the SAVED method (`invoice.paymentMethod`) —
+   * never the staged one — so the messaging always describes what the
+   * backend will actually do.
    */
-  protected async onInvoicePaymentMethodChange(
+  protected displayedPaymentMethod(
+    invoice: BuilderCommissionInvoice,
+  ): BuilderPaymentMethod {
+    return this.pendingPaymentMethod() ?? invoice.paymentMethod;
+  }
+
+  /** Apply is only meaningful when a real change is staged. */
+  protected canApplyPaymentMethod(invoice: BuilderCommissionInvoice): boolean {
+    const pending = this.pendingPaymentMethod();
+    return (
+      pending !== null &&
+      pending !== invoice.paymentMethod &&
+      this.paymentMethodEditable(invoice)
+    );
+  }
+
+  /**
+   * Stages the dropdown choice without saving (billing/12 rework,
+   * Karan 2026-10-02: changing the method must not apply on select).
+   * Re-selecting the saved method clears the staged change.
+   */
+  protected onInvoicePaymentMethodSelect(
     invoice: BuilderCommissionInvoice,
     event: Event,
-  ): Promise<void> {
+  ): void {
     const value = (event.target as HTMLSelectElement).value;
+    if (!isBuilderPaymentMethod(value) || !this.paymentMethodEditable(invoice)) {
+      return;
+    }
+    this.paymentMethodSavedFlash.set(false);
+    this.pendingPaymentMethod.set(
+      value === invoice.paymentMethod ? null : value,
+    );
+  }
+
+  /** Discards the staged choice; the select snaps back to the saved method. */
+  protected resetPendingPaymentMethod(): void {
+    this.pendingPaymentMethod.set(null);
+  }
+
+  /**
+   * Applies the staged payment method (billing/12). Disabled until the
+   * staged choice differs from the saved method. On success the saved
+   * method (and the method-aware review note) updates and a transient
+   * confirmation shows; on failure the select reverts to the saved value
+   * and the save-failed copy surfaces under the control.
+   */
+  protected async applyInvoicePaymentMethod(
+    invoice: BuilderCommissionInvoice,
+  ): Promise<void> {
+    const pending = this.pendingPaymentMethod();
     if (
-      !isBuilderPaymentMethod(value) ||
-      value === invoice.paymentMethod ||
+      pending === null ||
+      pending === invoice.paymentMethod ||
       !this.paymentMethodEditable(invoice)
     ) {
       return;
     }
+    this.paymentMethodSavedFlash.set(false);
     await firstValueFrom(
-      this.store.dispatch(new UpdateInvoicePaymentMethod(invoice.id, value)),
+      this.store.dispatch(new UpdateInvoicePaymentMethod(invoice.id, pending)),
     );
+    // The staged choice is consumed either way: on success the select
+    // shows the new saved method; on failure it reverts to the old one.
+    this.pendingPaymentMethod.set(null);
+    if (
+      this.store.selectSnapshot(
+        BuilderInvoicesState.paymentMethodSaveStatus,
+      ) === 'idle'
+    ) {
+      this.paymentMethodSavedFlash.set(true);
+      timer(BuilderInvoicesComponent.PAYMENT_METHOD_SAVED_FLASH_MS)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.paymentMethodSavedFlash.set(false));
+    }
   }
 
   /**
