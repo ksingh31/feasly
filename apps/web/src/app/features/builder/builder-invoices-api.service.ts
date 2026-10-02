@@ -109,6 +109,31 @@ export class BuilderInvoicesApiService {
     );
   }
 
+  /**
+   * Actionable invoice list for the dashboard's due-invoice banners: every
+   * invoice in a state that can need attention (failed charge, or review
+   * window open), newest first, up to 100. The banner refines this with
+   * dueReasonFor (Edmonton-calendar due-today/overdue), so the banner set
+   * always reflects EVERY actionable invoice — never just the first page
+   * of the paginated list.
+   */
+  listActionableInvoices(): Observable<readonly BuilderCommissionInvoice[]> {
+    const params: Record<string, string> = {
+      limit: '100',
+      offset: '0',
+      status: 'failed,in_review',
+    };
+    return this.call(
+      this.http.get<readonly BuilderCommissionInvoice[]>(
+        `${this.billingBase}/invoices`,
+        {
+          params,
+          withCredentials: true,
+        },
+      ),
+    );
+  }
+
   /** Single invoice detail. */
   getInvoice(id: string): Observable<BuilderCommissionInvoice> {
     return this.call(

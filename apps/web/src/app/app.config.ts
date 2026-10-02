@@ -23,6 +23,7 @@ import { ConsentState } from './features/consent';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
 import { BuilderBillingState } from './features/builder/builder-billing.state';
+import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
 import { AnalyticsTrackerService } from './features/consent';
@@ -133,6 +134,12 @@ export const appConfig: ApplicationConfig = {
           ComparisonState,
           AdminAuthState,
           BuilderState,
+          // Due-invoice banner UI state (dismissed/open/collapsed): invoice
+          // ids are opaque UUIDs (no PII) and dismissal must survive a
+          // reload (Karan). The state itself lazy-loads at the dashboard
+          // route; the storage plugin rehydrates it on the lazy
+          // UpdateState. Stale ids are pruned on each actionable load.
+          DueInvoiceBannersState,
         ],
         beforeSerialize: (obj, key) =>
           // The report token, partner view, pre-gate preview, and transient

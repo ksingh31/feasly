@@ -450,10 +450,17 @@ export const routes: Routes = [
           // (lazy-loaded here so it stays out of the initial bundle,
           // mirroring the invoices route) while BuilderBillingState is
           // already root-provided for the banner's card summary.
+          // DueInvoiceBannersState (banner dismissal/expansion/collapse UI
+          // state, storage-plugin persisted) lazy-loads here too.
           lazyProvider(
             async () =>
               (await import('./features/builder/builder-invoices.state'))
                 .builderInvoicesStateProvider,
+          ),
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/due-invoice-banners.state'))
+                .dueInvoiceBannersStateProvider,
           ),
         ],
       },

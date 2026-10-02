@@ -5,7 +5,13 @@ import type { CommissionInvoice } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
-import { DueInvoiceBannersService } from './due-invoice-banners.service';
+import {
+  DismissAllBanners,
+  DismissBanner,
+  SetBannersCollapsed,
+  ToggleBannerOpen,
+} from './due-invoice-banners.actions';
+import { DueInvoiceBannersState } from './due-invoice-banners.state';
 import {
   edmontonDayDiff,
   formatEdmontonMediumDate,
@@ -39,16 +45,19 @@ export function dueReasonFor(invoice: CommissionInvoice): DueReason | null {
  *
  * One gold banner per invoice that needs attention (failed charge, or
  * review window ended on the Edmonton calendar). Each banner expands to
- * invoice details with a link to the invoice; × dismisses for the current
- * UI session only (in-memory, no backend change — a refresh brings the
- * banner back). Collapse-all folds the stack into one slim summary bar so
- * a long list never takes over the page. Banners are purely data-driven:
- * when an invoice leaves the due set (paid, voided, …) its banner is gone
- * with no user action.
+ * invoice details with a link to the invoice; × dismisses (persisted via
+ * NGXS + storage plugin — a refresh keeps it dismissed). Collapse-all
+ * folds the stack into one slim summary bar so a long list never takes
+ * over the page. Banners are purely data-driven: when an invoice leaves
+ * the actionable set (paid, voided, …) its banner is gone with no user
+ * action, and its dismissal id is pruned.
  *
- * Invoice data comes from BuilderInvoicesState (the dashboard route
- * lazy-provides it and dispatches LoadInvoices on init); the card summary
- * for the payment-method line comes from the root BuilderBillingState.
+ * Invoice data comes from BuilderInvoicesState.actionableInvoices (the
+ * dashboard route lazy-provides it and dispatches LoadActionableInvoices
+ * on init — EVERY actionable invoice, not just the first page); the card
+ * summary for the payment-method line comes from the root
+ * BuilderBillingState. Banner UI state (dismissed/open/collapsed) lives
+ * in DueInvoiceBannersState.
  */
 @Component({
   selector: 'app-due-invoice-banners',
@@ -63,28 +72,36 @@ export class DueInvoiceBannersComponent {
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(BUILDER_COPY);
 
-  /** Session-only banner UI state (dismissals, expansion, collapse-all). */
-  protected readonly banners = inject(DueInvoiceBannersService);
-
   private readonly invoices = this.store.selectSignal(
-    BuilderInvoicesState.invoices,
+    BuilderInvoicesState.actionableInvoices,
   );
   private readonly listStatus = this.store.selectSignal(
-    BuilderInvoicesState.listStatus,
+    BuilderInvoicesState.actionableStatus,
   );
   private readonly card = this.store.selectSignal(BuilderBillingState.card);
 
+  /** Banner UI state (NGXS + storage-plugin persistence). */
+  private readonly dismissedIds = this.store.selectSignal(
+    DueInvoiceBannersState.dismissedIds,
+  );
+  private readonly openIds = this.store.selectSignal(
+    DueInvoiceBannersState.openIds,
+  );
+  protected readonly stackCollapsed = this.store.selectSignal(
+    DueInvoiceBannersState.stackCollapsed,
+  );
+
   /**
-   * Invoices currently needing a banner: due by state and not dismissed
-   * this session. Recomputed from store state, so a paid invoice drops
-   * out automatically.
+   * Invoices currently needing a banner: actionable by state and not
+   * dismissed. Recomputed from store state, so a paid invoice drops out
+   * automatically.
    */
   protected readonly dueInvoices = computed<readonly CommissionInvoice[]>(
     () => {
       if (this.listStatus() !== 'ready') {
         return [];
       }
-      const dismissed = this.banners.dismissed();
+      const dismissed = new Set(this.dismissedIds());
       return this.invoices().filter(
         (invoice) =>
           !dismissed.has(invoice.id) && dueReasonFor(invoice) !== null,
@@ -149,6 +166,21 @@ export class DueInvoiceBannersComponent {
     return invoice.status === 'failed';
   }
 
+  /** Whether this banner's detail body is expanded (NGXS UI state). */
+  protected isOpen(id: string): boolean {
+    return this.openIds().includes(id);
+  }
+
+  /** Toggle one banner's detail body. */
+  protected toggleOpen(id: string): void {
+    this.store.dispatch(new ToggleBannerOpen(id));
+  }
+
+  /** Fold/unfold the whole stack. */
+  protected setStackCollapsed(collapsed: boolean): void {
+    this.store.dispatch(new SetBannersCollapsed(collapsed));
+  }
+
   protected dismissLabel(invoice: CommissionInvoice): string {
     return this.copy.dueBannersDismissLabel.replace(
       '{number}',
@@ -156,11 +188,11 @@ export class DueInvoiceBannersComponent {
     );
   }
 
-  /** × on one banner: stop the bar's toggle, dismiss for this session. */
+  /** × on one banner: stop the bar's toggle, dismiss (persists). */
   protected onDismiss(invoice: CommissionInvoice, event: Event): void {
     event.stopPropagation();
     event.preventDefault();
-    this.banners.dismiss(invoice.id);
+    this.store.dispatch(new DismissBanner(invoice.id));
   }
 
   protected onDismissKey(invoice: CommissionInvoice, event: KeyboardEvent): void {
@@ -173,7 +205,9 @@ export class DueInvoiceBannersComponent {
   protected onDismissAll(event: Event): void {
     event.stopPropagation();
     event.preventDefault();
-    this.banners.dismissAll(this.dueInvoices().map((invoice) => invoice.id));
+    this.store.dispatch(
+      new DismissAllBanners(this.dueInvoices().map((invoice) => invoice.id)),
+    );
   }
 
   protected onDismissAllKey(event: KeyboardEvent): void {

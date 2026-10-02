@@ -47,6 +47,76 @@ describe('builderInvoicesStateProvider', () => {
   });
 });
 
+describe('BuilderInvoicesState actionable invoices', () => {
+  async function setupActionable() {
+    TestBed.resetTestingModule();
+    const calls: string[] = [];
+    const apiStub = {
+      listInvoices: () => of({ invoices: [], total: null, page: 1, pageSize: 10 }),
+      listActionableInvoices: () => {
+        calls.push('actionable');
+        return of([
+          { id: 'a1', status: 'failed', paymentMethod: 'card' },
+          { id: 'a2', status: 'in_review', paymentMethod: 'card' },
+        ]);
+      },
+      setInvoicePaymentMethod: (id: string, method: string) =>
+        of({ id, status: 'failed', paymentMethod: method }),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideStore([]),
+        provideHttpClient(),
+        {
+          provide: ConfigService,
+          useValue: { getServedBuilderCopy: () => null },
+        },
+        builderInvoicesStateProvider,
+        {
+          provide: (await import('./builder-invoices-api.service'))
+            .BuilderInvoicesApiService,
+          useValue: apiStub,
+        },
+      ],
+    });
+    const store = TestBed.inject(Store);
+    return { store, calls };
+  }
+
+  it('LoadActionableInvoices fetches every actionable invoice via the dedicated query', async () => {
+    const { store, calls } = await setupActionable();
+    const { LoadActionableInvoices } = await import(
+      './builder-invoices.actions'
+    );
+    store.dispatch(new LoadActionableInvoices());
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(calls).toEqual(['actionable']);
+    expect(
+      store.selectSnapshot(BuilderInvoicesState.actionableInvoices),
+    ).toHaveLength(2);
+    expect(store.selectSnapshot(BuilderInvoicesState.actionableStatus)).toBe(
+      'ready',
+    );
+  });
+
+  it('UpdateInvoicePaymentMethod keeps the actionable list in sync', async () => {
+    const { store } = await setupActionable();
+    const { LoadActionableInvoices, UpdateInvoicePaymentMethod } =
+      await import('./builder-invoices.actions');
+    store.dispatch(new LoadActionableInvoices());
+    await new Promise((r) => setTimeout(r, 50));
+
+    store.dispatch(new UpdateInvoicePaymentMethod('a1', 'cheque'));
+    await new Promise((r) => setTimeout(r, 50));
+
+    const updated = store
+      .selectSnapshot(BuilderInvoicesState.actionableInvoices)
+      .find((i) => i.id === 'a1');
+    expect(updated?.paymentMethod).toBe('cheque');
+  });
+});
+
 describe('BuilderInvoicesState invoice-number filter', () => {
   async function setup() {
     TestBed.resetTestingModule();

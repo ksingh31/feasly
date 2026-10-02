@@ -302,10 +302,18 @@ export interface CommissionService {
    * `invoiceNumber` is an optional case-insensitive partial match on the
    * human-readable invoice number (e.g. "42" matches "INV-0042") — powers
    * the builder portal's invoice-number search.
+   *
+   * `status` optionally restricts to the given invoice statuses (dashboard
+   * due-invoice banners: failed + in_review).
    */
   listInvoices(
     tenantKey: string | null,
-    opts: { limit: number; offset: number; invoiceNumber?: string },
+    opts: {
+      limit: number;
+      offset: number;
+      invoiceNumber?: string;
+      status?: string[];
+    },
   ): Promise<CommissionInvoiceRecord[]>;
 }
 
@@ -1538,7 +1546,12 @@ export function createCommissionService(
 
     async listInvoices(
       tenantKey: string | null,
-      opts: { limit: number; offset: number; invoiceNumber?: string },
+      opts: {
+        limit: number;
+        offset: number;
+        invoiceNumber?: string;
+        status?: string[];
+      },
     ): Promise<CommissionInvoiceRecord[]> {
       requireCommissionModel();
       const limit = Math.min(Math.max(opts.limit, 1), 100);
@@ -1547,6 +1560,10 @@ export function createCommissionService(
       // wildcards in the user's input are escaped so "%" can't widen the
       // match beyond a literal substring search.
       const invoiceNumber = opts.invoiceNumber?.trim();
+      // Optional status filter (dashboard due-invoice banners). The route
+      // validates values against the known statuses; an empty array here
+      // means no filter.
+      const statuses = opts.status?.filter((s) => s.length > 0);
       const rows = await db.query.commissionInvoices.findMany({
         where: and(
           tenantKey === null
@@ -1557,6 +1574,9 @@ export function createCommissionService(
                 commissionInvoices.invoiceNumber,
                 `%${escapeLikePattern(invoiceNumber)}%`,
               )
+            : undefined,
+          statuses && statuses.length > 0
+            ? inArray(commissionInvoices.status, statuses)
             : undefined,
         ),
         orderBy: desc(commissionInvoices.createdAt),

@@ -12,6 +12,16 @@ export class LoadInvoices {
 }
 
 /**
+ * Loads every actionable invoice (failed charge or open review window)
+ * for the dashboard's due-invoice banners — independent of the paginated
+ * list UI, so the banner set reflects EVERY actionable invoice, not just
+ * the first page.
+ */
+export class LoadActionableInvoices {
+  static readonly type = '[BuilderInvoices] Load actionable';
+}
+
+/**
  * Sets the invoice-number search filter and reloads from page 1. The
  * filter is server-side (partial, case-insensitive match) so it finds
  * invoices on any page; an empty value clears the filter.

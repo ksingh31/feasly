@@ -13,6 +13,7 @@ import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
   ClearInvoicesState,
   ClearInvoiceSelection,
+  LoadActionableInvoices,
   LoadInvoices,
   SelectInvoice,
   SetInvoiceNumberFilter,
@@ -34,6 +35,15 @@ export interface BuilderInvoicesStateModel {
   page: number;
   pageSize: number;
   listStatus: InvoicesStatus;
+  /**
+   * Every actionable invoice (failed charge or open review window),
+   * newest first — the dashboard's due-invoice banners read this, NOT the
+   * paginated `invoices` list, so the banner set reflects EVERY actionable
+   * invoice even when it spans pages. Memory-only.
+   */
+  actionableInvoices: readonly BuilderCommissionInvoice[];
+  /** Loading lifecycle for the actionable-invoice query. */
+  actionableStatus: InvoicesStatus;
   /** Selected invoice for the detail view; null when closed. */
   selected: BuilderCommissionInvoice | null;
   detailStatus: InvoicesStatus;
@@ -54,6 +64,8 @@ const defaults: BuilderInvoicesStateModel = {
   // never read before ngxsOnInit patches it.
   pageSize: 0,
   listStatus: 'idle',
+  actionableInvoices: [],
+  actionableStatus: 'idle',
   selected: null,
   detailStatus: 'idle',
   paymentMethodSaveStatus: 'idle',
@@ -117,6 +129,20 @@ export class BuilderInvoicesState implements NgxsOnInit {
   @Selector()
   static listStatus(state: BuilderInvoicesStateModel): InvoicesStatus {
     return state.listStatus;
+  }
+
+  /** Every actionable invoice for the due-invoice banners (all pages). */
+  @Selector()
+  static actionableInvoices(
+    state: BuilderInvoicesStateModel,
+  ): readonly BuilderCommissionInvoice[] {
+    return state?.actionableInvoices ?? [];
+  }
+
+  /** Loading lifecycle for the actionable-invoice query. */
+  @Selector()
+  static actionableStatus(state: BuilderInvoicesStateModel): InvoicesStatus {
+    return state?.actionableStatus ?? 'idle';
   }
 
   @Selector()
@@ -194,6 +220,30 @@ export class BuilderInvoicesState implements NgxsOnInit {
       );
   }
 
+  /**
+   * Loads every actionable invoice for the due-invoice banners in one
+   * dedicated query (server-side status filter: failed + in_review), so
+   * the banner set never depends on the paginated list's page size. The
+   * banner component refines with dueReasonFor (Edmonton-calendar
+   * due-today/overdue).
+   */
+  @Action(LoadActionableInvoices)
+  loadActionable(ctx: StateContext<BuilderInvoicesStateModel>) {
+    ctx.patchState({ actionableStatus: 'loading' });
+    return this.api.listActionableInvoices().pipe(
+      tap((invoices: readonly BuilderCommissionInvoice[]) =>
+        ctx.patchState({
+          actionableInvoices: invoices,
+          actionableStatus: 'ready',
+        }),
+      ),
+      catchError(() => {
+        ctx.patchState({ actionableStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(SetInvoiceNumberFilter)
   setInvoiceNumberFilter(
     ctx: StateContext<BuilderInvoicesStateModel>,
@@ -239,6 +289,9 @@ export class BuilderInvoicesState implements NgxsOnInit {
           selected:
             state.selected?.id === invoice.id ? invoice : state.selected,
           invoices: state.invoices.map((row) =>
+            row.id === invoice.id ? invoice : row,
+          ),
+          actionableInvoices: state.actionableInvoices.map((row) =>
             row.id === invoice.id ? invoice : row,
           ),
           paymentMethodSaveStatus: 'idle',

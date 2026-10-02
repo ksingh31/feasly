@@ -62,10 +62,17 @@ export interface BillingService {
    * BILL-04: paginated invoice list, newest first. Builders pass their
    * tenantKey (scoped to their own invoices); admins pass null (all).
    * `invoiceNumber` is an optional case-insensitive partial match.
+   * `status` optionally restricts to the given invoice statuses (used by
+   * the dashboard's due-invoice banners: failed + in_review).
    */
   listInvoices(
     tenantKey: string | null,
-    opts: { limit: number; offset: number; invoiceNumber?: string },
+    opts: {
+      limit: number;
+      offset: number;
+      invoiceNumber?: string;
+      status?: string[];
+    },
   ): Promise<CommissionInvoiceRecord[]>;
   /**
    * Dispute an invoice. Builders may only dispute their own tenant's
@@ -218,7 +225,12 @@ export function createBillingService(
 
     async listInvoices(
       tenantKey: string | null,
-      opts: { limit: number; offset: number; invoiceNumber?: string },
+      opts: {
+        limit: number;
+        offset: number;
+        invoiceNumber?: string;
+        status?: string[];
+      },
     ): Promise<CommissionInvoiceRecord[]> {
       // Tenant isolation is enforced inside commission.listInvoices:
       // a non-null tenantKey scopes to that tenant's invoices only.

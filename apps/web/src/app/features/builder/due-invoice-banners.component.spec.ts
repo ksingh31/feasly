@@ -2,11 +2,12 @@
  * Due-invoice banner component tests.
  *
  * Verifies: the banner set (failed + Edmonton-due-today/overdue in-review,
- * nothing else), invoice numbers and amounts in the collapsed bar,
- * expand/collapse per banner, the slim collapse-all summary bar,
- * session-only dismissal (in-memory — a fresh service instance knows
- * nothing), and the data-driven lifecycle (a paid invoice's banner is gone
- * with no user action).
+ * nothing else) drawn from the ACTIONABLE invoice query (every actionable
+ * invoice, never just the first page), invoice numbers and amounts in the
+ * collapsed bar, expand/collapse per banner, the slim collapse-all summary
+ * bar, NGXS-persisted dismissal (a dismissal survives in the store), and
+ * the data-driven lifecycle (a paid invoice's banner is gone with no user
+ * action).
  *
  * Note: async/await with real timers (not fakeAsync) — zone.js is not
  * installed in this repo, so the fakeAsync helper cannot run here. These
@@ -28,6 +29,7 @@ import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
+import { DueInvoiceBannersState } from './due-invoice-banners.state';
 
 const DAY_MS = 86_400_000;
 const iso = (t: number): string => new Date(t).toISOString();
@@ -79,21 +81,30 @@ function setup(
     providers: [
       { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
       provideRouter([]),
-      provideStore([BuilderBillingState, BuilderInvoicesState]),
+      provideStore([
+        BuilderBillingState,
+        BuilderInvoicesState,
+        DueInvoiceBannersState,
+      ]),
     ],
   });
   const store = TestBed.inject(Store);
   store.reset({
     builderInvoices: {
-      invoices: [...invoices],
-      total: invoices.length,
+      invoices: [],
+      total: 0,
       page: 1,
-      pageSize: 20,
-      listStatus: 'ready',
+      pageSize: 10,
+      listStatus: 'idle',
+      actionableInvoices: [...invoices],
+      actionableStatus: 'ready',
       selected: null,
       detailStatus: 'idle',
+      paymentMethodSaveStatus: 'idle',
+      invoiceNumberFilter: '',
     },
     builderBilling: { card, cardStatus: 'ready' },
+    dueInvoiceBanners: { dismissedIds: [], openIds: [], stackCollapsed: false },
   });
   const fixture = TestBed.createComponent(DueInvoiceBannersComponent);
   fixture.detectChanges();
@@ -235,14 +246,18 @@ describe('DueInvoiceBannersComponent', () => {
     expect(text).toContain('$8,000 — charges tonight');
   });
 
-  it('renders nothing while the invoice list is loading', () => {
+  it('renders nothing while the actionable list is loading', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [DueInvoiceBannersComponent],
       providers: [
         { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
-        provideStore([BuilderBillingState, BuilderInvoicesState]),
+        provideStore([
+          BuilderBillingState,
+          BuilderInvoicesState,
+          DueInvoiceBannersState,
+        ]),
       ],
     });
     const store = TestBed.inject(Store);
@@ -251,12 +266,17 @@ describe('DueInvoiceBannersComponent', () => {
         invoices: [],
         total: 0,
         page: 1,
-        pageSize: 20,
-        listStatus: 'loading',
+        pageSize: 10,
+        listStatus: 'idle',
+        actionableInvoices: [],
+        actionableStatus: 'loading',
         selected: null,
         detailStatus: 'idle',
+        paymentMethodSaveStatus: 'idle',
+        invoiceNumberFilter: '',
       },
       builderBilling: { card: null, cardStatus: 'idle' },
+      dueInvoiceBanners: { dismissedIds: [], openIds: [], stackCollapsed: false },
     });
     const fixture = TestBed.createComponent(DueInvoiceBannersComponent);
     fixture.detectChanges();
@@ -428,15 +448,23 @@ describe('DueInvoiceBannersComponent', () => {
     // purely from store state.
     store.reset({
       builderInvoices: {
-        invoices: [{ ...failed, status: 'paid', paidAt: iso(now) }, due],
-        total: 2,
+        invoices: [],
+        total: 0,
         page: 1,
-        pageSize: 20,
-        listStatus: 'ready',
+        pageSize: 10,
+        listStatus: 'idle',
+        actionableInvoices: [
+          { ...failed, status: 'paid', paidAt: iso(now) },
+          due,
+        ],
+        actionableStatus: 'ready',
         selected: null,
         detailStatus: 'idle',
+        paymentMethodSaveStatus: 'idle',
+        invoiceNumberFilter: '',
       },
       builderBilling: { card: CARD, cardStatus: 'ready' },
+      dueInvoiceBanners: { dismissedIds: [], openIds: [], stackCollapsed: false },
     });
     fixture.detectChanges();
 
@@ -445,4 +473,56 @@ describe('DueInvoiceBannersComponent', () => {
       'INV-0042',
     );
   });
+
+  it('banners EVERY actionable invoice, not just the first page', () => {
+    // Regression: the banner used to read the paginated invoices list
+    // (pageSize 10), so actionable invoices past the first page never got
+    // a banner. The actionable query returns all of them.
+    const now = Date.now();
+    const invoices = Array.from({ length: 14 }, (_, i) =>
+      makeInvoice({
+        id: `failed-${i}`,
+        invoiceNumber: `INV-00${40 + i}`,
+        status: 'failed',
+        reviewDueAt: iso(now - 3 * DAY_MS),
+      }),
+    );
+    const { fixture } = setup(invoices);
+    expect(bannerBars(fixture)).toHaveLength(14);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('14 invoices need attention');
+    // The 11th+ invoices (past the old page-1 window) are bannered too.
+    expect(text).toContain('INV-0050');
+    expect(text).toContain('INV-0053');
+  });
+
+  it('a dismissal persists in NGXS state (not session-only)', () => {
+    const now = Date.now();
+    const { fixture, store } = setup([
+      makeInvoice({
+        id: 'failed-1',
+        invoiceNumber: 'INV-0042',
+        status: 'failed',
+      }),
+      makeInvoice({
+        id: 'due-today-1',
+        invoiceNumber: 'INV-0043',
+        status: 'in_review',
+        reviewDueAt: iso(now),
+      }),
+    ]);
+    expect(bannerBars(fixture)).toHaveLength(2);
+    const x = fixture.nativeElement.querySelector(
+      '.due-bar .due-x',
+    ) as HTMLElement;
+    click(x, fixture);
+    expect(bannerBars(fixture)).toHaveLength(1);
+
+    // The dismissal lives in NGXS (storage-plugin persisted), not in a
+    // root service's memory.
+    expect(
+      store.selectSnapshot(DueInvoiceBannersState.dismissedIds),
+    ).toContain('failed-1');
+  });
+
 });
