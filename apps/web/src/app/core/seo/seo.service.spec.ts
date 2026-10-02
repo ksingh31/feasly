@@ -135,6 +135,10 @@ describe('SeoService', () => {
     );
   });
 
+  it('exposes getSocialImageUrl matching og:image (reused for Article JSON-LD)', () => {
+    expect(service.getSocialImageUrl()).toBe('https://feasly.com/assets/og/og-default.png');
+  });
+
   it('sets og:image:alt from the page title so it matches the current page', () => {
     service.setPage({ title: 'Feasly — Test page', description: 'D', path: '/x' });
     expect(TestBed.inject(Meta).getTag('property="og:image:alt"')?.content).toBe(

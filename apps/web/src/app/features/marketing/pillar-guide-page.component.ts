@@ -44,7 +44,13 @@ export class PillarGuidePageComponent implements OnInit {
     const siteUrl = this.seo.getSiteUrl();
     const pageUrl = `${siteUrl}/guides/cost-to-build-a-house-calgary/`;
     const seoCopy = this.config.get('copy').seo;
-    const article = buildArticleSchema(siteUrl, pageUrl, this.copy.title, seoCopy.pillarGuide);
+    const article = buildArticleSchema(
+      siteUrl,
+      pageUrl,
+      this.copy.title,
+      seoCopy.pillarGuide,
+      this.seo.getSocialImageUrl(),
+    );
     const faqPage = buildFaqPageSchema(this.copy.faqs);
     this.seo.setJsonLd({
       '@context': 'https://schema.org',

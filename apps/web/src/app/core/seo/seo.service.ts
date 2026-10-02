@@ -90,7 +90,7 @@ export class SeoService {
     const siteUrl = this.resolveSiteUrl();
     const canonicalPath = withTrailingSlash(page.path);
     const url = `${siteUrl}${canonicalPath}`;
-    const socialImage = `${siteUrl}${this.config.get('site').socialImage}`;
+    const socialImage = this.getSocialImageUrl();
     this.title.setTitle(page.title);
     this.meta.updateTag({ name: 'description', content: page.description });
     this.meta.updateTag({ property: 'og:type', content: 'website' });
@@ -185,6 +185,15 @@ export class SeoService {
    */
   getSiteUrl(): string {
     return this.resolveSiteUrl();
+  }
+
+  /**
+   * Absolute URL of the site's social share image — the same asset used
+   * for og:image / twitter:image. Reused for Article JSON-LD `image` so
+   * schema and meta tags can't drift to different assets.
+   */
+  getSocialImageUrl(): string {
+    return `${this.resolveSiteUrl()}${this.config.get('site').socialImage}`;
   }
 
   /**
