@@ -49,7 +49,13 @@ export class ZoningGuidePageComponent implements OnInit {
     const siteUrl = this.seo.getSiteUrl();
     const pageUrl = `${siteUrl}/guides/calgary-zoning-explained/`;
     const seoCopy = this.config.get('copy').seo;
-    const article = buildArticleSchema(siteUrl, pageUrl, this.copy.title, seoCopy.zoningGuide);
+    const article = buildArticleSchema(
+      siteUrl,
+      pageUrl,
+      this.copy.title,
+      seoCopy.zoningGuide,
+      this.seo.getSocialImageUrl(),
+    );
     const faqPage = buildFaqPageSchema(this.copy.faqs);
     this.seo.setJsonLd({
       '@context': 'https://schema.org',

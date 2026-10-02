@@ -126,13 +126,16 @@ export function buildHowToSchema(
  * Article for long-form guide pages (SEO pillar). Headline/description
  * come from the same config copy as the rendered page so schema and
  * visible copy can't drift. No invented dates or authors — the publisher
- * is Feasly the organization.
+ * is Feasly the organization. `imageUrl` must be an absolute URL
+ * (Google's Article rich-result guidelines expect image); callers should
+ * pass `SeoService.getSocialImageUrl()`.
  */
 export function buildArticleSchema(
   siteUrl: string,
   pageUrl: string,
   headline: string,
   description: string,
+  imageUrl: string,
 ): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
@@ -140,6 +143,7 @@ export function buildArticleSchema(
     headline,
     description,
     url: pageUrl,
+    image: imageUrl,
     author: { '@type': 'Organization', name: 'Feasly', url: `${siteUrl}/` },
     publisher: { '@type': 'Organization', name: 'Feasly' },
     inLanguage: 'en-CA',

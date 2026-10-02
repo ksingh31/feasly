@@ -146,12 +146,15 @@ describe('buildHowToSchema', () => {
 });
 
 describe('buildArticleSchema', () => {
+  const imageUrl = 'https://feasly.ca/assets/og/og-default.png';
+
   it('builds an Article with Feasly as author/publisher', () => {
     const schema = buildArticleSchema(
       'https://feasly.ca',
       'https://feasly.ca/guides/cost-to-build-a-house-calgary/',
       'How much does it cost to build a house in Calgary?',
       'Planning ranges for building a house in Calgary.',
+      imageUrl,
     );
     expect(schema['@type']).toBe('Article');
     expect(schema['headline']).toBe('How much does it cost to build a house in Calgary?');
@@ -160,9 +163,22 @@ describe('buildArticleSchema', () => {
     expect(schema['inLanguage']).toBe('en-CA');
   });
 
+  it('emits an absolute image URL (Article rich-result eligibility)', () => {
+    const schema = buildArticleSchema(
+      'https://feasly.ca',
+      'https://feasly.ca/guides/calgary-zoning-explained/',
+      'Calgary Zoning Explained',
+      'What R-C1, R-C2, R-CG mean.',
+      imageUrl,
+    );
+    expect(schema['image']).toBe(imageUrl);
+    expect(typeof schema['image']).toBe('string');
+    expect(schema['image'] as string).toMatch(/^https:\/\//);
+  });
+
   it('emits no null values', () => {
     expect(() =>
-      assertNoNulls(buildArticleSchema('https://feasly.ca', 'https://feasly.ca/g/', 'h', 'd')),
+      assertNoNulls(buildArticleSchema('https://feasly.ca', 'https://feasly.ca/g/', 'h', 'd', imageUrl)),
     ).not.toThrow();
   });
 });
