@@ -476,32 +476,28 @@ FROM (
 ) AS "m"
 WHERE "m"."max_n" > (SELECT "last_value" FROM "commission_invoice_number_seq");
 -- Dedupe: if duplicate invoice_numbers exist (test data, double-run backfill),
--- keep the earliest row per number (by created_at, id) and reassign the rest
--- to fresh numbers above the current max. Must run before the UNIQUE
--- constraint below. Idempotent: no-op when no duplicates exist.
-WITH "max_n" AS (
-	SELECT COALESCE(MAX((regexp_match("invoice_number", '(\d+)$'))[1]::bigint), 0) AS "m"
-	FROM "commission_invoices"
-	WHERE "invoice_number" ~ '^INV-\d+$'
-),
-"ranked" AS (
-	SELECT "id",
-		ROW_NUMBER() OVER (
-			PARTITION BY "invoice_number"
-			ORDER BY "created_at", "id"
-		) AS "rn"
-	FROM "commission_invoices"
-	WHERE "invoice_number" IS NOT NULL
-),
-"fresh" AS (
-	SELECT "r"."id", "max_n"."m" + ROW_NUMBER() OVER (ORDER BY "r"."id") AS "new_n"
-	FROM "ranked" AS "r" CROSS JOIN "max_n"
-	WHERE "r"."rn" > 1
-)
-UPDATE "commission_invoices" AS "ci"
-SET "invoice_number" = 'INV-' || LPAD("f"."new_n"::text, 4, '0')
-FROM "fresh" AS "f"
-WHERE "ci"."id" = "f"."id";
+-- renumber ALL invoices sequentially by (created_at, id). This guarantees
+-- uniqueness — no CTE/subtlety, just a clean renumber. Only runs when
+-- duplicates are actually present; no-op on a healthy database.
+-- Must run before the UNIQUE constraint below.
+DO $$
+BEGIN
+	IF EXISTS (
+		SELECT 1 FROM "commission_invoices"
+		WHERE "invoice_number" IS NOT NULL
+		GROUP BY "invoice_number" HAVING COUNT(*) > 1
+	) THEN
+		WITH "ordered" AS (
+			SELECT "id", ROW_NUMBER() OVER (ORDER BY "created_at", "id") AS "rn"
+			FROM "commission_invoices"
+		)
+		UPDATE "commission_invoices" AS "ci"
+		SET "invoice_number" = 'INV-' || LPAD("o"."rn"::text, 4, '0')
+		FROM "ordered" AS "o"
+		WHERE "ci"."id" = "o"."id";
+	END IF;
+END
+$$;
 -- migration 0046 parity: invoice_number must be NOT NULL and UNIQUE. The
 -- backfill above guarantees no NULLs remain, so SET NOT NULL is a no-op on
 -- a healthy database; the UNIQUE constraint is (re)created only when
