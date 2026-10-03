@@ -14,6 +14,8 @@ import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from
 import { ClearLead, GoToStep, SelectProperty } from '../wizard';
 import { ClearReport } from '../report/report.actions';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { CommunityService } from '../../core/community/community.service';
+import { SetProfilePropertyContext } from '../communities/community-profile.actions';
 
   /** Stable key of the trust item rewritten with the live refresh month. */
 const CITY_DATA_FRESHNESS_KEY = 'city-data-freshness';
@@ -53,6 +55,7 @@ export class LandingPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(API_SERVICE);
+  private readonly communityService = inject(CommunityService);
 
   /** Landing + search copy (config-owned). */
   readonly copy = this.config.get('copy').landing;
@@ -140,8 +143,24 @@ export class LandingPageComponent implements OnInit {
     // preview. Lot size NEVER blocks (Karan, 2026-09-28): any lot prices,
     // quoted off the house size. The preview page keeps its own guard as a
     // backstop (deep links, API-driven flows).
+    //
+    // Karan (2026-10-02): instead of a dead-end card, redirect to the
+    // community profile page showing the property's assessed value vs the
+    // community average. Falls back to the inline card only when the
+    // community isn't recognized (never fabricate a profile).
     const issue = pricingCoverageIssue(property, this.config.get('limits'));
     if (issue !== null) {
+      const community = this.communityService.byName(property.community);
+      if (community) {
+        this.store.dispatch(
+          new SetProfilePropertyContext({
+            address: property.address,
+            assessedValue: property.assessedValue,
+          }),
+        );
+        void this.router.navigate(['/communities', community.slug]);
+        return;
+      }
       this.coverageBlock.set({ property, issue });
       return;
     }

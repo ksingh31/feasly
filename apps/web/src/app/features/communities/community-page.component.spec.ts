@@ -2,11 +2,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
+import { provideStore } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
+import { CommunityProfileState } from './community-profile.state';
 import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
 
@@ -174,6 +176,7 @@ describe('CommunityPageComponent', () => {
       imports: [CommunityPageComponent],
       providers: [
         provideRouter([]),
+        provideStore([CommunityProfileState]),
         { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
         {
           provide: ActivatedRoute,
@@ -328,7 +331,8 @@ describe('CommunityPageComponent', () => {
       expect(h1?.textContent).toBe('Beltline, Calgary');
       const html = fixture.nativeElement.innerHTML as string;
       expect(html).toContain('Community property profile');
-      expect(html).toContain('Most homes in Beltline are apartments, condos, and townhouses.');
+      // Simplified profile: shows assessed values, not dwelling-mix prose.
+      expect(html).toContain('$607,351');
     });
 
     it('sets the honest profile title (no build-cost claim)', async () => {
@@ -346,17 +350,15 @@ describe('CommunityPageComponent', () => {
       expect(description).toContain('$607,351');
     });
 
-    it('renders the dwelling-mix bar with a text equivalent and no build prices', async () => {
+    it('renders assessed values without dwelling-mix bar or build prices', async () => {
       await setup('beltline');
       const html = fixture.nativeElement.innerHTML as string;
-      const bar = fixture.nativeElement.querySelector('.mix-bar');
-      expect(bar?.getAttribute('role')).toBe('img');
-      expect(bar?.getAttribute('aria-label')).toContain('Dwelling mix:');
-      // Beltline is ~100% multi-family per the mix fixture data.
-      expect(bar?.getAttribute('aria-label')).toContain('100% multi');
+      // Simplified profile: no dwelling-mix bar, no build-price tiers.
+      expect(fixture.nativeElement.querySelector('.mix-bar')).toBeNull();
       expect(fixture.nativeElement.querySelectorAll('.tier-card').length).toBe(0);
       expect(html).not.toContain('Total investment');
-      expect(html).toContain("Why you won't see build prices on this page");
+      // Shows the community average assessed value.
+      expect(html).toContain('$607,351');
     });
 
     it('shows the real assessed value and dwelling stats', async () => {
@@ -368,13 +370,11 @@ describe('CommunityPageComponent', () => {
       expect(html).toContain('Apartments, condos &amp; townhouses');
     });
 
-    it('renders profile FAQs with placeholders filled', async () => {
+    it('does not render FAQs (simplified profile)', async () => {
       await setup('beltline');
       const items = fixture.nativeElement.querySelectorAll('.faq details');
-      expect(items.length).toBe(3);
+      expect(items.length).toBe(0);
       const html = fixture.nativeElement.innerHTML as string;
-      expect(html).toContain('PQ1 for Beltline?');
-      expect(html).toContain('PA1 2026.');
       expect(html).not.toContain('{name}');
       expect(html).not.toContain('{year}');
     });

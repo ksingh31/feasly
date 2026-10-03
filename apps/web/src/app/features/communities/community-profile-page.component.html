@@ -5,6 +5,23 @@
     <h1>{{ v.displayName }}, Calgary</h1>
     <p class="lede">{{ copy().lede }}</p>
 
+    @if (propertyContext(); as ctx) {
+      <section class="property-card" aria-label="This property's assessed value">
+        <p class="property-address">{{ ctx.address }}</p>
+        <div class="property-values">
+          <div class="property-value">
+            <span class="stat-value">{{ formatCad(ctx.assessedValue) }}</span>
+            <span class="stat-label">This property's assessed value</span>
+          </div>
+          <div class="property-value">
+            <span class="stat-value">{{ formatCad(v.avgAssessedValue) }}</span>
+            <span class="stat-label">{{ v.displayName }} average</span>
+          </div>
+        </div>
+        <p class="stat-note">City of Calgary {{ v.assessmentYear }} assessment roll. We don't quote this property type yet — here's what the City says it's worth.</p>
+      </section>
+    }
+
     <section class="stat-block" aria-label="Community statistics">
       <div class="stat">
         <span class="stat-value">{{ formatCad(v.avgAssessedValue) }}</span>
@@ -26,36 +43,6 @@
       <p class="stat-note">{{ copy().statNote }}</p>
     </section>
 
-    <section class="mix" aria-label="Dwelling mix">
-      <h2>{{ copy().mixTitle }}</h2>
-      <p class="sub">{{ copy().mixBody }}</p>
-      <div class="mix-bar" role="img" [attr.aria-label]="mixBarLabel()">
-        @for (segment of mixSegments(); track segment.bucket) {
-          <span
-            class="mix-segment mix-{{ segment.bucket }}"
-            [style.width.%]="segment.pct"
-            aria-hidden="true"
-          ></span>
-        }
-      </div>
-      <ul class="legend">
-        @for (segment of mixSegments(); track segment.bucket) {
-          <li>
-            <span class="legend-swatch mix-{{ segment.bucket }}" aria-hidden="true"></span>
-            {{ segment.label }} — {{ segment.pct }}%
-          </li>
-        }
-      </ul>
-    </section>
-
-    <section class="no-build-note" aria-label="Why no build prices">
-      <h2>{{ copy().noBuildTitle }}</h2>
-      <p>{{ copy().noBuildBody }}</p>
-      <p>
-        <a routerLink="/guides/cost-to-build-a-house-calgary">{{ copy().noBuildGuideLink }}</a>
-      </p>
-    </section>
-
     <section class="explainer" aria-label="How assessments work">
       <h2>{{ copy().explainerTitle }}</h2>
       <ul>
@@ -65,16 +52,6 @@
           </li>
         }
       </ul>
-    </section>
-
-    <section class="faq" aria-label="Frequently asked questions">
-      <h2>{{ copy().faqTitle }}</h2>
-      @for (item of faqs(); track item.q; let i = $index) {
-        <details [open]="openFaq === i" (toggle)="toggleFaq(i)">
-          <summary>{{ item.q }}</summary>
-          <p>{{ item.a }}</p>
-        </details>
-      }
     </section>
 
     @if (v.nearby.length > 0) {

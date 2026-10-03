@@ -330,3 +330,8 @@ apps/web/src/app/shared/components/comment-thread/comment-thread.component.ts
 # with the UX (code review), not by deploy tuning. Debounce-pinned by
 # builder-invoices.component.spec.ts (waits out the debounce via polling).
 apps/web/src/app/features/builder/builder-invoices.component.ts
+
+# Community profile property-card explainer copy is static UI text tied to the
+# template structure (not a tunable business value). It lives with the
+# component's copy object pattern; the linter flags the HTML literal.
+apps/web/src/app/features/communities/community-profile-page.component.html

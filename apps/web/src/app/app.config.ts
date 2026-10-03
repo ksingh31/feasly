@@ -26,6 +26,7 @@ import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
+import { CommunityProfileState } from './features/communities/community-profile.state';
 import { AnalyticsTrackerService } from './features/consent';
 import { routes } from './app.routes';
 
@@ -120,6 +121,10 @@ export const appConfig: ApplicationConfig = {
         BuilderReportContractState,
         BuilderTeamState,
         AdminAuthState,
+        // CommunityProfileState is transient (never persisted): the property
+        // context is navigation-scoped, and a refresh behaves like a direct
+        // URL visit (community average only).
+        CommunityProfileState,
       ],
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
