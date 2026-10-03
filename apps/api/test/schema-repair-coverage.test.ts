@@ -98,6 +98,47 @@ describe('schema repair coverage', () => {
     ).toBe(true);
   });
 
+  it('re-syncs the invoice number sequence AFTER dedupe', () => {
+    // The dedupe block can assign numbers above the sequence's last_value
+    // (max+offset). If setval only runs before dedupe, the next nextval()
+    // mints a duplicate → PG 23505 on invoice creation. A setval must run
+    // after the dedupe block to advance the sequence past the new max.
+    const dedupeIdx = REPAIR.indexOf('GROUP BY "invoice_number" HAVING COUNT(*) > 1');
+    const uniqueIdx = REPAIR.indexOf(
+      '"commission_invoices_invoice_number_unique"',
+    );
+    // Find the LAST setval on the invoice sequence (there's one before dedupe
+    // for the NULL-backfill case, and one must exist after dedupe).
+    const setvalPositions: number[] = [];
+    const re = /setval\('commission_invoice_number_seq'/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(REPAIR)) !== null) setvalPositions.push(m.index);
+    expect(
+      setvalPositions.length,
+      'repair SQL must re-sync the invoice sequence after dedupe (two setvals)',
+    ).toBeGreaterThanOrEqual(2);
+    const lastSetval = setvalPositions[setvalPositions.length - 1];
+    expect(
+      lastSetval > dedupeIdx,
+      'the final sequence re-sync must run AFTER the dedupe block',
+    ).toBe(true);
+    expect(
+      lastSetval < uniqueIdx,
+      'the final sequence re-sync must run BEFORE the UNIQUE constraint',
+    ).toBe(true);
+  });
+
+  it('dedupe preserves the earliest row per invoice_number (audit-safe)', () => {
+    // Reassigning ALL invoice numbers is audit-hostile: a number emailed to
+    // a builder could end up on a different invoice. The dedupe must keep
+    // the earliest row (by created_at, id) per number and only reassign
+    // the duplicates.
+    expect(
+      REPAIR.includes('PARTITION BY "invoice_number"'),
+      'dedupe must partition by invoice_number to keep the earliest row per number',
+    ).toBe(true);
+  });
+
   it('creates every referenced table before its first foreign key (2026-09-28 P0)', () => {
     // Postgres requires the referenced table to EXIST when a FOREIGN KEY /
     // REFERENCES clause is created — `IF NOT EXISTS` on the column does not
