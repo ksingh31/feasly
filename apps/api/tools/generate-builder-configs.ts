@@ -56,12 +56,25 @@ function main(): void {
   const configs = validateBuilderConfigs(sources, { isDev });
 
   mkdirSync(outDir, { recursive: true });
-  // Sort keys explicitly for deterministic output across Node versions —
-  // zod's parsed.data key order is not guaranteed stable.
-  const sortedConfigs: Record<string, BuilderConfigFile> = {};
-  for (const key of Object.keys(configs).sort()) {
-    sortedConfigs[key] = configs[key];
-  }
+  // Deterministic JSON: sort ALL keys recursively. Zod's parsed.data key
+  // order is not guaranteed stable across Node versions, which broke CI's
+  // staleness check non-deterministically.
+  const deterministicStringify = (value: unknown): string => {
+    return JSON.stringify(
+      value,
+      (key, val) => {
+        if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+          const sorted: Record<string, unknown> = {};
+          for (const k of Object.keys(val).sort()) {
+            sorted[k] = (val as Record<string, unknown>)[k];
+          }
+          return sorted;
+        }
+        return val;
+      },
+      2,
+    );
+  };
   const body = [
     '/**',
     ' * GENERATED — do not edit by hand. Source: config/builders/*.json.',
@@ -71,7 +84,7 @@ function main(): void {
     "import type { BuilderConfigFile } from '../services/builder-config/builder-config.schema';",
     '',
     'export const BUILDER_CONFIGS: Record<string, BuilderConfigFile> =',
-    `  ${JSON.stringify(sortedConfigs, null, 2)} as Record<string, BuilderConfigFile>;`,
+    `  ${deterministicStringify(configs)} as Record<string, BuilderConfigFile>;`,
     '',
   ].join('\n');
   writeFileSync(outFile, body);
