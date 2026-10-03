@@ -477,10 +477,14 @@ FROM (
 WHERE "m"."max_n" > (SELECT "last_value" FROM "commission_invoice_number_seq");
 -- Dedupe: if duplicate invoice_numbers exist (test data, double-run backfill),
 -- keep the earliest row per number (by created_at, id) and reassign the rest
--- to fresh sequence values. Must run before the UNIQUE constraint below.
--- Idempotent: no-op when no duplicates exist. The sequence was advanced past
--- max above, so nextval() cannot collide with existing numbers.
-WITH "ranked" AS (
+-- to fresh numbers above the current max. Must run before the UNIQUE
+-- constraint below. Idempotent: no-op when no duplicates exist.
+WITH "max_n" AS (
+	SELECT COALESCE(MAX((regexp_match("invoice_number", '(\d+)$'))[1]::bigint), 0) AS "m"
+	FROM "commission_invoices"
+	WHERE "invoice_number" ~ '^INV-\d+$'
+),
+"ranked" AS (
 	SELECT "id",
 		ROW_NUMBER() OVER (
 			PARTITION BY "invoice_number"
@@ -490,9 +494,9 @@ WITH "ranked" AS (
 	WHERE "invoice_number" IS NOT NULL
 ),
 "fresh" AS (
-	SELECT "id", nextval('commission_invoice_number_seq') AS "new_n"
-	FROM "ranked"
-	WHERE "rn" > 1
+	SELECT "r"."id", "max_n"."m" + ROW_NUMBER() OVER (ORDER BY "r"."id") AS "new_n"
+	FROM "ranked" AS "r" CROSS JOIN "max_n"
+	WHERE "r"."rn" > 1
 )
 UPDATE "commission_invoices" AS "ci"
 SET "invoice_number" = 'INV-' || LPAD("f"."new_n"::text, 4, '0')
