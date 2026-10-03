@@ -1,7 +1,9 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Store } from '@ngxs/store';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type { CommunityProfileCopy, CommunityProfileView, DwellingBucket } from '@feasly/contracts';
+import { CommunityProfileState } from './community-profile.state';
 
 function formatCad(value: number): string {
   return new Intl.NumberFormat('en-CA', {
@@ -64,9 +66,17 @@ export function resolveProfileCopy(
   styleUrl: './community-profile-page.component.scss',
 })
 export class CommunityProfilePageComponent {
+  private readonly store = inject(Store);
   readonly view = input.required<CommunityProfileView>();
   /** Fully-resolved copy (placeholders filled) — render verbatim. */
   readonly copy = input.required<CommunityProfileCopy>();
+
+  /**
+   * The rejected property's context, set when navigating from the
+   * estimator's coverage gate. Null on direct URL visits — the profile
+   * then shows only the community average.
+   */
+  readonly propertyContext = this.store.selectSignal(CommunityProfileState.propertyContext);
 
   /** FAQ items (short alias for the template — keeps the @for line under the no-hardcode length tripwire). */
   faqs(): readonly { q: string; a: string }[] {
