@@ -82,15 +82,15 @@ describe('schema repair coverage', () => {
   it('dedupes duplicate invoice_numbers before adding the UNIQUE constraint', () => {
     // If duplicate invoice_numbers exist (test data, double-run backfill),
     // ADD CONSTRAINT UNIQUE would fail with PG 23505. The repair script must
-    // reassign duplicates to fresh numbers BEFORE the constraint.
+    // renumber duplicates BEFORE the constraint.
     // The dedupe block must come before the UNIQUE constraint in the script.
-    const dedupeIdx = REPAIR.indexOf('PARTITION BY "invoice_number"');
+    const dedupeIdx = REPAIR.indexOf('GROUP BY "invoice_number" HAVING COUNT(*) > 1');
     const uniqueIdx = REPAIR.indexOf(
       '"commission_invoices_invoice_number_unique"',
     );
     expect(
       dedupeIdx,
-      'repair SQL must contain a dedupe block partitioning by invoice_number',
+      'repair SQL must contain a dedupe block detecting duplicate invoice_numbers',
     ).toBeGreaterThan(-1);
     expect(
       dedupeIdx < uniqueIdx,
