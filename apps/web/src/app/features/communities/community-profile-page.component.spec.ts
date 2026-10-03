@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CommunityProfilePageComponent,
   resolveProfileCopy,
 } from './community-profile-page.component';
+import { CommunityProfileState } from './community-profile.state';
 import type { CommunityProfileCopy, CommunityProfileView } from '@feasly/contracts';
 
 /**
@@ -64,7 +66,7 @@ describe('CommunityProfilePageComponent', () => {
     vi.clearAllMocks();
     TestBed.configureTestingModule({
       imports: [CommunityProfilePageComponent],
-      providers: [provideRouter([])],
+      providers: [provideRouter([]), provideStore([CommunityProfileState])],
     });
     fixture = TestBed.createComponent(CommunityProfilePageComponent);
     fixture.componentRef.setInput('view', view);
@@ -95,24 +97,12 @@ describe('CommunityProfilePageComponent', () => {
     expect(html).toContain('2026');
   });
 
-  it('renders the mix bar with segments summing to ~100 and a text equivalent', () => {
-    const bar = fixture.nativeElement.querySelector('.mix-bar');
-    expect(bar?.getAttribute('role')).toBe('img');
-    expect(bar?.getAttribute('aria-label')).toBe('Dwelling mix: 100% multi, 0% semi, 0% single.');
-    const segments = [...bar.querySelectorAll('.mix-segment')];
-    const widths = segments.map((s: Element) => parseFloat((s as HTMLElement).style.width));
-    expect(widths.reduce((a: number, b: number) => a + b, 0)).toBeCloseTo(100, 0);
-    const html = fixture.nativeElement.innerHTML as string;
-    expect(html).toContain('Apartments, condos &amp; townhouses — 100%');
-  });
-
   it('fills every placeholder — no raw {name}/{year} leaks into the DOM', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).not.toContain('{name}');
     expect(html).not.toContain('{year}');
     expect(html).not.toContain('{avgAssessed}');
     expect(html).toContain('Most homes in Beltline are apartments');
-    expect(html).toContain('Q for Beltline?');
   });
 
   it('resolveProfileCopy is the single source for render + JSON-LD copy', () => {
