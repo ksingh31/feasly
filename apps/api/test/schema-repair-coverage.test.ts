@@ -79,6 +79,29 @@ describe('schema repair coverage', () => {
     ).toBe(true);
   });
 
+  it('dedupes duplicate invoice_numbers before adding the UNIQUE constraint', () => {
+    // If duplicate invoice_numbers exist (test data, double-run backfill),
+    // ADD CONSTRAINT UNIQUE would fail with PG 23505. The repair script must
+    // reassign duplicates to fresh sequence values BEFORE the constraint.
+    // The dedupe block must come before the UNIQUE constraint in the script.
+    const dedupeIdx = REPAIR.indexOf('PARTITION BY "invoice_number"');
+    const uniqueIdx = REPAIR.indexOf(
+      '"commission_invoices_invoice_number_unique"',
+    );
+    expect(
+      dedupeIdx,
+      'repair SQL must contain a dedupe block partitioning by invoice_number',
+    ).toBeGreaterThan(-1);
+    expect(
+      dedupeIdx < uniqueIdx,
+      'dedupe block must run before the UNIQUE constraint is added',
+    ).toBe(true);
+    expect(
+      REPAIR.includes("nextval('commission_invoice_number_seq')"),
+      'dedupe must reassign duplicates from the invoice number sequence',
+    ).toBe(true);
+  });
+
   it('creates every referenced table before its first foreign key (2026-09-28 P0)', () => {
     // Postgres requires the referenced table to EXIST when a FOREIGN KEY /
     // REFERENCES clause is created — `IF NOT EXISTS` on the column does not
