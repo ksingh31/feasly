@@ -2,11 +2,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
+import { provideStore } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
+import { CommunityProfileState } from './community-profile.state';
 import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
 
@@ -174,6 +176,7 @@ describe('CommunityPageComponent', () => {
       imports: [CommunityPageComponent],
       providers: [
         provideRouter([]),
+        provideStore([CommunityProfileState]),
         { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
         {
           provide: ActivatedRoute,
