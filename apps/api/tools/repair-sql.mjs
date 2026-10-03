@@ -475,6 +475,29 @@ FROM (
 	FROM "commission_invoices"
 ) AS "m"
 WHERE "m"."max_n" > (SELECT "last_value" FROM "commission_invoice_number_seq");
+-- Dedupe: if duplicate invoice_numbers exist (test data, double-run backfill),
+-- keep the earliest row per number (by created_at, id) and reassign the rest
+-- to fresh sequence values. Must run before the UNIQUE constraint below.
+-- Idempotent: no-op when no duplicates exist. The sequence was advanced past
+-- max above, so nextval() cannot collide with existing numbers.
+WITH "ranked" AS (
+	SELECT "id",
+		ROW_NUMBER() OVER (
+			PARTITION BY "invoice_number"
+			ORDER BY "created_at", "id"
+		) AS "rn"
+	FROM "commission_invoices"
+	WHERE "invoice_number" IS NOT NULL
+),
+"fresh" AS (
+	SELECT "id", nextval('commission_invoice_number_seq') AS "new_n"
+	FROM "ranked"
+	WHERE "rn" > 1
+)
+UPDATE "commission_invoices" AS "ci"
+SET "invoice_number" = 'INV-' || LPAD("f"."new_n"::text, 4, '0')
+FROM "fresh" AS "f"
+WHERE "ci"."id" = "f"."id";
 -- migration 0046 parity: invoice_number must be NOT NULL and UNIQUE. The
 -- backfill above guarantees no NULLs remain, so SET NOT NULL is a no-op on
 -- a healthy database; the UNIQUE constraint is (re)created only when
