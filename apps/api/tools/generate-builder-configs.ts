@@ -56,6 +56,12 @@ function main(): void {
   const configs = validateBuilderConfigs(sources, { isDev });
 
   mkdirSync(outDir, { recursive: true });
+  // Sort keys explicitly for deterministic output across Node versions —
+  // zod's parsed.data key order is not guaranteed stable.
+  const sortedConfigs: Record<string, BuilderConfigFile> = {};
+  for (const key of Object.keys(configs).sort()) {
+    sortedConfigs[key] = configs[key];
+  }
   const body = [
     '/**',
     ' * GENERATED — do not edit by hand. Source: config/builders/*.json.',
@@ -65,7 +71,7 @@ function main(): void {
     "import type { BuilderConfigFile } from '../services/builder-config/builder-config.schema';",
     '',
     'export const BUILDER_CONFIGS: Record<string, BuilderConfigFile> =',
-    `  ${JSON.stringify(configs, null, 2)} as Record<string, BuilderConfigFile>;`,
+    `  ${JSON.stringify(sortedConfigs, null, 2)} as Record<string, BuilderConfigFile>;`,
     '',
   ].join('\n');
   writeFileSync(outFile, body);
