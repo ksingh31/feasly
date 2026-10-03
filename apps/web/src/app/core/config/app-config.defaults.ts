@@ -790,7 +790,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         ctaReno: 'Renovation estimates — coming soon',
         zoningCardTitle: 'Why we ask about your address',
         zoningCardBody:
-          'Your address tells us your lot\u2019s City land use designation \u2014 the zoning code that decides what can be built there. We only quote single-family homes (R-C1, R-C1s, R-C2), so if your lot is zoned for apartments, shops, or industry, we\u2019ll say so plainly instead of inventing a number.',
+          'Your address tells us your lot\u2019s City land use designation \u2014 the zoning code that decides what can be built there. We quote single-family homes in residential zones (R-C1, R-C1S, R-C2, R-CG, R-G, H-GO), so if your lot is zoned for apartments, shops, or industry, we\u2019ll say so plainly instead of inventing a number.',
         zoningCardCta: 'Learn about Calgary zoning →',
       },
       faq: {
@@ -1051,7 +1051,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Why does Feasly only quote single-family homes?',
-            a: 'Our estimator prices single-family new builds. When you enter an address, we check the City land use designation: lots zoned R-C1, R-C1s, or R-C2 get a quote, and anything else gets a plain "not supported" message. We would rather turn down a quote than invent a number for a building type we do not price.',
+            a: 'Our estimator prices single-family new builds. When you enter an address, we check the City land use designation: lots zoned R-C1, R-C1S, R-C2, R-CG, R-G, or H-GO get a quote, and anything else gets a plain "not supported" message. We would rather turn down a quote than invent a number for a building type we do not price.',
             anchor: 'why-single-family-only',
           },
           {
