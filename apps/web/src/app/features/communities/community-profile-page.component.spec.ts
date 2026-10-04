@@ -81,12 +81,22 @@ describe('CommunityProfilePageComponent', () => {
       providers: [provideRouter([]), provideStore([CommunityProfileState])],
     });
     store = TestBed.inject(Store);
-    fixture = TestBed.createComponent(CommunityProfilePageComponent);
-    fixture.componentRef.setInput('view', view);
-    fixture.componentRef.setInput('copy', resolveProfileCopy(rawCopy, view));
-    fixture.detectChanges();
-    await fixture.whenStable();
+    fixture = await createComponent();
   });
+
+  /**
+   * The component consumes the property context once at construction, so
+   * tests that need a context must dispatch it BEFORE creating the
+   * component — mirroring the landing page (dispatch, then navigate).
+   */
+  async function createComponent(): Promise<ComponentFixture<CommunityProfilePageComponent>> {
+    const created = TestBed.createComponent(CommunityProfilePageComponent);
+    created.componentRef.setInput('view', view);
+    created.componentRef.setInput('copy', resolveProfileCopy(rawCopy, view));
+    created.detectChanges();
+    await created.whenStable();
+    return created;
+  }
 
   it('renders the H1 as "{name}, Calgary" with the profile kicker', () => {
     const h1 = fixture.nativeElement.querySelector('h1');
@@ -141,14 +151,16 @@ describe('CommunityProfilePageComponent', () => {
   });
 
   it('renders the property hero with comparison bars when property context exists', async () => {
+    // Set the context BEFORE creating the component: the component
+    // captures it once at construction (consume-once), exactly like the
+    // landing page dispatching SetProfilePropertyContext then navigating.
     store.dispatch(
       new SetProfilePropertyContext({
         address: '1017 11 Ave SW, Calgary, AB',
         assessedValue: 20630000,
       }),
     );
-    fixture.detectChanges();
-    await fixture.whenStable();
+    fixture = await createComponent();
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('1017 11 Ave SW, Calgary, AB');
     expect(html).toContain('$20,630,000');
@@ -162,6 +174,31 @@ describe('CommunityProfilePageComponent', () => {
     expect(bars[0].getAttribute('aria-label')).not.toContain('{propertyValue}');
     expect(html).toContain('Bars drawn proportional to the larger value.');
     expect(html).toContain('Assessed value is for tax purposes');
+  });
+
+  it('consumes the property context once — a later same-session visit shows the average only', async () => {
+    store.dispatch(
+      new SetProfilePropertyContext({
+        address: '1017 11 Ave SW, Calgary, AB',
+        assessedValue: 20630000,
+      }),
+    );
+    // First activation (the redirect target) shows the property card.
+    const first = await createComponent();
+    expect(
+      first.nativeElement.querySelector('.property-address')?.textContent,
+    ).toContain('1017 11 Ave SW');
+    // The store is cleared immediately after capture — nothing lingers.
+    expect(store.selectSnapshot(CommunityProfileState.propertyContext)).toBeNull();
+    // A later same-session activation (e.g. via the /communities index)
+    // sees null: community average only, no stale property card.
+    const second = await createComponent();
+    const html = second.nativeElement.innerHTML as string;
+    expect(second.nativeElement.querySelector('.property-address')).toBeNull();
+    expect(second.nativeElement.querySelector('.hero-compare')).toBeNull();
+    expect(html).toContain('Beltline average assessed value');
+    expect(html).toContain('$607,351');
+    expect(html).not.toContain('1017 11 Ave SW');
   });
 
   it('resolveProfileCopy is the single source for render + JSON-LD copy', () => {
