@@ -17,7 +17,17 @@ const mockProfileCopy: RawCommunityProfileCopy = {
   titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
   descriptionTemplate:
     'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
-  lede: 'Most homes in {name} are apartments, condos, and townhouses.',
+  lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
+  ledeLead: "We don't quote this property type yet",
+  propertyValueLabel: "This property's assessed value",
+  communityAverageLabel: '{name} average',
+  comparePropertyTag: 'This property',
+  compareBarCaption: 'Bars drawn proportional to the larger value.',
+  compareBarLabelTemplate:
+    'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+  honestNote:
+    'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
+  averageHeroLabel: '{name} average assessed value',
   homesAssessedLabel: 'Homes assessed',
   homesAssessedSub: '{year} assessment roll',
   mostCommonTypeLabel: 'Most common home type',
@@ -333,6 +343,10 @@ describe('CommunityPageComponent', () => {
       expect(html).toContain('Community property profile');
       // Simplified profile: shows assessed values, not dwelling-mix prose.
       expect(html).toContain('$607,351');
+      // Live-bug regression: the lede template holds {name} twice — both
+      // must be interpolated, never rendered literally.
+      expect(html).not.toContain('{name}');
+      expect(html).toContain("We don't quote this property type yet");
     });
 
     it('sets the honest profile title (no build-cost claim)', async () => {
