@@ -1,8 +1,9 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type { CommunityProfileCopy, CommunityProfileView, DwellingBucket } from '@feasly/contracts';
+import { ClearProfilePropertyContext } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 
 function formatCad(value: number): string {
@@ -79,11 +80,23 @@ export class CommunityProfilePageComponent {
   readonly copy = input.required<CommunityProfileCopy>();
 
   /**
-   * The rejected property's context, set when navigating from the
-   * estimator's coverage gate. Null on direct URL visits — the profile
-   * then shows only the community average.
+   * The rejected property's context, captured once at construction from the
+   * estimator's coverage-gate redirect and consumed immediately: the store
+   * is cleared right after capture, so every later same-session activation
+   * of this component sees null and shows only the community average.
+   * The context belongs to the single redirect navigation that created
+   * this component instance — it never lingers in the in-memory store.
    */
-  readonly propertyContext = this.store.selectSignal(CommunityProfileState.propertyContext);
+  readonly propertyContext = signal(
+    this.store.selectSnapshot(CommunityProfileState.propertyContext),
+  );
+
+  constructor() {
+    // Consume-once: clear the transient context immediately after
+    // capturing it, so a stale "this property" card can never leak into a
+    // later same-session visit (e.g. via the /communities index links).
+    this.store.dispatch(new ClearProfilePropertyContext());
+  }
 
   /**
    * Bar widths for the property-vs-average comparison, proportional to the
