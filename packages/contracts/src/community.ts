@@ -101,6 +101,26 @@ export interface CommunityProfileCopy {
   readonly titleTemplate: string;
   readonly descriptionTemplate: string;
   readonly lede: string;
+  /** Bold lead clause rendered before the lede (no placeholder). */
+  readonly ledeLead: string;
+  /** Hero label above the property's assessed value. */
+  readonly propertyValueLabel: string;
+  /** Comparison-row label, e.g. "{name} average". */
+  readonly communityAverageLabel: string;
+  /** Short tag for the property bar in the comparison chart. */
+  readonly comparePropertyTag: string;
+  /** Caption under the comparison bars. */
+  readonly compareBarCaption: string;
+  /**
+   * aria-label template for the comparison bars. {name} and {avgAssessed}
+   * are filled by resolveProfileCopy; {propertyValue} is filled at render
+   * time from the transient property context.
+   */
+  readonly compareBarLabelTemplate: string;
+  /** Compact honest note under the hero (assessment roll + tax-purpose). */
+  readonly honestNote: string;
+  /** Hero label for direct visits (no property context): "{name} average assessed value". */
+  readonly averageHeroLabel: string;
   readonly homesAssessedLabel: string;
   readonly homesAssessedSub: string;
   readonly mostCommonTypeLabel: string;

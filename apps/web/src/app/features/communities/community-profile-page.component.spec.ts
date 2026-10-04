@@ -1,11 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { provideStore } from '@ngxs/store';
+import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CommunityProfilePageComponent,
   resolveProfileCopy,
 } from './community-profile-page.component';
+import { SetProfilePropertyContext } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 import type { CommunityProfileCopy, CommunityProfileView } from '@feasly/contracts';
 
@@ -15,13 +16,24 @@ import type { CommunityProfileCopy, CommunityProfileView } from '@feasly/contrac
  */
 describe('CommunityProfilePageComponent', () => {
   let fixture: ComponentFixture<CommunityProfilePageComponent>;
+  let store: Store;
 
   const rawCopy: CommunityProfileCopy = {
     kicker: 'Community property profile',
     titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
     descriptionTemplate:
       'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
-    lede: 'Most homes in {name} are apartments, condos, and townhouses.',
+    lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
+    ledeLead: "We don't quote this property type yet",
+    propertyValueLabel: "This property's assessed value",
+    communityAverageLabel: '{name} average',
+    comparePropertyTag: 'This property',
+    compareBarCaption: 'Bars drawn proportional to the larger value.',
+    compareBarLabelTemplate:
+      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+    honestNote:
+      'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
+    averageHeroLabel: '{name} average assessed value',
     homesAssessedLabel: 'Homes assessed',
     homesAssessedSub: '{year} assessment roll',
     mostCommonTypeLabel: 'Most common home type',
@@ -68,6 +80,7 @@ describe('CommunityProfilePageComponent', () => {
       imports: [CommunityProfilePageComponent],
       providers: [provideRouter([]), provideStore([CommunityProfileState])],
     });
+    store = TestBed.inject(Store);
     fixture = TestBed.createComponent(CommunityProfilePageComponent);
     fixture.componentRef.setInput('view', view);
     fixture.componentRef.setInput('copy', resolveProfileCopy(rawCopy, view));
@@ -90,11 +103,14 @@ describe('CommunityProfilePageComponent', () => {
     expect(html).not.toContain('How much does it cost to build');
   });
 
-  it('shows the four stat cards with real figures', () => {
+  it('shows the three stat cards with real figures (no duplicate average)', () => {
     const html = fixture.nativeElement.innerHTML as string;
-    expect(html).toContain('$607,351');
     expect(html).toContain('11,642');
     expect(html).toContain('2026');
+    // The community average appears once (hero), not duplicated in the stats.
+    const matches = html.match(/\$607,351/g) ?? [];
+    expect(matches.length).toBeLessThanOrEqual(2);
+    expect(fixture.nativeElement.querySelector('.stat--wide')).not.toBeNull();
   });
 
   it('fills every placeholder — no raw {name}/{year} leaks into the DOM', () => {
@@ -102,7 +118,50 @@ describe('CommunityProfilePageComponent', () => {
     expect(html).not.toContain('{name}');
     expect(html).not.toContain('{year}');
     expect(html).not.toContain('{avgAssessed}');
-    expect(html).toContain('Most homes in Beltline are apartments');
+    expect(html).not.toContain('{propertyValue}');
+    expect(html).toContain('most homes in Beltline are apartments');
+  });
+
+  it('replaces repeated placeholders, not just the first (live {name} bug)', () => {
+    const resolved = resolveProfileCopy(rawCopy, view);
+    // The mock lede contains {name} twice — both must be filled.
+    expect(resolved.lede).not.toContain('{name}');
+    expect(resolved.lede.match(/Beltline/g)?.length).toBe(2);
+    expect(resolved.communityAverageLabel).toBe('Beltline average');
+    expect(resolved.honestNote).toContain('2026 assessment roll');
+  });
+
+  it('shows the average as the hero figure on direct visits (no property context)', () => {
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).toContain('Beltline average assessed value');
+    expect(html).toContain('$607,351');
+    // No comparison bars without a property to compare.
+    expect(fixture.nativeElement.querySelector('.hero-compare')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.property-address')).toBeNull();
+  });
+
+  it('renders the property hero with comparison bars when property context exists', async () => {
+    store.dispatch(
+      new SetProfilePropertyContext({
+        address: '1017 11 Ave SW, Calgary, AB',
+        assessedValue: 20630000,
+      }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).toContain('1017 11 Ave SW, Calgary, AB');
+    expect(html).toContain('$20,630,000');
+    expect(html).toContain("This property's assessed value");
+    expect(html).toContain('Beltline average');
+    // Proportional bars: property is the larger value → full width.
+    const bars = fixture.nativeElement.querySelectorAll('.bars');
+    expect(bars.length).toBe(1);
+    expect(bars[0].getAttribute('aria-label')).toContain('$20,630,000');
+    expect(bars[0].getAttribute('aria-label')).toContain('$607,351');
+    expect(bars[0].getAttribute('aria-label')).not.toContain('{propertyValue}');
+    expect(html).toContain('Bars drawn proportional to the larger value.');
+    expect(html).toContain('Assessed value is for tax purposes');
   });
 
   it('resolveProfileCopy is the single source for render + JSON-LD copy', () => {

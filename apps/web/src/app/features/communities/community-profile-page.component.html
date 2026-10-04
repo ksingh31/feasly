@@ -3,44 +3,58 @@
   <main class="community-profile" id="main-content" tabindex="-1">
     <p class="eyebrow">{{ copy().kicker }}</p>
     <h1>{{ v.displayName }}, Calgary</h1>
-    <p class="lede">{{ copy().lede }}</p>
+    <p class="lede"><strong>{{ copy().ledeLead }}</strong> — {{ copy().lede }}</p>
 
     @if (propertyContext(); as ctx) {
-      <section class="property-card" aria-label="This property's assessed value">
-        <p class="property-address">{{ ctx.address }}</p>
-        <div class="property-values">
-          <div class="property-value">
-            <span class="stat-value">{{ formatCad(ctx.assessedValue) }}</span>
-            <span class="stat-label">This property's assessed value</span>
-          </div>
-          <div class="property-value">
-            <span class="stat-value">{{ formatCad(v.avgAssessedValue) }}</span>
-            <span class="stat-label">{{ v.displayName }} average</span>
-          </div>
+      <section class="hero" aria-label="Assessed value comparison">
+        <div class="hero-main">
+          <p class="property-address">{{ ctx.address }}</p>
+          <p class="hero-label">{{ copy().propertyValueLabel }}</p>
+          <p class="hero-value">{{ formatCad(ctx.assessedValue) }}</p>
+          <p class="honest-note">{{ copy().honestNote }}</p>
         </div>
-        <p class="stat-note">City of Calgary {{ v.assessmentYear }} assessment roll. We don't quote this property type yet — here's what the City says it's worth.</p>
+        <div class="hero-compare">
+          <div class="compare-row">
+            <span class="compare-label">{{ copy().communityAverageLabel }}</span>
+            <span class="compare-value">{{ formatCad(v.avgAssessedValue) }}</span>
+          </div>
+          <div class="bars" role="img" [attr.aria-label]="compareBarLabel(ctx.assessedValue)">
+            <div class="bar-row">
+              <span class="bar-tag">{{ copy().comparePropertyTag }}</span>
+              <div class="track"><div class="bar bar-property" [style.width.%]="compareBars().propertyPct"></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-tag">{{ copy().communityAverageLabel }}</span>
+              <div class="track"><div class="bar bar-average" [style.width.%]="compareBars().averagePct"></div></div>
+            </div>
+          </div>
+          <p class="bar-caption">{{ copy().compareBarCaption }}</p>
+        </div>
+      </section>
+    } @else {
+      <section class="hero hero--solo" aria-label="Community average assessed value">
+        <div class="hero-main">
+          <p class="hero-label">{{ copy().averageHeroLabel }}</p>
+          <p class="hero-value">{{ formatCad(v.avgAssessedValue) }}</p>
+          <p class="honest-note">{{ copy().honestNote }}</p>
+        </div>
       </section>
     }
 
     <section class="stat-block" aria-label="Community statistics">
-      <div class="stat">
-        <span class="stat-value">{{ formatCad(v.avgAssessedValue) }}</span>
-        <span class="stat-label">{{ copy().statLabel }}</span>
-      </div>
       <div class="stat">
         <span class="stat-value">{{ formatInt(v.dwellingUnits) }}</span>
         <span class="stat-label">{{ copy().homesAssessedLabel }}</span>
         <span class="stat-sub">{{ copy().homesAssessedSub }}</span>
       </div>
       <div class="stat">
-        <span class="stat-value stat-value--wrap">{{ copy().typeLabels[v.mostCommonType] }}</span>
-        <span class="stat-label">{{ copy().mostCommonTypeLabel }}</span>
-      </div>
-      <div class="stat">
         <span class="stat-value">{{ v.assessmentYear }}</span>
         <span class="stat-label">{{ copy().assessmentYearLabel }}</span>
       </div>
-      <p class="stat-note">{{ copy().statNote }}</p>
+      <div class="stat stat--wide">
+        <span class="stat-value stat-value--wrap">{{ copy().typeLabels[v.mostCommonType] }}</span>
+        <span class="stat-label">{{ copy().mostCommonTypeLabel }}</span>
+      </div>
     </section>
 
     <section class="explainer" aria-label="How assessments work">

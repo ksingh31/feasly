@@ -29,17 +29,24 @@ export function resolveProfileCopy(
   raw: CommunityProfileCopy,
   view: CommunityProfileView,
 ): CommunityProfileCopy {
+  // NOTE: replaceAll, not replace — several templates contain the same
+  // placeholder twice (e.g. {name} in the lede), and String.replace only
+  // swaps the first occurrence (live {name} leak, 2026-10-03).
   const fill = (s: string): string =>
     s
-      .replace('{name}', view.displayName)
-      .replace('{year}', view.assessmentYear)
-      .replace('{avgAssessed}', formatCad(view.avgAssessedValue))
-      .replace('{multiPct}', mixPct(view, 'multiFamily'))
-      .replace('{semiPct}', mixPct(view, 'semiDuplex'))
-      .replace('{singlePct}', mixPct(view, 'singleDetached'));
+      .replaceAll('{name}', view.displayName)
+      .replaceAll('{year}', view.assessmentYear)
+      .replaceAll('{avgAssessed}', formatCad(view.avgAssessedValue))
+      .replaceAll('{multiPct}', mixPct(view, 'multiFamily'))
+      .replaceAll('{semiPct}', mixPct(view, 'semiDuplex'))
+      .replaceAll('{singlePct}', mixPct(view, 'singleDetached'));
   return {
     ...raw,
     lede: fill(raw.lede),
+    communityAverageLabel: fill(raw.communityAverageLabel),
+    compareBarLabelTemplate: fill(raw.compareBarLabelTemplate),
+    honestNote: fill(raw.honestNote),
+    averageHeroLabel: fill(raw.averageHeroLabel),
     homesAssessedSub: fill(raw.homesAssessedSub),
     mixBody: fill(raw.mixBody),
     noBuildBody: fill(raw.noBuildBody),
@@ -78,36 +85,32 @@ export class CommunityProfilePageComponent {
    */
   readonly propertyContext = this.store.selectSignal(CommunityProfileState.propertyContext);
 
-  /** FAQ items (short alias for the template — keeps the @for line under the no-hardcode length tripwire). */
-  faqs(): readonly { q: string; a: string }[] {
-    return this.copy().faqItems;
-  }
-
-  /** FAQ open state. */
-  openFaq: number | null = null;
-
-  /** Mix percentages, rounded, in bucket order for the stacked bar. */
-  readonly mixSegments = computed(() => {
-    const v = this.view();
-    const order: DwellingBucket[] = ['multiFamily', 'semiDuplex', 'singleDetached'];
-    return order.map((bucket) => ({
-      bucket,
-      label: this.copy().typeLabels[bucket],
-      pct: Number(mixPct(v, bucket)),
-    }));
+  /**
+   * Bar widths for the property-vs-average comparison, proportional to the
+   * larger of the two values (either can win — a modest property in a
+   * pricey community flips the Beltline case). Minimum 2% so the smaller
+   * bar stays visible.
+   */
+  readonly compareBars = computed(() => {
+    const avg = this.view().avgAssessedValue;
+    const prop = this.propertyContext()?.assessedValue ?? 0;
+    const max = Math.max(prop, avg, 1);
+    return {
+      propertyPct: Math.max(2, (prop / max) * 100),
+      averagePct: Math.max(2, (avg / max) * 100),
+    };
   });
 
-  /** aria-label text equivalent for the mix bar (never color-only). */
-  mixBarLabel(): string {
-    const v = this.view();
-    return this.copy()
-      .mixBarLabelTemplate.replace('{multiPct}', mixPct(v, 'multiFamily'))
-      .replace('{semiPct}', mixPct(v, 'semiDuplex'))
-      .replace('{singlePct}', mixPct(v, 'singleDetached'));
-  }
-
-  toggleFaq(index: number): void {
-    this.openFaq = this.openFaq === index ? null : index;
+  /**
+   * aria-label for the comparison bars. {name} and {avgAssessed} were
+   * filled by resolveProfileCopy; {propertyValue} comes from the transient
+   * property context at render time.
+   */
+  compareBarLabel(assessedValue: number): string {
+    return this.copy().compareBarLabelTemplate.replace(
+      '{propertyValue}',
+      formatCad(assessedValue),
+    );
   }
 
   formatCad(value: number): string {
