@@ -261,8 +261,11 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
     }
     if (titles.has(title)) failures.push(`duplicate community page title: "${title}"`);
     titles.add(title);
-    // Fixed-value label for the assessed stat.
-    mustContain(html, route, 'Average City-assessed value (not market value)', 'assessed-value label');
+    // Honest assessed-value labeling: the figure must be qualified as not
+    // market value. Build guides use the full "Average City-assessed value
+    // (not market value)" stat label; profile pages use the compact honest
+    // note ("Assessed value is for tax purposes — not market value").
+    mustContain(html, route, 'not market value', 'assessed-value honesty label');
     // Deny-list: no proprietary cost-model terms in public HTML.
     // Strip <style> and <script> first — CSS "margin" properties and JS
     // are not cost-model terms.
