@@ -20,7 +20,7 @@ export const DEFAULT_COMMUNITY_PROFILE_COPY: RawCommunityProfileCopy = {
   kicker: 'Community property profile',
   titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
   descriptionTemplate:
-    'Property values in {name}, Calgary — average City-assessed value {avgAssessed}, dwelling mix, and how Calgary assessments work, from City of Calgary data.',
+    'Property values in {name}, Calgary — average City-assessed value {avgAssessed} and how Calgary assessments work, from City of Calgary data.',
   lede: "most homes in {name} are apartments, condos, and townhouses rather than single-family houses. Here's what the City of Calgary says this property is worth.",
   ledeLead: "We don't quote this property type yet",
   propertyValueLabel: "This property's assessed value",
