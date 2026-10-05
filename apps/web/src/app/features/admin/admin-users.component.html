@@ -7,13 +7,15 @@
         and deactivate accounts. Every change is audit-logged.
       </p>
     </div>
-    <button
-      type="button"
-      class="users-page__primary"
-      (click)="openInvite()"
-    >
-      Invite user
-    </button>
+    @if (canManageUsers()) {
+      <button
+        type="button"
+        class="users-page__primary"
+        (click)="openInvite()"
+      >
+        Invite user
+      </button>
+    }
   </div>
 
   @if (notice(); as n) {
@@ -147,7 +149,11 @@
           } @empty {
             <tr>
               <td colspan="6" class="users-page__empty">
-                No users yet. Invite the first team member to get started.
+                @if (canManageUsers()) {
+                  No users yet. Invite the first team member to get started.
+                } @else {
+                  No users yet.
+                }
               </td>
             </tr>
           }

@@ -13,6 +13,7 @@ import {
   SelectAdminDispute,
 } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 
 /**
  * Dispute console (billing/01 follow-on, was OPS-009) — Karan's queue for
@@ -58,6 +59,15 @@ export class AdminDisputesComponent implements OnInit {
   protected readonly resolving = this.store.selectSignal(AdminDisputesState.resolving);
   protected readonly resolveError = this.store.selectSignal(AdminDisputesState.resolveError);
   protected readonly lastResolution = this.store.selectSignal(AdminDisputesState.lastResolution);
+
+  /**
+   * Accept/reject are money actions (`billing:manage`) — read-only staff
+   * see the dispute evidence and audit trail but no resolution buttons.
+   */
+  protected readonly canManageBilling = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.billingManage,
+  );
 
   /** Optional admin note recorded on the dispute + audit trail. */
   protected readonly resolutionForm = this.fb.nonNullable.group({

@@ -32,6 +32,7 @@ import {
 } from './admin-users.actions';
 import { AdminUsersState } from './admin-users.state';
 import { AdminAuthState } from './admin-auth.state';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
@@ -89,6 +90,12 @@ export class AdminUsersComponent implements OnInit {
   );
   protected readonly deletingId = this.store.selectSignal(AdminUsersState.deletingId);
   protected readonly deleting = this.store.selectSignal(AdminUsersState.deleting);
+
+  /** `users:manage` holders only — read-only staff get a read-only table. */
+  private readonly manageUsersSignal = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.usersManage,
+  );
   protected readonly deleteError = this.store.selectSignal(AdminUsersState.deleteError);
   protected readonly resendingId = this.store.selectSignal(AdminUsersState.resendingId);
   /** Lowercased email the admin session was issued for — marks the self row. */
@@ -343,11 +350,11 @@ export class AdminUsersComponent implements OnInit {
   }
 
   protected canEdit(user: AdminUser): boolean {
-    return !user.isProtected;
+    return this.canManageUsers() && !user.isProtected;
   }
 
   protected canToggleActive(user: AdminUser): boolean {
-    return !user.isProtected && user.status !== 'invited';
+    return this.canManageUsers() && !user.isProtected && user.status !== 'invited';
   }
 
   /** Whether this row is the signed-in admin (self-harm is blocked server-side). */
@@ -358,7 +365,15 @@ export class AdminUsersComponent implements OnInit {
 
   protected canDelete(user: AdminUser): boolean {
     // Delete is only ever allowed before the invite is accepted.
-    return !user.isProtected && user.status === 'invited';
+    return this.canManageUsers() && !user.isProtected && user.status === 'invited';
+  }
+
+  /**
+   * `users:manage` holders only — read-only staff see the user table
+   * without invite/edit/deactivate actions (backend 403s those writes).
+   */
+  protected canManageUsers(): boolean {
+    return this.manageUsersSignal();
   }
 
   /**

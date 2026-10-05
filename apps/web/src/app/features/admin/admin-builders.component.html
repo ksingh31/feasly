@@ -7,9 +7,11 @@
         sign-in key, and which websites may load their estimator.
       </p>
     </div>
-    <button type="button" class="builders-page__add" (click)="startCreate()">
-      Add builder
-    </button>
+    @if (canManageBuilders()) {
+      <button type="button" class="builders-page__add" (click)="startCreate()">
+        Add builder
+      </button>
+    }
   </header>
 
   @if (saved()) {
@@ -36,7 +38,9 @@
         websites their estimator runs on. Leads can only be routed to a builder
         once they exist here.
       </p>
-      <button type="button" (click)="startCreate()">Add your first builder</button>
+      @if (canManageBuilders()) {
+        <button type="button" (click)="startCreate()">Add your first builder</button>
+      }
     </div>
   } @else {
     <div class="builders-page__table-wrap">
@@ -92,13 +96,17 @@
               <td>{{ methodLabel(builder.settings) }}</td>
               <td>{{ builder.email ?? '—' }}</td>
               <td>
-                <button
-                  type="button"
-                  class="builders-page__edit"
-                  (click)="startEdit(builder)"
-                >
-                  Edit
-                </button>
+                @if (canManageBuilders()) {
+                  <button
+                    type="button"
+                    class="builders-page__edit"
+                    (click)="startEdit(builder)"
+                  >
+                    Edit
+                  </button>
+                } @else {
+                  <span class="builders-page__muted">—</span>
+                }
               </td>
             </tr>
           }
@@ -154,7 +162,7 @@
             } @else {
               <span class="builders-page__hint" id="tenant-key-hint">
                 Lowercase letters, numbers, and dashes (e.g. elite-craft). Used
-                in sign-in links and website embeds — set it carefully.
+                to identify this builder in website embeds — set it carefully.
               </span>
             }
             @if (fieldError('tenantKey'); as err) {
@@ -174,7 +182,7 @@
           <label class="builders-page__field">
             <span class="builders-page__label">Email</span>
             <input type="email" formControlName="email" autocomplete="email" />
-            <span class="builders-page__hint">Where sign-in links and notifications go.</span>
+            <span class="builders-page__hint">Where the sign-in invite and notifications go. Builders sign in with email + password (set when they accept the invite).</span>
             @if (fieldError('email'); as err) {
               <span class="builders-page__field-error" role="alert">{{ err }}</span>
             }

@@ -34,6 +34,7 @@ import {
 } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
 import { AdminLeadCommentsComponent } from './admin-lead-comments.component';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 
 /** Pipeline statuses in the order Karan works them. */
 const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
@@ -91,6 +92,20 @@ export class AdminLeadDetailComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly detailError = this.store.selectSignal(AdminLeadsState.detailError);
   protected readonly detailRefreshError = this.store.selectSignal(
     AdminLeadsState.detailRefreshError,
+  );
+
+  /**
+   * Write-action gating (display only — the backend 403s without the
+   * permission): status + notes need `leads:manage`, builder assignment
+   * needs `leads:assign`. Read-only staff see the detail read-only.
+   */
+  protected readonly canManageLeads = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.leadsManage,
+  );
+  protected readonly canAssignLeads = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.leadsAssign,
   );
   protected readonly notePosting = this.store.selectSignal(AdminLeadsState.notePosting);
   protected readonly noteError = this.store.selectSignal(AdminLeadsState.noteError);

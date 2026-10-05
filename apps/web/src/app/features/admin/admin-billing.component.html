@@ -12,13 +12,15 @@
       </p>
     </div>
     <div class="billing-panel__header-actions">
-      <button
-        type="button"
-        class="billing-panel__btn"
-        (click)="openCreateForm()"
-      >
-        Create invoice
-      </button>
+      @if (canManageBilling()) {
+        <button
+          type="button"
+          class="billing-panel__btn"
+          (click)="openCreateForm()"
+        >
+          Create invoice
+        </button>
+      }
       @if (health(); as h) {
         <span class="billing-panel__badge" role="status">
           <span aria-hidden="true">●</span> {{ modelLabel(h.model) }}
@@ -198,13 +200,19 @@
                     }
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      class="billing-panel__btn"
-                      (click)="openManageInReview(invoice, $event)"
-                    >
-                      Manage
-                    </button>
+                    <a
+                      class="billing-panel__link"
+                      [routerLink]="['/admin/billing/invoices', invoice.id]"
+                    >Details</a>
+                    @if (canManageBilling()) {
+                      <button
+                        type="button"
+                        class="billing-panel__btn"
+                        (click)="openManageInReview(invoice, $event)"
+                      >
+                        Manage
+                      </button>
+                    }
                   </td>
                 </tr>
               }
@@ -259,46 +267,54 @@
                   <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
                   <td>{{ invoice.lastFailureReason ?? '—' }}</td>
                   <td>
-                    <button
-                      type="button"
-                      class="billing-panel__btn"
-                      (click)="openManageDunning(invoice, $event)"
-                      title="Record an off-Stripe payment — cancels the scheduled auto-charge"
-                    >
-                      Mark as paid
-                    </button>
-                    @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
-                      <span class="billing-panel__muted">Manual handling</span>
-                    } @else if (isConfirming(invoice.id)) {
-                      <button
-                        type="button"
-                        class="billing-panel__btn billing-panel__btn--confirm"
-                        [disabled]="retryingInvoiceId() === invoice.id"
-                        (click)="confirmRetry(invoice.id)"
-                      >
-                        {{
-                          retryingInvoiceId() === invoice.id
-                            ? 'Retrying…'
-                            : 'Confirm retry'
-                        }}
-                      </button>
+                    <a
+                      class="billing-panel__link"
+                      [routerLink]="['/admin/billing/invoices', invoice.id]"
+                    >Details</a>
+                    @if (canManageBilling()) {
                       <button
                         type="button"
                         class="billing-panel__btn"
-                        (click)="cancelRetry()"
+                        (click)="openManageDunning(invoice, $event)"
+                        title="Record an off-Stripe payment — cancels the scheduled auto-charge"
                       >
-                        Cancel
+                        Mark as paid
                       </button>
+                      @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
+                        <span class="billing-panel__muted">Manual handling</span>
+                      } @else if (isConfirming(invoice.id)) {
+                        <button
+                          type="button"
+                          class="billing-panel__btn billing-panel__btn--confirm"
+                          [disabled]="retryingInvoiceId() === invoice.id"
+                          (click)="confirmRetry(invoice.id)"
+                        >
+                          {{
+                            retryingInvoiceId() === invoice.id
+                              ? 'Retrying…'
+                              : 'Confirm retry'
+                          }}
+                        </button>
+                        <button
+                          type="button"
+                          class="billing-panel__btn"
+                          (click)="cancelRetry()"
+                        >
+                          Cancel
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="billing-panel__btn"
+                          (click)="requestRetry(invoice.id)"
+                        >
+                          {{
+                            retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
+                          }}
+                        </button>
+                      }
                     } @else {
-                      <button
-                        type="button"
-                        class="billing-panel__btn"
-                        (click)="requestRetry(invoice.id)"
-                      >
-                        {{
-                          retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
-                        }}
-                      </button>
+                      <span class="billing-panel__muted">—</span>
                     }
                   </td>
                 </tr>

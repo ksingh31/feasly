@@ -25,6 +25,7 @@ import {
   UpdateBuilder,
 } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import {
   PLANNED_PAYMENT_METHOD_LABELS,
 } from './admin-billing-api.service';
@@ -96,6 +97,15 @@ export class AdminBuildersComponent implements OnInit {
   protected readonly saving = this.store.selectSignal(AdminBuildersState.saving);
   protected readonly saveError = this.store.selectSignal(AdminBuildersState.saveError);
   protected readonly saved = this.store.selectSignal(AdminBuildersState.saved);
+
+  /**
+   * Add/edit builder are `builders:manage` writes — read-only staff see
+   * the table without the add/edit affordances.
+   */
+  protected readonly canManageBuilders = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.buildersManage,
+  );
 
   protected readonly planOptions = PLAN_OPTIONS;
 

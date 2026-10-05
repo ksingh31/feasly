@@ -143,76 +143,78 @@
           </ol>
         }
 
-        <h3>Resolve</h3>
-        <form [formGroup]="resolutionForm" aria-label="Dispute resolution">
-          <label class="disputes-page__note">
-            <span>Note (optional — recorded on the dispute and the audit trail)</span>
-            <textarea
-              formControlName="note"
-              rows="3"
-              maxlength="2000"
-              placeholder="Why this decision…"
-            ></textarea>
-          </label>
-        </form>
-        @if (resolveError() !== null) {
-          <p class="disputes-page__state disputes-page__state--error" role="alert">
-            {{ resolveError() }}
-          </p>
-        }
-        <div class="disputes-page__resolve-actions">
-          @if (confirmingAction === null) {
-            <button
-              type="button"
-              class="disputes-page__accept"
-              (click)="armConfirm('accept')"
-              [disabled]="resolving()"
-            >
-              Accept dispute
-            </button>
-            <button
-              type="button"
-              class="disputes-page__reject"
-              (click)="armConfirm('reject')"
-              [disabled]="resolving()"
-            >
-              Reject dispute
-            </button>
-          } @else if (confirmingAction === 'accept') {
-            <p class="disputes-page__confirm-text" role="alert">
-              Accepting <strong>voids the invoice</strong> — when it was already
-              paid, the charge is refunded first (credit note). This is
-              audit-logged.
+        @if (canManageBilling()) {
+          <h3>Resolve</h3>
+          <form [formGroup]="resolutionForm" aria-label="Dispute resolution">
+            <label class="disputes-page__note">
+              <span>Note (optional — recorded on the dispute and the audit trail)</span>
+              <textarea
+                formControlName="note"
+                rows="3"
+                maxlength="2000"
+                placeholder="Why this decision…"
+              ></textarea>
+            </label>
+          </form>
+          @if (resolveError() !== null) {
+            <p class="disputes-page__state disputes-page__state--error" role="alert">
+              {{ resolveError() }}
             </p>
-            <button
-              type="button"
-              class="disputes-page__accept"
-              (click)="acceptSelected()"
-              [disabled]="resolving()"
-            >
-              {{ resolving() ? 'Accepting…' : 'Confirm accept' }}
-            </button>
-            <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
-              Cancel
-            </button>
-          } @else {
-            <p class="disputes-page__confirm-text" role="alert">
-              Rejecting sends the invoice <strong>back to review</strong> with a
-              fresh 7-day window. This is audit-logged.
-            </p>
-            <button
-              type="button"
-              class="disputes-page__reject"
-              (click)="rejectSelected()"
-              [disabled]="resolving()"
-            >
-              {{ resolving() ? 'Rejecting…' : 'Confirm reject' }}
-            </button>
-            <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
-              Cancel
-            </button>
           }
-        </div>
+          <div class="disputes-page__resolve-actions">
+            @if (confirmingAction === null) {
+              <button
+                type="button"
+                class="disputes-page__accept"
+                (click)="armConfirm('accept')"
+                [disabled]="resolving()"
+              >
+                Accept dispute
+              </button>
+              <button
+                type="button"
+                class="disputes-page__reject"
+                (click)="armConfirm('reject')"
+                [disabled]="resolving()"
+              >
+                Reject dispute
+              </button>
+            } @else if (confirmingAction === 'accept') {
+              <p class="disputes-page__confirm-text" role="alert">
+                Accepting <strong>voids the invoice</strong> — when it was already
+                paid, the charge is refunded first (credit note). This is
+                audit-logged.
+              </p>
+              <button
+                type="button"
+                class="disputes-page__accept"
+                (click)="acceptSelected()"
+                [disabled]="resolving()"
+              >
+                {{ resolving() ? 'Accepting…' : 'Confirm accept' }}
+              </button>
+              <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+                Cancel
+              </button>
+            } @else {
+              <p class="disputes-page__confirm-text" role="alert">
+                Rejecting sends the invoice <strong>back to review</strong> with a
+                fresh 7-day window. This is audit-logged.
+              </p>
+              <button
+                type="button"
+                class="disputes-page__reject"
+                (click)="rejectSelected()"
+                [disabled]="resolving()"
+              >
+                {{ resolving() ? 'Rejecting…' : 'Confirm reject' }}
+              </button>
+              <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+                Cancel
+              </button>
+            }
+          </div>
+        }
       }
     </section>
   }
