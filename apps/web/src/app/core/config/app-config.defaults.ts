@@ -398,7 +398,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       totalLabel: 'Total',
       totalMathTemplate: '{assessed} + {buildRange}',
       lowestLandBadge: 'Lowest land cost',
-      lockedNote: 'Available after email verification',
+      // Locked-slot note (QA 2026-10-04): there is no email-verification
+      // step — unlock is a lead-gate submit, and the report unlocks
+      // immediately (magic link = return access only). Matches the
+      // report's framing ("Locked — unlock to reveal the figures").
+      lockedNote: 'Locked — unlock to reveal the figures.',
       unlockCta: 'Unlock my free report →',
       editLabel: '← Edit communities',
       chartTitle: 'Total cost comparison',
