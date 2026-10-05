@@ -20,9 +20,14 @@
       <a routerLink="/admin/users" routerLinkActive="active" (click)="closeMenu()">Users</a>
       <a routerLink="/admin/disputes" routerLinkActive="active" (click)="closeMenu()">Disputes</a>
       <a routerLink="/admin/billing" routerLinkActive="active" (click)="closeMenu()">Billing</a>
+      <a routerLink="/admin/billing/invoices" routerLinkActive="active" (click)="closeMenu()">Invoices</a>
       <a routerLink="/admin/calibration" routerLinkActive="active" (click)="closeMenu()">Calibration</a>
       <a routerLink="/admin/ops/sheets" routerLinkActive="active" (click)="closeMenu()">Sheets sync</a>
       <a routerLink="/admin/estimates" routerLinkActive="active" (click)="closeMenu()">Estimates</a>
+      <a routerLink="/admin/funnels" routerLinkActive="active" (click)="closeMenu()">Funnels</a>
+      @if (canManageApiKeys()) {
+        <a routerLink="/admin/api-keys" routerLinkActive="active" (click)="closeMenu()">API keys</a>
+      }
       <button type="button" (click)="signOut()">Sign out</button>
     </nav>
   </header>

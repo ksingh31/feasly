@@ -129,6 +129,18 @@ export class AdminAuthState {
     return state.staffRole;
   }
 
+  /**
+   * Session's effective permissions (display only — the backend is
+   * authoritative). Drives role-gated UI: write actions render only for
+   * sessions holding the matching permission, so read-only staff
+   * (viewers) never click through two-step confirms into a 403.
+   * Empty until the /me probe resolves — treat as no permissions.
+   */
+  @Selector()
+  static permissions(state: AdminAuthStateModel): string[] {
+    return state?.permissions ?? [];
+  }
+
   @Selector()
   static authStatus(state: AdminAuthStateModel): AdminAuthStatus {
     return state.authStatus;
