@@ -33,3 +33,22 @@
   line-height: 1.75;
   margin-bottom: 14px;
 }
+
+.legal h3 {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 24px 0 8px;
+}
+
+.legal ul {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.75;
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.legal li {
+  margin-bottom: 6px;
+}
