@@ -83,7 +83,7 @@
           @if (isOpen(invoice.id)) {
             <div class="due-body">
               <div class="due-meta">{{ metaLine(invoice) }}</div>
-              <div class="due-method">{{ methodLine() }}</div>
+              <div class="due-method">{{ methodLine(invoice) }}</div>
               <div class="due-actions">
                 @if (isFailed(invoice)) {
                   <a class="btn btn-primary" routerLink="/builder/billing">{{

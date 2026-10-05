@@ -557,6 +557,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
         commissionCents: 500000,
         status: 'in_review',
         reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
+        paymentMethod: 'cheque',
       },
     ]);
     const result = await service.listLeads('elite-craft');
@@ -570,6 +571,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       commissionCents: 500000,
       status: 'in_review',
       reviewDueAt: '2026-10-06T00:00:00.000Z',
+      paymentMethod: 'cheque',
     });
   });
 

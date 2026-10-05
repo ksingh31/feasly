@@ -81,10 +81,12 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   reportContractSuccessTitle: 'Contract recorded — your invoice is ready',
   reportContractSuccessBody:
     'You recorded a {amount} contract. Your {rate} commission is {commission}. The invoice is in its 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+  reportContractSuccessBodyManual:
+    'You recorded a {amount} contract. Your {rate} commission is {commission}. The invoice is in its 7-day review window — your card won’t be charged. Pay by {method} and we’ll confirm it when it arrives; we’ll email you a receipt.',
   reportContractAlreadyReported:
     'This contract is already recorded — nothing more to do.',
   reportContractDisputed:
-    'This contract already has an invoice under dispute. The charge is paused while we review it — nothing more for you to do.',
+    'This contract already has an invoice under review with our team. The charge is paused — contact Feasly if something looks wrong.',
   reportContractFlatCovered:
     'You’re on the flat plan, so this contract is already covered — no commission is due.',
   reportContractNotEnabled:
@@ -114,7 +116,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'Card setup isn’t available yet — please contact us to arrange billing.',
   billingCancel: 'Cancel',
   billingExplainer:
-    'When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. The invoice auto-charges 7 days later unless disputed.',
+    'When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. The invoice auto-charges 7 days later — contact Feasly if something looks wrong.',
   billingDefaultMethodTitle: 'Default payment method',
   billingDefaultMethodHelper:
     'New invoices use this unless you change it on the invoice.',
@@ -192,7 +194,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesReceiptDate: 'Charge date',
   invoicesReceiptCard: 'Card used',
   invoicesReviewNote:
-    'The 7-day review window ends {date}. The card on file is charged automatically unless the invoice is disputed through the admin console.',
+    'The 7-day review window ends {date}. The card on file is charged automatically — contact Feasly if something looks wrong.',
   invoicesPrevPage: 'Previous',
   invoicesNextPage: 'Next',
   invoicesPageOf: 'Page {page} of {pages}',

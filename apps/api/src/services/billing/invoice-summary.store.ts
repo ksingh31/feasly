@@ -25,6 +25,8 @@ export interface InvoiceSummaryRecord {
   readonly commissionCents: number;
   readonly status: string;
   readonly reviewDueAt: Date | null;
+  /** Payment method snapshot (QA 2026-10-04): card auto-charge or manual. */
+  readonly paymentMethod: string;
 }
 
 export interface InvoiceSummaryStore {
@@ -68,6 +70,7 @@ export function createInvoiceSummaryStore(
           commissionCents: commissionInvoices.commissionCents,
           status: commissionInvoices.status,
           reviewDueAt: commissionInvoices.reviewDueAt,
+          paymentMethod: commissionInvoices.paymentMethod,
         })
         .from(commissionInvoices)
         .where(eq(commissionInvoices.tenantKey, tenantKey))

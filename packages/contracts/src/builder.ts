@@ -117,6 +117,13 @@ export interface BuilderLeadInvoiceSummary {
   readonly status: CommissionInvoiceStatus;
   /** draft created + 7 days — the builder's review/dispute window. */
   readonly reviewDueAt: string | null;
+  /**
+   * How this invoice gets paid (QA 2026-10-04): 'card' = Stripe
+   * auto-charge after review; anything else = manual — the UI must not
+   * promise a card charge or show an auto-charge countdown for manual
+   * invoices.
+   */
+  readonly paymentMethod: BuilderPaymentMethod;
 }
 
 export interface BuilderLeadListItem {

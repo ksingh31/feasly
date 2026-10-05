@@ -17,6 +17,10 @@ import {
   formatEdmontonMediumDate,
 } from '../../shared/utils/edmonton';
 import { formatCentsToCad } from '../../shared/utils/money';
+import {
+  isBuilderPaymentMethod,
+  paymentMethodLabel,
+} from './builder-payment-methods';
 
 /** Why a due invoice gets a banner. */
 export type DueReason = 'failed' | 'due-today' | 'overdue';
@@ -152,13 +156,16 @@ export class DueInvoiceBannersComponent {
       .replace('{contract}', formatCentsToCad(invoice.contractValueCents));
   }
 
-  /** "Payment method: Card •••• 4242 (change it on the invoice)". */
-  protected methodLine(): string {
-    const card = this.card();
-    const method =
-      card?.hasCard && card.last4
-        ? this.copy.dueBannersCardLabel.replace('{last4}', card.last4)
-        : this.copy.dueBannersNoCardOnFile;
+  /**
+   * "Payment method: Cheque (change it on the invoice)". Reads the
+   * INVOICE's own payment method (QA 2026-10-04) — the org card-on-file
+   * line was wrong for manual-method invoices. The card label still
+   * carries the org card's last4 when this invoice pays by card.
+   */
+  protected methodLine(invoice: CommissionInvoice): string {
+    const method = isBuilderPaymentMethod(invoice.paymentMethod)
+      ? paymentMethodLabel(invoice.paymentMethod, this.copy, this.card()?.last4)
+      : String(invoice.paymentMethod);
     return this.copy.dueBannersMethodLine.replace('{method}', method);
   }
 
