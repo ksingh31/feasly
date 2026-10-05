@@ -219,7 +219,10 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       const intent = await stripe.setupIntents.create({
         customer: customerId,
         usage: 'off_session',
-        payment_method_types: ['card'],
+        // stripe-node v23 removed `payment_method_types`; automatic payment
+        // methods with redirects disallowed preserves card-only off_session
+        // behavior (redirect methods can't be used off-session anyway).
+        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       });
       return { id: intent.id, clientSecret: intent.client_secret ?? '' };
     },
