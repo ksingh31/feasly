@@ -170,20 +170,20 @@ export class BuilderReportContractComponent implements OnInit {
   );
 
   /**
-   * Always-visible commission figure, recomputed as the builder types —
+   * The typed contract value in cents, recomputed as the builder types —
    * at the org's negotiated rate (1% default until it loads). Starts at
    * $0.00 — the figure is never hidden behind a validity gate.
    * Display-only; the backend computes the billed amount.
    */
-  protected readonly liveCommissionCents = signal(0);
+  protected readonly liveContractValueCents = signal(0);
   protected readonly liveCommission = computed(() =>
     this.formatCadFigure(
-      percentOfCents(this.liveCommissionCents(), this.ratePercent()),
+      percentOfCents(this.liveContractValueCents(), this.ratePercent()),
     ),
   );
   /** The typed contract value in cents (for the commission panel breakdown). */
   protected readonly liveContractValue = computed(() =>
-    this.formatCadFigure(this.liveCommissionCents()),
+    this.formatCadFigure(this.liveContractValueCents()),
   );
 
   protected readonly form = new FormGroup<ReportContractForm>({
@@ -223,7 +223,7 @@ export class BuilderReportContractComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
         const cents = parseCadDollarsToCents(value);
-        this.liveCommissionCents.set(
+        this.liveContractValueCents.set(
           cents !== null && cents > 0 ? cents : 0,
         );
       });

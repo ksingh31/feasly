@@ -85,7 +85,7 @@ export class AdminCommentsApiService {
     );
   }
 
-  /** Edit any comment on the lead (admin may edit all). */
+  /** Edit the author's own comment. Author-only is enforced server-side (403 otherwise). */
   editComment(commentId: string, body: string): Observable<Comment> {
     const payload: UpdateCommentBody = { body };
     return this.call(

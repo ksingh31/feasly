@@ -196,7 +196,18 @@ export class AdminManageInvoiceComponent implements OnInit, OnDestroy {
       nonNullable: true,
     }),
     paidDate: new FormControl<string>(todayLocalDateString(), {
-      validators: [Validators.required],
+      // QA 2026-10-04 (P5): a payment can't arrive in the future — same
+      // no-future-date shape as the builder contract-signed-date gate.
+      validators: [
+        Validators.required,
+        (control) => {
+          const value = control.value;
+          if (!value) {
+            return null;
+          }
+          return value > todayLocalDateString() ? { futureDate: true } : null;
+        },
+      ],
       nonNullable: true,
     }),
   });

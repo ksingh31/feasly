@@ -693,14 +693,6 @@ export class ReportPageComponent implements OnInit {
       });
   }
 
-  /** v1 PDF: the print stylesheet lays the report out for Save-as-PDF. */
-  print(): void {
-    // Consent-gated inside AnalyticsService: declined/pending banner means
-    // this is a silent no-op.
-    this.analytics.track('pdf_download');
-    window.print();
-  }
-
   /** Download-PDF button state: idle → generating → idle, or error with retry. */
   protected readonly pdfState = signal<'idle' | 'generating' | 'error'>('idle');
   /** Last created object URL — revoked before the next download and on destroy. */
