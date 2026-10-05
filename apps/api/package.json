@@ -2,7 +2,7 @@
   "description": "Azure Functions (TypeScript) — versioned /api/v1. Endpoints land here (epics 07, 10).",
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
-    "@redocly/cli": "^2.54.3",
+    "@redocly/cli": "^2.57.0",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
