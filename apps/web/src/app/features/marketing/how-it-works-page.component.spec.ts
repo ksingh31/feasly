@@ -107,7 +107,7 @@ describe('HowItWorksPageComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/']);
   });
 
-  it('renovation CTA lands on the coming-soon page without preselecting', () => {
+  it('renovation CTA preselects renovation and enters the wizard at /', () => {
     const router = TestBed.inject(Router);
     const store = TestBed.inject(Store);
     const navigate = vi.spyOn(router, 'navigate');
@@ -115,10 +115,12 @@ describe('HowItWorksPageComponent', () => {
       (fixture.nativeElement as HTMLElement).querySelectorAll('button.cta'),
     );
     (buttons[1] as HTMLButtonElement).click();
-    // No renovation preselect leaks into the wizard store…
-    expect(store.selectSnapshot(WizardState.projectType)).toBeNull();
-    // …the designed coming-soon page is the target, never the home page.
-    expect(navigate).toHaveBeenCalledWith(['/estimate/reno-coming-soon']);
+    // The renovation preselect rides in NGXS — the scope step shows
+    // Renovation as chosen and its Continue routes to the reno
+    // scope-inputs step (→ designed coming-soon page). Routing via `/`
+    // keeps wizardPropertyGuard from bouncing fresh visitors.
+    expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+    expect(navigate).toHaveBeenCalledWith(['/']);
   });
 
   it('stays indexable: no robots noindex tag', () => {

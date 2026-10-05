@@ -11,12 +11,13 @@ import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
  * How it works (SEO-010): prerendered marketing page.
  *
  * The 4-step flow (address → scope → preview → unlock), the
- * deterministic-math note, and CTAs into the estimator. The new-build CTA
- * preselects the project type in NGXS before entering the wizard at the
- * address step (`/`); the scope step reads the preselected type and shows
- * it as already chosen. Renovation estimates are out of launch scope, so
- * the renovation CTA lands on the designed "coming soon" page instead of
- * preselecting a type the wizard can't price.
+ * deterministic-math note, and CTAs into the estimator. Both project-type
+ * CTAs preselect the type in NGXS before entering the wizard at the address
+ * step (`/`); the scope step reads the preselected type and shows it as
+ * already chosen. Renovation estimates are out of launch scope, so a
+ * preselected renovation flows through the scope step's Continue into the
+ * reno scope-inputs step and ends at the designed "coming soon" page
+ * (never a dead end, never a guard bounce).
  * All user-facing copy comes from ConfigService (no-hardcode tripwire).
  */
 @Component({
@@ -51,19 +52,20 @@ export class HowItWorksPageComponent implements OnInit {
   }
 
   /**
-   * New-build CTA: preselect the project type in NGXS, then enter the
-   * wizard at the address step (`/`). The scope step reads the preselected
-   * type and shows it as already chosen.
+   * Project-type CTAs: preselect the type in NGXS, then enter the wizard at
+   * the address step (`/`). The scope step reads the preselected type and
+   * shows it as already chosen.
    *
-   * Renovation CTA: renovation estimates are out of launch scope — land on
-   * the designed "coming soon" page (never the home page with a renovation
-   * preselect the wizard can't price).
+   * Renovation: renovation estimates are out of launch scope, so a
+   * preselected renovation routes through the scope step's Continue into
+   * the reno scope-inputs step and lands on the designed "coming soon"
+   * page — a designed page, never a spinner or a generic error. Routing
+   * via `/` like the new-build CTA keeps `wizardPropertyGuard` from
+   * bouncing fresh visitors: the old direct
+   * `/estimate/reno-coming-soon` deep link bounced them to `/` and the
+   * button appeared dead.
    */
   startEstimate(type: ProjectType): void {
-    if (type === 'renovation') {
-      void this.router.navigate(['/estimate/reno-coming-soon']);
-      return;
-    }
     this.store.dispatch(new ChooseProjectType(type));
     void this.router.navigate(['/']);
   }
