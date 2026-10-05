@@ -330,7 +330,10 @@ describe('DueInvoiceBannersComponent', () => {
     expect(text).not.toContain('Update card');
   });
 
-  it('shows the no-card fallback in the payment-method line', () => {
+  it('shows the invoice method (plain Card) when no card is on file', () => {
+    // QA 2026-10-04: the method line reads the INVOICE's own method now,
+    // not the org card-on-file. A card-method invoice with no card on file
+    // shows the plain buyer-grade Card label.
     const { fixture } = setup(
       [
         makeInvoice({
@@ -344,7 +347,10 @@ describe('DueInvoiceBannersComponent', () => {
     );
     click(bannerBars(fixture)[0], fixture);
     expect(fixture.nativeElement.textContent as string).toContain(
-      'Payment method: No card on file',
+      'Payment method: Card',
+    );
+    expect(fixture.nativeElement.textContent as string).not.toContain(
+      'No card on file',
     );
   });
 
@@ -543,17 +549,17 @@ describe('methodLine (QA 2026-10-04)', () => {
     const { fixture } = setup([
       makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'cheque' }),
     ]);
-    expect(expandedMethodText(fixture)).toContain('Payment method: Cheque');
-    expect(expandedMethodText(fixture)).not.toContain('4242');
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Cheque');
+    expect(text).not.toContain('4242');
   });
 
   it('labels a card invoice with the on-file last4', () => {
     const { fixture } = setup([
       makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' }),
     ]);
-    expect(expandedMethodText(fixture)).toContain(
-      'Payment method: Card •••• 4242',
-    );
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Card •••• 4242');
   });
 
   it('labels a card invoice with no card on file as plain Card', () => {
@@ -561,8 +567,9 @@ describe('methodLine (QA 2026-10-04)', () => {
       [makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' })],
       null,
     );
-    expect(expandedMethodText(fixture)).toContain('Payment method: Card');
-    expect(expandedMethodText(fixture)).not.toContain('••••');
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Card');
+    expect(text).not.toContain('••••');
   });
 
   it('labels an e-transfer invoice with its own method', () => {
@@ -573,6 +580,7 @@ describe('methodLine (QA 2026-10-04)', () => {
         paymentMethod: 'e_transfer',
       }),
     ]);
-    expect(expandedMethodText(fixture)).toContain('Payment method: E-transfer');
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: E-transfer');
   });
 });

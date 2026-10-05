@@ -102,6 +102,7 @@ const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
         status: 'in_review',
         commissionCents: 650000,
         reviewDueAt: '2026-10-06T23:59:59-06:00',
+        paymentMethod: 'card',
       },
     },
   ],

@@ -30,7 +30,10 @@ import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderState } from './builder.state';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
-import { BuilderInvoicesApiService } from './builder-invoices-api.service';
+import {
+  BuilderInvoicesApiService,
+  type BuilderCommissionInvoice,
+} from './builder-invoices-api.service';
 import { BuilderReportContractComponent } from './builder-report-contract.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
@@ -41,7 +44,7 @@ import { BuilderReportContractState } from './builder-report-contract.state';
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 const RECORDED_LEAD_ID = '22222222-2222-4222-8222-222222222222';
 
-const INVOICE: CommissionInvoice = {
+const INVOICE: BuilderCommissionInvoice = {
   id: 'inv-1',
   invoiceNumber: 'INV-0001',
   tenantKey: 'tenant-1',
@@ -527,7 +530,7 @@ describe('BuilderReportContractComponent', () => {
   });
 
   it('shows manual-method success copy and no auto-charge for a cheque invoice (QA 2026-10-04)', async () => {
-    const chequeInvoice: CommissionInvoice = {
+    const chequeInvoice: BuilderCommissionInvoice = {
       ...INVOICE,
       paymentMethod: 'cheque',
     };
