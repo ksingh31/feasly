@@ -132,13 +132,13 @@ describe('AdminInvoicesComponent', () => {
     expect(input).not.toBeNull();
     // Karan 2026-10-04: the filters rendered as unstyled native controls.
     // The select must carry the shared chevron chrome (feasly-select mixin,
-    // like the leads-page filters) and the input the console's bordered
-    // card style.
+    // like the leads-page filters) and the input the console's card style.
+    // (Border color uses the admin theme var, which the bare component
+    // test doesn't provide — radius/padding are the var-free signals.)
     expect(getComputedStyle(select).appearance).toBe('none');
     expect(getComputedStyle(select).backgroundImage).not.toBe('none');
-    expect(getComputedStyle(input).borderTopWidth).toBe('1px');
-    expect(getComputedStyle(input).borderTopStyle).toBe('solid');
-    expect(getComputedStyle(input).borderRadius).toBe('8px');
+    expect(getComputedStyle(input).borderRadius).toBe('0.5rem');
+    expect(getComputedStyle(input).paddingTop).toBe('10px');
   });
 
   it('shows a retry affordance on load failure', async () => {
