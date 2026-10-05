@@ -751,6 +751,23 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Your card won’t be charged — pay by cheque');
   });
 
+  it('card review note no longer references a builder dispute flow (QA 2026-10-04)', async () => {
+    // Builders cannot open disputes (UI deferred) and the admin console
+    // can only resolve them — the copy must not promise a dispute path.
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
+    );
+    buttons[0].click(); // in_review invoice
+    await flushMock(fixture);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('charged automatically');
+    expect(text).toContain('contact Feasly if something looks wrong');
+    expect(text).not.toContain('disputed through the admin console');
+  });
+
   it('renders no tabs: invoices is a top-level tab, not under billing', async () => {
     const { fixture } = await setup();
     fixture.detectChanges();

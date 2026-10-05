@@ -526,3 +526,53 @@ describe('DueInvoiceBannersComponent', () => {
   });
 
 });
+
+describe('methodLine (QA 2026-10-04)', () => {
+  function expandedMethodText(
+    fixture: ComponentFixture<DueInvoiceBannersComponent>,
+  ): string {
+    const bar = bannerBars(fixture)[0];
+    click(bar, fixture);
+    const method = fixture.nativeElement.querySelector(
+      '.due-body .due-method',
+    ) as HTMLElement;
+    return method.textContent ?? '';
+  }
+
+  it("reads the invoice's own method, not the org card — cheque invoice", () => {
+    const { fixture } = setup([
+      makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'cheque' }),
+    ]);
+    expect(expandedMethodText(fixture)).toContain('Payment method: Cheque');
+    expect(expandedMethodText(fixture)).not.toContain('4242');
+  });
+
+  it('labels a card invoice with the on-file last4', () => {
+    const { fixture } = setup([
+      makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' }),
+    ]);
+    expect(expandedMethodText(fixture)).toContain(
+      'Payment method: Card •••• 4242',
+    );
+  });
+
+  it('labels a card invoice with no card on file as plain Card', () => {
+    const { fixture } = setup(
+      [makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' })],
+      null,
+    );
+    expect(expandedMethodText(fixture)).toContain('Payment method: Card');
+    expect(expandedMethodText(fixture)).not.toContain('••••');
+  });
+
+  it('labels an e-transfer invoice with its own method', () => {
+    const { fixture } = setup([
+      makeInvoice({
+        id: 'failed-1',
+        status: 'failed',
+        paymentMethod: 'e_transfer',
+      }),
+    ]);
+    expect(expandedMethodText(fixture)).toContain('Payment method: E-transfer');
+  });
+});
