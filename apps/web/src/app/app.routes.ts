@@ -8,13 +8,11 @@ import { GatePageComponent } from './features/wizard/gate-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { PreviewPageComponent } from './features/wizard/preview-page.component';
-import { PrivacyPageComponent } from './features/legal/privacy-page.component';
 import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
 import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
 import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
 import { ScopePageComponent } from './features/wizard/scope-page.component';
-import { TermsPageComponent } from './features/legal/terms-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
@@ -81,8 +79,20 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  { path: 'privacy', component: PrivacyPageComponent, canActivate: [robotsGuard] },
-  { path: 'terms', component: TermsPageComponent, canActivate: [robotsGuard] },
+  // Legal pages: full policy/terms copy (2026-10-05). Lazy-loaded so the
+  // ~20KB of legal templates stays out of the initial bundle (budget).
+  {
+    path: 'privacy',
+    loadComponent: () =>
+      import('./features/legal/privacy-page.component').then((m) => m.PrivacyPageComponent),
+    canActivate: [robotsGuard],
+  },
+  {
+    path: 'terms',
+    loadComponent: () =>
+      import('./features/legal/terms-page.component').then((m) => m.TermsPageComponent),
+    canActivate: [robotsGuard],
+  },
   // Unsubscribe center (email/03): token-authenticated, no login — the token
   // IS the credential. noindex like the other private token routes; never
   // prerendered (the token is only known at click time). Lazy-loaded so the
