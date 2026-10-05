@@ -51,6 +51,7 @@ import type {
   SetCommissionRateResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { pastOrPresentDatetime } from '../lib/zod-datetime';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BillingHealthService } from '../services/billing/billing-health.service';
 import type { BillingService } from '../services/billing/billing.service';
@@ -70,11 +71,17 @@ const MANUAL_PAYMENT_METHODS = [
   'other',
 ] as const satisfies ReadonlyArray<ManualPaymentMethod>;
 
-const markPaidBodySchema = z.object({
-  paymentMethod: z.enum(MANUAL_PAYMENT_METHODS),
-  reference: z.string().trim().max(120).optional(),
-  paidAt: z.string().datetime({ offset: true }).optional(),
-});
+/**
+ * QA 2026-10-04 (P5/P6): payment/contract dates record things that already
+ * happened, so neither may be in the future. `nowMs` is injected per
+ * request — a module-level `Date.now()` would freeze at import time.
+ */
+const markPaidBodySchema = (nowMs: number) =>
+  z.object({
+    paymentMethod: z.enum(MANUAL_PAYMENT_METHODS),
+    reference: z.string().trim().max(120).optional(),
+    paidAt: pastOrPresentDatetime('paidAt', nowMs).optional(),
+  });
 
 const setCommissionRateBodySchema = z.object({
   /** Percent, e.g. 1.5 = 1.5%. Must satisfy 0 < rate <= 10. */
@@ -90,13 +97,14 @@ const plannedPaymentMethodBodySchema = z.object({
   method: z.enum(['card', 'cheque', 'e_transfer', 'bank_draft']),
 });
 
-const manualInvoiceBodySchema: z.ZodType<ManualInvoiceRequest> = z.object({
-  tenantKey: z.string().trim().min(1).max(120),
-  leadId: z.string().trim().uuid(),
-  /** Signed construction contract value in integer cents, EXCLUDING land. */
-  contractValueCents: z.number().int().positive(),
-  contractSignedAt: z.string().datetime({ offset: true }),
-});
+const manualInvoiceBodySchema = (nowMs: number): z.ZodType<ManualInvoiceRequest> =>
+  z.object({
+    tenantKey: z.string().trim().min(1).max(120),
+    leadId: z.string().trim().uuid(),
+    /** Signed construction contract value in integer cents, EXCLUDING land. */
+    contractValueCents: z.number().int().positive(),
+    contractSignedAt: pastOrPresentDatetime('contractSignedAt', nowMs),
+  });
 
 export interface AdminBillingRouteDeps {
   readonly billingHealth: BillingHealthService;
@@ -169,7 +177,7 @@ export function createAdminBillingRoute(
       body,
     ): Promise<MarkInvoicePaidResponse> {
       await adminGuard.requireAdmin(headers);
-      const parsed = markPaidBodySchema.safeParse(body);
+      const parsed = markPaidBodySchema(Date.now()).safeParse(body);
       if (!parsed.success) {
         throw new HttpError(
           400,
@@ -177,7 +185,7 @@ export function createAdminBillingRoute(
           'Invalid payment body: paymentMethod (cheque | bank_draft | ' +
             'e_transfer | cash | card_terminal | other), optional reference ' +
             '(max 120 chars), and optional paidAt (ISO datetime with ' +
-            'timezone offset) are accepted.',
+            'timezone offset, not in the future) are accepted.',
           false,
         );
       }
@@ -269,14 +277,14 @@ export function createAdminBillingRoute(
     },
 
     async createInvoice(headers, body): Promise<ManualInvoiceResponse> {      await adminGuard.requireAdmin(headers);
-      const parsed = manualInvoiceBodySchema.safeParse(body);
+      const parsed = manualInvoiceBodySchema(Date.now()).safeParse(body);
       if (!parsed.success) {
         throw new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
           'Invalid invoice body: tenantKey, leadId (UUID), a positive ' +
             'contractValueCents, and contractSignedAt (ISO datetime with ' +
-            'timezone offset) are required.',
+            'timezone offset, not in the future) are required.',
           false,
         );
       }

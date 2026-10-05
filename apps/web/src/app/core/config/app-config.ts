@@ -334,6 +334,8 @@ export interface BuilderCopy {
   commentsEmpty: string;
   commentsPostFailed: string;
   commentsEditFailed: string;
+  /** Honest copy when a write 401/403s on an expired session (QA P8). */
+  commentsSessionExpired: string;
   commentsMaxLength: number;
   leadsWonHint: string;
   leadsWonReportCta: string;

@@ -36,6 +36,7 @@
  */
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { pastOrPresentDatetime } from '../lib/zod-datetime';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BuilderGuard } from '../middleware/builder-guard';
 import type {
@@ -165,12 +166,18 @@ const listInvoicesQuerySchema = z.object({
     }),
 });
 
-const reportContractBodySchema = z.object({
-  leadId: uuidSchema,
-  /** Signed construction contract value in integer cents, EXCLUDING land. */
-  contractValueCents: z.number().int().positive(),
-  contractSignedAt: z.string().datetime({ offset: true }),
-});
+/**
+ * QA 2026-10-04 (P6): the contract was already signed, so the signed date
+ * can't be in the future. `nowMs` is injected per request — a module-level
+ * `Date.now()` would freeze at import time.
+ */
+const reportContractBodySchema = (nowMs: number) =>
+  z.object({
+    leadId: uuidSchema,
+    /** Signed construction contract value in integer cents, EXCLUDING land. */
+    contractValueCents: z.number().int().positive(),
+    contractSignedAt: pastOrPresentDatetime('contractSignedAt', nowMs),
+  });
 
 const disputeBodySchema = z.object({
   reason: z.string().trim().min(1).max(2000),
@@ -227,7 +234,7 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
   return {
     async reportContract(headers, body): Promise<BillableEventResult> {
       const session = await requireBuilderSession(builderGuard, headers);
-      const parsed = reportContractBodySchema.safeParse(body);
+      const parsed = reportContractBodySchema(Date.now()).safeParse(body);
       if (!parsed.success) {
         throw new HttpError(
           400,

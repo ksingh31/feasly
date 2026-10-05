@@ -183,6 +183,14 @@ describe('POST /api/v1/billing/report-contract', () => {
     ).rejects.toMatchObject({ status: 400 });
     expect(billing.reportContract).not.toHaveBeenCalled();
   });
+
+  it('rejects a future contractSignedAt with 400 (QA P6)', async () => {
+    const { route, billing } = makeDeps();
+    await expect(
+      route.reportContract({}, { ...body, contractSignedAt: '2099-01-01T12:00:00.000Z' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(billing.reportContract).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /api/v1/billing/invoices/{id}', () => {

@@ -84,6 +84,21 @@ export class BuilderLeadCommentsComponent implements OnInit {
     this.commentsChanged.emit(comments);
   }
 
+  /**
+   * Honest failure copy for the thread (QA P8): a legacy/expired builder
+   * session 401s with UNAUTHENTICATED (or 403s) — the composer looks fine
+   * but the write can never succeed, so "sign in again" beats "try again".
+   */
+  private threadErrorCopy(err: unknown, fallback: string): string {
+    const code = (err as { readonly code?: unknown } | null)?.code;
+    return code === 'UNAUTHENTICATED' ||
+      code === 'SESSION_EXPIRED' ||
+      code === 'http_401' ||
+      code === 'http_403'
+      ? this.copy.commentsSessionExpired
+      : fallback;
+  }
+
   protected onPost(event: CommentPost): void {
     this.error.set(null);
     this.api
@@ -96,7 +111,8 @@ export class BuilderLeadCommentsComponent implements OnInit {
             this.emitChanged(next);
             return next;
           }),
-        error: () => this.error.set(this.copy.commentsPostFailed),
+        error: (err: unknown) =>
+          this.error.set(this.threadErrorCopy(err, this.copy.commentsPostFailed)),
       });
   }
 
@@ -112,7 +128,8 @@ export class BuilderLeadCommentsComponent implements OnInit {
             this.emitChanged(next);
             return next;
           }),
-        error: () => this.error.set(this.copy.commentsEditFailed),
+        error: (err: unknown) =>
+          this.error.set(this.threadErrorCopy(err, this.copy.commentsEditFailed)),
       });
   }
 
@@ -129,9 +146,9 @@ export class BuilderLeadCommentsComponent implements OnInit {
           this.loading.set(false);
           this.emitChanged(comments);
         },
-        error: () => {
+        error: (err: unknown) => {
           this.loading.set(false);
-          this.error.set(this.copy.commentsPostFailed);
+          this.error.set(this.threadErrorCopy(err, this.copy.commentsPostFailed));
         },
       });
   }

@@ -246,6 +246,10 @@ describe('admin-billing route createInvoice', () => {
       { ...VALID_BODY, contractSignedAt: '2026-09-20T14:30:00' },
     ],
     ['plain date', { ...VALID_BODY, contractSignedAt: '2026-09-20' }],
+    [
+      'future contractSignedAt (QA P6)',
+      { ...VALID_BODY, contractSignedAt: '2099-01-01T12:00:00-06:00' },
+    ],
   ])('rejects %s with 400', async (_label, body) => {
     const { deps, billing } = mockBilled();
     const route = createAdminBillingRoute(deps);
@@ -371,6 +375,21 @@ describe('admin-billing route markPaid', () => {
       // The Function adapter pipeline maps the raw zod id error to 400;
       // the unit level just sees a throw before the service is touched.
     ).rejects.toThrow();
+    expect(deps.commission.markPaidManually).not.toHaveBeenCalled();
+  });
+
+  it('400s on a future paidAt (QA P5: payments arrive in the past)', async () => {
+    const deps = makeDeps();
+    const route = createAdminBillingRoute(deps);
+    await expect(
+      route.markPaid(ADMIN_HEADERS, INVOICE_ID, {
+        paymentMethod: 'cash',
+        paidAt: '2099-01-01T12:00:00-06:00',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
     expect(deps.commission.markPaidManually).not.toHaveBeenCalled();
   });
 

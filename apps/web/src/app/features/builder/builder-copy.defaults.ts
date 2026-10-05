@@ -323,6 +323,8 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   commentsEmpty: 'No notes yet — add the first one below.',
   commentsPostFailed: 'Could not post your note. Please try again.',
   commentsEditFailed: 'Could not save your edit. Please try again.',
+  commentsSessionExpired:
+    'Your session has expired. Please sign in again to post notes.',
   commentsMaxLength: 2000,
   leadsWonHint: 'Signed a contract with this lead?',
   leadsWonReportCta: 'Record the signed contract',

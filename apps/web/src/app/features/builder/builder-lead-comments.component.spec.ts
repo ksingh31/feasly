@@ -176,4 +176,26 @@ describe('BuilderLeadCommentsComponent', () => {
     fixture.detectChanges();
     expect(threadOf(fixture).error()).toBeNull();
   });
+
+  it('shows session-expired copy when a write 401s (QA P8)', async () => {
+    const { fixture, apiStub } = await setup();
+    const { throwError } = await import('rxjs');
+    // toApiError maps the guard's 401 to the UNAUTHENTICATED contract code.
+    apiStub.postComment.mockImplementationOnce(() =>
+      throwError(() => ({
+        code: 'UNAUTHENTICATED',
+        message: 'Builder authentication required.',
+        retryable: false,
+      })),
+    );
+
+    threadOf(fixture).post.emit({ body: 'Doomed', visibility: 'org' });
+    fixture.detectChanges();
+    expect(threadOf(fixture).error()).toBe(
+      DEFAULT_BUILDER_COPY.commentsSessionExpired,
+    );
+    expect(threadOf(fixture).error()).not.toBe(
+      DEFAULT_BUILDER_COPY.commentsPostFailed,
+    );
+  });
 });
