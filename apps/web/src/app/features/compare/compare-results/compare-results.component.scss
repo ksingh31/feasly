@@ -30,6 +30,18 @@
   margin: 0;
 }
 
+/* Post-gate confirmation line (QA 2026-10-04): persistent and subtle —
+   the emailed link is return-access for other devices. Mirrors the wizard
+   report's .lead-link-note. */
+.lead-link-note {
+  margin: -1rem auto 2rem;
+  max-width: 36rem;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .compare-results__whatif {
   max-width: 36rem;
   margin: 0 auto 2rem;

@@ -6,6 +6,12 @@
     </header>
 
     @if (unlocked()) {
+      <!-- Post-gate confirmation (QA 2026-10-04): persistent (not a toast)
+           — the emailed link is return-access for other devices. -->
+      <p class="lead-link-note" role="note">{{ leadLinkNote() }}</p>
+    }
+
+    @if (unlocked()) {
       <section class="compare-results__whatif" aria-label="Finish tier what-if">
         <app-option-selector
           [selected]="comparison.inputs.tier"

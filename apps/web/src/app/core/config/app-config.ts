@@ -1369,6 +1369,28 @@ export interface AppConfig {
        */
       /** One-link cross-reference to the zoning explainer guide (SEO guides). */
       zoningGuideLink: string;
+      /**
+       * Coverage-redirect property card (guide variant): shown when the
+       * estimator's coverage gate redirects a rejected property here. Same
+       * comparison semantics as the property-profile variant's hero; {name}
+       * is the community display name.
+       */
+      coverageLede: string;
+      /** "This property's assessed value" label on the coverage card. */
+      propertyValueLabel: string;
+      /** "{name} average" — community-average label on the coverage card. */
+      communityAverageLabel: string;
+      /** Bar tag for the property row of the comparison bars. */
+      comparePropertyTag: string;
+      /** Caption under the comparison bars. */
+      compareBarCaption: string;
+      /**
+       * aria-label template for the comparison bars (text equivalent, never
+       * color-only). Placeholders: {propertyValue}, {name}, {avgAssessed}.
+       */
+      compareBarLabelTemplate: string;
+      /** Honest note under the property value; {year} is the roll year. */
+      coverageHonestNote: string;
     };
     /**
      * Builder portal wiring. Only infrastructure config lives in the root

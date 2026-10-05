@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
@@ -11,6 +11,7 @@ import type { TierOption } from '../../../shared/components';
 import { ComparisonState } from '../comparison.state';
 import { ReviseComparisonTier } from '../comparison.actions';
 import { WizardState } from '../../wizard/wizard.state';
+import { LeadState } from '../../wizard/lead.state';
 
 /**
  * Comparison results (NBH-03): side-by-side community cards + total-range
@@ -20,10 +21,9 @@ import { WizardState } from '../../wizard/wizard.state';
  * Pre-gate the build/total figures and the chart are locked: the locked
  * slots render the REAL computed digits blurred (CSS `filter: blur()`,
  * `aria-hidden`, unselectable, no pointer interaction — the blur is a
- * lead-capture nudge, not a security boundary) plus the accessible
- * "Available after email verification" note. The chart bars use the real
- * bar geometry, blurred. The fixed assessed value is always visible
- * (per the API's visibility hints).
+ * lead-capture nudge, not a security boundary) plus the accessible locked
+ * note. The chart bars use the real bar geometry, blurred. The fixed
+ * assessed value is always visible (per the API's visibility hints).
  *
  * Exactly one card carries the "Lowest land cost" badge, driven by the
  * API's `lowestLand` flag — the cheapest City-assessed value (the land
@@ -51,11 +51,19 @@ export class CompareResultsComponent {
 
   protected readonly copy = this.config.get('copy').comparison;
   protected readonly wizardCopy = this.config.get('wizard');
+  /** The wizard report's four-variant post-gate confirmation copy — the
+   * comparison reuses the same "report saved / magic link" note so both
+   * flows speak with one voice (QA 2026-10-04). */
+  protected readonly reportCopy = this.config.get('copy').report;
 
   protected readonly result = this.store.selectSignal(ComparisonState.result);
   protected readonly stats = this.store.selectSignal(ComparisonState.stats);
   protected readonly unlocked = this.store.selectSignal(ComparisonState.unlocked);
   protected readonly comparison = this.store.selectSignal(WizardState.comparison);
+  /** Lead-gate receipt (stored by the gate's submitComparisonLead). */
+  protected readonly magicLinkSent = this.store.selectSignal(LeadState.magicLinkSent);
+  protected readonly emailAlreadySent = this.store.selectSignal(LeadState.emailAlreadySent);
+  protected readonly emailError = this.store.selectSignal(LeadState.emailError);
 
   protected readonly tierOptions: readonly TierOption[] = [
     { id: 'standard', name: 'Standard', blurb: 'Quality essentials' },
@@ -146,6 +154,30 @@ export class CompareResultsComponent {
   protected onTierChange(tier: FinishTier): void {
     this.store.dispatch(new ReviseComparisonTier(tier));
   }
+
+  /**
+   * Post-gate confirmation (QA 2026-10-04): the same four-variant
+   * "report saved / magic link" note the wizard report shows via
+   * leadLinkNote — the emailed link is return-access for other devices,
+   * not the unlock key. Four variants:
+   * - sent (magicLinkSent): "we emailed you a link…"
+   * - idempotent resubmit (emailAlreadySent): "your link is already in
+   *   your inbox" — no new email went out.
+   * - send failed, bad address (emailError === 'invalid-recipient'):
+   *   "check it for typos" — no "check your inbox", it will never arrive.
+   * - send failed, transient: "couldn't send the email link — check your
+   *   inbox or try again later". Never a dead end.
+   * `unlocked()` is memory-only and flips true solely on the gate's
+   * successful lead submit, so this note only ever renders in the
+   * post-gate session.
+   */
+  protected readonly leadLinkNote = computed(() => {
+    if (this.emailAlreadySent()) return this.reportCopy.leadLinkNoteDuplicate;
+    if (this.magicLinkSent()) return this.reportCopy.leadLinkNote;
+    return this.emailError() === 'invalid-recipient'
+      ? this.reportCopy.leadLinkNoteInvalidRecipient
+      : this.reportCopy.leadLinkNoteFailed;
+  });
 
   protected unlock(): void {
     void this.router.navigate(['/estimate/gate'], { queryParams: { flow: 'comparison' } });

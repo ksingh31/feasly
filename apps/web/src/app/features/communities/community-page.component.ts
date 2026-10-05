@@ -1,7 +1,9 @@
 import {
   Component,
+  computed,
   inject,
   OnInit,
+  signal,
   viewChild,
   ChangeDetectorRef,
   ViewContainerRef,
@@ -13,6 +15,7 @@ import {
   type ResolveFn,
 } from '@angular/router';
 import { Meta } from '@angular/platform-browser';
+import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jsonld-schemas';
@@ -23,6 +26,11 @@ import type {
   CommunityType,
 } from '@feasly/contracts';
 import type { CommunityProfilePageComponent } from './community-profile-page.component';
+import {
+  ClearProfilePropertyContext,
+  type ProfilePropertyContext,
+} from './community-profile.actions';
+import { CommunityProfileState } from './community-profile.state';
 import { toDisplayName } from './community-names';
 
 interface TierRow {
@@ -161,12 +169,27 @@ export class CommunityPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly meta = inject(Meta);
   private readonly config = inject(ConfigService);
+  private readonly store = inject(Store);
 
   /** Static page copy (config-owned). */
   readonly copy = this.config.get('copy').communities;
 
   /** The community being rendered, or null when the slug is unknown. */
   community: CommunityView | null = null;
+
+  /**
+   * The rejected property's context from the estimator's coverage-gate
+   * redirect (GUIDE variant only — the profile variant's child component
+   * captures and consumes the context itself). Captured once in ngOnInit
+   * and consumed immediately: the store is cleared right after capture,
+   * so a later same-session direct visit can never show a stale card.
+   * Null at prerender, so SEO HTML is unaffected (client-conditional —
+   * same pattern as the profile variant).
+   */
+  readonly propertyContext = signal<ProfilePropertyContext | null>(null);
+
+  /** Assessment year from the page-data JSON (fills the coverage note). */
+  assessmentYear = '';
 
   /** Profile variant view + resolved copy (null for build-guide pages). */
   profileView: CommunityProfileView | null = null;
@@ -220,6 +243,16 @@ export class CommunityPageComponent implements OnInit {
       return;
     }
     this.community = view;
+    this.assessmentYear = pageData.assessmentYear;
+    // Consume-once (QA 2026-10-04): the estimator's coverage gate sets
+    // this transient context just before redirecting here. Capture it for
+    // the coverage card, then clear so a later same-session direct visit
+    // can't show a stale "this property" card. The profile variant's child
+    // component does its own consume — this branch never runs for it.
+    this.propertyContext.set(
+      this.store.selectSnapshot(CommunityProfileState.propertyContext),
+    );
+    this.store.dispatch(new ClearProfilePropertyContext());
     const title = this.copy.titleTemplate.replace('{name}', view.displayName);
     // The meta description carries the real per-community assessed value so
     // all community pages have unique descriptions in search results
@@ -245,6 +278,55 @@ export class CommunityPageComponent implements OnInit {
   /** Interpolates the community name into a copy template. */
   fill(template: string): string {
     return template.replace('{name}', this.community?.displayName ?? '');
+  }
+
+  /**
+   * Coverage-redirect card (guide variant): the estimator's coverage gate
+   * redirected a rejected property here — explain why and show the
+   * property's assessed value versus the community average, like the
+   * profile variant's hero.
+   */
+  coverageLede(): string {
+    return this.fill(this.copy.coverageLede);
+  }
+
+  /** "{name} average" — community-average label on the coverage card. */
+  communityAverageLabel(): string {
+    return this.fill(this.copy.communityAverageLabel);
+  }
+
+  /** Honest note under the property value (roll year filled in). */
+  coverageHonestNote(): string {
+    return this.copy.coverageHonestNote.replace('{year}', this.assessmentYear);
+  }
+
+  /**
+   * Bar widths for the property-vs-average comparison, proportional to the
+   * larger of the two values (either can win — a modest property in a
+   * pricey community flips the comparison). Minimum 2% so the smaller bar
+   * stays visible. Same math as the profile variant.
+   */
+  readonly compareBars = computed(() => {
+    const avg = this.community?.avgAssessedValue ?? 0;
+    const prop = this.propertyContext()?.assessedValue ?? 0;
+    const max = Math.max(prop, avg, 1);
+    return {
+      propertyPct: Math.max(2, (prop / max) * 100),
+      averagePct: Math.max(2, (avg / max) * 100),
+    };
+  });
+
+  /**
+   * aria-label for the comparison bars. {name} and {avgAssessed} are filled
+   * here (the guide variant has no resolveProfileCopy pre-fill);
+   * {propertyValue} comes from the transient property context at render
+   * time.
+   */
+  compareBarLabel(assessedValue: number): string {
+    return this.copy.compareBarLabelTemplate
+      .replace('{propertyValue}', this.formatCad(assessedValue))
+      .replace('{name}', this.community?.displayName ?? '')
+      .replace('{avgAssessed}', this.formatCad(this.community?.avgAssessedValue ?? 0));
   }
 
   /** Formats whole CAD dollars (no cents — money is integer downstream). */

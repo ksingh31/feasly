@@ -11,6 +11,8 @@ import { API_SERVICE } from '../../../core/api/api.service';
 import { MockApiService } from '../../../core/api/mock-api.service';
 import { providePropertyData } from '../../../core/api/property-data.service';
 import { UpdateComparison, WizardState } from '../../wizard';
+import { LeadState } from '../../wizard/lead.state';
+import { StoreLeadResult } from '../../wizard/lead.actions';
 import { ComparisonLeadSubmitted, RunComparison } from '../comparison.actions';
 import { ComparisonState } from '../comparison.state';
 
@@ -34,7 +36,7 @@ describe('CompareResultsComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         providePropertyData(),
-        provideStore([WizardState, ComparisonState]),
+        provideStore([WizardState, ComparisonState, LeadState]),
         { provide: API_SERVICE, useClass: MockApiService },
         CommunityService,
         ConfigService,
@@ -171,7 +173,9 @@ describe('CompareResultsComponent', () => {
     const lockedNotes = el.querySelectorAll('.locked-slot__note');
     expect(lockedNotes.length).toBeGreaterThan(0);
     for (const note of lockedNotes) {
-      expect(note.textContent).toContain('Available after email verification');
+      // QA 2026-10-04: no email-verification step exists — the note matches
+      // the report's unlock framing.
+      expect(note.textContent).toContain('Locked — unlock to reveal the figures.');
     }
     // Locked slots are aria-hidden, hold real digit text, and are blurred.
     const lockedValues = el.querySelectorAll('.locked-slot__value');
@@ -329,5 +333,102 @@ describe('CompareResultsComponent', () => {
     ) as HTMLButtonElement;
     expect(editButton).toBeTruthy();
     expect(editButton.textContent).toContain('← Edit communities');
+  });
+
+  it('pre-gate: no "report saved" confirmation note renders', async () => {
+    const { fixture } = await setup();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.lead-link-note')).toBeNull();
+  });
+
+  /**
+   * QA 2026-10-04: the comparison shows the same four-variant post-gate
+   * "report saved / magic link" confirmation the wizard report shows.
+   * unlocked() is memory-only — true solely on the gate's successful lead
+   * submit — so the note only ever renders in the post-gate session.
+   */
+  it('post-gate: shows the sent confirmation when the magic link went out', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-mock-123',
+        email: 'a@example.com',
+        magicLinkSent: true,
+        expiresInDays: 7,
+      }),
+    );
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const note = fixture.nativeElement.querySelector('.lead-link-note');
+    expect(note).toBeTruthy();
+    expect(note.getAttribute('role')).toBe('note');
+    expect(note.textContent).toContain(
+      'Report saved — we emailed you a link to reopen it anytime.',
+    );
+  });
+
+  it('post-gate: shows the duplicate variant on an idempotent resubmit', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-mock-123',
+        email: 'a@example.com',
+        magicLinkSent: false,
+        expiresInDays: 7,
+        emailAlreadySent: true,
+      }),
+    );
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const note = fixture.nativeElement.querySelector('.lead-link-note');
+    expect(note?.textContent).toContain(
+      'Report saved — your link is already in your inbox.',
+    );
+  });
+
+  it('post-gate: shows the invalid-recipient variant for a rejected address', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-mock-123',
+        email: 'bad@',
+        magicLinkSent: false,
+        expiresInDays: 7,
+        emailError: 'invalid-recipient',
+      }),
+    );
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const note = fixture.nativeElement.querySelector('.lead-link-note');
+    expect(note?.textContent).toContain(
+      "We couldn't send to that email address — please check it for typos and try again.",
+    );
+    // Never a "check your inbox" — it will never arrive.
+    expect(note?.textContent).not.toContain('check your inbox');
+  });
+
+  it('post-gate: shows the transient-failure variant when the send failed', async () => {
+    const { fixture, store } = await setup();
+    store.dispatch(
+      new StoreLeadResult({
+        leadId: 'lead-mock-123',
+        email: 'a@example.com',
+        magicLinkSent: false,
+        expiresInDays: 7,
+        emailError: 'delivery-failed',
+      }),
+    );
+    store.dispatch(new ComparisonLeadSubmitted('lead-mock-123'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const note = fixture.nativeElement.querySelector('.lead-link-note');
+    expect(note?.textContent).toContain("couldn't send the email link");
   });
 });
