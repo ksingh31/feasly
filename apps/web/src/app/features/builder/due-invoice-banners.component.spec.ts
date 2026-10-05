@@ -330,7 +330,10 @@ describe('DueInvoiceBannersComponent', () => {
     expect(text).not.toContain('Update card');
   });
 
-  it('shows the no-card fallback in the payment-method line', () => {
+  it('shows the invoice method (plain Card) when no card is on file', () => {
+    // QA 2026-10-04: the method line reads the INVOICE's own method now,
+    // not the org card-on-file. A card-method invoice with no card on file
+    // shows the plain buyer-grade Card label.
     const { fixture } = setup(
       [
         makeInvoice({
@@ -344,7 +347,10 @@ describe('DueInvoiceBannersComponent', () => {
     );
     click(bannerBars(fixture)[0], fixture);
     expect(fixture.nativeElement.textContent as string).toContain(
-      'Payment method: No card on file',
+      'Payment method: Card',
+    );
+    expect(fixture.nativeElement.textContent as string).not.toContain(
+      'No card on file',
     );
   });
 
@@ -525,4 +531,56 @@ describe('DueInvoiceBannersComponent', () => {
     ).toContain('failed-1');
   });
 
+});
+
+describe('methodLine (QA 2026-10-04)', () => {
+  function expandedMethodText(
+    fixture: ComponentFixture<DueInvoiceBannersComponent>,
+  ): string {
+    const bar = bannerBars(fixture)[0];
+    click(bar, fixture);
+    const method = fixture.nativeElement.querySelector(
+      '.due-body .due-method',
+    ) as HTMLElement;
+    return method.textContent ?? '';
+  }
+
+  it("reads the invoice's own method, not the org card — cheque invoice", () => {
+    const { fixture } = setup([
+      makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'cheque' }),
+    ]);
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Cheque');
+    expect(text).not.toContain('4242');
+  });
+
+  it('labels a card invoice with the on-file last4', () => {
+    const { fixture } = setup([
+      makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' }),
+    ]);
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Card •••• 4242');
+  });
+
+  it('labels a card invoice with no card on file as plain Card', () => {
+    const { fixture } = setup(
+      [makeInvoice({ id: 'failed-1', status: 'failed', paymentMethod: 'card' })],
+      null,
+    );
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: Card');
+    expect(text).not.toContain('••••');
+  });
+
+  it('labels an e-transfer invoice with its own method', () => {
+    const { fixture } = setup([
+      makeInvoice({
+        id: 'failed-1',
+        status: 'failed',
+        paymentMethod: 'e_transfer',
+      }),
+    ]);
+    const text = expandedMethodText(fixture);
+    expect(text).toContain('Payment method: E-transfer');
+  });
 });

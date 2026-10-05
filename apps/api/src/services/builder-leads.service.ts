@@ -26,6 +26,7 @@ import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadStatus,
+  BuilderPaymentMethod,
   CommentAuthorKind,
   CommissionInvoiceStatus,
 } from '@feasly/contracts';
@@ -207,6 +208,7 @@ export function createBuilderLeadsService(
             reviewDueAt: summary.reviewDueAt
               ? summary.reviewDueAt.toISOString()
               : null,
+            paymentMethod: summary.paymentMethod as BuilderPaymentMethod,
           });
         }
       }

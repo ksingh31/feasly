@@ -529,6 +529,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       readonly commissionCents: number;
       readonly status: string;
       readonly reviewDueAt: Date | null;
+      readonly paymentMethod: string;
     }>,
   ) {
     const base = makeDeps();
@@ -557,6 +558,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
         commissionCents: 500000,
         status: 'in_review',
         reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
+        paymentMethod: 'cheque',
       },
     ]);
     const result = await service.listLeads('elite-craft');
@@ -570,6 +572,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       commissionCents: 500000,
       status: 'in_review',
       reviewDueAt: '2026-10-06T00:00:00.000Z',
+      paymentMethod: 'cheque',
     });
   });
 
@@ -600,6 +603,7 @@ describe('builder-leads status lock (2026-09-29)', () => {
         commissionCents: 500000,
         status: 'in_review',
         reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
+        paymentMethod: 'card',
       },
     ];
     const service = createBuilderLeadsService({
