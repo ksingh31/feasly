@@ -98,7 +98,7 @@ describe('extractImageUrls', () => {
 describe('loadBudgets', () => {
   it('parses the real budgets.json', () => {
     const b = loadBudgets();
-    expect(b.assets.jsInitialGzipKb).toBe(220);
+    expect(b.assets.jsInitialGzipKb).toBe(221);
     expect(b.assets.imageWeightPerPageKb).toBe(500);
     expect(b.webVitals.lcpMs).toBe(2500);
     expect(b.lighthouseCategories.seo).toBe(100);
