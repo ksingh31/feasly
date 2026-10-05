@@ -302,7 +302,13 @@
             payForm.controls.paidDate.touched &&
             payForm.controls.paidDate.invalid
           ) {
-            <p class="manage-invoice__error">Enter the date payment arrived.</p>
+            <p class="manage-invoice__error">
+              @if (payForm.controls.paidDate.hasError('futureDate')) {
+                The paid date can't be in the future.
+              } @else {
+                Enter the date payment arrived.
+              }
+            </p>
           }
         </div>
         @if (confirmingPaid()) {
