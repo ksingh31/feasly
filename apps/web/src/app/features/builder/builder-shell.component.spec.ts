@@ -233,6 +233,22 @@ describe('BuilderShellComponent', () => {
     expect(teamLink).toBeUndefined();
   });
 
+  it('hides the billing surfaces for non-admins (QA 2026-10-04)', async () => {
+    // Billing, Invoices, and Record contract are admin-only backend-side
+    // (builder:billing); members must not see them — no 403 retry loops.
+    const { fixture } = await setup(false);
+    const hrefs = fixture.debugElement
+      .queryAll(By.directive(RouterLink))
+      .filter((d) => (d.nativeElement as HTMLElement).tagName === 'A')
+      .map((d) => (d.nativeElement as HTMLAnchorElement).getAttribute('href'));
+    for (const hidden of ['/builder/billing', '/builder/invoices', '/builder/record-contract']) {
+      expect(hrefs).not.toContain(hidden);
+    }
+    // Dashboard and org switcher stay visible to members.
+    expect(hrefs).toContain('/builder');
+    expect(hrefs).toContain('/builder/org-picker');
+  });
+
   it('dispatches LogoutBuilder on sign out', async () => {
     const { fixture, store } = await setup();
     const signOut = fixture.nativeElement.querySelector(
