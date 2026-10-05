@@ -1153,6 +1153,20 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // lazy-loaded with the profile variant so the initial bundle doesn't
       // carry it (Lighthouse script-size budget).
       zoningGuideLink: 'What do zoning codes like R-C1 mean? Read our Calgary zoning guide →',
+      // Coverage-redirect property card (guide variant, QA 2026-10-04): the
+      // estimator's coverage gate redirects rejected properties here — the
+      // card explains why and shows the property's assessed value versus
+      // the community average, like the profile variant's hero.
+      coverageLede:
+        "We can't build-cost this address yet — here's the City-assessed value, compared with the {name} average.",
+      propertyValueLabel: "This property's assessed value",
+      communityAverageLabel: '{name} average',
+      comparePropertyTag: 'This property',
+      compareBarCaption: 'Bars drawn proportional to the larger value.',
+      compareBarLabelTemplate:
+        'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+      coverageHonestNote:
+        'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
     },
     /**
      * Builder portal wiring. Only infrastructure config lives in the root

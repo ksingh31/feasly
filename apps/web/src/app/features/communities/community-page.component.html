@@ -10,6 +10,45 @@
     <p class="eyebrow">Calgary community cost guide</p>
     <h1>How much does it cost to build a home in {{ community.displayName }}, Calgary?</h1>
 
+    @if (propertyContext(); as ctx) {
+      <!-- Coverage-redirect card (QA 2026-10-04): the estimator's coverage
+           gate redirected a rejected property here. The guide variant used
+           to ignore the transient context — the user landed on a generic
+           guide with no property card and no explanation. -->
+      <section class="coverage-card" aria-label="Your property and the community average">
+        <p class="coverage-lede">{{ coverageLede() }}</p>
+        <div class="coverage-grid">
+          <div class="coverage-main">
+            <p class="coverage-address">{{ ctx.address }}</p>
+            <p class="coverage-label">{{ copy.propertyValueLabel }}</p>
+            <p class="coverage-value">{{ formatCad(ctx.assessedValue) }}</p>
+            <p class="coverage-note">{{ coverageHonestNote() }}</p>
+          </div>
+          <div class="coverage-compare">
+            <div class="compare-row">
+              <span class="compare-label">{{ communityAverageLabel() }}</span>
+              <span class="compare-value">{{ formatCad(community.avgAssessedValue) }}</span>
+            </div>
+            <div class="bars" role="img" [attr.aria-label]="compareBarLabel(ctx.assessedValue)">
+              <div class="bar-row">
+                <span class="bar-tag">{{ copy.comparePropertyTag }}</span>
+                <div class="track">
+                  <div class="bar bar-property" [style.width.%]="compareBars().propertyPct"></div>
+                </div>
+              </div>
+              <div class="bar-row">
+                <span class="bar-tag">{{ communityAverageLabel() }}</span>
+                <div class="track">
+                  <div class="bar bar-average" [style.width.%]="compareBars().averagePct"></div>
+                </div>
+              </div>
+            </div>
+            <p class="bar-caption">{{ copy.compareBarCaption }}</p>
+          </div>
+        </div>
+      </section>
+    }
+
     <section class="stat-block" aria-label="Community statistics">
       <div class="stat">
         <span class="stat-value">{{ formatCad(community.avgAssessedValue) }}</span>

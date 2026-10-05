@@ -2,13 +2,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta, Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
-import { provideStore } from '@ngxs/store';
+import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
 import { CommunityProfileState } from './community-profile.state';
+import { SetProfilePropertyContext } from './community-profile.actions';
 import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
 
@@ -94,6 +95,17 @@ describe('CommunityPageComponent', () => {
     ctaTitle: 'Building in {name}?',
     ctaBody: 'CTA body.',
     ctaLabel: 'Get your address-specific estimate →',
+    // Coverage-redirect card (guide variant, QA 2026-10-04).
+    coverageLede:
+      "We can't build-cost this address yet — here's the City-assessed value, compared with the {name} average.",
+    propertyValueLabel: "This property's assessed value",
+    communityAverageLabel: '{name} average',
+    comparePropertyTag: 'This property',
+    compareBarCaption: 'Bars drawn proportional to the larger value.',
+    compareBarLabelTemplate:
+      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+    coverageHonestNote:
+      'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   };
 
   const baseConfig = {
@@ -168,7 +180,10 @@ describe('CommunityPageComponent', () => {
     };
   }
 
-  async function setup(slug: string): Promise<void> {
+  async function setup(
+    slug: string,
+    opts?: { propertyContext?: { address: string; assessedValue: number } },
+  ): Promise<void> {
     TestBed.resetTestingModule();
     const navigate = vi.fn();
     const pageData = mockPageData(slug) as { type: string };
@@ -197,6 +212,11 @@ describe('CommunityPageComponent', () => {
         { provide: Router, useValue: { navigate, events: of() } },
       ],
     });
+    // Mirror the coverage gate: seed the transient context BEFORE the
+    // component's ngOnInit captures (and consumes) it.
+    if (opts?.propertyContext) {
+      TestBed.inject(Store).dispatch(new SetProfilePropertyContext(opts.propertyContext));
+    }
     // Router is injected via `inject(Router)` — override the token used above.
     fixture = TestBed.createComponent(CommunityPageComponent);
     fixture.detectChanges();
@@ -332,6 +352,70 @@ describe('CommunityPageComponent', () => {
     const banner = fixture.nativeElement.querySelector('.banner');
     // The checked-in ranges are uncalibrated (placeholder cost data).
     expect(banner?.textContent).toContain('Illustrative ranges');
+  });
+
+  describe('guide-variant coverage redirect (QA 2026-10-04)', () => {
+    const gateContext = {
+      address: '13310 14 ST NW, Calgary, AB',
+      assessedValue: 76500,
+    };
+
+    it('shows no coverage card on a direct guide visit', async () => {
+      await setup('mahogany');
+      expect(fixture.nativeElement.querySelector('.coverage-card')).toBeNull();
+    });
+
+    it('renders the coverage card explaining the redirect', async () => {
+      await setup('mahogany', { propertyContext: gateContext });
+      const card = fixture.nativeElement.querySelector('.coverage-card');
+      expect(card).toBeTruthy();
+      // The user gets an explanation, not a generic guide.
+      expect(card.textContent).toContain("We can't build-cost this address yet");
+      expect(card.textContent).toContain('compared with the Mahogany average');
+    });
+
+    it('shows the rejected property versus the community average', async () => {
+      await setup('mahogany', { propertyContext: gateContext });
+      const card = fixture.nativeElement.querySelector('.coverage-card');
+      // The rejected property's address and assessed value…
+      expect(card.textContent).toContain('13310 14 ST NW, Calgary, AB');
+      expect(card.textContent).toContain("This property's assessed value");
+      expect(card.textContent).toContain('$76,500');
+      // …against the community average (Mahogany mock: $719,666).
+      expect(card.textContent).toContain('Mahogany average');
+      expect(card.textContent).toContain('$719,666');
+      // Honest note carries the roll year.
+      expect(card.textContent).toContain('City of Calgary 2026 assessment roll');
+      expect(card.textContent).toContain('not market value');
+    });
+
+    it('draws proportional comparison bars with a text equivalent', async () => {
+      await setup('mahogany', { propertyContext: gateContext });
+      const card = fixture.nativeElement.querySelector('.coverage-card');
+      const bars = card.querySelector('.bars');
+      // Never color-only: role=img + full aria-label.
+      expect(bars?.getAttribute('role')).toBe('img');
+      const label = bars?.getAttribute('aria-label') ?? '';
+      expect(label).toContain('$76,500');
+      expect(label).toContain('Mahogany average of $719,666');
+      const barEls = card.querySelectorAll('.bar');
+      expect(barEls.length).toBe(2);
+      // Property 76500 vs average 719666 → property ≈ 10.6%, average 100%.
+      expect(parseFloat((barEls[0] as HTMLElement).style.width)).toBeCloseTo(
+        (76500 / 719666) * 100,
+        1,
+      );
+      expect(parseFloat((barEls[1] as HTMLElement).style.width)).toBeCloseTo(100, 1);
+    });
+
+    it('consumes the property context once — no stale card on a later visit', async () => {
+      await setup('mahogany', { propertyContext: gateContext });
+      expect(fixture.nativeElement.querySelector('.coverage-card')).toBeTruthy();
+      // The transient context is cleared on capture: a later same-session
+      // direct visit renders the generic guide again.
+      const store = TestBed.inject(Store);
+      expect(store.selectSnapshot(CommunityProfileState.propertyContext)).toBeNull();
+    });
   });
 
   describe('property-profile variant', () => {
