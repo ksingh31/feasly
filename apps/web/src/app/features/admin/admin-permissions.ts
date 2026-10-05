@@ -41,5 +41,7 @@ export const ADMIN_PERMISSIONS = {
  */
 export function adminCan(store: Store, permission: string): Signal<boolean> {
   const permissions = store.selectSignal(AdminAuthState.permissions);
-  return computed(() => permissions().includes(permission));
+  // Null-safe: the selector can emit null/undefined before the /me probe
+  // resolves (and unit tests may mock the store with signal(null)).
+  return computed(() => permissions()?.includes(permission) ?? false);
 }

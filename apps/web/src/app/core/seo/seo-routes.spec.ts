@@ -67,6 +67,11 @@ describe('seo-routes', () => {
       ['admin/users', 'adminUsersTitle'],
       ['admin/calibration', 'adminCalibrationTitle'],
       ['admin/billing', 'adminBillingTitle'],
+      ['admin/billing/invoices', 'adminInvoicesTitle'],
+      [
+        'admin/billing/invoices/3f9b2c1a-0000-4000-8000-000000000000',
+        'adminInvoiceDetailTitle',
+      ],
       ['admin/ops/sheets', 'adminSheetsTitle'],
       ['admin/estimates', 'adminEstimatesTitle'],
       ['admin/estimates/3f9b2c1a-0000-4000-8000-000000000000', 'adminEstimatesTitle'],
@@ -114,6 +119,9 @@ describe('seo-routes', () => {
       'admin/users': 'admin/users',
       'admin/calibration': 'admin/calibration',
       'admin/billing': 'admin/billing',
+      'admin/billing/invoices': 'admin/billing/invoices',
+      'admin/billing/invoices/:id':
+        'admin/billing/invoices/3f9b2c1a-0000-4000-8000-000000000000',
       'admin/ops/sheets': 'admin/ops/sheets',
       'admin/estimates': 'admin/estimates',
       'admin/estimates/:id': 'admin/estimates/3f9b2c1a-0000-4000-8000-000000000000',

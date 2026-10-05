@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import { AdminBuildersComponent } from './admin-builders.component';
 import { AdminBuildersState } from './admin-builders.state';
+import { AdminAuthState } from './admin-auth.state';
+import { ADMIN_PERMISSIONS } from './admin-permissions';
 import { LoadBuilders } from './admin-builders.actions';
 import type { Builder } from '@feasly/contracts';
 
@@ -80,7 +82,9 @@ describe('AdminBuildersComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminBuildersState]),
+        // AdminAuthState is in the root store in production; the Add/Edit
+        // write UI gates on its permissions.
+        provideStore([AdminBuildersState, AdminAuthState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
@@ -90,6 +94,14 @@ describe('AdminBuildersComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     httpMock = TestBed.inject(HttpTestingController);
+    // Existing tests exercise the write UI — the session manages builders.
+    store.reset({
+      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+      adminAuth: {
+        ...store.selectSnapshot((s) => s.adminAuth),
+        permissions: [ADMIN_PERMISSIONS.buildersManage],
+      },
+    });
     fixture = TestBed.createComponent(AdminBuildersComponent);
   }
 
@@ -456,5 +468,35 @@ describe('AdminBuildersComponent', () => {
     });
     expect(req.request.body).not.toHaveProperty('defaultPaymentMethod');
     req.flush({ ...BUILDER_B });
+  });
+
+  describe('viewer permission gating (QA admin-console finding 8)', () => {
+    it('hides the Add and Edit write UI from viewers but keeps the table', async () => {
+      await setup();
+      store.reset({
+        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [],
+        },
+      });
+      await loadPage();
+
+      const page = fixture.nativeElement as HTMLElement;
+      expect(page.textContent).toContain('Elite Craft Builders');
+      expect(page.querySelector('.builders-page__add')).toBeNull();
+      expect(page.querySelector('.builders-page__edit')).toBeNull();
+      // No form card can open for viewers either.
+      expect(page.querySelector('.builders-page__form-card')).toBeNull();
+    });
+
+    it('shows the Add and Edit write UI to builders managers', async () => {
+      await setup();
+      await loadPage();
+
+      const page = fixture.nativeElement as HTMLElement;
+      expect(page.querySelector('.builders-page__add')).not.toBeNull();
+      expect(page.querySelector('.builders-page__edit')).not.toBeNull();
+    });
   });
 });

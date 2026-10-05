@@ -9,6 +9,8 @@ import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import { ClearSelectedAdminLead, SelectAdminLead } from './admin-leads.actions';
 import { AdminLeadsState } from './admin-leads.state';
 import { AdminBuildersState } from './admin-builders.state';
+import { AdminAuthState } from './admin-auth.state';
+import { ADMIN_PERMISSIONS } from './admin-permissions';
 import type { AdminLeadDetail, Builder } from '@feasly/contracts';
 
 const DETAIL: AdminLeadDetail = {
@@ -88,7 +90,9 @@ describe('AdminLeadDetailComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminLeadsState, AdminBuildersState]),
+        // AdminAuthState is in the root store in production; the status,
+        // assign, and note write UI gate on its permissions.
+        provideStore([AdminLeadsState, AdminBuildersState, AdminAuthState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
@@ -98,6 +102,18 @@ describe('AdminLeadDetailComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     httpMock = TestBed.inject(HttpTestingController);
+    // Existing tests exercise the write UI — the session manages leads.
+    store.reset({
+      adminLeads: store.selectSnapshot((s) => s.adminLeads),
+      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+      adminAuth: {
+        ...store.selectSnapshot((s) => s.adminAuth),
+        permissions: [
+          ADMIN_PERMISSIONS.leadsManage,
+          ADMIN_PERMISSIONS.leadsAssign,
+        ],
+      },
+    });
     fixture = TestBed.createComponent(AdminLeadDetailComponent);
   }
 
@@ -572,5 +588,63 @@ describe('AdminLeadDetailComponent', () => {
     await openLead();
     store.dispatch(new ClearSelectedAdminLead());
     expect(store.selectSnapshot(AdminLeadsState.selectedLeadId)).toBeNull();
+  });
+
+  describe('viewer permission gating (QA admin-console finding 8)', () => {
+    /** Re-renders the open lead with a read-only session. */
+    async function renderAsViewer(): Promise<void> {
+      store.reset({
+        adminLeads: store.selectSnapshot((s) => s.adminLeads),
+        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [],
+        },
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
+
+    it('hides the status, assign, and note write UI from viewers', async () => {
+      await setup();
+      await openLeadWithBuilders();
+      await renderAsViewer();
+
+      const modal = fixture.nativeElement.querySelector(
+        '.lead-modal-card',
+      ) as HTMLElement;
+      expect(modal).toBeTruthy();
+      // Read-only detail still renders.
+      expect(modal.textContent).toContain('Ava Smith');
+      // Write affordances are gone.
+      expect(modal.textContent).not.toContain('Change status');
+      expect(modal.textContent).not.toContain('Assign to builder');
+      expect(modal.textContent).not.toContain('Add a note');
+      expect(
+        modal.querySelector('.lead-modal-card__note-form'),
+      ).toBeNull();
+    });
+
+    it('shows the assign UI without the note/status UI for leads:assign-only sessions', async () => {
+      await setup();
+      await openLeadWithBuilders();
+      store.reset({
+        adminLeads: store.selectSnapshot((s) => s.adminLeads),
+        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [ADMIN_PERMISSIONS.leadsAssign],
+        },
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const modal = fixture.nativeElement.querySelector(
+        '.lead-modal-card',
+      ) as HTMLElement;
+      expect(modal.textContent).toContain('Assign to builder');
+      expect(modal.textContent).not.toContain('Change status');
+      expect(modal.textContent).not.toContain('Add a note');
+    });
   });
 });

@@ -3,9 +3,11 @@
     <div>
       <h1>Invoices</h1>
       <p class="invoices-page__sub">
-        Every commission invoice across builders, newest first. Filter by
-        status or search by invoice number — paid and older invoices that
-        never appear in the billing work queues are reachable here.
+        Every commission invoice across builders,
+        newest first. Filter by status or search by
+        invoice number — paid and older invoices
+        that never appear in the billing work
+        queues are reachable here.
       </p>
     </div>
   </header>
@@ -52,14 +54,16 @@
     }
   </form>
 
-  @if (listStatus() === 'loading' && invoices().length === 0) {
+  @if (listStatus() === 'loading' &&
+    invoices().length === 0) {
     <p class="invoices-page__state">Loading invoices…</p>
-  } @else if (listStatus() === 'error' && invoices().length === 0) {
+  } @else if (listStatus() === 'error' &&
+    invoices().length === 0) {
     <div class="invoices-page__state invoices-page__state--error">
       <p>{{ listError() ?? 'Could not load invoices.' }}</p>
       <button type="button" (click)="retry()">Try again</button>
     </div>
-  } @else if (invoices().length === 0) {
+  } @else if (invoices().length === 0 && page() === 1) {
     <div class="invoices-page__empty">
       <h2>No invoices found</h2>
       <p>
@@ -74,41 +78,45 @@
     @if (listStatus() === 'loading') {
       <p class="invoices-page__state" role="status">Refreshing…</p>
     }
-    <div class="invoices-page__table-wrap">
-      <table class="invoices-page__table">
-        <thead>
-          <tr>
-            <th scope="col">Invoice</th>
-            <th scope="col">Builder</th>
-            <th scope="col">Lead</th>
-            <th scope="col">Commission</th>
-            <th scope="col">Status</th>
-            <th scope="col">Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (invoice of invoices(); track invoice.id) {
+    @if (invoices().length > 0) {
+      <div class="invoices-page__table-wrap">
+        <table class="invoices-page__table">
+          <thead>
             <tr>
-              <td>
-                <a
-                  class="invoices-page__link"
-                  [routerLink]="['/admin/billing/invoices', invoice.id]"
-                >{{ invoice.invoiceNumber }}</a>
-              </td>
-              <td>{{ invoice.tenantKey }}</td>
-              <td>{{ invoice.leadName }}</td>
-              <td>{{ formatCents(invoice.commissionCents) }}</td>
-              <td>
-                <span [class]="statusClass(invoice.status)">
-                  {{ statusLabel(invoice.status) }}
-                </span>
-              </td>
-              <td>{{ invoice.createdAt | date: 'mediumDate' }}</td>
+              <th scope="col">Invoice</th>
+              <th scope="col">Builder</th>
+              <th scope="col">Lead</th>
+              <th scope="col">Commission</th>
+              <th scope="col">Status</th>
+              <th scope="col">Created</th>
             </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            @for (invoice of invoices(); track invoice.id) {
+              <tr>
+                <td>
+                  <a
+                    class="invoices-page__link"
+                    [routerLink]="['/admin/billing/invoices', invoice.id]"
+                  >{{ invoice.invoiceNumber }}</a>
+                </td>
+                <td>{{ invoice.tenantKey }}</td>
+                <td>{{ invoice.leadName }}</td>
+                <td>{{ formatCents(invoice.commissionCents) }}</td>
+                <td>
+                  <span [class]="statusClass(invoice.status)">
+                    {{ statusLabel(invoice.status) }}
+                  </span>
+                </td>
+                <td>{{ invoice.createdAt | date: 'mediumDate' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="invoices-page__state">No more invoices on this page.</p>
+    }
 
     <nav class="invoices-page__pagination" aria-label="Invoice pages">
       <button
