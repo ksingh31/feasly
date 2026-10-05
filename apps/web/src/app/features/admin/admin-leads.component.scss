@@ -124,6 +124,30 @@
   color: var(--muted);
 }
 
+.leads-page__quarantine-error {
+  margin: 0.5rem 0 0;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--danger) 8%, var(--cream));
+  color: var(--danger);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.leads-page__quarantine-error button {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  color: inherit;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
 /* Pipeline totals row */
 
 .leads-page__totals {
@@ -354,6 +378,59 @@
 .lead-card__consent-date {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+/* Quarantine moderation actions (approve / discard) on lead cards. */
+.lead-card__quarantine-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lead-card__quarantine-approve,
+.lead-card__quarantine-discard,
+.lead-card__quarantine-confirm,
+.lead-card__quarantine-cancel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.lead-card__quarantine-approve {
+  background: var(--accent-deep);
+  color: #fff;
+  border-color: var(--accent-deep);
+}
+
+.lead-card__quarantine-discard {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.lead-card__quarantine-confirm {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+.lead-card__quarantine-cancel {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--muted);
+}
+
+.lead-card__quarantine-approve:disabled,
+.lead-card__quarantine-discard:disabled,
+.lead-card__quarantine-confirm:disabled,
+.lead-card__quarantine-cancel:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .leads-page__empty {

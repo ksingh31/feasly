@@ -38,6 +38,8 @@ export class AdminLeadsApiService {
   private static readonly LEADS_PATH = '/api/v1/admin/leads';
   private static readonly NOTES_SEGMENT = '/notes';
   private static readonly STATUS_SEGMENT = '/status';
+  private static readonly QUARANTINE_APPROVE_SEGMENT = '/quarantine/approve';
+  private static readonly QUARANTINE_DISCARD_SEGMENT = '/quarantine/discard';
 
   private get leadsBase(): string {
     return this.config.get('api').baseUrl + AdminLeadsApiService.LEADS_PATH;
@@ -132,6 +134,36 @@ export class AdminLeadsApiService {
       this.http.patch<AdminLeadMutationResponse>(
         this.leadUrl(id) + AdminLeadsApiService.STATUS_SEGMENT,
         body,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * Approve a quarantined lead: clears the honeypot/quarantine flag
+   * (audit-logged); the lead returns to the normal pipeline. Admin-gated,
+   * `leads:manage`. 422 when the lead is not quarantined.
+   */
+  approveQuarantine(id: string): Observable<AdminLeadMutationResponse> {
+    return this.call(
+      this.http.post<AdminLeadMutationResponse>(
+        this.leadUrl(id) + AdminLeadsApiService.QUARANTINE_APPROVE_SEGMENT,
+        null,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * Discard a quarantined lead: kept for audit, excluded from every
+   * listing and count; idempotent; audit-logged. Admin-gated,
+   * `leads:manage`. 422 when the lead is not quarantined.
+   */
+  discardQuarantine(id: string): Observable<AdminLeadMutationResponse> {
+    return this.call(
+      this.http.post<AdminLeadMutationResponse>(
+        this.leadUrl(id) + AdminLeadsApiService.QUARANTINE_DISCARD_SEGMENT,
+        null,
         { withCredentials: true },
       ),
     );
