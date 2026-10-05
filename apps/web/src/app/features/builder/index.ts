@@ -10,6 +10,7 @@ export { BuilderDashboardComponent } from './builder-dashboard.component';
 export { BuilderEntraAuthService } from './builder-entra-auth.service';
 export { BuilderEntraCallbackComponent } from './builder-entra-callback.component';
 export { builderGuard } from './builder.guard';
+export { builderBillingGuard } from './builder-billing.guard';
 export { BuilderLeadsApiService } from './builder-leads-api.service';
 export { BuilderLoginComponent } from './builder-login.component';
 export { BuilderOrgPickerComponent } from './builder-org-picker.component';
