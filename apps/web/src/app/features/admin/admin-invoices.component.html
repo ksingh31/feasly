@@ -1,0 +1,136 @@
+<div class="invoices-page">
+  <header class="invoices-page__header">
+    <div>
+      <h1>Invoices</h1>
+      <p class="invoices-page__sub">
+        Every commission invoice across builders, newest first. Filter by
+        status or search by invoice number — paid and older invoices that
+        never appear in the billing work queues are reachable here.
+      </p>
+    </div>
+  </header>
+
+  @if (listError(); as err) {
+    <div class="invoices-page__banner invoices-page__banner--error" role="alert">
+      <span>{{ err }}</span>
+      <button type="button" (click)="dismissError()" aria-label="Dismiss error">
+        Dismiss
+      </button>
+    </div>
+  }
+
+  <form
+    class="invoices-page__filters"
+    [formGroup]="filtersForm"
+    aria-label="Invoice filters"
+  >
+    <label class="invoices-page__filter">
+      <span class="invoices-page__filter-label">Status</span>
+      <select formControlName="status" (change)="onStatusChange()" aria-label="Filter by status">
+        @for (option of statusOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </label>
+    <label class="invoices-page__filter">
+      <span class="invoices-page__filter-label">Invoice number</span>
+      <input
+        type="search"
+        formControlName="invoiceNumber"
+        placeholder="e.g. INV-0042"
+        aria-label="Search by invoice number"
+      />
+    </label>
+    @if (hasActiveFilters()) {
+      <button
+        type="button"
+        class="invoices-page__clear"
+        (click)="clearFilters()"
+      >
+        Clear filters
+      </button>
+    }
+  </form>
+
+  @if (listStatus() === 'loading' && invoices().length === 0) {
+    <p class="invoices-page__state">Loading invoices…</p>
+  } @else if (listStatus() === 'error' && invoices().length === 0) {
+    <div class="invoices-page__state invoices-page__state--error">
+      <p>{{ listError() ?? 'Could not load invoices.' }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else if (invoices().length === 0) {
+    <div class="invoices-page__empty">
+      <h2>No invoices found</h2>
+      <p>
+        @if (hasActiveFilters()) {
+          Nothing matches these filters — try clearing them.
+        } @else {
+          No commission invoices exist yet.
+        }
+      </p>
+    </div>
+  } @else {
+    @if (listStatus() === 'loading') {
+      <p class="invoices-page__state" role="status">Refreshing…</p>
+    }
+    <div class="invoices-page__table-wrap">
+      <table class="invoices-page__table">
+        <thead>
+          <tr>
+            <th scope="col">Invoice</th>
+            <th scope="col">Builder</th>
+            <th scope="col">Lead</th>
+            <th scope="col">Commission</th>
+            <th scope="col">Status</th>
+            <th scope="col">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (invoice of invoices(); track invoice.id) {
+            <tr>
+              <td>
+                <a
+                  class="invoices-page__link"
+                  [routerLink]="['/admin/billing/invoices', invoice.id]"
+                >{{ invoice.invoiceNumber }}</a>
+              </td>
+              <td>{{ invoice.tenantKey }}</td>
+              <td>{{ invoice.leadName }}</td>
+              <td>{{ formatCents(invoice.commissionCents) }}</td>
+              <td>
+                <span [class]="statusClass(invoice.status)">
+                  {{ statusLabel(invoice.status) }}
+                </span>
+              </td>
+              <td>{{ invoice.createdAt | date: 'mediumDate' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="invoices-page__pagination" aria-label="Invoice pages">
+      <button
+        type="button"
+        (click)="prevPage()"
+        [disabled]="page() <= 1 || listStatus() === 'loading'"
+      >
+        Previous
+      </button>
+      <span class="invoices-page__page" role="status">
+        Page {{ page() }}
+        @if (total() !== null) {
+          of {{ total() }}
+        }
+      </span>
+      <button
+        type="button"
+        (click)="nextPage()"
+        [disabled]="!hasNextPage() || listStatus() === 'loading'"
+      >
+        Next
+      </button>
+    </nav>
+  }
+</div>

@@ -382,6 +382,42 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
       },
+      // Admin invoice list + detail (QA admin-console fix 3): every
+      // commission invoice across tenants with status + invoice-number
+      // filters, and a standalone detail page — including paid invoices
+      // unreachable from the billing work queues. The manage modal
+      // (mark-paid / rate override) is reused from the billing page.
+      // AdminInvoicesState lazy-loads at these routes via lazyProvider so
+      // the invoices chunk stays out of the initial bundle (790kB
+      // production budget).
+      {
+        path: 'billing/invoices',
+        loadComponent: () =>
+          import('./features/admin/admin-invoices.component').then(
+            (m) => m.AdminInvoicesComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
+          ),
+        ],
+      },
+      {
+        path: 'billing/invoices/:id',
+        loadComponent: () =>
+          import('./features/admin/admin-invoice-detail.component').then(
+            (m) => m.AdminInvoiceDetailComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
+          ),
+        ],
+      },
       // Admin funnel dashboard (admin/07): Karan's conversion visibility —
       // per-step counts + conversion %, date-range + tenant filters. Lives
       // inside the admin shell (nav + sign-out); the parent route's

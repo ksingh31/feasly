@@ -1178,6 +1178,10 @@ export interface AppConfig {
       adminCalibration: string;
       adminBillingTitle: string;
       adminBilling: string;
+      adminInvoicesTitle: string;
+      adminInvoices: string;
+      adminInvoiceDetailTitle: string;
+      adminInvoiceDetail: string;
       adminSheetsTitle: string;
       adminSheets: string;
       adminEstimatesTitle: string;

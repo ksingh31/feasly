@@ -1,0 +1,215 @@
+@use '../../shared/form-controls' as *;
+
+/**
+ * Admin invoice list (QA admin-console fix 3).
+ *
+ * Cream background, charcoal text, brass accents — the admin console
+ * theme. Status badges mirror the billing work queues.
+ */
+
+.invoices-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--cream);
+  color: var(--text);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  min-height: 100%;
+}
+
+.invoices-page__header h1 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.invoices-page__sub {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  max-width: 70ch;
+}
+
+.invoices-page__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.invoices-page__banner--error {
+  background: var(--danger-soft, #fdecec);
+  color: var(--danger, #b3261e);
+  border: 1px solid var(--danger, #b3261e);
+}
+
+.invoices-page__filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.invoices-page__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.invoices-page__filter-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.invoices-page__clear {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.invoices-page__state {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.invoices-page__state--error {
+  color: var(--danger, #b3261e);
+}
+
+.invoices-page__empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--muted);
+}
+
+.invoices-page__empty h2 {
+  font-family: var(--font-headline);
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
+
+.invoices-page__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+
+.invoices-page__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.invoices-page__table th,
+.invoices-page__table td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.invoices-page__table tbody tr:last-child th,
+.invoices-page__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.invoices-page__table th {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.invoices-page__link {
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+.invoices-page__badge {
+  display: inline-block;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--badge-bg, #eee9dc);
+  color: var(--badge-text, #555);
+}
+
+.invoices-page__badge--paid {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.invoices-page__badge--in-review {
+  background: #fff4d6;
+  color: #7a5a10;
+}
+
+.invoices-page__badge--failed {
+  background: #fdecec;
+  color: #b3261e;
+}
+
+.invoices-page__badge--disputed {
+  background: #f3e8fd;
+  color: #6a3fb5;
+}
+
+.invoices-page__badge--void {
+  background: #e8e8e8;
+  color: #666;
+}
+
+.invoices-page__badge--draft,
+.invoices-page__badge--finalized {
+  background: #e8f0fe;
+  color: #1a56db;
+}
+
+.invoices-page__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.invoices-page__pagination button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.invoices-page__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.invoices-page__page {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .invoices-page {
+    padding: 1rem;
+  }
+}

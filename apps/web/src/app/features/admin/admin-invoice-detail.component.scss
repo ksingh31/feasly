@@ -1,0 +1,212 @@
+/**
+ * Standalone admin invoice detail page (QA admin-console fix 3).
+ * Cream background, charcoal text, brass accents — the admin console theme.
+ */
+
+.invoice-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--cream);
+  color: var(--text);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  min-height: 100%;
+}
+
+.invoice-detail__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.invoice-detail__breadcrumb a {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.invoice-detail__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.invoice-detail__banner--error {
+  background: var(--danger-soft, #fdecec);
+  color: var(--danger, #b3261e);
+  border: 1px solid var(--danger, #b3261e);
+}
+
+.invoice-detail__state {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.invoice-detail__state--error {
+  color: var(--danger, #b3261e);
+}
+
+.invoice-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.invoice-detail__header h1 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.invoice-detail__sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.invoice-detail__badge {
+  display: inline-block;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--badge-bg, #eee9dc);
+  color: var(--badge-text, #555);
+}
+
+.invoice-detail__badge--paid {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.invoice-detail__badge--in-review {
+  background: #fff4d6;
+  color: #7a5a10;
+}
+
+.invoice-detail__badge--failed {
+  background: #fdecec;
+  color: #b3261e;
+}
+
+.invoice-detail__badge--disputed {
+  background: #f3e8fd;
+  color: #6a3fb5;
+}
+
+.invoice-detail__badge--void {
+  background: #e8e8e8;
+  color: #666;
+}
+
+.invoice-detail__badge--draft,
+.invoice-detail__badge--finalized {
+  background: #e8f0fe;
+  color: #1a56db;
+}
+
+.invoice-detail__manage {
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--accent-deep);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--accent-deep);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.invoice-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.invoice-detail__card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.invoice-detail__card h2 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-headline);
+  font-size: 1.125rem;
+}
+
+.invoice-detail__card dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.invoice-detail__card dl > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.invoice-detail__card dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.invoice-detail__card dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.invoice-detail__mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem !important;
+}
+
+.invoice-detail__flag {
+  color: var(--danger, #b3261e);
+  font-weight: 600;
+}
+
+.invoice-detail__modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.invoice-detail__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.invoice-detail__dialog {
+  position: relative;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .invoice-detail {
+    padding: 1rem;
+  }
+}

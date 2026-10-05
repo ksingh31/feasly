@@ -156,6 +156,18 @@ const ROUTES: SeoRouteConfig[] = [
     noindex: true,
   },
   { pattern: 'admin/billing', titleKey: 'adminBillingTitle', descriptionKey: 'adminBilling', noindex: true },
+  {
+    pattern: 'admin/billing/invoices',
+    titleKey: 'adminInvoicesTitle',
+    descriptionKey: 'adminInvoices',
+    noindex: true,
+  },
+  {
+    pattern: 'admin/billing/invoices/:id',
+    titleKey: 'adminInvoiceDetailTitle',
+    descriptionKey: 'adminInvoiceDetail',
+    noindex: true,
+  },
   { pattern: 'admin/ops/sheets', titleKey: 'adminSheetsTitle', descriptionKey: 'adminSheets', noindex: true },
   {
     pattern: 'admin/estimates',
