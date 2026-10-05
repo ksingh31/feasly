@@ -440,7 +440,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       buildCostNote: 'Construction only — excludes land.',
       buildSourceNote: 'Current construction cost data · same fixed formula',
       landLabel: 'Land (assessed value)',
-      landFixedNote: 'City of Calgary assessment · refreshed September 2026 · not a market price',
+      landFixedNote: 'City of Calgary assessment · not a market price',
       unitAddressNote:
         'This looks like a unit address — the lot size and land value shown are for the whole building, not just your unit.',
       lowLabel: 'Low',
