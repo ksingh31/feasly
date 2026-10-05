@@ -16,7 +16,7 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { firstValueFrom } from 'rxjs';
-import type { BuilderLeadListItem } from '@feasly/contracts';
+import type { BuilderLeadListItem, CommissionInvoice } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import {
@@ -38,6 +38,10 @@ import {
 } from './builder-report-contract.actions';
 import { BuilderReportContractState } from './builder-report-contract.state';
 import type { ReportContractResult } from './builder-billing-api.service';
+import {
+  isBuilderPaymentMethod,
+  paymentMethodLabel,
+} from './builder-payment-methods';
 
 /** Typed report-contract form. The contract value is entered in CAD dollars. */
 interface ReportContractForm {
@@ -345,6 +349,20 @@ export class BuilderReportContractComponent implements OnInit {
       if (outcome.reason === 'existing_disputed') {
         return this.copy.reportContractDisputed;
       }
+      // The minted invoice snapshots the org's default payment method —
+      // a manual-method org must never see a card-charge promise
+      // (QA 2026-10-04).
+      const method = this.invoice()?.paymentMethod;
+      if (method && method !== 'card') {
+        const methodLabel = isBuilderPaymentMethod(method)
+          ? paymentMethodLabel(method, this.copy).toLowerCase()
+          : String(method);
+        return this.copy.reportContractSuccessBodyManual
+          .replace('{amount}', this.reportedAmount())
+          .replace('{rate}', this.successRateLabel())
+          .replace('{commission}', this.reportedCommission())
+          .replace('{method}', methodLabel);
+      }
       return this.copy.reportContractSuccessBody
         .replace('{amount}', this.reportedAmount())
         .replace('{rate}', this.successRateLabel())
@@ -443,6 +461,21 @@ export class BuilderReportContractComponent implements OnInit {
       return this.copy.invoicesAutoChargeTomorrow;
     }
     return this.copy.invoicesAutoChargeIn.replace('{days}', String(days));
+  }
+
+  /**
+   * The "Auto-charges" line for a minted invoice or invoice summary:
+   * only card-method invoices are ever auto-charged — a manual-method
+   * invoice must not show the countdown (QA 2026-10-04). Null hides the
+   * row entirely.
+   */
+  protected autoChargeLineFor(
+    invoice: Pick<CommissionInvoice, 'paymentMethod' | 'reviewDueAt'>,
+  ): string | null {
+    if (invoice.paymentMethod !== 'card') {
+      return null;
+    }
+    return this.autoChargeCountdown(invoice.reviewDueAt);
   }
 
   /** Integer cents → "$12,345" (shared money util, integer math only). */

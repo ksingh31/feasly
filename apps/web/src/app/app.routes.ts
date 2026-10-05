@@ -20,6 +20,7 @@ import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 import { adminGuard } from './features/admin/admin.guard';
 import { builderGuard } from './features/builder/builder.guard';
+import { builderBillingGuard } from './features/builder/builder-billing.guard';
 import { builderTeamGuard } from './features/builder/builder-team.guard';
 
 export const routes: Routes = [
@@ -467,12 +468,15 @@ export const routes: Routes = [
       {
         // Builder billing (billing/02, BILL-02): card-on-file section.
         // Lazy-loaded like the dashboard so the builder portal stays out
-        // of the initial bundle.
+        // of the initial bundle. builderBillingGuard: every billing
+        // endpoint is admin-only backend-side (builder:billing), so
+        // members get nav-hidden + route-guarded pages, not 403 loops.
         path: 'billing',
         loadComponent: () =>
           import('./features/builder/builder-billing.component').then(
             (m) => m.BuilderBillingComponent,
           ),
+        canActivate: [builderBillingGuard],
       },
       {
         // Builder invoices: commission invoice list + detail, now a
@@ -484,6 +488,7 @@ export const routes: Routes = [
             (m) => m.BuilderInvoicesComponent,
           ),
         canActivate: [
+          builderBillingGuard,
           // The invoices state lazy-loads here (dynamic import) so it —
           // and the builder copy it reads — stays out of the initial
           // bundle, mirroring the admin data states above.
@@ -512,12 +517,14 @@ export const routes: Routes = [
       {
         // Builder record-contract: the builder records a signed contract
         // for one of their leads. Lazy-loaded with the rest of the
-        // builder portal.
+        // builder portal. builderBillingGuard: the submit path mints
+        // commission invoices (admin-only backend-side).
         path: 'record-contract',
         loadComponent: () =>
           import('./features/builder/builder-report-contract.component').then(
             (m) => m.BuilderReportContractComponent,
           ),
+        canActivate: [builderBillingGuard],
       },
       {
         // Legacy path: redirect to the renamed record-contract page.

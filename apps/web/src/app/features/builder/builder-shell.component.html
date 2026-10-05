@@ -30,12 +30,18 @@
       >
         {{ copy.shellNavDashboard }}
       </a>
-      <a routerLink="/builder/billing" routerLinkActive="active" (click)="closeMenu()">
-        {{ copy.shellNavBilling }}
-      </a>
-      <a routerLink="/builder/invoices" routerLinkActive="active" (click)="closeMenu()">
-        {{ copy.shellNavInvoices }}
-      </a>
+      <!-- Billing surfaces are admin-only (QA 2026-10-04): every billing
+           endpoint is backend-gated by builder:billing, so members get
+           the Team treatment — nav-hidden AND route-guarded — instead of
+           403 retry loops. -->
+      @if (isBuilderAdmin()) {
+        <a routerLink="/builder/billing" routerLinkActive="active" (click)="closeMenu()">
+          {{ copy.shellNavBilling }}
+        </a>
+        <a routerLink="/builder/invoices" routerLinkActive="active" (click)="closeMenu()">
+          {{ copy.shellNavInvoices }}
+        </a>
+      }
       @if (isBuilderAdmin()) {
         <a routerLink="/builder/team" routerLinkActive="active" (click)="closeMenu()">
           {{ copy.teamNavLabel }}
@@ -52,9 +58,11 @@
           {{ orgName }}
         </a>
       }
-      <a routerLink="/builder/record-contract" routerLinkActive="active" (click)="closeMenu()">
-        {{ copy.shellNavReportContract }}
-      </a>
+      @if (isBuilderAdmin()) {
+        <a routerLink="/builder/record-contract" routerLinkActive="active" (click)="closeMenu()">
+          {{ copy.shellNavReportContract }}
+        </a>
+      }
       @if (session(); as s) {
         <span class="builder-shell__email">{{ s.email }}</span>
       }

@@ -123,6 +123,12 @@ export interface BuilderCopy {
   reportContractSubmitting: string;
   reportContractSuccessTitle: string;
   reportContractSuccessBody: string;
+  /**
+   * Manual-method variant (QA 2026-10-04): the minted invoice snapshots
+   * the org's default payment method — a cheque-default builder must
+   * never see a card-charge promise. {method} = lowercased method label.
+   */
+  reportContractSuccessBodyManual: string;
   reportContractAlreadyReported: string;
   reportContractDisputed: string;
   reportContractFlatCovered: string;

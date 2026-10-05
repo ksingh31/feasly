@@ -30,7 +30,10 @@ import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderState } from './builder.state';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingApiService } from './builder-billing-api.service';
-import { BuilderInvoicesApiService } from './builder-invoices-api.service';
+import {
+  BuilderInvoicesApiService,
+  type BuilderCommissionInvoice,
+} from './builder-invoices-api.service';
 import { BuilderReportContractComponent } from './builder-report-contract.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
@@ -41,7 +44,7 @@ import { BuilderReportContractState } from './builder-report-contract.state';
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 const RECORDED_LEAD_ID = '22222222-2222-4222-8222-222222222222';
 
-const INVOICE: CommissionInvoice = {
+const INVOICE: BuilderCommissionInvoice = {
   id: 'inv-1',
   invoiceNumber: 'INV-0001',
   tenantKey: 'tenant-1',
@@ -117,6 +120,8 @@ async function setup(
   leadQueryParam: string | null = null,
   rateImpl: () => ReturnType<BuilderBillingApiService['getCommissionRate']> = () =>
     of({ commissionRatePercent: 1 }),
+  getInvoiceImpl: () => ReturnType<BuilderInvoicesApiService['getInvoice']> = () =>
+    of(INVOICE),
 ) {
   TestBed.resetTestingModule();
   const calls: unknown[] = [];
@@ -126,7 +131,7 @@ async function setup(
   });
   const getCommissionRate = vi.fn(rateImpl);
   const listLeads = vi.fn(leadsImpl);
-  const getInvoice = vi.fn((_id: string) => of(INVOICE));
+  const getInvoice = vi.fn((_id: string) => getInvoiceImpl());
   TestBed.configureTestingModule({
     imports: [BuilderReportContractComponent],
     providers: [
@@ -374,7 +379,10 @@ describe('BuilderReportContractComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     // Explainer card: what happens when a won deal is reported.
     expect(text).toContain('What happens next');
-    expect(text).toContain('auto-charges 7 days later unless disputed');
+    expect(text).toContain('auto-charges 7 days later');
+    // No dispute flow is reachable from the builder portal (QA 2026-10-04).
+    expect(text).not.toContain('unless disputed');
+    expect(text).toContain('contact Feasly if something looks wrong');
     // Form card + labeled inputs.
     expect(text).toContain('Record details');
     expect(text).toContain('Which lead signed?');
@@ -515,9 +523,56 @@ describe('BuilderReportContractComponent', () => {
     expect(text).toContain('Oct 6, 2026');
     // Date-dependent: just assert the auto-charge countdown is shown.
     expect(text).toContain('Auto-charges');
+    expect(text).toContain('charge your card on file');
     expect(text).toContain('View invoice');
     expect(text).toContain('Back to leads');
     expect(text).not.toContain('Report another contract');
+  });
+
+  it('shows manual-method success copy and no auto-charge for a cheque invoice (QA 2026-10-04)', async () => {
+    const chequeInvoice: BuilderCommissionInvoice = {
+      ...INVOICE,
+      paymentMethod: 'cheque',
+    };
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      undefined,
+      null,
+      undefined,
+      () => of(chequeInvoice),
+    );
+    fillValidForm(fixture);
+    await submitForm(fixture);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Contract recorded');
+    expect(text).toContain('$6,500');
+    // No card-charge promise for a manual-method org.
+    expect(text).toContain('your card won’t be charged');
+    expect(text).toContain('Pay by cheque');
+    expect(text).not.toContain('charge your card on file');
+    // No auto-charge countdown for a manual-method invoice.
+    expect(text).not.toContain('Auto-charges');
+  });
+
+  it('hides the auto-charge countdown on the already-recorded card for a manual invoice (QA 2026-10-04)', async () => {
+    const manualRecorded: BuilderLeadListResponse = {
+      leads: [
+        {
+          ...LEADS_RESPONSE.leads[1],
+          invoiceSummary: { ...INVOICE, paymentMethod: 'cheque' as const },
+        },
+      ],
+      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+    };
+    const { fixture } = await setup(
+      () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      () => of(manualRecorded),
+      RECORDED_LEAD_ID,
+    );
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('already recorded');
+    expect(text).not.toContain('Auto-charges');
   });
 
   it('retries the submit from the API-error state', async () => {
