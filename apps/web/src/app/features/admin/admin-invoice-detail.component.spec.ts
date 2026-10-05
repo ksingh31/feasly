@@ -180,6 +180,28 @@ describe('AdminInvoiceDetailComponent', () => {
     ).not.toBeNull();
   });
 
+  it('renders the manage modal above the admin shell chrome', async () => {
+    await setup('inv-2');
+    await loadDetail(INVOICE_IN_REVIEW);
+
+    const manage = fixture.nativeElement.querySelector(
+      '.invoice-detail__manage',
+    ) as HTMLButtonElement;
+    manage.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const modal = fixture.nativeElement.querySelector(
+      '.invoice-detail__modal',
+    ) as HTMLElement;
+    expect(modal).not.toBeNull();
+    // Karan 2026-10-04: the shell nav painted over the dialog — modals must
+    // sit above the admin mobile nav dropdown (z-index 100), like the
+    // lead-detail and billing modals.
+    expect(getComputedStyle(modal).position).toBe('fixed');
+    expect(getComputedStyle(modal).zIndex).toBe('150');
+  });
+
   it('hides the Manage button from viewers', async () => {
     await setup('inv-2', []);
     await loadDetail(INVOICE_IN_REVIEW);

@@ -67,6 +67,27 @@
   color: var(--muted);
 }
 
+/* Styled form controls — same chrome as the leads-page filters (Karan
+   2026-10-04: the native-looking select/input didn't match the console). */
+.invoices-page__filter input {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  background: var(--card);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.invoices-page__filter select {
+  /* Shared select chrome: custom chevron with proper arrow spacing. */
+  @include feasly-select;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .invoices-page__clear {
   padding: 0.5rem 1rem;
   border: 1px solid var(--border);

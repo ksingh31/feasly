@@ -117,6 +117,30 @@ describe('AdminInvoicesComponent', () => {
     expect(rows().length).toBe(0);
   });
 
+  it('styles the filter controls with the console form chrome', async () => {
+    await setup();
+    await loadPage([]);
+
+    const page = fixture.nativeElement as HTMLElement;
+    const select = page.querySelector(
+      '.invoices-page__filter select',
+    ) as HTMLElement;
+    const input = page.querySelector(
+      '.invoices-page__filter input',
+    ) as HTMLElement;
+    expect(select).not.toBeNull();
+    expect(input).not.toBeNull();
+    // Karan 2026-10-04: the filters rendered as unstyled native controls.
+    // The select must carry the shared chevron chrome (feasly-select mixin,
+    // like the leads-page filters) and the input the console's card style.
+    // (Border color uses the admin theme var, which the bare component
+    // test doesn't provide — radius/padding are the var-free signals.)
+    expect(getComputedStyle(select).appearance).toBe('none');
+    expect(getComputedStyle(select).backgroundImage).not.toBe('none');
+    expect(getComputedStyle(input).borderRadius).toBe('0.5rem');
+    expect(getComputedStyle(input).paddingTop).toBe('10px');
+  });
+
   it('shows a retry affordance on load failure', async () => {
     await setup();
     fixture.detectChanges();

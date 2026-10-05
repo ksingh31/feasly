@@ -186,7 +186,10 @@
 .invoice-detail__modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Above the admin mobile nav dropdown (z-index 100) — same rule as the
+     lead-detail and billing modals. (Karan 2026-10-04: at z-index 60 the
+     shell header painted over the manage-invoice dialog.) */
+  z-index: 150;
   display: flex;
   align-items: center;
   justify-content: center;
