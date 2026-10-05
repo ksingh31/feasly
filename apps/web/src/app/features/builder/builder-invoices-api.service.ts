@@ -68,11 +68,15 @@ export class BuilderInvoicesApiService {
    * so a bad caller can never produce a 400 from the zod validation.
    * `invoiceNumber` is an optional case-insensitive partial match on the
    * human-readable invoice number (e.g. "42" matches "INV-0042").
+   * `status` is an optional comma-separated list of invoice statuses
+   * (e.g. "failed,in_review") — used by the admin console; the builder
+   * portal's dashboard banners pass their own via listActionableInvoices.
    */
   listInvoices(
     page: number,
     pageSize: number,
     invoiceNumber?: string,
+    status?: string,
   ): Observable<InvoiceListResponse> {
     const safePage = Number.isFinite(page)
       ? Math.max(1, Math.floor(page))
@@ -88,6 +92,10 @@ export class BuilderInvoicesApiService {
     const trimmed = invoiceNumber?.trim();
     if (trimmed) {
       params['invoiceNumber'] = trimmed;
+    }
+    const trimmedStatus = status?.trim();
+    if (trimmedStatus) {
+      params['status'] = trimmedStatus;
     }
     return this.call(
       this.http.get<readonly BuilderCommissionInvoice[]>(

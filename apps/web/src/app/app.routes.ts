@@ -204,19 +204,6 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  // Admin funnel dashboard (admin/07): Karan's conversion visibility —
-  // per-step counts + conversion %, date-range + tenant filters. Session-auth
-  // adminGuard (admin/01). noindex — private. Lazy-loaded: this is an
-  // admin-only page, so it stays out of the public initial bundle (budget).
-  {
-    path: 'admin/funnels',
-    loadComponent: () =>
-      import('./features/admin/funnels-page.component').then(
-        (m) => m.FunnelsPageComponent,
-      ),
-    canActivate: [robotsGuard, adminGuard],
-    data: { noindex: true },
-  },
   // Branded error page (HRD-02): uncaught client failures land here via the
   // global error handler — never a blank screen. Static story-pinned copy
   // only, so no error text or PII can leak into the DOM. noindexed.
@@ -395,6 +382,70 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
       },
+      // Admin invoice list + detail (QA admin-console fix 3): every
+      // commission invoice across tenants with status + invoice-number
+      // filters, and a standalone detail page — including paid invoices
+      // unreachable from the billing work queues. The manage modal
+      // (mark-paid / rate override) is reused from the billing page.
+      // AdminInvoicesState lazy-loads at these routes via lazyProvider so
+      // the invoices chunk stays out of the initial bundle (790kB
+      // production budget).
+      {
+        path: 'billing/invoices',
+        loadComponent: () =>
+          import('./features/admin/admin-invoices.component').then(
+            (m) => m.AdminInvoicesComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
+          ),
+        ],
+      },
+      {
+        path: 'billing/invoices/:id',
+        loadComponent: () =>
+          import('./features/admin/admin-invoice-detail.component').then(
+            (m) => m.AdminInvoiceDetailComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
+          ),
+        ],
+      },
+      // Admin funnel dashboard (admin/07): Karan's conversion visibility —
+      // per-step counts + conversion %, date-range + tenant filters. Lives
+      // inside the admin shell (nav + sign-out); the parent route's
+      // robotsGuard + adminGuard + noindex apply.
+      {
+        path: 'funnels',
+        loadComponent: () =>
+          import('./features/admin/funnels-page.component').then(
+            (m) => m.FunnelsPageComponent,
+          ),
+      },
+      // API key management (api-mcp/02). Lives inside the admin shell;
+      // ApiKeysState lazy-loads at this route via lazyProvider (dynamic
+      // import) so the api-keys chunk stays out of the initial bundle
+      // (790kB production budget).
+      {
+        path: 'api-keys',
+        loadComponent: () =>
+          import('./features/admin/api-keys-page.component').then(
+            (m) => m.ApiKeysPageComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/api-keys.state')).apiKeysStateProvider,
+          ),
+        ],
+      },
     ],
   },
   // Builder portal (embed/09): magic-link session auth, tenant-scoped lead
@@ -533,26 +584,6 @@ export const routes: Routes = [
       },
 
     ],
-  },
-  // API key management (api-mcp/02). Admin-only (adminGuard); noindexed —
-  // never in sitemap or prerender. ApiKeysState is lazy-loaded at this route
-  // via lazyProvider (dynamic import): the state + its actions stay in the
-  // api-keys chunk, out of the initial bundle (790kB production budget).
-  {
-    path: 'admin/api-keys',
-    loadComponent: () =>
-      import('./features/admin/api-keys-page.component').then(
-        (m) => m.ApiKeysPageComponent,
-      ),
-    canActivate: [
-      robotsGuard,
-      adminGuard,
-      lazyProvider(
-        async () =>
-          (await import('./features/admin/api-keys.state')).apiKeysStateProvider,
-      ),
-    ],
-    data: { noindex: true },
   },
   // Magic-link redemption (consumer/02): /r/:token from the estimate email.
   // Verifies the token, sets the report token, and lands on the unlocked

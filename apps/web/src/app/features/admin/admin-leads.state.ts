@@ -15,11 +15,14 @@ import { AdminLeadsApiService } from './admin-leads-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
+  ApproveQuarantinedLead,
   ClearSelectedAdminLead,
+  DiscardQuarantinedLead,
   DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
   DismissAdminLeadStatusSuccess,
   DismissExportError,
+  DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -68,6 +71,12 @@ export interface AdminLeadsStateModel {
   exporting: boolean;
   /** Last failed CSV-export message; null when the last export succeeded. */
   exportError: string | null;
+  /** Lead id with an in-flight quarantine approve/discard; null when idle. */
+  quarantineActionId: string | null;
+  /** Which quarantine action is in flight for `quarantineActionId`. */
+  quarantineActionKind: 'approve' | 'discard' | null;
+  /** Last failed quarantine-action message; null when the last one succeeded. */
+  quarantineActionError: string | null;
 }
 
 const defaults: AdminLeadsStateModel = {
@@ -92,6 +101,9 @@ const defaults: AdminLeadsStateModel = {
   detailRefreshError: null,
   exporting: false,
   exportError: null,
+  quarantineActionId: null,
+  quarantineActionKind: null,
+  quarantineActionError: null,
 };
 
 /**
@@ -219,6 +231,23 @@ export class AdminLeadsState {
   @Selector()
   static exportError(state: AdminLeadsStateModel): string | null {
     return state.exportError;
+  }
+
+  @Selector()
+  static quarantineActionId(state: AdminLeadsStateModel): string | null {
+    return state.quarantineActionId;
+  }
+
+  @Selector()
+  static quarantineActionKind(
+    state: AdminLeadsStateModel,
+  ): 'approve' | 'discard' | null {
+    return state.quarantineActionKind;
+  }
+
+  @Selector()
+  static quarantineActionError(state: AdminLeadsStateModel): string | null {
+    return state.quarantineActionError;
   }
 
   // ------------------------------------------------------------------ helpers
@@ -543,6 +572,86 @@ export class AdminLeadsState {
     }
     ctx.patchState({ includeSandbox: action.include });
     return this.loadPage(ctx, null, false);
+  }
+
+  @Action(ApproveQuarantinedLead)
+  approveQuarantine(
+    ctx: StateContext<AdminLeadsStateModel>,
+    action: ApproveQuarantinedLead,
+  ): Observable<unknown> | void {
+    return this.runQuarantineAction(ctx, action.id, 'approve');
+  }
+
+  @Action(DiscardQuarantinedLead)
+  discardQuarantine(
+    ctx: StateContext<AdminLeadsStateModel>,
+    action: DiscardQuarantinedLead,
+  ): Observable<unknown> | void {
+    return this.runQuarantineAction(ctx, action.id, 'discard');
+  }
+
+  @Action(DismissQuarantineActionError)
+  dismissQuarantineActionError(ctx: StateContext<AdminLeadsStateModel>): void {
+    ctx.patchState({ quarantineActionError: null });
+  }
+
+  /**
+   * Shared quarantine approve/discard runner. On success the lead leaves
+   * the quarantine tab either way (approved → back in the pipeline, no
+   * longer matching `quarantinedOnly`; discarded → excluded from every
+   * listing), so it is removed from the local list and the count
+   * decrements — no refetch needed.
+   */
+  private runQuarantineAction(
+    ctx: StateContext<AdminLeadsStateModel>,
+    id: string,
+    kind: 'approve' | 'discard',
+  ): Observable<unknown> | void {
+    if (ctx.getState().quarantineActionId !== null) {
+      return;
+    }
+    ctx.patchState({
+      quarantineActionId: id,
+      quarantineActionKind: kind,
+      quarantineActionError: null,
+    });
+    const call =
+      kind === 'approve'
+        ? this.api.approveQuarantine(id)
+        : this.api.discardQuarantine(id);
+    return call.pipe(
+      tap({
+        next: () => {
+          const current = ctx.getState();
+          const wasSelected = current.selectedLeadId === id;
+          ctx.patchState({
+            quarantineActionId: null,
+            quarantineActionKind: null,
+            quarantineActionError: null,
+            leads: current.leads.filter((lead) => lead.id !== id),
+            totalCount: Math.max(0, current.totalCount - 1),
+            // The detail modal may be open on this lead — its quarantine
+            // context just changed, so close it rather than show stale data.
+            selectedLeadId: wasSelected ? null : current.selectedLeadId,
+            detail: wasSelected ? null : current.detail,
+            detailStatus: wasSelected ? 'idle' : current.detailStatus,
+          });
+        },
+        error: (err: { message?: string }) => {
+          ctx.patchState({
+            quarantineActionId: null,
+            quarantineActionKind: null,
+            quarantineActionError:
+              err?.message ?? 'Could not update the lead. Please try again.',
+          });
+        },
+      }),
+      // Swallow the error into user-facing state (same as the CSV export):
+      // without this the ApiError propagates through the NGXS dispatch
+      // stream as an unhandled error and lands the admin on the branded
+      // /error page.
+      catchError(() => EMPTY),
+    );
   }
 
   // ------------------------------------------------------------------ download

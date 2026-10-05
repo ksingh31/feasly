@@ -10,8 +10,11 @@ import type {
 import { ConfigService } from '../../core/config/config.service';
 import { AdminLeadDetailComponent } from './admin-lead-detail.component';
 import {
+  ApproveQuarantinedLead,
   ClearSelectedAdminLead,
+  DiscardQuarantinedLead,
   DismissExportError,
+  DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
@@ -23,6 +26,7 @@ import {
 import { AdminLeadsState } from './admin-leads.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 
 const STATUS_OPTIONS: readonly ('' | AdminLeadStatus)[] = [
   '',
@@ -83,6 +87,27 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly selectedLeadId = this.store.selectSignal(AdminLeadsState.selectedLeadId);
   protected readonly exporting = this.store.selectSignal(AdminLeadsState.exporting);
   protected readonly exportError = this.store.selectSignal(AdminLeadsState.exportError);
+  protected readonly quarantineActionId = this.store.selectSignal(
+    AdminLeadsState.quarantineActionId,
+  );
+  protected readonly quarantineActionKind = this.store.selectSignal(
+    AdminLeadsState.quarantineActionKind,
+  );
+  protected readonly quarantineActionError = this.store.selectSignal(
+    AdminLeadsState.quarantineActionError,
+  );
+
+  /**
+   * Quarantine approve/discard are write actions (`leads:manage`) —
+   * read-only staff see the quarantined rows but no action buttons.
+   */
+  protected readonly canManageLeads = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.leadsManage,
+  );
+
+  /** Lead id awaiting the second (confirm) click of the discard flow. */
+  protected readonly confirmDiscardId = signal<string | null>(null);
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pipelineStatuses = PIPELINE_STATUSES;
@@ -190,6 +215,39 @@ export class AdminLeadsComponent implements OnInit {
 
   protected dismissExportError(): void {
     this.store.dispatch(new DismissExportError());
+  }
+
+  /**
+   * Quarantine moderation. Approve is a single click (the lead simply
+   * returns to the pipeline); discard is destructive-ish (hidden from
+   * every listing) so it needs the deliberate second click. Button
+   * clicks stopPropagation — the card itself opens the detail modal.
+   */
+  protected approveLead(id: string): void {
+    this.confirmDiscardId.set(null);
+    this.store.dispatch(new ApproveQuarantinedLead(id));
+  }
+
+  protected armDiscard(id: string): void {
+    this.confirmDiscardId.set(id);
+  }
+
+  protected cancelDiscard(): void {
+    this.confirmDiscardId.set(null);
+  }
+
+  protected confirmDiscard(id: string): void {
+    this.confirmDiscardId.set(null);
+    this.store.dispatch(new DiscardQuarantinedLead(id));
+  }
+
+  protected dismissQuarantineError(): void {
+    this.store.dispatch(new DismissQuarantineActionError());
+  }
+
+  /** True while this lead has an in-flight quarantine action. */
+  protected quarantineBusy(id: string): boolean {
+    return this.quarantineActionId() === id;
   }
 
   protected onKeydown(event: KeyboardEvent): void {

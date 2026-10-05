@@ -37,28 +37,30 @@
         <span class="lead-modal-card__eyebrow">Next actions</span>
       </div>
 
-      <label class="lead-modal-card__status">
-        <span class="lead-modal-card__field-label">Change status</span>
-        <span class="lead-modal-card__status-row">
-          <select
-            [formControl]="statusControl"
-            [disabled]="statusUpdating()"
-            aria-label="Change status"
-          >
-            @for (s of pipelineStatuses; track s) {
-              <option [value]="s">{{ statusLabel(s) }}</option>
-            }
-          </select>
-          <button
-            type="button"
-            class="lead-modal-card__apply"
-            (click)="applyStatus()"
-            [disabled]="!canApply()"
-          >
-            {{ statusUpdating() ? 'Applying…' : 'Apply Status' }}
-          </button>
-        </span>
-      </label>
+      @if (canManageLeads()) {
+        <label class="lead-modal-card__status">
+          <span class="lead-modal-card__field-label">Change status</span>
+          <span class="lead-modal-card__status-row">
+            <select
+              [formControl]="statusControl"
+              [disabled]="statusUpdating()"
+              aria-label="Change status"
+            >
+              @for (s of pipelineStatuses; track s) {
+                <option [value]="s">{{ statusLabel(s) }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="lead-modal-card__apply"
+              (click)="applyStatus()"
+              [disabled]="!canApply()"
+            >
+              {{ statusUpdating() ? 'Applying…' : 'Apply Status' }}
+            </button>
+          </span>
+        </label>
+      }
       @if (statusUpdateError(); as err) {
         <p class="lead-modal-card__error" role="alert">{{ err }}</p>
       }
@@ -66,34 +68,38 @@
         <p class="lead-modal-card__success" role="status">✓ {{ statusSuccessMessage() }}</p>
       }
 
-      <label class="lead-modal-card__assign">
-        <span class="lead-modal-card__field-label">Assign to builder</span>
-        <span class="lead-modal-card__assign-row">
-          <select
-            [formControl]="builderControl"
-            [disabled]="assigning() || buildersStatus() === 'loading'"
-            aria-label="Assign to builder"
-          >
-            <option value="">Unassigned</option>
-            @for (b of builders(); track b.id) {
-              <option [value]="b.id">{{ b.displayName }}</option>
-            }
-          </select>
-          <button
-            type="button"
-            class="lead-modal-card__apply"
-            (click)="applyBuilder()"
-            [disabled]="!canApplyBuilder()"
-          >
-            {{ assigning() ? 'Assigning…' : 'Apply Builder' }}
-          </button>
-        </span>
-        @if (assigning()) {
-          <span class="lead-modal-card__assign-state">Assigning…</span>
-        } @else if (assignedBuilderName(); as name) {
-          <span class="lead-modal-card__assign-state">Currently with {{ name }}</span>
-        }
-      </label>
+      @if (canAssignLeads()) {
+        <label class="lead-modal-card__assign">
+          <span class="lead-modal-card__field-label">Assign to builder</span>
+          <span class="lead-modal-card__assign-row">
+            <select
+              [formControl]="builderControl"
+              [disabled]="assigning() || buildersStatus() === 'loading'"
+              aria-label="Assign to builder"
+            >
+              <option value="">Unassigned</option>
+              @for (b of builders(); track b.id) {
+                <option [value]="b.id">{{ b.displayName }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="lead-modal-card__apply"
+              (click)="applyBuilder()"
+              [disabled]="!canApplyBuilder()"
+            >
+              {{ assigning() ? 'Assigning…' : 'Apply Builder' }}
+            </button>
+          </span>
+          @if (assigning()) {
+            <span class="lead-modal-card__assign-state">Assigning…</span>
+          } @else if (assignedBuilderName(); as name) {
+            <span class="lead-modal-card__assign-state">Currently with {{ name }}</span>
+          }
+        </label>
+      } @else if (assignedBuilderName(); as name) {
+        <p class="lead-modal-card__assign-state">Currently with {{ name }}</p>
+      }
       @if (assignError(); as err) {
         <p class="lead-modal-card__error" role="alert">{{ err }}</p>
       }
@@ -193,24 +199,26 @@
       } @else {
         <p class="lead-modal-card__hint">No notes yet.</p>
       }
-      <div class="lead-modal-card__note-form">
-        <label>
-          <span class="sr-only">Add a note</span>
-          <textarea
-            [formControl]="noteControl"
-            rows="3"
-            maxlength="5000"
-            placeholder="Add a note…"
-          ></textarea>
-        </label>
-        <button
-          type="button"
-          (click)="addNote()"
-          [disabled]="noteControl.invalid || notePosting()"
-        >
-          {{ notePosting() ? 'Adding…' : 'Add note' }}
-        </button>
-      </div>
+      @if (canManageLeads()) {
+        <div class="lead-modal-card__note-form">
+          <label>
+            <span class="sr-only">Add a note</span>
+            <textarea
+              [formControl]="noteControl"
+              rows="3"
+              maxlength="5000"
+              placeholder="Add a note…"
+            ></textarea>
+          </label>
+          <button
+            type="button"
+            (click)="addNote()"
+            [disabled]="noteControl.invalid || notePosting()"
+          >
+            {{ notePosting() ? 'Adding…' : 'Add note' }}
+          </button>
+        </div>
+      }
       @if (noteError(); as noteErr) {
         <p class="lead-modal-card__error" role="alert">{{ noteErr }}</p>
       }

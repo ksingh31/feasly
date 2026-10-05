@@ -77,6 +77,23 @@ export class SetAdminLeadsTab {
   constructor(readonly tab: AdminLeadsTab) {}
 }
 
+/** Approve a quarantined lead back into the normal pipeline. */
+export class ApproveQuarantinedLead {
+  static readonly type = '[AdminLeads] Approve quarantined';
+  constructor(readonly id: string) {}
+}
+
+/** Discard a quarantined lead (kept for audit, hidden from listings). */
+export class DiscardQuarantinedLead {
+  static readonly type = '[AdminLeads] Discard quarantined';
+  constructor(readonly id: string) {}
+}
+
+/** Dismiss the inline quarantine approve/discard error. */
+export class DismissQuarantineActionError {
+  static readonly type = '[AdminLeads] Dismiss quarantine error';
+}
+
 /** Include/exclude sandbox rows (badged "Sandbox", excluded by default). */
 export class ToggleAdminLeadsSandbox {
   static readonly type = '[AdminLeads] Toggle sandbox';

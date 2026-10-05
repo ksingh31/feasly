@@ -219,6 +219,15 @@
   color: #7a5a10;
 }
 
+.billing-panel__link {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent-deep, #6e5410);
+}
+
 .billing-panel__muted {
   color: var(--color-text-muted, #6b6459);
   font-size: 0.8125rem;

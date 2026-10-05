@@ -55,8 +55,17 @@
   @if (tab() === 'quarantine') {
     <p class="leads-page__quarantine-note">
       Honeypot-flagged submissions are quarantined here — never silently dropped.
-      Approve/discard actions need a backend endpoint and aren't available yet.
+      Review each one: approve it back into the pipeline, or discard it
+      (discarded leads are kept for audit but hidden from every listing).
     </p>
+    @if (quarantineActionError(); as err) {
+      <p class="leads-page__quarantine-error" role="alert">
+        {{ err }}
+        <button type="button" (click)="dismissQuarantineError()" aria-label="Dismiss quarantine error">
+          Dismiss
+        </button>
+      </p>
+    }
   }
 
   <div
@@ -196,6 +205,51 @@
               [attr.aria-label]="'Contact consent: ' + lead.contactConsent"
             >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
             <span class="lead-card__consent-date">{{ formatDate(lead.consentUpdatedAt) }}</span>
+            @if (tab() === 'quarantine' && canManageLeads()) {
+              <div
+                class="lead-card__quarantine-actions"
+                (click)="$event.stopPropagation()"
+                (keydown.enter)="$event.stopPropagation()"
+              >
+                @if (confirmDiscardId() === lead.id) {
+                  <button
+                    type="button"
+                    class="lead-card__quarantine-confirm"
+                    (click)="confirmDiscard(lead.id)"
+                    [disabled]="quarantineBusy(lead.id)"
+                  >
+                    {{ quarantineBusy(lead.id) ? 'Discarding…' : 'Confirm discard' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lead-card__quarantine-cancel"
+                    (click)="cancelDiscard()"
+                    [disabled]="quarantineBusy(lead.id)"
+                  >
+                    Cancel
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="lead-card__quarantine-approve"
+                    (click)="approveLead(lead.id)"
+                    [disabled]="quarantineBusy(lead.id)"
+                    [attr.aria-label]="'Approve lead ' + lead.name + ' back into the pipeline'"
+                  >
+                    {{ quarantineBusy(lead.id) && quarantineActionKind() === 'approve' ? 'Approving…' : 'Approve' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lead-card__quarantine-discard"
+                    (click)="armDiscard(lead.id)"
+                    [disabled]="quarantineBusy(lead.id)"
+                    [attr.aria-label]="'Discard lead ' + lead.name"
+                  >
+                    Discard
+                  </button>
+                }
+              </div>
+            }
           </div>
         </article>
       } @empty {

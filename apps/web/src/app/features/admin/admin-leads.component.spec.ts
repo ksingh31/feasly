@@ -11,6 +11,8 @@ import { AdminLeadsState } from './admin-leads.state';
 // for its assign-to-builder dropdown — registered at the /admin route in
 // production, so the TestBed mirrors that here.
 import { AdminBuildersState } from './admin-builders.state';
+import { AdminAuthState } from './admin-auth.state';
+import { ADMIN_PERMISSIONS } from './admin-permissions';
 import type { AdminLeadListItem } from '@feasly/contracts';
 
 const LEAD_A: AdminLeadListItem = {
@@ -55,7 +57,9 @@ describe('AdminLeadsComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ConfigService,
-        provideStore([AdminLeadsState, AdminBuildersState]),
+        // AdminAuthState is in the root store in production (app.config.ts);
+        // the quarantine approve/discard buttons gate on its permissions.
+        provideStore([AdminLeadsState, AdminBuildersState, AdminAuthState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
@@ -65,6 +69,15 @@ describe('AdminLeadsComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     httpMock = TestBed.inject(HttpTestingController);
+    // Existing tests assert the write UI — the session manages leads.
+    store.reset({
+      adminLeads: store.selectSnapshot((s) => s.adminLeads),
+      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+      adminAuth: {
+        ...store.selectSnapshot((s) => s.adminAuth),
+        permissions: [ADMIN_PERMISSIONS.leadsManage],
+      },
+    });
     fixture = TestBed.createComponent(AdminLeadsComponent);
   }
 
@@ -210,6 +223,146 @@ describe('AdminLeadsComponent', () => {
     ).nativeElement;
     expect(card.textContent).toContain('Quarantine');
     expect(quarantineBadge.textContent).toContain('Quarantine');
+  });
+
+  describe('quarantine approve/discard (QA admin-console finding 6)', () => {
+    /** Opens the quarantine tab and flushes its filtered list. */
+    async function openQuarantineTab(
+      leads: AdminLeadListItem[] = [{ ...LEAD_A, quarantined: true }],
+    ): Promise<void> {
+      await loadList([]);
+      const tab = fixture.debugElement
+        .queryAll(By.css('.leads-page__tab'))
+        .find((t) => (t.nativeElement.textContent ?? '').trim() === 'Quarantine');
+      expect(tab).toBeTruthy();
+      tab!.nativeElement.click();
+      fixture.detectChanges();
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
+        .flush(listResponse(leads, leads.length));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    /** Polls until the quarantine card is gone (or the deadline hits). */
+    async function waitForCardGone(): Promise<boolean> {
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        fixture.detectChanges();
+        if (fixture.debugElement.query(By.css('.lead-card')) === null) {
+          return true;
+        }
+        if (Date.now() > deadline) return false;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    }
+
+    it('shows approve and discard buttons to leads managers', async () => {
+      await setup();
+      await openQuarantineTab();
+      const actions = fixture.debugElement.query(
+        By.css('.lead-card__quarantine-actions'),
+      );
+      expect(actions).toBeTruthy();
+      expect(actions.nativeElement.textContent).toContain('Approve');
+      expect(actions.nativeElement.textContent).toContain('Discard');
+    });
+
+    it('hides the quarantine action buttons from viewers', async () => {
+      await setup();
+      store.reset({
+        adminLeads: store.selectSnapshot((s) => s.adminLeads),
+        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [],
+        },
+      });
+      await openQuarantineTab();
+      expect(
+        fixture.debugElement.query(By.css('.lead-card__quarantine-actions')),
+      ).toBeNull();
+      // The quarantined row itself stays visible — read-only.
+      expect(fixture.debugElement.query(By.css('.lead-card'))).toBeTruthy();
+    });
+
+    it('approve posts to the backend endpoint and removes the lead', async () => {
+      await setup();
+      await openQuarantineTab();
+
+      fixture.debugElement
+        .query(By.css('.lead-card__quarantine-approve'))
+        .nativeElement.click();
+      fixture.detectChanges();
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/approve') &&
+            r.method === 'POST',
+        )
+        .flush({});
+      expect(await waitForCardGone()).toBe(true);
+      expect(store.selectSnapshot(AdminLeadsState.leads).length).toBe(0);
+    });
+
+    it('discard needs a two-step confirm and posts to the discard endpoint', async () => {
+      await setup();
+      await openQuarantineTab();
+
+      // First click arms the confirm; nothing is posted yet.
+      fixture.debugElement
+        .query(By.css('.lead-card__quarantine-discard'))
+        .nativeElement.click();
+      fixture.detectChanges();
+      const confirm = fixture.debugElement.query(
+        By.css('.lead-card__quarantine-confirm'),
+      );
+      expect(confirm).toBeTruthy();
+      expect(confirm.nativeElement.textContent).toContain('Confirm discard');
+      httpMock.expectNone(
+        (r) =>
+          r.url.endsWith('/api/v1/admin/leads/a1/quarantine/discard') &&
+          r.method === 'POST',
+      );
+
+      // Confirm posts and removes the lead.
+      confirm.nativeElement.click();
+      fixture.detectChanges();
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/discard') &&
+            r.method === 'POST',
+        )
+        .flush({});
+      expect(await waitForCardGone()).toBe(true);
+      expect(store.selectSnapshot(AdminLeadsState.leads).length).toBe(0);
+    });
+
+    it('shows an inline error when the approve call fails', async () => {
+      await setup();
+      await openQuarantineTab();
+
+      fixture.debugElement
+        .query(By.css('.lead-card__quarantine-approve'))
+        .nativeElement.click();
+      fixture.detectChanges();
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/approve') &&
+            r.method === 'POST',
+        )
+        .flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const error = fixture.debugElement.query(
+        By.css('.leads-page__quarantine-error'),
+      );
+      expect(error).toBeTruthy();
+      // The lead stays in the list so the action can be retried.
+      expect(fixture.debugElement.query(By.css('.lead-card'))).toBeTruthy();
+    });
   });
 
   it('row click selects the lead and opens the modal', async () => {

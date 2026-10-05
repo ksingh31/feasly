@@ -2,9 +2,7 @@ import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Store } from '@ngxs/store';
-import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type { ApiKeyScope } from '@feasly/contracts';
 import {
   API_KEY_SCOPES,
@@ -35,8 +33,8 @@ import { ApiKeyUsageComponent } from './api-key-usage.component';
 @Component({
   selector: 'app-api-keys-page',
   standalone: true,
-  imports: [FormsModule, SiteFooterComponent, SiteNavComponent, ApiKeyUsageComponent],
-  // ApiKeysState is provided at the `admin/api-keys` route level via
+  imports: [FormsModule, ApiKeyUsageComponent],
+  // ApiKeysState is provided at the `admin/api-keys` child route via
   // lazyProvider (see app.routes.ts): the state + its actions stay in this
   // lazy chunk, keeping the initial bundle under budget. Memory-only by
   // design — the once-only plaintext must never survive a refresh.
@@ -45,7 +43,6 @@ import { ApiKeyUsageComponent } from './api-key-usage.component';
 })
 export class ApiKeysPageComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -77,8 +74,8 @@ export class ApiKeysPageComponent implements OnInit {
   protected readonly copied = signal(false);
 
   ngOnInit(): void {
-    // Title comes from the seo-routes table (admin/api-keys).
-    this.seo.setForRoute('admin/api-keys');
+    // Title comes from the seo-routes table — the admin shell sets it
+    // centrally on every navigation (admin/api-keys).
     this.store.dispatch(new LoadApiKeys());
     // Clear the once-only plaintext when leaving the page.
     this.destroyRef.onDestroy(() => {

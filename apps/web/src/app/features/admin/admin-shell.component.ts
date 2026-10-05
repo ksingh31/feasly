@@ -10,6 +10,7 @@ import { AdminAuthState } from './admin-auth.state';
 import { ExitViewAs } from './admin-auth.actions';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
 import { ViewAsBannerComponent } from '../../shared/view-as-banner';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 
 /**
  * Admin shell (admin/01): layout for the guarded `/admin` route group.
@@ -34,6 +35,17 @@ export class AdminShellComponent {
 
   /** Mobile nav menu open state. Desktop shows the nav inline. */
   protected readonly menuOpen = signal(false);
+
+  /**
+   * API-keys management is a write surface (`api_keys:manage`) — read-only
+   * staff (viewers) don't get the nav link. Every other section is
+   * readable by every staff role; write actions inside them are gated
+   * individually.
+   */
+  protected readonly canManageApiKeys = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.apiKeysManage,
+  );
 
   constructor() {
     // Admin console titles (admin/07) are driven centrally from the

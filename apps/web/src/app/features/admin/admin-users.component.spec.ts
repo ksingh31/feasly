@@ -12,6 +12,7 @@ import { AdminUsersComponent } from './admin-users.component';
 import { AdminAuthState } from './admin-auth.state';
 import { AdminBuildersState } from './admin-builders.state';
 import { AdminUsersState } from './admin-users.state';
+import { ADMIN_PERMISSIONS } from './admin-permissions';
 
 const PROTECTED: AdminUser = {
   id: '123e4567-e89b-12d3-a456-426614174000',
@@ -62,6 +63,16 @@ describe('AdminUsersComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     httpMock = TestBed.inject(HttpTestingController);
+    // Existing tests exercise the invite/edit write UI — the session
+    // manages users.
+    store.reset({
+      adminUsers: store.selectSnapshot((s) => s.adminUsers),
+      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+      adminAuth: {
+        ...store.selectSnapshot((s) => s.adminAuth),
+        permissions: [ADMIN_PERMISSIONS.usersManage],
+      },
+    });
     fixture = TestBed.createComponent(AdminUsersComponent);
   }
 
@@ -349,6 +360,26 @@ describe('AdminUsersComponent', () => {
       expect(
         fixture.nativeElement.querySelector('.users-page__state--error'),
       ).toBeNull();
+    });
+  });
+
+  describe('viewer permission gating (QA admin-console finding 8)', () => {
+    it('hides invite and row actions from viewers but keeps the table', () => {
+      store.reset({
+        adminUsers: store.selectSnapshot((s) => s.adminUsers),
+        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [],
+        },
+      });
+      flushInit([PROTECTED, INVITED]);
+
+      const page = fixture.nativeElement as HTMLElement;
+      expect(page.textContent).toContain('Teammate');
+      expect(page.querySelector('.users-page__primary')).toBeNull();
+      const buttons = page.querySelectorAll('tbody button');
+      expect(buttons.length).toBe(0);
     });
   });
 });

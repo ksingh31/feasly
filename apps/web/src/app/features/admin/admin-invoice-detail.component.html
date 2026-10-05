@@ -1,0 +1,200 @@
+<div class="invoice-detail">
+  <nav class="invoice-detail__breadcrumb" aria-label="Breadcrumb">
+    <a routerLink="/admin/billing/invoices">Invoices</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">
+      @if (detail(); as d) {
+        {{ d.invoiceNumber }}
+      } @else {
+        Invoice
+      }
+    </span>
+  </nav>
+
+  @if (detailError(); as err) {
+    <div class="invoice-detail__banner invoice-detail__banner--error" role="alert">
+      <span>{{ err }}</span>
+      <button type="button" (click)="dismissError()" aria-label="Dismiss error">
+        Dismiss
+      </button>
+    </div>
+  }
+
+  @if (detailStatus() === 'loading') {
+    <p class="invoice-detail__state">Loading invoice…</p>
+  } @else if (detailStatus() === 'error') {
+    <div class="invoice-detail__state invoice-detail__state--error">
+      <p>{{ detailError() ?? 'Could not load this invoice.' }}</p>
+      <button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else if (detail(); as invoice) {
+    <header class="invoice-detail__header">
+      <div>
+        <h1>{{ invoice.invoiceNumber }}</h1>
+        <p class="invoice-detail__sub">
+          <span [class]="'invoice-detail__badge invoice-detail__badge--' + invoice.status.replace('_', '-')">
+            {{ statusLabel(invoice.status) }}
+          </span>
+          <span>{{ invoice.tenantKey }} · {{ invoice.leadName }}</span>
+        </p>
+      </div>
+      @if (canManageInvoice()) {
+        <button
+          type="button"
+          class="invoice-detail__manage"
+          (click)="openManage()"
+        >
+          Manage
+        </button>
+      }
+    </header>
+
+    <div class="invoice-detail__grid">
+      <section class="invoice-detail__card" aria-label="Amounts">
+        <h2>Amounts</h2>
+        <dl>
+          <div>
+            <dt>Commission</dt>
+            <dd>{{ formatCents(invoice.commissionCents) }}</dd>
+          </div>
+          <div>
+            <dt>Contract value (excl. land)</dt>
+            <dd>{{ formatCents(invoice.contractValueCents) }}</dd>
+          </div>
+          <div>
+            <dt>Effective rate</dt>
+            <dd>{{ formatRate(invoice.effectiveRatePercent) }}</dd>
+          </div>
+          @if (invoice.commissionRateOverride !== null) {
+            <div>
+              <dt>Rate override</dt>
+              <dd>{{ formatRate(invoice.commissionRateOverride) }} (admin)</dd>
+            </div>
+          }
+          @if (invoice.commissionRatePercent !== null) {
+            <div>
+              <dt>Builder rate at creation</dt>
+              <dd>{{ formatRate(invoice.commissionRatePercent) }}</dd>
+            </div>
+          }
+          <div>
+            <dt>Currency</dt>
+            <dd>{{ invoice.currency }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="invoice-detail__card" aria-label="Payment">
+        <h2>Payment</h2>
+        <dl>
+          <div>
+            <dt>Payment method</dt>
+            <dd>{{ paymentMethodLabel(invoice.paymentMethod) }}</dd>
+          </div>
+          @if (invoice.manualPaymentMethod !== null) {
+            <div>
+              <dt>Manual method</dt>
+              <dd>{{ paymentMethodLabel(invoice.manualPaymentMethod) }}</dd>
+            </div>
+          }
+          @if (invoice.paymentReference !== null) {
+            <div>
+              <dt>Payment reference</dt>
+              <dd>{{ invoice.paymentReference }}</dd>
+            </div>
+          }
+          @if (invoice.stripePaymentIntentId !== null) {
+            <div>
+              <dt>Stripe payment intent</dt>
+              <dd class="invoice-detail__mono">{{ invoice.stripePaymentIntentId }}</dd>
+            </div>
+          }
+          @if (invoice.paidAt !== null) {
+            <div>
+              <dt>Paid at</dt>
+              <dd>{{ invoice.paidAt | date: 'medium' }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="invoice-detail__card" aria-label="Lifecycle">
+        <h2>Lifecycle</h2>
+        <dl>
+          <div>
+            <dt>Created</dt>
+            <dd>{{ invoice.createdAt | date: 'medium' }}</dd>
+          </div>
+          @if (invoice.reviewDueAt !== null) {
+            <div>
+              <dt>Review due</dt>
+              <dd>{{ invoice.reviewDueAt | date: 'medium' }}</dd>
+            </div>
+          }
+          @if (invoice.finalizedAt !== null) {
+            <div>
+              <dt>Finalized</dt>
+              <dd>{{ invoice.finalizedAt | date: 'medium' }}</dd>
+            </div>
+          }
+          @if (invoice.slaBreached) {
+            <div>
+              <dt>Reporting SLA</dt>
+              <dd class="invoice-detail__flag">Breached — contract reported after the 14-day window</dd>
+            </div>
+          }
+          @if (invoice.disputeReason !== null) {
+            <div>
+              <dt>Dispute reason</dt>
+              <dd>{{ invoice.disputeReason }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="invoice-detail__card" aria-label="References">
+        <h2>References</h2>
+        <dl>
+          <div>
+            <dt>Builder</dt>
+            <dd>{{ invoice.tenantKey }}</dd>
+          </div>
+          <div>
+            <dt>Lead</dt>
+            <dd>{{ invoice.leadName }}</dd>
+          </div>
+          <div>
+            <dt>Invoice id</dt>
+            <dd class="invoice-detail__mono">{{ invoice.id }}</dd>
+          </div>
+          <div>
+            <dt>Lead id</dt>
+            <dd class="invoice-detail__mono">{{ invoice.leadId }}</dd>
+          </div>
+          @if (invoice.attributionId) {
+            <div>
+              <dt>Attribution id</dt>
+              <dd class="invoice-detail__mono">{{ invoice.attributionId }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    </div>
+  }
+
+  @if (managedInvoice(); as managed) {
+    <div
+      class="invoice-detail__modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Manage invoice"
+    >
+      <div class="invoice-detail__backdrop" (click)="closeManage()"></div>
+      <app-admin-manage-invoice
+        class="invoice-detail__dialog"
+        [invoice]="managed"
+        (closed)="closeManage()"
+      />
+    </div>
+  }
+</div>

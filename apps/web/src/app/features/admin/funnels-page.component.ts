@@ -1,10 +1,8 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { API_SERVICE } from '../../core/api/api.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type {
   FunnelQuery,
   FunnelReport,
@@ -27,13 +25,12 @@ import type {
 @Component({
   selector: 'app-funnels-page',
   standalone: true,
-  imports: [FormsModule, SiteFooterComponent, SiteNavComponent],
+  imports: [FormsModule],
   templateUrl: './funnels-page.component.html',
   styleUrl: './funnels-page.component.scss',
 })
 export class FunnelsPageComponent implements OnInit {
   private readonly api = inject(API_SERVICE);
-  private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -88,8 +85,8 @@ export class FunnelsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Title comes from the seo-routes table (admin/funnels).
-    this.seo.setForRoute('admin/funnels');
+    // Title comes from the seo-routes table — the admin shell sets it
+    // centrally on every navigation (admin/funnels).
     this.load();
   }
 

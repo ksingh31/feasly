@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { fromEvent } from 'rxjs';
 import { Store } from '@ngxs/store';
+import { RouterLink } from '@angular/router';
 import type {
   BillingHealthDunningInvoice,
   BillingHealthInReviewInvoice,
@@ -24,6 +25,7 @@ import {
   type ManageInvoiceInput,
 } from './admin-manage-invoice.component';
 import { formatCentsToCad } from '../../shared/utils/money';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 
 /**
  * Focusable controls inside the manage-invoice dialog. Mirrors the
@@ -62,7 +64,7 @@ const MANAGE_DIALOG_FOCUSABLE =
 @Component({
   selector: 'app-admin-billing',
   standalone: true,
-  imports: [DatePipe, AdminCreateInvoiceComponent, AdminManageInvoiceComponent],
+  imports: [DatePipe, RouterLink, AdminCreateInvoiceComponent, AdminManageInvoiceComponent],
   templateUrl: './admin-billing.component.html',
   styleUrl: './admin-billing.component.scss',
 })
@@ -88,6 +90,17 @@ export class AdminBillingComponent implements OnInit {
   /** One-shot retry feedback shown in the dunning queue. BILL-03. */
   protected readonly retryFeedback = this.store.selectSignal(
     BillingHealthState.retryFeedback,
+  );
+
+  /**
+   * Write-action gating (display only — the backend 403s without
+   * `billing:manage`): create invoice, manage (mark paid / rate override),
+   * and charge retries render only for sessions that can use them.
+   * Read-only staff see the money overview without the action buttons.
+   */
+  protected readonly canManageBilling = adminCan(
+    this.store,
+    ADMIN_PERMISSIONS.billingManage,
   );
 
   /** Invoice awaiting the second (confirm) click of the retry flow. */

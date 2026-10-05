@@ -335,3 +335,12 @@ apps/web/src/app/features/builder/builder-invoices.component.ts
 # template structure (not a tunable business value). It lives with the
 # component's copy object pattern; the linter flags the HTML literal.
 apps/web/src/app/features/communities/community-profile-page.component.html
+
+# Admin invoices list (QA admin-console finding 7): the `20` page-size
+# literals mirror the backend's zod contract on GET /api/v1/billing/invoices
+# and the shared BuilderInvoicesApiService defensive fallback (same value as
+# builder-invoices.state.ts, allowlisted above) — an API-contract mirror,
+# not a deploy tunable. Pinned by admin-invoices.component.spec.ts
+# (wire-param assertions on page/pageSize).
+apps/web/src/app/features/admin/admin-invoices.actions.ts
+apps/web/src/app/features/admin/admin-invoices.state.ts

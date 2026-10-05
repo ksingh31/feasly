@@ -124,4 +124,26 @@ describe('AdminLeadsApiService', () => {
     expect(req.request.withCredentials).toBe(true);
     req.flush(new Blob(['a,b'], { type: 'text/csv' }));
   });
+
+  it('posts quarantine approve/discard to the registered backend endpoints', () => {
+    let approveResult: unknown;
+    service.approveQuarantine('lead-9').subscribe((res) => (approveResult = res));
+    const approveReq = httpMock.expectOne(
+      (r) => r.url.endsWith('/api/v1/admin/leads/lead-9/quarantine/approve'),
+    );
+    expect(approveReq.request.method).toBe('POST');
+    expect(approveReq.request.withCredentials).toBe(true);
+    approveReq.flush({ ok: true });
+    expect(approveResult).toEqual({ ok: true });
+
+    let discardResult: unknown;
+    service.discardQuarantine('lead-9').subscribe((res) => (discardResult = res));
+    const discardReq = httpMock.expectOne(
+      (r) => r.url.endsWith('/api/v1/admin/leads/lead-9/quarantine/discard'),
+    );
+    expect(discardReq.request.method).toBe('POST');
+    expect(discardReq.request.withCredentials).toBe(true);
+    discardReq.flush({ ok: true });
+    expect(discardResult).toEqual({ ok: true });
+  });
 });

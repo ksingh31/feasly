@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { provideStore } from '@ngxs/store';
+import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import type { BillingHealthResponse } from '@feasly/contracts';
 import { AdminBillingApiService } from './admin-billing-api.service';
 import { BillingHealthState } from './billing-health.state';
+import { AdminAuthState } from './admin-auth.state';
 import { AdminBillingComponent } from './admin-billing.component';
+import { ADMIN_PERMISSIONS } from './admin-permissions';
 
 const HEALTH: BillingHealthResponse = {
   model: 'commission',
@@ -63,6 +65,18 @@ const HEALTH: BillingHealthResponse = {
 
 describe('AdminBillingComponent (billing/03)', () => {
   let fixture: ComponentFixture<AdminBillingComponent>;
+  let store: Store;
+
+  /** Grants the session every permission the billing write UI needs. */
+  function grantBillingManage(): void {
+    store.reset({
+      billingHealth: store.selectSnapshot((s) => s.billingHealth),
+      adminAuth: {
+        ...store.selectSnapshot((s) => s.adminAuth),
+        permissions: [ADMIN_PERMISSIONS.billingManage],
+      },
+    });
+  }
 
   beforeEach(async () => {
     const api = {
@@ -75,10 +89,13 @@ describe('AdminBillingComponent (billing/03)', () => {
       imports: [AdminBillingComponent],
       providers: [
         provideRouter([]),
-        provideStore([BillingHealthState]),
+        provideStore([BillingHealthState, AdminAuthState]),
         { provide: AdminBillingApiService, useValue: api },
       ],
     }).compileComponents();
+    store = TestBed.inject(Store);
+    // Existing tests assert the full write UI — the session manages billing.
+    grantBillingManage();
     fixture = TestBed.createComponent(AdminBillingComponent);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -338,6 +355,52 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(document.activeElement).toBe(manageButton);
   });
 
+  describe('viewer permission gating (QA admin-console finding 8)', () => {
+    /** Re-renders the page with a read-only session (no permissions). */
+    async function renderAsViewer(): Promise<void> {
+      store.reset({
+        billingHealth: store.selectSnapshot((s) => s.billingHealth),
+        adminAuth: {
+          ...store.selectSnapshot((s) => s.adminAuth),
+          permissions: [],
+        },
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
+
+    function buttonLabels(): string[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('button')).map(
+        (b) => ((b as HTMLButtonElement).textContent ?? '').trim(),
+      );
+    }
+
+    it('shows the write UI to billing managers', () => {
+      const labels = buttonLabels();
+      expect(labels).toContain('Create invoice');
+      expect(labels).toContain('Manage');
+      expect(labels).toContain('Mark as paid');
+      expect(labels.some((l) => l.startsWith('Retry'))).toBe(true);
+    });
+
+    it('hides every write action from viewers but keeps the read-only data', async () => {
+      await renderAsViewer();
+      const labels = buttonLabels();
+      expect(labels).not.toContain('Create invoice');
+      expect(labels).not.toContain('Manage');
+      expect(labels).not.toContain('Mark as paid');
+      expect(labels.some((l) => l.startsWith('Retry'))).toBe(false);
+      // The money overview itself stays visible.
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Billing health');
+      expect(text).toContain('test-builder');
+      // Details links are read-only and stay available to viewers.
+      expect(
+        fixture.nativeElement.querySelectorAll('a.billing-panel__link').length,
+      ).toBeGreaterThan(0);
+    });
+  });
+
   it('opens the manage modal from a dunning Mark as paid button', async () => {
     const markPaidButton = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
@@ -372,10 +435,19 @@ describe('AdminBillingComponent (billing/03)', () => {
       imports: [AdminBillingComponent],
       providers: [
         provideRouter([]),
-        provideStore([BillingHealthState]),
+        provideStore([BillingHealthState, AdminAuthState]),
         { provide: AdminBillingApiService, useValue: api },
       ],
     }).compileComponents();
+    // The retry queue is a billing:manage write surface.
+    const store2 = TestBed.inject(Store);
+    store2.reset({
+      billingHealth: store2.selectSnapshot((s) => s.billingHealth),
+      adminAuth: {
+        ...store2.selectSnapshot((s) => s.adminAuth),
+        permissions: [ADMIN_PERMISSIONS.billingManage],
+      },
+    });
     const f2 = TestBed.createComponent(AdminBillingComponent);
     f2.detectChanges();
     await f2.whenStable();
@@ -406,8 +478,9 @@ describe('AdminBillingComponent route-level state registration', () => {
       providers: [
         provideRouter([]),
         // Production root store: BillingHealthState is NOT here (it is
-        // lazy-loaded at the admin/billing route).
-        provideStore([]),
+        // lazy-loaded at the admin/billing route); AdminAuthState IS in
+        // the root store (app.config.ts).
+        provideStore([AdminAuthState]),
         ...(withRouteProvider ? [billingHealthStateProvider] : []),
         { provide: AdminBillingApiService, useValue: api },
       ],
