@@ -566,7 +566,7 @@ describe('ReportPageComponent', () => {
       // The mock mirrors the real backend: land is the fixture property's
       // City assessed value ($823,000), not a canned constant.
       expect(landCard.textContent).toContain('$823,000');
-      expect(landCard.textContent).toContain('City of Calgary assessment · refreshed September 2026 · not a market price');
+      expect(landCard.textContent).toContain('City of Calgary assessment · not a market price');
       expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
     });
 

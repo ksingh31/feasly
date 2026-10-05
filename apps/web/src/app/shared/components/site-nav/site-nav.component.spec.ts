@@ -93,4 +93,27 @@ describe('SiteNavComponent', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/']);
     navigateSpy.mockRestore();
   });
+
+  it('brand click closes the open mobile menu (QA P1: menu stuck open on /)', () => {
+    setup();
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    try {
+      const btn = fixture.nativeElement.querySelector(
+        '.nav-menu-btn',
+      ) as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.nav-menu')).not.toBeNull();
+      const brand = fixture.nativeElement.querySelector(
+        '.nav-brand',
+      ) as HTMLAnchorElement;
+      brand.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
+      expect(navigateSpy).toHaveBeenCalledWith(['/']);
+    } finally {
+      navigateSpy.mockRestore();
+    }
+  });
 });

@@ -44,6 +44,9 @@ export class SiteNavComponent {
    */
   goHome(event: Event): void {
     event.preventDefault();
+    // QA 2026-10-04 (P1): on the current page the nav doesn't remount, so
+    // an open mobile menu would keep covering the page after a brand tap.
+    this.menuOpen.set(false);
     void this.router.navigate(['/']);
   }
 

@@ -136,6 +136,23 @@ describe('AdminManageInvoiceComponent', () => {
     expect(input.value).toBe(localToday());
   });
 
+  it('blocks mark-paid on a future paid date (QA P5)', () => {
+    setSelect(fixture, '#manage-method', 'cheque');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const future = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(
+      tomorrow.getDate(),
+    )}`;
+    setInput(fixture, '#manage-paid-date', future);
+    fixture.detectChanges();
+    clickButton(fixture, 'Mark as paid');
+    // The confirm never arms — no API call, honest error copy instead.
+    expect(api.markInvoicePaid).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Confirm mark paid');
+    expect(fixture.nativeElement.textContent).toContain("can't be in the future");
+  });
+
   it('shows a live recalculated preview when a rate is entered', () => {
     setInput(fixture, '#manage-rate', '1.5');
     fixture.detectChanges();
