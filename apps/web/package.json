@@ -19,7 +19,7 @@
     "@angular/cli": "^22.2.1",
     "@angular/compiler-cli": "^22.2.1",
     "@angular/platform-server": "^22.2.1",
-    "@angular/ssr": "^22.2.1",
+    "@angular/ssr": "^22.2.2",
     "@types/pg": "^8.23.1",
     "jsdom": "^30.0.0",
     "pg": "^8.23.0",
