@@ -17,7 +17,7 @@
   "devDependencies": {
     "@angular/build": "^22.2.1",
     "@angular/cli": "^22.2.1",
-    "@angular/compiler-cli": "^22.2.1",
+    "@angular/compiler-cli": "^22.2.2",
     "@angular/platform-server": "^22.2.1",
     "@angular/ssr": "^22.2.1",
     "@types/pg": "^8.23.1",
