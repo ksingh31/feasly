@@ -4,15 +4,16 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import { map, switchMap } from 'rxjs';
+import { map, of, switchMap, tap } from 'rxjs';
 import type { TimelineOption } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
+import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
-import { StoreLeadResult, WizardState } from '../wizard';
+import { StoreLeadResult, StorePreviewEstimate, WizardState } from '../wizard';
 import type { WizardStep } from './wizard.actions';
 import { SetReportToken } from '../report/report.actions';
 import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
@@ -30,21 +31,15 @@ type GateStatus = 'idle' | 'sending' | 'error';
  * the lead can opt out anytime. Consent wording is a DRAFT pending legal
  * review — see copy.gate.consentLabel.
  *
- * On submit the component first runs the preview estimate — the lead
- * contract requires an `estimateId`, so this real call mints it — then POSTs
- * the lead and routes to the analyzing screen. Loading and honest error
- * states included; the error banner retries the whole submit.
- *
- * ID consistency note: the analyzing screen re-runs the same estimate with
- * identical inputs. The mock harness derives a deterministic estimateId from
- * the inputs, so the lead stays linked to the preview the user will see.
- * The real API is not wired for this flow yet: it has no /estimates/preview
- * endpoint, and POST /estimates mints a fresh random UUID per call. When the
- * real backend takes over, the estimate endpoint must become idempotent
- * (deterministic ID from canonical inputs + cost-data version, skipping
- * duplicate inserts) or the analyzing screen must reuse the gate's preview
- * instead of re-minting — otherwise the lead attaches to a different
- * persisted row than the one the user viewed.
+ * On submit the lead attaches to the estimate the user just saw on the
+ * preview step (#489): the lead contract requires an `estimateId`, and the
+ * real API mints a new UUID on every preview call, so the gate reuses the
+ * cached preview (wizard slice) when the request is unchanged. Only when no
+ * matching preview is cached (e.g. a fresh tab) does it mint one — and it
+ * writes that preview back to the cache, so the analyzing screen and the
+ * report reuse it too. Then it POSTs the lead and routes to the analyzing
+ * screen. Loading and honest error states included; the error banner
+ * retries the whole submit.
  */
 @Component({
   selector: 'app-gate-page',
@@ -199,11 +194,25 @@ export class GatePageComponent implements OnInit {
     // for server-side attribution. The backend validates the key against
     // the tenants table — it is never trusted blindly.
     const tenantKey = this.embedTenantKey() ?? undefined;
-    // The lead must reference an estimate: mint the estimateId with a real
-    // preview call first. The analyzing screen re-runs the full pipeline
-    // visibly right after this.
-    this.api
-      .getPreviewEstimate({ ...buildNewBuildRequest(property, inputs), tenantKey })
+    // The lead must reference an estimate: reuse the preview the user saw
+    // (#489) — mint one only when nothing matching is cached.
+    const request = buildNewBuildRequest(property, inputs);
+    const tenant = tenantKey ?? null;
+    const cached = cachedPreviewFor(
+      this.store.selectSnapshot(WizardState.previewCache),
+      request,
+      tenant,
+    );
+    const preview$ = cached
+      ? of(cached)
+      : this.api.getPreviewEstimate({ ...request, tenantKey }).pipe(
+          tap((minted) =>
+            this.store.dispatch(
+              new StorePreviewEstimate(minted, previewRequestKey(request), tenant),
+            ),
+          ),
+        );
+    preview$
       .pipe(
         switchMap((preview) =>
           this.api

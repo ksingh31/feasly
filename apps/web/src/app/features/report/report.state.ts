@@ -11,9 +11,16 @@ import type {
 } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
+import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
 import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
-import { ChooseProjectType, SelectProperty, UpdateInputs, UpdateRenoInputs } from '../wizard/wizard.actions';
+import {
+  ChooseProjectType,
+  SelectProperty,
+  StorePreviewEstimate,
+  UpdateInputs,
+  UpdateRenoInputs,
+} from '../wizard/wizard.actions';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, ToggleStep, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
@@ -281,17 +288,40 @@ export class ReportState {
     });
   }
 
+  /**
+   * Pre-gate preview. The real API mints a new estimateId per call (#489),
+   * so an identical request (same property, inputs and embed tenant) reuses
+   * the cached preview from the wizard slice instead of re-running. A fresh
+   * preview is written back to that cache, where the lead gate and the
+   * analyzing screen pick it up — the lead then attaches to the very
+   * estimate the user saw.
+   */
   @Action(LoadPreview)
-  loadPreview(ctx: StateContext<ReportStateModel>) {
+  loadPreview(ctx: StateContext<ReportStateModel>, action: LoadPreview) {
     const request = this.buildEstimateRequest();
     if (!request) {
       this.fail(ctx);
       return EMPTY;
     }
 
+    const tenantKey = action.tenantKey ?? null;
+    const cached = cachedPreviewFor(
+      this.store.selectSnapshot(WizardState.previewCache),
+      request,
+      tenantKey,
+    );
+    if (cached) {
+      ctx.patchState({ preview: cached, status: 'ready', error: null, errorDetail: null });
+      return EMPTY;
+    }
+
     this.beginLoad(ctx);
-    return this.api.getPreviewEstimate(request).pipe(
+    const body = tenantKey ? { ...request, tenantKey } : request;
+    return this.api.getPreviewEstimate(body).pipe(
       tap((preview) => ctx.patchState({ preview, status: 'ready' })),
+      switchMap((preview) =>
+        ctx.dispatch(new StorePreviewEstimate(preview, previewRequestKey(request), tenantKey)),
+      ),
       catchError((err: unknown) => {
         this.fail(ctx, err);
         return EMPTY;
@@ -371,9 +401,21 @@ export class ReportState {
         const state = ctx.getState();
         const version =
           state.snapshot?.version ?? (state.savedVersion > 0 ? state.savedVersion : 1);
+        // #489: the lead was attached to the cached preview's estimate (the
+        // gate reuses or mints it). The public endpoint is only the source
+        // of the itemized rows — the engine is deterministic, so for the
+        // same request the figures are identical — and the report keeps
+        // the estimateId the lead points at instead of the freshly minted one.
+        const leadEstimate = cachedPreviewFor(
+          this.store.selectSnapshot(WizardState.previewCache),
+          request,
+        );
+        const basis = leadEstimate
+          ? { ...estimate, estimateId: leadEstimate.estimateId }
+          : estimate;
         this.setSnapshot(
           ctx,
-          this.toLeadSnapshot(estimate, leadId, version, state.snapshot),
+          this.toLeadSnapshot(basis, leadId, version, state.snapshot),
         );
       }),
       catchError((err: unknown) => {

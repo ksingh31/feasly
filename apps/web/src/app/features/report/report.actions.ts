@@ -12,6 +12,11 @@
  */
 export class LoadPreview {
   static readonly type = '[Report] Load preview';
+  /**
+   * @param tenantKey embed tenant (EMB-03) — the preview mints the estimate
+   *   the lead later attaches to (#489), so it carries the attribution.
+   */
+  constructor(public readonly tenantKey: string | null = null) {}
 }
 
 export class SetReportToken {

@@ -58,7 +58,18 @@ export class ResetWizard {
  */
 export class StorePreviewEstimate {
   static readonly type = '[Wizard] Store preview estimate';
-  constructor(public readonly preview: PreviewEstimateResponse) {}
+  /**
+   * @param requestKey canonical key of the request that produced the
+   *   preview (`previewRequestKey`, #489) — lets the gate, analyzing screen
+   *   and report reuse its estimateId instead of re-minting. Null = unknown
+   *   (never matches a cache lookup).
+   * @param tenantKey embed tenant the preview was attributed to, if any.
+   */
+  constructor(
+    public readonly preview: PreviewEstimateResponse,
+    public readonly requestKey: string | null = null,
+    public readonly tenantKey: string | null = null,
+  ) {}
 }
 
 /** NGXS action: comparison picker inputs changed (NBH-04). */

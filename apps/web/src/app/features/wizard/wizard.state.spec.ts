@@ -151,11 +151,22 @@ describe('WizardState', () => {
       costDataVersion: 'mock-v1',
       createdAt: '2026-09-24T00:00:00.000Z',
     } as const;
-    store.dispatch(new StorePreviewEstimate(preview));
+    store.dispatch(new StorePreviewEstimate(preview, 'req-key', 'acme'));
     expect(snapshot().preview?.estimateId).toBe('est-mock-2200-standard');
     expect(store.selectSnapshot(WizardState.preview)?.estimateId).toBe('est-mock-2200-standard');
+    // #489: the cache carries the request identity alongside the preview.
+    expect(store.selectSnapshot(WizardState.previewCache)).toEqual({
+      preview: snapshot().preview,
+      key: 'req-key',
+      tenantKey: 'acme',
+    });
     store.dispatch(new ResetWizard());
     expect(snapshot().preview).toBeNull();
+    expect(store.selectSnapshot(WizardState.previewCache)).toEqual({
+      preview: null,
+      key: null,
+      tenantKey: null,
+    });
   });
 
   it('selectors expose property, inputs, and step', () => {
