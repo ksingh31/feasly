@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
@@ -55,8 +55,14 @@ export class AnalyzingPageComponent implements OnInit {
   /** Analyzing copy (config-owned). */
   protected readonly copy = this.config.get('copy').analyzing;
 
-  protected stages: PipelineStage[] = [];
-  protected failed = false;
+  /**
+   * Pipeline state lives in signals, not plain fields: the app runs zoneless
+   * change detection, so a plain-field write inside an HTTP callback (notably
+   * the error path) never re-renders — the screen would sit on "In progress"
+   * forever with no error and no retry (#483).
+   */
+  protected readonly stages = signal<PipelineStage[]>([]);
+  protected readonly failed = signal(false);
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/analyzing');
@@ -103,14 +109,14 @@ export class AnalyzingPageComponent implements OnInit {
   }
 
   private runPipeline(): void {
-    this.failed = false;
+    this.failed.set(false);
     // Renovation never reaches this pipeline: ngOnInit redirects reno to the
     // coming-soon page (Karan 2026-09-27, reno out of launch scope).
-    this.stages = [
+    this.stages.set([
       { key: 'validate', label: this.copy.stageValidate, state: 'pending' },
       { key: 'fetch', label: this.copy.stageFetch, state: 'pending' },
       { key: 'estimate', label: this.copy.stageEstimate, state: 'pending' },
-    ];
+    ]);
 
     const property = this.store.selectSnapshot(WizardState.property);
     this.runNewBuildPipeline(property);
@@ -178,7 +184,7 @@ export class AnalyzingPageComponent implements OnInit {
           void this.router.navigate(['/estimate/report']);
         },
         error: () => {
-          this.failed = true;
+          this.failed.set(true);
         },
       });
   }
@@ -199,13 +205,12 @@ export class AnalyzingPageComponent implements OnInit {
   }
 
   private setStage(key: StageKey, state: StageState): void {
-    // Immutable update: a new array reference guarantees the @for block
-    // re-evaluates even when a stage flips outside Angular's zone.
-    this.stages = this.stages.map((s) => (s.key === key ? { ...s, state } : s));
+    // Signal update: schedules a zoneless re-render from any callback.
+    this.stages.update((stages) => stages.map((s) => (s.key === key ? { ...s, state } : s)));
   }
 
   private failStage(key: StageKey): void {
     this.setStage(key, 'error');
-    this.failed = true;
+    this.failed.set(true);
   }
 }
