@@ -92,3 +92,5 @@ fix rounds → release-manager merges on green and confirms dev deploy.
 The same flow runs unattended on GitHub Actions (`.github/workflows/agent-*.yml`,
 scripts in `tools/agents/`). Runbook, labels, guardrails and kill switch:
 `docs/agents.md`. Dev agents branch as `agent/issue-<n>-<slug>`.
+While agents are active, supervise them every 10 minutes (docs/agents.md "Supervision"): requeue failed or
+orphaned work, kick the dispatcher when idle, step in on runs over 50 minutes.
