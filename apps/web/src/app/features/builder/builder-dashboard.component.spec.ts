@@ -14,7 +14,7 @@ import {
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import type { BuilderLeadListResponse, Comment } from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
@@ -127,6 +127,17 @@ const WON_NO_INVOICE_RESPONSE: BuilderLeadListResponse = {
   ],
   summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
 };
+
+// Data inconsistency (#474): an invoice on a lead that is NOT won. The
+// status control must stay usable — the lock requires won + invoice.
+function invoicedLeadWithStatus(
+  status: 'new' | 'contacted' | 'quoted' | 'lost',
+): BuilderLeadListResponse {
+  return {
+    leads: [{ ...RECORDED_LEAD_RESPONSE.leads[0], status }],
+    summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, [status]: 1 },
+  };
+}
 
 async function setup() {
   TestBed.resetTestingModule();
@@ -383,6 +394,83 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     ) as HTMLElement;
     expect(badge?.textContent?.trim()).toBe('Won');
     httpMock.verify();
+  });
+
+  describe('status lock requires won + invoice (#474)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    for (const status of ['new', 'contacted', 'quoted', 'lost'] as const) {
+      it(`keeps the status control for a ${status} lead that has an invoice`, async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const { fixture, httpMock } = await setup();
+        loadLeads(httpMock, invoicedLeadWithStatus(status));
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        const card = fixture.nativeElement.querySelector(
+          '.builder-lead-card',
+        ) as HTMLElement;
+        expect(card.textContent).not.toContain('Status locked — contract recorded');
+        expect(card.querySelector('.builder-lead-card__locked')).toBeNull();
+        expect(card.querySelector('.builder-lead-card__status select')).toBeTruthy();
+        expect(card.querySelector('.builder-lead-card__apply')).toBeTruthy();
+        // The inconsistency is flagged once for this lead.
+        const flagged = warn.mock.calls.filter((args) =>
+          String(args[0]).includes('non-won lead has invoice'),
+        );
+        expect(flagged).toHaveLength(1);
+        expect(flagged[0][1]).toEqual({ leadId: LEAD_ID, status });
+        httpMock.verify();
+      });
+    }
+
+    it('lets Apply dispatch the PATCH for a non-won lead with an invoice', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { fixture, httpMock } = await setup();
+      loadLeads(httpMock, invoicedLeadWithStatus('quoted'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const select = fixture.nativeElement.querySelector(
+        '.builder-lead-card__status select',
+      ) as HTMLSelectElement;
+      select.value = 'won';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      (
+        fixture.nativeElement.querySelector(
+          '.builder-lead-card__apply',
+        ) as HTMLButtonElement
+      ).click();
+      const req = httpMock.expectOne((r) =>
+        r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
+      );
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ status: 'won' });
+      req.flush({ ok: true });
+      httpMock.verify();
+    });
+
+    it('does not flag a recorded won lead or a won lead without an invoice', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { fixture, httpMock } = await setup();
+      loadLeads(httpMock, {
+        leads: [
+          RECORDED_LEAD_RESPONSE.leads[0],
+          { ...WON_NO_INVOICE_RESPONSE.leads[0], id: '22222222-2222-4222-8222-222222222222' },
+        ],
+        summary: { total: 2, new: 0, contacted: 0, quoted: 0, won: 2, lost: 0 },
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(
+        warn.mock.calls.some((args) =>
+          String(args[0]).includes('non-won lead has invoice'),
+        ),
+      ).toBe(false);
+      httpMock.verify();
+    });
   });
 
   it('syncs the status select with the stored status for a won lead without an invoice', async () => {
