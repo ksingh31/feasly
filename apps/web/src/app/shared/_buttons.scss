@@ -1,0 +1,103 @@
+// Shared button styling for the admin console (stopgap until the admin UI
+// kit lands — issue #477).
+//
+// Component styles are view-encapsulated, so a global `.button` would not
+// reach them reliably and would leak into the consumer flow. Instead each
+// admin component opts in:
+//
+//   @use '../../shared/buttons' as *;
+//   @include feasly-button-classes;
+//
+// which emits `.button` plus the `--primary | --secondary | --ghost |
+// --danger` modifiers scoped to that component. Markup:
+//   <button type="button" class="button button--secondary">…</button>
+//
+// Colours come from the global design tokens in `styles.scss`.
+
+@mixin feasly-button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.75rem; /* ≥44px touch target */
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+@mixin feasly-button-classes {
+  .button {
+    @include feasly-button-base;
+    /* Default look = secondary, so a bare `.button` is never unstyled. */
+    border-color: var(--accent-deep);
+    background: transparent;
+    color: var(--accent-deep);
+  }
+
+  .button--primary {
+    border-color: var(--accent-deep);
+    background: var(--accent-deep);
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: var(--text);
+      border-color: var(--text);
+    }
+  }
+
+  .button--secondary {
+    border-color: var(--accent-deep);
+    background: var(--card);
+    color: var(--accent-deep);
+
+    &:hover:not(:disabled) {
+      background: var(--accent-bg);
+    }
+  }
+
+  .button--ghost {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text);
+
+    &:hover:not(:disabled) {
+      background: var(--cream-2);
+    }
+  }
+
+  .button--danger {
+    border-color: var(--danger);
+    background: var(--card);
+    color: var(--danger);
+
+    &:hover:not(:disabled) {
+      background: var(--danger);
+      color: #fff;
+    }
+  }
+}

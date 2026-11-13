@@ -1,3 +1,7 @@
+@use '../../shared/buttons' as *;
+
+@include feasly-button-classes;
+
 .calibration {
   max-width: 72rem;
   margin: 0 auto;
