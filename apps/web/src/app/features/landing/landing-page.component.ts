@@ -203,9 +203,9 @@ export class LandingPageComponent implements OnInit {
   }
 
   /**
-   * Submit button / Enter with no highlighted suggestion: take the top
-   * suggestion if there is one, otherwise nudge for a longer query or a
-   * pick from the suggestions. Never a dead end — something always
+   * Submit button / Enter with no highlighted suggestion: take the
+   * suggestion only when it is the sole match (#486), otherwise nudge for a
+   * longer query or a pick from the (re-opened) suggestions. Never a dead end — something always
    * happens — and never a proceed: without a resolved address the funnel
    * cannot continue.
    */

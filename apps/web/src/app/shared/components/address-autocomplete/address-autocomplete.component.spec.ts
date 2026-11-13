@@ -246,6 +246,45 @@ describe('AddressAutocompleteComponent', () => {
     );
   });
 
+  it('pickTop does not auto-pick when several suggestions match (#486)', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    const emitted: PropertyRecord[] = [];
+    component.selected.subscribe((p) => emitted.push(p));
+    await type(fixture, '14 st');
+    expect(component.suggestions().length).toBeGreaterThan(1);
+    expect(component.pickTop()).toBe(false);
+    expect(component.status()).toBe('idle');
+    expect(component.query.value).toBe('14 st');
+    expect(emitted).toEqual([]);
+  });
+
+  it('pickTop auto-picks when exactly one suggestion matches (#486)', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    const emitted: PropertyRecord[] = [];
+    component.selected.subscribe((p) => emitted.push(p));
+    await type(fixture, '222 7');
+    expect(component.suggestions().length).toBe(1);
+    expect(component.pickTop()).toBe(true);
+    await awaitSearchSettled(fixture);
+    expect(emitted.length).toBe(1);
+    expect(emitted[0].address).toContain('222 7 Ave NE');
+  });
+
+  it('nudgeOnSubmit re-opens a closed list with several matches and shows the select hint (#486)', async () => {
+    const fixture = create();
+    const component = fixture.componentInstance;
+    await type(fixture, '14 st');
+    // Clicking the CTA blurs the input, which closes the list.
+    component.onBlur();
+    expect(component.open()).toBe(false);
+    component.nudgeOnSubmit();
+    fixture.detectChanges();
+    expect(component.open()).toBe(true);
+    expect(component.selectionHint()).toContain('suggestions');
+  });
+
   it('nudgeOnSubmit shows the empty hint for queries under 3 chars', async () => {
     const fixture = create();
     const component = fixture.componentInstance;
