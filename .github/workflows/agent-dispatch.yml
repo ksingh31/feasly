@@ -18,6 +18,7 @@ concurrency:
 permissions:
   contents: read
   issues: write
+  pull-requests: read # watchdog lists agent PRs
   actions: write # gh workflow run agent-dev.yml
 
 jobs:
@@ -32,6 +33,15 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      # Hourly: catch stalled claims / stale PRs within the hour, not twice a day.
+      - name: Watchdog (scheduled runs only)
+        if: github.event_name == 'schedule'
+        run: node tools/agents/watchdog.mjs --out /tmp/watchdog-summary.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_CLAIM_STALL_HOURS: ${{ vars.AGENT_CLAIM_STALL_HOURS }}
+          AGENT_PR_STALE_HOURS: ${{ vars.AGENT_PR_STALE_HOURS }}
+          AGENT_CI_RED_HOURS: ${{ vars.AGENT_CI_RED_HOURS }}
       - run: node tools/agents/dispatch.mjs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
