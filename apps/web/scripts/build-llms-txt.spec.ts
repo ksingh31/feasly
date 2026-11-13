@@ -55,10 +55,10 @@ describe('build-llms-txt (SEO-07)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'llms-'));
     const { llmsTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
 
-    // Beltline: avg assessed $607,351 per the checked-in aggregates JSON.
+    // Beltline: avg assessed $609,901 per the checked-in aggregates JSON.
     // If the aggregates regenerate, this test reads the same source so it stays green;
     // it fails only if llms.txt drifts from the source.
-    expect(llmsTxt).toContain('$607,351');
+    expect(llmsTxt).toContain('$609,901');
   });
 
   it('all 40 community figures match the community page rendering (AC4 parity)', () => {
