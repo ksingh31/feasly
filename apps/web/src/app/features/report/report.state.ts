@@ -13,6 +13,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
+import { ChooseProjectType, SelectProperty, UpdateInputs, UpdateRenoInputs } from '../wizard/wizard.actions';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, SetPartnerView, SetReportToken, ToggleStep, UnlockReport } from './report.actions';
 
 /** Loading lifecycle for the report page. */
@@ -435,10 +436,58 @@ export class ReportState {
       switchMap((snapshot) => this.withNarrative(token, snapshot)),
       // The backend owns the version here (append-only snapshot versions).
       tap((snapshot) => this.setSnapshot(ctx, snapshot)),
+      // Issue #484: the snapshot, not this browser's wizard state, is the
+      // basis of a token-loaded report — hydrate property + inputs from it.
+      switchMap((snapshot) => this.hydrateWizard(snapshot)),
       catchError(() => {
         this.fail(ctx);
         return EMPTY;
       }),
+    );
+  }
+
+  /**
+   * Hydrates the wizard slice from a token-loaded snapshot (issue #484).
+   *
+   * A magic-link or partner-share link opened on a fresh device has no
+   * wizard state — it lives in the original browser's localStorage — yet
+   * the report header (address), the PDF, and the no-token revise fallback
+   * read property + inputs from the wizard. The snapshot carries the
+   * inputs and the property's `addressKey`; the property record itself
+   * comes from the same `GET /properties/{addressKey}` the address step
+   * uses. A property already selected for the same address is reused.
+   *
+   * Best-effort by design: the report itself is already rendered from the
+   * snapshot, so a failed property lookup only leaves the address line
+   * out — it never turns a loaded report into an error.
+   */
+  private hydrateWizard(snapshot: ReportSnapshot): Observable<unknown> {
+    const actions: object[] = [];
+    if (snapshot.projectType === 'renovation' && snapshot.renoInputs) {
+      const reno = snapshot.renoInputs;
+      actions.push(
+        new ChooseProjectType('renovation'),
+        new UpdateRenoInputs({
+          renoType: reno.renoType,
+          renoSqft: reno.renoSqft,
+          tier: reno.tier,
+          underpinning: reno.underpinning,
+        }),
+      );
+    } else {
+      actions.push(new ChooseProjectType('new-build'), new UpdateInputs({ ...snapshot.inputs }));
+    }
+    const addressKey = snapshot.addressKey;
+    const current = this.store.selectSnapshot(WizardState.property);
+    const property$ =
+      !addressKey || current?.addressKey === addressKey
+        ? of(null)
+        : this.api.getProperty(addressKey).pipe(catchError(() => of(null)));
+    return property$.pipe(
+      switchMap((property) =>
+        this.store.dispatch(property ? [new SelectProperty(property), ...actions] : actions),
+      ),
+      catchError(() => EMPTY),
     );
   }
 

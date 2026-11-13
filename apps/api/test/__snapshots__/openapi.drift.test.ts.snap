@@ -1144,6 +1144,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "ReportSnapshot": {
         "properties": {
+          "addressKey": {
+            "description": "Property the estimate was run for — lets a fresh device hydrate the report",
+            "type": "string",
+          },
           "assumptions": {
             "items": {
               "type": "string",

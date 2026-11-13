@@ -472,6 +472,10 @@ export const ReportSnapshotSchema = z
     snapshotId: z.string().uuid(),
     estimateId: z.string().uuid(),
     leadId: z.string().uuid(),
+    addressKey: z
+      .string()
+      .optional()
+      .describe('Property the estimate was run for — lets a fresh device hydrate the report'),
     inputs: EstimateInputsSchema,
     buildRange: CostRangeSchema,
     totalRange: CostRangeSchema,
