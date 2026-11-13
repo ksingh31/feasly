@@ -648,7 +648,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       submittingLabel: 'Sending…',
       submitError: 'We couldn’t save your details. Please check your connection and try again.',
       retryLabel: 'Try again',
-      backLabel: '← Back to scope',
+      backLabel: '← Back to preview',
+      backLabelComparison: '← Back to comparison',
     },
     analyzing: {
       heading: 'Building your estimate…',
