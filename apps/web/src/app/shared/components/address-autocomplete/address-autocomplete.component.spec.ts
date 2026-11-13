@@ -132,6 +132,39 @@ describe('AddressAutocompleteComponent', () => {
     expect(empty?.textContent).toContain("couldn't find that address");
   });
 
+  describe('aria-controls only references a rendered listbox (#487)', () => {
+    function assertControlsValid(fixture: ComponentFixture<AddressAutocompleteComponent>): void {
+      const controls = inputEl(fixture).getAttribute('aria-controls');
+      if (controls !== null) {
+        expect(fixture.nativeElement.querySelector(`#${controls}`)).not.toBeNull();
+      }
+    }
+
+    it('omits aria-controls before any search', () => {
+      const fixture = create();
+      expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+    });
+
+    it('omits aria-controls in the no-results state', async () => {
+      const fixture = create();
+      await type(fixture, 'zzz nowhere');
+      expect(fixture.nativeElement.querySelector('.ac-empty')).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[role="listbox"]')).toBeNull();
+      expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+    });
+
+    it('points aria-controls at the listbox while it is shown, and drops it when dismissed', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      await type(fixture, '14 st');
+      expect(inputEl(fixture).getAttribute('aria-controls')).toBe(component.listboxId);
+      assertControlsValid(fixture);
+      key(fixture, 'Escape');
+      expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+      assertControlsValid(fixture);
+    });
+  });
+
   describe('Calgary-only gate (reno/05)', () => {
     /** Exact story-pinned copy — the test is the copy lint. */
     const HEADING = 'We only support Calgary right now.';
