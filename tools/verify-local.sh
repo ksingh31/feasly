@@ -12,6 +12,14 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 if [ -d /opt/homebrew/opt/node@22/bin ]; then export PATH="/opt/homebrew/opt/node@22/bin:$PATH"; fi
+# macOS: CI runs on Linux; the infra shell tests use GNU date/sed. Use GNU
+# coreutils when available (brew install coreutils) so results match CI.
+if [ "$(uname)" = "Darwin" ] && [ -d /opt/homebrew/opt/coreutils/libexec/gnubin ]; then
+  export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+fi
+# Use a dedicated npm cache (a global ~/.npm with root-owned dirs breaks
+# `npm ci`). Override by exporting npm_config_cache yourself.
+export npm_config_cache="${npm_config_cache:-${TMPDIR:-/tmp}/feasly-npm-cache}"
 node_major="$(node -p 'process.versions.node.split(".")[0]')"
 if [ "$node_major" != "22" ]; then echo "verify-local: Node 22 required (found $(node -v))" >&2; exit 2; fi
 
@@ -22,6 +30,9 @@ step() {
   if "$@"; then echo "--- ok: $name"; else echo "--- FAIL: $name"; failed+=("$name"); fi
 }
 
+# CI starts from a clean checkout: no stale build output (some lint checks
+# inspect apps/web/dist when it exists).
+rm -rf apps/web/dist
 [ "${1:-}" = "--no-ci" ] || step "npm ci" npm ci
 step "dependency audit (high)" npm audit --audit-level=high
 step "build:configs" npm run build:configs --workspace @feasly/api
