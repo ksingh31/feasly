@@ -1,3 +1,7 @@
+@use '../../shared/buttons' as *;
+
+@include feasly-button-classes;
+
 /**
  * Admin dispute console (billing/01 follow-on, was OPS-009).
  *
