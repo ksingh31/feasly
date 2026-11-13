@@ -174,8 +174,8 @@
                 role="group"
                 [attr.aria-label]="copy.actionsLabel"
               >
-                @if (lead.hasInvoice) {
-                  <!-- Recorded contract: status is locked, badge is read-only. -->
+                @if (isStatusLocked(lead)) {
+                  <!-- Recorded contract (won + invoice): status is locked, badge is read-only. -->
                   <span class="builder-lead-card__locked" role="note">
                     {{ copy.leadsStatusLocked }}
                   </span>
