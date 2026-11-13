@@ -6,17 +6,6 @@
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
     "X-Content-Type-Options": "nosniff"
   },
-  "navigationFallback": {
-    "exclude": [
-      "/api/*",
-      "/assets/*",
-      "/robots.txt",
-      "/sitemap.xml",
-      "/llms.txt",
-      "/llms-full.txt"
-    ],
-    "rewrite": "/index.html"
-  },
   "routes": [
     {
       "route": "/llms.txt",
@@ -29,6 +18,38 @@
       "headers": {
         "Content-Type": "text/plain; charset=utf-8"
       }
+    },
+    {
+      "route": "/estimate/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/unsubscribe/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/error",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/admin",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/admin/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/builder",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/builder/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/r/*",
+      "rewrite": "/index.html"
     },
     {
       "route": "/communities/arbour-lake",
@@ -231,15 +252,21 @@
       "statusCode": 301
     },
     {
+      "route": "/embed/*",
+      "rewrite": "/index.html",
       "headers": {
         "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'self' https://PLACEHOLDER-TENANT.feasly.example; form-action 'self'; base-uri 'self'; object-src 'none'"
-      },
-      "route": "/embed/*"
+      }
+    },
+    {
+      "route": "/embed",
+      "rewrite": "/index.html"
     }
   ],
   "responseOverrides": {
     "404": {
-      "rewrite": "/index.html"
+      "rewrite": "/404.html",
+      "statusCode": 404
     }
   }
 }
