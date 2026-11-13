@@ -41,7 +41,7 @@ export async function communityStatsRefreshTimerHandler(
   // Aggregates only — never community names or assessment internals.
   context.log(
     `community-stats-refresh-timer: cycle complete ` +
-      `(refreshed=${result.refreshed} skipped=${result.skipped} ` +
+      `(refreshed=${result.refreshed} skipped=${result.skipped} pruned=${result.pruned} ` +
       `roll_year=${result.rollYear})`,
   );
 }

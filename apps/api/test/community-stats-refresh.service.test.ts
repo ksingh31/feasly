@@ -58,11 +58,13 @@ function makeDeps(
   overrides: Partial<CommunityStatsRefreshServiceDeps> = {},
 ): CommunityStatsRefreshServiceDeps & {
   upserted: CommunityStatRecord[][];
+  pruneCutoffs: Date[];
   warnings: string[];
   failing: { consecutiveFailures: number; firstFailureAt: Date }[];
   recovered: number;
 } {
   const upserted: CommunityStatRecord[][] = [];
+  const pruneCutoffs: Date[] = [];
   const warnings: string[] = [];
   const failing: { consecutiveFailures: number; firstFailureAt: Date }[] = [];
   let recovered = 0;
@@ -72,9 +74,14 @@ function makeDeps(
       upserted.push([...rows]);
       return rows.length;
     }),
+    deleteRefreshedBefore: vi.fn(async (cutoff: Date) => {
+      pruneCutoffs.push(cutoff);
+      return 0;
+    }),
   };
   return {
     upserted,
+    pruneCutoffs,
     warnings,
     failing,
     get recovered() {
@@ -84,6 +91,7 @@ function makeDeps(
     source: makeSource([]),
     minAssessmentCount: 10,
     alertAfterConsecutiveFailures: 2,
+    pruneMinRows: 1,
     onRefreshFailing: async (ctx) => {
       failing.push(ctx);
     },
@@ -136,6 +144,32 @@ describe('community-stats refresh service', () => {
       slug: 'bridgeland-riverside',
       avgLotSqft: null,
     });
+  });
+
+  it('prunes rows the cycle did not produce, with the cycle timestamp as cutoff (#468)', async () => {
+    const stats = {
+      ...deps.stats,
+      deleteRefreshedBefore: vi.fn(async (cutoff: Date) => {
+        deps.pruneCutoffs.push(cutoff);
+        return 3;
+      }),
+    };
+    const service = createCommunityStatsRefreshService({ ...deps, stats });
+    const result = await service.runRefreshCycle();
+
+    expect(deps.pruneCutoffs).toEqual([new Date('2026-10-01T00:00:00Z')]);
+    expect(result.pruned).toBe(3);
+    expect(deps.warnings.some((w) => w.includes('pruned 3 row(s)'))).toBe(true);
+  });
+
+  it('never prunes when the cycle wrote fewer rows than the safety floor (#468)', async () => {
+    const service = createCommunityStatsRefreshService({ ...deps, pruneMinRows: 3 });
+    const result = await service.runRefreshCycle();
+
+    expect(result.refreshed).toBe(2);
+    expect(result.pruned).toBe(0);
+    expect(deps.pruneCutoffs).toEqual([]);
+    expect(deps.warnings.some((w) => w.includes('prune skipped'))).toBe(true);
   });
 
   it('skips communities below the assessment-count threshold — never zero-filled', async () => {
