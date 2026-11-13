@@ -29,3 +29,6 @@ A verdict — APPROVE, REQUEST_CHANGES, or COMMENT — then findings ranked most
 `file:line`, the concrete failure scenario, and a suggested fix. No style nits unless they break the law.
 If asked to post: `gh pr review <n> --comment --body-file <file>` (a solo account cannot approve its own PR,
 so use `--comment` and state the verdict in the body). Never push commits yourself.
+
+## Local verification (all agents)
+For any non-trivial PR, check it out (`gh pr checkout <n>`) and run `bash tools/verify-local.sh`. Put the result (PASS, or the failing steps) in your summary review; a FAIL means `Verdict: REQUEST_CHANGES` with the failing step named. Also read `gh pr checks <n>` — a red required check is never APPROVE.

@@ -1,7 +1,10 @@
 # Agent pipeline — PR reviewer. Reviews every trusted PR as it opens or
-# updates, posts inline comments + a verdict review, then (deterministically,
-# not by the model) enables auto-merge when the verdict is APPROVE and no
-# sensitive paths are touched. Auto-merge still waits for required checks.
+# updates, posts inline comments + a verdict review, then runs the
+# deterministic merge gate (tools/agents/merge-gate.mjs from main) itself —
+# inside the action step, because the action revokes its Claude App token
+# when the step ends and only that token's merges trigger CD. The gate, not
+# the model, decides: auto-merge only on APPROVE without owner-gated paths,
+# and GitHub still waits for the required checks.
 name: Agent · Review
 
 on:
@@ -69,20 +72,10 @@ jobs:
             with `Verdict: APPROVE` or `Verdict: REQUEST_CHANGES` or `Verdict: NEEDS_KARAN`.
             Use NEEDS_KARAN for pricing/engine parameters, legal copy, billing, Azure spend, or destructive data changes.
             Return the same verdict in the structured output.
+            Finally, run exactly once: `node .trusted/tools/agents/merge-gate.mjs ${{ env.PR }} <VERDICT>`
+            (the deterministic gate: it enables auto-merge only for APPROVE without owner-gated paths).
           claude_args: |
             --model claude-opus-5-5
             --max-turns 60
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Glob,Grep,Write"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(node .trusted/tools/agents/merge-gate.mjs:*),Read,Glob,Grep,Write"
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","NEEDS_KARAN"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
-      - name: Gate auto-merge
-        # Skips cleanly when the review produced no verdict (e.g. the action
-        # skipped itself on the PR that first adds this workflow).
-        if: steps.claude.outputs.structured_output != '' && steps.claude.outputs.github_token != ''
-        env:
-          # Claude App token: merges it performs trigger CD (GITHUB_TOKEN merges would not).
-          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
-          STRUCTURED: ${{ steps.claude.outputs.structured_output }}
-        run: |
-          VERDICT=$(node -e 'try { process.stdout.write(JSON.parse(process.env.STRUCTURED).verdict ?? "") } catch { }')
-          if [ -z "$VERDICT" ]; then echo "No verdict in structured output — nothing to gate."; exit 0; fi
-          node .trusted/tools/agents/merge-gate.mjs "$PR" "$VERDICT"

@@ -28,3 +28,6 @@ A plan the devs can execute without guessing:
 - You may edit docs (`docs/**`, ADRs, story files). Do not write application code.
 - Prefer the simpler option; record any deviation from CODING_PATTERNS in that file, never drift silently.
 - Anything that adds Azure cost: flag it as needing Karan's explicit approval.
+
+## Local verification (all agents)
+Before pushing any change (docs, ADRs, story files), run `bash tools/verify-local.sh` and push only on `VERIFY: PASS`. If a PR you opened fails CI, reproduce locally, fix, re-verify, push — until it's green and merged.
