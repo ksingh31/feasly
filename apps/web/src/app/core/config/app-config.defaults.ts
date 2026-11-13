@@ -660,7 +660,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       statusActive: 'In progress',
       statusDone: 'Done',
       statusError: 'Failed',
-      errorHeading: 'We couldn’t build your estimate',
+      errorHeading: 'We couldn’t run your estimate',
       errorBody: 'Something went wrong on our end. Nothing was lost — please try again.',
       retryLabel: 'Try again',
       backLabel: '← Back to your project details',
