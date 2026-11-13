@@ -426,7 +426,25 @@ export const routes: Routes = [
               (await import('./features/admin/admin-invoices.state'))
                 .adminInvoicesStateProvider,
           ),
+          // The reused manage modal reads BillingHealthState (#472):
+          // without this, opening Manage on a deep-linked invoice threw
+          // and crashed out of the admin shell.
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
         ],
+      },
+      // In-shell error page (#472): uncaught failures on admin routes land
+      // here (via GlobalErrorHandler) so admins keep the admin nav instead
+      // of the public /error page.
+      {
+        path: 'error',
+        loadComponent: () =>
+          import('./features/admin/admin-error.component').then(
+            (m) => m.AdminErrorComponent,
+          ),
       },
       // Admin funnel dashboard (admin/07): Karan's conversion visibility —
       // per-step counts + conversion %, date-range + tenant filters. Lives
