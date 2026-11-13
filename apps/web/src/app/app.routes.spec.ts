@@ -8,7 +8,16 @@
  */
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import {
+  type ActivatedRouteSnapshot,
+  type CanActivateFn,
+  provideRouter,
+  Router,
+  RouterOutlet,
+  type RouterStateSnapshot,
+  type Routes,
+} from '@angular/router';
+import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from './app.routes';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
@@ -81,5 +90,71 @@ describe('wizard deep-link guards', () => {
       const route = routes.find((r) => r.path === path);
       expect(route?.canActivate).toContain(mod.wizardPropertyGuard);
     }
+  });
+});
+
+/**
+ * #472: the invoice detail page reuses the billing page's manage modal,
+ * which reads BillingHealthState. The state is lazy-registered per route,
+ * so every route rendering the modal must carry billingHealthStateProvider
+ * — otherwise opening Manage threw and crashed out of the admin shell.
+ * These tests run the route's real canActivate guards (the lazyProviders)
+ * against a root store WITHOUT the state, mirroring production.
+ */
+describe('admin billing routes register BillingHealthState', () => {
+  function adminChildren(): Routes {
+    const admin = routes.find((r) => r.path === 'admin');
+    expect(admin?.children).toBeDefined();
+    return admin?.children ?? [];
+  }
+
+  async function activate(path: string): Promise<Store> {
+    TestBed.resetTestingModule();
+    const { AdminBillingApiService } = await import(
+      './features/admin/admin-billing-api.service'
+    );
+    const { BuilderInvoicesApiService } = await import(
+      './features/builder/builder-invoices-api.service'
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        provideStore([]),
+        { provide: AdminBillingApiService, useValue: {} },
+        { provide: BuilderInvoicesApiService, useValue: {} },
+      ],
+    });
+    const route = adminChildren().find((r) => r.path === path);
+    expect(route).toBeDefined();
+    const guards = (route?.canActivate ?? []) as CanActivateFn[];
+    for (const guard of guards) {
+      const result = await TestBed.runInInjectionContext(() =>
+        guard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      );
+      expect(result).toBe(true);
+    }
+    return TestBed.inject(Store);
+  }
+
+  it.each(['billing', 'billing/invoices/:id'])(
+    "'%s' makes the manage modal's state selectable",
+    async (path) => {
+      const store = await activate(path);
+      const { BillingHealthState } = await import(
+        './features/admin/billing-health.state'
+      );
+      expect(() =>
+        store.selectSnapshot(BillingHealthState.invoiceFeedback),
+      ).not.toThrow();
+      expect(store.selectSnapshot(BillingHealthState.invoiceFeedback)).toBeNull();
+    },
+  );
+
+  it('registers the in-shell admin error route', async () => {
+    const route = adminChildren().find((r) => r.path === 'error');
+    expect(route?.loadComponent).toBeDefined();
+    const { AdminErrorComponent } = await import(
+      './features/admin/admin-error.component'
+    );
+    expect(await route?.loadComponent?.()).toBe(AdminErrorComponent);
   });
 });

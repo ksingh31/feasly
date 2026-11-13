@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { AdminUser } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
+  CloseDeactivateAdminUser,
   CloseDeleteAdminUser,
   CloseEditAdminUser,
   CloseInviteAdminUser,
@@ -14,6 +15,7 @@ import {
   DismissAdminUsersNotice,
   InviteAdminUser,
   LoadAdminUsers,
+  OpenDeactivateAdminUser,
   OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
@@ -189,6 +191,38 @@ describe('AdminUsersState', () => {
       .flush({ ...USER_A, status: 'active' });
     await done.toPromise();
     expect(store.selectSnapshot(AdminUsersState.users)[0]?.status).toBe('active');
+  });
+
+  it('#473: opens/closes the deactivate confirmation and closes it when the request settles', async () => {
+    const load = store.dispatch(new LoadAdminUsers());
+    httpMock.expectOne(LIST_URL).flush({ users: [USER_A], total: 1, limit: 50, offset: 0 });
+    await load.toPromise();
+
+    // Opening/cancelling never calls the API.
+    await store.dispatch(new OpenDeactivateAdminUser(USER_A.id)).toPromise();
+    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBe(USER_A.id);
+    await store.dispatch(new CloseDeactivateAdminUser()).toPromise();
+    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
+    httpMock.expectNone(() => true);
+
+    // Success closes the confirmation.
+    store.dispatch(new OpenDeactivateAdminUser(USER_A.id));
+    let done = store.dispatch(new DeactivateAdminUser(USER_A.id));
+    httpMock
+      .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_A.id}`) && r.method === 'PATCH')
+      .flush({ ...USER_A, status: 'disabled' });
+    await done.toPromise();
+    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
+
+    // Failure closes it too; the error is tagged to the row.
+    store.dispatch(new OpenDeactivateAdminUser(USER_A.id));
+    done = store.dispatch(new DeactivateAdminUser(USER_A.id));
+    httpMock
+      .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_A.id}`) && r.method === 'PATCH')
+      .flush({ message: 'Nope.' }, { status: 409, statusText: 'Conflict' });
+    await done.toPromise().catch(() => undefined);
+    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
+    expect(store.selectSnapshot(AdminUsersState.updateErrorUserId)).toBe(USER_A.id);
   });
 
   it('deletes a pending user and removes the row', async () => {

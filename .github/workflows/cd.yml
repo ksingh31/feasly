@@ -29,8 +29,12 @@ on:
 
 # Avoid overlapping deploys: one CD run at a time, never cancel an in-flight
 # deploy (a cancelled half-deploy is worse than a queued one).
+# One group per PR (preview deploy/close) and one serialized group for main/manual
+# deploys. A single global group made GitHub drop older *pending* runs whenever
+# several PRs were active — including the 'closed' run that deletes a merged PR's
+# SWA preview, so previews piled up and hit Azure's 3-environment cap (#550).
 concurrency:
-  group: feasly-cd
+  group: feasly-cd-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
   cancel-in-progress: false
 
 # OIDC into Azure requires id-token: write. contents: read is for checkout.

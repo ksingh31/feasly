@@ -1,0 +1,9 @@
+<section class="admin-error" role="alert" aria-labelledby="admin-error-title">
+  <p class="admin-error__code">Error</p>
+  <h1 id="admin-error-title">Something went wrong on our end.</h1>
+  <p class="admin-error__body">Try again in a moment, or head back to the admin home.</p>
+  <div class="admin-error__actions">
+    <button type="button" class="admin-error__cta" (click)="tryAgain()">Try again</button>
+    <a class="admin-error__link" routerLink="/admin">Back to admin home →</a>
+  </div>
+</section>

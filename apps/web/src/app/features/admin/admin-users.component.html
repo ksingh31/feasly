@@ -102,7 +102,7 @@
                     <button
                       type="button"
                       class="users-page__danger-link"
-                      (click)="deactivate(user)"
+                      (click)="openDeactivate(user, $event)"
                       [disabled]="updating() || isSoleStaffAdmin(user)"
                       [attr.aria-describedby]="isSoleStaffAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
                     >
@@ -342,6 +342,46 @@
           [disabled]="updating()"
         >
           {{ updating() ? 'Saving…' : 'Save organizations' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Deactivate confirmation (#473): names the user and the consequence;
+     Cancel is focused by default. -->
+@if (deactivatingUser(); as deactivating) {
+  <div class="users-page__overlay" (click)="closeDeactivate()">
+    <div
+      class="users-page__modal"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="deactivate-title"
+      aria-describedby="deactivate-desc"
+      (click)="$event.stopPropagation()"
+      (keydown.escape)="closeDeactivate()"
+    >
+      <h2 id="deactivate-title">Deactivate {{ deactivating.name }}?</h2>
+      <p id="deactivate-desc" class="users-page__modal-sub">
+        {{ deactivating.name }} ({{ deactivating.email }}) will be signed out
+        everywhere immediately and won't be able to sign in until an admin
+        reactivates them.
+      </p>
+      <div class="users-page__modal-actions">
+        <button
+          #deactivateCancel
+          type="button"
+          (click)="closeDeactivate()"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="users-page__danger"
+          (click)="confirmDeactivate()"
+          [disabled]="updating()"
+        >
+          {{ updating() ? 'Deactivating…' : 'Deactivate user' }}
         </button>
       </div>
     </div>
