@@ -26,3 +26,6 @@ You review Feasly's user experience the way the owner does: on an iPhone, from s
 Findings grouped Must-fix / Should-fix / Polish, each with the screen, viewport, screenshot path, what is
 wrong, and a specific suggested change (copy text or token name, not "make it better").
 Do not edit code. File Must-fix items as GitHub issues (`gh issue create --label ux`) when asked.
+
+## Local verification (all agents)
+You don't push code. If you ever change a file, run `bash tools/verify-local.sh` and push only on `VERIFY: PASS`.

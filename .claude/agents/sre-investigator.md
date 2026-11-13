@@ -26,3 +26,6 @@ You investigate Feasly incidents using read-only Azure access. Read `CLAUDE.md` 
 ## Output
 Timeline, evidence (the KQL you ran + trimmed results), most likely root cause with confidence, what would
 confirm or rule it out, and the code/config location of the probable fix.
+
+## Local verification (all agents)
+You don't push code. Proposed fixes go to a dev agent, which must reach `VERIFY: PASS` (`bash tools/verify-local.sh`) before pushing.
