@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
+import aggregates from '../../../content/data/community-aggregates.json';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
@@ -83,8 +84,13 @@ describe('ComparisonState', () => {
     expect(result?.inputs).toEqual({ sqft: 2200, tier: 'premium' });
 
     const stats = store.selectSnapshot(ComparisonState.stats);
-    expect(stats['beltline']?.avg_assessed_value).toBe(609901);
-    expect(stats['panorama-hills']?.avg_assessed_value).toBe(600433);
+    // Expected values come from the checked-in snapshot so a routine data
+    // refresh never breaks this spec (#469).
+    const fixture = (slug: string) => aggregates.communities.find((c) => c.slug === slug)?.avgAssessedValue;
+    expect(fixture('beltline')).toBeGreaterThan(0);
+    expect(fixture('panorama-hills')).toBeGreaterThan(0);
+    expect(stats['beltline']?.avg_assessed_value).toBe(fixture('beltline'));
+    expect(stats['panorama-hills']?.avg_assessed_value).toBe(fixture('panorama-hills'));
 
     // Exactly one lowest-land flag from the API.
     expect(result?.rowSets.filter((r) => r.lowestLand)).toHaveLength(1);
