@@ -13,6 +13,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { StoreLeadResult, WizardState } from '../wizard';
+import type { WizardStep } from './wizard.actions';
 import { SetReportToken } from '../report/report.actions';
 import { ComparisonLeadSubmitted, ComparisonState } from '../compare';
 import { AnalyticsService } from '../consent';
@@ -149,9 +150,26 @@ export class GatePageComponent implements OnInit {
     return !!control && control.invalid && (control.touched || control.dirty);
   }
 
-  /** Back-bar target: comparison leads return to compare, wizard leads to scope. */
+  /**
+   * Back-bar target (#485): comparison leads return to compare; wizard leads
+   * return to the preview they just saw (the gate is entered from it).
+   */
   protected backLink(): string {
-    return this.isComparisonFlow ? '/estimate/compare' : '/estimate/scope';
+    return this.isComparisonFlow ? '/estimate/compare' : '/estimate/preview';
+  }
+
+  /**
+   * Wizard step dispatched on back: the preview sits at step 3 (scope moves
+   * the wizard to 3 before it), so returning there keeps step 3; the
+   * comparison flow keeps its prior behavior.
+   */
+  protected backStep(): WizardStep {
+    return this.isComparisonFlow ? 2 : 3;
+  }
+
+  /** Back-bar label matching {@link backLink}. */
+  protected backLabel(): string {
+    return this.isComparisonFlow ? this.copy.backLabelComparison : this.copy.backLabel;
   }
 
   onSubmit(): void {

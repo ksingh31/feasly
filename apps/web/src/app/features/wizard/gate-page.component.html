@@ -6,7 +6,7 @@
           <p>This estimator is temporarily unavailable right now.</p>
         </div>
       } @else {
-        <app-wizard-back [label]="copy.backLabel" [link]="backLink()" [step]="2" />
+        <app-wizard-back [label]="backLabel()" [link]="backLink()" [step]="backStep()" />
         @if (!isComparisonFlow) {
           <app-wizard-steps [current]="3" />
         }
