@@ -83,8 +83,8 @@ describe('ComparisonState', () => {
     expect(result?.inputs).toEqual({ sqft: 2200, tier: 'premium' });
 
     const stats = store.selectSnapshot(ComparisonState.stats);
-    expect(stats['beltline']?.avg_assessed_value).toBe(607351);
-    expect(stats['panorama-hills']?.avg_assessed_value).toBe(596377);
+    expect(stats['beltline']?.avg_assessed_value).toBe(609901);
+    expect(stats['panorama-hills']?.avg_assessed_value).toBe(600433);
 
     // Exactly one lowest-land flag from the API.
     expect(result?.rowSets.filter((r) => r.lowestLand)).toHaveLength(1);

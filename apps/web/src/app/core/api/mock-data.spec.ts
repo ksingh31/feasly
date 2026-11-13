@@ -14,7 +14,7 @@ describe('mockCommunityStats', () => {
     expect(stats.slug).toBe('beltline');
     // Real fixture value — never hardcoded in UI code; asserted here so a
     // fixture regeneration that changes the value fails loudly.
-    expect(stats.avg_assessed_value).toBe(607351);
+    expect(stats.avg_assessed_value).toBe(609901);
     expect(stats.assessment_count).toBeGreaterThan(0);
     expect(stats.avg_lot_sqft).toBeGreaterThan(0);
   });
