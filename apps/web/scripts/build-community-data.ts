@@ -17,8 +17,10 @@
  *
  * Freshness: if the JSON already exists and `generatedAt` is < 30 days old,
  * the script skips regeneration (log + exit 0). Pass `--force` to override.
- * If regeneration fails and the on-disk JSON is stale or missing, the script
- * exits 1 with a "re-run the script" message — this is the CI staleness guard.
+ * If regeneration fails (e.g. data.calgary.ca unreachable) the build never
+ * fails on that alone (#469): a stale on-disk JSON is used and the staleness
+ * is surfaced as a warning (a `::warning::` annotation on GitHub Actions).
+ * Only a missing/unreadable JSON exits 1 — see `snapshot-fallback.ts`.
  *
  * Config (env, all optional):
  *   COMMUNITY_PAGE_LIMIT  top-N communities by record count (default 40)
@@ -43,6 +45,8 @@ import type {
   CommunityAggregate,
   CommunityAggregatesFile,
 } from './community-aggregates.schema.js';
+
+import { reportRefreshFailure, resolveRefreshFailure } from './snapshot-fallback.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
@@ -302,19 +306,18 @@ async function main(): Promise<void> {
   try {
     await run(loadConfig());
   } catch (error) {
-    const age = ageInDays();
-    if (age !== null && age < MAX_AGE_DAYS) {
-      console.warn(
-        `build-community-data: refresh failed (${error instanceof Error ? error.message : String(error)}) — continuing with cached JSON from ${age.toFixed(1)} days ago`,
-      );
-      return;
-    }
-    console.error(
-      `build-community-data: FAILED and no fresh community-aggregates.json is available. ` +
-        `Re-run the script manually once network access is available: tsx apps/web/scripts/build-community-data.ts --force`,
-    );
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
+    // #469: a network failure never fails the build on its own — a stale
+    // snapshot is used with a warning; only a missing/unreadable one fails.
+    const outcome = resolveRefreshFailure({
+      label: 'build-community-data',
+      fileName: 'community-aggregates.json',
+      age: ageInDays(),
+      maxAgeDays: MAX_AGE_DAYS,
+      error,
+      scriptPath: 'apps/web/scripts/build-community-data.ts',
+    });
+    const code = reportRefreshFailure(outcome);
+    if (code !== 0) process.exit(code);
   }
 }
 

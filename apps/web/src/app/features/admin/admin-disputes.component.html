@@ -10,7 +10,7 @@
     </div>
     <button
       type="button"
-      class="disputes-page__retry"
+      class="button button--secondary disputes-page__retry"
       (click)="reload()"
       [disabled]="listStatus() === 'loading'"
     >
@@ -29,7 +29,7 @@
             : '— the invoice is back in review with a fresh 7-day window.'
         }}
       </span>
-      <button type="button" (click)="dismissResolution()">Dismiss</button>
+      <button type="button" class="button button--ghost" (click)="dismissResolution()">Dismiss</button>
     </div>
   }
 
@@ -93,7 +93,7 @@
       } @else if (detailStatus() === 'error') {
         <p class="disputes-page__state disputes-page__state--error" role="alert">
           {{ detailError() ?? 'Could not load dispute detail.' }}
-          <button type="button" (click)="closeDetail()">Close</button>
+          <button type="button" class="button button--ghost" (click)="closeDetail()">Close</button>
         </p>
       } @else if (detail(); as d) {
         <div class="disputes-page__detail-header">
@@ -107,7 +107,7 @@
               }
             </p>
           </div>
-          <button type="button" (click)="closeDetail()">Close</button>
+          <button type="button" class="button button--ghost" (click)="closeDetail()">Close</button>
         </div>
 
         <h3>Immutable evidence snapshot</h3>
@@ -165,7 +165,7 @@
             @if (confirmingAction === null) {
               <button
                 type="button"
-                class="disputes-page__accept"
+                class="button button--primary disputes-page__accept"
                 (click)="armConfirm('accept')"
                 [disabled]="resolving()"
               >
@@ -173,7 +173,7 @@
               </button>
               <button
                 type="button"
-                class="disputes-page__reject"
+                class="button button--danger disputes-page__reject"
                 (click)="armConfirm('reject')"
                 [disabled]="resolving()"
               >
@@ -187,13 +187,13 @@
               </p>
               <button
                 type="button"
-                class="disputes-page__accept"
+                class="button button--primary disputes-page__accept"
                 (click)="acceptSelected()"
                 [disabled]="resolving()"
               >
                 {{ resolving() ? 'Accepting…' : 'Confirm accept' }}
               </button>
-              <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+              <button type="button" class="button button--ghost" (click)="cancelConfirm()" [disabled]="resolving()">
                 Cancel
               </button>
             } @else {
@@ -203,13 +203,13 @@
               </p>
               <button
                 type="button"
-                class="disputes-page__reject"
+                class="button button--danger disputes-page__reject"
                 (click)="rejectSelected()"
                 [disabled]="resolving()"
               >
                 {{ resolving() ? 'Rejecting…' : 'Confirm reject' }}
               </button>
-              <button type="button" (click)="cancelConfirm()" [disabled]="resolving()">
+              <button type="button" class="button button--ghost" (click)="cancelConfirm()" [disabled]="resolving()">
                 Cancel
               </button>
             }

@@ -1,3 +1,7 @@
+@use '../../shared/buttons' as *;
+
+@include feasly-button-classes;
+
 /**
  * Standalone admin invoice detail page (QA admin-console fix 3).
  * Cream background, charcoal text, brass accents — the admin console theme.

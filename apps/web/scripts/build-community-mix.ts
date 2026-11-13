@@ -26,7 +26,8 @@
  *
  * Only the slugs in community-aggregates.json (the 40 page communities) are
  * classified. Like build-community-data.ts: 30-day freshness skip, `--force`
- * to override, fails closed when stale/missing and regeneration fails.
+ * to override; when regeneration fails a stale snapshot is used with a
+ * warning (#469) and only a missing/unreadable snapshot fails the build.
  *
  * Usage: tsx apps/web/scripts/build-community-mix.ts [--force]
  * Wired into the `@feasly/web` prebuild script (after build-community-data).
@@ -44,6 +45,8 @@ import type {
   CommunityMixFile,
   CommunityTypesFile,
 } from './community-mix.schema.js';
+
+import { reportRefreshFailure, resolveRefreshFailure } from './snapshot-fallback.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-mix.json');
@@ -301,19 +304,18 @@ async function main(): Promise<void> {
   try {
     await run(loadConfig());
   } catch (error) {
-    const age = ageInDays();
-    if (age !== null && age < MAX_AGE_DAYS) {
-      console.warn(
-        `build-community-mix: refresh failed (${error instanceof Error ? error.message : String(error)}) — continuing with cached JSON from ${age.toFixed(1)} days ago`,
-      );
-      return;
-    }
-    console.error(
-      `build-community-mix: FAILED and no fresh community-mix.json is available. ` +
-        `Re-run the script manually once network access is available: tsx apps/web/scripts/build-community-mix.ts --force`,
-    );
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
+    // #469: a network failure never fails the build on its own — a stale
+    // snapshot is used with a warning; only a missing/unreadable one fails.
+    const outcome = resolveRefreshFailure({
+      label: 'build-community-mix',
+      fileName: 'community-mix.json',
+      age: ageInDays(),
+      maxAgeDays: MAX_AGE_DAYS,
+      error,
+      scriptPath: 'apps/web/scripts/build-community-mix.ts',
+    });
+    const code = reportRefreshFailure(outcome);
+    if (code !== 0) process.exit(code);
   }
 }
 
