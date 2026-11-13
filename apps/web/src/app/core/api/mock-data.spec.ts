@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ComparisonEstimateRequest } from '@feasly/contracts';
+import aggregates from '../../../content/data/community-aggregates.json';
 import { mockCommunityStats, mockComparisonEstimate } from './mock-data';
+
+/** Expected value read from the checked-in snapshot, so a routine refresh (#469) never breaks this spec. */
+function fixtureAssessed(slug: string): number {
+  const row = aggregates.communities.find((c) => c.slug === slug);
+  if (!row) throw new Error(`fixture missing community ${slug}`);
+  return row.avgAssessedValue;
+}
 
 /**
  * Comparison mock conformance (NBH-03): the mock stats carry the real
@@ -12,9 +20,11 @@ describe('mockCommunityStats', () => {
   it('returns the real assessed value from the City aggregates fixture', () => {
     const stats = mockCommunityStats('beltline');
     expect(stats.slug).toBe('beltline');
-    // Real fixture value — never hardcoded in UI code; asserted here so a
-    // fixture regeneration that changes the value fails loudly.
-    expect(stats.avg_assessed_value).toBe(609901);
+    // Real fixture value — never hardcoded in UI code. Read from the snapshot
+    // (not pinned) so a routine data refresh keeps this green (#469).
+    expect(stats.avg_assessed_value).toBe(fixtureAssessed('beltline'));
+    expect(Number.isInteger(stats.avg_assessed_value)).toBe(true);
+    expect(stats.avg_assessed_value).toBeGreaterThan(0);
     expect(stats.assessment_count).toBeGreaterThan(0);
     expect(stats.avg_lot_sqft).toBeGreaterThan(0);
   });

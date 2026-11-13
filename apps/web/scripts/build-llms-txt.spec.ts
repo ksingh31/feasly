@@ -55,10 +55,16 @@ describe('build-llms-txt (SEO-07)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'llms-'));
     const { llmsTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
 
-    // Beltline: avg assessed $609,901 per the checked-in aggregates JSON.
-    // If the aggregates regenerate, this test reads the same source so it stays green;
-    // it fails only if llms.txt drifts from the source.
-    expect(llmsTxt).toContain('$609,901');
+    // Beltline's avg assessed value, read from the checked-in aggregates JSON —
+    // a routine data refresh keeps this green (#469); it fails only if llms.txt
+    // drifts from the source. Formatting matches build-llms-txt (thousands commas).
+    const aggregates = JSON.parse(
+      readFileSync(join(DATA_DIR, 'community-aggregates.json'), 'utf-8'),
+    ) as { communities: Array<{ slug: string; avgAssessedValue: number }> };
+    const beltline = aggregates.communities.find((c) => c.slug === 'beltline');
+    expect(beltline).toBeDefined();
+    const expected = '$' + Math.round(beltline?.avgAssessedValue ?? 0).toLocaleString('en-US');
+    expect(llmsTxt).toContain(expected);
   });
 
   it('all 40 community figures match the community page rendering (AC4 parity)', () => {
