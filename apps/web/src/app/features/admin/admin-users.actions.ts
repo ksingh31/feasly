@@ -46,6 +46,20 @@ export class UpdateAdminUser {
   ) {}
 }
 
+/**
+ * Open the deactivate confirmation for a user (#473) — deactivation signs
+ * them out everywhere, so it is never a one-click action.
+ */
+export class OpenDeactivateAdminUser {
+  static readonly type = '[AdminUsers] Open deactivate';
+  constructor(readonly id: string) {}
+}
+
+/** Close the deactivate confirmation without changing the user. */
+export class CloseDeactivateAdminUser {
+  static readonly type = '[AdminUsers] Close deactivate';
+}
+
 /** Convenience wrapper: deactivate a user (their sessions are revoked immediately). */
 export class DeactivateAdminUser {
   static readonly type = '[AdminUsers] Deactivate';

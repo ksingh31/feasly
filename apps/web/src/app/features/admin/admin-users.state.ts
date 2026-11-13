@@ -11,6 +11,7 @@ import type {
 } from '@feasly/contracts';
 import { AdminUsersApiService } from './admin-users-api.service';
 import {
+  CloseDeactivateAdminUser,
   CloseDeleteAdminUser,
   CloseEditAdminUser,
   CloseInviteAdminUser,
@@ -19,6 +20,7 @@ import {
   DismissAdminUsersNotice,
   InviteAdminUser,
   LoadAdminUsers,
+  OpenDeactivateAdminUser,
   OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
@@ -56,6 +58,11 @@ export interface AdminUsersStateModel {
    * banner. Null for drawer-save failures (shown inside the drawer).
    */
   updateErrorUserId: string | null;
+  /**
+   * #473: user whose deactivate confirmation is open. Cleared on cancel
+   * and when the deactivate request settles (success or failure).
+   */
+  deactivatingId: string | null;
   /** Delete confirmation state. */
   deletingId: string | null;
   deleting: boolean;
@@ -78,6 +85,7 @@ const defaults: AdminUsersStateModel = {
   updating: false,
   updateError: null,
   updateErrorUserId: null,
+  deactivatingId: null,
   deletingId: null,
   deleting: false,
   deleteError: null,
@@ -159,6 +167,11 @@ export class AdminUsersState {
   @Selector()
   static updateErrorUserId(state: AdminUsersStateModel): string | null {
     return state.updateErrorUserId;
+  }
+
+  @Selector()
+  static deactivatingId(state: AdminUsersStateModel): string | null {
+    return state.deactivatingId;
   }
 
   @Selector()
@@ -295,6 +308,24 @@ export class AdminUsersState {
     );
   }
 
+  @Action(OpenDeactivateAdminUser)
+  openDeactivate(
+    ctx: StateContext<AdminUsersStateModel>,
+    action: OpenDeactivateAdminUser,
+  ): void {
+    ctx.patchState({
+      deactivatingId: action.id,
+      updateError: null,
+      updateErrorUserId: null,
+      notice: null,
+    });
+  }
+
+  @Action(CloseDeactivateAdminUser)
+  closeDeactivate(ctx: StateContext<AdminUsersStateModel>): void {
+    ctx.patchState({ deactivatingId: null });
+  }
+
   @Action(DeactivateAdminUser)
   deactivate(
     ctx: StateContext<AdminUsersStateModel>,
@@ -419,6 +450,7 @@ export class AdminUsersState {
               updating: false,
               updateError: null,
               updateErrorUserId: null,
+              deactivatingId: null,
               users: ctx
                 .getState()
                 .users.map((u) => (u.id === user.id ? user : u)),
@@ -431,8 +463,10 @@ export class AdminUsersState {
             });
           },
           error: (err: { message?: string }) => {
+            // The confirmation closes; the failure shows inline on the row.
             ctx.patchState({
               updating: false,
+              deactivatingId: null,
               updateErrorUserId: id,
               updateError:
                 err?.message ?? 'Could not change the user. Please try again.',

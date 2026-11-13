@@ -1,4 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  inject,
+  OnInit,
+  viewChild,
+} from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import {
   FormBuilder,
   FormControl,
@@ -15,6 +23,7 @@ import type {
   Builder,
 } from '@feasly/contracts';
 import {
+  CloseDeactivateAdminUser,
   CloseDeleteAdminUser,
   CloseEditAdminUser,
   CloseInviteAdminUser,
@@ -23,6 +32,7 @@ import {
   DismissAdminUsersNotice,
   InviteAdminUser,
   LoadAdminUsers,
+  OpenDeactivateAdminUser,
   OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
@@ -70,6 +80,8 @@ const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
 export class AdminUsersComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly users = this.store.selectSignal(AdminUsersState.users);
   protected readonly total = this.store.selectSignal(AdminUsersState.total);
@@ -89,6 +101,15 @@ export class AdminUsersComponent implements OnInit {
     AdminUsersState.updateErrorUserId,
   );
   protected readonly deletingId = this.store.selectSignal(AdminUsersState.deletingId);
+  /** #473: user whose deactivate confirmation is open. */
+  protected readonly deactivatingId = this.store.selectSignal(
+    AdminUsersState.deactivatingId,
+  );
+  /** Cancel button in the deactivate confirmation — focused by default. */
+  private readonly deactivateCancel =
+    viewChild<ElementRef<HTMLButtonElement>>('deactivateCancel');
+  /** Row button that opened the deactivate confirmation — focus returns here. */
+  private deactivateInvoker: HTMLElement | null = null;
   protected readonly deleting = this.store.selectSignal(AdminUsersState.deleting);
 
   /** `users:manage` holders only — read-only staff get a read-only table. */
@@ -272,8 +293,44 @@ export class AdminUsersComponent implements OnInit {
 
   // ------------------------------------------------- activate / delete
 
-  protected deactivate(user: AdminUser): void {
+  /**
+   * #473: Deactivate never fires in one click — it opens a confirmation
+   * naming the user and the consequence (signed out everywhere). Cancel is
+   * focused by default so a stray Enter/Space is harmless.
+   */
+  protected openDeactivate(user: AdminUser, event?: Event): void {
+    const target = event?.currentTarget;
+    this.deactivateInvoker = target instanceof HTMLElement ? target : null;
+    this.store.dispatch(new OpenDeactivateAdminUser(user.id));
+    // Render synchronously, then move focus (no timer — deterministic).
+    this.cdr.detectChanges();
+    this.deactivateCancel()?.nativeElement.focus();
+  }
+
+  protected closeDeactivate(): void {
+    this.store.dispatch(new CloseDeactivateAdminUser());
+    this.restoreDeactivateFocus();
+  }
+
+  protected deactivatingUser(): AdminUser | null {
+    const id = this.deactivatingId();
+    return this.users().find((u) => u.id === id) ?? null;
+  }
+
+  protected confirmDeactivate(): void {
+    const user = this.deactivatingUser();
+    if (!user || this.updating()) {
+      return;
+    }
     this.store.dispatch(new DeactivateAdminUser(user.id));
+  }
+
+  private restoreDeactivateFocus(): void {
+    const invoker = this.deactivateInvoker;
+    this.deactivateInvoker = null;
+    if (invoker && this.document.contains(invoker)) {
+      invoker.focus();
+    }
   }
 
   protected reactivate(user: AdminUser): void {
