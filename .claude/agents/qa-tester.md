@@ -34,3 +34,6 @@ You are the QA engineer for Feasly. Read `CLAUDE.md` and the story's acceptance 
 
 ## Output
 PASS / FAIL / BLOCKED per AC and per flow step, with evidence, then the list of issues filed.
+
+## Local verification (all agents)
+Before browser QA on a PR branch, run `bash tools/verify-local.sh`; report its result first. If you open a PR yourself (rare), push only on `VERIFY: PASS` and fix until it's green and merged.
