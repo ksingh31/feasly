@@ -116,6 +116,8 @@ export interface CommunityStatsRefreshResult {
   readonly refreshed: number;
   /** Rows not written: unparseable or below the assessment-count threshold. */
   readonly skipped: number;
+  /** Rows deleted because this cycle no longer produces them (#468). */
+  readonly pruned: number;
   /** Assessment roll the aggregates were computed from. */
   readonly rollYear: string;
   /** When this cycle computed the aggregates. */
@@ -131,6 +133,8 @@ export interface CommunityStatsRefreshServiceDeps {
   readonly minAssessmentCount: number;
   /** From config — failures in a row before the ops alert fires. */
   readonly alertAfterConsecutiveFailures: number;
+  /** From config — prune only when the cycle wrote at least this many rows. */
+  readonly pruneMinRows: number;
   /** Called when the failure streak reaches the alert threshold (admin/06). */
   readonly onRefreshFailing?: (args: {
     readonly consecutiveFailures: number;
@@ -171,6 +175,7 @@ export function createCommunityStatsRefreshService(
     source,
     minAssessmentCount,
     alertAfterConsecutiveFailures,
+    pruneMinRows,
     onRefreshFailing,
     onRefreshRecovered,
     clock = () => new Date(),
@@ -238,6 +243,22 @@ export function createCommunityStatsRefreshService(
 
         const refreshed = await stats.upsertMany(records);
 
+        // Prune rows this definition no longer produces (e.g. communities
+        // with no single-detached homes after the 2026-09-25 R110 switch),
+        // so stale all-property averages are never served (#468). Guarded:
+        // a partial Socrata response below the floor prunes nothing.
+        let pruned = 0;
+        if (refreshed >= pruneMinRows) {
+          pruned = await stats.deleteRefreshedBefore(refreshedAt);
+          if (pruned > 0) {
+            logWarning(`community-stats-refresh: pruned ${pruned} row(s) not produced by roll ${rollYear}`);
+          }
+        } else {
+          logWarning(
+            `community-stats-refresh: prune skipped (${refreshed} rows < floor ${pruneMinRows})`,
+          );
+        }
+
         // Success resets the failure streak.
         if (consecutiveFailures > 0 || wasFailing) {
           consecutiveFailures = 0;
@@ -251,6 +272,7 @@ export function createCommunityStatsRefreshService(
         return {
           refreshed,
           skipped,
+          pruned,
           rollYear,
           refreshedAt,
           consecutiveFailures: 0,

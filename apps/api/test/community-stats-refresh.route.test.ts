@@ -21,6 +21,7 @@ const ADMIN_HEADERS = { 'x-admin-key': 'secret-admin-key' };
 const REFRESH_RESULT = {
   refreshed: 212,
   skipped: 3,
+  pruned: 0,
   rollYear: '2025',
   refreshedAt: new Date('2026-10-01T00:00:00Z'),
   consecutiveFailures: 0,

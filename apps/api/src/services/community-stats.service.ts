@@ -8,7 +8,7 @@
  * DB access lives here (and in composition.ts), never in routes — see
  * test/boundaries.test.ts.
  */
-import { eq } from 'drizzle-orm';
+import { eq, lt } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { communityStats } from '../db/schema';
 import type { CommunityStatRecord } from './community-stats/socrata-aggregates';
@@ -23,6 +23,11 @@ export interface CommunityStatsService {
    * Returns the number of rows written.
    */
   upsertMany(rows: readonly CommunityStatRecord[]): Promise<number>;
+  /**
+   * Delete rows last refreshed before `cutoff` — i.e. communities the
+   * current aggregate definition no longer produces. Returns rows deleted.
+   */
+  deleteRefreshedBefore(cutoff: Date): Promise<number>;
 }
 
 export interface CommunityStatsServiceDeps {
@@ -78,6 +83,14 @@ export function createDrizzleCommunityStatsService(
           });
       }
       return rows.length;
+    },
+
+    async deleteRefreshedBefore(cutoff: Date): Promise<number> {
+      const deleted = await db
+        .delete(communityStats)
+        .where(lt(communityStats.refreshedAt, cutoff))
+        .returning({ slug: communityStats.slug });
+      return deleted.length;
     },
   };
 }

@@ -152,6 +152,7 @@ describe('loadConfig', () => {
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
+        pruneMinRows: 100,
       },
       backupCheck: {
         enabled: false,
