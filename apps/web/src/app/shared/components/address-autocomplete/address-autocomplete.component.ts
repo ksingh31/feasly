@@ -40,7 +40,7 @@ export class AddressAutocompleteComponent {
 
   /** Fires with the resolved property when the user picks a suggestion. */
   readonly selected = output<PropertyRecord>();
-  /** Fires on Enter with no highlighted suggestion (parent decides: pick-top or hint). */
+  /** Fires on Enter with no highlighted suggestion (parent decides: pick the sole match or hint). */
   readonly submitted = output<void>();
 
   /** User-facing strings (config-owned so the no-hardcode tripwire stays green). */
@@ -182,10 +182,16 @@ export class AddressAutocompleteComponent {
     document.getElementById(this.inputId)?.focus();
   }
 
-  /** Picks the top suggestion if one exists. Returns whether it did. */
+  /**
+   * Auto-picks the suggestion only when it is the sole match (#486). With
+   * several matches the first one is just the alphabetically-first, so
+   * picking it could estimate the wrong property — the caller must fall
+   * back to `nudgeOnSubmit()`, which opens the list and asks for a pick.
+   * Returns whether it picked.
+   */
   pickTop(): boolean {
-    const top = this.suggestions()[0];
-    if (!top || this.status() === 'searching') return false;
+    const suggestions = this.suggestions();
+    if (suggestions.length !== 1 || this.status() === 'searching') return false;
     this.choose(0);
     return true;
   }
@@ -213,6 +219,9 @@ export class AddressAutocompleteComponent {
     }
     if (this.status() === 'searching') return;
     if (this.suggestions().length > 0) {
+      // Re-open the list (it may have closed on blur when the CTA was
+      // clicked) so the user can see what to choose from.
+      this.open.set(true);
       this.selectionHint.set(this.config.get('copy').search.selectHint);
       return;
     }
