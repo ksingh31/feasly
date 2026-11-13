@@ -7,6 +7,7 @@ import type {
   PreviewEstimateResponse,
   PropertyRecord,
 } from '@feasly/contracts';
+import type { PreviewCacheEntry } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ChooseProjectType,
@@ -70,6 +71,15 @@ export interface WizardStateModel {
    * Carries no PII, so persisting it via the storage plugin is safe.
    */
   preview: PreviewEstimateResponse | null;
+  /**
+   * Canonical key of the request that produced `preview` (#489). The gate,
+   * analyzing screen and report reuse the cached preview's estimateId when
+   * their request matches, so the lead attaches to the estimate the user saw.
+   * Optional: absent in state persisted by older versions (treated as null).
+   */
+  previewKey?: string | null;
+  /** Embed tenant the cached preview was attributed to (#489). */
+  previewTenantKey?: string | null;
 }
 
 /**
@@ -101,6 +111,8 @@ export interface WizardStateModel {
     },
     step: 1,
     preview: null,
+    previewKey: null,
+    previewTenantKey: null,
   },
 })
 @Injectable()
@@ -190,6 +202,16 @@ export class WizardState implements NgxsOnInit {
     return state.preview;
   }
 
+  /** The cached preview with its request identity (#489 — reuse, don't re-mint). */
+  @Selector()
+  static previewCache(state: WizardStateModel): PreviewCacheEntry {
+    return {
+      preview: state.preview,
+      key: state.previewKey ?? null,
+      tenantKey: state.previewTenantKey ?? null,
+    };
+  }
+
   @Action(SelectProperty)
   selectProperty(ctx: StateContext<WizardStateModel>, action: SelectProperty): void {
     ctx.patchState({ property: action.property });
@@ -243,7 +265,11 @@ export class WizardState implements NgxsOnInit {
 
   @Action(StorePreviewEstimate)
   storePreviewEstimate(ctx: StateContext<WizardStateModel>, action: StorePreviewEstimate): void {
-    ctx.patchState({ preview: action.preview });
+    ctx.patchState({
+      preview: action.preview,
+      previewKey: action.requestKey,
+      previewTenantKey: action.tenantKey,
+    });
   }
 
   @Action(ResetWizard)
@@ -271,6 +297,8 @@ export class WizardState implements NgxsOnInit {
       },
       step: 1,
       preview: null,
+      previewKey: null,
+      previewTenantKey: null,
     });
   }
 }

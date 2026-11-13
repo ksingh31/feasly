@@ -11,8 +11,10 @@ import { API_SERVICE, provideApi } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { GoToStep, LeadState, SelectProperty, StoreLeadResult, WizardState } from '../wizard';
+import { GoToStep, LeadState, SelectProperty, StoreLeadResult, StorePreviewEstimate, WizardState } from '../wizard';
+import { previewRequestKey } from '../../core/api/preview-cache';
 import { ReportState } from '../report/report.state';
+import { EmbedState } from '../embed/embed.state';
 import { AnalyzingPageComponent } from './analyzing-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -98,7 +100,7 @@ describe('AnalyzingPageComponent', () => {
         ]),
         // LeadState + ReportState: the pipeline reads the lead receipt and
         // dispatches SetReportToken for the same-session unlock.
-        provideStore([WizardState, LeadState, ReportState]),
+        provideStore([WizardState, LeadState, ReportState, EmbedState]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -446,6 +448,63 @@ describe('AnalyzingPageComponent', () => {
       expect(fixture.nativeElement.querySelector('.error-card')).toBeNull();
       expect(store.selectSnapshot(WizardState.preview)).toBeNull();
       expect(router.url).toBe('/estimate/reno-coming-soon');
+    });
+  });
+
+  describe('#489: reuses the gate\'s preview instead of re-minting', () => {
+    let propertyCalls: number;
+    let previewCalls: number;
+
+    beforeEach(async () => {
+      propertyCalls = 0;
+      previewCalls = 0;
+      await setup({
+        provide: API_SERVICE,
+        useValue: {
+          getProperty: () => {
+            propertyCalls++;
+            return of(fakeProperty);
+          },
+          getPreviewEstimate: () => {
+            previewCalls++;
+            return of({ ...fakePreview, estimateId: `est-uuid-${previewCalls}` });
+          },
+        },
+      });
+      store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+    });
+
+    it('a matching cached preview skips the property lookup and the estimate call', async () => {
+      const inputs = store.selectSnapshot(WizardState.inputs);
+      store.dispatch(
+        new StorePreviewEstimate(
+          fakePreview,
+          previewRequestKey(buildNewBuildRequest(fakeProperty, inputs)),
+        ),
+      );
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      await pollUrl('/estimate/report');
+      expect(propertyCalls).toBe(0);
+      expect(previewCalls).toBe(0);
+      expect(store.selectSnapshot(WizardState.preview)?.estimateId).toBe('est-mock-2200-standard');
+      expect(store.selectSnapshot(WizardState.previewCache).key).toBe(
+        previewRequestKey(buildNewBuildRequest(fakeProperty, inputs)),
+      );
+    });
+
+    it('a cache for other inputs runs the pipeline and caches the new preview', async () => {
+      store.dispatch(new StorePreviewEstimate(fakePreview, 'stale-key'));
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      await pollUrl('/estimate/report');
+      expect(propertyCalls).toBe(1);
+      expect(previewCalls).toBe(1);
+      const cache = store.selectSnapshot(WizardState.previewCache);
+      expect(cache.preview?.estimateId).toBe('est-uuid-1');
+      expect(cache.key).toBe(
+        previewRequestKey(buildNewBuildRequest(fakeProperty, store.selectSnapshot(WizardState.inputs))),
+      );
     });
   });
 });

@@ -5,6 +5,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
+import { EmbedState } from '../embed/embed.state';
 import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { GoToStep } from './wizard.actions';
@@ -113,13 +114,20 @@ export class PreviewPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/preview');
-    // Re-runs on every visit so the preview always reflects the current
-    // details inputs (e.g. after "← Back to details" edits).
-    this.store.dispatch(new LoadPreview());
+    // Runs on every visit so the preview always reflects the current
+    // details inputs (e.g. after "← Back to details" edits). An unchanged
+    // request reuses the cached preview instead of minting a new estimate
+    // (#489) — the gate attaches the lead to that same estimateId.
+    this.store.dispatch(new LoadPreview(this.tenantKey()));
   }
 
   protected retry(): void {
-    this.store.dispatch(new LoadPreview());
+    this.store.dispatch(new LoadPreview(this.tenantKey()));
+  }
+
+  /** EMB-03: embed tenant for attribution of the minted estimate (null outside an embed). */
+  private tenantKey(): string | null {
+    return this.store.selectSnapshot(EmbedState.tenantKey) ?? null;
   }
 
   /**

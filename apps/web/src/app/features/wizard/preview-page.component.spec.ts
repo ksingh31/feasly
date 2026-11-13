@@ -13,6 +13,7 @@ import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SelectProperty, StorePreviewEstimate, UpdateInputs, WizardState } from '../wizard';
 import { ReportState } from '../report/report.state';
+import { EmbedState } from '../embed/embed.state';
 import { PreviewPageComponent } from './preview-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -78,7 +79,7 @@ describe('PreviewPageComponent', () => {
           { path: 'estimate/details', component: BlankComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
-        provideStore([WizardState, ReportState]),
+        provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
       ],
@@ -183,7 +184,7 @@ describe('PreviewPageComponent loading state', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([{ path: '', component: BlankComponent }]),
-        provideStore([WizardState, ReportState]),
+        provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
       ],
@@ -233,7 +234,7 @@ describe('PreviewPageComponent loading state', () => {
           provideHttpClientTesting(),
           provideApi(),
           providePropertyData(),
-          provideStore([WizardState, ReportState]),
+          provideStore([WizardState, ReportState, EmbedState]),
           provideRouter([]),
         ],
       });
@@ -361,7 +362,7 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([{ path: '', component: BlankComponent }]),
-        provideStore([WizardState, ReportState]),
+        provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),
         { provide: API_SERVICE, useValue: failingApi(message, retryable) },
       ],
