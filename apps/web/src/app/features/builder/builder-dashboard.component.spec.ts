@@ -257,6 +257,53 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     httpMock.verify();
   });
 
+  describe('tappable contact links (#475)', () => {
+    async function renderLead(overrides: Partial<BuilderLeadListResponse['leads'][number]>) {
+      const { fixture, httpMock } = await setup();
+      loadLeads(httpMock, {
+        ...LEADS_RESPONSE,
+        leads: [{ ...LEADS_RESPONSE.leads[0], ...overrides }],
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      return { card: fixture.nativeElement.querySelector('.builder-lead-card') as HTMLElement, httpMock };
+    }
+
+    it('links the phone with tel: (digits only) and the email with mailto:', async () => {
+      const { card, httpMock } = await renderLead({});
+      const phone = card.querySelector('[data-testid="lead-phone-link"]') as HTMLAnchorElement;
+      const email = card.querySelector('[data-testid="lead-email-link"]') as HTMLAnchorElement;
+      expect(phone.getAttribute('href')).toBe('tel:4035550101');
+      expect(phone.textContent?.trim()).toBe('403-555-0101');
+      expect(phone.classList).toContain('builder-lead-card__link');
+      expect(email.getAttribute('href')).toBe('mailto:jane@example.com');
+      expect(email.textContent).toContain('jane@example.com');
+      expect(email.classList).toContain('builder-lead-card__link');
+      httpMock.verify();
+    });
+
+    it('keeps a leading + for international numbers and strips formatting', async () => {
+      const { card, httpMock } = await renderLead({ phone: ' +1 (403) 555-0199 ' });
+      const phone = card.querySelector('[data-testid="lead-phone-link"]') as HTMLAnchorElement;
+      expect(phone.getAttribute('href')).toBe('tel:+14035550199');
+      httpMock.verify();
+    });
+
+    it('trims whitespace from the mailto address', async () => {
+      const { card, httpMock } = await renderLead({ email: ' jane@example.com ' });
+      const email = card.querySelector('[data-testid="lead-email-link"]') as HTMLAnchorElement;
+      expect(email.getAttribute('href')).toBe('mailto:jane@example.com');
+      httpMock.verify();
+    });
+
+    it('renders no phone link when the lead has no phone', async () => {
+      const { card, httpMock } = await renderLead({ phone: null });
+      expect(card.querySelector('[data-testid="lead-phone-link"]')).toBeNull();
+      expect(card.querySelector('[data-testid="lead-email-link"]')).toBeTruthy();
+      httpMock.verify();
+    });
+  });
+
   it('stages a status change without saving; Apply dispatches the PATCH', async () => {
     const { fixture, httpMock } = await setup();
     loadLeads(httpMock, LEADS_RESPONSE);
