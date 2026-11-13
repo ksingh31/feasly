@@ -41,6 +41,9 @@ describe('GlobalErrorHandler', () => {
         provideRouter([
           { path: '', component: StubHomeComponent },
           { path: 'error', component: StubErrorPageComponent },
+          { path: 'admin/login', component: StubHomeComponent },
+          { path: 'admin/billing/invoices/:id', component: StubHomeComponent },
+          { path: 'admin/error', component: StubErrorPageComponent },
         ]),
       ],
     });
@@ -77,5 +80,47 @@ describe('GlobalErrorHandler', () => {
     const navigate = vi.spyOn(router, 'navigate');
     handler.handleError(new Error('boom on the error page'));
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // #472: admin failures stay inside the admin shell — never the public
+  // /error page.
+  describe('inside the admin shell', () => {
+    it('routes an admin failure to the in-shell /admin/error state', async () => {
+      await router.navigateByUrl('/admin/billing/invoices/inv-1');
+      const navigate = vi.spyOn(router, 'navigate');
+      const navigateByUrl = vi.spyOn(router, 'navigateByUrl');
+      handler.handleError(new Error('boom'));
+      await waitForUrl('/admin/error');
+      expect(navigate).not.toHaveBeenCalledWith(['/error'], expect.anything());
+      // The address bar keeps the failing URL so a reload retries it.
+      expect(navigateByUrl).toHaveBeenCalledWith('/admin/error', {
+        skipLocationChange: true,
+      });
+      expect(recovery.failedAction()).not.toBeNull();
+    });
+
+    it('does not loop when the admin error state itself throws', async () => {
+      await router.navigateByUrl('/admin/error');
+      const navigate = vi.spyOn(router, 'navigate');
+      const navigateByUrl = vi.spyOn(router, 'navigateByUrl');
+      handler.handleError(new Error('boom on the admin error page'));
+      expect(navigate).not.toHaveBeenCalled();
+      expect(navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('falls back to /error when the admin error navigation fails', async () => {
+      await router.navigateByUrl('/admin/billing/invoices/inv-1');
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValueOnce(false);
+      handler.handleError(new Error('boom'));
+      await waitForUrl('/error');
+      expect(router.url).toBe('/error');
+    });
+
+    it('keeps the public /error page for admin routes outside the shell', async () => {
+      await router.navigateByUrl('/admin/login');
+      handler.handleError(new Error('boom on login'));
+      await waitForUrl('/error');
+      expect(router.url).toBe('/error');
+    });
   });
 });
