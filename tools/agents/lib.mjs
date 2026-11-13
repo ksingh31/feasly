@@ -59,6 +59,26 @@ export function areaOf(issue) {
   return 'web';
 }
 
+/**
+ * Explicit sequence from the issue body: a line `Order: N` (lower runs first).
+ * Issues without one sort after every ordered issue.
+ */
+export function orderOf(issue) {
+  const m = /^\s*Order:\s*(\d+)\s*$/im.exec(issue.body ?? '');
+  return m ? Number(m[1]) : Number.POSITIVE_INFINITY;
+}
+
+/** Issue numbers named on `Blocked by #a, #b` / `Depends on #a` lines. */
+export function blockersOf(issue) {
+  const out = new Set();
+  for (const line of (issue.body ?? '').split('\n')) {
+    if (/^\s*(blocked by|depends on)\b/i.test(line)) {
+      for (const m of line.matchAll(/#(\d+)/g)) out.add(Number(m[1]));
+    }
+  }
+  return [...out];
+}
+
 /** Bugs first, then priority:high, then oldest. */
 export function priorityOf(issue) {
   return (has(issue, LABELS.bug) ? 0 : 2) + (has(issue, LABELS.priorityHigh) ? 0 : 1);
@@ -72,7 +92,7 @@ export const branchPrefixFor = (issueNumber) => `agent/issue-${issueNumber}-`;
  * @param {{readyIssues: any[], claimedCount: number, openAgentPrCount: number, maxWip?: number}} s
  * @returns {{start: any[], skipped: {number:number, reason:string}[]}}
  */
-export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxWip = DEFAULTS.maxWip }) {
+export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxWip = DEFAULTS.maxWip, openIssueNumbers = null }) {
   const skipped = [];
   const eligible = [];
   for (const issue of readyIssues) {
@@ -83,11 +103,18 @@ export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxW
       skipped.push({ number: issue.number, reason: 'already claimed' });
     } else if (!isTrustedAuthor(issue)) {
       skipped.push({ number: issue.number, reason: 'untrusted author' });
+    } else if (openIssueNumbers && blockersOf(issue).some((n) => openIssueNumbers.has(n))) {
+      skipped.push({ number: issue.number, reason: `blocked by #${blockersOf(issue).filter((n) => openIssueNumbers.has(n)).join(', #')}` });
     } else {
       eligible.push(issue);
     }
   }
-  eligible.sort((a, b) => priorityOf(a) - priorityOf(b) || Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  eligible.sort(
+    (a, b) =>
+      orderOf(a) - orderOf(b) ||
+      priorityOf(a) - priorityOf(b) ||
+      Date.parse(a.createdAt) - Date.parse(b.createdAt),
+  );
   const wip = claimedCount + openAgentPrCount;
   const slots = Math.max(0, maxWip - wip);
   return { start: eligible.slice(0, slots), skipped };

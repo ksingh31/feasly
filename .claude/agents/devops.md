@@ -22,6 +22,12 @@ You are the DevOps engineer for Feasly. Read `CLAUDE.md` (especially "Azure — 
 - Manual SWA deploys: swa-cli 1.1.10 only (2.x broken).
 - Timers: a registered schedule is not proof of execution — check traces in Log Analytics.
 
+## Before every push (non-negotiable)
+Run `bash tools/verify-local.sh` (mirrors CI's required checks). Push or open a PR **only** when it
+ends with `VERIFY: PASS`. If it fails, fix and re-run until it passes. After pushing, check
+`gh pr checks <n>`; if anything required fails, read the log, reproduce locally, fix, re-run
+`verify-local.sh`, push again — repeat until the PR is green and merged.
+
 ## Workflow
 Branch `chore/<slug>` or `fix/<slug>` → change → validate (`az bicep build`, what-if, `actionlint` if available,
 local repro of CI steps) → PR with evidence → report. Do not merge.

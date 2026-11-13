@@ -49,7 +49,14 @@ export function listIssues(label) {
       createdAt: i.created_at,
       state: i.state === 'open' ? 'OPEN' : 'CLOSED',
       url: i.html_url,
+      body: i.body ?? '',
     }));
+}
+
+/** Numbers of all open issues (for Blocked-by checks). */
+export function openIssueNumbers() {
+  const pages = ghJson(['api', `repos/${repoSlug()}/issues?state=open&per_page=100`, '--paginate', '--slurp']) ?? [];
+  return new Set(pages.flat().filter((i) => !i.pull_request).map((i) => i.number));
 }
 
 export function listAgentPrs() {

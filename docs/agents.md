@@ -54,7 +54,9 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
   (The Claude GitHub App cannot push workflow files at all.)
 - **Required checks**: `build`, `lighthouse`, `dependency-audit`, `secrets-scan` (branch protection, strict). Environment checks (`backup-config`, `community-stats-freshness`, `preview (SWA)`) depend on live Azure and never block a PR; on main they become `ops` issues.
 - **WIP cap**: `AGENT_MAX_WIP` (default 2) claimed issues + open agent PRs.
-- **Fix rounds**: `AGENT_MAX_FIX_ROUNDS` (default 3), then `needs:karan`.
+- **Verify before push**: every agent runs `bash tools/verify-local.sh` and pushes only on `VERIFY: PASS`.
+- **Fix until merged**: any failed CI run on an agent/Dependabot PR triggers a fix round (CI triage); each round
+  reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then `needs:karan`.
 - **Requeues**: a claimed issue with no PR for 4h is requeued; after 2 requeues → `needs:karan`.
 - **QA reopen cap**: a bug that fails QA twice goes to `needs:karan`.
 - **Trust**: reviews run only for PRs from collaborators, `claude[bot]`,
