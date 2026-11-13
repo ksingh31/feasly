@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of, throwError, TimeoutError } from 'rxjs';
@@ -86,7 +86,7 @@ describe('GatePageComponent', () => {
     fixture.detectChanges();
   }
 
-  async function setup(apiProvider: unknown = provideApi()): Promise<void> {
+  async function setup(apiProvider: unknown = provideApi(), extraProviders: unknown[] = []): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [GatePageComponent, BlankComponent],
@@ -98,12 +98,15 @@ describe('GatePageComponent', () => {
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },
+          { path: 'estimate/preview', component: BlankComponent },
+          { path: 'estimate/compare', component: BlankComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
         provideStore([WizardState, LeadState, EmbedState, ReportState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
         { provide: AnalyticsService, useValue: { track: vi.fn() } },
+        ...(extraProviders as never[]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -375,6 +378,39 @@ describe('GatePageComponent', () => {
       expect(button.textContent).not.toContain('Sending');
       expect(fixture.nativeElement.querySelector('.form-error .retry')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
+    });
+  });
+
+  describe('#485: back link', () => {
+    function backAnchor(): HTMLAnchorElement {
+      return fixture.nativeElement.querySelector('app-wizard-back a') as HTMLAnchorElement;
+    }
+
+    it('wizard flow: says "Back to preview" and links to /estimate/preview', async () => {
+      await setup();
+      const a = backAnchor();
+      expect(a.textContent).toContain('Back to preview');
+      expect(a.textContent).not.toContain('scope');
+      expect(a.getAttribute('href')).toBe('/estimate/preview');
+    });
+
+    it('wizard flow: clicking returns to the preview and keeps the wizard at step 3', async () => {
+      await setup();
+      backAnchor().click();
+      await pollUrl('/estimate/preview');
+      expect(store.selectSnapshot(WizardState.step)).toBe(3);
+    });
+
+    it('comparison flow: says "Back to comparison" and links to /estimate/compare', async () => {
+      await setup(provideApi(), [
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({ flow: 'comparison' }) } },
+        },
+      ]);
+      const a = backAnchor();
+      expect(a.textContent).toContain('Back to comparison');
+      expect(a.getAttribute('href')).toBe('/estimate/compare');
     });
   });
 

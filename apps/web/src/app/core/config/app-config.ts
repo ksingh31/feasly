@@ -1084,7 +1084,10 @@ export interface AppConfig {
       submittingLabel: string;
       submitError: string;
       retryLabel: string;
+      /** Back-bar label for wizard leads — returns to the preview they just saw. */
       backLabel: string;
+      /** Back-bar label for comparison leads (NBH-03) — returns to the comparison. */
+      backLabelComparison: string;
     };
     /**
      * Analyzing screen (FE-004) copy. Stages describe real pipeline work —
