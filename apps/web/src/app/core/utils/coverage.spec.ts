@@ -152,6 +152,32 @@ describe('pricingCoverageIssue', () => {
     }
   });
 
+  it('accepts compound City designations when any district is single-family (#562)', () => {
+    for (const zoning of [
+      'R-C1,R-CG',
+      'R-C2,R-CG',
+      'R-1N,R-G',
+      'R-1,R-G',
+      'r-c1, r-cg',
+      ' M-C1 , R-CG ',
+      'R-C1,',
+      'DC,M-C2',
+    ]) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBeNull();
+    }
+  });
+
+  it("flags compound designations with no single-family district as 'unsupported-property-type'", () => {
+    for (const zoning of ['M-C1,M-C2', 'C-COR1, I-G', 'M-CG,']) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBe('unsupported-property-type');
+    }
+  });
+
+  it('fails open on a comma-only designation with no district tokens', () => {
+    expect(pricingCoverageIssue(facts({ zoning: ',' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: ' , , ' }), bounds)).toBeNull();
+  });
+
   it('fails open on blank zoning and DC — never blocks on missing data', () => {
     expect(pricingCoverageIssue(facts({ zoning: '' }), bounds)).toBeNull();
     expect(pricingCoverageIssue(facts({ zoning: '   ' }), bounds)).toBeNull();

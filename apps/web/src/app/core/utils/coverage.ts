@@ -93,7 +93,10 @@ export interface PricingCoverageFacts {
   readonly lotSqft: number;
   readonly assessedValue: number;
   readonly isNonResidential: boolean;
-  /** City land-use designation, verbatim (e.g. 'R-C2', 'M-C1'). Blank when unknown. */
+  /**
+   * City land-use designation, verbatim (e.g. 'R-C2', 'M-C1', or a
+   * comma-joined compound like 'R-C1,R-CG'). Blank when unknown.
+   */
   readonly zoning: string;
 }
 
@@ -121,19 +124,27 @@ export type PricingCoverageIssue = 'non-residential' | 'unsupported-property-typ
 
 /**
  * Land-use designations where a single-family home can legally be built,
- * matched case-insensitively against the City `land_use_designation`.
+ * matched case-insensitively against each district token of the City
+ * `land_use_designation`.
  */
 const SINGLE_FAMILY_ZONING = new Set(['R-C1', 'R-C1S', 'R-C2', 'R-CG', 'R-G', 'H-GO', 'DC']);
 
 /**
  * True when the parcel's zoning is outside the single-family set the
- * estimator quotes. Fails open: blank/unknown/missing zoning returns false —
- * never block on missing data.
+ * estimator quotes. The City dataset returns compound designations as a
+ * comma-joined list (e.g. 'R-C1,R-CG', 'R-1N,R-G'); the parcel is supported
+ * when ANY district token is in the set, since a single-detached home is
+ * buildable under that district (#562). Fails open: blank/unknown/missing
+ * zoning (or a list with no non-blank tokens) returns false — never block on
+ * missing data.
  */
 function isUnsupportedPropertyType(zoning: string | null | undefined): boolean {
-  const district = (zoning ?? '').trim().toUpperCase();
-  if (district.length === 0) return false;
-  return !SINGLE_FAMILY_ZONING.has(district);
+  const districts = (zoning ?? '')
+    .split(',')
+    .map((token) => token.trim().toUpperCase())
+    .filter((token) => token.length > 0);
+  if (districts.length === 0) return false;
+  return !districts.some((district) => SINGLE_FAMILY_ZONING.has(district));
 }
 
 export function pricingCoverageIssue(
