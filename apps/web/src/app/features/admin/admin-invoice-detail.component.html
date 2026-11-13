@@ -14,7 +14,7 @@
   @if (detailError(); as err) {
     <div class="invoice-detail__banner invoice-detail__banner--error" role="alert">
       <span>{{ err }}</span>
-      <button type="button" (click)="dismissError()" aria-label="Dismiss error">
+      <button type="button" class="button button--ghost" (click)="dismissError()" aria-label="Dismiss error">
         Dismiss
       </button>
     </div>
@@ -25,7 +25,7 @@
   } @else if (detailStatus() === 'error') {
     <div class="invoice-detail__state invoice-detail__state--error">
       <p>{{ detailError() ?? 'Could not load this invoice.' }}</p>
-      <button type="button" (click)="retry()">Try again</button>
+      <button type="button" class="button button--secondary" (click)="retry()">Try again</button>
     </div>
   } @else if (detail(); as invoice) {
     <header class="invoice-detail__header">

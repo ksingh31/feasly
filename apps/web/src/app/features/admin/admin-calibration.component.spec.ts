@@ -121,6 +121,16 @@ describe('AdminCalibrationComponent', () => {
     expect(proto).not.toContain('freezeVersion');
   });
 
+  it('styles its buttons with the shared button classes (#477)', async () => {
+    const { fixture } = await setup();
+    const el: HTMLElement = fixture.nativeElement;
+    const buttons = Array.from(el.querySelectorAll('button'));
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.classList.contains('button'), button.textContent?.trim()).toBe(true);
+    }
+  });
+
   it('renders the loading state', async () => {
     // The API never resolves, so the component stays in 'loading' after
     // ngOnInit dispatches LoadCalibration.
