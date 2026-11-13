@@ -32,6 +32,7 @@ Ops (04:00 Calgary): read-only Azure health, timers, cost, Bicep drift → ops i
 | `agent-fix.yml` | review REQUEST_CHANGES, CI red > 12h | dev role · Opus | commits on the PR branch |
 | `agent-qa.yml` | CD success on main | qa-tester · Sonnet + Playwright MCP | `qa:passed` / reopen + `qa:failed`, new bugs |
 | `agent-architect.yml` | 13:00 + 01:00 UTC | watchdog script + architect · Fable | requeues, splits, digest issue |
+| `agent-ci-triage.yml` | any failed CI / Lighthouse run | script | stale PR → update/`@dependabot rebase`; agent/Dependabot PR → fix round; main → "main is red" issue |
 | `agent-ops.yml` | 11:00 UTC | devops + sre · Opus, Azure OIDC read-only | `ops` issues, digest comment |
 
 ## Labels
@@ -51,6 +52,7 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
   `.github/workflows`, `tools/agents`, `.claude/`, `CLAUDE.md`, DB migrations,
   `docs/legal`, `packages/cost-engine`, billing/Stripe code, `config/builders`.
   (The Claude GitHub App cannot push workflow files at all.)
+- **Required checks**: `build`, `lighthouse`, `dependency-audit`, `secrets-scan` (branch protection, strict). Environment checks (`backup-config`, `community-stats-freshness`, `preview (SWA)`) depend on live Azure and never block a PR; on main they become `ops` issues.
 - **WIP cap**: `AGENT_MAX_WIP` (default 2) claimed issues + open agent PRs.
 - **Fix rounds**: `AGENT_MAX_FIX_ROUNDS` (default 3), then `needs:karan`.
 - **Requeues**: a claimed issue with no PR for 4h is requeued; after 2 requeues → `needs:karan`.

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  planDispatch, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, MARKERS, DEFAULTS,
+  planDispatch, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -74,6 +74,31 @@ test('agent PR: red required check past grace → fix; stale → rereview; appro
     judgeAgentPr({ pr: { isDraft: false, updatedAt: ago(30), checks: [], reviewDecision: 'APPROVED' }, now: NOW }).action,
     'none',
   );
+});
+
+test('triage: env-only failures never blame the PR', () => {
+  const pr = { number: 1, author: 'ksingh31', labels: ['agent:pr'], behindBy: 0 };
+  assert.equal(triageFailure({ failedJobs: ['community-stats-freshness', 'preview (SWA)'], pr }).action, 'none');
+});
+
+test('triage: stale branches are updated before any fix round', () => {
+  const dep = { number: 2, author: 'dependabot[bot]', labels: [], behindBy: 5 };
+  assert.equal(triageFailure({ failedJobs: ['build'], pr: dep }).action, 'rebase-dependabot');
+  const agent = { number: 3, author: 'claude[bot]', labels: ['agent:pr'], behindBy: 2 };
+  assert.equal(triageFailure({ failedJobs: ['build'], pr: agent }).action, 'update-branch');
+});
+
+test('triage: up-to-date agent/dependabot PRs get a fix round; human PRs a comment', () => {
+  assert.equal(triageFailure({ failedJobs: ['build'], pr: { number: 4, author: 'claude[bot]', labels: ['agent:pr'], behindBy: 0 } }).action, 'fix');
+  assert.equal(triageFailure({ failedJobs: ['lighthouse'], pr: { number: 5, author: 'dependabot[bot]', labels: [], behindBy: 0 } }).action, 'fix');
+  assert.equal(triageFailure({ failedJobs: ['build'], pr: { number: 6, author: 'ksingh31', labels: [], behindBy: 0 } }).action, 'comment');
+});
+
+test('triage: any failure on main opens/updates the main-is-red issue', () => {
+  const r = triageFailure({ failedJobs: ['dependency-audit', 'backup-config'], pr: null });
+  assert.equal(r.action, 'main-issue');
+  assert.deepEqual(r.codeJobs, ['dependency-audit']);
+  assert.deepEqual(r.envJobs, ['backup-config']);
 });
 
 test('sensitive paths hold auto-merge', () => {

@@ -160,6 +160,31 @@ export const SENSITIVE_PATHS = [
   /^config\/builders\//,
 ];
 
+/**
+ * Checks that depend on live Azure state or Azure quotas rather than on the
+ * PR's code. They never block a PR and never trigger a code fix round; when
+ * they fail on main they become `ops` issues.
+ */
+export const ENV_CHECKS = new Set(['backup-config', 'community-stats-freshness', 'preview (SWA)']);
+
+/**
+ * Decide what to do about a failed CI run.
+ * @param {{failedJobs:string[], pr:null|{number:number, author:string, labels:string[], behindBy:number}}} s
+ * @returns {{action:'none'|'rebase-dependabot'|'update-branch'|'fix'|'comment'|'main-issue', codeJobs:string[], envJobs:string[]}}
+ */
+export function triageFailure({ failedJobs, pr }) {
+  const envJobs = failedJobs.filter((j) => ENV_CHECKS.has(j));
+  const codeJobs = failedJobs.filter((j) => !ENV_CHECKS.has(j));
+  if (!pr) return { action: codeJobs.length || envJobs.length ? 'main-issue' : 'none', codeJobs, envJobs };
+  if (codeJobs.length === 0) return { action: 'none', codeJobs, envJobs };
+  const isDependabot = pr.author === 'dependabot[bot]' || pr.author === 'app/dependabot';
+  if (pr.behindBy > 0) {
+    return { action: isDependabot ? 'rebase-dependabot' : 'update-branch', codeJobs, envJobs };
+  }
+  if (isDependabot || (pr.labels ?? []).includes(LABELS.pr)) return { action: 'fix', codeJobs, envJobs };
+  return { action: 'comment', codeJobs, envJobs };
+}
+
 export function sensitiveFiles(paths) {
   return paths.filter((p) => SENSITIVE_PATHS.some((re) => re.test(p)));
 }

@@ -1,0 +1,37 @@
+# Agent pipeline — CI triage (no AI). Every failed CI / Lighthouse run is
+# routed: stale branch → update/rebase, agent or Dependabot PR → fix round,
+# main → the single "main is red" issue (picked up by dev agents).
+name: Agent · CI triage
+
+on:
+  workflow_run:
+    workflows: [CI, Lighthouse]
+    types: [completed]
+
+concurrency:
+  group: agent-ci-triage-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # gh pr update-branch
+  pull-requests: write
+  issues: write
+  actions: write # dispatch agent-fix.yml
+
+jobs:
+  triage:
+    if: vars.AGENTS_ENABLED == 'true' && github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Script from main, never from the failing branch.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          sparse-checkout: tools/agents
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node tools/agents/triage.mjs "${{ github.event.workflow_run.id }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
