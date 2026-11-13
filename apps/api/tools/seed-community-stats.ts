@@ -28,6 +28,10 @@ import {
 import { resolveDatabaseUrl } from './db-url.mjs';
 
 const DATASET = 'https://data.calgary.ca/resource/4bsw-nn7w.json';
+// Mirror the API config defaults (config.ts communityStatsRefresh) so the
+// seed and the timer write exactly the same set of rows.
+const MIN_ASSESSMENTS = Number(process.env.COMMUNITY_STATS_MIN_ASSESSMENTS ?? 10);
+const PRUNE_MIN_ROWS = Number(process.env.COMMUNITY_STATS_PRUNE_MIN_ROWS ?? 100);
 
 async function fetchJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
@@ -67,7 +71,14 @@ async function main(): Promise<void> {
       continue;
     }
     try {
-      records.push(toCommunityStatRecord(parsed.data, refreshedAt));
+      const record = toCommunityStatRecord(parsed.data, refreshedAt);
+      // Same thin-data rule as the refresh timer: never write a community
+      // with too few assessments (#468 — the seed previously had no floor).
+      if (record.assessmentCount < MIN_ASSESSMENTS) {
+        skipped++;
+        continue;
+      }
+      records.push(record);
     } catch {
       skipped++;
     }
@@ -82,6 +93,12 @@ async function main(): Promise<void> {
     const service = createDrizzleCommunityStatsService({ db });
     const written = await service.upsertMany(records);
     console.log(`upserted ${written} community_stats rows`);
+    if (written >= PRUNE_MIN_ROWS) {
+      const pruned = await service.deleteRefreshedBefore(refreshedAt);
+      console.log(`pruned ${pruned} row(s) the current definition no longer produces`);
+    } else {
+      console.log(`prune skipped (${written} rows < floor ${PRUNE_MIN_ROWS})`);
+    }
   } finally {
     await close();
   }

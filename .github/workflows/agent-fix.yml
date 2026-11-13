@@ -1,0 +1,88 @@
+# Agent pipeline — fix round on an agent PR (review asked for changes, or a
+# required check has been red past grace). Capped at AGENT_MAX_FIX_ROUNDS
+# (default 5); beyond that the PR is parked with needs:karan.
+name: Agent · Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+      reason:
+        description: Why a fix round is needed
+        required: false
+        default: review requested changes
+
+concurrency:
+  group: agent-fix-${{ inputs.pr }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+jobs:
+  fix:
+    if: vars.AGENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PR: ${{ inputs.pr }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Round cap
+        id: cap
+        run: |
+          rounds=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[] | select(.body | contains("<!-- agent:fix-round -->"))] | length')
+          max="${{ vars.AGENT_MAX_FIX_ROUNDS || 5 }}"
+          echo "rounds=$rounds max=$max"
+          if [ "$rounds" -ge "$max" ]; then
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs:karan
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "Fix-round cap ($max) reached — parked for Karan."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "<!-- agent:fix-round -->
+          Fix round $((rounds + 1))/$max: ${{ inputs.reason }}"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json headRefName -q .headRefName)" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.cap.outputs.go == 'true'
+        with:
+          ref: ${{ steps.cap.outputs.branch }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        if: steps.cap.outputs.go == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.cap.outputs.go == 'true'
+        run: npm ci && npm run build:configs --workspace @feasly/api
+      - name: Fix
+        if: steps.cap.outputs.go == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Runs are started by our own dispatcher / watchdog / triage scripts.
+          allowed_bots: github-actions,github-actions[bot]
+          prompt: |
+            You are the Feasly dev agent doing a fix round on PR #${{ env.PR }} (branch ${{ steps.cap.outputs.branch }}),
+            running unattended in CI. Read CLAUDE.md and the matching role file in .claude/agents/ (frontend-dev for
+            apps/web, backend-dev for apps/api/packages, devops for infra) and follow it.
+            Reason for this round: ${{ inputs.reason }}.
+            1. Read the PR, every unresolved review comment, and failing checks
+               (`gh pr view ${{ env.PR }} --comments`, `gh pr checks ${{ env.PR }}`, `gh run view <id> --log-failed`).
+            2. Fix every valid point; if you disagree with a comment, reply to it with the reason instead.
+            3. Reproduce the failure locally, fix, and run `bash tools/verify-local.sh --no-ci` until it prints
+               `VERIFY: PASS`. Only then commit and push to the same branch
+               (never force-push, never touch .github/workflows).
+            4. Comment on the PR summarising what changed per comment. The push re-triggers review automatically.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 100
+            --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch"

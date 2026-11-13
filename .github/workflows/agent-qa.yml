@@ -1,0 +1,80 @@
+# Agent pipeline — QA after every successful CD deploy to dev. Tests what
+# that deploy shipped in a real browser (Playwright: desktop, WebKit, 390x844)
+# and files bugs straight back into the queue (bug + agent:ready).
+name: Agent · QA
+
+on:
+  workflow_run:
+    workflows: [CD]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      note:
+        description: What to focus on (optional)
+        required: false
+
+concurrency:
+  group: agent-qa
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: read
+  id-token: write
+
+jobs:
+  qa:
+    if: >-
+      vars.AGENTS_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright browsers don't support yet.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      DEV_URL: https://victorious-meadow-0b295cc1e.6.azurestaticapps.net
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 50
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # Browsers must match the Playwright build the MCP server bundles, or the
+      # MCP can't find them. Read the version from the pinned MCP package.
+      - name: Install Playwright browsers (matching @playwright/mcp)
+        run: |
+          PW=$(npm view @playwright/mcp@0.0.85 dependencies.playwright)
+          echo "Playwright for MCP: $PW"
+          npx -y "playwright@$PW" install --with-deps chromium webkit
+      - name: QA
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the Feasly `qa-tester` agent running unattended in CI after a dev deploy of ${{ env.SHA }}.
+            Read CLAUDE.md and .claude/agents/qa-tester.md first and follow them. Target: ${{ env.DEV_URL }}.
+            ${{ inputs.note }}
+            1. Find what shipped: PRs merged into main since the previous successful CD run
+               (`gh run list --workflow cd.yml --branch main --status success -L 2`, `git log`, `gh pr list --state merged`),
+               and the issues they fixed (`Fixes #n`).
+            2. Health first: `curl -s https://feasly-dev-api-4fhkep.azurewebsites.net/api/health`.
+            3. Test each shipped change against its acceptance criteria in a real browser with the Playwright MCP tools
+               (1440x900 Chromium, WebKit, 390x844 mobile), plus a smoke of the core consumer flow.
+               Use only test data; never submit real personal data; Stripe test mode only.
+            4. For each fixed issue: if it passes, `gh issue edit <n> --add-label qa:passed` and comment the evidence.
+               If it fails, reopen it (`gh issue reopen <n>`), add `qa:failed` + `agent:ready`, and comment repro steps —
+               but if it already has 2+ QA-failure comments, add `needs:karan` instead of `agent:ready`.
+            5. New bugs: search existing issues first (no duplicates), then
+               `gh issue create --label bug --label agent:ready --label area:<web|api|infra> --label size:S`
+               with steps, expected vs actual, viewport/browser, console/network evidence.
+            6. End with a short comment summary on the most recent merged PR.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --max-turns 120
+            --mcp-config '{"mcpServers":{"playwright":{"command":"npx","args":["-y","@playwright/mcp@0.0.85","--headless"]}}}'
+            --allowedTools "mcp__playwright__*,Bash(gh *),Bash(git log:*),Bash(git show:*),Bash(curl:*),Read,Glob,Grep,Write"

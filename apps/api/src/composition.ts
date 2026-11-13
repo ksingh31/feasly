@@ -1473,6 +1473,7 @@ export function createComposition(
       minAssessmentCount: config.communityStatsRefresh.minAssessmentCount,
       alertAfterConsecutiveFailures:
         config.communityStatsRefresh.alertAfterConsecutiveFailures,
+      pruneMinRows: config.communityStatsRefresh.pruneMinRows,
       onRefreshFailing: ({ consecutiveFailures, firstFailureAt }) =>
         opsAlertsService.notifyFailure('community_stats_failed', {
           consecutiveFailures,
