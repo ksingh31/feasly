@@ -129,7 +129,7 @@ describe('CommunityPageComponent', () => {
         slug,
         name: slug.toUpperCase(),
         count: isProfile ? 11642 : 8689,
-        avgAssessedValue: isProfile ? 607351 : 719666,
+        avgAssessedValue: isProfile ? 609901 : 719666,
         avgLotSqft: isProfile ? 0 : 43382,
       },
       range: isProfile
@@ -426,7 +426,7 @@ describe('CommunityPageComponent', () => {
       const html = fixture.nativeElement.innerHTML as string;
       expect(html).toContain('Community property profile');
       // Simplified profile: shows assessed values, not dwelling-mix prose.
-      expect(html).toContain('$607,351');
+      expect(html).toContain('$609,901');
       // Live-bug regression: the lede template holds {name} twice — both
       // must be interpolated, never rendered literally.
       expect(html).not.toContain('{name}');
@@ -445,7 +445,7 @@ describe('CommunityPageComponent', () => {
       const meta = TestBed.inject(Meta);
       const description = meta.getTag('name="description"')?.content ?? '';
       expect(description).toContain('Beltline');
-      expect(description).toContain('$607,351');
+      expect(description).toContain('$609,901');
     });
 
     it('renders assessed values without dwelling-mix bar or build prices', async () => {
@@ -456,13 +456,13 @@ describe('CommunityPageComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('.tier-card').length).toBe(0);
       expect(html).not.toContain('Total investment');
       // Shows the community average assessed value.
-      expect(html).toContain('$607,351');
+      expect(html).toContain('$609,901');
     });
 
     it('shows the real assessed value and dwelling stats', async () => {
       await setup('beltline');
       const html = fixture.nativeElement.innerHTML as string;
-      expect(html).toContain('$607,351');
+      expect(html).toContain('$609,901');
       expect(html).toContain('Homes assessed');
       expect(html).toContain('Most common home type');
       expect(html).toContain('Apartments, condos &amp; townhouses');
