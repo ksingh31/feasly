@@ -1,0 +1,60 @@
+# Agent pipeline — nightly Azure / ops watch (read-only). Logs in with the
+# existing OIDC identity, reviews health, failures, timers, cost and Bicep
+# drift, and files findings as issues. It never changes Azure.
+name: Agent · Ops nightly
+
+on:
+  schedule:
+    - cron: '0 11 * * *' # 04:00 Calgary (MST)
+  workflow_dispatch:
+
+concurrency:
+  group: agent-ops
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write # Azure OIDC + Claude App
+
+jobs:
+  ops:
+    if: vars.AGENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Ops review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the Feasly `devops` + `sre-investigator` agent doing the nightly read-only Azure review.
+            Read CLAUDE.md, .claude/agents/devops.md and .claude/agents/sre-investigator.md first.
+            Scope: subscription ${{ vars.AZURE_SUBSCRIPTION_ID }}, resource group rg-feasly-dev. READ ONLY — you may only
+            run az show/list/query and `az deployment group what-if`; never create, update, restart, scale or delete.
+            Check, for the last 24h:
+            1. API health endpoint; Function App and Postgres state.
+            2. Log Analytics (workspace feasly-dev-law): AppExceptions top problems, failed AppRequests by name,
+               every timer function's last successful execution (a registered schedule is not proof it ran),
+               email send failures.
+            3. Cost: `az consumption budget list` vs the feasly-monthly-cap budget; flag >50% before day 15 or >80% anytime.
+            4. Drift: `az deployment group what-if -g rg-feasly-dev -f infra/bicep/main.bicep -p infra/bicep/environments/dev.bicepparam`
+               (adjust to the param file that exists) — report unexpected changes.
+            For each real problem: search open issues for a duplicate first; otherwise
+            `gh issue create --label ops --label bug --label area:<api|infra>` with the KQL/commands and trimmed evidence
+            (redact PII and secrets). Add `agent:ready` only to code fixes with clear acceptance criteria; anything needing
+            spend, SKU or portal changes gets `needs:karan`.
+            Finally write a 5-line health summary to ops-summary.md (the architect digest reads the latest ops issue comments).
+            Post it as a comment on the open issue labelled agent:digest if one exists.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 60
+            --allowedTools "Bash(az * show*),Bash(az * list*),Bash(az monitor log-analytics query:*),Bash(az monitor app-insights query:*),Bash(az consumption *),Bash(az deployment group what-if:*),Bash(az account show:*),Bash(curl:*),Bash(gh issue *),Read,Glob,Grep,Write"

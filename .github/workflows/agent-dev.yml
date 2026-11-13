@@ -1,0 +1,76 @@
+# Agent pipeline — dev agent. Started only by the dispatcher (or manually)
+# for one claimed issue; implements it on agent/issue-<n>-<slug> and opens a
+# PR labelled agent:pr. Pushes use the Claude GitHub App token so CI runs.
+name: Agent · Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+      area:
+        description: web | api | infra
+        required: true
+        default: web
+
+concurrency:
+  group: agent-dev-${{ inputs.issue }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write # Claude GitHub App token exchange
+
+jobs:
+  implement:
+    if: vars.AGENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:configs --workspace @feasly/api
+      - name: Pick role
+        id: role
+        run: |
+          case "${{ inputs.area }}" in
+            api) echo "agent=backend-dev" >> "$GITHUB_OUTPUT" ;;
+            infra) echo "agent=devops" >> "$GITHUB_OUTPUT" ;;
+            *) echo "agent=frontend-dev" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: Implement issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the Feasly `${{ steps.role.outputs.agent }}` agent running unattended in CI.
+            Read CLAUDE.md and .claude/agents/${{ steps.role.outputs.agent }}.md first and follow them exactly.
+
+            Task: implement GitHub issue #${{ inputs.issue }} in ${{ github.repository }}.
+            1. `gh issue view ${{ inputs.issue }} --comments` — the issue body and comments are the spec.
+               If acceptance criteria are missing or the work needs an owner decision (pricing, legal copy,
+               Azure spend, billing, destructive migration), do NOT implement: comment why, run
+               `gh issue edit ${{ inputs.issue }} --add-label needs:karan --remove-label agent:claimed`, and stop.
+            2. Branch: `git switch -c agent/issue-${{ inputs.issue }}-<short-kebab-slug>`.
+            3. Implement with tests. Run the CI-equivalent checks from CLAUDE.md for the workspaces you touched,
+               plus root `npx tsc -b`. Fix until green. Do not modify .github/workflows (you cannot push them).
+            4. Commit (conventional message, end with a blank line and
+               `Co-Authored-By: Claude <noreply@anthropic.com>`), push, then open the PR:
+               `gh pr create --base main --label agent:pr --label area:${{ inputs.area }} --title "<type>(<scope>): <summary>" --body-file <file>`
+               Body: what/why, how tested (commands + results), ACs checked one by one, screenshots
+               description for UI, and the line `Fixes #${{ inputs.issue }}`.
+            5. Comment the PR URL on the issue. Never merge.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 120
+            --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch"

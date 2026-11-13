@@ -1,0 +1,38 @@
+# Agent pipeline — dispatcher (no AI). Hands `agent:ready` issues to dev
+# agents up to AGENT_MAX_WIP in flight. Runbook: docs/agents.md.
+name: Agent · Dispatch
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '17 * * * *' # hourly backstop
+  workflow_dispatch:
+
+concurrency:
+  group: agent-dispatch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: write # gh workflow run agent-dev.yml
+
+jobs:
+  dispatch:
+    if: >-
+      vars.AGENTS_ENABLED == 'true' &&
+      (github.event_name != 'issues' || github.event.label.name == 'agent:ready')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node tools/agents/dispatch.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_MAX_WIP: ${{ vars.AGENT_MAX_WIP }}
