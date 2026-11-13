@@ -73,6 +73,17 @@ Approved design stories carry `backlog` (not `agent:ready`). On every run the di
 the bug queue: when no open `bug` issue remains (except ones parked on `needs:karan`), it moves
 every `backlog` story to `agent:ready`, and agents take them in `Order:` / `Blocked by` sequence.
 
+## Supervision (every 10 minutes while agents are active)
+Owner rule (2026-11-13). Whoever operates the pipeline (release-manager, or the interactive session) checks
+agent runs (`agent-dev.yml`, `agent-fix.yml`) and claimed issues every 10 minutes and acts without waiting:
+- **Failed run** → requeue its issue now (remove `agent:claimed`, add `agent:ready`, comment `<!-- agent:requeue -->` + reason) and read the failure log.
+- **Claimed ≥ 15 min with no running agent and no PR** → requeue (orphaned claim).
+- **Ready work but 0 agents running** → `gh workflow run agent-dispatch.yml`.
+- **Run in progress ≥ 50 min** (normal: 15–40 min incl. verify-local) → read its log and step in.
+- **Same issue requeued 3+ times** → fix it directly or park with `needs:karan` and the reason.
+- **Merges**: only when *every* check is green and the reviewer verdict is APPROVE; re-run flaky environment checks, update branches one at a time.
+- **QA issues that contradict an owner decision** (CLAUDE.md "Owner decisions") → close citing the decision.
+
 ## Kill switch
 
 Set repo variable `AGENTS_ENABLED` to anything other than `true` (or delete
