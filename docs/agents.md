@@ -45,6 +45,7 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 
 ## Guardrails
 
+- **Merge only when every check is green** (owner rule 2026-11-13), not just the required ones; flaky environment checks are re-run, never ignored.
 - **Agents never merge their own work.** `merge-gate.mjs` (run from `main`,
   not from the PR) enables GitHub auto-merge only on an APPROVE verdict, and
   GitHub merges only when the required checks (`build`, `lighthouse`) are green.
