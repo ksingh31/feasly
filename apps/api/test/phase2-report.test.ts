@@ -171,6 +171,8 @@ describe('report service — getReport', () => {
     expect(inserted[0]?.leadId).toBe(LEAD_ID);
     expect(result.snapshotId).toBe(inserted[0]?.id);
     expect(result.estimateId).toBe(ESTIMATE_ID);
+    // Issue #484: a fresh-device redemption hydrates the property from this.
+    expect(result.addressKey).toBe(ADDRESS_KEY);
     expect(result.version).toBe(1);
     expect(result.buildRange).toEqual(RANGE);
     expect(result.landValue).toEqual({ value: 330000 });
