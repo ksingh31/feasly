@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  planDispatch, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
+  planDispatch, orderOf, blockersOf, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -17,6 +17,32 @@ test('dispatch fills free WIP slots, bugs and priority first', () => {
   const ready = [issue(1), issue(2, ['bug']), issue(3, ['priority:high']), issue(4, ['bug', 'priority:high'])];
   const { start } = planDispatch({ readyIssues: ready, claimedCount: 0, openAgentPrCount: 0, maxWip: 2 });
   assert.deepEqual(start.map((i) => i.number), [4, 2]);
+});
+
+test('dispatch follows the explicit Order: sequence before priority', () => {
+  const ready = [
+    issue(1, ['bug', 'priority:high'], { body: 'x\nOrder: 3' }),
+    issue(2, [], { body: 'Order: 1' }),
+    issue(3, ['bug'], { body: 'no order' }),
+    issue(4, [], { body: 'Order: 2' }),
+  ];
+  const { start } = planDispatch({ readyIssues: ready, claimedCount: 0, openAgentPrCount: 0, maxWip: 4 });
+  assert.deepEqual(start.map((i) => i.number), [2, 4, 1, 3]);
+});
+
+test('dispatch skips issues whose blockers are still open', () => {
+  const ready = [issue(5, [], { body: 'Order: 1\nBlocked by #474, #477' }), issue(6, [], { body: 'Order: 2' })];
+  const { start, skipped } = planDispatch({
+    readyIssues: ready, claimedCount: 0, openAgentPrCount: 0, maxWip: 2, openIssueNumbers: new Set([477]),
+  });
+  assert.deepEqual(start.map((i) => i.number), [6]);
+  assert.equal(skipped[0].reason, 'blocked by #477');
+});
+
+test('order and blocker parsing', () => {
+  assert.equal(orderOf({ body: 'foo\n Order: 12 \nbar' }), 12);
+  assert.equal(orderOf({ body: 'no order here' }), Number.POSITIVE_INFINITY);
+  assert.deepEqual(blockersOf({ body: 'Blocked by #1, #2\nDepends on #3\nmentions #4' }), [1, 2, 3]);
 });
 
 test('dispatch starts nothing when WIP is full', () => {

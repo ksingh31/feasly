@@ -26,6 +26,12 @@ Pure, zero I/O, zero deps. Every dollar figure comes from it. Parameters come fr
 `cost_data_versions`; rates/margins never reach a public serializer (secret-leak test).
 Estimates are immutable — re-runs create new rows.
 
+## Before every push (non-negotiable)
+Run `bash tools/verify-local.sh` (mirrors CI's required checks). Push or open a PR **only** when it
+ends with `VERIFY: PASS`. If it fails, fix and re-run until it passes. After pushing, check
+`gh pr checks <n>`; if anything required fails, read the log, reproduce locally, fix, re-run
+`verify-local.sh`, push again — repeat until the PR is green and merged.
+
 ## Workflow
 1. `git fetch && git switch -c feat/<story-id>-<slug> origin/main`.
 2. Implement with service unit tests (db faked at the interface), route tests (services stubbed), contract tests.

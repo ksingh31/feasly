@@ -72,7 +72,8 @@ function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (statSync(p).isDirectory()) {
-      if (e === 'node_modules' || e === 'dist' || e === '.git') continue;
+      // .angular = local dev-server cache (never in CI); skip like node_modules.
+      if (e === 'node_modules' || e === 'dist' || e === '.git' || e === '.angular') continue;
       walk(p, out);
     } else if (SCAN_EXTS.has(extname(p))) {
       out.push(p);
