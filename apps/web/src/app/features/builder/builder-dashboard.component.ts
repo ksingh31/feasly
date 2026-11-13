@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
@@ -75,6 +75,38 @@ export class BuilderDashboardComponent implements OnInit {
     const leads = this.leads();
     return filter === 'all' ? leads : leads.filter((lead) => lead.status === filter);
   });
+
+  /** Lead ids already flagged as inconsistent (warn once per lead, not per render). */
+  private readonly flaggedInconsistentLeads = new Set<string>();
+
+  constructor() {
+    // Data-inconsistency flag (#474): an invoice exists only once a won
+    // lead's contract is recorded. A non-won lead carrying one is a backend
+    // data problem — surface it in the console, never lock the UI on it.
+    effect(() => {
+      for (const lead of this.leads()) {
+        if (
+          lead.hasInvoice &&
+          lead.status !== 'won' &&
+          !this.flaggedInconsistentLeads.has(lead.id)
+        ) {
+          this.flaggedInconsistentLeads.add(lead.id);
+          console.warn(
+            '[feasly] builder: non-won lead has invoice',
+            { leadId: lead.id, status: lead.status },
+          );
+        }
+      }
+    });
+  }
+
+  /**
+   * The status control is locked only for a won lead whose contract is
+   * recorded (has an invoice). `hasInvoice` alone never locks (#474).
+   */
+  protected isStatusLocked(lead: BuilderLeadListItem): boolean {
+    return lead.status === 'won' && lead.hasInvoice;
+  }
 
   ngOnInit(): void {
     this.store
@@ -234,7 +266,7 @@ export class BuilderDashboardComponent implements OnInit {
     const lead = this.leads().find((l) => l.id === leadId);
     // Recorded leads are locked: never dispatch a status change for them
     // (the backend rejects it too — this is the UI-side guard).
-    if (!lead || lead.hasInvoice || pending === undefined || pending === lead.status) {
+    if (!lead || this.isStatusLocked(lead) || pending === undefined || pending === lead.status) {
       this.clearPendingStatus(leadId);
       return;
     }
