@@ -102,10 +102,21 @@ export PGSSLMODE="${PGSSLMODE:-require}"
 
 # Do NOT silence psql stderr: a connection failure must show the real
 # libpq error in the CI log, not a generic "could not query".
-stats="$(psql -t -A -F'|' -c \
-  "SELECT count(*), min(refreshed_at) FROM community_stats \
-   WHERE refreshed_at < now() - interval '${STALE_AFTER_DAYS} days';" \
-  || true)"
+# Connection errors only are retried (3 attempts, 5s/10s back-off): a
+# transient Azure/PgBouncer blip must not fail the check. Stale data is a
+# successful query and still fails below — the check is not weakened.
+q() {
+  local out attempt
+  for attempt in 1 2 3; do
+    if out="$(psql -t -A -F'|' -c "$1")" && [[ -n "$out" ]]; then
+      printf '%s' "$out"; return 0
+    fi
+    [[ $attempt -lt 3 ]] && { echo "psql attempt $attempt failed — retrying" >&2; sleep $((attempt * 5)); }
+  done
+  return 1
+}
+stats="$(q "SELECT count(*), min(refreshed_at) FROM community_stats \
+   WHERE refreshed_at < now() - interval '${STALE_AFTER_DAYS} days';" || true)"
 if [[ -z "$stats" ]]; then
   echo "FAIL: could not query community_stats (see psql error above)" >&2
   exit 1
@@ -114,7 +125,7 @@ fi
 stale_rows="${stats%%|*}"
 latest_stale="${stats##*|}"
 
-total="$(psql -t -A -c "SELECT count(*) FROM community_stats;" || echo "")"
+total="$(q "SELECT count(*) FROM community_stats;" || echo "")"
 if [[ -z "$total" ]]; then
   echo "FAIL: could not query community_stats (see psql error above)" >&2
   exit 1

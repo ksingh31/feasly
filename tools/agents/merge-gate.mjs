@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
  * Merge gate (deterministic — the model only supplies the verdict).
- *   APPROVE + no sensitive paths + no needs:karan → enable auto-merge (squash).
- *     GitHub then merges only when every required check is green.
+ *   APPROVE + no sensitive paths + no needs:karan → label agent:approved.
+ *     Owner rule (2026-11-13): merge only when EVERY check is green (not just
+ *     the required ones GitHub auto-merge waits for) — the release manager
+ *     merges approved PRs once all checks pass, re-running flaky env checks.
  *   APPROVE + sensitive paths → label needs:karan, do not enable.
  *   REQUEST_CHANGES on an agent PR → agent-fix.yml picks it up (round cap there).
  *   NEEDS_KARAN → label needs:karan.
@@ -37,8 +39,8 @@ if (info.state !== 'OPEN' || info.isDraft) {
     ]);
     console.log(`#${pr}: approved but sensitive → held`);
   } else {
-    ghWrite(['pr', 'merge', pr, '--auto', '--squash', '--delete-branch']);
-    console.log(`#${pr}: auto-merge enabled (waits for required checks)`);
+    ghWrite(['pr', 'edit', pr, '--add-label', 'agent:approved']);
+    console.log(`#${pr}: approved — merges once every check is green`);
   }
 } else if (verdict === 'REQUEST_CHANGES') {
   if (isAgentPr) ghWrite(['workflow', 'run', 'agent-fix.yml', '-f', `pr=${pr}`, '-f', 'reason=review requested changes']);
