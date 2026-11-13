@@ -1,0 +1,82 @@
+// Stacked-card tables for phone viewports (#476).
+//
+// Wide admin / builder tables used to keep a desktop `min-width` and rely on
+// a horizontal-scroll wrapper at 390px, which hid status, amounts and every
+// row action off to the right. Below `$breakpoint` this mixin turns each row
+// into a card: the header row is visually hidden (still read by screen
+// readers), and every cell shows its column name from a `data-label`
+// attribute above its value. Nothing can be wider than the viewport.
+//
+// Usage — include on the table selector, and give each body cell a label:
+//
+//   @use '../../shared/stacked-table' as *;
+//   .users-page__table { @include feasly-stacked-table; }
+//
+//   <td [attr.data-label]="copy.colStatus">…</td>
+//
+// Cells without `data-label` (row actions, empty-state rows) render their
+// content only. Desktop layout is untouched.
+
+$feasly-stacked-table-breakpoint: 640px !default;
+
+@mixin feasly-stacked-table($breakpoint: $feasly-stacked-table-breakpoint) {
+  @media (max-width: $breakpoint) {
+    & {
+      display: block;
+      width: 100%;
+      min-width: 0;
+    }
+
+    caption {
+      display: block;
+    }
+
+    thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    tbody {
+      display: block;
+    }
+
+    tbody tr {
+      display: block;
+      padding: 0.5rem 0;
+      border-top: 1px solid var(--border, #e5e0d8);
+    }
+
+    tbody tr:first-child {
+      border-top: none;
+    }
+
+    tbody th,
+    tbody td {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem 0.5rem;
+      min-width: 0;
+      padding: 0.375rem 1rem;
+      border: none;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
+
+    tbody th[data-label]::before,
+    tbody td[data-label]::before {
+      content: attr(data-label);
+      flex: 0 0 100%;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted, #6b6257);
+    }
+  }
+}

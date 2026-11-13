@@ -59,15 +59,15 @@
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
-              <td>
+              <td data-label="Name">
                 {{ user.name }}
                 @if (isSelf(user)) {
                   <span class="users-page__you">You</span>
                 }
               </td>
-              <td>{{ user.email }}</td>
-              <td>{{ roleLabel(user) }}</td>
-              <td>
+              <td data-label="Email">{{ user.email }}</td>
+              <td data-label="Role">{{ roleLabel(user) }}</td>
+              <td data-label="Organizations">
                 @if (user.memberships.length === 0) {
                   <span class="users-page__muted">—</span>
                 } @else {
@@ -76,7 +76,7 @@
                   }
                 }
               </td>
-              <td>
+              <td data-label="Status">
                 <span
                   class="users-page__status"
                   [class.users-page__status--invited]="user.status === 'invited'"
