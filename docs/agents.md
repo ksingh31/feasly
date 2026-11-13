@@ -66,6 +66,12 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 - **Azure**: the ops agent's tools are limited to `az … show/list/query`,
   budgets and `what-if`. Nothing changes Azure without Karan.
 
+## Backlog release
+
+Approved design stories carry `backlog` (not `agent:ready`). On every run the dispatcher checks
+the bug queue: when no open `bug` issue remains (except ones parked on `needs:karan`), it moves
+every `backlog` story to `agent:ready`, and agents take them in `Order:` / `Blocked by` sequence.
+
 ## Kill switch
 
 Set repo variable `AGENTS_ENABLED` to anything other than `true` (or delete
