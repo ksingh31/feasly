@@ -203,6 +203,17 @@ describe('AdminUsersComponent', () => {
       return button;
     }
 
+    /** The "Deactivate user" button inside the #473 confirmation dialog. */
+    function confirmDeactivateButton(): HTMLButtonElement {
+      const dialog = fixture.nativeElement.querySelector(
+        '[role="alertdialog"]',
+      ) as HTMLElement;
+      expect(dialog).not.toBeNull();
+      return Array.from(dialog.querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').trim() === 'Deactivate user',
+      ) as HTMLButtonElement;
+    }
+
     /** The auth/07 ⓘ tooltip rendered inside a scope (row or modal). */
     function lastAdminTooltip(scope: HTMLElement): InfoTooltipComponent | null {
       const found = fixture.debugElement
@@ -337,6 +348,8 @@ describe('AdminUsersComponent', () => {
       )[0] as HTMLElement;
       deactivateButton(row).click();
       fixture.detectChanges();
+      confirmDeactivateButton().click();
+      fixture.detectChanges();
       const req = httpMock.expectOne(
         (r) => r.url.endsWith(`/api/v1/admin/users/${SOLE_ADMIN.id}`) && r.method === 'PATCH',
       );
@@ -360,6 +373,112 @@ describe('AdminUsersComponent', () => {
       expect(
         fixture.nativeElement.querySelector('.users-page__state--error'),
       ).toBeNull();
+    });
+  });
+
+  /**
+   * #473 — Deactivate signs the user out everywhere, so it must never be a
+   * one-click action: a confirmation names the user and the consequence,
+   * with Cancel focused by default.
+   */
+  describe('deactivate confirmation (#473)', () => {
+    const ACTIVE: AdminUser = {
+      ...INVITED,
+      id: '623e4567-e89b-12d3-a456-426614174000',
+      email: 'active@example.com',
+      name: 'Active Teammate',
+      status: 'active',
+    };
+
+    function rowDeactivate(): HTMLButtonElement {
+      const row = fixture.nativeElement.querySelectorAll('tbody tr')[0] as HTMLElement;
+      return Array.from(row.querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').trim() === 'Deactivate',
+      ) as HTMLButtonElement;
+    }
+
+    function dialog(): HTMLElement | null {
+      return fixture.nativeElement.querySelector('[role="alertdialog"]');
+    }
+
+    function dialogButton(label: string): HTMLButtonElement {
+      return Array.from(dialog()!.querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').trim() === label,
+      ) as HTMLButtonElement;
+    }
+
+    function isPatch(r: { url: string; method: string }): boolean {
+      return r.url.endsWith(`/api/v1/admin/users/${ACTIVE.id}`) && r.method === 'PATCH';
+    }
+
+    beforeEach(() => {
+      // Attach so focus() is observable via document.activeElement.
+      document.body.appendChild(fixture.nativeElement as HTMLElement);
+    });
+
+    it('clicking Deactivate opens a confirmation instead of deactivating', () => {
+      flushInit([ACTIVE]);
+      rowDeactivate().click();
+      fixture.detectChanges();
+
+      httpMock.expectNone(isPatch);
+      const d = dialog();
+      expect(d).not.toBeNull();
+      expect(d!.getAttribute('aria-modal')).toBe('true');
+      const title = d!.querySelector('#deactivate-title')!.textContent!.trim();
+      expect(title).toBe('Deactivate Active Teammate?');
+      const desc = d!.querySelector('#deactivate-desc')!.textContent!.replace(/\s+/g, ' ');
+      expect(desc).toContain('Active Teammate (active@example.com)');
+      expect(desc).toContain('signed out everywhere immediately');
+    });
+
+    it('focuses Cancel by default', () => {
+      flushInit([ACTIVE]);
+      rowDeactivate().click();
+      fixture.detectChanges();
+      expect(document.activeElement).toBe(dialogButton('Cancel'));
+    });
+
+    it('Cancel closes without deactivating and returns focus to the row action', () => {
+      flushInit([ACTIVE]);
+      const invoker = rowDeactivate();
+      invoker.click();
+      fixture.detectChanges();
+      dialogButton('Cancel').click();
+      fixture.detectChanges();
+
+      expect(dialog()).toBeNull();
+      httpMock.expectNone(isPatch);
+      expect(document.activeElement).toBe(rowDeactivate());
+    });
+
+    it('Escape closes without deactivating', () => {
+      flushInit([ACTIVE]);
+      rowDeactivate().click();
+      fixture.detectChanges();
+      dialog()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+
+      expect(dialog()).toBeNull();
+      httpMock.expectNone(isPatch);
+    });
+
+    it('confirming sends the deactivate PATCH and closes the dialog', () => {
+      flushInit([ACTIVE]);
+      rowDeactivate().click();
+      fixture.detectChanges();
+      dialogButton('Deactivate user').click();
+      fixture.detectChanges();
+
+      const req = httpMock.expectOne(isPatch);
+      expect(req.request.body).toEqual({ status: 'disabled' });
+      req.flush({ ...ACTIVE, status: 'disabled' });
+      fixture.detectChanges();
+
+      expect(dialog()).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain(
+        'active@example.com deactivated — signed out everywhere.',
+      );
     });
   });
 
