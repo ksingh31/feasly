@@ -133,16 +133,24 @@ describe('AddressAutocompleteComponent', () => {
   });
 
   describe('aria-controls only references a rendered listbox (#487)', () => {
+    // Mirrors axe `aria-valid-attr-value` (aria-controls must resolve) and
+    // `aria-required-attr` (an expanded combobox must have aria-controls).
     function assertControlsValid(fixture: ComponentFixture<AddressAutocompleteComponent>): void {
-      const controls = inputEl(fixture).getAttribute('aria-controls');
+      const input = inputEl(fixture);
+      const controls = input.getAttribute('aria-controls');
       if (controls !== null) {
         expect(fixture.nativeElement.querySelector(`#${controls}`)).not.toBeNull();
+      }
+      if (input.getAttribute('aria-expanded') === 'true') {
+        expect(controls).not.toBeNull();
+        expect(fixture.nativeElement.querySelector(`#${controls}[role="listbox"]`)).not.toBeNull();
       }
     }
 
     it('omits aria-controls before any search', () => {
       const fixture = create();
       expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+      expect(inputEl(fixture).getAttribute('aria-expanded')).toBe('false');
     });
 
     it('omits aria-controls in the no-results state', async () => {
@@ -151,6 +159,9 @@ describe('AddressAutocompleteComponent', () => {
       expect(fixture.nativeElement.querySelector('.ac-empty')).not.toBeNull();
       expect(fixture.nativeElement.querySelector('[role="listbox"]')).toBeNull();
       expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+      // An expanded combobox with no listbox fails axe `aria-required-attr`.
+      expect(inputEl(fixture).getAttribute('aria-expanded')).toBe('false');
+      assertControlsValid(fixture);
     });
 
     it('points aria-controls at the listbox while it is shown, and drops it when dismissed', async () => {
@@ -158,9 +169,11 @@ describe('AddressAutocompleteComponent', () => {
       const component = fixture.componentInstance;
       await type(fixture, '14 st');
       expect(inputEl(fixture).getAttribute('aria-controls')).toBe(component.listboxId);
+      expect(inputEl(fixture).getAttribute('aria-expanded')).toBe('true');
       assertControlsValid(fixture);
       key(fixture, 'Escape');
       expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
+      expect(inputEl(fixture).getAttribute('aria-expanded')).toBe('false');
       assertControlsValid(fixture);
     });
   });
