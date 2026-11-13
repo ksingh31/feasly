@@ -6,10 +6,21 @@
  *
  *   node tools/agents/dispatch.mjs [--dry-run]
  */
-import { LABELS, MARKERS, DEFAULTS, planDispatch, areaOf } from './lib.mjs';
+import { LABELS, MARKERS, DEFAULTS, planDispatch, areaOf, shouldReleaseBacklog } from './lib.mjs';
 import { ghWrite, intVar, listIssues, listAgentPrs, openIssueNumbers } from './gh.mjs';
 
 const maxWip = intVar('AGENT_MAX_WIP', DEFAULTS.maxWip);
+
+// Release approved stories once the bug queue is clear (owner rule).
+const backlog = listIssues('backlog');
+const gate = shouldReleaseBacklog({ openBugs: listIssues(LABELS.bug), backlogCount: backlog.length });
+if (gate.release) {
+  console.log(`bug queue clear — releasing ${backlog.length} backlog stories to agents`);
+  for (const i of backlog) ghWrite(['issue', 'edit', String(i.number), '--remove-label', 'backlog', '--add-label', LABELS.ready]);
+} else if (backlog.length) {
+  console.log(`backlog held (${backlog.length} stories) until bugs close: #${gate.blockingBugs.join(', #')}`);
+}
+
 const readyIssues = listIssues(LABELS.ready);
 const claimed = listIssues(LABELS.claimed);
 const openPrs = listAgentPrs();

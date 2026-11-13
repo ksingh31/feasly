@@ -95,6 +95,11 @@ export class MockApiService implements ApiService {
   >();
   /** Inputs per estimate, so report/tier-revision stay consistent. */
   private readonly estimateInputs = new Map<string, EstimateInputs>();
+  /**
+   * addressKey per estimate, so report snapshots carry it like the real API
+   * (issue #484: fresh-device redemption hydrates the property from it).
+   */
+  private readonly estimateAddressKeys = new Map<string, string>();
   /** Reno inputs per estimate (RENO-04), so reno reports include renoInputs. */
   private readonly renoEstimateInputs = new Map<string, RenoEstimateInputs>();
   /** Report versions per estimate, so tier revisions increment monotonically. */
@@ -212,6 +217,7 @@ export class MockApiService implements ApiService {
       renoRequest: request.projectType === 'renovation' ? request : undefined,
     });
     this.estimateInputs.set(response.estimateId, inputs);
+    this.estimateAddressKeys.set(response.estimateId, addressKey);
     if (request.projectType === 'renovation') {
       // Recorded so getReport() resolves a reno snapshot for reno leads.
       // (The preview shape itself stays contract-clean: no renoInputs pre-gate.
@@ -239,6 +245,7 @@ export class MockApiService implements ApiService {
     if (request.projectType === 'renovation') {
       const response = mockRenoEstimate(request.addressKey, request);
       this.estimateInputs.set(response.estimateId, response.inputs);
+      this.estimateAddressKeys.set(response.estimateId, request.addressKey);
       // Track reno inputs for report generation (RENO-04)
       if (response.renoInputs) {
         this.renoEstimateInputs.set(response.estimateId, response.renoInputs);
@@ -259,6 +266,7 @@ export class MockApiService implements ApiService {
       assessedLandValue,
     );
     this.estimateInputs.set(response.estimateId, inputs);
+    this.estimateAddressKeys.set(response.estimateId, addressKey);
     if (assessedLandValue !== undefined) {
       this.estimateLandValues.set(response.estimateId, assessedLandValue);
     }
@@ -338,6 +346,12 @@ export class MockApiService implements ApiService {
     return this.config.get('wizard').sqftDefault;
   }
 
+  /** `{ addressKey }` for a known estimate, `{}` otherwise (bare report links). */
+  private reportAddressKey(estimateId: string): { addressKey?: string } {
+    const addressKey = this.estimateAddressKeys.get(estimateId);
+    return addressKey ? { addressKey } : {};
+  }
+
   getReport(reportToken: string): Observable<GetReportResponse> {
     const ids = this.issuedTokens.get(reportToken);
     if (!ids) {
@@ -354,6 +368,7 @@ export class MockApiService implements ApiService {
     if (renoInputs) {
       return this.roundTrip({
         ...mockRenoReport(ids.estimateId, ids.leadId, renoInputs, disclaimer),
+        ...this.reportAddressKey(ids.estimateId),
         version,
       });
     }
@@ -368,6 +383,7 @@ export class MockApiService implements ApiService {
         this.referenceSqft(),
         assessedLandValue,
       ),
+      ...this.reportAddressKey(ids.estimateId),
       version,
     });
   }
@@ -420,7 +436,7 @@ export class MockApiService implements ApiService {
         nextReno,
         this.config.get('copy').narrativeDisclaimer,
       );
-      return this.roundTrip({ ...revised, version });
+      return this.roundTrip({ ...revised, ...this.reportAddressKey(ids.estimateId), version });
     }
     const current = this.estimateInputs.get(ids.estimateId) ?? this.defaultInputs();
     const next: EstimateInputs = {
@@ -441,7 +457,7 @@ export class MockApiService implements ApiService {
       assessedLandValue,
     );
     this.estimateInputs.set(ids.estimateId, next);
-    return this.roundTrip({ ...revised, version });
+    return this.roundTrip({ ...revised, ...this.reportAddressKey(ids.estimateId), version });
   }
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {

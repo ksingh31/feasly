@@ -163,7 +163,7 @@ function contractRows(value: unknown): CostRow[] {
   }));
 }
 
-function toContract(record: ReportSnapshotRecord): ReportSnapshot {
+function toContract(record: ReportSnapshotRecord, addressKey: string): ReportSnapshot {
   const inputs = readInputs(record.inputs);
   const buildRange = StoredRangeSchema.safeParse(record.buildRange);
   const totalRange = StoredRangeSchema.safeParse(record.totalRange);
@@ -175,6 +175,8 @@ function toContract(record: ReportSnapshotRecord): ReportSnapshot {
     snapshotId: record.id,
     estimateId: record.estimateId,
     leadId: record.leadId,
+    // Lets a fresh-device redemption hydrate the property (issue #484).
+    addressKey,
     inputs: {
       sqft: inputs.sqft,
       tier: inputs.tier,
@@ -333,14 +335,14 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
             narrative: estimateNarrative,
           };
           const inserted = await deps.snapshots.insert(backfill);
-          return toContract(inserted);
+          return toContract(inserted, estimate.addressKey);
         }
-        return toContract(latest);
+        return toContract(latest, estimate.addressKey);
       }
       const inserted = await deps.snapshots.insert(
         snapshotFromEstimate(estimate, leadId, 1, null),
       );
-      return toContract(inserted);
+      return toContract(inserted, estimate.addressKey);
     },
 
     async createRevision(
@@ -461,7 +463,7 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
         version: (latest?.version ?? 0) + 1,
         updatedAt: now,
       });
-      return toContract(inserted);
+      return toContract(inserted, estimate.addressKey);
     },
   };
 }

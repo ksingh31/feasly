@@ -45,6 +45,7 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 
 ## Guardrails
 
+- **Merge only when every check is green** (owner rule 2026-11-13), not just the required ones; flaky environment checks are re-run, never ignored.
 - **Agents never merge their own work.** `merge-gate.mjs` (run from `main`,
   not from the PR) enables GitHub auto-merge only on an APPROVE verdict, and
   GitHub merges only when the required checks (`build`, `lighthouse`) are green.
@@ -65,6 +66,12 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
   text is the agent's prompt.
 - **Azure**: the ops agent's tools are limited to `az … show/list/query`,
   budgets and `what-if`. Nothing changes Azure without Karan.
+
+## Backlog release
+
+Approved design stories carry `backlog` (not `agent:ready`). On every run the dispatcher checks
+the bug queue: when no open `bug` issue remains (except ones parked on `needs:karan`), it moves
+every `backlog` story to `agent:ready`, and agents take them in `Order:` / `Blocked by` sequence.
 
 ## Kill switch
 

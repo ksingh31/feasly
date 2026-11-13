@@ -8,10 +8,10 @@ import type { PropertyRecord, TierRevisionRequest, TierRevisionResponse } from '
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { MockApiService } from '../../core/api/mock-api.service';
-import { mockPreviewEstimate, mockReport } from '../../core/api/mock-data';
+import { mockPreviewEstimate, mockRenoReport, mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { LeadState, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
+import { LeadState, ResetWizard, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
 import {
   ClearReport,
   LoadLeadEstimate,
@@ -644,6 +644,118 @@ describe('ReportState', () => {
       const rebuilt = store.selectSnapshot(ReportState.snapshot)!;
       expect(rebuilt.leadId).toBe('lead-2');
       expect(rebuilt.narrative).toBe('');
+    });
+  });
+
+  /**
+   * Issue #484: a magic link opened on a fresh device has no wizard state
+   * (it lived in the original browser's localStorage). The token alone must
+   * load the full report: UnlockReport hydrates property + inputs from the
+   * snapshot's addressKey and inputs.
+   */
+  describe('fresh-context token load (issue #484)', () => {
+    /** Mints a token, then wipes the wizard slice like a brand-new browser. */
+    async function freshDeviceToken(): Promise<string> {
+      const token = await mockToken();
+      store.dispatch(new ResetWizard());
+      expect(store.selectSnapshot(WizardState.property)).toBeNull();
+      return token;
+    }
+
+    it('hydrates the property and inputs from the report token alone', async () => {
+      const token = await freshDeviceToken();
+      const propertySpy = vi.spyOn(api, 'getProperty').mockImplementation(() => of(fakeProperty));
+      try {
+        store.dispatch([new SetReportToken(token), new UnlockReport()]);
+        await pollStatus('ready');
+        await pollFor(() => store.selectSnapshot(WizardState.property) !== null, 'property hydrated');
+        expect(propertySpy).toHaveBeenCalledWith(fakeProperty.addressKey);
+        expect(store.selectSnapshot(WizardState.property)?.address).toBe(fakeProperty.address);
+        const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+        expect(snapshot.addressKey).toBe(fakeProperty.addressKey);
+        expect(store.selectSnapshot(WizardState.inputs)).toEqual(snapshot.inputs);
+        expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      } finally {
+        propertySpy.mockRestore();
+      }
+    });
+
+    it('partner-share links use the same loader (read-only view kept)', async () => {
+      const token = await freshDeviceToken();
+      const propertySpy = vi.spyOn(api, 'getProperty').mockImplementation(() => of(fakeProperty));
+      try {
+        // Same dispatch sequence as the /r/:token partner fallback.
+        store.dispatch([new SetReportToken(token), new SetPartnerView(), new UnlockReport()]);
+        await pollFor(() => store.selectSnapshot(WizardState.property) !== null, 'property hydrated');
+        expect(store.selectSnapshot(ReportState.partnerView)).toBe(true);
+        expect(store.selectSnapshot(ReportState.snapshot)).not.toBeNull();
+      } finally {
+        propertySpy.mockRestore();
+      }
+    });
+
+    it('reuses an already-selected property for the same address (no refetch)', async () => {
+      const token = await mockToken();
+      const propertySpy = vi.spyOn(api, 'getProperty');
+      try {
+        store.dispatch([new SetReportToken(token), new UnlockReport()]);
+        await pollStatus('ready');
+        expect(propertySpy).not.toHaveBeenCalled();
+        expect(store.selectSnapshot(WizardState.property)).toEqual(fakeProperty);
+      } finally {
+        propertySpy.mockRestore();
+      }
+    });
+
+    it('keeps the loaded report when the property lookup fails', async () => {
+      const token = await freshDeviceToken();
+      const propertySpy = vi
+        .spyOn(api, 'getProperty')
+        .mockImplementation(() => throwError(() => new Error('property down')));
+      try {
+        store.dispatch([new SetReportToken(token), new UnlockReport()]);
+        await pollStatus('ready');
+        await pollFor(() => propertySpy.mock.calls.length > 0, 'property lookup');
+        expect(store.selectSnapshot(ReportState.snapshot)).not.toBeNull();
+        expect(store.selectSnapshot(ReportState.status)).toBe('ready');
+        expect(store.selectSnapshot(WizardState.property)).toBeNull();
+        // Inputs still come from the snapshot.
+        expect(store.selectSnapshot(WizardState.inputs).tier).toBe('premium');
+      } finally {
+        propertySpy.mockRestore();
+      }
+    });
+
+    it('hydrates renovation inputs and project type from a reno snapshot', async () => {
+      const token = await freshDeviceToken();
+      const reno = {
+        projectType: 'renovation',
+        renoType: 'basement',
+        renoSqft: 900,
+        tier: 'premium',
+        underpinning: true,
+      } as const;
+      const renoSnapshot: TierRevisionResponse = {
+        ...mockRenoReport('estimate-r', 'lead-r', reno, 'disclaimer'),
+        addressKey: fakeProperty.addressKey,
+        version: 1,
+      };
+      const reportSpy = vi.spyOn(api, 'getReport').mockImplementation(() => of(renoSnapshot));
+      const propertySpy = vi.spyOn(api, 'getProperty').mockImplementation(() => of(fakeProperty));
+      try {
+        store.dispatch([new SetReportToken(token), new UnlockReport()]);
+        await pollFor(() => store.selectSnapshot(WizardState.property) !== null, 'property hydrated');
+        expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+        expect(store.selectSnapshot(WizardState.renoInputs)).toMatchObject({
+          renoType: 'basement',
+          renoSqft: 900,
+          tier: 'premium',
+          underpinning: true,
+        });
+      } finally {
+        reportSpy.mockRestore();
+        propertySpy.mockRestore();
+      }
     });
   });
 });

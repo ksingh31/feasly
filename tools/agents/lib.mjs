@@ -212,6 +212,17 @@ export function triageFailure({ failedJobs, pr }) {
   return { action: 'comment', codeJobs, envJobs };
 }
 
+/**
+ * Owner rule (2026-11-13): approved design stories wait in `backlog` until every
+ * current bug is fixed. Bugs parked on an owner decision (needs:karan) don't block.
+ * @param {{openBugs:any[], backlogCount:number}} s
+ * @returns {{release:boolean, blockingBugs:number[]}}
+ */
+export function shouldReleaseBacklog({ openBugs, backlogCount }) {
+  const blocking = openBugs.filter((i) => !has(i, LABELS.needsKaran)).map((i) => i.number);
+  return { release: backlogCount > 0 && blocking.length === 0, blockingBugs: blocking };
+}
+
 export function sensitiveFiles(paths) {
   return paths.filter((p) => SENSITIVE_PATHS.some((re) => re.test(p)));
 }
