@@ -68,6 +68,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Runs are started by our own dispatcher / watchdog / triage scripts.
+          allowed_bots: github-actions,github-actions[bot]
           prompt: |
             You are the Feasly dev agent doing a fix round on PR #${{ env.PR }} (branch ${{ steps.cap.outputs.branch }}),
             running unattended in CI. Read CLAUDE.md and the matching role file in .claude/agents/ (frontend-dev for
