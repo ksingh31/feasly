@@ -110,7 +110,12 @@ Real 404 status (#490): `staticwebapp.config.json` has **no**
 is set, which made unknown URLs soft 404s. Instead:
 
 - Prerendered routes (`prerender-routes.txt`) are served as their own
-  `index.html` files — unaffected.
+  `index.html` files — unaffected. SWA maps the no-slash form to the
+  folder's `index.html` too: on the PR #566 preview, every `sitemap.xml` URL
+  both with and without a trailing slash (`/privacy`, `/terms`, `/faq`,
+  `/how-it-works`, `/developers`, `/guides/*`, `/communities`,
+  `/communities/<slug>`) returned 200 with its own `<title>`. Unknown paths
+  returned 404 with "Page not found".
 - Client-only routes (`/estimate/*`, `/embed`, `/embed/*`, `/unsubscribe/*`,
   `/error`, `/admin`, `/admin/*`, `/builder`, `/builder/*`, `/r/*`) are an
   explicit allow-list of `rewrite: /index.html` rules so deep links and
