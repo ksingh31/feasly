@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-10-02T15:56:19.977Z",
+  "generatedAt": "2026-11-13T06:33:05.926Z",
   "assessmentYear": "2026",
   "communities": [
     {
       "slug": "beltline",
       "communityType": "profile",
-      "dwellingUnits": 11642,
+      "dwellingUnits": 11626,
       "mix": {
         "singleDetached": 28,
         "semiDuplex": 2,
-        "multiFamily": 11612
+        "multiFamily": 11596
       },
       "mostCommonType": "multiFamily"
     },
     {
       "slug": "panorama-hills",
       "communityType": "build-guide",
-      "dwellingUnits": 8150,
+      "dwellingUnits": 8109,
       "mix": {
         "singleDetached": 5424,
         "semiDuplex": 559,
-        "multiFamily": 2167
+        "multiFamily": 2126
       },
       "mostCommonType": "singleDetached"
     },
@@ -38,11 +38,22 @@
     {
       "slug": "saddle-ridge",
       "communityType": "build-guide",
-      "dwellingUnits": 7541,
+      "dwellingUnits": 7558,
       "mix": {
         "singleDetached": 5150,
         "semiDuplex": 546,
-        "multiFamily": 1845
+        "multiFamily": 1862
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "mahogany",
+      "communityType": "build-guide",
+      "dwellingUnits": 7225,
+      "mix": {
+        "singleDetached": 4492,
+        "semiDuplex": 782,
+        "multiFamily": 1951
       },
       "mostCommonType": "singleDetached"
     },
@@ -69,35 +80,24 @@
       "mostCommonType": "singleDetached"
     },
     {
-      "slug": "mahogany",
-      "communityType": "build-guide",
-      "dwellingUnits": 7212,
-      "mix": {
-        "singleDetached": 4492,
-        "semiDuplex": 782,
-        "multiFamily": 1938
-      },
-      "mostCommonType": "singleDetached"
-    },
-    {
       "slug": "tuscany",
       "communityType": "build-guide",
-      "dwellingUnits": 6757,
+      "dwellingUnits": 6758,
       "mix": {
         "singleDetached": 5610,
         "semiDuplex": 97,
-        "multiFamily": 1050
+        "multiFamily": 1051
       },
       "mostCommonType": "singleDetached"
     },
     {
       "slug": "sage-hill",
       "communityType": "profile",
-      "dwellingUnits": 5334,
+      "dwellingUnits": 5336,
       "mix": {
         "singleDetached": 1889,
         "semiDuplex": 172,
-        "multiFamily": 3273
+        "multiFamily": 3275
       },
       "mostCommonType": "multiFamily"
     },
@@ -115,11 +115,11 @@
     {
       "slug": "skyview-ranch",
       "communityType": "profile",
-      "dwellingUnits": 4622,
+      "dwellingUnits": 4624,
       "mix": {
         "singleDetached": 1459,
         "semiDuplex": 228,
-        "multiFamily": 2935
+        "multiFamily": 2937
       },
       "mostCommonType": "multiFamily"
     },
@@ -135,24 +135,24 @@
       "mostCommonType": "singleDetached"
     },
     {
-      "slug": "signal-hill",
+      "slug": "copperfield",
       "communityType": "build-guide",
-      "dwellingUnits": 5303,
+      "dwellingUnits": 5392,
       "mix": {
-        "singleDetached": 3401,
-        "semiDuplex": 239,
-        "multiFamily": 1663
+        "singleDetached": 3287,
+        "semiDuplex": 60,
+        "multiFamily": 2045
       },
       "mostCommonType": "singleDetached"
     },
     {
-      "slug": "copperfield",
+      "slug": "signal-hill",
       "communityType": "build-guide",
-      "dwellingUnits": 5391,
+      "dwellingUnits": 5292,
       "mix": {
-        "singleDetached": 3286,
-        "semiDuplex": 60,
-        "multiFamily": 2045
+        "singleDetached": 3401,
+        "semiDuplex": 239,
+        "multiFamily": 1652
       },
       "mostCommonType": "singleDetached"
     },
@@ -161,53 +161,42 @@
       "communityType": "build-guide",
       "dwellingUnits": 4526,
       "mix": {
-        "singleDetached": 2230,
+        "singleDetached": 2229,
         "semiDuplex": 598,
-        "multiFamily": 1698
+        "multiFamily": 1699
       },
       "mostCommonType": "singleDetached"
     },
     {
       "slug": "seton",
       "communityType": "profile",
-      "dwellingUnits": 4111,
+      "dwellingUnits": 4121,
       "mix": {
         "singleDetached": 1224,
         "semiDuplex": 370,
-        "multiFamily": 2517
+        "multiFamily": 2527
       },
       "mostCommonType": "multiFamily"
     },
     {
       "slug": "varsity",
       "communityType": "build-guide",
-      "dwellingUnits": 4926,
+      "dwellingUnits": 4924,
       "mix": {
-        "singleDetached": 2599,
+        "singleDetached": 2598,
         "semiDuplex": 107,
-        "multiFamily": 2220
+        "multiFamily": 2219
       },
       "mostCommonType": "singleDetached"
     },
     {
       "slug": "cornerstone",
       "communityType": "build-guide",
-      "dwellingUnits": 4979,
+      "dwellingUnits": 4991,
       "mix": {
-        "singleDetached": 2739,
+        "singleDetached": 2743,
         "semiDuplex": 931,
-        "multiFamily": 1309
-      },
-      "mostCommonType": "singleDetached"
-    },
-    {
-      "slug": "springbank-hill",
-      "communityType": "build-guide",
-      "dwellingUnits": 4263,
-      "mix": {
-        "singleDetached": 2790,
-        "semiDuplex": 46,
-        "multiFamily": 1427
+        "multiFamily": 1317
       },
       "mostCommonType": "singleDetached"
     },
@@ -219,6 +208,17 @@
         "singleDetached": 2808,
         "semiDuplex": 169,
         "multiFamily": 1648
+      },
+      "mostCommonType": "singleDetached"
+    },
+    {
+      "slug": "springbank-hill",
+      "communityType": "build-guide",
+      "dwellingUnits": 4268,
+      "mix": {
+        "singleDetached": 2790,
+        "semiDuplex": 48,
+        "multiFamily": 1430
       },
       "mostCommonType": "singleDetached"
     },
@@ -247,9 +247,9 @@
     {
       "slug": "edgemont",
       "communityType": "build-guide",
-      "dwellingUnits": 5317,
+      "dwellingUnits": 5318,
       "mix": {
-        "singleDetached": 4393,
+        "singleDetached": 4394,
         "semiDuplex": 218,
         "multiFamily": 706
       },
@@ -269,9 +269,9 @@
     {
       "slug": "lake-bonavista",
       "communityType": "build-guide",
-      "dwellingUnits": 4086,
+      "dwellingUnits": 4087,
       "mix": {
-        "singleDetached": 3253,
+        "singleDetached": 3254,
         "semiDuplex": 4,
         "multiFamily": 829
       },
@@ -280,10 +280,10 @@
     {
       "slug": "huntington-hills",
       "communityType": "build-guide",
-      "dwellingUnits": 4514,
+      "dwellingUnits": 4512,
       "mix": {
         "singleDetached": 3075,
-        "semiDuplex": 453,
+        "semiDuplex": 451,
         "multiFamily": 986
       },
       "mostCommonType": "singleDetached"
@@ -313,9 +313,9 @@
     {
       "slug": "livingston",
       "communityType": "build-guide",
-      "dwellingUnits": 3812,
+      "dwellingUnits": 3815,
       "mix": {
-        "singleDetached": 2638,
+        "singleDetached": 2641,
         "semiDuplex": 410,
         "multiFamily": 764
       },
@@ -331,17 +331,6 @@
         "multiFamily": 831
       },
       "mostCommonType": "singleDetached"
-    },
-    {
-      "slug": "downtown-commercial-core",
-      "communityType": "profile",
-      "dwellingUnits": 2498,
-      "mix": {
-        "singleDetached": 0,
-        "semiDuplex": 0,
-        "multiFamily": 2498
-      },
-      "mostCommonType": "multiFamily"
     },
     {
       "slug": "chaparral",
@@ -390,11 +379,11 @@
     {
       "slug": "bowness",
       "communityType": "build-guide",
-      "dwellingUnits": 4050,
+      "dwellingUnits": 4052,
       "mix": {
-        "singleDetached": 2176,
-        "semiDuplex": 928,
-        "multiFamily": 946
+        "singleDetached": 2173,
+        "semiDuplex": 930,
+        "multiFamily": 949
       },
       "mostCommonType": "singleDetached"
     },
@@ -423,11 +412,22 @@
     {
       "slug": "bridgeland-riverside",
       "communityType": "profile",
-      "dwellingUnits": 2755,
+      "dwellingUnits": 2754,
       "mix": {
-        "singleDetached": 748,
+        "singleDetached": 747,
         "semiDuplex": 193,
         "multiFamily": 1814
+      },
+      "mostCommonType": "multiFamily"
+    },
+    {
+      "slug": "downtown-commercial-core",
+      "communityType": "profile",
+      "dwellingUnits": 2197,
+      "mix": {
+        "singleDetached": 0,
+        "semiDuplex": 0,
+        "multiFamily": 2197
       },
       "mostCommonType": "multiFamily"
     },
