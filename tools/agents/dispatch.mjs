@@ -7,7 +7,7 @@
  *   node tools/agents/dispatch.mjs [--dry-run]
  */
 import { LABELS, MARKERS, DEFAULTS, planDispatch, areaOf } from './lib.mjs';
-import { ghWrite, intVar, listIssues, listAgentPrs } from './gh.mjs';
+import { ghWrite, intVar, listIssues, listAgentPrs, openIssueNumbers } from './gh.mjs';
 
 const maxWip = intVar('AGENT_MAX_WIP', DEFAULTS.maxWip);
 const readyIssues = listIssues(LABELS.ready);
@@ -19,6 +19,7 @@ const { start, skipped } = planDispatch({
   claimedCount: claimed.length,
   openAgentPrCount: openPrs.length,
   maxWip,
+  openIssueNumbers: openIssueNumbers(),
 });
 
 console.log(
