@@ -1,6 +1,6 @@
 # Agent pipeline — fix round on an agent PR (review asked for changes, or a
 # required check has been red past grace). Capped at AGENT_MAX_FIX_ROUNDS
-# (default 3); beyond that the PR is parked with needs:karan.
+# (default 5); beyond that the PR is parked with needs:karan.
 name: Agent · Fix
 
 on:
@@ -38,7 +38,7 @@ jobs:
         id: cap
         run: |
           rounds=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[] | select(.body | contains("<!-- agent:fix-round -->"))] | length')
-          max="${{ vars.AGENT_MAX_FIX_ROUNDS || 3 }}"
+          max="${{ vars.AGENT_MAX_FIX_ROUNDS || 5 }}"
           echo "rounds=$rounds max=$max"
           if [ "$rounds" -ge "$max" ]; then
             gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs:karan
@@ -76,7 +76,8 @@ jobs:
             1. Read the PR, every unresolved review comment, and failing checks
                (`gh pr view ${{ env.PR }} --comments`, `gh pr checks ${{ env.PR }}`, `gh run view <id> --log-failed`).
             2. Fix every valid point; if you disagree with a comment, reply to it with the reason instead.
-            3. Re-run the CI-equivalent checks from CLAUDE.md until green. Commit and push to the same branch
+            3. Reproduce the failure locally, fix, and run `bash tools/verify-local.sh --no-ci` until it prints
+               `VERIFY: PASS`. Only then commit and push to the same branch
                (never force-push, never touch .github/workflows).
             4. Comment on the PR summarising what changed per comment. The push re-triggers review automatically.
           claude_args: |

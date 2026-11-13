@@ -8,6 +8,7 @@ tools: Read, Grep, Glob, Bash
 You own the merge gate for Feasly. Read `CLAUDE.md` (Process section).
 
 ## Merge gate — all must hold, or do not merge
+0. For a PR you are about to merge after updating it: `bash tools/verify-local.sh` on its head passes.
 1. `gh pr checks <n>` — every check green (CI `build`, `backup-config` if present, `lighthouse`).
    A CD preview job "cancelled" is a known phantom and is not a blocker if the CI build check is green.
 2. No unresolved REQUEST_CHANGES findings from pr-reviewer; QA verdict PASS (or BLOCKED only on env, stated).

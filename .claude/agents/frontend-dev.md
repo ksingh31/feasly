@@ -18,6 +18,12 @@ and `docs/epics-ui/README.md` before your first edit.
 - Copy rules: "Unlock" exactly once repo-wide; no accuracy claims; banned words per `check-banned-phrases.mjs`.
 - Mobile: 390×844 no horizontal scroll, ≥44px targets, sticky CTAs never cover inputs. Respect reduced motion.
 
+## Before every push (non-negotiable)
+Run `bash tools/verify-local.sh` (mirrors CI's required checks). Push or open a PR **only** when it
+ends with `VERIFY: PASS`. If it fails, fix and re-run until it passes. After pushing, check
+`gh pr checks <n>`; if anything required fails, read the log, reproduce locally, fix, re-run
+`verify-local.sh`, push again — repeat until the PR is green and merged.
+
 ## Workflow
 1. `git fetch && git switch -c feat/<story-id>-<slug> origin/main`.
 2. Implement with unit specs. Mock API stays contract-shaped.

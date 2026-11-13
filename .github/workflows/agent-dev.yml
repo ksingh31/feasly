@@ -62,8 +62,8 @@ jobs:
                Azure spend, billing, destructive migration), do NOT implement: comment why, run
                `gh issue edit ${{ inputs.issue }} --add-label needs:karan --remove-label agent:claimed`, and stop.
             2. Branch: `git switch -c agent/issue-${{ inputs.issue }}-<short-kebab-slug>`.
-            3. Implement with tests. Run the CI-equivalent checks from CLAUDE.md for the workspaces you touched,
-               plus root `npx tsc -b`. Fix until green. Do not modify .github/workflows (you cannot push them).
+            3. Implement with tests. Then run `bash tools/verify-local.sh --no-ci` (npm ci already ran) and fix
+               until it prints `VERIFY: PASS`. Never push before that. Do not modify .github/workflows (you cannot push them).
             4. Commit (conventional message, end with a blank line and
                `Co-Authored-By: Claude <noreply@anthropic.com>`), push, then open the PR:
                `gh pr create --base main --label agent:pr --label area:${{ inputs.area }} --title "<type>(<scope>): <summary>" --body-file <file>`

@@ -22,7 +22,10 @@ Node 22, Flex Consumption) · Postgres 16 + Drizzle · `packages/cost-engine`
 · `packages/mcp` · Bicep (`infra/bicep`) · GitHub Actions (`ci.yml`, `cd.yml`,
 `lighthouse.yml`, `db-repair.yml`) · Vitest.
 
-## Verify locally (what CI runs) — Node 22
+## Verify locally before EVERY push — `bash tools/verify-local.sh`
+Push / open a PR only when it prints `VERIFY: PASS`. After pushing, if a required
+check fails: reproduce locally, fix, re-verify, push again — until merged.
+The individual steps it runs (what CI runs) — Node 22:
 ```bash
 export PATH=/opt/homebrew/opt/node@22/bin:$PATH
 npm ci && npm run build:configs --workspace @feasly/api
