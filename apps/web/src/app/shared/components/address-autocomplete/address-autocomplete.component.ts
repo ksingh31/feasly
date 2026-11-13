@@ -74,6 +74,12 @@ export class AddressAutocompleteComponent {
    * picked. The CTA must never proceed with an unresolved address.
    */
   readonly selectionHint = signal<string | null>(null);
+  /**
+   * True when the listbox is in the DOM. `aria-controls` must only point at
+   * an element that exists (axe `aria-valid-attr-value`, #487), so the
+   * input references the listbox only while it is rendered.
+   */
+  readonly listboxRendered = computed(() => this.open() && this.suggestions().length > 0);
 
   /** Address key currently resolving to a full record (for retry). */
   private pendingKey: string | null = null;

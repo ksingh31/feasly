@@ -8,7 +8,7 @@
       role="combobox"
       aria-autocomplete="list"
       [attr.aria-expanded]="open()"
-      [attr.aria-controls]="listboxId"
+      [attr.aria-controls]="listboxRendered() ? listboxId : null"
       [attr.aria-activedescendant]="activeIndex() >= 0 ? listboxId + '-opt-' + activeIndex() : null"
       [placeholder]="copy.placeholder"
       autocomplete="off"
@@ -62,7 +62,7 @@
     <p class="ac-empty" role="status">{{ copy.noResults }}</p>
   }
 
-  @if (open() && suggestions().length > 0) {
+  @if (listboxRendered()) {
     <ul class="ac-list" role="listbox" [id]="listboxId" [attr.aria-label]="copy.label">
       @for (
       s of suggestions(); track s.addressKey; let i = $index
