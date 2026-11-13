@@ -1,0 +1,82 @@
+# Agent pipeline — PR reviewer. Reviews every trusted PR as it opens or
+# updates, posts inline comments + a verdict review, then (deterministically,
+# not by the model) enables auto-merge when the verdict is APPROVE and no
+# sensitive paths are touched. Auto-merge still waits for required checks.
+name: Agent · Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+
+concurrency:
+  group: agent-review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    # Trusted authors only: this is a public repo and the diff is the prompt.
+    if: >-
+      vars.AGENTS_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || (
+        !github.event.pull_request.draft &&
+        (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) ||
+         github.event.pull_request.user.login == 'claude[bot]' ||
+         github.event.pull_request.user.login == 'dependabot[bot]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # The merge gate runs from main, never from the PR under review — an
+      # agent PR must not be able to edit the code that judges it.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          path: .trusted
+          sparse-checkout: tools/agents
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Review
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the Feasly `pr-reviewer` agent running unattended in CI.
+            Read CLAUDE.md and .claude/agents/pr-reviewer.md first and follow them.
+            Review PR #${{ env.PR }} in ${{ github.repository }} (`gh pr view`, `gh pr diff`, read files for context).
+            For Dependabot PRs focus on breaking changes in the changelog and lockfile consistency.
+            Post each finding as an inline comment (mcp__github_inline_comment__create_inline_comment),
+            then one summary review with `gh pr review ${{ env.PR }} --comment --body-file <file>` that starts
+            with `Verdict: APPROVE` or `Verdict: REQUEST_CHANGES` or `Verdict: NEEDS_KARAN`.
+            Use NEEDS_KARAN for pricing/engine parameters, legal copy, billing, Azure spend, or destructive data changes.
+            Return the same verdict in the structured output.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 60
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Glob,Grep"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","NEEDS_KARAN"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
+      - name: Gate auto-merge
+        if: steps.claude.outputs.structured_output != ''
+        env:
+          # Claude App token: merges it performs trigger CD (GITHUB_TOKEN merges would not).
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          VERDICT: ${{ fromJSON(steps.claude.outputs.structured_output).verdict }}
+        run: |
+          node .trusted/tools/agents/merge-gate.mjs "$PR" "$VERDICT"

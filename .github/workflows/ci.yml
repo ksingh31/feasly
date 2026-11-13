@@ -27,6 +27,8 @@ jobs:
       # HRD-07: secrets-gate self-test (proves the scanner fails on fixture
       # violations). Local: `node --test tools/check-secrets.test.mjs`.
       - run: node --test tools/check-secrets.test.mjs
+      # Agent pipeline decision logic (dispatcher / watchdog / merge gate).
+      - run: node --test tools/agents/*.test.mjs
       # SEO-01: production build + prerendered-SEO regression (per-page tags,
       # canonicals, noindex, 404 copy, 1200x630 OG image). Local: `npm run
       # verify:seo` inside apps/web.

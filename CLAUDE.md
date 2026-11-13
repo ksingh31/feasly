@@ -65,8 +65,9 @@ typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.
   without Karan's explicit approval for that specific change.
 - Reads/diagnostics freely (`az`, Azure MCP in read-only mode, Log Analytics
   workspace `feasly-dev-law`). Infra changes go through Bicep PRs.
-- Status 2026-11-12: subscription **Disabled** (free credit expired 2026-10-24);
-  data deleted 2026-11-28 unless Karan upgrades. Telemetry stops 2026-10-24.
+- Status 2026-11-13: subscription upgraded to **Pay-As-You-Go** (spending limit
+  off). Budget `feasly-monthly-cap` = $100/mo. It was disabled 2026-10-24 →
+  2026-11-13, so telemetry has a gap for those dates.
 
 ## Agent team (`.claude/agents/`)
 | Agent | Model | Use for |
@@ -84,3 +85,7 @@ typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.
 Typical story flow: architect (plan) → frontend-dev / backend-dev (build on a
 branch, open PR) → pr-reviewer + qa-tester (+ ux-reviewer for UI) in parallel →
 fix rounds → release-manager merges on green and confirms dev deploy.
+
+The same flow runs unattended on GitHub Actions (`.github/workflows/agent-*.yml`,
+scripts in `tools/agents/`). Runbook, labels, guardrails and kill switch:
+`docs/agents.md`. Dev agents branch as `agent/issue-<n>-<slug>`.

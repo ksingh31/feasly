@@ -1,0 +1,66 @@
+# Agent pipeline — architect watchdog + daily digest. Twice a day: the
+# deterministic watchdog moves stalled work; then the architect reviews the
+# summary, re-plans overdue stories, grooms the backlog when the ready queue
+# is empty, and updates the pinned digest issue. Fridays add a weekly report.
+name: Agent · Architect
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 06:00 Calgary (MST) — digest
+    - cron: '0 1 * * *' # 18:00 Calgary — watchdog pass
+  workflow_dispatch:
+
+concurrency:
+  group: agent-architect
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: write # watchdog dispatches review/fix runs
+  id-token: write
+
+jobs:
+  watch:
+    if: vars.AGENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Watchdog
+        run: node tools/agents/watchdog.mjs --out watchdog-summary.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_CLAIM_STALL_HOURS: ${{ vars.AGENT_CLAIM_STALL_HOURS }}
+          AGENT_PR_STALE_HOURS: ${{ vars.AGENT_PR_STALE_HOURS }}
+          AGENT_CI_RED_HOURS: ${{ vars.AGENT_CI_RED_HOURS }}
+      - name: Architect review + digest
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the Feasly `architect` agent running unattended. Read CLAUDE.md and .claude/agents/architect.md.
+            The watchdog already ran; its findings are in watchdog-summary.json (it has already requeued/escalated items).
+            1. For every `overdue` item: read the issue + PR, decide whether to split it into smaller issues
+               (create them with acceptance criteria, labels area:*, size:*, agent:ready) or re-plan; comment your decision.
+            2. If the ready queue is empty (summary.ready == 0) and nothing is claimed: groom the backlog — turn open
+               unlabelled issues with clear intent into stories (acceptance criteria, area, size) and label the
+               unambiguous ones agent:ready. Never label anything touching pricing, legal copy, billing or Azure spend;
+               label those needs:karan with the question Karan must answer.
+            3. Update the digest: find the open issue labelled agent:digest (create "Agent digest" with that label if
+               missing). Edit its body (gh issue edit --body-file) with: shipped in the last 24h (merged PRs + qa status),
+               in progress (issue, PR, age), stalled and why, waiting on Karan (needs:karan list with the exact question),
+               latest ops health (from the newest ops comment on the digest issue), and next up in the queue.
+               Today is ${{ github.event.schedule == '0 1 * * *' && 'an evening watchdog pass — only update the In progress / Stalled sections' || 'a morning digest' }}.
+               If today is Friday (check `date -u +%u` == 5) and this is the morning run, also add a "Week" section:
+               stories done, median time claim→merge, review rounds per PR, QA reopen count.
+            Keep the digest short and scannable; link every issue/PR.
+          claude_args: |
+            --model claude-fable-5-2
+            --max-turns 80
+            --allowedTools "Bash(gh *),Bash(date:*),Bash(git log:*),Read,Glob,Grep,Write"
