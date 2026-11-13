@@ -95,6 +95,7 @@ const EnvSchema = z.object({
   // community_stats_failed ops alert (admin/06).
   COMMUNITY_STATS_MIN_ASSESSMENTS: z.coerce.number().int().positive().default(10),
   COMMUNITY_STATS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(2),
+  COMMUNITY_STATS_PRUNE_MIN_ROWS: z.coerce.number().int().positive().default(100),
 
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
@@ -723,6 +724,12 @@ export interface CommunityStatsRefreshConfig {
   readonly minAssessmentCount: number;
   /** Consecutive timer failures before the ops alert fires. */
   readonly alertAfterConsecutiveFailures: number;
+  /**
+   * Safety floor for pruning: rows the current refresh did not produce are
+   * deleted only when the cycle wrote at least this many rows, so a partial
+   * Socrata response can never wipe the table (#468).
+   */
+  readonly pruneMinRows: number;
 }
 
 /**
@@ -1099,6 +1106,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
+      pruneMinRows: e.COMMUNITY_STATS_PRUNE_MIN_ROWS,
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,

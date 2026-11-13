@@ -13,6 +13,7 @@ export function mockCommunityStatsService(): CommunityStatsService {
   return {
     getBySlug: async (_slug: string) => null,
     upsertMany: async (_rows: readonly CommunityStatRecord[]) => 0,
+    deleteRefreshedBefore: async (_cutoff: Date) => 0,
   };
 }
 

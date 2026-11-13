@@ -31,6 +31,7 @@ function serviceWith(record: CommunityStatRecord | null): CommunityStatsService 
     getBySlug: async (slug: string) =>
       record && record.slug === slug ? record : null,
     upsertMany: async () => 0,
+    deleteRefreshedBefore: async () => 0,
   };
 }
 
