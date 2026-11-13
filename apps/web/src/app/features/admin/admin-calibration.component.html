@@ -12,7 +12,7 @@
   @if ((status$ | async) === 'error') {
     <div class="calibration__error" role="alert">
       <p>{{ error$ | async }}</p>
-      <button type="button" (click)="retry()">Try again</button>
+      <button type="button" class="button button--secondary" (click)="retry()">Try again</button>
     </div>
   }
 
@@ -184,6 +184,7 @@
            action is disabled and says so — no dead buttons. -->
       <button
         type="button"
+        class="button button--secondary"
         disabled
         title="Available after the first calibration import (waiting on Karan's cost Sheet)"
       >

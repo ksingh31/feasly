@@ -158,6 +158,8 @@ describe('AdminInvoiceDetailComponent', () => {
     expect(error).not.toBeNull();
     expect(error.textContent).toContain('Please try again');
     expect(error.textContent).toContain('Try again');
+    // #477: the retry button is styled, not a browser-default button.
+    expect(error.querySelector('button')?.classList).toContain('button');
   });
 
   it('shows the Manage button to billing managers on in-review invoices and opens the modal', async () => {

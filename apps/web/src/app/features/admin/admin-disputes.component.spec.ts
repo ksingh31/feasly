@@ -133,4 +133,21 @@ describe('AdminDisputesComponent permission gating', () => {
     expect(page.querySelector('.disputes-page__reject')).toBeNull();
     expect(page.querySelector('.disputes-page__resolve-actions')).toBeNull();
   });
+
+  it('styles every action button with the shared button classes (#477)', async () => {
+    await setup([ADMIN_PERMISSIONS.billingManage]);
+    await openDispute();
+
+    const page = fixture.nativeElement as HTMLElement;
+    page.querySelector<HTMLButtonElement>('.disputes-page__accept')?.click();
+    fixture.detectChanges();
+
+    const actions = Array.from(page.querySelectorAll('button')).filter(
+      (b) => !b.closest('.disputes-page__row'),
+    );
+    expect(actions.length).toBeGreaterThan(0);
+    for (const button of actions) {
+      expect(button.classList.contains('button'), button.textContent?.trim()).toBe(true);
+    }
+  });
 });

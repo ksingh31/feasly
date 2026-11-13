@@ -484,6 +484,25 @@ export class BuilderInvoicesComponent implements OnInit {
         date: invoice.updatedAt,
       });
     }
-    return entries;
+    return sortTimelineChronologically(entries);
   }
+}
+
+/**
+ * Orders timeline rows oldest → newest by timestamp (#478). The API returns
+ * each event as a separate field, so the order was set by the push sequence
+ * above — a failed charge recorded before finalize rendered out of order.
+ * Stable: ties and unparseable dates keep their insertion order.
+ */
+export function sortTimelineChronologically<T extends { readonly date: string }>(
+  entries: readonly T[],
+): T[] {
+  const time = (date: string): number => {
+    const ms = Date.parse(date);
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
+  return entries
+    .map((entry, index) => ({ entry, index, ms: time(entry.date) }))
+    .sort((a, b) => (a.ms === b.ms ? a.index - b.index : a.ms - b.ms))
+    .map(({ entry }) => entry);
 }

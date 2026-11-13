@@ -28,7 +28,10 @@ import {
 } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { BuilderBillingState } from './builder-billing.state';
-import { BuilderInvoicesComponent } from './builder-invoices.component';
+import {
+  BuilderInvoicesComponent,
+  sortTimelineChronologically,
+} from './builder-invoices.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderInvoicesState } from './builder-invoices.state';
@@ -1222,5 +1225,74 @@ describe('BuilderInvoices invoice-number column + filter', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('No invoices match your search.');
+  });
+
+  it('orders timeline events chronologically when the charge failed before finalize (#478)', async () => {
+    const [failed] = testInvoices().filter((inv) => inv.status === 'failed');
+    const invoice: BuilderCommissionInvoice = {
+      ...failed,
+      createdAt: '2026-10-28T16:00:00.000Z',
+      reviewDueAt: '2026-11-04T16:00:00.000Z',
+      // Charge failure recorded (updatedAt) before finalizedAt.
+      updatedAt: '2026-11-04T18:00:00.000Z',
+      finalizedAt: '2026-11-05T18:00:00.000Z',
+    };
+    const { fixture } = await setupWithInvoices({
+      invoices: [invoice],
+      total: 1,
+      page: 1,
+      pageSize: 10,
+    });
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '.builder-invoices__row-link',
+    );
+    button.click();
+    await flushMock(fixture);
+
+    const labels = [
+      ...fixture.nativeElement.querySelectorAll(
+        '.builder-invoices__timeline-label',
+      ),
+    ].map((el: Element) => el.textContent?.trim());
+    expect(labels).toEqual([
+      DEFAULT_BUILDER_COPY.invoicesTimelineCreated,
+      DEFAULT_BUILDER_COPY.invoicesTimelineReviewEnds,
+      DEFAULT_BUILDER_COPY.invoicesTimelineFailed,
+      DEFAULT_BUILDER_COPY.invoicesTimelineFinalized,
+    ]);
+  });
+});
+
+describe('sortTimelineChronologically (#478)', () => {
+  it('sorts entries oldest first', () => {
+    const sorted = sortTimelineChronologically([
+      { label: 'c', date: '2026-11-05T00:00:00.000Z' },
+      { label: 'a', date: '2026-11-01T00:00:00.000Z' },
+      { label: 'b', date: '2026-11-04T00:00:00.000Z' },
+    ]);
+    expect(sorted.map((e) => e.label)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps insertion order for equal timestamps (stable)', () => {
+    const sorted = sortTimelineChronologically([
+      { label: 'finalized', date: '2026-11-05T00:00:00.000Z' },
+      { label: 'paid', date: '2026-11-05T00:00:00.000Z' },
+      { label: 'created', date: '2026-11-01T00:00:00.000Z' },
+    ]);
+    expect(sorted.map((e) => e.label)).toEqual(['created', 'finalized', 'paid']);
+  });
+
+  it('places unparseable dates last in insertion order and does not mutate input', () => {
+    const input = [
+      { label: 'bad1', date: 'not-a-date' },
+      { label: 'ok', date: '2026-11-01T00:00:00.000Z' },
+      { label: 'bad2', date: '' },
+    ];
+    const sorted = sortTimelineChronologically(input);
+    expect(sorted.map((e) => e.label)).toEqual(['ok', 'bad1', 'bad2']);
+    expect(input.map((e) => e.label)).toEqual(['bad1', 'ok', 'bad2']);
   });
 });
