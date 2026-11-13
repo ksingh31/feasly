@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component } from '@angular/core';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -292,6 +292,74 @@ describe('AnalyzingPageComponent', () => {
       ) as HTMLAnchorElement;
       expect(back).not.toBeNull();
       expect(back.getAttribute('href')).toBe('/estimate/scope');
+    });
+  });
+
+  describe('estimate call fails with 503 (#483)', () => {
+    let estimateCalls: Subject<PreviewEstimateResponse>;
+    let estimateAttempts: number;
+
+    const unavailable = (): HttpErrorResponse =>
+      new HttpErrorResponse({
+        status: 503,
+        statusText: 'Service Unavailable',
+        url: '/api/v1/estimates/preview',
+      });
+
+    beforeEach(async () => {
+      estimateAttempts = 0;
+      estimateCalls = new Subject<PreviewEstimateResponse>();
+      await setup({
+        provide: API_SERVICE,
+        useValue: {
+          getProperty: () => of(fakeProperty),
+          getPreviewEstimate: () => {
+            estimateAttempts += 1;
+            return estimateCalls.asObservable();
+          },
+        },
+      });
+      store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.autoDetectChanges();
+      await fixture.whenStable();
+    });
+
+    async function failEstimate(): Promise<void> {
+      const pending = estimateCalls;
+      estimateCalls = new Subject<PreviewEstimateResponse>();
+      pending.error(unavailable());
+      // No manual change detection: the zoneless scheduler alone must render
+      // the error (plain-field writes in the error callback never did).
+      await fixture.whenStable();
+    }
+
+    it('renders the error state on its own instead of spinning forever', async () => {
+      expect(stageState('estimate')).toBe('active');
+      await failEstimate();
+
+      const card = fixture.nativeElement.querySelector('.error-card') as HTMLElement | null;
+      expect(card).not.toBeNull();
+      expect(card?.querySelector('h2')?.textContent).toContain('We couldn’t run your estimate');
+      expect(stageState('estimate')).toBe('error');
+      expect(router.url).not.toBe('/estimate/report');
+      expect(store.selectSnapshot(WizardState.preview)).toBeNull();
+    });
+
+    it('Retry re-runs the estimate and recovers to the report', async () => {
+      await failEstimate();
+      const retry = fixture.nativeElement.querySelector('.error-card .cta') as HTMLButtonElement;
+      expect(retry).not.toBeNull();
+
+      retry.click();
+      await fixture.whenStable();
+      expect(estimateAttempts).toBe(2);
+      expect(fixture.nativeElement.querySelector('.error-card')).toBeNull();
+      expect(stageState('estimate')).toBe('active');
+
+      estimateCalls.next(fakePreview);
+      await pollUrl('/estimate/report');
+      expect(store.selectSnapshot(WizardState.preview)?.estimateId).toBe(fakePreview.estimateId);
     });
   });
 

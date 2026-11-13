@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  planDispatch, orderOf, blockersOf, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
+  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -125,6 +125,13 @@ test('triage: any failure on main opens/updates the main-is-red issue', () => {
   assert.equal(r.action, 'main-issue');
   assert.deepEqual(r.codeJobs, ['dependency-audit']);
   assert.deepEqual(r.envJobs, ['backup-config']);
+});
+
+test('backlog waits until every non-parked bug is closed', () => {
+  assert.deepEqual(shouldReleaseBacklog({ openBugs: [issue(1, ['bug']), issue(2, ['bug', 'needs:karan'])], backlogCount: 5 }),
+    { release: false, blockingBugs: [1] });
+  assert.equal(shouldReleaseBacklog({ openBugs: [issue(2, ['bug', 'needs:karan'])], backlogCount: 5 }).release, true);
+  assert.equal(shouldReleaseBacklog({ openBugs: [], backlogCount: 0 }).release, false);
 });
 
 test('sensitive paths hold auto-merge', () => {

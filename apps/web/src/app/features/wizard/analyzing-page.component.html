@@ -5,7 +5,7 @@
       <p class="analyzing-sub">{{ copy.sub }}</p>
 
       <ol class="stages" aria-live="polite">
-        @for (stage of stages; track stage.key) {
+        @for (stage of stages(); track stage.key) {
           <li class="stage" [attr.data-state]="stage.state">
             <span class="stage-icon" aria-hidden="true"></span>
             <span class="stage-label">{{ stage.label }}</span>
@@ -14,7 +14,7 @@
         }
       </ol>
 
-      @if (failed) {
+      @if (failed()) {
         <div class="error-card" role="alert">
           <h2>{{ copy.errorHeading }}</h2>
           <p>{{ copy.errorBody }}</p>

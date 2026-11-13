@@ -8,6 +8,13 @@ export interface ReportSnapshot {
   readonly snapshotId: string;
   readonly estimateId: string;
   readonly leadId: string;
+  /**
+   * Property the estimate was run for (issue #484). Lets a magic-link or
+   * partner-share redemption on a fresh device hydrate the property from
+   * the token alone. Optional for older clients/fixtures; the API always
+   * sets it.
+   */
+  readonly addressKey?: string;
   readonly inputs: EstimateInputs;
   /** Always real ranges here — snapshots exist only post-gate. */
   readonly buildRange: CostRange;
