@@ -12,7 +12,9 @@ import { provideApi } from '../../core/api/api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { ConfigService } from '../../core/config/config.service';
-import { GoToStep, ChooseProjectType, LeadState, SelectProperty, WizardState } from '../wizard';
+import { GoToStep, ChooseProjectType, LeadState, SelectProperty, StorePreviewEstimate, WizardState } from '../wizard';
+import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
+import { previewRequestKey } from '../../core/api/preview-cache';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent';
 import { EmbedState } from '../embed/embed.state';
@@ -555,6 +557,78 @@ describe('GatePageComponent', () => {
       // New-build flow: the preview request is a NewBuildEstimateRequest.
       expect((previewSpy.mock.calls[0][0] as NewBuildEstimateRequest).tenantKey).toBe('acme-builders');
 
+    });
+  });
+
+  describe('#489: the lead attaches to the previewed estimate', () => {
+    const minted: string[] = [];
+    let submitted: { estimateId: string } | null = null;
+    // Mirrors the real API: every preview call mints a NEW estimateId.
+    const stub = {
+      getPreviewEstimate: () => {
+        const id = `est-uuid-${minted.length + 1}`;
+        minted.push(id);
+        return of({ estimateId: id } as PreviewEstimateResponse);
+      },
+      submitLead: (req: { estimateId: string }) => {
+        submitted = req;
+        return of({ leadId: 'lead-1', magicLinkSent: true, expiresInDays: 7 });
+      },
+    };
+
+    beforeEach(async () => {
+      minted.length = 0;
+      submitted = null;
+      await setup({ provide: API_SERVICE, useValue: stub });
+    });
+
+    function cachePreview(estimateId: string, tenantKey: string | null = null): void {
+      const inputs = store.selectSnapshot(WizardState.inputs);
+      store.dispatch(
+        new StorePreviewEstimate(
+          { estimateId } as PreviewEstimateResponse,
+          previewRequestKey(buildNewBuildRequest(fakeProperty, inputs)),
+          tenantKey,
+        ),
+      );
+    }
+
+    it('reuses the cached preview estimateId — no second preview call', async () => {
+      cachePreview('est-previewed');
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(minted).toEqual([]);
+      expect(submitted?.estimateId).toBe('est-previewed');
+    });
+
+    it('mints once when nothing matching is cached and stores it for analyzing/report', async () => {
+      cachePreview('est-stale');
+      store.dispatch(new SelectProperty({ ...fakeProperty, addressKey: 'calgary-other' }));
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(minted).toEqual(['est-uuid-1']);
+      expect(submitted?.estimateId).toBe('est-uuid-1');
+      const cache = store.selectSnapshot(WizardState.previewCache);
+      expect(cache.preview?.estimateId).toBe('est-uuid-1');
+      expect(cache.key).toBe(
+        previewRequestKey(
+          buildNewBuildRequest(
+            { ...fakeProperty, addressKey: 'calgary-other' },
+            store.selectSnapshot(WizardState.inputs),
+          ),
+        ),
+      );
+    });
+
+    it('does not reuse a preview attributed to a different embed tenant', async () => {
+      cachePreview('est-other-tenant', 'beta-homes');
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(minted).toEqual(['est-uuid-1']);
+      expect(submitted?.estimateId).toBe('est-uuid-1');
     });
   });
 });

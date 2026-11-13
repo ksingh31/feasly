@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { firstValueFrom, of, Subject, throwError } from 'rxjs';
+import { firstValueFrom, map, of, Subject, throwError } from 'rxjs';
 import type { PropertyRecord, TierRevisionRequest, TierRevisionResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
@@ -11,7 +11,16 @@ import { MockApiService } from '../../core/api/mock-api.service';
 import { mockPreviewEstimate, mockRenoReport, mockReport } from '../../core/api/mock-data';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
-import { LeadState, ResetWizard, SelectProperty, StoreLeadResult, UpdateInputs, WizardState } from '../wizard';
+import {
+  LeadState,
+  ResetWizard,
+  SelectProperty,
+  StoreLeadResult,
+  StorePreviewEstimate,
+  UpdateInputs,
+  WizardState,
+} from '../wizard';
+import { previewRequestKey } from '../../core/api/preview-cache';
 import {
   ClearReport,
   LoadLeadEstimate,
@@ -756,6 +765,105 @@ describe('ReportState', () => {
         reportSpy.mockRestore();
         propertySpy.mockRestore();
       }
+    });
+  });
+
+  describe('#489: one estimate through preview, gate and report', () => {
+    function selectBasis(): void {
+      store.dispatch([new SelectProperty(fakeProperty), new UpdateInputs({ ...baseInputs })]);
+    }
+
+    it('LoadPreview writes the preview and its request key to the wizard cache', async () => {
+      selectBasis();
+      store.dispatch(new LoadPreview());
+      await pollStatus('ready');
+      const cache = store.selectSnapshot(WizardState.previewCache);
+      expect(cache.preview?.estimateId).toBe(store.selectSnapshot(ReportState.preview)?.estimateId);
+      expect(cache.key).toBe(previewRequestKey(buildNewBuildRequest(fakeProperty, baseInputs)));
+      expect(cache.tenantKey).toBeNull();
+    });
+
+    it('an unchanged request reuses the cached preview instead of re-minting', async () => {
+      selectBasis();
+      const spy = vi.spyOn(api, 'getPreviewEstimate');
+      store.dispatch(new LoadPreview());
+      await pollStatus('ready');
+      const first = store.selectSnapshot(ReportState.preview)?.estimateId;
+      store.dispatch(new LoadPreview());
+      expect(store.selectSnapshot(ReportState.status)).toBe('ready');
+      expect(store.selectSnapshot(ReportState.preview)?.estimateId).toBe(first);
+      expect(spy).toHaveBeenCalledOnce();
+    });
+
+    it('changed inputs re-run the preview', async () => {
+      selectBasis();
+      const spy = vi.spyOn(api, 'getPreviewEstimate');
+      store.dispatch(new LoadPreview());
+      await pollStatus('ready');
+      store.dispatch(new UpdateInputs({ sqft: 2400 }));
+      store.dispatch(new LoadPreview());
+      await pollFor(() => spy.mock.calls.length === 2, 'second preview call');
+      await pollStatus('ready');
+      expect(store.selectSnapshot(WizardState.previewCache).key).toBe(
+        previewRequestKey(buildNewBuildRequest(fakeProperty, { ...baseInputs, sqft: 2400 })),
+      );
+    });
+
+    it('carries the embed tenant on the minted preview and never reuses across tenants', async () => {
+      selectBasis();
+      const spy = vi.spyOn(api, 'getPreviewEstimate');
+      store.dispatch(new LoadPreview('acme-builders'));
+      await pollStatus('ready');
+      expect((spy.mock.calls[0][0] as { tenantKey?: string }).tenantKey).toBe('acme-builders');
+      expect(store.selectSnapshot(WizardState.previewCache).tenantKey).toBe('acme-builders');
+      // Same inputs, no tenant: attribution differs, so it re-runs.
+      store.dispatch(new LoadPreview());
+      await pollFor(() => spy.mock.calls.length === 2, 'untenanted preview call');
+    });
+
+    it('LoadLeadEstimate keeps the estimateId the lead is attached to', async () => {
+      selectBasis();
+      const preview = mockPreviewEstimate(fakeProperty.addressKey, baseInputs);
+      store.dispatch(
+        new StorePreviewEstimate(
+          { ...preview, estimateId: 'est-lead' },
+          previewRequestKey(buildNewBuildRequest(fakeProperty, baseInputs)),
+        ),
+      );
+      // The real API mints a fresh UUID on every call.
+      const realGetEstimate = api.getEstimate.bind(api);
+      vi.spyOn(api, 'getEstimate').mockImplementation((request) =>
+        realGetEstimate(request).pipe(map((e) => ({ ...e, estimateId: 'est-fresh-uuid' }))),
+      );
+      store.dispatch(
+        new StoreLeadResult({ leadId: 'lead-1', email: 'buyer@example.com', magicLinkSent: true, expiresInDays: 7 }),
+      );
+      store.dispatch(new LoadLeadEstimate());
+      await pollStatus('ready');
+      const snapshot = store.selectSnapshot(ReportState.snapshot);
+      expect(snapshot?.estimateId).toBe('est-lead');
+      expect(snapshot?.rows.length).toBeGreaterThan(0);
+    });
+
+    it('LoadLeadEstimate falls back to the fresh estimateId when the cache is for other inputs', async () => {
+      selectBasis();
+      const preview = mockPreviewEstimate(fakeProperty.addressKey, baseInputs);
+      store.dispatch(
+        new StorePreviewEstimate(
+          { ...preview, estimateId: 'est-other' },
+          previewRequestKey(buildNewBuildRequest(fakeProperty, { ...baseInputs, sqft: 3000 })),
+        ),
+      );
+      const realGetEstimate = api.getEstimate.bind(api);
+      vi.spyOn(api, 'getEstimate').mockImplementation((request) =>
+        realGetEstimate(request).pipe(map((e) => ({ ...e, estimateId: 'est-fresh-uuid' }))),
+      );
+      store.dispatch(
+        new StoreLeadResult({ leadId: 'lead-1', email: 'buyer@example.com', magicLinkSent: true, expiresInDays: 7 }),
+      );
+      store.dispatch(new LoadLeadEstimate());
+      await pollStatus('ready');
+      expect(store.selectSnapshot(ReportState.snapshot)?.estimateId).toBe('est-fresh-uuid');
     });
   });
 });
