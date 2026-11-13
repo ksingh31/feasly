@@ -57,9 +57,6 @@
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cream-2) 25%, #e6e1d6 50%, var(--cream-2) 75%);
-  background-size: 200% 100%;
-  animation: builder-pipeline-shimmer 1.4s ease-in-out infinite;
 }
 
 .builder-pipeline__skeleton-lines {
@@ -74,6 +71,11 @@
   display: block;
   height: 0.75rem;
   border-radius: 0.375rem;
+}
+
+/* Shared shimmer for the avatar and line skeletons. */
+.builder-pipeline__skeleton-avatar,
+.builder-pipeline__skeleton-lines span {
   background: linear-gradient(90deg, var(--cream-2) 25%, #e6e1d6 50%, var(--cream-2) 75%);
   background-size: 200% 100%;
   animation: builder-pipeline-shimmer 1.4s ease-in-out infinite;
@@ -304,6 +306,15 @@
   font-size: 0.875rem;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.builder-lead-card__link {
+  /* ≥44px tap target (#475) */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-deep);
+  font-weight: 600;
 }
 
 .builder-lead-card__meta {

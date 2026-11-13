@@ -347,6 +347,22 @@ export class BuilderDashboardComponent implements OnInit {
     return (first + last).toUpperCase();
   }
 
+  /**
+   * `tel:` href for a lead phone (#475). Keeps a leading `+` and digits only,
+   * so "403-555-0101" / "(403) 555 0101" dial correctly on every phone.
+   */
+  protected telHref(phone: string): string {
+    const trimmed = phone.trim();
+    const digits = trimmed.replace(/\D/g, '');
+    const plus = trimmed.startsWith('+') ? '+' : '';
+    return 'tel:' + plus + digits;
+  }
+
+  /** `mailto:` href for a lead email (#475). */
+  protected mailtoHref(email: string): string {
+    return 'mailto:' + email.trim();
+  }
+
   protected formatDate(iso: string): string {
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-CA');

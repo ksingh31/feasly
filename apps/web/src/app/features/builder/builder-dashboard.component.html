@@ -110,8 +110,12 @@
                 </div>
                 <p class="builder-lead-card__contact">
                   <span>
-                    <span class="sr-only">{{ copy.leadEmailLabel }}: </span>
-                    {{ lead.email }}
+                    <a
+                      class="builder-lead-card__link"
+                      data-testid="lead-email-link"
+                      [href]="mailtoHref(lead.email)"
+                      ><span class="sr-only">{{ copy.leadEmailLabel }}: </span>{{ lead.email }}</a
+                    >
                   </span>
                   <span aria-hidden="true"> · </span>
                   <span>
@@ -131,7 +135,14 @@
                   @if (lead.phone) {
                     <div>
                       <dt>{{ copy.leadPhoneLabel }}</dt>
-                      <dd>{{ lead.phone }}</dd>
+                      <dd>
+                        <a
+                          class="builder-lead-card__link"
+                          data-testid="lead-phone-link"
+                          [href]="telHref(lead.phone)"
+                          >{{ lead.phone }}</a
+                        >
+                      </dd>
                     </div>
                   }
                   <div>
