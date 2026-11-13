@@ -510,23 +510,31 @@ describe('BuilderReportContractComponent', () => {
   });
 
   it('shows the invoice card with review deadline and auto-charge on success', async () => {
-    const { fixture, getInvoice } = await setup(() =>
-      of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
-    );
-    fillValidForm(fixture);
-    await submitForm(fixture);
+    // The countdown hides once the review deadline (fixture: 2026-10-06) is
+    // past, so pin "now" between the signing date and the deadline. Only
+    // Date is faked — timers stay real so the async flow is unaffected.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-29T18:00:00Z'));
+    try {
+      const { fixture, getInvoice } = await setup(() =>
+        of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
+      );
+      fillValidForm(fixture);
+      await submitForm(fixture);
 
-    expect(getInvoice).toHaveBeenCalledWith('inv-1');
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Contract recorded');
-    expect(text).toContain('$6,500');
-    expect(text).toContain('Oct 6, 2026');
-    // Date-dependent: just assert the auto-charge countdown is shown.
-    expect(text).toContain('Auto-charges');
-    expect(text).toContain('charge your card on file');
-    expect(text).toContain('View invoice');
-    expect(text).toContain('Back to leads');
-    expect(text).not.toContain('Report another contract');
+      expect(getInvoice).toHaveBeenCalledWith('inv-1');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Contract recorded');
+      expect(text).toContain('$6,500');
+      expect(text).toContain('Oct 6, 2026');
+      expect(text).toContain('Auto-charges');
+      expect(text).toContain('charge your card on file');
+      expect(text).toContain('View invoice');
+      expect(text).toContain('Back to leads');
+      expect(text).not.toContain('Report another contract');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows manual-method success copy and no auto-charge for a cheque invoice (QA 2026-10-04)', async () => {
