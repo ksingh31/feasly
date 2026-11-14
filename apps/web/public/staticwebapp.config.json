@@ -252,6 +252,12 @@
       "statusCode": 301
     },
     {
+      "route": "/embed/v1/*",
+      "headers": {
+        "Content-Type": "application/javascript; charset=utf-8"
+      }
+    },
+    {
       "route": "/embed/*",
       "rewrite": "/index.html",
       "headers": {

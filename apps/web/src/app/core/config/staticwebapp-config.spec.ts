@@ -134,6 +134,21 @@ describe('staticwebapp.config.json routing', () => {
     expect(rule?.headers?.['Content-Security-Policy']).toContain('frame-ancestors');
   });
 
+  it('serves the builder embed loader as a static script, not the SPA shell (#490)', () => {
+    // Route rewrites apply before static files, so `/embed/*` → index.html
+    // would otherwise swallow public/embed/v<major>/loader.js (built by
+    // snippet/build.mjs) and break every builder embed. The versioned loader
+    // folder needs its own earlier rule with no rewrite.
+    const loaderSrc = readFileSync(join(publicDir, '..', 'snippet', 'loader.js'), 'utf8');
+    const major = loaderSrc.match(/FEASLY_LOADER_VERSION\s*=\s*'(\d+)\./)?.[1];
+    expect(major, 'FEASLY_LOADER_VERSION not found in snippet/loader.js').toBeDefined();
+    const rule = matchRule(`/embed/v${major}/loader.js`);
+    expect(rule?.route).toBe(`/embed/v${major}/*`);
+    expect(rule?.rewrite).toBeUndefined();
+    expect(rule?.redirect).toBeUndefined();
+    expect(rule?.headers?.['Content-Type']).toContain('javascript');
+  });
+
   it('does not set the global trailingSlash flag', () => {
     const config = readConfig();
     // Deliberate: trailing-slash 301s are per-slug exact rules (community

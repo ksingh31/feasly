@@ -120,6 +120,12 @@ is set, which made unknown URLs soft 404s. Instead:
   `/error`, `/admin`, `/admin/*`, `/builder`, `/builder/*`, `/r/*`) are an
   explicit allow-list of `rewrite: /index.html` rules so deep links and
   refreshes keep working.
+- `/embed/v1/*` (the builder loader `embed/v1/loader.js`, built by
+  `snippet/build.mjs`) has its own rule with no rewrite, placed before
+  `/embed/*`. Route rewrites run before static files, so without it the
+  loader would be served as `index.html` and every builder embed would
+  break. Bump the rule when the loader's major version changes (the spec
+  checks it against `FEASLY_LOADER_VERSION`).
 - Everything else hits `responseOverrides.404 → /404.html` with
   `statusCode: 404`: the prerendered branded page, HTTP 404. `/404.html` is
   a flat copy of the prerendered `404/index.html` written by the postbuild
