@@ -247,8 +247,9 @@ export const routes: Routes = [
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
   // setForRoute('404')); the CTA returns visitors home. SWA's
-  // responseOverrides.404 rewrites platform-level 404s to /index.html so the
-  // app — and this page — can render (see SEO.md for the status-code nuance).
+  // responseOverrides.404 serves /404.html (prerendered copy) with HTTP
+  // 404 for unknown paths (#490). New client-only routes need a rewrite rule
+  // in staticwebapp.config.json (see SEO.md "Branded 404").
   {
     path: '404',
     component: NotFoundPageComponent,
