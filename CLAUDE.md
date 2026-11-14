@@ -47,6 +47,14 @@ typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.
 - No fixed sleeps in async tests — poll for a terminal state with a deadline.
 - SWA preview cap is 3; stale merged-PR previews block new ones.
 
+## Owner decisions (2026-11-13) — do not file issues or PRs that reverse these
+- Commission: **1% default**, configurable per builder (`BILLING_COMMISSION_RATE`, admin set-rate).
+- Pre-gate preview: real figures being readable in page source/DOM before the email gate is **acceptable**; the blur is a nudge, not a security boundary.
+- "Total investment" = **lot (City-assessed value) + build cost**. No owner/buyer split.
+- Charge-timing copy, everywhere: "We charge your card 7 days after the invoice is issued. You can question it any time before then."
+- Merge only when **every** PR check is green (required or not), after `bash tools/verify-local.sh` → VERIFY: PASS.
+- Approved redesign: `docs/design/portal-ui-kit.md` + the reviews in `docs/reviews/`; design stories wait in `backlog` until all bugs are fixed.
+
 ## Hard rules
 - Every dollar figure comes from `packages/cost-engine`. LLM writes narrative only.
 - No hardcoded values (web: ConfigService; api: `config.ts`). Routes never import `db/`.
