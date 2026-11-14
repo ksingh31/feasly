@@ -61,7 +61,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Runs are started by our own dispatcher / watchdog / triage scripts.
-          allowed_bots: github-actions,github-actions[bot]
+          allowed_bots: github-actions,github-actions[bot],claude,claude[bot]
           prompt: |
             You are the Feasly `pr-reviewer` agent running unattended in CI.
             Read CLAUDE.md and .claude/agents/pr-reviewer.md first and follow them.
