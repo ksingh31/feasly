@@ -1,11 +1,12 @@
 @use '../../shared/form-controls' as *;
+@use '../../shared/stacked-table' as *;
 
 /**
  * Admin user management (auth/03) — the team-user table.
  *
  * Cream background, charcoal text, brass accents — same admin family as the
  * builders page. Table of users on top; invite/edit/delete open as modal
- * dialogs. The table scrolls horizontally on narrow screens (375px).
+ * dialogs. On phones (<= 640px) each user row stacks into a card (#476).
  */
 
 .users-page {
@@ -122,6 +123,8 @@
   min-width: 44rem;
   border-collapse: collapse;
   font-size: 0.9375rem;
+
+  @include feasly-stacked-table;
 }
 
 .users-page__caption {

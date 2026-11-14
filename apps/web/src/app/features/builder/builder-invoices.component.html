@@ -294,7 +294,7 @@
         <tbody>
           @for (invoice of invoices(); track invoice.id) {
             <tr>
-              <td>
+              <td [attr.data-label]="copy.invoicesColInvoiceNumber">
                 <button
                   type="button"
                   class="builder-invoices__row-link"
@@ -303,11 +303,11 @@
                   {{ invoice.invoiceNumber }}
                 </button>
               </td>
-              <td>{{ formatEdmontonDate(invoice.createdAt) }}</td>
-              <td>{{ invoice.leadName }}</td>
-              <td>{{ money(invoice.contractValueCents) }}</td>
-              <td>{{ money(invoice.commissionCents) }}</td>
-              <td>
+              <td [attr.data-label]="copy.invoicesColDate">{{ formatEdmontonDate(invoice.createdAt) }}</td>
+              <td [attr.data-label]="copy.invoicesColLead">{{ invoice.leadName }}</td>
+              <td [attr.data-label]="copy.invoicesColContract">{{ money(invoice.contractValueCents) }}</td>
+              <td [attr.data-label]="copy.invoicesColCommission">{{ money(invoice.commissionCents) }}</td>
+              <td [attr.data-label]="copy.invoicesColStatus">
                 <span
                   class="builder-invoices__pill builder-invoices__pill--{{
                     invoice.status
@@ -315,13 +315,13 @@
                   >{{ statusLabel(invoice.status) }}</span
                 >
               </td>
-              <td>
+              <td [attr.data-label]="copy.invoicesColMethod">
                 <span
                   class="builder-invoices__method"
                   >{{ methodLabel(invoice.paymentMethod) }}</span
                 >
               </td>
-              <td>
+              <td [attr.data-label]="copy.invoicesColDue">
                 @if (reviewCountdown(invoice); as countdown) {
                   <span class="builder-invoices__countdown">{{ countdown }}</span>
                 } @else {
