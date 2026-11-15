@@ -227,7 +227,8 @@ export function createDrizzleInvitationStore(
         .select()
         .from(invitations)
         .where(eq(invitations.email, email))
-        .orderBy(desc(invitations.createdAt))
+        // id breaks createdAt ties (two invites in the same instant) so "latest" is deterministic.
+        .orderBy(desc(invitations.createdAt), desc(invitations.id))
         .limit(1);
       const row = rows[0];
       return row ? toInvitationRecord(row) : null;
