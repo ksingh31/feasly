@@ -82,6 +82,8 @@ describe('SiteNavComponent', () => {
       'Compare neighbourhoods',
       'FAQ',
       'Developers',
+      // #704: returning users on another device.
+      'Find my report',
     ]);
     btn.click();
     fixture.detectChanges();

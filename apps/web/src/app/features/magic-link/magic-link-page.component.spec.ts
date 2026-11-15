@@ -12,6 +12,7 @@ import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config';
 import { MagicLinkPageComponent } from './magic-link-page.component';
 import { SetPartnerView, SetReportToken } from '../report/report.actions';
+import { AnalyticsService } from '../consent/analytics.service';
 
 /**
  * Magic-link redemption (consumer/02): `/r/:token` verifies the token,
@@ -67,6 +68,7 @@ describe('MagicLinkPageComponent', () => {
         provideRouter([]),
         provideStore([]),
         { provide: API_SERVICE, useValue: api },
+        { provide: AnalyticsService, useValue: { track: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap(token ? { token } : {}) } },

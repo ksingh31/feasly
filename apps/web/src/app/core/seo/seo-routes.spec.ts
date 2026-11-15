@@ -111,6 +111,7 @@ describe('seo-routes', () => {
       'check-email': 'check-email',
       analyzing: 'analyzing',
       'r/:token': 'r/abc123',
+      'my-report': 'my-report',
       'unsubscribe/:token': 'unsubscribe/abc123',
       'embed/**': 'embed/acme/embed.js',
       'admin': 'admin',

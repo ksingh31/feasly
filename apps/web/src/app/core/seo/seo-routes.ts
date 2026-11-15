@@ -132,6 +132,14 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'magicLink',
     noindex: true,
   },
+  // Find my report (#704): returning users request a fresh link by email.
+  // Private — noindex, and disallowed in robots.txt.
+  {
+    pattern: 'my-report',
+    titleKey: 'myReportTitle',
+    descriptionKey: 'myReport',
+    noindex: true,
+  },
   // Admin console (admin/07): every admin section gets its own title so
   // client-side nav between sections updates the document title — the
   // previous per-component setPage calls drifted (sections without one

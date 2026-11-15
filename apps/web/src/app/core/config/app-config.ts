@@ -1662,6 +1662,8 @@ export interface AppConfig {
       unsubscribe: string;
       magicLinkTitle: string;
       magicLink: string;
+      myReportTitle: string;
+      myReport: string;
       errorTitle: string;
       error: string;
       /** Admin console (admin/07): per-section titles for client-side nav. All noindexed. */
@@ -2391,6 +2393,54 @@ export interface AppConfig {
       resendDoneHeading: string;
       resendDoneBody: string;
       resendErrorBody: string;
+    };
+    /**
+     * `/my-report` (#704): returning users ask for a fresh report link by
+     * email. Reuses POST /api/v1/magic-link/reissue; the sent state is the
+     * same whether or not the email is known (no address oracle).
+     */
+    myReport: {
+      heading: string;
+      body: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      emailError: string;
+      cta: string;
+      sendingLabel: string;
+      sentHeading: string;
+      /** Neutral: identical for known and unknown emails. */
+      sentBody: string;
+      /** HTTP 429 from the reissue endpoint. */
+      rateLimitedBody: string;
+      errorBody: string;
+      homeCta: string;
+    };
+    /**
+     * Returning-user entry points, same-device resume chip and link sharing
+     * on the report (#704).
+     */
+    returning: {
+      /** Lead-in under the landing address box. */
+      findReportPrompt: string;
+      /** Link text to `/my-report` (landing, mobile nav, footer). */
+      findReportLink: string;
+      /** Resume chip: `{address}` is replaced with the stored address. */
+      resumeLabel: string;
+      /** Accessible name of the chip's dismiss button. */
+      resumeDismissLabel: string;
+      /** Report action row: copy the share link. */
+      copyLinkCta: string;
+      /** Announced (role=status) after a successful copy. */
+      copyLinkDone: string;
+      copyLinkError: string;
+      /** Native share sheet button (shown only where navigator.share exists). */
+      nativeShareCta: string;
+      /** What the shared link opens (an address preview, never the owner link). */
+      shareLinkHint: string;
+      /** navigator.share title. */
+      shareTitle: string;
+      /** navigator.share text: `{address}` is replaced. */
+      shareText: string;
     };
   };
 }

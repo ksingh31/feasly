@@ -14,6 +14,10 @@ import { ConfigService } from '../../../core/config/config.service';
   styleUrl: './site-footer.component.scss',
 })
 export class SiteFooterComponent {
-  protected readonly siteName = inject(ConfigService).get('site').name;
+  private readonly config = inject(ConfigService);
+  protected readonly siteName = this.config.get('site').name;
+  /** #704: "Find my report" entry for returning users on any device. */
+  // Optional chaining: page specs stub ConfigService with partial copy.
+  protected readonly findReportLabel = this.config.get('copy')?.returning?.findReportLink ?? '';
   protected readonly year = new Date().getFullYear();
 }

@@ -10,8 +10,10 @@ import { DataFreshnessService, formatFreshnessLine } from '../../core/data-fresh
 import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
-import { ClearLead, GoToStep, ResetWizard, SelectProperty, SetEntrySource } from '../wizard';
+import { ClearLead, DismissResume, GoToStep, ResetWizard, SelectProperty, SetEntrySource, WizardState } from '../wizard';
 import { ClearReport } from '../report/report.actions';
+import { ReportState } from '../report/report.state';
+import { AnalyticsService } from '../consent/analytics.service';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { parseDeepLinkAddress, parseDeepLinkSource } from '../../shared/utils/deep-link';
 import { CommunityService } from '../../core/community/community.service';
@@ -60,7 +62,58 @@ export class LandingPageComponent implements OnInit {
     // #692: the deep link is read in the browser only, after hydration. The
     // prerendered `/` HTML is what every `/?address=…` request gets first,
     // so the server render must never depend on the query string.
-    afterNextRender(() => this.applyDeepLink());
+    afterNextRender(() => {
+      // #704: the resume chip reads rehydrated localStorage state, which the
+      // server render never has — show it only after hydration so the
+      // prerendered HTML and the first client render match.
+      this.browserReady.set(true);
+      this.applyDeepLink();
+    });
+  }
+
+  private readonly analytics = inject(AnalyticsService);
+
+  /** Returning-user copy (#704): find-my-report link + resume chip. */
+  readonly returningCopy = this.config.get('copy').returning;
+
+  private readonly browserReady = signal(false);
+  private readonly storedProperty = this.store.selectSignal(WizardState.property);
+  private readonly storedPreview = this.store.selectSignal(WizardState.preview);
+  private readonly storedSnapshot = this.store.selectSignal(ReportState.snapshot);
+  private readonly resumeDismissed = this.store.selectSignal(WizardState.resumeDismissed);
+
+  /**
+   * Same-device resume chip (#704): shown when this browser holds an
+   * in-progress estimate (a selected property) or a stored report for it,
+   * until dismissed. Continues to the furthest point reached: the report,
+   * else the preview, else the scope step. Null = render nothing.
+   */
+  readonly resume = computed((): { label: string; path: string } | null => {
+    if (!this.browserReady() || this.resumeDismissed()) return null;
+    const property = this.storedProperty();
+    if (!property) return null;
+    const snapshot = this.storedSnapshot();
+    const hasReport =
+      snapshot !== null && (!snapshot.addressKey || snapshot.addressKey === property.addressKey);
+    const path = hasReport
+      ? '/estimate/report'
+      : this.storedPreview() !== null
+        ? '/estimate/preview'
+        : '/estimate/scope';
+    return {
+      label: this.returningCopy.resumeLabel.replace('{address}', property.address),
+      path,
+    };
+  });
+
+  /** Resume chip followed (consent-gated analytics; no address in the event). */
+  onResume(): void {
+    this.analytics.track('report_resume');
+  }
+
+  /** Hide the resume chip until the next new estimate. */
+  dismissResume(): void {
+    this.store.dispatch(new DismissResume());
   }
 
   /** Landing + search copy (config-owned). */
