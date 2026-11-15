@@ -518,6 +518,19 @@ import {
   type CommissionService,
 } from './services/billing/commission.service';
 import {
+  createSimulatedPaymentProvider,
+  type SimulatedPaymentProvider,
+} from './services/billing/simulated-payment.provider';
+import { createDrizzleSimulatedPaymentStore } from './services/billing/simulated-payment.store';
+import {
+  createSimulatedPaymentsService,
+  type SimulatedPaymentsService,
+} from './services/billing/simulated-payments.service';
+import {
+  createSimulatedPaymentsRoute,
+  type SimulatedPaymentsRoute,
+} from './routes/simulated-payments.route';
+import {
   createFlatPlanService,
   type FlatPlanService,
 } from './services/billing/flat-plan.service';
@@ -798,6 +811,9 @@ export interface AppComposition {
   /** billing/02: daily review-window finalizer. */
   readonly invoiceReviewerService: InvoiceReviewerService;
   readonly stripeWebhooksRoute: StripeWebhooksRoute;
+  /** #753: simulated-provider dev actions (404 unless PAYMENTS_PROVIDER=simulated). */
+  readonly simulatedPaymentsService: SimulatedPaymentsService;
+  readonly simulatedPaymentsRoute: SimulatedPaymentsRoute;
   /** Tight limiter + pipeline for the Stripe webhook receiver. */
   readonly webhookRateLimiter: RateLimiter;
   readonly webhookPipeline: RequestPipeline;
@@ -1845,9 +1861,27 @@ export function createComposition(
   const billingAuditService: BillingAuditService = createBillingAuditService({
     db: db.db,
   });
+  // #753: payment provider switch — the ONLY place a concrete payment
+  // provider is chosen. `simulated` (dev default) is Stripe-shaped and
+  // delivers signed events through the production webhook handler below;
+  // `stripe` uses the SDK with the STRIPE_* Key Vault secrets.
+  const simulatedPaymentProvider: SimulatedPaymentProvider | null =
+    config.payments.provider === 'simulated'
+      ? createSimulatedPaymentProvider({
+          store: createDrizzleSimulatedPaymentStore(db.db),
+          webhookSecret: config.payments.simulatedWebhookSecret,
+          deliveryDelayMs: config.payments.simulatedWebhookDelayMs,
+        })
+      : null;
   const stripeService: StripeService = createStripeService({
     db: db.db,
     billing: config.billing,
+    ...(simulatedPaymentProvider
+      ? {
+          client: simulatedPaymentProvider,
+          webhookSecret: simulatedPaymentProvider.webhookSecret,
+        }
+      : {}),
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
@@ -2005,6 +2039,24 @@ export function createComposition(
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
   });
+  // Simulated events take the same path a real Stripe delivery does: the
+  // webhook route → signature verification → idempotent dispatch.
+  simulatedPaymentProvider?.connectWebhook((rawBody, signature) =>
+    stripeWebhooksRoute.handle(rawBody, signature),
+  );
+  const simulatedPaymentsService: SimulatedPaymentsService =
+    createSimulatedPaymentsService({
+      provider: simulatedPaymentProvider,
+      stripe: stripeService,
+      commission: commissionService,
+      audit: billingAuditService,
+    });
+  const simulatedPaymentsRoute: SimulatedPaymentsRoute =
+    createSimulatedPaymentsRoute({
+      simulatedPayments: simulatedPaymentsService,
+      builderGuard,
+      adminGuard,
+    });
   // billing/03 follow-on: read-only dashboard rollup for
   // GET /api/v1/admin/billing (MRR, aging buckets, dunning, webhook health).
   const billingHealthService: BillingHealthService = createBillingHealthService(
@@ -2186,6 +2238,8 @@ export function createComposition(
     billingWebhookService,
     invoiceReviewerService,
     stripeWebhooksRoute,
+    simulatedPaymentsService,
+    simulatedPaymentsRoute,
     webhookRateLimiter,
     webhookPipeline,
     mcpRoute,

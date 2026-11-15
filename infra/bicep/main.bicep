@@ -296,6 +296,10 @@ module functionApp 'modules/function-app.bicep' = {
     // and billing stays dormant (BILLING_NOT_CONFIGURED).
     stripeSecretKeySecretUri: environment == 'dev' ? stripeSecretKeySecretUri : ''
     stripeWebhookSecretUri: environment == 'dev' ? stripeWebhookSecretSecretUri : ''
+    // #753: no Stripe account yet, so dev runs the simulated (Stripe-shaped,
+    // no real money) payment provider. Explicit and dev-only: elsewhere the
+    // setting is omitted and the app defaults to `stripe` (fail closed).
+    paymentsProvider: environment == 'dev' ? 'simulated' : ''
     // Microsoft Entra External ID sign-in (auth/02): dev-only until Karan
     // provisions the tenant identifiers for other environments. Elsewhere
     // the settings stay empty and the backend callback fails closed (503)
