@@ -48,7 +48,7 @@ export class ApiKeyIssueModalComponent {
   protected readonly issueFailed = signal(false);
 
   protected readonly form = this.fb.group({
-    name: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(this.config.get('admin').apiKeyNameMax)]),
+    name: this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(this.config.get('admin').apiKeyNameMax)]),
     tenantId: this.fb.control<string | null>(null),
     scopes: this.fb.nonNullable.control<readonly ApiKeyScope[]>(['estimate'], [scopesValidator]),
     rateLimit: this.fb.nonNullable.control(String(this.config.get('admin').defaultRateLimit), [

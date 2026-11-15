@@ -122,6 +122,15 @@ describe('ApiKeyIssueModalComponent (#546)', () => {
     expect(text).toContain('Enter a whole number from 1 to 10000.');
   });
 
+  it('treats a whitespace-only name as blank', async () => {
+    const { el, api } = await setup();
+    type(nameInput(el), '   ');
+    submit(el);
+    TestBed.tick();
+    expect(api.issueApiKey).not.toHaveBeenCalled();
+    expect(el.textContent ?? '').toContain('Give the key a name.');
+  });
+
   it('keeps the modal open with an error when issuing fails', async () => {
     const { el, ref } = await setup({ fails: true });
     type(nameInput(el), 'Partner');
