@@ -1,0 +1,21 @@
+<ng-template #content>
+  <span class="kpi__label">{{ label() }}</span>
+  <span class="kpi__value">{{ value() }}</span>
+  @if (sub()) {
+    <span class="kpi__sub">{{ sub() }}</span>
+  }
+</ng-template>
+
+@if (interactive()) {
+  <button
+    type="button"
+    [class]="'kpi kpi--interactive' + (tone() ? ' kpi--' + tone() : '')"
+    (click)="activate.emit()"
+  >
+    <ng-container [ngTemplateOutlet]="content" />
+  </button>
+} @else {
+  <div [class]="'kpi' + (tone() ? ' kpi--' + tone() : '')">
+    <ng-container [ngTemplateOutlet]="content" />
+  </div>
+}

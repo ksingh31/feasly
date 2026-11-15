@@ -1,0 +1,18 @@
+<ol [class]="'stepper stepper--' + tone()" [attr.aria-label]="label()">
+  @for (row of rows(); track row.key) {
+    <li
+      [class]="'stepper__step stepper__step--' + row.state"
+      [attr.aria-current]="row.state === 'current' ? 'step' : null"
+    >
+      <span class="stepper__marker" aria-hidden="true">
+        @if (row.state === 'complete') {
+          <svg viewBox="0 0 16 16" width="12" height="12" focusable="false">
+            <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" />
+          </svg>
+        }
+      </span>
+      <span class="stepper__label">{{ row.label }}</span>
+      <span class="sr-only">({{ stateText(row.state) }})</span>
+    </li>
+  }
+</ol>
