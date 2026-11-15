@@ -22,6 +22,7 @@ import {
   formatEdmontonMediumDate,
 } from '../../shared/utils/edmonton';
 import { BuilderBillingState } from './builder-billing.state';
+import { injectCardModal } from './builder-card-modal.component';
 import { LoadBillingCard } from './builder-billing.actions';
 import {
   BUILDER_PAYMENT_METHODS,
@@ -110,6 +111,12 @@ export class BuilderInvoicesComponent implements OnInit {
     BuilderInvoicesState.paymentMethodSaveStatus,
   );
   protected readonly card = this.store.selectSignal(BuilderBillingState.card);
+  private readonly openCardModal = injectCardModal();
+
+  /** Failed-payment banner CTA: update the card in the shared modal (#534). */
+  protected openCard(): void {
+    this.openCardModal(this.card() ?? undefined);
+  }
 
   /**
    * Staged (not yet applied) payment method for the open detail view.

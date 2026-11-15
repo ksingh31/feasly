@@ -21,7 +21,7 @@ apps/web/src/app/features/admin/admin-users.component.scss 27
 apps/web/src/app/features/admin/api-key-usage.component.scss 2
 apps/web/src/app/features/admin/api-keys-page.component.scss 22
 apps/web/src/app/features/admin/funnels-page.component.scss 2
-apps/web/src/app/features/builder/builder-billing.component.scss 32
+apps/web/src/app/features/builder/builder-billing.component.scss 30
 apps/web/src/app/features/builder/builder-invoices.component.scss 57
 apps/web/src/app/features/builder/builder-login.component.scss 11
 apps/web/src/app/features/builder/builder-org-picker.component.scss 4

@@ -59,21 +59,15 @@
             </div>
           </dl>
 
-          @if (!publishableKey()) {
-            <p class="builder-billing__unavailable" role="note">
-              {{ copy.billingUnavailable }}
-            </p>
-          } @else if (!formOpen()) {
-            <div class="builder-billing__panel-actions">
-              <button
-                type="button"
-                class="builder-billing__btn"
-                (click)="openForm()"
-              >
-                {{ copy.billingUpdateCard }}
-              </button>
-            </div>
-          }
+          <div class="builder-billing__panel-actions">
+            <button
+              type="button"
+              class="builder-billing__btn"
+              (click)="openCard()"
+            >
+              {{ copy.billingUpdateCard }}
+            </button>
+          </div>
         } @else {
           <div class="builder-billing__empty">
             <p class="builder-billing__empty-title">
@@ -82,21 +76,15 @@
             <p class="builder-billing__empty-body">
               {{ copy.billingCardEmptyBody }}
             </p>
-            @if (!publishableKey()) {
-              <p class="builder-billing__unavailable" role="note">
-                {{ copy.billingUnavailable }}
-              </p>
-            } @else {
-              <div class="builder-billing__panel-actions">
-                <button
-                  type="button"
-                  class="builder-billing__btn builder-billing__btn--primary"
-                  (click)="openForm()"
-                >
-                  {{ copy.billingAddCard }}
-                </button>
-              </div>
-            }
+            <div class="builder-billing__panel-actions">
+              <button
+                type="button"
+                class="builder-billing__btn builder-billing__btn--primary"
+                (click)="openCard()"
+              >
+                {{ copy.billingAddCard }}
+              </button>
+            </div>
           </div>
         }
       }
@@ -191,51 +179,5 @@
         }
       }
     </section>
-
-    @if (saveSuccess()) {
-      <p class="builder-billing__success" role="status">
-        {{ copy.billingCardSaved }}
-      </p>
-    }
-
-    @if (formOpen()) {
-      <div
-        class="builder-billing__panel"
-        role="region"
-        aria-label="{{ copy.billingFormHeading }}"
-      >
-        <h2 class="builder-billing__panel-title">
-          {{ copy.billingFormHeading }}
-        </h2>
-        <div #cardElement class="builder-billing__stripe-element"></div>
-        @if (saveError()) {
-          <div class="builder-billing__alert" role="alert">
-            <p>{{ copy.billingSaveFailed }}</p>
-          </div>
-        }
-        <div class="builder-billing__form-actions">
-          <button
-            type="button"
-            class="builder-billing__btn builder-billing__btn--primary"
-            (click)="saveCard()"
-            [disabled]="saving()"
-          >
-            {{ saving() ? copy.billingSavingCard : copy.billingSaveCard }}
-          </button>
-          <button
-            type="button"
-            class="builder-billing__btn"
-            (click)="cancelForm()"
-            [disabled]="saving()"
-          >
-            {{ copy.billingCancel }}
-          </button>
-        </div>
-      </div>
-    } @else if (saveError()) {
-      <div class="builder-billing__alert" role="alert">
-        <p>{{ copy.billingSaveFailed }}</p>
-      </div>
-    }
   }
 </section>

@@ -13,7 +13,10 @@ import { provideRouter, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { UiModalService } from '@app/shared/ui';
 import { BuilderShellComponent, isMoneyUrl } from './builder-shell.component';
+import { BuilderCardModalComponent } from './builder-card-modal.component';
+import { BuilderBillingState } from './builder-billing.state';
 import { BuilderState } from './builder.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import {
@@ -65,6 +68,8 @@ async function setup(opts: SetupOptions = {}) {
 
   const store = {
     dispatch: vi.fn().mockReturnValue(of({})),
+    selectSnapshot: (selector: unknown) =>
+      selector === BuilderBillingState.card ? { hasCard: true, brand: 'visa', last4: '4242' } : null,
     selectSignal: (selector: unknown) => {
       if (selector === BuilderState.session) return signal(SESSION);
       if (selector === BuilderState.activeBuilderName)
@@ -310,7 +315,17 @@ describe('BuilderShellComponent', () => {
     const strip = q(fixture, '.builder-shell__danger')!;
     expect(strip).not.toBeNull();
     expect(strip.getAttribute('role')).toBe('alert');
-    expect(strip.querySelector('a')?.getAttribute('href')).toBe('/builder/billing');
+    expect(strip.querySelector('a')).toBeNull();
+  });
+
+  it('opens the card modal from the failed-card strip (#534)', async () => {
+    const { fixture } = await setup({ invoices: [{ id: 'i2', status: 'failed' }] });
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    q<HTMLButtonElement>(fixture, '.builder-shell__danger-action')!.click();
+    expect(open).toHaveBeenCalledWith(
+      BuilderCardModalComponent,
+      expect.objectContaining({ data: { card: { hasCard: true, brand: 'visa', last4: '4242' } }, size: 'sm' }),
+    );
   });
 
   it('hides the danger strip with no failed charge', async () => {

@@ -173,12 +173,23 @@
   text-align: center;
 }
 
-.builder-shell__danger a {
+.builder-shell__danger-action {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: inherit;
   text-decoration: underline;
+  cursor: pointer;
+}
+
+.builder-shell__danger-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  border-radius: var(--radius-sm);
 }
 
 /* ── Money sub-nav ── */

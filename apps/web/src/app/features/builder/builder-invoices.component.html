@@ -34,7 +34,7 @@
       @if (invoice.status === 'failed') {
         <p class="builder-invoices__banner builder-invoices__banner--error" role="alert">
           {{ copy.invoicesPaymentFailed }}
-          <a routerLink="/builder/billing">{{ copy.invoicesUpdateCardCta }}</a>
+          <button type="button" class="builder-invoices__banner-action" (click)="openCard()">{{ copy.invoicesUpdateCardCta }}</button>
         </p>
       }
       @if (invoice.status === 'paid') {

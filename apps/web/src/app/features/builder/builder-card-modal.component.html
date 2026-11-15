@@ -1,0 +1,57 @@
+<ui-modal [heading]="heading" [closeLabel]="copy.cardModalClose" asForm (submitted)="save()">
+  @if (currentCard(); as current) {
+    <p class="card-modal__current">{{ current }}</p>
+  }
+
+  @switch (phase()) {
+    @case ('unavailable') {
+      <p class="card-modal__note" role="note">{{ unavailableBody }}</p>
+      @if (contactHref) {
+        <a class="card-modal__link" [href]="contactHref">{{ copy.cardModalContact }}</a>
+      }
+    }
+    @case ('load-error') {
+      <div class="card-modal__alert" role="alert">
+        <p>{{ copy.cardModalLoadError }}</p>
+        <button type="button" ui-button variant="secondary" size="sm" (click)="start()">
+          {{ copy.retryLabel }}
+        </button>
+      </div>
+    }
+    @case ('loading') {
+      <p class="card-modal__loading" role="status">{{ copy.cardModalLoading }}</p>
+    }
+    @default {
+      <p id="card-modal-label" class="card-modal__label">{{ copy.billingFormHeading }}</p>
+      <div #cardHost class="card-modal__element" role="group" aria-labelledby="card-modal-label"></div>
+      @if (saveError()) {
+        <p class="card-modal__alert" role="alert">{{ copy.billingSaveFailed }}</p>
+      }
+    }
+  }
+
+  @if (phase() !== 'unavailable') {
+    <div class="card-modal__reassure">
+      <p>{{ copy.cardModalReassurance }}</p>
+      <p>{{ chargeTiming }}</p>
+    </div>
+  }
+
+  <ng-container uiModalFooter>
+    @if (phase() === 'unavailable') {
+      <button type="button" ui-button variant="secondary" (click)="cancel()">{{ copy.cardModalClose }}</button>
+    } @else {
+      <button type="button" ui-button variant="secondary" [disabled]="phase() === 'saving'" (click)="cancel()">
+        {{ copy.billingCancel }}
+      </button>
+      <button
+        type="submit"
+        ui-button
+        [loading]="phase() === 'saving'"
+        [disabled]="phase() !== 'saving' && (phase() !== 'ready' || !complete())"
+      >
+        {{ phase() === 'saving' ? copy.billingSavingCard : copy.billingSaveCard }}
+      </button>
+    }
+  </ng-container>
+</ui-modal>

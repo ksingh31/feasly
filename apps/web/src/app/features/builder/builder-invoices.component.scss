@@ -345,11 +345,22 @@
   color: #a02323;
   border: 1px solid #f5c6c0;
 
-  a {
+  a,
+  .builder-invoices__banner-action {
     color: inherit;
     font-weight: 700;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .builder-invoices__banner-action {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
   }
 }
 

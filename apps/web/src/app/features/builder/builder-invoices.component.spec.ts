@@ -28,6 +28,8 @@ import {
 } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { BuilderBillingState } from './builder-billing.state';
+import { UiModalService } from '@app/shared/ui';
+import { BuilderCardModalComponent } from './builder-card-modal.component';
 import {
   BuilderInvoicesComponent,
   sortTimelineChronologically,
@@ -414,6 +416,10 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Your card was declined');
     expect(text).toContain('Update your card');
+    // The CTA opens the shared card modal in place (#534), not a page link.
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    (fixture.nativeElement.querySelector('.builder-invoices__banner-action') as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith(BuilderCardModalComponent, expect.objectContaining({ size: 'sm' }));
     // Timeline renders without any dispute affordance.
     expect(text).toContain('Status timeline');
     expect(text).not.toMatch(/dispute this/i);

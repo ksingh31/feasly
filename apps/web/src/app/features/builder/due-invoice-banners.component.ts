@@ -4,6 +4,7 @@ import { Store } from '@ngxs/store';
 import type { CommissionInvoice } from '@feasly/contracts';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderBillingState } from './builder-billing.state';
+import { injectCardModal } from './builder-card-modal.component';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import {
   DismissAllBanners,
@@ -83,6 +84,12 @@ export class DueInvoiceBannersComponent {
     BuilderInvoicesState.actionableStatus,
   );
   private readonly card = this.store.selectSignal(BuilderBillingState.card);
+  private readonly openCardModal = injectCardModal();
+
+  /** Failed-charge CTA: update the card in the shared modal (#534). */
+  protected openCard(): void {
+    this.openCardModal(this.card() ?? undefined);
+  }
 
   /** Banner UI state (NGXS + storage-plugin persistence). */
   private readonly dismissedIds = this.store.selectSignal(

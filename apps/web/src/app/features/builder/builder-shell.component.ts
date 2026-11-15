@@ -27,6 +27,8 @@ import {
   LogoutBuilder,
 } from './builder.actions';
 import { BuilderState } from './builder.state';
+import { BuilderBillingState } from './builder-billing.state';
+import { injectCardModal } from './builder-card-modal.component';
 import { LoadActionableInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 
@@ -115,6 +117,13 @@ export class BuilderShellComponent {
    * org's invoices has a failed charge. Admin-only (billing endpoints are
    * builder:billing). Data-driven — gone once the invoice leaves `failed`.
    */
+  /** Failed-card strip CTA: the shared card modal (#534), on any page. */
+  private readonly openCardModal = injectCardModal();
+
+  protected openCard(): void {
+    this.openCardModal(this.store.selectSnapshot(BuilderBillingState.card) ?? undefined);
+  }
+
   protected readonly hasFailedCharge = computed(
     () =>
       this.isBuilderAdmin() &&

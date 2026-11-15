@@ -67,7 +67,7 @@
             <p class="money__meta">{{ panel.body }}</p>
           }
           @if (panel.action) {
-            <a ui-button variant="secondary" size="sm" routerLink="/builder/billing">{{ panel.action }}</a>
+            <button type="button" ui-button variant="secondary" size="sm" class="money__card-action" (click)="openCard()">{{ panel.action }}</button>
           }
         } @else if (overviewStatus() !== 'error') {
           <ui-skeleton variant="text" [count]="2" [label]="copy.moneyLoading" />
