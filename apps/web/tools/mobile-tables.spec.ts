@@ -28,8 +28,9 @@ interface TableCase {
   readonly tableClass: string;
 }
 
+// /admin/builders moved to the kit DataTable (#541), whose own < 768px
+// card list is covered by data-table.component.spec.ts.
 const CASES: readonly TableCase[] = [
-  { route: '/admin/builders', template: 'admin/admin-builders.component.html', stylesheet: 'admin/admin-builders.component.scss', tableClass: 'builders-page__table' },
   { route: '/admin/users', template: 'admin/admin-users.component.html', stylesheet: 'admin/admin-users.component.scss', tableClass: 'users-page__table' },
   { route: '/admin/calibration', template: 'admin/admin-calibration.component.html', stylesheet: 'admin/admin-calibration.component.scss', tableClass: 'calibration__table' },
   { route: '/admin/api-keys', template: 'admin/api-key-usage.component.html', stylesheet: 'admin/api-key-usage.component.scss', tableClass: 'usage__table' },

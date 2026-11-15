@@ -1,284 +1,207 @@
-<div class="leads-page" (keydown)="onKeydown($event)">
-  <div class="leads-page__header">
-    <h1>Leads</h1>
-    <div class="leads-page__actions">
+<div class="leads-page">
+  <ui-page-header [heading]="copy.title" [description]="copy.description">
+    <div uiPageHeaderActions class="leads-page__actions">
       <label class="leads-page__sandbox">
         <input
           type="checkbox"
           [checked]="includeSandbox()"
-          (change)="toggleSandbox($event.target.checked)"
+          (change)="toggleSandbox($any($event.target).checked)"
         />
-        Include sandbox
+        {{ copy.sandboxToggle }}
       </label>
       <button
         type="button"
-        class="leads-page__export"
-        (click)="exportCsv()"
+        ui-button
+        variant="secondary"
+        [loading]="exporting()"
         [disabled]="exporting() || listStatus() !== 'idle'"
+        (click)="exportCsv()"
       >
-        {{ exporting() ? 'Exporting…' : 'Export CSV' }}
+        {{ exporting() ? copy.exporting : copy.exportCsv }}
       </button>
     </div>
-  </div>
+  </ui-page-header>
 
   @if (exportError(); as err) {
-    <p class="leads-page__export-error" role="alert">
-      {{ err }}
-      <button type="button" (click)="dismissExportError()" aria-label="Dismiss export error">
-        Dismiss
+    <p class="leads-page__alert" role="alert">
+      <span>{{ err }}</span>
+      <button type="button" ui-button variant="ghost" size="sm" (click)="dismissExportError()">
+        {{ copy.dismiss }}
       </button>
     </p>
   }
 
-  <div class="leads-page__tabs" role="tablist" aria-label="Lead lists">
+  <div class="leads-page__tabs" role="tablist" [attr.aria-label]="copy.tabsLabel">
     <button
       type="button"
       role="tab"
-      [attr.aria-selected]="tab() === 'all'"
-      [class.leads-page__tab--active]="tab() === 'all'"
       class="leads-page__tab"
+      [class.leads-page__tab--active]="tab() === 'all'"
+      [attr.aria-selected]="tab() === 'all'"
       (click)="setTab('all')"
     >
-      All leads
+      {{ copy.tabAll }}
     </button>
     <button
       type="button"
       role="tab"
-      [attr.aria-selected]="tab() === 'quarantine'"
-      [class.leads-page__tab--active]="tab() === 'quarantine'"
       class="leads-page__tab"
+      [class.leads-page__tab--active]="tab() === 'quarantine'"
+      [attr.aria-selected]="tab() === 'quarantine'"
       (click)="setTab('quarantine')"
     >
-      Quarantine
+      {{ copy.tabQuarantine }}
     </button>
   </div>
+
   @if (tab() === 'quarantine') {
-    <p class="leads-page__quarantine-note">
-      Honeypot-flagged submissions are quarantined here — never silently dropped.
-      Review each one: approve it back into the pipeline, or discard it
-      (discarded leads are kept for audit but hidden from every listing).
-    </p>
+    <p class="leads-page__note">{{ copy.quarantineNote }}</p>
     @if (quarantineActionError(); as err) {
-      <p class="leads-page__quarantine-error" role="alert">
-        {{ err }}
-        <button type="button" (click)="dismissQuarantineError()" aria-label="Dismiss quarantine error">
-          Dismiss
+      <p class="leads-page__alert" role="alert">
+        <span>{{ err }}</span>
+        <button type="button" ui-button variant="ghost" size="sm" (click)="dismissQuarantineError()">
+          {{ copy.dismiss }}
         </button>
       </p>
     }
   }
 
-  <div
-    class="leads-page__totals"
-    role="group"
-    aria-label="Pipeline totals — select a status to filter"
-  >
+  <div class="leads-page__totals" role="group" [attr.aria-label]="copy.totalsLabel">
     @for (s of pipelineStatuses; track s) {
       <button
         type="button"
         class="leads-page__total"
-        [class.leads-page__total--active]="filtersForm.controls.status.value === s"
-        [attr.aria-pressed]="filtersForm.controls.status.value === s"
+        [class.leads-page__total--active]="statusFilter() === s"
+        [attr.aria-pressed]="statusFilter() === s"
         (click)="filterByStatus(s)"
       >
-        <span class="leads-page__total-count">{{ statusCounts()[s] }}</span>
+        <span class="leads-page__total-count">{{ statusCounts()[s] | kitCount }}</span>
         <span class="leads-page__total-label">{{ statusLabel(s) }}</span>
       </button>
     }
   </div>
 
-  <button
-    type="button"
-    class="leads-page__filters-toggle"
-    [attr.aria-expanded]="filtersOpen()"
-    (click)="toggleFilters()"
-  >
-    {{ filtersOpen() ? 'Hide filters' : 'Show filters' }}
-  </button>
+  <div class="leads-page__views">
+    <div class="leads-page__segments" role="group" [attr.aria-label]="copy.viewsLabel">
+      @for (v of views(); track v.id) {
+        <button
+          type="button"
+          class="leads-page__segment"
+          [class.leads-page__segment--active]="view() === v.id"
+          [attr.aria-pressed]="view() === v.id"
+          (click)="selectView(v.id)"
+        >
+          {{ v.label }}
+        </button>
+      }
+    </div>
+    <p class="leads-page__view-hint">{{ viewHint() }}</p>
+  </div>
 
-  <form
-    class="leads-page__filters"
-    [class.leads-page__filters--open]="filtersOpen()"
-    [formGroup]="filtersForm"
-    aria-label="Lead filters"
-  >
-    <label class="leads-page__filter leads-page__filter--search">
-      <span>Search</span>
-      <input
-        type="search"
-        formControlName="search"
-        placeholder="Name, email, or address…"
-        autocomplete="off"
-      />
-    </label>
-    <label class="leads-page__filter">
-      <span>Status</span>
-      <select formControlName="status" (change)="applyFilters()">
-        @for (s of statusOptions; track s) {
-          <option [value]="s">{{ s === '' ? 'All statuses' : statusLabel(s) }}</option>
-        }
-      </select>
-    </label>
-    <label class="leads-page__filter">
-      <span>Assigned</span>
-      <select formControlName="assigned" (change)="applyFilters()">
-        @for (a of assignedOptions; track a) {
-          <option [value]="a">{{ a === '' ? 'All' : 'Unassigned' }}</option>
-        }
-        @for (b of builders(); track b.id) {
-          <option [value]="b.id">{{ b.displayName }}</option>
-        }
-      </select>
-    </label>
-    <button type="button" class="leads-page__clear" (click)="clearFilters()">
-      Clear
-    </button>
-  </form>
+  <ui-filter-bar
+    [search]="list.search()"
+    [filters]="list.filters()"
+    [selects]="selects()"
+    [debounceMs]="debounceMs"
+    [searchLabel]="copy.searchLabel"
+    [searchPlaceholder]="copy.searchPlaceholder"
+    [clearAllLabel]="copy.clearFilters"
+    (searchChange)="list.setSearch($event)"
+    (filterChange)="list.setFilter($event.key, $event.value)"
+    (clearAll)="list.clearFilters()"
+  />
 
   <p class="leads-page__count" aria-live="polite">
-    @if (listStatus() === 'loading') {
-      Loading leads…
-    } @else {
-      {{ totalCount() }} lead{{ totalCount() === 1 ? '' : 's' }}
+    @if (listStatus() !== 'loading') {
+      {{ countLabel() }}
       @if (!includeSandbox()) {
-        <span class="leads-page__count-note">(sandbox excluded)</span>
+        <span class="leads-page__muted">{{ copy.sandboxExcluded }}</span>
       }
     }
   </p>
 
-  @if (listStatus() === 'error') {
-    <div class="leads-page__error" role="alert">
-      <p>{{ listError() }}</p>
-      <button type="button" (click)="retry()">Try again</button>
-    </div>
-  } @else {
-    <div class="leads-page__cards">
-      @for (lead of leads(); track lead.id) {
-        <article
-          class="lead-card"
-          [class.lead-card--selected]="selectedLeadId() === lead.id"
-          (click)="selectLead(lead.id)"
-          (keydown.enter)="selectLead(lead.id)"
-          tabindex="0"
-          role="button"
-          [attr.aria-label]="'Open lead ' + lead.name"
-        >
-          <div class="lead-card__avatar" aria-hidden="true">{{ initials(lead.name) }}</div>
-          <div class="lead-card__main">
-            <div class="lead-card__top">
-              <h2 class="lead-card__name">
-                {{ lead.name }}
-                @if (lead.sandbox) {
-                  <span class="badge badge--sandbox">Sandbox</span>
-                }
-                @if (lead.quarantined) {
-                  <span class="badge badge--quarantine">Quarantine</span>
-                }
-              </h2>
-              @if (lead.status) {
-                <span class="badge badge--status-{{ lead.status }}">{{
-                  statusLabel(lead.status)
-                }}</span>
-              } @else {
-                <span class="badge">No status</span>
-              }
-            </div>
-            <p class="lead-card__contact">{{ lead.email }} · {{ lead.addressKey }}</p>
-            <p class="lead-card__meta">
-              <span>Score {{ lead.leadScore }}</span>
-              <span>{{ lead.source }}</span>
-              <span>{{ projectTypeLabel(lead.projectType) }}</span>
-              @if (lead.tenantKey) {
-                <span>{{ lead.tenantKey }}</span>
-              }
-              @if (lead.timeline) {
-                <span>{{ lead.timeline }}</span>
-              }
-              <span>{{ formatDate(lead.createdAt) }}</span>
-            </p>
-          </div>
-          <div class="lead-card__side">
-            <span
-              class="badge"
-              [class.badge--consent-in]="lead.contactConsent === 'in'"
-              [class.badge--consent-out]="lead.contactConsent === 'out'"
-              [attr.aria-label]="'Contact consent: ' + lead.contactConsent"
-            >{{ lead.contactConsent === 'in' ? 'In' : 'Out' }}</span>
-            <span class="lead-card__consent-date">{{ formatDate(lead.consentUpdatedAt) }}</span>
-            @if (tab() === 'quarantine' && canManageLeads()) {
-              <div
-                class="lead-card__quarantine-actions"
-                (click)="$event.stopPropagation()"
-                (keydown.enter)="$event.stopPropagation()"
-              >
-                @if (confirmDiscardId() === lead.id) {
-                  <button
-                    type="button"
-                    class="lead-card__quarantine-confirm"
-                    (click)="confirmDiscard(lead.id)"
-                    [disabled]="quarantineBusy(lead.id)"
-                  >
-                    {{ quarantineBusy(lead.id) ? 'Discarding…' : 'Confirm discard' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="lead-card__quarantine-cancel"
-                    (click)="cancelDiscard()"
-                    [disabled]="quarantineBusy(lead.id)"
-                  >
-                    Cancel
-                  </button>
-                } @else {
-                  <button
-                    type="button"
-                    class="lead-card__quarantine-approve"
-                    (click)="approveLead(lead.id)"
-                    [disabled]="quarantineBusy(lead.id)"
-                    [attr.aria-label]="'Approve lead ' + lead.name + ' back into the pipeline'"
-                  >
-                    {{ quarantineBusy(lead.id) && quarantineActionKind() === 'approve' ? 'Approving…' : 'Approve' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="lead-card__quarantine-discard"
-                    (click)="armDiscard(lead.id)"
-                    [disabled]="quarantineBusy(lead.id)"
-                    [attr.aria-label]="'Discard lead ' + lead.name"
-                  >
-                    Discard
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        </article>
-      } @empty {
-        @if (listStatus() !== 'loading') {
-          <div class="leads-page__empty">
-            <h2>No leads match these filters</h2>
-            <p>Try widening your search, or clear the filters to see every lead.</p>
-            <button type="button" (click)="clearFilters()">Clear filters</button>
-          </div>
-        }
-      }
-    </div>
+  <ui-data-table
+    [label]="copy.tableLabel"
+    [rows]="leads()"
+    [columns]="columns"
+    [rowId]="rowId"
+    [loading]="listStatus() === 'loading'"
+    [error]="listStatus() === 'error' ? listError() : null"
+    [filtered]="filtered()"
+    [selectedId]="openId()"
+    [emptyHeading]="copy.emptyHeading"
+    [emptyMessage]="copy.emptyMessage"
+    [noResultsHeading]="copy.noResultsHeading"
+    [noResultsMessage]="copy.noResultsMessage"
+    [clearFiltersLabel]="copy.clearFilters"
+    [errorHeading]="copy.errorHeading"
+    [retryLabel]="copy.retry"
+    [loadingLabel]="copy.loading"
+    [actionsHeader]="copy.actionsHeader"
+    (open)="openLead($event)"
+    (retry)="retry()"
+    (clearFilters)="list.clearFilters()"
+  >
+    <ng-template uiCell="lead" let-row>
+      <span class="leads-page__lead">
+        <span class="leads-page__lead-name">
+          {{ row.name }}
+          @if (row.sandbox) {
+            <span class="leads-page__badge">{{ copy.sandboxBadge }}</span>
+          }
+          @if (row.quarantined) {
+            <span class="leads-page__badge leads-page__badge--warn">{{ copy.quarantineBadge }}</span>
+          }
+        </span>
+        <span class="leads-page__lead-email">{{ row.email }}</span>
+      </span>
+    </ng-template>
+    <ng-template uiCell="consent" let-row>
+      <span
+        class="leads-page__consent"
+        [class.leads-page__consent--out]="row.contactConsent === 'out'"
+      >{{ row.contactConsent === 'in' ? copy.consentIn : copy.consentOut }}</span>
+    </ng-template>
+    @if (tab() === 'quarantine' && canManageLeads()) {
+      <ng-template uiRowActions let-row>
+        <span class="leads-page__row-actions">
+          <button
+            type="button"
+            ui-button
+            size="sm"
+            [loading]="quarantineBusy(row.id) && quarantineActionKind() === 'approve'"
+            [disabled]="quarantineBusy(row.id)"
+            (click)="approveLead(row)"
+          >
+            {{ quarantineBusy(row.id) && quarantineActionKind() === 'approve' ? copy.approving : copy.approve }}
+          </button>
+          <button
+            type="button"
+            ui-button
+            variant="danger"
+            size="sm"
+            [disabled]="quarantineBusy(row.id)"
+            (click)="discardLead(row)"
+          >
+            {{ copy.discard }}
+          </button>
+        </span>
+      </ng-template>
+    }
+  </ui-data-table>
 
-    @if (hasMore()) {
+  @if (hasMore() && listStatus() !== 'error') {
+    <div class="leads-page__more">
       <button
         type="button"
-        class="leads-page__load-more"
-        (click)="loadMore()"
+        ui-button
+        variant="secondary"
+        [loading]="listStatus() === 'loading-more'"
         [disabled]="listStatus() === 'loading-more'"
+        (click)="loadMore()"
       >
-        {{ listStatus() === 'loading-more' ? 'Loading…' : 'Load more' }}
+        {{ listStatus() === 'loading-more' ? copy.loadingMore : copy.loadMore }}
       </button>
-    }
-  }
-
-  @if (selectedLeadId()) {
-    <div class="lead-modal">
-      <div class="lead-modal__backdrop" (click)="closeDetail()"></div>
-      <app-admin-lead-detail class="lead-modal__dialog" />
     </div>
   }
 </div>

@@ -207,8 +207,9 @@
 }
 
 .builder-invoices__pill--in_review {
-  background: #fff4d6;
-  color: #8a6d00;
+  // Kit status tokens: #8a6d00 on #fff4d6 measured 4.49:1 (axe, #536).
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
 .builder-invoices__pill--finalized {
@@ -232,8 +233,9 @@
 }
 
 .builder-invoices__pill--void {
-  background: #f0ede8;
-  color: #9a938a;
+  // Kit tokens: the old #9a938a on #f0ede8 was 2.6:1.
+  background: var(--status-neutral-bg);
+  color: var(--muted);
 }
 
 .builder-invoices__countdown {

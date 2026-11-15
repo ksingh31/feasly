@@ -1,0 +1,101 @@
+<ui-drawer [heading]="heading()" closeLabel="Close dispute" [dirty]="dirty()">
+  @if (sla(); as chip) {
+    <ui-status-chip uiDrawerChip domain="disputeSla" [status]="chip.key" [label]="chip.label" data-testid="drawer-sla" />
+  }
+  @if (meta()) {
+    <span uiDrawerMeta>{{ meta() }}</span>
+  }
+
+  @if (failed()) {
+    <ui-error-state
+      heading="Couldn’t load this dispute"
+      [message]="detailError()"
+      (retry)="retry()"
+      data-testid="drawer-error"
+    />
+  } @else if (loading()) {
+    <ui-skeleton variant="text" [count]="6" label="Loading dispute" />
+  } @else if (detail(); as d) {
+    <section class="dispute-drawer__section" aria-labelledby="dispute-drawer-summary">
+      <h3 id="dispute-drawer-summary" class="dispute-drawer__heading">Summary</h3>
+      <div class="dispute-drawer__invoice">
+        <span class="dispute-drawer__label">Invoice</span>
+        <ui-entity-link
+          kind="Invoice"
+          [entityId]="d.invoiceId"
+          [label]="d.invoiceId"
+          (opened)="openInvoice($event)"
+          data-testid="drawer-invoice-link"
+        />
+      </div>
+      <ui-key-value-list [items]="summary()" />
+      @if (d.breached) {
+        <p class="dispute-drawer__breach" role="note">
+          SLA breached — escalated via ops alerts. It stays open until you decide.
+        </p>
+      }
+    </section>
+
+    <section class="dispute-drawer__section" aria-labelledby="dispute-drawer-evidence">
+      <h3 id="dispute-drawer-evidence" class="dispute-drawer__heading">Evidence snapshot</h3>
+      <p class="dispute-drawer__hint">
+        Captured when the dispute opened. It never changes, even if the invoice is later voided or refunded.
+      </p>
+      <ui-key-value-list [items]="evidence()" data-testid="drawer-evidence" />
+    </section>
+
+    <section class="dispute-drawer__section" aria-labelledby="dispute-drawer-audit">
+      <h3 id="dispute-drawer-audit" class="dispute-drawer__heading">Audit trail</h3>
+      <ui-timeline
+        data-testid="drawer-timeline"
+        order="oldest"
+        label="Audit trail"
+        emptyLabel="No audit events yet"
+        [events]="timeline()"
+      />
+    </section>
+  }
+
+  @if (canManage() && detail(); as d) {
+    <div uiDrawerFooterStart class="dispute-drawer__note" data-testid="drawer-footer">
+      <label class="dispute-drawer__note-label" for="dispute-drawer-note">
+        Note (optional, saved on the audit trail)
+      </label>
+      <textarea
+        id="dispute-drawer-note"
+        class="dispute-drawer__textarea"
+        rows="2"
+        [value]="note()"
+        [maxLength]="noteMaxLength"
+        [disabled]="resolving()"
+        (input)="onNote($event)"
+      ></textarea>
+      @if (resolveError(); as error) {
+        <p class="dispute-drawer__error" role="alert">{{ error }}</p>
+      }
+      <div class="dispute-drawer__actions">
+        <button
+          type="button"
+          ui-button
+          variant="secondary"
+          data-testid="drawer-reject"
+          [disabled]="resolving()"
+          (click)="reject()"
+        >
+          Reject
+        </button>
+        <button
+          type="button"
+          ui-button
+          variant="danger"
+          data-testid="drawer-accept"
+          [disabled]="resolving()"
+          [loading]="resolving()"
+          (click)="accept()"
+        >
+          Accept…
+        </button>
+      </div>
+    </div>
+  }
+</ui-drawer>
