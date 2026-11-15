@@ -1,12 +1,16 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, Injector, OnInit, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
+import {
+  DataTableComponent,
+  type DataTableColumn,
+  PageHeaderComponent,
+  UiDrawerService,
+  injectDrawerParam,
+} from '@app/shared/ui';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { ConfigService } from '../../core/config/config.service';
-import { formatCentsToCad } from '../../shared/utils/money';
 import {
   ADMIN_INVOICE_STATUS_OPTIONS,
   DismissAdminInvoiceListError,
@@ -16,20 +20,22 @@ import {
 import type { AdminInvoiceFilters } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import type { BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
+import { AdminInvoiceDrawerComponent, type AdminInvoiceDrawerData } from './admin-invoice-drawer.component';
 
 /**
- * Admin invoice list (QA admin-console fix 3): every commission invoice
- * across tenants, newest first, with a status filter, an invoice-number
- * search, and pagination. Rows link to the standalone invoice detail
- * page — paid invoices (and every other status) are reachable here,
- * not just in the billing work queues.
+ * Admin invoice list (QA admin-console fix 3; kit table + drawer #543):
+ * every commission invoice across tenants, newest first, with a status
+ * filter, an invoice-number search, and pagination. A row opens the
+ * invoice drawer (`?open=<id>`, so Back closes it and deep links work) —
+ * the hub for amounts, activity and the intent-specific actions.
  *
  * Route: `/admin/billing/invoices`, inside the admin shell.
+ * (`/admin/billing/invoices/:id` redirects here with `?open=:id`.)
  */
 @Component({
   selector: 'app-admin-invoices',
   standalone: true,
-  imports: [DatePipe, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, PageHeaderComponent, DataTableComponent],
   templateUrl: './admin-invoices.component.html',
   styleUrl: './admin-invoices.component.scss',
 })
@@ -37,6 +43,22 @@ export class AdminInvoicesComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly drawers = inject(UiDrawerService);
+
+  /** `?open=<id>` — the invoice whose drawer is open. */
+  protected readonly openId = injectDrawerParam();
+
+  protected readonly rowId = (invoice: BuilderCommissionInvoice): string => invoice.id;
+
+  protected readonly columns: readonly DataTableColumn<BuilderCommissionInvoice>[] = [
+    { key: 'invoiceNumber', header: 'Invoice', kind: 'id', cardRole: 'title' },
+    { key: 'status', header: 'Status', kind: 'status', statusDomain: 'invoice', cardRole: 'chip' },
+    { key: 'tenantKey', header: 'Builder', cardRole: 'meta' },
+    { key: 'leadName', header: 'Lead', cardRole: 'meta' },
+    { key: 'commissionCents', header: 'Commission', kind: 'money', cardRole: 'meta' },
+    { key: 'createdAt', header: 'Created', kind: 'date', cardRole: 'hidden' },
+  ];
 
   protected readonly invoices = this.store.selectSignal(AdminInvoicesState.invoices);
   protected readonly total = this.store.selectSignal(AdminInvoicesState.total);
@@ -52,6 +74,30 @@ export class AdminInvoicesComponent implements OnInit {
     status: new FormControl<string>(''),
     invoiceNumber: new FormControl<string>('', { nonNullable: true }),
   });
+
+  constructor() {
+    // Deep links and Back/Forward drive the drawer off the URL. The drawer
+    // loads its own record, so a deep link works before the list arrives.
+    effect(() => {
+      const id = this.openId();
+      untracked(() => {
+        if (id !== null && this.drawers.openDrawer?.urlId !== id) this.openInvoice(id);
+      });
+    });
+  }
+
+  protected openRow(invoice: BuilderCommissionInvoice): void {
+    this.openInvoice(invoice.id);
+  }
+
+  private openInvoice(invoiceId: string): void {
+    this.drawers.open<AdminInvoiceDrawerComponent, void, AdminInvoiceDrawerData>(AdminInvoiceDrawerComponent, {
+      data: { invoiceId },
+      size: 'lg',
+      urlId: invoiceId,
+      injector: this.injector,
+    });
+  }
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminInvoices());
@@ -129,22 +175,5 @@ export class AdminInvoicesComponent implements OnInit {
 
   protected dismissError(): void {
     this.store.dispatch(new DismissAdminInvoiceListError());
-  }
-
-  protected formatCents(cents: number): string {
-    return formatCentsToCad(cents);
-  }
-
-  protected statusLabel(status: BuilderCommissionInvoice['status']): string {
-    return (
-      this.statusOptions.find((o) => o.value === status)?.label ?? status
-    );
-  }
-
-  protected statusClass(status: BuilderCommissionInvoice['status']): string {
-    // Kept as two short literals: the no-hardcode tripwire treats a single
-    // >=50-char template literal as user-facing copy.
-    const modifier = `invoices-page__badge--${status.replace('_', '-')}`;
-    return 'invoices-page__badge ' + modifier;
   }
 }

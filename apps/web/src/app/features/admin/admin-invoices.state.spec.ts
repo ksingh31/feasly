@@ -221,4 +221,35 @@ describe('AdminInvoicesState', () => {
     expect(s.detail).toBeNull();
     expect(s.detailStatus).toBe('idle');
   });
+
+  it('loads the open dispute for a disputed invoice (#543)', async () => {
+    await setup();
+    const done = store.dispatch(new LoadAdminInvoiceDetail('inv-1'));
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/invoices/inv-1'))
+      .flush({ ...INVOICE_A, status: 'disputed' });
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/disputes') && r.method === 'GET')
+      .flush({ disputes: [{ id: 'd-other', invoiceId: 'inv-x' }, { id: 'd-1', invoiceId: 'inv-1' }] });
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/disputes/d-1'))
+      .flush({ id: 'd-1', invoiceId: 'inv-1', auditTrail: [] });
+    await done.toPromise();
+
+    const s = snapshot();
+    expect(s.disputeStatus).toBe('ready');
+    expect(s.dispute?.id).toBe('d-1');
+
+    store.dispatch(new ClearAdminInvoiceDetail());
+    expect(snapshot().dispute).toBeNull();
+  });
+
+  it('does not look up disputes for an undisputed invoice', async () => {
+    await setup();
+    const done = store.dispatch(new LoadAdminInvoiceDetail('inv-1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/invoices/inv-1')).flush(INVOICE_A);
+    await done.toPromise();
+    httpMock.expectNone((r) => r.url.includes('/admin/disputes'));
+    expect(snapshot().dispute).toBeNull();
+  });
 });
