@@ -15,6 +15,7 @@
     <form class="hero-form" (ngSubmit)="onSubmit()" aria-label="Address search">
       <app-address-autocomplete
         class="hero-search"
+        [waitlist]="true"
         (selected)="onSelected($event)"
         (submitted)="onSubmit()"
       />

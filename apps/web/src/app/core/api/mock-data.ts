@@ -10,6 +10,8 @@
 import type {
   AutocompleteSuggestion,
   CallbackResponse,
+  WaitlistResponse,
+  WaitlistTopic,
   ComparisonEstimateRequest,
   ComparisonEstimateResponse,
   ComparisonRowSet,
@@ -664,6 +666,10 @@ export function mockRenoReport(
 
 export function mockCallbackOk(window: 'morning' | 'afternoon' | 'evening'): CallbackResponse {
   return { ok: true, window };
+}
+
+export function mockWaitlistOk(topic: WaitlistTopic): WaitlistResponse {
+  return { ok: true, topic };
 }
 
 export function mockShareOk(partnerEmail: string): PartnerShareResponse {

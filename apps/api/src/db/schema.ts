@@ -1563,3 +1563,33 @@ export const embedRelayAuditLog = pgTable(
     index('embed_relay_audit_log_tenant_key_idx').on(t.tenantKey),
   ],
 );
+
+/**
+ * Waitlist signups (#520, decision D-P4).
+ *
+ * "Tell me when it's ready" for renovation estimates and for cities
+ * outside Calgary. Email is stored lowercased + trimmed (same rule as
+ * `leads`) so the (email, topic) unique index is an exact match; a repeat
+ * signup is a no-op (`ON CONFLICT DO NOTHING`). Rows are deleted by a
+ * confirmed privacy erasure (PIPEDA) and included in the privacy export.
+ */
+export const waitlistSignups = pgTable(
+  'waitlist_signups',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    email: text('email').notNull(),
+    /** 'renovation' | 'toronto' | 'vancouver' (contracts WaitlistTopic). */
+    topic: text('topic').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** CASL consent timestamp (owner decision 2026-11-15) — set at signup. */
+    consentTs: timestamp('consent_ts', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Version tag of the consent wording agreed to (legal-copy.ts). */
+    consentVersion: text('consent_version'),
+  },
+  (t) => [uniqueIndex('waitlist_signups_email_topic_idx').on(t.email, t.topic)],
+);

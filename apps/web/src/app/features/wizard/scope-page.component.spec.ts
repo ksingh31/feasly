@@ -4,8 +4,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
+import { API_SERVICE, type ApiService } from '../../core/api';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, SelectProperty, WizardState } from '../wizard';
 import { ScopePageComponent } from './scope-page.component';
@@ -20,6 +22,9 @@ class BlankComponent {}
  * Renovation, no "coming soon"), preselects New Build on first visit, stores
  * the selection in NGXS, and routes per project type (new build → preview,
  * renovation → reno scope-inputs). No dollar figures on this step.
+ *
+ * Those RENO-02 tests run with `features.renovationWaitlist` off; the #520
+ * block at the end covers the flag-on path (badge + waitlist, no reno form).
  */
 describe('ScopePageComponent', () => {
   let httpMock: HttpTestingController;
@@ -54,7 +59,11 @@ describe('ScopePageComponent', () => {
     }
   }
 
-  async function setup(): Promise<void> {
+  /** Stubbed API seam: only the waitlist call is reachable from this step. */
+  const joinWaitlist = vi.fn((req: { topic: string }) => of({ ok: true as const, topic: req.topic }));
+
+  async function setup(renoWaitlist = false): Promise<void> {
+    joinWaitlist.mockClear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ScopePageComponent, BlankComponent],
@@ -69,6 +78,7 @@ describe('ScopePageComponent', () => {
           { path: 'estimate/reno-scope', component: BlankComponent },
         ]),
         provideStore([WizardState]),
+        { provide: API_SERVICE, useValue: { joinWaitlist } as unknown as ApiService },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -76,7 +86,10 @@ describe('ScopePageComponent', () => {
     const pending = config.load();
     httpMock
       .expectOne('/assets/config/app-config.json')
-      .flush({ wizard: { sqftDefault: 2200, sqftMin: 1200, sqftMax: 4000, sqftStep: 50 } });
+      .flush({
+        wizard: { sqftDefault: 2200, sqftMin: 1200, sqftMax: 4000, sqftStep: 50 },
+        features: { renovationWaitlist: renoWaitlist },
+      });
     await pending;
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
@@ -85,7 +98,7 @@ describe('ScopePageComponent', () => {
     fixture.detectChanges();
   }
 
-  beforeEach(setup);
+  beforeEach(() => setup());
 
   function ptypeButton(id: string): HTMLButtonElement {
     return fixture.nativeElement.querySelector(`.ptype-card[data-ptype="${id}"]`);
@@ -347,5 +360,60 @@ describe('ScopePageComponent', () => {
     back.click();
     await pollUrl('/');
     expect(store.selectSnapshot((s) => s.wizard.step)).toBe(1);
+  });
+
+  describe('#520 renovation waitlist (features.renovationWaitlist on)', () => {
+    beforeEach(() => setup(true));
+
+    it('badges the Renovation card "Coming soon" (and only that card)', () => {
+      expect(ptypeButton('renovation').querySelector('.ptype-badge')?.textContent?.trim()).toBe(
+        'Coming soon',
+      );
+      expect(ptypeButton('new-build').querySelector('.ptype-badge')).toBeNull();
+      // Still selectable: picking it is how people reach the waitlist.
+      expect(ptypeButton('renovation').disabled).toBe(false);
+    });
+
+    it('Renovation shows the email capture — no reno form, no preview CTA (AC2)', () => {
+      chooseCard('renovation');
+      const root: HTMLElement = fixture.nativeElement;
+      expect(root.querySelector('app-waitlist-signup[variant="renovation"]')).not.toBeNull();
+      expect(root.querySelector('button.cta')).toBeNull();
+      expect(root.querySelector('.reno-note')).toBeNull();
+      expect(root.querySelector('app-sqft-slider')).toBeNull();
+    });
+
+    it('submitting the email joins the renovation waitlist', () => {
+      chooseCard('renovation');
+      const root: HTMLElement = fixture.nativeElement;
+      const input = root.querySelector<HTMLInputElement>('.wl-input')!;
+      input.value = 'reno@example.com';
+      input.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLInputElement>('.wl-consent input[type="checkbox"]')!.click();
+      root.querySelector<HTMLButtonElement>('.wl-submit')!.click();
+      fixture.detectChanges();
+      expect(joinWaitlist).toHaveBeenCalledWith({
+        email: 'reno@example.com',
+        topic: 'renovation',
+        consent: true,
+      });
+      expect(root.querySelector('.wl-success')?.textContent).toContain('renovation estimates');
+    });
+
+    it('"Start a new-build estimate instead" returns to the working flow', () => {
+      chooseCard('renovation');
+      fixture.nativeElement.querySelector('.reno-new-build').click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      expect(cta()).not.toBeNull();
+      expect(slider()).not.toBeNull();
+    });
+
+    it('never routes a renovation to the reno scope form', async () => {
+      chooseCard('renovation');
+      fixture.componentInstance.seePreview();
+      await fixture.whenStable();
+      expect(router.url).not.toBe('/estimate/reno-scope');
+    });
   });
 });

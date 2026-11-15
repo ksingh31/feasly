@@ -13,6 +13,7 @@ import {
   OptionSelectorComponent,
   WizardBackComponent,
   WizardStepsComponent,
+  WaitlistSignupComponent,
   type OptionCard,
   type TierOption,
 } from '../../shared/components';
@@ -30,6 +31,11 @@ import {
  * below; renovations get a note and continue to the reno scope-inputs
  * step. No dollar figures appear on this step: the estimate numbers
  * surface later, blurred pre-gate.
+ *
+ * #520 (D-P4): while `features.renovationWaitlist` is on, the Renovation
+ * card carries a "Coming soon" badge and picking it shows an email capture
+ * plus a way back to New Build — the reno scope form (which ends on the
+ * coming-soon page) is never reached, so nobody fills a form for nothing.
  */
 @Component({
   selector: 'app-scope-page',
@@ -43,6 +49,7 @@ import {
     OptionSelectorComponent,
     WizardBackComponent,
     WizardStepsComponent,
+    WaitlistSignupComponent,
   ],
   templateUrl: './scope-page.component.html',
   styleUrls: ['./wizard-shell.scss', './scope-page.component.scss'],
@@ -61,6 +68,8 @@ export class ScopePageComponent implements OnInit {
   protected readonly wizard = this.config.get('wizard');
   /** Scope-step copy (config-owned). */
   protected readonly copy = this.config.get('copy').wizard;
+  /** #520: Renovation is "Coming soon" with a waitlist (deploy flag). */
+  protected readonly renoWaitlist = this.config.get('features').renovationWaitlist;
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/scope');
@@ -139,6 +148,11 @@ export class ScopePageComponent implements OnInit {
   seePreview(): void {
     const type = this.projectType();
     if (type == null) {
+      return;
+    }
+    if (type === 'renovation' && this.renoWaitlist) {
+      // #520: the reno path is the waitlist on this step — never a form
+      // that leads to "coming soon". The CTA is hidden; this is a backstop.
       return;
     }
     if (type === 'renovation') {

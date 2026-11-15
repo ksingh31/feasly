@@ -309,6 +309,13 @@
 			"when": 1790872448387,
 			"tag": "0046_invoice_number_and_payment_method",
 			"breakpoints": true
+		},
+		{
+			"idx": 44,
+			"version": "7",
+			"when": 1795219200000,
+			"tag": "0047_waitlist_signups",
+			"breakpoints": true
 		}
 	]
 }

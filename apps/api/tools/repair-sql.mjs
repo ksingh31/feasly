@@ -741,6 +741,22 @@ ALTER TABLE "callback_requests" ADD COLUMN IF NOT EXISTS "phone" text NOT NULL;
 ALTER TABLE "callback_requests" ADD COLUMN IF NOT EXISTS "window" text NOT NULL;
 ALTER TABLE "callback_requests" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
 ALTER TABLE "callback_requests" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "waitlist_signups" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"topic" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"consent_ts" timestamp with time zone DEFAULT now() NOT NULL,
+	"consent_version" text
+);
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "email" text NOT NULL;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "topic" text NOT NULL;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_ts" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_version" text;
+CREATE UNIQUE INDEX IF NOT EXISTS "waitlist_signups_email_topic_idx" ON "waitlist_signups" USING btree ("email","topic");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

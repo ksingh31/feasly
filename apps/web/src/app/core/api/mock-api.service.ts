@@ -12,6 +12,8 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  WaitlistRequest,
+  WaitlistResponse,
   CityDataFreshnessResponse,
   ComparisonEstimateRequest,
   ComparisonEstimateResponse,
@@ -45,6 +47,7 @@ import { simulateLatency } from './latency';
 import {
   MOCK_VERIFY_FAILURE,
   mockCallbackOk,
+  mockWaitlistOk,
   mockCommunityStats,
   mockComparisonEstimate,
   mockEstimate,
@@ -462,6 +465,10 @@ export class MockApiService implements ApiService {
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {
     return this.roundTrip(mockCallbackOk(request.window));
+  }
+
+  joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse> {
+    return this.roundTrip(mockWaitlistOk(request.topic));
   }
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {

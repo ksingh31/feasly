@@ -168,6 +168,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/waitlist',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Join a "tell me when it\'s ready" waitlist (renovation, Toronto, ' +
+      'Vancouver). Idempotent per (email, topic); never reveals membership.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/shares',
     auth: 'magic-token',
     permissions: [] as const,

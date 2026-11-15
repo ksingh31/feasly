@@ -34,8 +34,9 @@
 
   @if (status() === 'error') {
     @if (outOfCoverage()) {
-      <!-- Reno/05: the Calgary-only gate. No email capture here by design —
-           the story forbids any input or POST beyond the lookup itself. -->
+      <!-- Reno/05: the Calgary-only gate. #520 (D-P4): an optional
+           notify-me for Toronto/Vancouver sits below it (outside the alert),
+           only where the host opts in and the deploy flag is on. -->
       <div class="ac-error ac-out-of-coverage" role="alert">
         <p class="ac-ooc-heading">{{ copy.outOfCoverageHeading }}</p>
         <p>{{ copy.outOfCoverageBody }}</p>
@@ -43,6 +44,9 @@
           {{ copy.outOfCoverageAction }}
         </button>
       </div>
+      @if (waitlist() && cityWaitlistEnabled) {
+        <app-waitlist-signup variant="city" [query]="lastQuery()" />
+      }
     } @else if (addressNotFound()) {
       <!-- Reno/05: the record lookup failed with ADDRESS_NOT_FOUND — same
            copy as the empty-suggestions state, with a retry path. -->

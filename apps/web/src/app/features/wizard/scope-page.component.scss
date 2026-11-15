@@ -121,3 +121,55 @@
 .reno-note {
   margin-top: 20px;
 }
+
+/* #520: "Coming soon" badge on the Renovation card + waitlist path. */
+.ptype-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ptype-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--status-progress-fg);
+  background: var(--status-progress-bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.reno-waitlist {
+  margin-top: 20px;
+}
+
+.reno-new-build {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 20px;
+  min-height: 48px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.reno-new-build:hover {
+  border-color: var(--accent);
+}
+
+.reno-new-build:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (min-width: 640px) {
+  .reno-new-build {
+    width: auto;
+  }
+}

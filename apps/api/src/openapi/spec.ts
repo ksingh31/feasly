@@ -30,6 +30,8 @@ import {
   AutocompleteResponseSchema,
   CallbackRequestSchema,
   CallbackResponseSchema,
+  WaitlistRequestSchema,
+  WaitlistResponseSchema,
   CallbackWindowSchema,
   CityDataFreshnessResponseSchema,
   CommunityStatsResponseSchema,
@@ -143,6 +145,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('CallbackWindow', CallbackWindowSchema);
   registry.register('CallbackRequest', CallbackRequestSchema);
   registry.register('CallbackResponse', CallbackResponseSchema);
+  registry.register('WaitlistRequest', WaitlistRequestSchema);
+  registry.register('WaitlistResponse', WaitlistResponseSchema);
   registry.register('PartnerShareRequest', PartnerShareRequestSchema);
   registry.register('PartnerShareResponse', PartnerShareResponseSchema);
   registry.register('PartnerShareVerifyResponse', PartnerShareVerifyResponseSchema);
@@ -354,6 +358,36 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Callback request recorded',
         content: {
           'application/json': { schema: CallbackResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/waitlist (#520)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/waitlist',
+    summary: 'Join a waitlist',
+    description:
+      'Records a "tell me when it\'s ready" signup for renovation estimates ' +
+      'or a city outside Calgary. Idempotent per (email, topic): a repeat ' +
+      'signup returns the same 200, so membership is never revealed.',
+    // Fully public (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: WaitlistRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Signup recorded (or already on the list)',
+        content: {
+          'application/json': { schema: WaitlistResponseSchema },
         },
       },
       ...errorResponses(),

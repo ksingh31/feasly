@@ -544,6 +544,28 @@ export const CallbackResponseSchema = z
   })
   .openapi('CallbackResponse');
 
+// ── Waitlist signups (#520) ─────────────────────────────────────────────
+
+export const WaitlistTopicSchema = z
+  .enum(['renovation', 'toronto', 'vancouver'])
+  .openapi('WaitlistTopic');
+
+export const WaitlistRequestSchema = z
+  .object({
+    email: z.string().email().max(254),
+    topic: WaitlistTopicSchema,
+    /** CASL express consent — the required checkbox. */
+    consent: z.literal(true),
+  })
+  .openapi('WaitlistRequest');
+
+export const WaitlistResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    topic: WaitlistTopicSchema,
+  })
+  .openapi('WaitlistResponse');
+
 // ── Partner shares (phase-2 wiring) ─────────────────────────────────────
 
 export const PartnerShareRequestSchema = z

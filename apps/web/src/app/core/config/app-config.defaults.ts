@@ -55,7 +55,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // Q4 unconfirmed (Karan): the slot renders only when this is true AND a
     // sample report route exists — never a dead link.
     sampleReport: false,
-    renovationWaitlist: false,
+    // #520 (D-P4, owner 2026-11-15): Renovation is "Coming soon" on the
+    // scope step with an email capture; other cities get a notify-me.
+    renovationWaitlist: true,
+    cityWaitlist: true,
   },
   // legal/01 AC3: draft until the lawyer reviews and approves the
   // privacy/terms copy. Flip to false only together with removing every
@@ -335,6 +338,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
       renoSelectedNote:
         'You will describe your renovation — type, area, and finishes — on the next step.',
+      renoComingSoonBadge: 'Coming soon',
+      renoNewBuildCta: 'Start a new-build estimate instead',
       renoScopePendingTitle: 'Renovation scope',
       renoScopePendingBody:
         'Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.',
@@ -694,6 +699,42 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     // Renovation is out of launch scope (Karan 2026-09-27): reno users land
     // on a designed coming-soon page instead of the analyzing pipeline.
+    waitlist: {
+      emailLabel: 'Email',
+      emailPlaceholder: 'you@example.com',
+      submitLabel: 'Notify me',
+      sendingLabel: 'Saving…',
+      invalidEmail: 'Please enter a valid email address.',
+      error: 'We couldn’t save that just now. Please try again in a moment.',
+      privacyNote: 'We’ll only use this to email you when it’s ready. Nothing else.',
+      // DRAFT — pending legal review (owner decision 2026-11-15, same status
+      // as the lead-gate consent). REQUIRED to submit. Must byte-match
+      // docs/legal/approved-copy.md "CASL waitlist consent wording"
+      // (tools/check-casl-copy.mjs). Bump WAITLIST_CONSENT_VERSION in
+      // apps/api/src/lib/legal-copy.ts when it changes.
+      consentLabel:
+        'I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.',
+      privacyLinkLabel: 'Privacy Policy',
+      consentRequired: 'Please tick the box to agree, so we can email you.',
+      successByTopic: {
+        renovation: 'You’re on the list. We’ll email you when renovation estimates are ready.',
+        toronto: 'You’re on the list. We’ll email you when Feasly covers Toronto.',
+        vancouver: 'You’re on the list. We’ll email you when Feasly covers Vancouver.',
+      },
+      renovation: {
+        heading: 'Renovation estimates are coming soon',
+        body: 'We’re building them the same way as our new-build estimates: real City data and one fixed formula. Leave your email and we’ll tell you when they’re ready.',
+      },
+      city: {
+        heading: 'Want Feasly in your city?',
+        body: 'Toronto and Vancouver are next. Leave your email and we’ll tell you when your city is covered.',
+        topicLabel: 'Your city',
+        cities: [
+          { id: 'toronto', name: 'Toronto', match: 'toronto' },
+          { id: 'vancouver', name: 'Vancouver', match: 'vancouver' },
+        ],
+      },
+    },
     renoComingSoon: {
       heading: 'Renovations are coming soon',
       body: 'Renovation estimates aren’t quite ready yet — we’re building them the same honest way as our new-build estimates, with real City data and the same fixed formula. In the meantime, you can run a new-build estimate right now.',
