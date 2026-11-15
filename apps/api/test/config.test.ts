@@ -20,6 +20,8 @@ describe('loadConfig', () => {
       lead: {
         rateLimit: { windowMs: 60_000, maxRequests: 10 },
         dedupWindowDays: 90,
+        needsYouStaleDays: 7,
+        needsYouScanLimit: 500,
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },

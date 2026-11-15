@@ -83,6 +83,12 @@ const EnvSchema = z.object({
   // the existing lead instead of inserting a duplicate (BE3-003).
   LEAD_DEDUP_WINDOW_DAYS: z.coerce.number().int().positive().default(90),
 
+  // Builder Leads home "Needs you" feed (issue #526): a contacted/quoted
+  // lead with no status change for this many days counts as stale; the
+  // feed scans at most this many of the builder's newest leads.
+  LEAD_NEEDS_YOU_STALE_DAYS: z.coerce.number().int().positive().default(7),
+  LEAD_NEEDS_YOU_SCAN_LIMIT: z.coerce.number().int().positive().default(500),
+
   // api-mcp/09: sandbox purge timer. Rows with sandbox=true older than
   // this are hard-deleted daily. DRY_RUN defaults true so the first run
   // only counts and logs — flip to false after verifying the blast radius.
@@ -416,6 +422,10 @@ export interface LeadConfig {
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
   /** Dedup window in days: same email + address → existing lead. */
   readonly dedupWindowDays: number;
+  /** "Needs you" feed: days without a status change before a lead is stale. */
+  readonly needsYouStaleDays: number;
+  /** "Needs you" feed: max builder leads scanned (newest first). */
+  readonly needsYouScanLimit: number;
 }
 
 export interface EstimateConfig {
@@ -1098,6 +1108,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         maxRequests: e.LEAD_RATE_LIMIT_MAX_REQUESTS,
       },
       dedupWindowDays: e.LEAD_DEDUP_WINDOW_DAYS,
+      needsYouStaleDays: e.LEAD_NEEDS_YOU_STALE_DAYS,
+      needsYouScanLimit: e.LEAD_NEEDS_YOU_SCAN_LIMIT,
     },
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
