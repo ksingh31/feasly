@@ -290,6 +290,10 @@ apps/web/src/app/core/api/api-error.ts
 # tuning. The maxLength(200) validation limits mirror the backend zod schema
 # (API contract, not tunables), and the page-size default (50) matches the
 # backend list default. Copy-pinned by admin-users.component.spec.ts.
+# The edit drawer (#542) carries the same edit-form copy and the same
+# maxLength(200) contract limit, moved out of admin-users.component.html.
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.html
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.ts
 apps/web/src/app/features/admin/admin-users-api.service.ts
 apps/web/src/app/features/admin/admin-users.component.html
 apps/web/src/app/features/admin/admin-users.component.ts
