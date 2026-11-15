@@ -14,6 +14,7 @@ import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 import { adminGuard } from './features/admin/admin.guard';
 import { builderGuard } from './features/builder/builder.guard';
 import { builderBillingGuard } from './features/builder/builder-billing.guard';
+import { recordContractRedirect } from './features/builder/record-contract-redirect';
 import { builderTeamGuard } from './features/builder/builder-team.guard';
 
 export const routes: Routes = [
@@ -602,21 +603,16 @@ export const routes: Routes = [
         canActivate: [builderTeamGuard],
       },
       {
-        // Builder record-contract: the builder records a signed contract
-        // for one of their leads. Lazy-loaded with the rest of the
-        // builder portal. builderBillingGuard: the submit path mints
-        // commission invoices (admin-only backend-side).
+        // Retired page (#529): contracts are recorded from the lead drawer's
+        // Won panel. Old links land on the Leads home, opening that lead's
+        // drawer when `?lead=<id>` is present.
         path: 'record-contract',
-        loadComponent: () =>
-          import('./features/builder/builder-report-contract.component').then(
-            (m) => m.BuilderReportContractComponent,
-          ),
-        canActivate: [builderBillingGuard],
+        redirectTo: recordContractRedirect,
       },
       {
-        // Legacy path: redirect to the renamed record-contract page.
+        // Older legacy path for the same retired page.
         path: 'report-contract',
-        redirectTo: 'record-contract',
+        redirectTo: recordContractRedirect,
       },
 
     ],

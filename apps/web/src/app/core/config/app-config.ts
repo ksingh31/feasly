@@ -624,6 +624,65 @@ export interface BuilderLeadDrawerCopy {
   discardBody: string;
   discardVerb: string;
   discardCancel: string;
+  /** Won panel: record the signed contract inline (#529). */
+  record: BuilderRecordContractCopy;
+}
+
+/**
+ * Lead drawer → record contract (#529). `{rate}`, `{value}`, `{commission}`,
+ * `{card}`, `{date}`, `{method}`, `{name}`, `{days}` placeholders are filled
+ * in the component; every figure comes from the API or the cost rate.
+ */
+export interface BuilderRecordContractCopy {
+  valueLabel: string;
+  valueHint: string;
+  valueRequired: string;
+  dateLabel: string;
+  dateRequired: string;
+  dateFuture: string;
+  /** Live preview heading: `{rate}` e.g. "1%". */
+  commissionLabel: string;
+  /** Preview figure before a value is typed. */
+  commissionEmpty: string;
+  rateLoading: string;
+  rateError: string;
+  /** Flat plan: no commission on recorded contracts. */
+  flatPlan: string;
+  chargeDateLabel: string;
+  cardLabel: string;
+  /** Row label when the default method is manual. */
+  paymentLabel: string;
+  /** `{brand}` and `{last4}`. */
+  cardValue: string;
+  noCard: string;
+  addCard: string;
+  /** Manual default method: `{method}` (lower-case label). */
+  manualMethod: string;
+  reviewCta: string;
+  /** Confirm title: `{name}` is the lead. */
+  confirmTitle: string;
+  /** `{commission}`, `{rate}`, `{value}`, `{card}`, `{date}` (+ the charge-timing sentence). */
+  confirmBody: string;
+  /** No card saved: `{commission}`, `{rate}`, `{value}`, `{date}`. */
+  confirmBodyNoCard: string;
+  /** Manual method: `{commission}`, `{rate}`, `{value}`, `{method}`. */
+  confirmBodyManual: string;
+  /** Flat plan: `{value}`. */
+  confirmBodyFlat: string;
+  confirmVerb: string;
+  confirmVerbFlat: string;
+  confirmCancel: string;
+  submitting: string;
+  successHeading: string;
+  /** Success row labels. */
+  successCommission: string;
+  successChargeDate: string;
+  successCountdown: string;
+  /** Countdown: `{days}`. */
+  countdownIn: string;
+  countdownTomorrow: string;
+  countdownToday: string;
+  viewInvoice: string;
 }
 
 export interface AppConfig {
@@ -677,6 +736,13 @@ export interface AppConfig {
      * decision).
      */
     questionInvoiceHref: string;
+    /**
+     * Days between an invoice being issued and the card charge (the
+     * review window). Mirrors the backend's window so the record-contract
+     * confirm can name the expected charge date before the invoice exists;
+     * the minted invoice's own `reviewDueAt` is shown once it does.
+     */
+    chargeDelayDays: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {

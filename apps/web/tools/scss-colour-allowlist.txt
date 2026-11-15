@@ -19,7 +19,6 @@ apps/web/src/app/features/builder/builder-billing.component.scss 32
 apps/web/src/app/features/builder/builder-invoices.component.scss 36
 apps/web/src/app/features/builder/builder-login.component.scss 11
 apps/web/src/app/features/builder/builder-org-picker.component.scss 4
-apps/web/src/app/features/builder/builder-report-contract.component.scss 34
 apps/web/src/app/features/builder/builder-team.component.scss 19
 apps/web/src/app/features/builder/due-invoice-banners.component.scss 9
 apps/web/src/app/features/communities/communities-index-page.component.scss 1

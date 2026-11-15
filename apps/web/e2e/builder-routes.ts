@@ -36,12 +36,6 @@ export const BUILDER_E2E_ROUTES: readonly BuilderE2eRoute[] = [
   { path: 'builder/billing', url: '/builder/billing', name: 'billing', ready: '.builder-shell h1' },
   { path: 'builder/invoices', url: '/builder/invoices', name: 'invoices', ready: '.builder-shell h1' },
   { path: 'builder/team', url: '/builder/team', name: 'team', ready: '.builder-shell h1' },
-  {
-    path: 'builder/record-contract',
-    url: '/builder/record-contract',
-    name: 'record-contract',
-    ready: '.builder-shell h1',
-  },
 ];
 
 /**
@@ -50,5 +44,6 @@ export const BUILDER_E2E_ROUTES: readonly BuilderE2eRoute[] = [
  */
 export const BUILDER_REDIRECT_PATHS: readonly string[] = [
   'builder/billing/invoices',
+  'builder/record-contract',
   'builder/report-contract',
 ];

@@ -35,7 +35,6 @@ const MONEY_PATHS = [
   '/builder/money',
   '/builder/invoices',
   '/builder/billing',
-  '/builder/record-contract',
 ] as const;
 
 /** Whether a router URL sits inside the Money section. */
@@ -53,8 +52,8 @@ export function isMoneyUrl(url: string): boolean {
  * - Account menu trigger always shows the current org name; the menu holds
  *   the org switcher, the session email, and sign out.
  * - Below 768px the section nav moves to a fixed bottom tab bar.
- * - "Record contract" is not a nav item: it is an action on a won lead
- *   (dashboard) and in the Money sub-nav.
+ * - "Record contract" is not a nav item: it is recorded from a won lead's
+ *   drawer (#529); the old page redirects there.
  * - A failed-card danger strip persists across every shell page (admins —
  *   billing is admin-only backend-side) until the failed invoice resolves.
  *

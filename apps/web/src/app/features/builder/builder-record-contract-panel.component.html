@@ -1,0 +1,124 @@
+@if (succeeded()) {
+  <div class="record-panel__success" role="status" data-testid="record-success">
+    <p class="record-panel__success-title">{{ t.successHeading }}</p>
+    @if (outcomeNote(); as note) {
+      <p class="record-panel__body">{{ note }}</p>
+    }
+    @if (invoice(); as inv) {
+      <dl class="record-panel__rows">
+        <div>
+          <dt>{{ t.successCommission }}</dt>
+          <dd data-testid="record-success-commission">{{ invoiceCommission() }}</dd>
+        </div>
+        @if (invoiceChargeDate(); as date) {
+          <div>
+            <dt>{{ t.successChargeDate }}</dt>
+            <dd data-testid="record-success-date">{{ date }}</dd>
+          </div>
+        }
+        @if (countdown(); as left) {
+          <div>
+            <dt>{{ t.successCountdown }}</dt>
+            <dd data-testid="record-success-countdown">{{ left }}</dd>
+          </div>
+        }
+      </dl>
+      <a
+        ui-button
+        variant="secondary"
+        class="record-panel__cta"
+        data-testid="record-success-invoice"
+        [routerLink]="['/builder/invoices']"
+        [queryParams]="{ invoice: inv.id }"
+        >{{ t.viewInvoice }}</a
+      >
+    }
+  </div>
+} @else {
+  <div class="record-panel__form" data-testid="record-form">
+    <ui-money-field
+      data-testid="record-value"
+      [label]="t.valueLabel"
+      [hint]="t.valueHint"
+      [error]="valueError()"
+      [required]="true"
+      [disabled]="submitting()"
+      [(value)]="valueCents"
+    />
+    <ui-date-field
+      data-testid="record-date"
+      [label]="t.dateLabel"
+      [error]="dateError()"
+      [max]="today"
+      [required]="true"
+      [disabled]="submitting()"
+      [(value)]="signedOn"
+    />
+  </div>
+
+  <!-- Live preview at the org's configured rate, with charge date and card. -->
+  <div class="record-panel__preview" data-testid="record-preview">
+    @if (loadFailed()) {
+      <p class="record-panel__body record-panel__error" role="alert">{{ t.rateError }}</p>
+      <button type="button" ui-button variant="secondary" size="sm" class="record-panel__cta" (click)="loadBilling()">
+        {{ copy.contractRetry }}
+      </button>
+    } @else if (!ready()) {
+      <p class="record-panel__body" role="status">{{ t.rateLoading }}</p>
+    } @else if (flat()) {
+      <p class="record-panel__body" data-testid="record-flat">{{ t.flatPlan }}</p>
+    } @else {
+      <dl class="record-panel__rows">
+        <div class="record-panel__commission">
+          <dt data-testid="record-commission-label">{{ commissionLabel() }}</dt>
+          <dd data-testid="record-commission" aria-live="polite">{{ commission() ?? t.commissionEmpty }}</dd>
+        </div>
+        @if (chargeKind() === 'manual') {
+          <div>
+            <dt>{{ t.paymentLabel }}</dt>
+            <dd data-testid="record-card">{{ manualLine() }}</dd>
+          </div>
+        } @else {
+          <div>
+            <dt>{{ t.chargeDateLabel }}</dt>
+            <dd data-testid="record-charge-date">{{ chargeDate }}</dd>
+          </div>
+          <div>
+            <dt>{{ t.cardLabel }}</dt>
+            <dd data-testid="record-card">
+              @if (chargeKind() === 'card') {
+                {{ cardLabel() }}
+              } @else {
+                {{ t.noCard }} — <a routerLink="/builder/billing">{{ t.addCard }}</a>
+              }
+            </dd>
+          </div>
+        }
+      </dl>
+    }
+  </div>
+
+  @if (failed() && submitError(); as apiError) {
+    <div class="record-panel__failure" role="alert" data-testid="record-error">
+      <p class="record-panel__body record-panel__error">{{ apiError.message }}</p>
+      <button type="button" ui-button variant="secondary" size="sm" class="record-panel__cta" (click)="retry()">
+        {{ copy.contractRetry }}
+      </button>
+    </div>
+  }
+
+  <button
+    type="button"
+    ui-button
+    class="record-panel__cta"
+    data-testid="record-review"
+    [disabled]="!ready()"
+    [loading]="submitting()"
+    (click)="review()"
+  >
+    {{ t.reviewCta }}
+  </button>
+  @if (submitting()) {
+    <p class="sr-only" role="status">{{ t.submitting }}</p>
+  }
+}

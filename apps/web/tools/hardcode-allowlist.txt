@@ -314,7 +314,7 @@ apps/web/src/app/features/builder/builder-invoices-api.service.ts
 # Report-contract datetime helpers (billing/01 builder lane): the `60`
 # minutes-per-hour and `T00:00:00` day-boundary literals are ISO-8601
 # formatting facts, not deploy tunables. Pinned by
-# builder-report-contract.component.spec.ts.
+# builder-record-contract-panel.component.spec.ts (submit payload).
 apps/web/src/app/shared/utils/datetime.ts
 
 # D-03 shared entry-point test harness: drives the shared address-autocomplete
