@@ -1,0 +1,31 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-field__label {
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ui-field__required {
+  color: var(--status-danger-fg);
+}
+
+.ui-field__hint,
+.ui-field__error {
+  margin: 0;
+  font: var(--type-meta);
+}
+
+.ui-field__hint {
+  color: var(--muted);
+}
+
+.ui-field__error {
+  color: var(--status-danger-fg);
+  font-weight: 600;
+}

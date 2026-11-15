@@ -1,0 +1,29 @@
+<ui-field-shell
+  [label]="label()"
+  [controlId]="controlId()"
+  [hintId]="hintId()"
+  [errorId]="errorId()"
+  [hint]="hint()"
+  [error]="error()"
+  [required]="required()"
+>
+  <select
+    class="ui-field__control"
+    [id]="controlId()"
+    [disabled]="isDisabled()"
+    [required]="required()"
+    [attr.aria-invalid]="error() ? 'true' : null"
+    [attr.aria-describedby]="describedBy()"
+    (change)="onSelect($any($event.target).value)"
+    (blur)="markTouched()"
+  >
+    @if (placeholder() !== null) {
+      <option value="" [selected]="value() === null">{{ placeholder() }}</option>
+    }
+    @for (opt of options(); track opt.value) {
+      <option [value]="opt.value" [disabled]="!!opt.disabled" [selected]="opt.value === value()">
+        {{ opt.label }}
+      </option>
+    }
+  </select>
+</ui-field-shell>

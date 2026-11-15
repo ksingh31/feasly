@@ -1,0 +1,140 @@
+// Button — portal UI kit §3. Tokens only (colours live in styles.scss).
+
+:host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: var(--type-body);
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+:host(:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Sizes */
+:host(.ui-button--sm) {
+  height: 32px;
+  padding: 0 var(--space-3);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Phones / touch: the hit area grows to ≥44px without changing the visual size. */
+@media (max-width: 767px), (pointer: coarse) {
+  :host::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Variants */
+:host(.ui-button--primary) {
+  background: var(--canvas);
+  border-color: var(--canvas);
+  color: var(--on-dark);
+}
+:host(.ui-button--primary:hover:not(.ui-button--disabled):not(.ui-button--loading)) {
+  background: var(--canvas-2);
+  border-color: var(--canvas-2);
+}
+
+:host(.ui-button--secondary) {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+}
+:host(.ui-button--secondary:hover:not(.ui-button--disabled):not(.ui-button--loading)) {
+  background: var(--cream-2);
+}
+
+:host(.ui-button--ghost) {
+  background: transparent;
+  color: var(--text);
+}
+:host(.ui-button--ghost:hover:not(.ui-button--disabled):not(.ui-button--loading)) {
+  background: var(--accent-bg);
+}
+
+:host(.ui-button--danger) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--card);
+}
+:host(.ui-button--danger:hover:not(.ui-button--disabled):not(.ui-button--loading)) {
+  background: var(--status-danger-fg);
+  border-color: var(--status-danger-fg);
+}
+
+:host(.ui-button--danger-secondary) {
+  background: var(--card);
+  border-color: var(--status-danger-fg);
+  color: var(--status-danger-fg);
+}
+:host(.ui-button--danger-secondary:hover:not(.ui-button--disabled):not(.ui-button--loading)) {
+  background: var(--status-danger-bg);
+}
+
+/* Disabled: 40% opacity, not-allowed. Only this state is dimmed. */
+:host(.ui-button--disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Loading: full opacity, label painted transparent (keeps width AND the
+   accessible name — visibility:hidden would drop it), spinner centred. */
+:host(.ui-button--loading) {
+  cursor: progress;
+}
+:host(.ui-button--loading) .ui-button__label {
+  color: transparent;
+}
+
+.ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-button__spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1em;
+  height: 1em;
+  margin: -0.5em 0 0 -0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ui-button-spin 0.7s linear infinite;
+}
+
+@keyframes ui-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

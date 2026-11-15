@@ -1,0 +1,19 @@
+@use './field-control' as *;
+
+:host {
+  display: block;
+}
+
+.ui-field__control {
+  @include ui-field-control;
+  -webkit-appearance: none;
+  appearance: none;
+  /* One chevron only: the native arrow is removed and --select-chevron
+     (styles.scss) is drawn in its place with room reserved on the right. */
+  padding-right: 2.5rem;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 0.75rem auto;
+  cursor: pointer;
+}

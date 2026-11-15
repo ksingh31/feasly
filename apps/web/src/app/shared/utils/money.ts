@@ -144,3 +144,24 @@ export function formatRatePercent(ratePercent: number): string {
   const rounded = Math.round(ratePercent * 10_000) / 10_000;
   return `${Number(rounded.toFixed(4))}%`;
 }
+
+/**
+ * Groups a string of whole-dollar digits with en-CA thousands separators.
+ * "1250000" -> "1,250,000"; leading zeros drop ("007" -> "7"); "" -> "".
+ * Non-digits are ignored. Used by the UI-kit MoneyField while typing.
+ */
+export function groupDollarDigits(digits: string): string {
+  const clean = digits.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * Integer cents -> grouped whole dollars without the "$" (cents truncated).
+ * 125000000 -> "1,250,000"; null / non-finite / negative -> "".
+ */
+export function centsToGroupedDollars(cents: number | null): string {
+  if (cents === null || !Number.isFinite(cents) || cents < 0) {
+    return '';
+  }
+  return groupDollarDigits(String(Math.floor(Math.trunc(cents) / 100)));
+}

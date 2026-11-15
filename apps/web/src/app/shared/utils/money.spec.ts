@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  centsToGroupedDollars,
   formatCentsRangeToCad,
   formatCentsToCad,
   formatCompactCad,
   formatCompactRange,
   formatPerSqftCad,
   formatRoundedCad,
+  groupDollarDigits,
 } from './money';
 
 /**
@@ -80,5 +82,34 @@ describe('estimate display rounding', () => {
     expect(formatPerSqftCad(242.37)).toBe('$242');
     expect(formatPerSqftCad(-1)).toBe('$0');
     expect(formatPerSqftCad(Number.POSITIVE_INFINITY)).toBe('$0');
+  });
+});
+
+describe('groupDollarDigits (#496 MoneyField)', () => {
+  it('inserts en-CA thousands separators', () => {
+    expect(groupDollarDigits('1250000')).toBe('1,250,000');
+    expect(groupDollarDigits('999')).toBe('999');
+    expect(groupDollarDigits('1000')).toBe('1,000');
+  });
+
+  it('ignores non-digits and drops leading zeros', () => {
+    expect(groupDollarDigits('1,25a0,000')).toBe('1,250,000');
+    expect(groupDollarDigits('007')).toBe('7');
+    expect(groupDollarDigits('0')).toBe('0');
+    expect(groupDollarDigits('')).toBe('');
+  });
+});
+
+describe('centsToGroupedDollars (#496 MoneyField)', () => {
+  it('renders integer cents as grouped whole dollars', () => {
+    expect(centsToGroupedDollars(125000000)).toBe('1,250,000');
+    expect(centsToGroupedDollars(0)).toBe('0');
+  });
+
+  it('truncates cents and blanks invalid input', () => {
+    expect(centsToGroupedDollars(125099)).toBe('1,250');
+    expect(centsToGroupedDollars(null)).toBe('');
+    expect(centsToGroupedDollars(-100)).toBe('');
+    expect(centsToGroupedDollars(Number.NaN)).toBe('');
   });
 });

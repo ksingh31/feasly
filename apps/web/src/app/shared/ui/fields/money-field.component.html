@@ -1,0 +1,29 @@
+<ui-field-shell
+  [label]="label()"
+  [controlId]="controlId()"
+  [hintId]="hintId()"
+  [errorId]="errorId()"
+  [hint]="hint()"
+  [error]="error()"
+  [required]="required()"
+>
+  <div class="ui-money" [class.ui-money--disabled]="isDisabled()">
+    <span class="ui-money__prefix" aria-hidden="true">{{ prefix() }}</span>
+    <input
+      #control
+      class="ui-field__control ui-money__control"
+      type="text"
+      inputmode="numeric"
+      autocomplete="off"
+      [id]="controlId()"
+      [value]="display()"
+      [disabled]="isDisabled()"
+      [required]="required()"
+      [attr.placeholder]="placeholder()"
+      [attr.aria-invalid]="error() ? 'true' : null"
+      [attr.aria-describedby]="describedBy()"
+      (input)="onInput($event)"
+      (blur)="markTouched()"
+    />
+  </div>
+</ui-field-shell>
