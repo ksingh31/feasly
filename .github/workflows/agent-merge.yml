@@ -18,6 +18,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write # close issues linked by "Fixes #n" after a merge
   checks: read
   actions: write # re-run env checks, dispatch CI/CD after a merge
 

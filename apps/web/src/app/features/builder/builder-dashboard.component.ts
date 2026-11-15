@@ -1,83 +1,248 @@
-import { Component, DestroyRef, computed, effect, inject, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  Component,
+  DestroyRef,
+  Injector,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, type Params, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type {
-  BuilderLeadCommentPreview,
   BuilderLeadListItem,
+  BuilderLeadNeedsYouItem,
   BuilderLeadStatus,
-  Comment,
 } from '@feasly/contracts';
+import {
+  DataTableComponent,
+  type DataTableColumn,
+  EmptyStateComponent,
+  FilterBarComponent,
+  KitDateTimePipe,
+  KitRelativePipe,
+  PageHeaderComponent,
+  SkeletonComponent,
+  StatusChipComponent,
+  UiCellDirective,
+  UiDrawerService,
+  type UiDrawerRef,
+  UiRowActionsDirective,
+  injectTableQuery,
+} from '@app/shared/ui';
+import { ConfigService } from '../../core/config/config.service';
+import { initials } from '../../shared/utils/initials';
 import { BUILDER_COPY } from './builder-copy';
-import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
 import { DueInvoiceBannersComponent } from './due-invoice-banners.component';
-import { formatCommentTimestamp } from '../../shared/components/comment-thread';
 import { BuilderState } from './builder.state';
-import { LoadBuilderLeads, UpdateBuilderLeadStatus } from './builder.actions';
+import { LoadBuilderLeads, LoadBuilderNeedsYou } from './builder.actions';
 import { LoadBillingCard } from './builder-billing.actions';
 import { LoadActionableInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import { PruneBannerState } from './due-invoice-banners.actions';
+import {
+  BuilderLeadDrawerComponent,
+  type BuilderLeadDrawerData,
+} from './builder-lead-drawer.component';
+import {
+  DEFAULT_LEAD_SORT,
+  LEAD_SORT_KEYS,
+  PIPELINE_STATUSES,
+  fill,
+  heatChipLabel,
+  heatLevel,
+  mailtoHref,
+  pageOf,
+  parseStatusFilter,
+  projectTypeLabel,
+  selectPipelineLeads,
+  telHref,
+} from './builder-leads-view';
+
+/** "Needs you" group keys, in display order (builder review §Leads home). */
+type NeedsYouGroupKey = 'uncontacted' | 'stale' | 'wonWithoutContract';
+const NEEDS_YOU_GROUPS: readonly NeedsYouGroupKey[] = ['uncontacted', 'stale', 'wonWithoutContract'];
+
+interface NeedsYouGroupView {
+  readonly key: NeedsYouGroupKey;
+  readonly title: string;
+  readonly ageLabel: string;
+  readonly items: readonly BuilderLeadNeedsYouItem[];
+}
+
+/** Query param holding the open lead (portal-ui-kit §3: `?open=<id>`). */
+const OPEN_PARAM = 'open';
+/** Query param for the status segment (shared with injectTableQuery). */
+const STATUS_PARAM = 'status';
 
 /**
- * Builder pipeline dashboard (embed/09): the builder's lead list, in the
- * admin lead-explorer design language (cream/charcoal/brass, totals row,
- * lead cards with avatar initials) with `builder-` class prefixes.
+ * Builder Leads home (#527, builder review "Leads home concept").
  *
- * Pipeline summary totals are clickable and drive the ephemeral status
- * filter (mirroring admin-leads' filterByStatus toggle). Each lead card
- * carries a status-transition select wired to UpdateBuilderLeadStatus; a
- * won lead shows a hint linking to the report-contract flow.
- * Cross-tenant probing is enforced server-side (403); a 403 here renders
- * the honest "not yours" copy instead of failing silently.
+ * - **Needs you** (always first): server-grouped cards — new and not yet
+ *   contacted, no status change in N+ days, won without a recorded
+ *   contract — each with tap-to-call/email and, for won leads, Record
+ *   contract (admins; members see who records it).
+ * - **Pipeline**: a segmented status filter with counts, a search box and
+ *   the kit DataTable (card list on phones). Stale rows are highlighted
+ *   and labelled. Status, search, sort and page live in the URL.
+ * - A row (or a Needs-you name) opens the lead drawer (#528, `?open=<id>`).
  *
- * The backend writes the authoritative timestamps; confirmed transitions
- * apply locally so the list and summary stay in sync without a reload.
+ * Every grouping, count and staleness decision is server-side; the page
+ * only filters/sorts the loaded list for display.
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
 @Component({
   selector: 'app-builder-dashboard',
   standalone: true,
-  imports: [RouterLink, BuilderLeadCommentsComponent, DueInvoiceBannersComponent],
+  imports: [
+    RouterLink,
+    DueInvoiceBannersComponent,
+    PageHeaderComponent,
+    DataTableComponent,
+    UiCellDirective,
+    UiRowActionsDirective,
+    FilterBarComponent,
+    EmptyStateComponent,
+    SkeletonComponent,
+    StatusChipComponent,
+    KitRelativePipe,
+    KitDateTimePipe,
+  ],
   templateUrl: './builder-dashboard.component.html',
   styleUrls: ['./builder-dashboard.component.scss'],
 })
 export class BuilderDashboardComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly drawers = inject(UiDrawerService);
 
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(BUILDER_COPY);
+  protected readonly home = this.copy.leadsHome;
+  protected readonly debounceMs = inject(ConfigService).get('timings').filterDebounceMs;
 
   protected readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly summary = this.store.selectSignal(BuilderState.summary);
   protected readonly leadsStatus = this.store.selectSignal(BuilderState.leadsStatus);
   protected readonly loadFailed = this.store.selectSignal(BuilderState.loadFailed);
-  protected readonly updatingLeadId = this.store.selectSignal(BuilderState.updatingLeadId);
-  protected readonly updateError = this.store.selectSignal(BuilderState.updateError);
+  protected readonly needsYou = this.store.selectSignal(BuilderState.needsYou);
+  protected readonly needsYouStatus = this.store.selectSignal(BuilderState.needsYouStatus);
+  protected readonly isAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
 
-  /** Pipeline statuses in the order a builder works them (drives the totals row). */
-  protected readonly statuses: readonly BuilderLeadStatus[] = [
-    'new',
-    'contacted',
-    'quoted',
-    'won',
-    'lost',
+  /** Status segment, search, sort and page — all in the URL (AC3). */
+  protected readonly list = injectTableQuery({
+    filterKeys: [STATUS_PARAM],
+    sortKeys: LEAD_SORT_KEYS,
+    defaultSort: DEFAULT_LEAD_SORT,
+  });
+
+  private readonly queryParams = toSignal(this.route.queryParams, {
+    initialValue: this.route.snapshot.queryParams as Params,
+  });
+
+  protected readonly statusFilter = computed(() =>
+    parseStatusFilter(this.list.filters()[STATUS_PARAM]),
+  );
+
+  protected readonly segments = computed(() => {
+    const counts = this.summary();
+    return [
+      { value: null, label: this.home.allStatusesLabel, count: counts.total },
+      ...PIPELINE_STATUSES.map((status) => ({
+        value: status,
+        label: this.copy.statusLabels[status],
+        count: counts[status],
+      })),
+    ];
+  });
+
+  /** Loaded pipeline after the status segment, search and sort. */
+  protected readonly filteredLeads = computed(() =>
+    selectPipelineLeads(this.leads(), {
+      status: this.statusFilter(),
+      search: this.list.search(),
+      sort: this.list.sort(),
+    }),
+  );
+
+  protected readonly pageRows = computed(() =>
+    pageOf(this.filteredLeads(), this.list.page(), this.home.pageSize),
+  );
+
+  protected readonly filtered = computed(
+    () => this.statusFilter() !== null || this.list.search() !== '',
+  );
+
+  /** Stale lead ids, straight from the server's needs-you feed. */
+  private readonly staleIds = computed(
+    () => new Set((this.needsYou()?.stale ?? []).map((lead) => lead.id)),
+  );
+
+  protected readonly isStale = (lead: BuilderLeadListItem): boolean =>
+    this.staleIds().has(lead.id);
+
+  protected readonly rowId = (lead: BuilderLeadListItem): string => lead.id;
+
+  protected readonly columns: readonly DataTableColumn<BuilderLeadListItem>[] = [
+    {
+      key: 'lead',
+      header: this.home.columns.lead,
+      sortable: true,
+      cardRole: 'title',
+      value: (lead) => lead.name,
+    },
+    {
+      key: 'status',
+      header: this.home.columns.status,
+      kind: 'status',
+      statusDomain: 'lead',
+      cardRole: 'chip',
+    },
+    {
+      key: 'details',
+      header: this.home.columns.details,
+      cardRole: 'meta',
+      value: (lead) => this.detailsLine(lead),
+    },
+    {
+      key: 'activity',
+      header: this.home.columns.activity,
+      sortable: true,
+      cardRole: 'meta',
+      value: (lead) => lead.statusUpdatedAt,
+    },
   ];
 
-  /** Ephemeral view filter (signal, not persisted — resets on reload). */
-  protected readonly statusFilter = signal<BuilderLeadStatus | 'all'>('all');
+  protected readonly needsYouGroups = computed<readonly NeedsYouGroupView[]>(() => {
+    const feed = this.needsYou();
+    if (!feed) return [];
+    return NEEDS_YOU_GROUPS.map((key) => ({
+      key,
+      title: fill(this.home.groups[key], { days: feed.staleAfterDays }),
+      ageLabel: this.home.ageLabels[key],
+      items: feed[key],
+    })).filter((group) => group.items.length > 0);
+  });
 
-  /** Leads after applying the status filter. */
-  protected readonly filteredLeads = computed<readonly BuilderLeadListItem[]>(() => {
-    const filter = this.statusFilter();
-    const leads = this.leads();
-    return filter === 'all' ? leads : leads.filter((lead) => lead.status === filter);
+  protected readonly needsYouCount = computed(() =>
+    this.needsYouGroups().reduce((sum, group) => sum + group.items.length, 0),
+  );
+
+  protected readonly openId = computed(() => {
+    const raw = this.queryParams()[OPEN_PARAM];
+    return typeof raw === 'string' && raw ? raw : null;
   });
 
   /** Lead ids already flagged as inconsistent (warn once per lead, not per render). */
   private readonly flaggedInconsistentLeads = new Set<string>();
+
+  private drawerRef: UiDrawerRef<unknown, BuilderLeadDrawerComponent> | null = null;
 
   constructor() {
     // Data-inconsistency flag (#474): an invoice exists only once a won
@@ -85,40 +250,35 @@ export class BuilderDashboardComponent implements OnInit {
     // data problem — surface it in the console, never lock the UI on it.
     effect(() => {
       for (const lead of this.leads()) {
-        if (
-          lead.hasInvoice &&
-          lead.status !== 'won' &&
-          !this.flaggedInconsistentLeads.has(lead.id)
-        ) {
+        if (lead.hasInvoice && lead.status !== 'won' && !this.flaggedInconsistentLeads.has(lead.id)) {
           this.flaggedInconsistentLeads.add(lead.id);
-          console.warn(
-            '[feasly] builder: non-won lead has invoice',
-            { leadId: lead.id, status: lead.status },
-          );
+          console.warn('[feasly] builder: non-won lead has invoice', {
+            leadId: lead.id,
+            status: lead.status,
+          });
         }
       }
     });
-  }
-
-  /**
-   * The status control is locked only for a won lead whose contract is
-   * recorded (has an invoice). `hasInvoice` alone never locks (#474).
-   */
-  protected isStatusLocked(lead: BuilderLeadListItem): boolean {
-    return lead.status === 'won' && lead.hasInvoice;
+    // `?open=<id>` drives the lead drawer for deep links and Back/Forward:
+    // open it once the lead is loaded and drop a param naming a lead this
+    // builder doesn't have. The drawer service closes it when the param
+    // goes away.
+    effect(() => {
+      const id = this.openId();
+      const ready = this.leadsStatus() === 'ready';
+      untracked(() => this.syncDrawer(id, ready));
+    });
   }
 
   ngOnInit(): void {
     this.store
-      .dispatch(new LoadBuilderLeads())
+      .dispatch([new LoadBuilderLeads(), new LoadBuilderNeedsYou()])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
     // Due-invoice banners: EVERY actionable invoice for the banner set
     // (dedicated status-filtered query — never the paginated first page),
-    // plus the card summary for the banner's payment-method line. The
-    // banners component reads both from the store; the loads are
-    // fire-and-forget. Stale banner dismissals are pruned once the
-    // actionable set lands.
+    // plus the card summary for the banner's payment-method line. Stale
+    // banner dismissals are pruned once the actionable set lands.
     this.store
       .dispatch([new LoadActionableInvoices(), new LoadBillingCard()])
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -132,239 +292,102 @@ export class BuilderDashboardComponent implements OnInit {
       });
   }
 
-  /** Lead ids whose notes thread is expanded (ephemeral UI state, not persisted). */
-  protected readonly expandedNotes = signal<ReadonlySet<string>>(new Set());
-
-  /**
-   * Live per-lead notes metadata, keyed by lead id. Seeded from the
-   * server's `commentCount`/`latestComment` on the lead list; the thread
-   * pushes updates via `onCommentsChanged` after load/post/edit so the
-   * badge and preview stay live without a reload.
-   */
-  protected readonly commentMeta = signal<
-    Record<string, { readonly count: number; readonly latest: BuilderLeadCommentPreview | null }>
-  >({});
-
-  /** Badge count: live override wins, otherwise the server list value. */
-  protected commentCountFor(lead: BuilderLeadListItem): number {
-    return this.commentMeta()[lead.id]?.count ?? lead.commentCount;
-  }
-
-  /** Collapsed preview: live override wins, otherwise the server list value. */
-  protected latestCommentFor(lead: BuilderLeadListItem): BuilderLeadCommentPreview | null {
-    return this.commentMeta()[lead.id]?.latest ?? lead.latestComment;
-  }
-
-  /**
-   * Thread published its comments (load/post/edit) — recompute the badge
-   * and preview. The list is oldest-first, so the latest is the last
-   * element.
-   */
-  protected onCommentsChanged(leadId: string, comments: readonly Comment[]): void {
-    const latest = comments[comments.length - 1] ?? null;
-    this.commentMeta.update((meta) => ({
-      ...meta,
-      [leadId]: {
-        count: comments.length,
-        latest:
-          latest === null
-            ? null
-            : {
-                body: latest.body,
-                authorDisplayName: latest.authorDisplayName,
-                authorKind: latest.authorKind,
-                createdAt: latest.createdAt,
-              },
-      },
-    }));
-  }
-
-  /** Relative timestamp for the collapsed notes preview (shared formatter). */
-  protected formatNoteTimestamp(iso: string): string {
-    return formatCommentTimestamp(iso);
-  }
-
-  protected notesExpanded(leadId: string): boolean {
-    return this.expandedNotes().has(leadId);
-  }
-
-  protected toggleNotes(leadId: string): void {
-    this.expandedNotes.update((open) => {
-      const next = new Set(open);
-      if (next.has(leadId)) {
-        next.delete(leadId);
-      } else {
-        next.add(leadId);
-      }
-      return next;
-    });
-  }
-
   protected retryLoad(): void {
     this.store
-      .dispatch(new LoadBuilderLeads())
+      .dispatch([new LoadBuilderLeads(), new LoadBuilderNeedsYou()])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }
 
-  /** Pipeline totals row: clicking a status filters the list to it; 'all' clears. */
-  protected filterByStatus(status: BuilderLeadStatus | 'all'): void {
-    const current = this.statusFilter();
-    this.statusFilter.set(current === status ? 'all' : status);
+  protected setStatus(status: BuilderLeadStatus | null): void {
+    this.list.setFilter(STATUS_PARAM, status);
   }
 
-  /** Clears the status filter (filter-empty state). */
-  protected clearFilter(): void {
-    this.statusFilter.set('all');
+  /** Opens the lead drawer; the drawer service pushes `?open=<id>` (Back closes it). */
+  protected openLead(id: string): void {
+    if (!this.leads().some((lead) => lead.id === id)) return;
+    this.openDrawer(id);
   }
 
-  /** True while this lead's status update is in flight. */
-  protected isUpdating(leadId: string): boolean {
-    return this.updatingLeadId() === leadId;
-  }
-
-  /**
-   * Pending (unapplied) status selections, keyed by lead id. Selecting a
-   * status never saves — it only stages the choice here; the Apply button
-   * performs the actual PATCH. This is Karan's explicit order (2026-09-29):
-   * no auto-save on selection anywhere in the app.
-   */
-  protected readonly pendingStatus = signal<Record<string, BuilderLeadStatus>>(
-    {},
-  );
-
-  /** The value the select renders: the pending pick, or the store value. */
-  protected pendingStatusFor(lead: BuilderLeadListItem): BuilderLeadStatus {
-    return this.pendingStatus()[lead.id] ?? lead.status;
-  }
-
-  /**
-   * The Apply button is enabled only when the staged selection differs
-   * from the stored status and no save is in flight.
-   */
-  protected canApplyLeadStatus(lead: BuilderLeadListItem): boolean {
-    return (
-      this.pendingStatusFor(lead) !== lead.status &&
-      this.updatingLeadId() === null
-    );
-  }
-
-  /** Stages a status choice without saving (template-bound). */
-  protected onLeadStatusSelect(leadId: string, value: string): void {
-    const status = value as BuilderLeadStatus;
-    this.pendingStatus.update((pending) => ({ ...pending, [leadId]: status }));
-  }
-
-  /**
-   * Saves the staged status for one lead (Apply button, template-bound).
-   * Clears the staged choice on completion — on success the store value
-   * matches the pick, on failure the select reverts to the stored status,
-   * so badge and dropdown can never disagree.
-   */
-  protected applyLeadStatus(leadId: string): void {
-    const pending = this.pendingStatus()[leadId];
-    const lead = this.leads().find((l) => l.id === leadId);
-    // Recorded leads are locked: never dispatch a status change for them
-    // (the backend rejects it too — this is the UI-side guard).
-    if (!lead || this.isStatusLocked(lead) || pending === undefined || pending === lead.status) {
-      this.clearPendingStatus(leadId);
-      return;
-    }
-    this.store
-      .dispatch(new UpdateBuilderLeadStatus(leadId, pending))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.clearPendingStatus(leadId));
-  }
-
-  private clearPendingStatus(leadId: string): void {
-    this.pendingStatus.update((pending) => {
-      if (!(leadId in pending)) {
-        return pending;
-      }
-      const next = { ...pending };
-      delete next[leadId];
-      return next;
+  private clearOpen(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { [OPEN_PARAM]: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 
-  /** True when the list is loaded but the filter matches nothing. */
-  protected get filterEmpty(): boolean {
-    return (
-      this.leadsStatus() === 'ready' &&
-      this.leads().length > 0 &&
-      this.filteredLeads().length === 0
-    );
+  private syncDrawer(id: string | null, ready: boolean): void {
+    if (id === null || !ready) return;
+    if (!this.leads().some((lead) => lead.id === id)) {
+      this.clearOpen();
+      return;
+    }
+    this.openDrawer(id);
   }
 
-  /** Human label for a pipeline status (config-owned). */
+  private openDrawer(id: string): void {
+    const t = this.copy.leadDrawer;
+    const ref = this.drawers.open<BuilderLeadDrawerComponent, unknown, BuilderLeadDrawerData>(
+      BuilderLeadDrawerComponent,
+      {
+        data: { leadId: id },
+        size: 'lg',
+        urlId: id,
+        injector: this.injector,
+        discardConfirm: {
+          title: t.discardTitle,
+          body: t.discardBody,
+          verb: t.discardVerb,
+          cancelLabel: t.discardCancel,
+        },
+      },
+    );
+    if (ref === this.drawerRef) return;
+    this.drawerRef = ref;
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.drawerRef === ref) this.drawerRef = null;
+    });
+  }
+
+  protected heat(score: number): string {
+    return heatLevel(score, this.home.heat);
+  }
+
+  protected heatLabel(score: number): string {
+    return heatChipLabel(score, this.home.heat);
+  }
+
+  protected detailsLine(lead: BuilderLeadListItem): string {
+    return [
+      `${this.home.timelinePrefix} ${lead.timeline}`,
+      projectTypeLabel(lead.projectType, this.home.projectTypes),
+      lead.addressKey,
+    ].join(' · ');
+  }
+
+  protected initials(name: string): string {
+    return initials(name);
+  }
+
+  protected tel(phone: string): string {
+    return telHref(phone);
+  }
+
+  protected mailto(email: string): string {
+    return mailtoHref(email);
+  }
+
+  protected callAria(name: string): string {
+    return fill(this.home.callAria, { name });
+  }
+
+  protected emailAria(name: string): string {
+    return fill(this.home.emailAria, { name });
+  }
+
   protected statusLabel(status: BuilderLeadStatus): string {
     return this.copy.statusLabels[status];
-  }
-
-  /** Per-lead status select label, interpolated with the lead name (config-owned). */
-  protected statusControlLabel(name: string): string {
-    return this.copy.leadsStatusControlLabel.replace('{name}', name);
-  }
-
-  /**
-   * "View invoice INV-0042" — the lead's recorded invoice number when the
-   * lead summary carries one, falling back to the numberless CTA.
-   */
-  protected invoiceCtaLabel(lead: BuilderLeadListItem): string {
-    const number = lead.invoiceSummary?.invoiceNumber;
-    if (!number) {
-      return this.copy.leadsViewInvoiceCta;
-    }
-    return this.copy.leadsViewInvoiceWithNumber.replace('{number}', number);
-  }
-
-  /**
-   * Deep link to the invoice detail: the invoices page opens `?invoice=<id>`
-   * directly (see BuilderInvoicesComponent ngOnInit). Falls back to the
-   * plain list when the summary id is absent.
-   */
-  protected invoiceLinkParams(
-    lead: BuilderLeadListItem,
-  ): Record<string, string> | null {
-    const id = lead.invoiceSummary?.id;
-    return id ? { invoice: id } : null;
-  }
-
-  /** Filter-select change handler (template-bound). */
-  protected onFilterChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.statusFilter.set(value as BuilderLeadStatus | 'all');
-  }
-
-  /** Avatar initials from the lead name (first letters of first/last word). */
-  protected initials(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) {
-      return '•';
-    }
-    const first = parts[0][0] ?? '';
-    const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
-    return (first + last).toUpperCase();
-  }
-
-  /**
-   * `tel:` href for a lead phone (#475). Keeps a leading `+` and digits only,
-   * so "403-555-0101" / "(403) 555 0101" dial correctly on every phone.
-   */
-  protected telHref(phone: string): string {
-    const trimmed = phone.trim();
-    const digits = trimmed.replace(/\D/g, '');
-    const plus = trimmed.startsWith('+') ? '+' : '';
-    return 'tel:' + plus + digits;
-  }
-
-  /** `mailto:` href for a lead email (#475). */
-  protected mailtoHref(email: string): string {
-    return 'mailto:' + email.trim();
-  }
-
-  protected formatDate(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-CA');
   }
 }

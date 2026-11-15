@@ -59,7 +59,7 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 - **Verify before push**: every agent runs `bash tools/verify-local.sh` and pushes only on `VERIFY: PASS`.
 - **Fix until merged**: any failed CI run on an agent/Dependabot PR triggers a fix round (CI triage); each round
   reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then `needs:karan`.
-- **Requeues**: a claimed issue with no PR for 4h is requeued; after 2 requeues → `needs:karan`.
+- **Requeues**: a claimed issue with no PR for 4h, or a dev run that ends without a PR, is requeued; after 2 requeues → `agent:stuck` (the orchestrator investigates; not an owner decision). A claimed issue whose PR already merged (closing reference or `agent/issue-<n>-` branch, merged since the claim) is closed as completed instead of requeued.
 - **QA reopen cap**: a bug that fails QA twice goes to `needs:karan`.
 - **Trust**: reviews run only for PRs from collaborators, `claude[bot]`,
   `dependabot[bot]`; the dispatcher only starts issues written by
@@ -78,7 +78,7 @@ every `backlog` story to `agent:ready`, and agents take them in `Order:` / `Bloc
 Owner rule (2026-11-13). Whoever operates the pipeline (release-manager, or the interactive session) checks
 agent runs (`agent-dev.yml`, `agent-fix.yml`) and claimed issues every 10 minutes and acts without waiting:
 - **Failed run** → requeue its issue now (remove `agent:claimed`, add `agent:ready`, comment `<!-- agent:requeue -->` + reason) and read the failure log.
-- **Claimed ≥ 15 min with no running agent and no PR** → requeue (orphaned claim).
+- **Claimed ≥ 15 min with no running agent and no PR** → first check for a *merged* PR that closes it (`gh pr list --state merged --search "<n>"`); if there is one, close the issue as completed and drop `agent:claimed`. Otherwise requeue (orphaned claim).
 - **Ready work but 0 agents running** → `gh workflow run agent-dispatch.yml`.
 - **Run in progress ≥ 50 min** (normal: 15–40 min incl. verify-local) → read its log and step in.
 - **Same issue requeued 3+ times** → fix it directly or park with `needs:karan` and the reason.

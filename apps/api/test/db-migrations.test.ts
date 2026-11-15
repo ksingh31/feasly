@@ -501,6 +501,7 @@ describe('auth/04 tenant-scoped lead access (PGlite)', () => {
     const crossWrite = await store.updateStatusForBuilder({
       id: leadId,
       builderId: builderB,
+      expectedStatus: 'new',
       status: 'contacted',
     });
     expect(crossWrite).toBeNull();
@@ -516,9 +517,21 @@ describe('auth/04 tenant-scoped lead access (PGlite)', () => {
     const ownWrite = await store.updateStatusForBuilder({
       id: leadId,
       builderId: builderA,
+      expectedStatus: 'new',
       status: 'contacted',
     });
     expect(ownWrite?.status).toBe('contacted');
+
+    // #620 compare-and-set: a write from a stale read ('new') updates zero
+    // rows and leaves the concurrent winner's status in place.
+    const staleWrite = await store.updateStatusForBuilder({
+      id: leadId,
+      builderId: builderA,
+      expectedStatus: 'new',
+      status: 'quoted',
+    });
+    expect(staleWrite).toBeNull();
+    expect((await store.findById(leadId))?.status).toBe('contacted');
 
     // existsById is a boolean probe — no row data.
     expect(await store.existsById(leadId)).toBe(true);

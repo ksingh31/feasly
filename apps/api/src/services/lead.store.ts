@@ -223,12 +223,18 @@ export interface LeadStore {
   }): Promise<LeadRecord | null>;
   /**
    * auth/04 — tenant-scoped write: updates only when the lead belongs to
-   * the given builder (`WHERE id = ? AND builder_id = ?`). Returns the
-   * updated record, or null when the lead doesn't exist or isn't theirs.
+   * the given builder (`WHERE id = ? AND builder_id = ?`).
+   *
+   * #620 — compare-and-set: the write also requires the current status to
+   * equal `expectedStatus` (`AND status = ?`), so two concurrent transitions
+   * from the same read can't both win. Returns the updated record, or null
+   * when the lead doesn't exist, isn't theirs, or its status no longer
+   * matches `expectedStatus` (a concurrent write got there first).
    */
   updateStatusForBuilder(args: {
     readonly id: string;
     readonly builderId: string;
+    readonly expectedStatus: string;
     readonly status: string;
   }): Promise<LeadRecord | null>;
   /**
@@ -449,7 +455,13 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
       const rows = await db
         .update(leads)
         .set({ status: args.status })
-        .where(and(eq(leads.id, args.id), eq(leads.builderId, args.builderId)))
+        .where(
+          and(
+            eq(leads.id, args.id),
+            eq(leads.builderId, args.builderId),
+            eq(leads.status, args.expectedStatus),
+          ),
+        )
         .returning();
       const row = rows[0];
       return row ? toRecord(row) : null;

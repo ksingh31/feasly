@@ -664,6 +664,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Builder-admin only.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/builder/users/{id}/resend-invite',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Re-issue a pending invitation for a member of the session\u2019s ' +
+      'active org who never accepted (retries the Graph account when the ' +
+      'first attempt failed). Builder-admin only.',
+  },
+  {
     method: 'DELETE',
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',
@@ -712,7 +724,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'billing/01 charge path: with contractValueCents + contractSignedAt ' +
       'it creates the draft commission invoice (auto-submitted into ' +
       'review); without them the invoice waits for ' +
-      'POST /api/v1/billing/report-contract.',
+      'POST /api/v1/billing/report-contract. Contract details additionally ' +
+      'require builder:billing (403 for builder members).',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/leads/{id}/mark-won',
+    auth: 'builder-session',
+    permissions: ['builder:leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Mark a builder lead won without recording the contract (any org ' +
+      'member). The lead shows as "Needs recording" and the org\'s admins ' +
+      'are emailed to record the signed contract. 409 when a contract is ' +
+      'already recorded; idempotent for already-won leads.',
   },
   // ── billing/05 lead comments ────────────────────────────────────────
   {
@@ -1299,6 +1325,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Read a commission invoice. Builders see only their own tenant\'s ' +
       'invoices; admins see all.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/invoices/{id}/pdf',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Download a commission invoice as a PDF (#661), rendered from the ' +
+      'same server figures as the JSON read; paid invoices include the ' +
+      'receipt block. Builders get only their own tenant\'s invoices ' +
+      '(404 for another tenant\'s id); admins see all.',
   },
   {
     method: 'GET',

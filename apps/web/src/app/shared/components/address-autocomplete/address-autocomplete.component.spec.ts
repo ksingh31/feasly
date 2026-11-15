@@ -349,21 +349,49 @@ describe('AddressAutocompleteComponent', () => {
       expect(fixture.nativeElement.querySelector('app-waitlist-signup')).toBeNull();
     });
 
-    it('retry from the out-of-coverage state resets the input for a fresh search', async () => {
+    it('offers "Try a Calgary address" (never "Retry") on the out-of-coverage state (B11)', async () => {
+      const fixture = create();
+      await type(fixture, '123 King St W, Toronto');
+      const box: HTMLElement = fixture.nativeElement.querySelector('.ac-out-of-coverage');
+      const buttons: HTMLButtonElement[] = Array.from(box.querySelectorAll('button'));
+      expect(buttons.length).toBe(1);
+      expect(buttons[0].textContent?.trim()).toBe('Try a Calgary address');
+      expect(box.textContent).not.toMatch(/\bRetry\b/);
+    });
+
+    it('"Try a Calgary address" clears and focuses the input for a fresh search (B11)', async () => {
       const fixture = create();
       const component = fixture.componentInstance;
       await type(fixture, '123 King St W, Toronto');
       expect(component.outOfCoverage()).toBe(true);
-      const retry = fixture.nativeElement.querySelector('.ac-out-of-coverage .ac-retry');
-      expect(retry).toBeTruthy();
-      retry.click();
+      const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+      input.blur();
+      expect(document.activeElement).not.toBe(input);
+      const action: HTMLButtonElement = fixture.nativeElement.querySelector(
+        '.ac-out-of-coverage .ac-ooc-action',
+      );
+      expect(action).toBeTruthy();
+      action.click();
       fixture.detectChanges();
       // Out-of-coverage is deterministic: re-running the same query could
-      // never succeed, so retry clears the input (no dead end) instead.
+      // never succeed, so the action clears the input (no dead end) instead.
       expect(component.query.value).toBe('');
+      expect(input.value).toBe('');
+      expect(document.activeElement).toBe(input);
       expect(component.outOfCoverage()).toBe(false);
       expect(component.status()).toBe('idle');
       expect(fixture.nativeElement.querySelector('.ac-out-of-coverage')).toBeNull();
+    });
+
+    it('retry() on the out-of-coverage state behaves like "Try a Calgary address"', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      await type(fixture, '123 King St W, Toronto');
+      component.retry();
+      fixture.detectChanges();
+      expect(component.query.value).toBe('');
+      expect(component.status()).toBe('idle');
+      expect(document.activeElement).toBe(fixture.nativeElement.querySelector('input'));
     });
 
     it('clears the out-of-coverage state when the user types a Calgary query', async () => {

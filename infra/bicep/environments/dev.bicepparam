@@ -20,3 +20,7 @@ param domainName = ''
 param postgresAdminPassword = readEnvironmentVariable('FEASLY_POSTGRES_ADMIN_PASSWORD', '')
 param emailProvider = 'acs'
 param acsConnectionString = readEnvironmentVariable('FEASLY_ACS_CONNECTION_STRING', '')
+// #574 / #637: the CD identity is RG-scoped and cannot grant itself a
+// subscription-scope role, so the Bicep grant stays off (it broke what-if).
+// Cost Management Reader is granted once by a subscription Owner instead.
+param grantDeployerCostReader = false

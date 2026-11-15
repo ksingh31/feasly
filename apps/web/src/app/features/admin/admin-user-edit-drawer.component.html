@@ -1,0 +1,81 @@
+@if (user; as editing) {
+  <ui-drawer
+    [heading]="'Edit ' + editing.name"
+    asForm
+    [dirty]="form.dirty"
+    (submitted)="save()"
+  >
+    <ui-status-chip uiDrawerChip domain="member" [status]="editing.status" />
+    <span uiDrawerMeta class="user-drawer__email">{{ editing.email }}</span>
+
+    <div class="user-drawer__fields" [formGroup]="form">
+      <section class="user-drawer__section" aria-labelledby="user-drawer-profile">
+        <h3 id="user-drawer-profile" class="user-drawer__heading">Profile</h3>
+        <label class="user-drawer__field">
+          <span class="user-drawer__label">Name</span>
+          <input type="text" formControlName="name" autocomplete="off" />
+          @if (form.controls.name.touched && form.controls.name.invalid) {
+            <span class="user-drawer__field-error">Enter the person's name.</span>
+          }
+        </label>
+        <label class="user-drawer__field">
+          <span class="user-drawer__label">Staff role</span>
+          <span class="user-drawer__field-row">
+            <select
+              formControlName="role"
+              [attr.aria-describedby]="data.lockStaffRole ? roleTipId : null"
+            >
+              <option value="">No staff role (builder organizations only)</option>
+              @for (role of staffRoles; track role) {
+                <option [value]="role">{{ staffRoleLabels[role] }}</option>
+              }
+            </select>
+            <!-- auth/07: the sole remaining active staff admin's role is
+                 locked by the backend 409 — the ⓘ explains why. -->
+            @if (data.lockStaffRole) {
+              <app-info-tooltip
+                [tooltipId]="roleTipId"
+                text="You can't change the role of the last administrator. Add another administrator first."
+                label="Why can't this role be changed?"
+              />
+            }
+          </span>
+        </label>
+      </section>
+
+      <section class="user-drawer__section" aria-labelledby="user-drawer-orgs">
+        <h3 id="user-drawer-orgs" class="user-drawer__heading">Builder organizations</h3>
+        <div class="user-drawer__memberships">
+          @for (b of builders(); track b.id) {
+            @if (membership(b.id); as group) {
+              <div class="user-drawer__membership" [formGroup]="group">
+                <label class="user-drawer__check">
+                  <input type="checkbox" formControlName="member" />
+                  {{ b.displayName }}
+                </label>
+                @if (group.controls.member.value) {
+                  <select formControlName="role" [attr.aria-label]="'Role in ' + b.displayName">
+                    @for (role of builderRoles; track role) {
+                      <option [value]="role">{{ builderRoleLabels[role] }}</option>
+                    }
+                  </select>
+                }
+              </div>
+            }
+          } @empty {
+            <p class="user-drawer__muted">No builder organizations yet.</p>
+          }
+        </div>
+      </section>
+
+      @if (updateError()) {
+        <p class="user-drawer__error" role="alert">{{ updateError() }}</p>
+      }
+    </div>
+
+    <button uiDrawerFooterStart type="button" ui-button variant="secondary" (click)="cancel()">
+      Cancel
+    </button>
+    <button uiDrawerFooterEnd type="submit" ui-button [loading]="updating()">Save</button>
+  </ui-drawer>
+}

@@ -320,6 +320,7 @@ describe('CalgaryAssessmentService', () => {
         zoning: 'R-C1',
         assessedValue: 823000,
         assessmentYear: THIS_YEAR,
+        assessmentYearInferred: false,
         yearBuilt: 1974,
         assessmentClass: 'R',
         isNonResidential: false,
@@ -369,6 +370,14 @@ describe('CalgaryAssessmentService', () => {
       const property = await pending;
       expect(property.assessmentYear).toBe(2020);
       expect(property.stale).toBe(true);
+    });
+
+    // #622: a missing roll_year is flagged, never presented as read.
+    it('flags the assessment year as inferred when the row has no roll_year', async () => {
+      const pending = firstValueFrom(service.getProperty('918 16 AVE NW'));
+      expectDetail('918 16 AVE NW').flush([{ ...ROW_918, roll_year: undefined }]);
+      const property = await pending;
+      expect(property.assessmentYearInferred).toBe(true);
     });
 
     it('errors not_found (non-retryable) for an unknown address', async () => {

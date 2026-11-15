@@ -1,0 +1,124 @@
+<div class="ui-fb__bar">
+  <div class="ui-fb__search">
+    <label class="sr-only" [attr.for]="uid + '-search'">{{ searchLabel() }}</label>
+    <input
+      #searchInput
+      type="search"
+      class="ui-fb__search-input"
+      autocomplete="off"
+      enterkeyhint="search"
+      aria-keyshortcuts="/"
+      [id]="uid + '-search'"
+      [value]="draft()"
+      [attr.placeholder]="searchPlaceholder() ?? searchLabel()"
+      (input)="onType($any($event.target).value)"
+    />
+  </div>
+
+  @for (select of inline(); track select.key) {
+    <ui-select
+      class="ui-fb__select ui-fb__desktop"
+      [label]="select.label"
+      [options]="select.options"
+      [placeholder]="select.placeholder ?? null"
+      [value]="selectValue(select.key)"
+      (valueChange)="onSelect(select.key, $event)"
+    />
+  }
+
+  @if (more().length > 0) {
+    <button
+      type="button"
+      class="ui-fb__btn ui-fb__desktop"
+      [attr.aria-expanded]="moreOpen()"
+      [attr.aria-controls]="uid + '-more'"
+      (click)="moreOpen.set(!moreOpen())"
+    >
+      {{ moreOpen() ? fewerFiltersLabel() : moreFiltersLabel() }}
+    </button>
+  }
+
+  @if (selects().length > 0) {
+    <button
+      #sheetToggle
+      type="button"
+      class="ui-fb__btn ui-fb__mobile"
+      aria-haspopup="dialog"
+      [attr.aria-expanded]="sheetOpen()"
+      (click)="openSheet()"
+    >
+      {{ filtersLabel() }}
+      @if (activeCount() > 0) {
+        <span class="ui-fb__count">({{ activeCount() }})</span>
+      }
+    </button>
+  }
+</div>
+
+@if (moreOpen() && more().length > 0) {
+  <div class="ui-fb__more ui-fb__desktop" [id]="uid + '-more'">
+    @for (select of more(); track select.key) {
+      <ui-select
+        class="ui-fb__select"
+        [label]="select.label"
+        [options]="select.options"
+        [placeholder]="select.placeholder ?? null"
+        [value]="selectValue(select.key)"
+        (valueChange)="onSelect(select.key, $event)"
+      />
+    }
+  </div>
+}
+
+@if (hasActive()) {
+  <div class="ui-fb__chips">
+    @if (chips().length > 0) {
+      <ul class="ui-fb__chip-list" [attr.aria-label]="activeFiltersLabel()">
+        @for (chip of chips(); track chip.key) {
+          <li class="ui-fb__chip">
+            <span>{{ chip.text }}</span>
+            <button
+              type="button"
+              class="ui-fb__chip-x"
+              [attr.aria-label]="removeFilterLabel() + ' ' + chip.text"
+              (click)="removeChip(chip.key)"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    <button type="button" class="ui-fb__clear" (click)="onClearAll()">{{ clearAllLabel() }}</button>
+  </div>
+}
+
+@if (sheetOpen()) {
+  <div class="ui-fb__scrim ui-fb__mobile" aria-hidden="true" (click)="closeSheet()"></div>
+  <div
+    class="ui-fb__sheet ui-fb__mobile"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="uid + '-sheet-title'"
+  >
+    <h2 #sheetTitle class="ui-fb__sheet-title" tabindex="-1" [id]="uid + '-sheet-title'">{{ filtersLabel() }}</h2>
+    <div class="ui-fb__sheet-body">
+      @for (select of selects(); track select.key) {
+        <ui-select
+          class="ui-fb__select"
+          [label]="select.label"
+          [options]="select.options"
+          [placeholder]="select.placeholder ?? null"
+          [value]="selectValue(select.key)"
+          (valueChange)="onSelect(select.key, $event)"
+        />
+      }
+    </div>
+    <div class="ui-fb__sheet-foot">
+      @if (activeCount() > 0) {
+        <button type="button" class="ui-fb__clear" (click)="onClearAll()">{{ clearAllLabel() }}</button>
+      }
+      <button type="button" class="ui-fb__btn ui-fb__btn--primary" (click)="closeSheet()">{{ doneLabel() }}</button>
+    </div>
+  </div>
+}

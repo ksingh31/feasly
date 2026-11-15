@@ -17,12 +17,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BuilderAuthMeResponse,
   BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ActivateBuilderViewAs,
   ExitBuilderViewAs,
   LoadBuilderLeads,
+  LoadBuilderNeedsYou,
   LoadBuilderSession,
   LogoutBuilder,
   SetBuilderActiveOrg,
@@ -59,6 +61,7 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       invoiceSummary: null,
       commentCount: 0,
       latestComment: null,
+      needsRecording: false,
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -76,9 +79,34 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       invoiceSummary: null,
       commentCount: 0,
       latestComment: null,
+      needsRecording: false,
     },
   ],
-  summary: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0 },
+  summary: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
+};
+
+const NEEDS_YOU_URL = '/api/v1/builder/leads/needs-you';
+
+const NEEDS_YOU: BuilderLeadsNeedsYouResponse = {
+  uncontacted: [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Jane Homeowner',
+      email: 'jane@example.com',
+      phone: '403-555-0101',
+      timeline: '3–6 months',
+      leadScore: 82,
+      status: 'new',
+      addressKey: '123 Main St SW',
+      createdAt: '2026-09-19T10:00:00.000Z',
+      statusChangedAt: '2026-09-19T10:00:00.000Z',
+      waitingSince: '2026-09-19T10:00:00.000Z',
+    },
+  ],
+  stale: [],
+  wonWithoutContract: [],
+  staleAfterDays: 7,
+  counts: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0 },
 };
 
 describe('BuilderState (embed/09)', () => {
@@ -129,7 +157,31 @@ describe('BuilderState (embed/09)', () => {
       quoted: 0,
       won: 0,
       lost: 0,
+      needsRecording: 0,
     });
+    httpMock.verify();
+  });
+
+  it('LoadBuilderNeedsYou stores the feed (#527)', async () => {
+    const done = store.dispatch(new LoadBuilderNeedsYou());
+    expect(snapshot().needsYouStatus).toBe('loading');
+    const req = httpMock.expectOne((r) => r.url.endsWith(NEEDS_YOU_URL));
+    expect(req.request.withCredentials).toBe(true);
+    req.flush(NEEDS_YOU);
+    await done;
+    expect(snapshot().needsYouStatus).toBe('ready');
+    expect(store.selectSnapshot(BuilderState.needsYou)).toEqual(NEEDS_YOU);
+    httpMock.verify();
+  });
+
+  it('LoadBuilderNeedsYou marks a failure without throwing', async () => {
+    const done = store.dispatch(new LoadBuilderNeedsYou());
+    httpMock
+      .expectOne((r) => r.url.endsWith(NEEDS_YOU_URL))
+      .flush({ code: 'INTERNAL' }, { status: 500, statusText: 'Server Error' });
+    await done;
+    expect(store.selectSnapshot(BuilderState.needsYouStatus)).toBe('error');
+    expect(store.selectSnapshot(BuilderState.needsYou)).toBeNull();
     httpMock.verify();
   });
 
@@ -149,13 +201,36 @@ describe('BuilderState (embed/09)', () => {
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ status: 'won' });
     req.flush({ ok: true });
+
+    // Optimistic row: status moves, but the server-derived #530 flag is not
+    // recomputed client-side.
+    expect(snapshot().leads[0].status).toBe('won');
+    expect(snapshot().leads[0].needsRecording).toBe(false);
+
+    // Quiet refresh: the flag + summary come from the backend.
+    const refresh = httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/leads'));
+    expect(snapshot().leadsStatus).toBe('ready');
+    refresh.flush({
+      leads: [
+        { ...LEADS_RESPONSE.leads[0], status: 'won', needsRecording: true },
+        LEADS_RESPONSE.leads[1],
+      ],
+      summary: { total: 2, new: 0, contacted: 1, quoted: 0, won: 1, lost: 0, needsRecording: 1 },
+    });
+    // #527: the "Needs you" groups are server-derived too — refreshed quietly.
+    httpMock
+      .expectOne((r) => r.url.endsWith(NEEDS_YOU_URL))
+      .flush({ ...NEEDS_YOU, uncontacted: [] });
     await done;
+    expect(snapshot().needsYou?.uncontacted).toEqual([]);
 
     const s = snapshot();
     expect(s.updatingLeadId).toBeNull();
     expect(s.updateError).toBeNull();
     expect(s.leads[0].status).toBe('won');
-    // Summary reconciles: new 1→0, won 0→1, totals unchanged.
+    // #530: won with no invoice → the server says it now needs recording.
+    expect(s.leads[0].needsRecording).toBe(true);
+    // Summary reconciles: new 1→0, won 0→1, needsRecording 0→1.
     expect(s.summary).toEqual({
       total: 2,
       new: 0,
@@ -163,6 +238,7 @@ describe('BuilderState (embed/09)', () => {
       quoted: 0,
       won: 1,
       lost: 0,
+      needsRecording: 1,
     });
     httpMock.verify();
   });
@@ -409,5 +485,42 @@ describe('BuilderState (embed/09)', () => {
       expect(store.selectSnapshot(BuilderState.canInitiateViewAs)).toBe(false);
       httpMock.verify();
     });
+  });
+});
+
+describe('BuilderState.activeBuilderName (#502)', () => {
+  const base = {
+    session: { builderId: 'b2', builderName: null },
+    memberships: [
+      { builderId: 'b1', builderName: 'Alpha Homes', role: 'builder_admin' },
+      { builderId: 'b2', builderName: 'Beta Homes', role: 'builder_member' },
+    ],
+  } as unknown as BuilderStateModel;
+
+  it('prefers the session org name', () => {
+    const state = {
+      ...base,
+      session: { builderId: 'b2', builderName: 'Session Name' },
+    } as unknown as BuilderStateModel;
+    expect(BuilderState.activeBuilderName(state)).toBe('Session Name');
+  });
+
+  it('falls back to the membership matching the active org (after a reload)', () => {
+    expect(BuilderState.activeBuilderName(base)).toBe('Beta Homes');
+  });
+
+  it('is null with no session, no active org, or no matching membership', () => {
+    expect(
+      BuilderState.activeBuilderName({ ...base, session: null } as BuilderStateModel),
+    ).toBeNull();
+    expect(
+      BuilderState.activeBuilderName({
+        ...base,
+        session: { builderId: null, builderName: null },
+      } as unknown as BuilderStateModel),
+    ).toBeNull();
+    expect(
+      BuilderState.activeBuilderName({ ...base, memberships: [] } as BuilderStateModel),
+    ).toBeNull();
   });
 });

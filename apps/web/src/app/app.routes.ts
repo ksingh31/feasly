@@ -1,4 +1,5 @@
-import { Routes, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { inject } from '@angular/core';
+import { Routes, ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare/lead-gate.guard';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -13,6 +14,7 @@ import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
 import { adminGuard } from './features/admin/admin.guard';
 import { builderGuard } from './features/builder/builder.guard';
 import { builderBillingGuard } from './features/builder/builder-billing.guard';
+import { recordContractRedirect } from './features/builder/record-contract-redirect';
 import { builderTeamGuard } from './features/builder/builder-team.guard';
 
 export const routes: Routes = [
@@ -287,6 +289,11 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/admin-disputes.state')).adminDisputesStateProvider,
       ),
+      // Quarantine (#540): on the parent so the sidebar badge can count it.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-quarantine.state')).adminQuarantineStateProvider,
+      ),
       lazyProvider(
         async () =>
           (await import('./features/admin/admin-calibration.state')).calibrationStateProvider,
@@ -308,6 +315,11 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/admin-users.state')).adminUsersStateProvider,
       ),
+      // ⌘K command palette + lead picker (#538): admin global search.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-search.state')).adminSearchStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -316,6 +328,13 @@ export const routes: Routes = [
         path: 'leads',
         loadComponent: () =>
           import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
+      },
+      // Quarantine (#540, admin review page map): honeypot-flagged leads,
+      // promoted from a Leads tab to its own section with bulk decisions.
+      {
+        path: 'quarantine',
+        loadComponent: () =>
+          import('./features/admin/admin-quarantine.component').then((m) => m.AdminQuarantineComponent),
       },
       // Builders management (embed/02 admin-UI migration): the builders
       // table — branding, sign-in keys, allowed embed origins, plans.
@@ -358,6 +377,30 @@ export const routes: Routes = [
           import('./features/admin/admin-billing.component').then(
             (m) => m.AdminBillingComponent,
           ),
+        // #544: queue rows open the invoice drawer in place, which reads
+        // AdminInvoicesState — lazy-registered here as on billing/invoices.
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
+          ),
+        ],
+      },
+      // Webhooks (#547): Stripe webhook health, split out of Billing
+      // (docs/reviews/2026-11-13-admin.md page map). Reads the same
+      // BillingHealthState payload, lazy-registered here like /billing.
+      {
+        path: 'webhooks',
+        loadComponent: () =>
+          import('./features/admin/admin-webhooks.component').then(
+            (m) => m.AdminWebhooksComponent,
+          ),
         canActivate: [
           lazyProvider(
             async () =>
@@ -383,11 +426,10 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
       },
-      // Admin invoice list + detail (QA admin-console fix 3): every
+      // Admin invoice list + drawer (QA admin-console fix 3, #543): every
       // commission invoice across tenants with status + invoice-number
-      // filters, and a standalone detail page — including paid invoices
-      // unreachable from the billing work queues. The manage modal
-      // (mark-paid / rate override) is reused from the billing page.
+      // filters; a row opens the invoice drawer (`?open=<id>`) with the
+      // Change rate / Change payment method / Record payment modals.
       // AdminInvoicesState lazy-loads at these routes via lazyProvider so
       // the invoices chunk stays out of the initial bundle (790kB
       // production budget).
@@ -403,29 +445,22 @@ export const routes: Routes = [
               (await import('./features/admin/admin-invoices.state'))
                 .adminInvoicesStateProvider,
           ),
-        ],
-      },
-      {
-        path: 'billing/invoices/:id',
-        loadComponent: () =>
-          import('./features/admin/admin-invoice-detail.component').then(
-            (m) => m.AdminInvoiceDetailComponent,
-          ),
-        canActivate: [
-          lazyProvider(
-            async () =>
-              (await import('./features/admin/admin-invoices.state'))
-                .adminInvoicesStateProvider,
-          ),
-          // The reused manage modal reads BillingHealthState (#472):
-          // without this, opening Manage on a deep-linked invoice threw
-          // and crashed out of the admin shell.
+          // The drawer's action modals dispatch BillingHealth actions (#472).
           lazyProvider(
             async () =>
               (await import('./features/admin/billing-health.state'))
                 .billingHealthStateProvider,
           ),
         ],
+      },
+      // The old standalone detail page (#543): the invoice drawer on the
+      // list is the hub now; keep old links working via `?open=<id>`.
+      {
+        path: 'billing/invoices/:id',
+        redirectTo: ({ params }) =>
+          inject(Router).createUrlTree(['/admin/billing/invoices'], {
+            queryParams: { open: params['id'] },
+          }),
       },
       // In-shell error page (#472): uncaught failures on admin routes land
       // here (via GlobalErrorHandler) so admins keep the admin nav instead
@@ -506,7 +541,19 @@ export const routes: Routes = [
     path: 'builder',
     loadComponent: () =>
       import('./features/builder/builder-shell.component').then((m) => m.BuilderShellComponent),
-    canActivate: [robotsGuard, builderGuard],
+    canActivate: [
+      robotsGuard,
+      builderGuard,
+      // Shell v2 (#502): the failed-card danger strip persists across
+      // every builder page, so the shell reads BuilderInvoicesState
+      // (actionable set). Lazy-provided here — still out of the initial
+      // bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-invoices.state'))
+            .builderInvoicesStateProvider,
+      ),
+    ],
     data: { noindex: true },
     children: [
       {
@@ -534,6 +581,18 @@ export const routes: Routes = [
                 .dueInvoiceBannersStateProvider,
           ),
         ],
+      },
+      {
+        // Builder Money overview (#532): KPIs, recent invoices with the
+        // lifecycle stepper, card panel, how charges work. The shell
+        // already lazy-provides BuilderInvoicesState; BuilderBillingState
+        // is root-provided. Admin-only like every billing page.
+        path: 'money',
+        loadComponent: () =>
+          import('./features/builder/builder-money.component').then(
+            (m) => m.BuilderMoneyComponent,
+          ),
+        canActivate: [builderBillingGuard],
       },
       {
         // Builder billing (billing/02, BILL-02): card-on-file section.
@@ -585,21 +644,16 @@ export const routes: Routes = [
         canActivate: [builderTeamGuard],
       },
       {
-        // Builder record-contract: the builder records a signed contract
-        // for one of their leads. Lazy-loaded with the rest of the
-        // builder portal. builderBillingGuard: the submit path mints
-        // commission invoices (admin-only backend-side).
+        // Retired page (#529): contracts are recorded from the lead drawer's
+        // Won panel. Old links land on the Leads home, opening that lead's
+        // drawer when `?lead=<id>` is present.
         path: 'record-contract',
-        loadComponent: () =>
-          import('./features/builder/builder-report-contract.component').then(
-            (m) => m.BuilderReportContractComponent,
-          ),
-        canActivate: [builderBillingGuard],
+        redirectTo: recordContractRedirect,
       },
       {
-        // Legacy path: redirect to the renamed record-contract page.
+        // Older legacy path for the same retired page.
         path: 'report-contract',
-        redirectTo: 'record-contract',
+        redirectTo: recordContractRedirect,
       },
 
     ],

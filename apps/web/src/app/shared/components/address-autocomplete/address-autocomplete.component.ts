@@ -276,6 +276,16 @@ export class AddressAutocompleteComponent {
 
 
   /**
+   * Out-of-coverage action (B11, #514): "Try a Calgary address". Coverage is
+   * deterministic, so instead of re-running the lookup this clears the input
+   * and moves focus into it for a fresh Calgary address.
+   */
+  tryCalgaryAddress(): void {
+    this.clearSearch();
+    this.focusInput();
+  }
+
+  /**
    * Retry from an error state. Out-of-coverage is deterministic — re-running
    * the same query can never succeed — so the retry resets the input and
    * focuses it for a fresh Calgary address instead. Transient failures
@@ -283,8 +293,7 @@ export class AddressAutocompleteComponent {
    */
   retry(): void {
     if (this.outOfCoverage()) {
-      this.clearSearch();
-      this.focusInput();
+      this.tryCalgaryAddress();
       return;
     }
     const key = this.pendingKey;

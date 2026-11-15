@@ -1,19 +1,20 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import { provideLocationMocks } from '@angular/common/testing';
+import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { Router, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AdminLeadListItem } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
+import { UiDrawerService } from '@app/shared/ui';
 import { AdminLeadsComponent } from './admin-leads.component';
 import { AdminLeadsState } from './admin-leads.state';
-// The lead-detail modal (rendered by this page) reads AdminBuildersState
-// for its assign-to-builder dropdown — registered at the /admin route in
-// production, so the TestBed mirrors that here.
 import { AdminBuildersState } from './admin-builders.state';
 import { AdminAuthState } from './admin-auth.state';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
-import type { AdminLeadListItem } from '@feasly/contracts';
+import { AdminLeadDrawerComponent } from './admin-lead-drawer.component';
 
 const LEAD_A: AdminLeadListItem = {
   id: 'a1',
@@ -22,419 +23,238 @@ const LEAD_A: AdminLeadListItem = {
   addressKey: '123 Main St NW, Calgary, AB',
   leadScore: 82,
   status: 'new',
-  source: 'web',
+  source: 'mcp',
   projectType: 'new_build',
-  tenantKey: null,
+  tenantKey: 'elite-craft',
   timeline: '6-12 months',
   sandbox: false,
   quarantined: false,
   discarded: false,
   createdAt: '2026-09-20T10:00:00.000Z',
-  contactConsent: 'in',
+  contactConsent: 'out',
   consentUpdatedAt: '2026-09-20T10:00:00.000Z',
 };
 
-const EMPTY_COUNTS = { new: 0, contacted: 0, quoting: 0, won: 0, lost: 0 };
+const COUNTS = { new: 4, contacted: 3, quoting: 2, won: 1, lost: 0 };
 
-function listResponse(leads: AdminLeadListItem[], totalCount: number, statusCounts = EMPTY_COUNTS) {
-  return { leads, nextCursor: null, totalCount, statusCounts };
+function listResponse(leads: AdminLeadListItem[], totalCount = leads.length) {
+  return { leads, nextCursor: null, totalCount, statusCounts: COUNTS };
+}
+
+/** Poll (with a deadline) for an async UI state — never a fixed sleep. */
+async function until(cond: () => boolean, label: string, ms = 3000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${label}`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 /**
- * Admin leads list (FE-9): three filters, pipeline totals row, cards,
- * designed empty state, row click opens the modal.
+ * #539 — Admin Leads: saved views, kit DataTable, drawer via `?open=`.
  */
 describe('AdminLeadsComponent', () => {
   let store: Store;
-  let httpMock: HttpTestingController;
+  let http: HttpTestingController;
+  let router: Router;
   let fixture: ComponentFixture<AdminLeadsComponent>;
+  let openSpy: ReturnType<typeof vi.spyOn>;
 
-  async function setup(): Promise<void> {
+  afterEach(() => vi.restoreAllMocks());
+
+  async function setup(permissions: string[] = [ADMIN_PERMISSIONS.leadsManage]): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AdminLeadsComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
+        provideLocationMocks(),
         ConfigService,
-        // AdminAuthState is in the root store in production (app.config.ts);
-        // the quarantine approve/discard buttons gate on its permissions.
         provideStore([AdminLeadsState, AdminBuildersState, AdminAuthState]),
       ],
     });
     const config = TestBed.inject(ConfigService);
-    const http = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpTestingController);
     const pending = config.load();
     http.expectOne('/assets/config/app-config.json').flush({ api: { useMockApi: false } });
     await pending;
     store = TestBed.inject(Store);
-    httpMock = TestBed.inject(HttpTestingController);
-    // Existing tests assert the write UI — the session manages leads.
+    router = TestBed.inject(Router);
     store.reset({
-      adminLeads: store.selectSnapshot((s) => s.adminLeads),
-      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
-      adminAuth: {
-        ...store.selectSnapshot((s) => s.adminAuth),
-        permissions: [ADMIN_PERMISSIONS.leadsManage],
-      },
+      ...store.snapshot(),
+      adminAuth: { ...store.selectSnapshot((s) => s.adminAuth), permissions },
     });
+    // The drawer itself is covered by admin-lead-drawer.component.spec.ts.
+    openSpy = vi.spyOn(TestBed.inject(UiDrawerService), 'open').mockReturnValue(null as never);
     fixture = TestBed.createComponent(AdminLeadsComponent);
   }
 
-  /** Flushes the initial list load and renders. */
-  async function loadList(
-    leads: AdminLeadListItem[] = [LEAD_A],
-    totalCount = leads.length,
-    statusCounts = { new: totalCount, contacted: 0, quoting: 0, won: 0, lost: 0 },
-  ): Promise<void> {
-    fixture.detectChanges();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
-      .flush(listResponse(leads, totalCount, statusCounts));
-    await fixture.whenStable();
-    fixture.detectChanges();
+  function listRequests(): TestRequest[] {
+    return http.match((r) => r.url.endsWith('/api/v1/admin/leads'));
   }
 
-  it('shows exactly the three streamlined filters', async () => {
-    await setup();
-    await loadList();
-
-    const filters = fixture.debugElement.queryAll(By.css('.leads-page__filter'));
-    expect(filters.length).toBe(3);
-    const labels = filters.map((f) => f.nativeElement.textContent);
-    expect(labels.join('|')).toContain('Search');
-    expect(labels.join('|')).toContain('Status');
-    expect(labels.join('|')).toContain('Assigned');
-  });
-
-  it('selecting a builder in the Assigned filter sends builderId to the backend', async () => {
-    await setup();
-    fixture.detectChanges();
-    // Initial leads load + builders load (the Assigned filter options).
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
-      .flush(listResponse([LEAD_A], 1));
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders'))
-      .flush({
-        builders: [
-          { id: '123e4567-e89b-12d3-a456-426614174000', displayName: 'Elite Craft' },
-        ],
-      });
+  /** Polls for list requests (accumulating — `match` consumes them) and flushes them. */
+  async function nextListRequest(leads: AdminLeadListItem[] = [LEAD_A]): Promise<TestRequest> {
+    const reqs: TestRequest[] = [];
+    await until(() => {
+      fixture.detectChanges();
+      reqs.push(...listRequests());
+      return reqs.length > 0;
+    }, 'list request');
+    reqs.forEach((r) => r.flush(listResponse(leads)));
     await fixture.whenStable();
     fixture.detectChanges();
+    return reqs[reqs.length - 1];
+  }
 
-    const selects = fixture.debugElement.queryAll(
-      By.css('.leads-page__filter select'),
+  /** Renders, flushes the first list load + builders. */
+  async function load(leads: AdminLeadListItem[] = [LEAD_A]): Promise<TestRequest> {
+    fixture.detectChanges();
+    const req = await nextListRequest(leads);
+    http
+      .match((r) => r.url.endsWith('/api/v1/admin/builders'))
+      .forEach((r) => r.flush({ builders: [{ id: 'b-1', displayName: 'Elite Craft' }] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return req;
+  }
+
+  function text(): string {
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  function segment(label: string): HTMLButtonElement {
+    const buttons = fixture.debugElement
+      .queryAll(By.css('.leads-page__segment'))
+      .map((d) => d.nativeElement as HTMLButtonElement);
+    const hit = buttons.find((b) => b.textContent?.trim() === label);
+    if (!hit) throw new Error(`no segment ${label}: ${buttons.map((b) => b.textContent).join('|')}`);
+    return hit;
+  }
+
+  it('renders the leads in the kit DataTable with labelled columns and enum labels', async () => {
+    await setup();
+    await load();
+
+    const headers = fixture.debugElement
+      .queryAll(By.css('.ui-dt__table th'))
+      .map((th) => (th.nativeElement as HTMLElement).textContent?.trim());
+    expect(headers).toEqual(
+      expect.arrayContaining(['Lead', 'Address', 'Status', 'Tenant', 'Source', 'Score', 'Timeline', 'Contact consent', 'Created']),
     );
-    const assignedSelect = selects[1].nativeElement as HTMLSelectElement;
-    assignedSelect.value = '123e4567-e89b-12d3-a456-426614174000';
-    assignedSelect.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    const row = fixture.debugElement.query(By.css('.ui-dt__row')).nativeElement as HTMLElement;
+    expect(row.textContent).toContain('Ava Smith');
+    expect(row.textContent).toContain('ava@example.com');
+    expect(row.textContent).toContain('MCP');
+    expect(row.textContent).toContain('Out');
+    expect(row.textContent).not.toContain('mcp');
+    expect(text()).toContain('1 lead');
+  });
 
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('builderId')).toBe(
-      '123e4567-e89b-12d3-a456-426614174000',
+  it('shows the saved views New, Unassigned and Quoting > 7 days', async () => {
+    await setup();
+    await load();
+    const labels = fixture.debugElement
+      .queryAll(By.css('.leads-page__segment'))
+      .map((d) => (d.nativeElement as HTMLElement).textContent?.trim());
+    expect(labels).toEqual(['All', 'New', 'Unassigned', 'Quoting > 7 days']);
+    expect(segment('All').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('Unassigned view writes ?view= and loads builderId=unassigned', async () => {
+    await setup();
+    await load();
+
+    segment('Unassigned').click();
+    const req = await nextListRequest();
+    expect(router.url).toContain('view=unassigned');
+    expect(req.request.params.get('builderId')).toBe('unassigned');
+    expect(segment('Unassigned').getAttribute('aria-pressed')).toBe('true');
+    expect(text()).toContain('Leads not assigned to a builder.');
+  });
+
+  it('New view filters status=new', async () => {
+    await setup();
+    await load();
+    segment('New').click();
+    const req = await nextListRequest();
+    expect(req.request.params.get('status')).toBe('new');
+  });
+
+  it('Quoting > 7 days view filters quoting leads created over 7 days ago', async () => {
+    await setup();
+    await load();
+    const before = Date.now();
+    segment('Quoting > 7 days').click();
+    const req = await nextListRequest();
+    expect(req.request.params.get('status')).toBe('quoting');
+    const cutoff = Date.parse(req.request.params.get('createdBefore') ?? '');
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    expect(cutoff).toBeLessThanOrEqual(before - sevenDays + 1000);
+    expect(cutoff).toBeGreaterThan(before - sevenDays - 60_000);
+  });
+
+  it('a view deep link loads that view on first render', async () => {
+    await setup();
+    await router.navigateByUrl('/?view=new');
+    const req = await load();
+    expect(req.request.params.get('status')).toBe('new');
+  });
+
+  it('pipeline total tiles filter by status and show counts', async () => {
+    await setup();
+    await load();
+    const tiles = fixture.debugElement.queryAll(By.css('.leads-page__total'));
+    expect(tiles.map((t) => (t.nativeElement as HTMLElement).textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      '4New',
+      '3Contacted',
+      '2Quoting',
+      '1Won',
+      '0Lost',
+    ]);
+    (tiles[2].nativeElement as HTMLButtonElement).click();
+    const req = await nextListRequest();
+    expect(req.request.params.get('status')).toBe('quoting');
+    expect(router.url).toContain('status=quoting');
+  });
+
+  it('row click opens the lead drawer with ?open=<id>', async () => {
+    await setup();
+    await load();
+    (fixture.debugElement.query(By.css('.ui-dt__row')).nativeElement as HTMLElement).click();
+    expect(openSpy).toHaveBeenCalledWith(
+      AdminLeadDrawerComponent,
+      expect.objectContaining({ data: { id: 'a1' }, urlId: 'a1' }),
     );
-    req.flush(listResponse([], 0));
+  });
+
+  it('a ?open= deep link opens the drawer without reloading the list on open', async () => {
+    await setup();
+    await router.navigateByUrl('/?open=a1');
+    await load();
+    expect(openSpy).toHaveBeenCalledWith(AdminLeadDrawerComponent, expect.objectContaining({ urlId: 'a1' }));
+    // Only the drawer param changed: no second list load.
+    await router.navigateByUrl('/?open=a2');
+    fixture.detectChanges();
     await fixture.whenStable();
-    fixture.detectChanges();
-
-    // "Unassigned" sends the sentinel the backend maps to IS NULL.
-    assignedSelect.value = 'unassigned';
-    assignedSelect.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    const req2 = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req2.request.params.get('builderId')).toBe('unassigned');
-    req2.flush(listResponse([], 0));
+    expect(listRequests()).toHaveLength(0);
   });
 
-  it('renders pipeline totals from statusCounts', async () => {
+  it('shows the no-results state when a view matches nothing', async () => {
     await setup();
-    await loadList([LEAD_A], 3, { new: 1, contacted: 2, quoting: 0, won: 0, lost: 0 });
-
-    const totals = fixture.debugElement.queryAll(By.css('.leads-page__total'));
-    expect(totals.length).toBe(5);
-    const text = totals.map((t) => t.nativeElement.textContent).join(' | ');
-    expect(text).toContain('New');
-    expect(text).toContain('1');
-    expect(text).toContain('Contacted');
-    expect(text).toContain('2');
+    await load();
+    segment('New').click();
+    await nextListRequest([]);
+    expect(text()).toContain('No leads match');
   });
 
-  it('clicking a pipeline total filters the list by that status', async () => {
+  it('has no quarantine tab — quarantine lives on its own route (#540)', async () => {
     await setup();
-    await loadList([LEAD_A], 3, { new: 1, contacted: 2, quoting: 0, won: 0, lost: 0 });
-
-    const totals = fixture.debugElement.queryAll(By.css('.leads-page__total'));
-    const wonTotal = totals.find((t) => t.nativeElement.textContent.includes('Won'))!;
-    wonTotal.nativeElement.click();
-    fixture.detectChanges();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('status')).toBe('won');
-    req.flush(listResponse([], 0));
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    // Clicking again clears the status filter.
-    wonTotal.nativeElement.click();
-    const req2 = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req2.request.params.get('status')).toBeNull();
-    req2.flush(listResponse([], 0));
-  });
-
-  it('changing the status filter reloads the list', async () => {
-    await setup();
-    await loadList();
-
-    const select = fixture.debugElement.query(By.css('.leads-page__filter select'))
-      .nativeElement as HTMLSelectElement;
-    select.value = 'contacted';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('status')).toBe('contacted');
-    req.flush(listResponse([], 0));
-  });
-
-  it('renders lead cards with avatar initials and badges', async () => {
-    await setup();
-    await loadList();
-
-    const card = fixture.debugElement.query(By.css('.lead-card')).nativeElement;
-    expect(card.textContent).toContain('Ava Smith');
-    expect(card.textContent).toContain('AS');
-    expect(card.textContent).toContain('New');
-    const consentBadge = fixture.debugElement.query(
-      By.css('.lead-card__side .badge'),
-    ).nativeElement;
-    expect(consentBadge.getAttribute('aria-label')).toBe('Contact consent: in');
-  });
-
-  it('badges quarantined leads on the card', async () => {
-    await setup();
-    await loadList([{ ...LEAD_A, quarantined: true }]);
-
-    const card = fixture.debugElement.query(By.css('.lead-card')).nativeElement;
-    const quarantineBadge = fixture.debugElement.query(
-      By.css('.lead-card .badge--quarantine'),
-    ).nativeElement;
-    expect(card.textContent).toContain('Quarantine');
-    expect(quarantineBadge.textContent).toContain('Quarantine');
-  });
-
-  describe('quarantine approve/discard (QA admin-console finding 6)', () => {
-    /** Opens the quarantine tab and flushes its filtered list. */
-    async function openQuarantineTab(
-      leads: AdminLeadListItem[] = [{ ...LEAD_A, quarantined: true }],
-    ): Promise<void> {
-      await loadList([]);
-      const tab = fixture.debugElement
-        .queryAll(By.css('.leads-page__tab'))
-        .find((t) => (t.nativeElement.textContent ?? '').trim() === 'Quarantine');
-      expect(tab).toBeTruthy();
-      tab!.nativeElement.click();
-      fixture.detectChanges();
-      httpMock
-        .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
-        .flush(listResponse(leads, leads.length));
-      await fixture.whenStable();
-      fixture.detectChanges();
-    }
-
-    /** Polls until the quarantine card is gone (or the deadline hits). */
-    async function waitForCardGone(): Promise<boolean> {
-      const deadline = Date.now() + 5000;
-      for (;;) {
-        fixture.detectChanges();
-        if (fixture.debugElement.query(By.css('.lead-card')) === null) {
-          return true;
-        }
-        if (Date.now() > deadline) return false;
-        await new Promise((r) => setTimeout(r, 25));
-      }
-    }
-
-    it('shows approve and discard buttons to leads managers', async () => {
-      await setup();
-      await openQuarantineTab();
-      const actions = fixture.debugElement.query(
-        By.css('.lead-card__quarantine-actions'),
-      );
-      expect(actions).toBeTruthy();
-      expect(actions.nativeElement.textContent).toContain('Approve');
-      expect(actions.nativeElement.textContent).toContain('Discard');
-    });
-
-    it('hides the quarantine action buttons from viewers', async () => {
-      await setup();
-      store.reset({
-        adminLeads: store.selectSnapshot((s) => s.adminLeads),
-        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
-        adminAuth: {
-          ...store.selectSnapshot((s) => s.adminAuth),
-          permissions: [],
-        },
-      });
-      await openQuarantineTab();
-      expect(
-        fixture.debugElement.query(By.css('.lead-card__quarantine-actions')),
-      ).toBeNull();
-      // The quarantined row itself stays visible — read-only.
-      expect(fixture.debugElement.query(By.css('.lead-card'))).toBeTruthy();
-    });
-
-    it('approve posts to the backend endpoint and removes the lead', async () => {
-      await setup();
-      await openQuarantineTab();
-
-      fixture.debugElement
-        .query(By.css('.lead-card__quarantine-approve'))
-        .nativeElement.click();
-      fixture.detectChanges();
-      httpMock
-        .expectOne(
-          (r) =>
-            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/approve') &&
-            r.method === 'POST',
-        )
-        .flush({});
-      expect(await waitForCardGone()).toBe(true);
-      expect(store.selectSnapshot(AdminLeadsState.leads).length).toBe(0);
-    });
-
-    it('discard needs a two-step confirm and posts to the discard endpoint', async () => {
-      await setup();
-      await openQuarantineTab();
-
-      // First click arms the confirm; nothing is posted yet.
-      fixture.debugElement
-        .query(By.css('.lead-card__quarantine-discard'))
-        .nativeElement.click();
-      fixture.detectChanges();
-      const confirm = fixture.debugElement.query(
-        By.css('.lead-card__quarantine-confirm'),
-      );
-      expect(confirm).toBeTruthy();
-      expect(confirm.nativeElement.textContent).toContain('Confirm discard');
-      httpMock.expectNone(
-        (r) =>
-          r.url.endsWith('/api/v1/admin/leads/a1/quarantine/discard') &&
-          r.method === 'POST',
-      );
-
-      // Confirm posts and removes the lead.
-      confirm.nativeElement.click();
-      fixture.detectChanges();
-      httpMock
-        .expectOne(
-          (r) =>
-            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/discard') &&
-            r.method === 'POST',
-        )
-        .flush({});
-      expect(await waitForCardGone()).toBe(true);
-      expect(store.selectSnapshot(AdminLeadsState.leads).length).toBe(0);
-    });
-
-    it('shows an inline error when the approve call fails', async () => {
-      await setup();
-      await openQuarantineTab();
-
-      fixture.debugElement
-        .query(By.css('.lead-card__quarantine-approve'))
-        .nativeElement.click();
-      fixture.detectChanges();
-      httpMock
-        .expectOne(
-          (r) =>
-            r.url.endsWith('/api/v1/admin/leads/a1/quarantine/approve') &&
-            r.method === 'POST',
-        )
-        .flush('Forbidden', { status: 403, statusText: 'Forbidden' });
-      await fixture.whenStable();
-      fixture.detectChanges();
-      const error = fixture.debugElement.query(
-        By.css('.leads-page__quarantine-error'),
-      );
-      expect(error).toBeTruthy();
-      // The lead stays in the list so the action can be retried.
-      expect(fixture.debugElement.query(By.css('.lead-card'))).toBeTruthy();
-    });
-  });
-
-  it('row click selects the lead and opens the modal', async () => {
-    await setup();
-    await loadList();
-
-    fixture.debugElement.query(By.css('.lead-card')).nativeElement.click();
-    fixture.detectChanges();
-    expect(store.selectSnapshot(AdminLeadsState.selectedLeadId)).toBe('a1');
-
-    // The detail fetch completes; the modal opens behind the list.
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET')
-      .flush({
-        ...LEAD_A,
-        phone: '403-555-0100',
-        marketingConsent: true,
-        consentTs: '2026-09-20T10:00:00.000Z',
-        magicLinkStatus: 'sent',
-        sheetsSyncedAt: null,
-        snapshotCount: 1,
-        notes: [],
-        statusHistory: [],
-      });
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const modal = fixture.debugElement.query(
-      By.css('app-admin-lead-detail .lead-modal-card'),
-    );
-    expect(modal).toBeTruthy();
-    expect(modal.nativeElement.textContent).toContain('Ava Smith');
-  });
-
-  it('shows the designed empty state when there are no leads', async () => {
-    await setup();
-    await loadList([], 0);
-
-    const empty = fixture.debugElement.query(By.css('.leads-page__empty'));
-    expect(empty).toBeTruthy();
-    expect(empty.nativeElement.textContent).toContain('No leads match these filters');
-    expect(fixture.debugElement.query(By.css('.lead-card'))).toBeNull();
-  });
-
-  it('clearing all filters reloads the unfiltered list', async () => {
-    await setup();
-    await loadList();
-
-    const clear = fixture.debugElement.query(By.css('.leads-page__clear')).nativeElement;
-    clear.click();
-    fixture.detectChanges();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('status')).toBeNull();
-    expect(req.request.params.get('search')).toBeNull();
-    req.flush(listResponse([LEAD_A], 1));
-  });
-
-  it('debounced search filters the list', async () => {
-    await setup();
-    await loadList();
-
-    const input = fixture.debugElement.query(By.css('.leads-page__filter input'))
-      .nativeElement as HTMLInputElement;
-    input.value = 'ava';
-    input.dispatchEvent(new Event('input'));
-    // Search is debounced (250ms); wait past it in real time.
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    fixture.detectChanges();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('search')).toBe('ava');
-    req.flush(listResponse([LEAD_A], 1));
+    const req = await load();
+    expect(fixture.debugElement.query(By.css('[role="tablist"]'))).toBeNull();
+    expect(req.request.params.get('quarantinedOnly')).toBeNull();
+    expect(req.request.params.get('includeQuarantined')).toBeNull();
   });
 });

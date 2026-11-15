@@ -15,6 +15,12 @@
   --cream: #f7f4ef;
   --cream-2: #f0ece4;
   --card: #ffffff;
+  /* Inset panel on a light surface (modal before → after boxes, summaries).
+   * Issue #675: these boxes used --canvas-2, which is the DARK surface, and
+   * rendered near-black with --muted text inside every money modal. Light
+   * insets use this token; --canvas / --canvas-2 are for dark surfaces only
+   * (always paired with --on-dark text). */
+  --surface-sunken: var(--cream-2);
   --border: rgba(26, 22, 18, 0.1);
   /* Text */
   --text: #1a1612;

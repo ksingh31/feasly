@@ -37,9 +37,11 @@ export class GlobalErrorHandler implements ErrorHandler {
   private readonly recovery = inject(ErrorRecoveryService);
 
   /**
-   * True while a navigation to the admin error state is in flight. A second
-   * failure in that window (e.g. the admin shell itself throws) falls back
-   * to the public `/error` page instead of looping.
+   * True while a navigation to the admin error state is in flight. Further
+   * failures in that window (a page often throws more than once, e.g. two
+   * failed requests) are logged only, so they can't knock the admin out of
+   * the shell (#503). If the shell itself is broken, the admin error
+   * navigation fails and `routeToAdminError` falls back to `/error`.
    */
   private adminErrorPending = false;
 
@@ -58,8 +60,8 @@ export class GlobalErrorHandler implements ErrorHandler {
       description: 'Reload the current page',
       retry: () => window.location.reload(),
     });
-    if (isInAdminShell(url) && !this.adminErrorPending) {
-      this.routeToAdminError(from);
+    if (isInAdminShell(url)) {
+      if (!this.adminErrorPending) this.routeToAdminError(from);
       return;
     }
     this.routeToPublicError(from);

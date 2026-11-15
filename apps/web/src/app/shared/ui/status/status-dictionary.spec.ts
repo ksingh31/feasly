@@ -34,6 +34,19 @@ const SPEC_TABLE: ReadonlyArray<readonly [StatusDomain, string, StatusTone, stri
   ['disputeSla', 'on_track', 'neutral', 'On track'],
   ['disputeSla', 'due_today', 'warning', 'Due today'],
   ['disputeSla', 'overdue', 'danger', 'Overdue'],
+  ['leadHeat', 'hot', 'danger', 'Hot'],
+  ['leadHeat', 'warm', 'warning', 'Warm'],
+  ['leadHeat', 'cool', 'info', 'Cool'],
+  ['calibrationImport', 'frozen', 'success', 'Frozen'],
+  ['calibrationImport', 'draft', 'warning', 'Draft'],
+  ['calibrationImport', 'superseded', 'neutral', 'Superseded'],
+  ['syncHealth', 'healthy', 'success', 'Healthy'],
+  ['syncHealth', 'lagging', 'warning', 'Lagging'],
+  ['syncHealth', 'failing', 'danger', 'Failing'],
+  ['syncHealth', 'not_started', 'neutral', 'Not started'],
+  ['opsFlag', 'ok', 'success', 'All clear'],
+  ['opsFlag', 'attention', 'warning', 'Needs attention'],
+  ['opsFlag', 'problem', 'danger', 'Problem'],
 ];
 
 const SENTENCE_CASE = /^[A-Z][a-z0-9 -]*$/;
@@ -90,6 +103,8 @@ describe('enumLabel', () => {
     ['builder-admin', 'Builder admin'],
     ['SUPER_ADMIN', 'Super admin'],
     ['api_key', 'API key'],
+    ['api', 'API'],
+    ['mcp', 'MCP'],
   ])('%s → %s', (value, label) => {
     expect(enumLabel(value)).toBe(label);
   });

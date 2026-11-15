@@ -1,0 +1,194 @@
+// Modal — portal-ui-kit §3. Unencapsulated: the CDK pane and scrim render
+// outside any component view. Every selector is `ui-modal*`-prefixed.
+// Tokens only (colours live in styles.scss).
+
+.ui-modal-scrim {
+  background: var(--scrim);
+}
+
+.cdk-overlay-pane.ui-modal-pane {
+  width: calc(100vw - 2 * var(--space-4));
+  max-width: 560px;
+  max-height: 85vh;
+}
+.cdk-overlay-pane.ui-modal-pane--sm {
+  max-width: 400px;
+}
+.cdk-overlay-pane.ui-modal-pane--lg {
+  max-width: 720px;
+}
+
+// CDK container → content component host → ui-modal: let max-height flow down.
+.ui-modal-pane .cdk-dialog-container {
+  display: flex;
+  width: 100%;
+  max-height: inherit;
+  outline: none;
+}
+.ui-modal-pane .cdk-dialog-container > * {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: inherit;
+  min-height: 0;
+}
+
+.ui-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: inherit;
+  min-height: 0;
+}
+
+.ui-modal__sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 85vh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--text);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  font: var(--type-body);
+}
+
+.ui-modal__handle {
+  display: none;
+}
+
+.ui-modal__header {
+  flex: none;
+  // Room on the right for the absolutely-placed close button.
+  padding: var(--space-5) calc(var(--space-5) + 44px) var(--space-3) var(--space-5);
+}
+
+.ui-modal__title {
+  margin: 0;
+  font: var(--type-product-h2);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.ui-modal__form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ui-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+.ui-modal__footer {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.ui-modal__footer:empty {
+  display: none;
+}
+
+.ui-modal__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ui-modal__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.ui-modal__close:hover:not(:disabled) {
+  background: var(--cream-2);
+  color: var(--text);
+}
+.ui-modal__close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Below 768px: a bottom sheet — full width, flush to the bottom edge, drag
+   handle, and the home-indicator safe area kept clear. */
+@media (max-width: 767px) {
+  .cdk-overlay-pane.ui-modal-pane,
+  .cdk-overlay-pane.ui-modal-pane--sm,
+  .cdk-overlay-pane.ui-modal-pane--lg {
+    align-self: flex-end;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0;
+  }
+
+  .ui-modal__sheet {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transition: transform 0.2s ease;
+  }
+  .ui-modal__sheet--dragging {
+    transition: none;
+  }
+
+  .ui-modal__handle {
+    display: block;
+    flex: none;
+    width: 36px;
+    height: 4px;
+    margin: var(--space-2) auto 0;
+    border-radius: var(--radius-pill);
+    background: var(--border);
+  }
+  .ui-modal__handle--swipeable {
+    // Generous invisible grab area around the 4px bar.
+    box-sizing: content-box;
+    padding: var(--space-2) var(--space-6);
+    background-clip: content-box;
+    margin-top: 0;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .ui-modal__header {
+    padding: var(--space-3) calc(var(--space-4) + 44px) var(--space-3) var(--space-4);
+  }
+  .ui-modal__body {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+  .ui-modal__footer {
+    padding: var(--space-3) var(--space-4);
+  }
+  .ui-modal__footer > * {
+    flex: 1 1 auto;
+  }
+  .ui-modal__close {
+    top: var(--space-2);
+    right: var(--space-2);
+  }
+}

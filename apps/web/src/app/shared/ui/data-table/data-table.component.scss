@@ -1,0 +1,289 @@
+// DataTable — portal-ui-kit §3. Tokens only. Never widens the page:
+// the host is capped at its container and the table scrolls inside it.
+:host {
+  --dt-row-h: 48px;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+:host(.ui-data-table--compact) {
+  --dt-row-h: 36px;
+}
+
+.ui-dt__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  font: var(--type-body-sm);
+}
+.ui-dt__bulk-count {
+  font-weight: 600;
+}
+.ui-dt__bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Table (≥ 768px) ── */
+.ui-dt__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.ui-dt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-body-sm);
+  color: var(--text);
+}
+th {
+  height: var(--dt-row-h);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font: var(--type-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--muted);
+  white-space: nowrap;
+}
+td {
+  height: var(--dt-row-h);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ui-dt__end {
+  text-align: right;
+}
+.ui-dt__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ui-dt__id {
+  white-space: nowrap;
+}
+.ui-dt__clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.ui-dt__check {
+  width: var(--space-6);
+}
+.ui-dt__actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.ui-dt__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ui-dt__sort:hover {
+  color: var(--text);
+}
+.ui-dt__sort-icon {
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-top-color: currentColor;
+  opacity: 0;
+  translate: 0 2px;
+}
+.ui-dt__sort:hover .ui-dt__sort-icon {
+  opacity: 0.5;
+}
+.ui-dt__sort-icon[data-dir='ascending'],
+.ui-dt__sort-icon[data-dir='descending'] {
+  opacity: 1;
+}
+.ui-dt__sort-icon[data-dir='ascending'] {
+  rotate: 180deg;
+  translate: 0 -2px;
+}
+.ui-dt__row,
+.ui-dt__card {
+  cursor: pointer;
+}
+.ui-dt__row:hover,
+.ui-dt__card:hover {
+  background: var(--cream);
+}
+.ui-dt__row--flagged,
+.ui-dt__card--flagged {
+  background: var(--status-warning-bg);
+}
+.ui-dt__row--flagged > td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-warning-fg);
+}
+.ui-dt__card--flagged {
+  box-shadow: inset 3px 0 0 var(--status-warning-fg);
+}
+.ui-dt__row--open,
+.ui-dt__row--open:hover,
+.ui-dt__card--open,
+.ui-dt__card--open:hover {
+  background: var(--accent-bg);
+}
+.ui-dt__row:focus-visible,
+.ui-dt__card:focus-visible,
+.ui-dt__sort:focus-visible,
+.ui-dt__page-btn:focus-visible,
+.ui-dt__sort-select select:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--focus-ring);
+}
+
+/* ── Card list (< 768px) ── */
+.ui-dt__cards {
+  display: none;
+}
+.ui-dt__sort-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+.ui-dt__sort-select select {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-size: 16px;
+}
+.ui-dt__card-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ui-dt__card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.ui-dt__card-check {
+  width: 20px;
+  height: 20px;
+  margin: var(--space-1) 0 0;
+}
+.ui-dt__card-body {
+  flex: 1;
+  min-width: 0;
+}
+.ui-dt__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+.ui-dt__card-title {
+  min-width: 0;
+  font: var(--type-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ui-dt__card-meta {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  font: var(--type-meta);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ui-dt__card-meta-label {
+  flex: none;
+}
+.ui-dt__card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ui-dt__chevron {
+  flex: none;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-top: 2px solid var(--muted);
+  border-right: 2px solid var(--muted);
+  rotate: 45deg;
+}
+
+/* ── Pagination ── */
+.ui-dt__pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+.ui-dt__page-btn {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.ui-dt__page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .ui-dt__scroll {
+    display: none;
+  }
+  .ui-dt__cards {
+    display: block;
+  }
+  .ui-dt__pager {
+    justify-content: space-between;
+  }
+  .ui-dt__page-btn {
+    min-height: 44px;
+  }
+}

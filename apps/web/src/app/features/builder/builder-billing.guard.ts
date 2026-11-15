@@ -7,8 +7,8 @@ import { BuilderState } from './builder.state';
 import { LoadBuilderSession } from './builder.actions';
 
 /**
- * Builder billing guard (QA 2026-10-04): `/builder/billing`,
- * `/builder/invoices`, and `/builder/record-contract` are visible and
+ * Builder billing guard (QA 2026-10-04): `/builder/billing`
+ * and `/builder/invoices` are visible and
  * route-accessible only to `builder_admin` holders. Every billing
  * endpoint is backend-gated by `builder:billing` (admin-only), so a
  * builder_member reaching these pages gets a 403 on every call and a

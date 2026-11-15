@@ -1,392 +1,172 @@
-<div class="billing-panel">
-  <header class="billing-panel__header">
-    <div>
-      <h1>Billing health</h1>
-      <p class="billing-panel__sub">
-        MRR, review aging, dunning, and webhook health. The in-review
-        queue lets an admin manage an invoice — override its commission
-        rate or record an off-Stripe payment; dunning rows offer the same
-        mark-paid for failed charges paid offline. "Create invoice"
-        manually creates a commission invoice for a converted lead.
-        Everything else is read-only.
-      </p>
-    </div>
-    <div class="billing-panel__header-actions">
+<div class="billing-page">
+  <ui-page-header heading="Billing" description="Money overview and the invoice work queues.">
+    <div uiPageHeaderActions class="billing-page__header-actions">
+      @if (health(); as h) {
+        <ui-status-chip domain="billingModel" [status]="h.model" data-testid="billing-model-chip" />
+        <ui-status-chip domain="stripeMode" [status]="stripeMode()" [dot]="true" data-testid="stripe-mode-chip" />
+      }
       @if (canManageBilling()) {
-        <button
-          type="button"
-          class="billing-panel__btn"
-          (click)="openCreateForm()"
-        >
+        <button type="button" ui-button data-testid="open-create-invoice" (click)="openCreateInvoice()">
           Create invoice
         </button>
       }
-      @if (health(); as h) {
-        <span class="billing-panel__badge" role="status">
-          <span aria-hidden="true">●</span> {{ modelLabel(h.model) }}
-        </span>
-        @if (!h.stripe.configured) {
-          <span
-            class="billing-panel__badge billing-panel__badge--attention"
-            role="status"
-          >
-            <span aria-hidden="true">●</span> Stripe not configured
-          </span>
-        } @else if (h.stripe.testMode) {
-          <span class="billing-panel__badge" role="status">
-            <span aria-hidden="true">●</span> Stripe test mode
-          </span>
-        } @else {
-          <span
-            class="billing-panel__badge billing-panel__badge--attention"
-            role="status"
-          >
-            <span aria-hidden="true">●</span> Stripe live
-          </span>
-        }
-      }
       <button
         type="button"
-        class="billing-panel__refresh"
+        ui-button
+        variant="secondary"
+        data-testid="refresh-billing"
+        [loading]="loadStatus() === 'loading'"
         (click)="refresh()"
-        [disabled]="loadStatus() === 'loading'"
       >
         Refresh
       </button>
     </div>
-  </header>
-
-  @if (showCreateForm()) {
-    <app-admin-create-invoice (closed)="closeCreateForm()" />
-  }
-
-  @if (managedInvoice(); as managed) {
-    <!-- Manage-invoice modal: backdrop click or Esc closes. Focus moves
-         into the dialog on open, Tab cycles inside it, and focus returns
-         to the invoking button on close (see the component). -->
-    <div
-      #manageDialog
-      class="billing-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Manage invoice"
-    >
-      <div class="billing-modal__backdrop" (click)="closeManage()"></div>
-      <app-admin-manage-invoice
-        class="billing-modal__dialog"
-        [invoice]="managed"
-        (closed)="closeManage()"
-      />
-    </div>
-  }
+  </ui-page-header>
 
   @if (loadStatus() === 'loading' && !health()) {
-    <p class="billing-panel__loading">Loading billing health…</p>
-  }
-
-  @if (error(); as err) {
-    <div class="billing-panel__alert" role="alert">
-      <p>{{ err }}</p>
-      <button type="button" (click)="refresh()">Retry</button>
-    </div>
+    <ui-skeleton variant="block" label="Loading billing" />
+  } @else if (loadStatus() === 'error' && !health()) {
+    <ui-error-state heading="Couldn't load billing" [message]="error()" retryLabel="Retry" (retry)="refresh()" />
   }
 
   @if (health(); as h) {
-    <section aria-label="Revenue summary">
-      <dl class="billing-panel__stats">
-        <div class="billing-panel__stat">
-          <dt>MRR</dt>
-          <dd>{{ formatCents(h.mrr.cents) }}</dd>
-          <dd class="billing-panel__stat-note">
-            @if (h.mrr.source === 'stripe') {
-              From Stripe · {{ h.mrr.activeSubscriptions }} active
-              subscription{{ h.mrr.activeSubscriptions === 1 ? '' : 's' }}
-            } @else {
-              n/a under the commission model
-            }
-          </dd>
-        </div>
-        <div class="billing-panel__stat">
-          <dt>Collected · trailing 30d</dt>
-          <dd>{{ formatCents(h.collectedTrailing30d.commissionCents) }}</dd>
-          <dd class="billing-panel__stat-note">
-            {{ h.collectedTrailing30d.count }} invoice{{
-              h.collectedTrailing30d.count === 1 ? '' : 's'
-            }}
-            paid
-          </dd>
-        </div>
-        <div class="billing-panel__stat">
-          <dt>Disputed</dt>
-          <dd>{{ formatCents(h.disputed.commissionCents) }}</dd>
-          <dd class="billing-panel__stat-note">
-            {{ h.disputed.count }} open dispute{{
-              h.disputed.count === 1 ? '' : 's'
-            }}
-          </dd>
-        </div>
-      </dl>
-    </section>
-
-    <section aria-label="In-review aging">
-      <h2 class="billing-panel__section-title">In-review aging</h2>
-      <dl class="billing-panel__stats">
-        <div class="billing-panel__stat">
-          <dt>Fresh · under 48h</dt>
-          <dd>{{ h.inReview.under48h.count }}</dd>
-          <dd class="billing-panel__stat-note">
-            {{ formatCents(h.inReview.under48h.commissionCents) }}
-          </dd>
-        </div>
-        <div class="billing-panel__stat">
-          <dt>Aging · under 7d</dt>
-          <dd>{{ h.inReview.under7d.count }}</dd>
-          <dd class="billing-panel__stat-note">
-            {{ formatCents(h.inReview.under7d.commissionCents) }}
-          </dd>
-        </div>
-        <div
-          class="billing-panel__stat billing-panel__stat--attention"
-          [class.billing-panel__stat--ok]="h.inReview.overdue.count === 0"
-        >
-          <dt>Overdue · review window passed</dt>
-          <dd>
-            {{ h.inReview.overdue.count }}
-            @if (h.inReview.overdue.count > 0) {
-              <span class="billing-panel__flag">needs attention</span>
-            }
-          </dd>
-          <dd class="billing-panel__stat-note">
-            {{ formatCents(h.inReview.overdue.commissionCents) }}
-          </dd>
-        </div>
-      </dl>
-    </section>
-
-    <section aria-label="In-review invoices">
-      <h2 class="billing-panel__section-title">
-        In-review invoices
-        @if (h.inReviewInvoices.length > 0) {
-          <span class="billing-panel__flag">action available</span>
-        }
-      </h2>
-      @if (h.inReviewInvoices.length === 0) {
-        <p class="billing-panel__empty">
-          No invoices awaiting review.
-        </p>
-      } @else {
-        <div class="billing-panel__table-wrap">
-          <table class="billing-panel__table">
-            <thead>
-              <tr>
-                <th scope="col">Tenant</th>
-                <th scope="col">Amount</th>
-                <th scope="col">Rate</th>
-                <th scope="col">Review due</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (invoice of h.inReviewInvoices; track invoice.id) {
-                <tr>
-                  <td>{{ invoice.tenantKey }}</td>
-                  <td>{{ formatCents(invoice.commissionCents) }}</td>
-                  <td>{{ formatRatePercent(invoice.commissionRatePercent) }}</td>
-                  <td>
-                    @if (invoice.reviewDueAt) {
-                      {{ invoice.reviewDueAt | date: 'medium' }}
-                    } @else {
-                      —
-                    }
-                  </td>
-                  <td>
-                    <a
-                      class="billing-panel__link"
-                      [routerLink]="['/admin/billing/invoices', invoice.id]"
-                    >Details</a>
-                    @if (canManageBilling()) {
-                      <button
-                        type="button"
-                        class="billing-panel__btn"
-                        (click)="openManageInReview(invoice, $event)"
-                      >
-                        Manage
-                      </button>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </section>
-
-    <section aria-label="Dunning">
-      <h2 class="billing-panel__section-title">
-        Dunning
-        @if (hasDunning()) {
-          <span class="billing-panel__flag">needs attention</span>
-        }
-      </h2>
-      @if (h.dunning.length === 0) {
-        <p class="billing-panel__empty">
-          No failed charges. The dunning queue is clear.
-        </p>
-      } @else {
-        @if (retryFeedback(); as feedback) {
-          <p
-            class="billing-panel__feedback"
-            [class.billing-panel__feedback--ok]="feedback.ok"
-            [class.billing-panel__feedback--error]="!feedback.ok"
-            role="status"
-          >
-            {{ feedback.message }}
-          </p>
-        }
-        <div class="billing-panel__table-wrap">
-          <table class="billing-panel__table">
-            <thead>
-              <tr>
-                <th scope="col">Tenant</th>
-                <th scope="col">Amount</th>
-                <th scope="col">Past due since</th>
-                <th scope="col">Days overdue</th>
-                <th scope="col">Retries</th>
-                <th scope="col">Last failure</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (invoice of h.dunning; track invoice.id) {
-                <tr>
-                  <td>{{ invoice.tenantKey }}</td>
-                  <td>{{ formatCents(invoice.commissionCents) }}</td>
-                  <td>{{ invoice.pastDueSince | date: 'medium' }}</td>
-                  <td>{{ daysOverdue(invoice.pastDueSince) }}</td>
-                  <td>{{ invoice.retryCount }} of {{ h.maxChargeRetries }}</td>
-                  <td>{{ invoice.lastFailureReason ?? '—' }}</td>
-                  <td>
-                    <a
-                      class="billing-panel__link"
-                      [routerLink]="['/admin/billing/invoices', invoice.id]"
-                    >Details</a>
-                    @if (canManageBilling()) {
-                      <button
-                        type="button"
-                        class="billing-panel__btn"
-                        (click)="openManageDunning(invoice, $event)"
-                        title="Record an off-Stripe payment — cancels the scheduled auto-charge"
-                      >
-                        Mark as paid
-                      </button>
-                      @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
-                        <span class="billing-panel__muted">Manual handling</span>
-                      } @else if (isConfirming(invoice.id)) {
-                        <button
-                          type="button"
-                          class="billing-panel__btn billing-panel__btn--confirm"
-                          [disabled]="retryingInvoiceId() === invoice.id"
-                          (click)="confirmRetry(invoice.id)"
-                        >
-                          {{
-                            retryingInvoiceId() === invoice.id
-                              ? 'Retrying…'
-                              : 'Confirm retry'
-                          }}
-                        </button>
-                        <button
-                          type="button"
-                          class="billing-panel__btn"
-                          (click)="cancelRetry()"
-                        >
-                          Cancel
-                        </button>
-                      } @else {
-                        <button
-                          type="button"
-                          class="billing-panel__btn"
-                          (click)="requestRetry(invoice.id)"
-                        >
-                          {{
-                            retryButtonLabel(invoice.retryCount, h.maxChargeRetries)
-                          }}
-                        </button>
-                      }
-                    } @else {
-                      <span class="billing-panel__muted">—</span>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </section>
-
-    <section aria-label="Webhook health">
-      <h2 class="billing-panel__section-title">
-        Webhook health · trailing 24h
-        @if (hasWebhookIssues()) {
-          <span class="billing-panel__flag">needs attention</span>
-        }
-      </h2>
-      <dl class="billing-panel__stats">
-        <div class="billing-panel__stat">
-          <dt>Events received</dt>
-          <dd>{{ h.webhooks.received24h }}</dd>
-          <dd class="billing-panel__stat-note">
-            @if (h.webhooks.lastReceivedAt) {
-              Last: {{ h.webhooks.lastReceivedAt | date: 'medium' }}
-            } @else {
-              None in the last 24h
-            }
-          </dd>
-        </div>
-        <div
-          class="billing-panel__stat"
-          [class.billing-panel__stat--attention]="h.webhooks.unhandled24h > 0"
-        >
-          <dt>Unhandled event types</dt>
-          <dd>{{ h.webhooks.unhandled24h }}</dd>
-        </div>
-        <div
-          class="billing-panel__stat"
-          [class.billing-panel__stat--attention]="
-            h.webhooks.modelMismatch24h > 0
+    <section aria-labelledby="billing-revenue-heading">
+      <h2 id="billing-revenue-heading" class="billing-page__section-title">Revenue</h2>
+      <ui-kpi-grid>
+        <ui-kpi-tile
+          label="MRR"
+          [value]="h.mrr.cents | kitMoney"
+          [sub]="
+            h.mrr.source === 'stripe'
+              ? 'From Stripe · ' + plural(h.mrr.activeSubscriptions, 'active subscription', 'active subscriptions')
+              : 'Not used under the commission model'
           "
-        >
-          <dt>Model mismatches</dt>
-          <dd>{{ h.webhooks.modelMismatch24h }}</dd>
-        </div>
-      </dl>
-      @if (h.webhooks.byType24h.length > 0) {
-        <div class="billing-panel__table-wrap">
-          <table class="billing-panel__table">
-            <thead>
-              <tr>
-                <th scope="col">Event type</th>
-                <th scope="col">Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of h.webhooks.byType24h; track row.type) {
-                <tr>
-                  <td>
-                    <code>{{ row.type }}</code>
-                  </td>
-                  <td>{{ row.count }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
+        />
+        <ui-kpi-tile
+          label="Collected · trailing 30d"
+          [value]="h.collectedTrailing30d.commissionCents | kitMoney"
+          [sub]="plural(h.collectedTrailing30d.count, 'invoice paid', 'invoices paid')"
+        />
+        <ui-kpi-tile
+          label="Disputed"
+          [value]="h.disputed.commissionCents | kitMoney"
+          [sub]="plural(h.disputed.count, 'open dispute', 'open disputes')"
+          [tone]="h.disputed.count > 0 ? 'paused' : undefined"
+        />
+      </ui-kpi-grid>
     </section>
 
-    <p class="billing-panel__generated">
-      Generated {{ h.generatedAt | date: 'medium' }}
-    </p>
+    <section aria-labelledby="billing-aging-heading">
+      <h2 id="billing-aging-heading" class="billing-page__section-title">In-review aging</h2>
+      <ui-kpi-grid>
+        <ui-kpi-tile
+          label="Under 48 hours"
+          [value]="'' + h.inReview.under48h.count"
+          [sub]="h.inReview.under48h.commissionCents | kitMoney"
+        />
+        <ui-kpi-tile
+          label="Under 7 days"
+          [value]="'' + h.inReview.under7d.count"
+          [sub]="h.inReview.under7d.commissionCents | kitMoney"
+        />
+        <ui-kpi-tile
+          label="Overdue · review window passed"
+          [value]="'' + h.inReview.overdue.count"
+          [sub]="
+            (h.inReview.overdue.commissionCents | kitMoney) + (h.inReview.overdue.count > 0 ? ' · needs attention' : '')
+          "
+          [tone]="h.inReview.overdue.count > 0 ? 'danger' : undefined"
+        />
+      </ui-kpi-grid>
+    </section>
+
+    <section class="billing-page__card" aria-labelledby="billing-in-review-heading" data-testid="in-review-queue">
+      <h2 id="billing-in-review-heading" class="billing-page__card-title">In review</h2>
+      <ui-data-table
+        label="Invoices in review"
+        [rows]="inReviewRows()"
+        [columns]="inReviewColumns"
+        [rowId]="inReviewId"
+        [selectedId]="openId()"
+        emptyHeading="No invoices awaiting review"
+        (open)="openInvoice($event.id)"
+      >
+        <ng-template uiRowActions let-row>
+          <span class="billing-page__row-actions">
+            <button
+              type="button"
+              ui-button
+              variant="secondary"
+              size="sm"
+              data-testid="manage-invoice"
+              [attr.aria-label]="(canManageBilling() ? 'Manage ' : 'View ') + builderName(row.tenantKey) + ' invoice'"
+              (click)="openInvoice(row.id)"
+            >
+              {{ canManageBilling() ? 'Manage' : 'Details' }}
+            </button>
+            <ui-row-actions
+              [actions]="inReviewActions()"
+              [label]="'More actions for ' + builderName(row.tenantKey) + ' invoice'"
+              (selected)="onRowAction(row.id, $event)"
+            />
+          </span>
+        </ng-template>
+      </ui-data-table>
+    </section>
+
+    <section class="billing-page__card" aria-labelledby="billing-dunning-heading" data-testid="dunning-queue">
+      <h2 id="billing-dunning-heading" class="billing-page__card-title">
+        Dunning
+        @if (h.dunning.length > 0) {
+          <ui-status-chip domain="opsFlag" status="attention" />
+        }
+      </h2>
+      <ui-data-table
+        label="Failed charges in dunning"
+        [rows]="dunningRows()"
+        [columns]="dunningColumns"
+        [rowId]="dunningId"
+        [selectedId]="openId()"
+        emptyHeading="No failed charges"
+        emptyMessage="The dunning queue is clear."
+        (open)="openInvoice($event.id)"
+      >
+        <ng-template uiRowActions let-row>
+          <span class="billing-page__row-actions">
+            <button
+              type="button"
+              ui-button
+              variant="secondary"
+              size="sm"
+              data-testid="manage-invoice"
+              [attr.aria-label]="(canManageBilling() ? 'Manage ' : 'View ') + builderName(row.tenantKey) + ' invoice'"
+              [loading]="retryingInvoiceId() === row.id"
+              (click)="openInvoice(row.id)"
+            >
+              {{ canManageBilling() ? 'Manage' : 'Details' }}
+            </button>
+            <ui-row-actions
+              [actions]="dunningActions(row)"
+              [label]="'More actions for ' + builderName(row.tenantKey) + ' invoice'"
+              (selected)="onRowAction(row.id, $event)"
+            />
+          </span>
+        </ng-template>
+      </ui-data-table>
+    </section>
+
+    <section class="billing-page__diagnostics" aria-labelledby="billing-diagnostics-heading">
+      <h2 id="billing-diagnostics-heading" class="billing-page__diagnostics-title">Diagnostics</h2>
+      <p>
+        <ui-status-chip
+          domain="opsFlag"
+          [status]="hasWebhookIssues() ? 'attention' : 'ok'"
+          [label]="hasWebhookIssues() ? 'Webhooks need attention' : 'Webhooks healthy'"
+        />
+        <a routerLink="/admin/webhooks" data-testid="webhooks-link">View webhook health</a>
+      </p>
+    </section>
+
+    <p class="billing-page__generated">Generated {{ h.generatedAt | kitDateTime }}</p>
   }
 </div>

@@ -402,6 +402,7 @@
   },
   "admin": {
     "defaultRateLimit": 60,
+    "environmentLabel": "Dev",
     "entra": {
       "tenantSubdomain": "feaslyext",
       "tenantId": "e8f46aab-2491-4389-8e39-ae78ee12db6a",
@@ -415,7 +416,8 @@
     "minLotSizeSqft": 1200,
     "maxLotSizeSqft": 20000,
     "minAssessedLandValue": 25000,
-    "maxAssessedLandValue": 10000000
+    "maxAssessedLandValue": 10000000,
+    "estimateRoundingStep": 1000
   },
   "site": {
     "name": "Feasly",
@@ -424,10 +426,12 @@
   },
   "timings": {
     "debounceMs": 250,
+    "filterDebounceMs": 250,
     "mockLatencyMaxMs": 900,
     "mockLatencyMinMs": 400,
     "resendCooldownSec": 60,
-    "reviseDebounceMs": 400
+    "reviseDebounceMs": 400,
+    "toastDurationMs": 5000
   },
   "wizard": {
     "sqftDefault": 2200,

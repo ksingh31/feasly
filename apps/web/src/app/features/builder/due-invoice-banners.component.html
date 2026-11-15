@@ -4,6 +4,8 @@
     <!-- Slim summary bar: the whole stack folded into one line. -->
     <div class="due-banners">
       <div class="due">
+        <!-- Toggle and dismiss are sibling buttons (axe nested-interactive, #536). -->
+        <div class="due-head due-head--summary">
         <button
           type="button"
           class="due-bar due-bar--summary"
@@ -24,15 +26,14 @@
               <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
-          <span
-            class="due-x"
-            role="button"
-            tabindex="0"
-            [attr.aria-label]="copy.dueBannersDismissAllLabel"
-            (click)="onDismissAll($event)"
-            (keydown)="onDismissAllKey($event)"
-          >×</span>
         </button>
+        <button
+          type="button"
+          class="due-x"
+          [attr.aria-label]="copy.dueBannersDismissAllLabel"
+          (click)="onDismissAll($event)"
+        >×</button>
+        </div>
       </div>
     </div>
   } @else {
@@ -52,6 +53,7 @@
     <div class="due-banners">
       @for (invoice of due; track invoice.id) {
         <div class="due" [attr.data-open]="isOpen(invoice.id)">
+          <div class="due-head">
           <button
             type="button"
             class="due-bar"
@@ -71,15 +73,14 @@
                 <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <span
-              class="due-x"
-              role="button"
-              tabindex="0"
-              [attr.aria-label]="dismissLabel(invoice)"
-              (click)="onDismiss(invoice, $event)"
-              (keydown)="onDismissKey(invoice, $event)"
-            >×</span>
           </button>
+          <button
+            type="button"
+            class="due-x"
+            [attr.aria-label]="dismissLabel(invoice)"
+            (click)="onDismiss(invoice, $event)"
+          >×</button>
+          </div>
           @if (isOpen(invoice.id)) {
             <div class="due-body">
               <div class="due-meta">{{ metaLine(invoice) }}</div>

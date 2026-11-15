@@ -12,6 +12,22 @@ import {
   aggregateCostBuckets,
   type CostBucket,
 } from '../../shared/cost-buckets';
+import {
+  type Breadcrumb,
+  EmptyStateComponent,
+  ErrorStateComponent,
+  KeyValueListComponent,
+  type KeyValueItem,
+  KitDateTimePipe,
+  KitMoneyPipe,
+  PageHeaderComponent,
+  SkeletonComponent,
+  type TechnicalId,
+  TechnicalIdsComponent,
+  UiButtonComponent,
+  UiTextFieldComponent,
+} from '../../shared/ui';
+import { ConfigService } from '../../core/config/config.service';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
 
 /** Lookup lifecycle for the admin estimate view. */
@@ -28,10 +44,7 @@ const NOT_FOUND_CODES = new Set([
 ]);
 
 /** Human-readable input rows for the ops view. */
-interface InputRow {
-  readonly label: string;
-  readonly value: string;
-}
+type InputRow = KeyValueItem & { readonly value: string };
 
 const TIER_LABELS: Record<FinishTier, string> = {
   standard: 'Standard',
@@ -66,7 +79,20 @@ const RENO_TYPE_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-estimate-lookup',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [
+    FormsModule,
+    RouterLink,
+    PageHeaderComponent,
+    UiTextFieldComponent,
+    UiButtonComponent,
+    KeyValueListComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    SkeletonComponent,
+    TechnicalIdsComponent,
+    KitDateTimePipe,
+    KitMoneyPipe,
+  ],
   templateUrl: './admin-estimate-lookup.component.html',
   styleUrl: './admin-estimate-lookup.component.scss',
 })
@@ -75,6 +101,11 @@ export class AdminEstimateLookupComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dateTime = new KitDateTimePipe();
+  private readonly money = new KitMoneyPipe();
+
+  /** Technical IDs copy (#538). */
+  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
 
   /** Estimate ID being looked up (from the `:id` route param). */
   protected readonly lookupId = signal<string | null>(null);
@@ -107,7 +138,7 @@ export class AdminEstimateLookupComponent {
 
   protected readonly bucketsAriaLabel = computed(() =>
     this.buckets()
-      .map((b) => `${b.label}: ${this.formatCad(b.range.base)}`)
+      .map((b) => `${b.label}: ${this.money.transform(b.range.base, 'dollars')}`)
       .join(', '),
   );
 
@@ -115,6 +146,58 @@ export class AdminEstimateLookupComponent {
   protected readonly isReno = computed(
     () => this.detail()?.projectType === 'renovation',
   );
+
+  /**
+   * Breadcrumbs: Estimates › <created date> on the detail view — never the
+   * raw UUID (#538; it lives in Technical IDs).
+   */
+  protected readonly breadcrumbs = computed<readonly Breadcrumb[]>(() => {
+    if (!this.lookupId()) return [];
+    const d = this.detail();
+    const label = d && d.id === this.lookupId() ? this.dateTime.transform(d.createdAt) : 'Estimate';
+    return [{ label: 'Estimates', link: '/admin/estimates' }, { label }];
+  });
+
+  /** Raw identifiers, only inside the collapsed Technical IDs section (#538). */
+  protected readonly technicalIds = computed<readonly TechnicalId[]>(() => {
+    const d = this.detail();
+    if (!d) return [];
+    const ids: TechnicalId[] = [{ label: 'Estimate ID', value: d.id }];
+    if (d.linkedLeadId) ids.push({ label: 'Lead ID', value: d.linkedLeadId });
+    return ids;
+  });
+
+  /** Ops facts (version verbatim, dates via the kit pipe). */
+  protected readonly opsItems = computed<readonly KeyValueItem[]>(() => {
+    const d = this.detail();
+    if (!d) return [];
+    return [
+      { label: 'Cost data version', value: d.costDataVersion },
+      { label: 'Created', value: this.dateTime.transform(d.createdAt) },
+      { label: 'Project type', value: d.projectType === 'renovation' ? 'Renovation' : 'New build' },
+      { label: 'Linked lead', value: d.linkedLeadId ? 'Linked' : 'No lead yet — gate not completed.' },
+    ];
+  });
+
+  /** Build cost (+ fixed land value for new builds) under the hero total. */
+  protected readonly heroItems = computed<readonly KeyValueItem[]>(() => {
+    const d = this.detail();
+    if (!d) return [];
+    const build = d.outputs.buildRange;
+    const items: KeyValueItem[] = [
+      {
+        label: 'Build cost',
+        value: `${this.money.transform(build.base, 'dollars')} (${this.money.transform(build.low, 'dollars')}–${this.money.transform(build.high, 'dollars')})`,
+      },
+    ];
+    if (d.projectType !== 'renovation') {
+      items.push({
+        label: 'Land value (City assessed, fixed)',
+        value: this.money.transform(d.outputs.landValue.value, 'dollars'),
+      });
+    }
+    return items;
+  });
 
   /** Human-readable input rows, mirroring the consumer report's details. */
   protected readonly inputRows = computed<readonly InputRow[]>(() => {
@@ -270,25 +353,8 @@ export class AdminEstimateLookupComponent {
       });
   }
 
-  protected formatCad(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-CA')}`;
-  }
-
-  protected formatSqft(value: number): string {
+  private formatSqft(value: number): string {
     return `${value.toLocaleString('en-CA')} sq ft`;
-  }
-
-  protected formatDate(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime())
-      ? iso
-      : date.toLocaleString('en-CA', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-        });
   }
 
   private titleCase(value: string): string {

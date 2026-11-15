@@ -40,7 +40,9 @@
       <div class="ac-error ac-out-of-coverage" role="alert">
         <p class="ac-ooc-heading">{{ copy.outOfCoverageHeading }}</p>
         <p>{{ copy.outOfCoverageBody }}</p>
-        <button type="button" class="ac-retry" (click)="retry()">{{ copy.retryLabel }}</button>
+        <button type="button" class="ac-retry ac-ooc-action" (click)="tryCalgaryAddress()">
+          {{ copy.outOfCoverageAction }}
+        </button>
       </div>
       @if (waitlist() && cityWaitlistEnabled) {
         <app-waitlist-signup variant="city" [query]="lastQuery()" />

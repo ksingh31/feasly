@@ -12,6 +12,9 @@
  *   (brand/last4/expiry only, never the PAN). Builder-gated; tenant-scoped.
  * - `GET /api/v1/billing/invoices/{id}` — read a commission invoice.
  *   Builders see only their own tenant's invoices; admins see all.
+ * - `GET /api/v1/billing/invoices/{id}/pdf` — the same invoice as a PDF
+ *   (receipt block when paid, #661). Builders: own tenant only, 404 for
+ *   another tenant's id; admins see all.
  * - `POST /api/v1/billing/invoices/{id}/dispute` — builder disputes their
  *   own invoice (charge clock freezes, ops alerted). Builder-gated.
  * - `POST /api/v1/billing/invoices/{id}/resolve` — admin resolves a
@@ -51,6 +54,10 @@ import type {
   CommissionCardStatus,
 } from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
+import type {
+  InvoicePdfResult,
+  InvoicePdfService,
+} from '../services/billing/invoice-pdf.service';
 import type { CommissionRateResponse } from '@feasly/contracts';
 import type {
   DefaultPaymentMethodResponse,
@@ -60,6 +67,8 @@ import type {
 export interface BillingRouteDeps {
   readonly billing: BillingService;
   readonly commissionCard: CommissionCardService;
+  /** #661: renders the invoice/receipt PDF from the server record. */
+  readonly invoicePdf: InvoicePdfService;
   readonly builderGuard: BuilderGuard;
   readonly adminGuard: AdminGuard;
 }
@@ -83,6 +92,11 @@ export interface BillingRoute {
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
   ): Promise<CommissionInvoiceRecord>;
+  /** GET /api/v1/billing/invoices/{id}/pdf — invoice/receipt PDF (#661) */
+  getInvoicePdf(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<InvoicePdfResult>;
   /** GET /api/v1/billing/invoices — paginated, tenant-scoped list */
   listInvoices(
     headers: Record<string, string | string[] | undefined>,
@@ -229,7 +243,8 @@ async function requireBuilderSession(
 }
 
 export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
-  const { billing, commissionCard, builderGuard, adminGuard } = deps;
+  const { billing, commissionCard, invoicePdf, builderGuard, adminGuard } =
+    deps;
 
   return {
     async reportContract(headers, body): Promise<BillableEventResult> {
@@ -346,6 +361,20 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
       }
       await adminGuard.requireAdmin(headers);
       return billing.getInvoice(invoiceId, null);
+    },
+
+    async getInvoicePdf(headers, id): Promise<InvoicePdfResult> {
+      const invoiceId = parseInvoiceId(id);
+      // Same scoping as getInvoice; a foreign id is a 404 (service).
+      const builderSession = await builderGuard.getBuilderSession(headers);
+      if (builderSession) {
+        return invoicePdf.renderInvoicePdf(
+          invoiceId,
+          builderSession.tenantKey,
+        );
+      }
+      await adminGuard.requireAdmin(headers);
+      return invoicePdf.renderInvoicePdf(invoiceId, null);
     },
 
     async listInvoices(

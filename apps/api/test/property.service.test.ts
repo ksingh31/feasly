@@ -202,12 +202,21 @@ describe('property service', () => {
         zoning: 'C-C2',
         assessedValue: 60150000,
         assessmentYear: 2026,
+        assessmentYearInferred: false,
         yearBuilt: 1980,
         assessmentClass: 'R',
         isNonResidential: false,
         dataAsOf: '2026-01-15',
         stale: false,
       });
+    });
+
+    // #622: never present a guessed roll year as one read from the City.
+    it('flags the assessment year as inferred when the row has no roll_year', async () => {
+      mockFetchOnce([{ ...ROW, roll_year: undefined }]);
+      const res = await service.getProperty('1600 90 AV SW');
+      expect(res.assessmentYearInferred).toBe(true);
+      expect(res.assessmentYear).toBe(new Date().getFullYear());
     });
 
     it('flags a non-residential (NR) row as isNonResidential', async () => {

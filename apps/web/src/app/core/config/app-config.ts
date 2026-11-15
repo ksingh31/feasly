@@ -298,26 +298,41 @@ export interface BuilderCopy {
   teamInviteDuplicatePending: string;
   teamDeactivateLabel: string;
   teamReactivateLabel: string;
-  teamRemoveLabel: string;
-  teamRemoving: string;
-  teamDeactivating: string;
+  /** Team v2 (#535): "You" tag, invite Resend/Revoke, ConfirmDialog + toast copy. */
+  teamYouTag: string;
+  teamResendLabel: string;
+  teamResent: string;
+  teamRevokeLabel: string;
+  teamRevokeTitle: string;
+  teamRevokeBody: string;
+  teamRevoked: string;
+  teamDeactivateTitle: string;
+  teamDeactivateBody: string;
+  teamDeactivated: string;
+  teamReactivated: string;
+  teamViewAsHint: string;
   /** Builder-side view-as (2026-09-30, Karan): row action + error copy. */
   teamViewAsLabel: string;
   teamViewAsStarting: string;
   teamViewAsError: string;
   teamViewAsForbidden: string;
-  teamDeactivateConfirm: string;
-  teamRemoveConfirm: string;
   /** auth/07: explainer shown under the disabled role select / Deactivate
       for the sole remaining active admin (exact story copy). */
   teamLastAdminRoleNote: string;
   teamLastAdminDeactivateNote: string;
-  teamConfirmYes: string;
   teamConfirmNo: string;
   teamActionError: string;
   shellHomeLabel: string;
-  shellMenuOpenLabel: string;
-  shellMenuCloseLabel: string;
+  /** Builder shell v2 (#502, portal UI kit §4). */
+  shellNavLabel: string;
+  shellTabsLabel: string;
+  shellNavMoney: string;
+  shellMoneyNavLabel: string;
+  shellAccountMenuLabel: string;
+  shellSwitchOrgLabel: string;
+  shellSignedInAs: string;
+  shellFailedCardMessage: string;
+  shellFailedCardCta: string;
   leadsSubtitle: string;
   leadsEmptyHeading: string;
   leadsEmptyGuidance: string;
@@ -369,7 +384,322 @@ export interface BuilderCopy {
   contractCommissionPanelSub: string;
   contractCommissionContractValue: string;
   contractCommissionRate: string;
+  /** Leads home (#527): "Needs you" cards + pipeline table. */
+  leadsHome: BuilderLeadsHomeCopy;
+  /** Builder lead drawer (#528). */
+  leadDrawer: BuilderLeadDrawerCopy;
+  /** Invoice drawer + change-method modal (#533). */
+  invoiceDrawer: BuilderInvoiceDrawerCopy;
   contractRetry: string;
+  /** Money sub-nav: the overview page (#532). */
+  shellNavMoneyOverview: string;
+  /** Money page (#532) H1. */
+  moneyHeading: string;
+  /** Money page one-line description. */
+  moneyDescription: string;
+  /** Money page meta description. */
+  moneySeoDescription: string;
+  /** Accessible name for the KPI row. */
+  moneyKpiLabel: string;
+  /** Loading label for the KPI row. */
+  moneyLoading: string;
+  /** KPI row load error. */
+  moneyLoadError: string;
+  /** KPI: outstanding balance label. */
+  moneyKpiOutstanding: string;
+  /** KPI sub: {count} = unpaid invoice count (2+ or 0). */
+  moneyKpiOutstandingSub: string;
+  /** KPI sub for exactly one unpaid invoice. */
+  moneyKpiOutstandingSubOne: string;
+  /** KPI: next auto-charge label. */
+  moneyKpiNextCharge: string;
+  /** KPI value when no auto-charge is scheduled. */
+  moneyKpiNextChargeNone: string;
+  /** KPI sub when no auto-charge is scheduled. */
+  moneyKpiNextChargeNoneSub: string;
+  /** KPI sub: {date}, {last4}. */
+  moneyKpiNextChargeSub: string;
+  /** KPI sub when no card is saved: {date}. */
+  moneyKpiNextChargeSubNoCard: string;
+  /** KPI: failed payments label. */
+  moneyKpiFailed: string;
+  /** KPI sub when payments failed (tile links to the card page). */
+  moneyKpiFailedSub: string;
+  /** KPI sub when nothing failed. */
+  moneyKpiFailedNoneSub: string;
+  /** KPI: plan label. */
+  moneyKpiPlan: string;
+  /** KPI value under a commission plan: {rate} e.g. "1%". */
+  moneyPlanCommission: string;
+  /** KPI sub under a commission plan. */
+  moneyPlanCommissionSub: string;
+  /** KPI value under a flat plan. */
+  moneyPlanFlat: string;
+  /** KPI sub under a flat plan. */
+  moneyPlanFlatSub: string;
+  /** Recent invoices section heading. */
+  moneyInvoicesHeading: string;
+  /** Link to the full invoice list. */
+  moneyInvoicesViewAll: string;
+  /** Invoice table empty heading. */
+  moneyInvoicesEmptyHeading: string;
+  /** Invoice table empty body. */
+  moneyInvoicesEmptyBody: string;
+  /** Invoice table: review-window end column. */
+  moneyColReviewEnds: string;
+  /** Invoice table: lifecycle stepper column. */
+  moneyColLifecycle: string;
+  /** Accessible name of each invoice's lifecycle stepper. */
+  moneyLifecycleLabel: string;
+  /** Card panel heading. */
+  moneyCardHeading: string;
+  /** Card panel expiry line: {exp} = MM/YY. */
+  moneyCardExpires: string;
+  /** Card panel body when no card is saved. */
+  moneyCardNone: string;
+  /** Card panel link when a card is saved. */
+  moneyCardManage: string;
+  /** Card panel link when no card is saved. */
+  moneyCardAdd: string;
+  /** Card panel body under a flat plan. */
+  moneyCardFlat: string;
+  /** "How charges work" panel heading. */
+  moneyHowHeading: string;
+  /** Link to question an invoice (href: config billing.questionInvoiceHref). */
+  moneyQuestionInvoice: string;
+}
+
+/** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */
+export interface BuilderLeadsHomeCopy {
+  heading: string;
+  needsYouHeading: string;
+  /** Group titles; `{days}` is the server's staleness threshold. */
+  groups: { uncontacted: string; stale: string; wonWithoutContract: string };
+  /** Age prefix per group, followed by a relative time ("2 hours ago"). */
+  ageLabels: { uncontacted: string; stale: string; wonWithoutContract: string };
+  allClearHeading: string;
+  allClearMessage: string;
+  needsYouError: string;
+  callLabel: string;
+  emailLabel: string;
+  /** Accessible names; `{name}` is the lead's name. */
+  callAria: string;
+  emailAria: string;
+  recordContractCta: string;
+  /** Shown to members on won-without-contract cards (recording is admin-only). */
+  recordContractMemberNote: string;
+  pipelineHeading: string;
+  statusFilterLabel: string;
+  allStatusesLabel: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  tableLabel: string;
+  columns: { lead: string; status: string; details: string; activity: string };
+  /** Details-cell timeline prefix ("Timeline 0–3 months"). */
+  timelinePrefix: string;
+  /** Text marker on stale rows (the highlight is never colour-only). */
+  staleLabel: string;
+  noResultsHeading: string;
+  noResultsMessage: string;
+  clearFiltersLabel: string;
+  sortByLabel: string;
+  defaultSortLabel: string;
+  ascendingLabel: string;
+  descendingLabel: string;
+  previousLabel: string;
+  nextLabel: string;
+  pageLabel: string;
+  pageOfLabel: string;
+  actionsHeader: string;
+  /** Rows per pipeline page. */
+  pageSize: number;
+  /** Lead-score heat pill (Hot ≥ hotMin, Warm ≥ warmMin, else Cool). */
+  heat: {
+    hot: string;
+    warm: string;
+    cool: string;
+    hotMin: number;
+    warmMin: number;
+    /** Pill text: `{heat}` is Hot/Warm/Cool, `{score}` the 0–100 lead score. */
+    chipLabel: string;
+  };
+  /** Wire project types → labels; unknown values are humanised. */
+  projectTypes: Record<string, string>;
+  closeLabel: string;
+}
+
+/** Builder invoice drawer + change-payment-method modal copy (#533). */
+export interface BuilderInvoiceDrawerCopy {
+  /** Drawer heading while the invoice loads. */
+  loadingHeading: string;
+  /** Header meta: `{number}` invoice number, `{lead}` lead name. */
+  headerMeta: string;
+  closeLabel: string;
+  /** Accessible name of the lifecycle stepper. */
+  lifecycleLabel: string;
+  stepCompleteLabel: string;
+  stepCurrentLabel: string;
+  stepUpcomingLabel: string;
+  breakdownHeading: string;
+  /** Rate row label. */
+  breakdownRate: string;
+  /** Commission row label. */
+  breakdownCommission: string;
+  /** One-line summary: `{contract} × {rate} = {commission}` (all server figures). */
+  breakdownFormula: string;
+  paymentHeading: string;
+  /** Opens the change-method modal. */
+  changeMethod: string;
+  /** Accessible name of the Change link: `{number}`. */
+  changeMethodAria: string;
+  timelineHeading: string;
+  timelineEmpty: string;
+  actionsHeading: string;
+  questionInvoice: string;
+  /** #661: invoice PDF/receipt download button. */
+  downloadPdf: string;
+  /** Button label while the PDF is being fetched. */
+  downloadingPdf: string;
+  /** Accessible name of the download button: `{number}`. */
+  downloadPdfAria: string;
+  /** Inline error when the PDF download fails. */
+  downloadPdfError: string;
+  /** Saved file name: `{number}` invoice number. */
+  pdfFilename: string;
+  /** Toast after a method change: `{method}`. */
+  methodChangedToast: string;
+  modalHeading: string;
+  /** "Before" label in the modal. */
+  modalBefore: string;
+  /** "After" label in the modal. */
+  modalAfter: string;
+  /** Radio group legend. */
+  modalChooseLabel: string;
+  /** Marker next to the saved method in the radio list. */
+  modalCurrentTag: string;
+  /** After-panel text until a different method is picked. */
+  modalNoChange: string;
+  /** Effect line for the card on file. */
+  modalEffectCard: string;
+  modalSave: string;
+  modalSaving: string;
+  modalCancel: string;
+}
+
+/** Builder lead drawer copy (#528, artboard "Builder · Lead drawer"). */
+export interface BuilderLeadDrawerCopy {
+  /** Header meta: `{date}` is when the lead arrived. */
+  arrivedMeta: string;
+  contactHeading: string;
+  statusHeading: string;
+  detailsHeading: string;
+  activityHeading: string;
+  notesHeading: string;
+  /** Accessible name of the status stepper. */
+  progressLabel: string;
+  stepCompleteLabel: string;
+  stepCurrentLabel: string;
+  stepUpcomingLabel: string;
+  /** Group label for the "move to" buttons; `{name}` is the lead's name. */
+  moveToLabel: string;
+  /** Visible lead-in before the "move to" buttons. */
+  moveToPrompt: string;
+  /** Toast after a status change; `{status}` is the new status label. */
+  statusChangedToast: string;
+  /** Toast after Undo; `{status}` is the restored status label. */
+  statusRevertedToast: string;
+  undoLabel: string;
+  /** Won → record contract panel. */
+  wonPanelHeading: string;
+  wonPanelBody: string;
+  /** Lost → reason panel. */
+  lostPanelHeading: string;
+  lostPanelBody: string;
+  lostReasonLabel: string;
+  lostReasonPlaceholder: string;
+  /** Reason options; the pick is saved to the notes thread. */
+  lostReasons: readonly string[];
+  lostReasonSave: string;
+  /** Note body; `{reason}` is the picked reason. */
+  lostReasonNote: string;
+  lostReasonSaved: string;
+  /** Activity timeline titles. */
+  activityArrived: string;
+  /** `{status}` is the current status label. */
+  activityStatus: string;
+  activityEmpty: string;
+  showDetailsLabel: string;
+  hideDetailsLabel: string;
+  closeLabel: string;
+  /** Pinned notes composer (drawer footer). */
+  composerLabel: string;
+  composerPlaceholder: string;
+  postLabel: string;
+  postingLabel: string;
+  /** Unsaved note / lost reason: the discard question. */
+  discardTitle: string;
+  discardBody: string;
+  discardVerb: string;
+  discardCancel: string;
+  /** Won panel: record the signed contract inline (#529). */
+  record: BuilderRecordContractCopy;
+}
+
+/**
+ * Lead drawer → record contract (#529). `{rate}`, `{value}`, `{commission}`,
+ * `{card}`, `{date}`, `{method}`, `{name}`, `{days}` placeholders are filled
+ * in the component; every figure comes from the API or the cost rate.
+ */
+export interface BuilderRecordContractCopy {
+  valueLabel: string;
+  valueHint: string;
+  valueRequired: string;
+  dateLabel: string;
+  dateRequired: string;
+  dateFuture: string;
+  /** Live preview heading: `{rate}` e.g. "1%". */
+  commissionLabel: string;
+  /** Preview figure before a value is typed. */
+  commissionEmpty: string;
+  rateLoading: string;
+  rateError: string;
+  /** Flat plan: no commission on recorded contracts. */
+  flatPlan: string;
+  chargeDateLabel: string;
+  cardLabel: string;
+  /** Row label when the default method is manual. */
+  paymentLabel: string;
+  /** `{brand}` and `{last4}`. */
+  cardValue: string;
+  noCard: string;
+  addCard: string;
+  /** Manual default method: `{method}` (lower-case label). */
+  manualMethod: string;
+  reviewCta: string;
+  /** Confirm title: `{name}` is the lead. */
+  confirmTitle: string;
+  /** `{commission}`, `{rate}`, `{value}`, `{card}`, `{date}` (+ the charge-timing sentence). */
+  confirmBody: string;
+  /** No card saved: `{commission}`, `{rate}`, `{value}`, `{date}`. */
+  confirmBodyNoCard: string;
+  /** Manual method: `{commission}`, `{rate}`, `{value}`, `{method}`. */
+  confirmBodyManual: string;
+  /** Flat plan: `{value}`. */
+  confirmBodyFlat: string;
+  confirmVerb: string;
+  confirmVerbFlat: string;
+  confirmCancel: string;
+  submitting: string;
+  successHeading: string;
+  /** Success row labels. */
+  successCommission: string;
+  successChargeDate: string;
+  successCountdown: string;
+  /** Countdown: `{days}`. */
+  countdownIn: string;
+  countdownTomorrow: string;
+  countdownToday: string;
+  viewInvoice: string;
 }
 
 export interface AppConfig {
@@ -416,6 +746,20 @@ export interface AppConfig {
   billing: {
     /** Stripe publishable key (`pk_test_…` in dev). Empty = unavailable. */
     stripePublishableKey: string;
+    /**
+     * Where the Money page's "Question an invoice" link goes (#532) — a
+     * `mailto:` or contact URL, deploy-provided. Empty = the link is hidden
+     * (builder disputes in-app are deferred; the contact inbox is an owner
+     * decision).
+     */
+    questionInvoiceHref: string;
+    /**
+     * Days between an invoice being issued and the card charge (the
+     * review window). Mirrors the backend's window so the record-contract
+     * confirm can name the expected charge date before the invoice exists;
+     * the minted invoice's own `reviewDueAt` is shown once it does.
+     */
+    chargeDelayDays: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
@@ -482,6 +826,8 @@ export interface AppConfig {
     debounceMs: number;
     /** Report sqft-stepper live-revise debounce (D-02: 400 ms trailing). */
     reviseDebounceMs: number;
+    /** Portal FilterBar search debounce (portal-ui-kit §3: 250 ms). */
+    filterDebounceMs: number;
     /** Cooldown between magic-link resends. */
     resendCooldownSec: number;
     /** Mock API latency window (FE0-003). Real API ignores these. */
@@ -489,6 +835,8 @@ export interface AppConfig {
     mockLatencyMaxMs: number;
     /** Analyzing pipeline stage timeout (an API stage slower than this fails honestly). */
     analyzingTimeoutMs: number;
+    /** Portal UI kit Toast auto-dismiss (portal-ui-kit §3: 5s). */
+    toastDurationMs: number;
   };
   /** Collection limits. */
   limits: {
@@ -510,6 +858,13 @@ export interface AppConfig {
     maxLotSizeSqft: number;
     minAssessedLandValue: number;
     maxAssessedLandValue: number;
+    /**
+     * Display rounding step (whole dollars) for consumer estimate figures
+     * (#504, #608): no estimate renders more precise than this. Mirrors the
+     * top-level `roundTo` of the pinned cost-data file;
+     * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
+     */
+    estimateRoundingStep: number;
   };
   /** Analytics consent. */
   analytics: {
@@ -521,6 +876,27 @@ export interface AppConfig {
   admin: {
     /** Default per-minute rate limit prefilled in the issue form. */
     defaultRateLimit: number;
+    /** Highest per-minute rate limit the API accepts (mirrors the zod max). */
+    rateLimitMax: number;
+    /** Longest API key name the API accepts (mirrors the zod max). */
+    apiKeyNameMax: number;
+    /**
+     * Environment chip in the admin top bar (#503), e.g. "Dev". Empty hides
+     * the chip. Per-deploy value: set in the served app-config.json.
+     */
+    environmentLabel: string;
+    /** Admin Leads saved views (#539). */
+    leads: {
+      /** "Quoting > N days" saved view: quoting leads created more than N days ago. */
+      quotingStaleDays: number;
+    };
+    /** Admin Quarantine (#540). */
+    quarantine: {
+      /** Parallel approve/discard calls in a bulk run (no bulk endpoint exists). */
+      bulkConcurrency: number;
+    };
+    /** ⌘K palette query cap — matches GET /api/v1/admin/search's max (#538). */
+    searchMaxQueryLength: number;
     /**
      * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
      * deploy-time values — the compiled defaults are placeholders that
@@ -631,6 +1007,11 @@ export interface AppConfig {
        */
       outOfCoverageHeading: string;
       outOfCoverageBody: string;
+      /**
+       * Out-of-coverage action label (B11, #514). Clears and focuses the
+       * input — never "Retry", since coverage is deterministic.
+       */
+      outOfCoverageAction: string;
       /** Shown when the autocomplete request fails. */
       error: string;
       retryLabel: string;
@@ -1241,6 +1622,10 @@ export interface AppConfig {
       adminApiKeys: string;
       adminFunnelsTitle: string;
       adminFunnels: string;
+      adminWebhooksTitle: string;
+      adminWebhooks: string;
+      adminQuarantineTitle: string;
+      adminQuarantine: string;
       adminLoginTitle: string;
       adminLogin: string;
       adminCallbackTitle: string;
@@ -1463,6 +1848,244 @@ export interface AppConfig {
      * copy lives here so the no-hardcode tripwire stays green.
      */
     admin: {
+      /**
+       * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
+       * ⌘K placeholder. Nav labels are keyed by the item ids in
+       * features/admin/admin-nav.ts.
+       */
+      shell: {
+        brand: string;
+        homeLabel: string;
+        navLabel: string;
+        groups: { pipeline: string; partners: string; money: string; system: string };
+        nav: {
+          leads: string;
+          estimates: string;
+          builders: string;
+          users: string;
+          apiKeys: string;
+          billing: string;
+          invoices: string;
+          disputes: string;
+          calibration: string;
+          sheets: string;
+          funnels: string;
+          webhooks: string;
+          quarantine: string;
+        };
+        /** Screen-reader suffix for a queue badge, e.g. "3 open". */
+        badgeSuffix: string;
+        openMenu: string;
+        closeMenu: string;
+        collapseSidebar: string;
+        expandSidebar: string;
+        breadcrumbLabel: string;
+        searchLabel: string;
+        searchShortcut: string;
+        /** `aria-keyshortcuts` for the search button. */
+        searchKeyShortcuts: string;
+        /** ⌘K command palette (#538). */
+        palette: {
+          title: string;
+          placeholder: string;
+          hint: string;
+          loading: string;
+          noResults: string;
+          error: string;
+          retry: string;
+          close: string;
+          escKey: string;
+          resultsLabel: string;
+          /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
+          navHint: string;
+          /** Group headings per hit kind. */
+          kinds: { lead: string; invoice: string; builder: string; user: string };
+        };
+        environmentLabel: string;
+        userMenuLabel: string;
+        signOut: string;
+      };
+      /**
+       * Admin Quarantine (#540): honeypot-flagged leads on their own route,
+       * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
+       * and `{total}` are filled in by the page.
+       */
+      quarantine: {
+        title: string;
+        description: string;
+        searchLabel: string;
+        searchPlaceholder: string;
+        clearFilters: string;
+        countOne: string;
+        countMany: string;
+        tableLabel: string;
+        columns: { lead: string; address: string; source: string; tenant: string; created: string };
+        emptyHeading: string;
+        emptyMessage: string;
+        noResultsHeading: string;
+        noResultsMessage: string;
+        errorHeading: string;
+        loadError: string;
+        retry: string;
+        loading: string;
+        actionsHeader: string;
+        loadMore: string;
+        loadingMore: string;
+        selectAll: string;
+        selectRow: string;
+        selectedCount: string;
+        approve: string;
+        approving: string;
+        discard: string;
+        discarding: string;
+        approveSelected: string;
+        discardSelected: string;
+        cancel: string;
+        approveConfirmTitleMany: string;
+        approveConfirmBody: string;
+        discardConfirmTitle: string;
+        discardConfirmTitleMany: string;
+        discardConfirmBody: string;
+        approvedOne: string;
+        approvedMany: string;
+        discardedOne: string;
+        discardedMany: string;
+        failedOne: string;
+        failedMany: string;
+        dismiss: string;
+      };
+      /**
+       * Admin Leads (#539, admin review S5/S6): saved views, the kit
+       * DataTable and the lead drawer with one footer Save.
+       */
+      leads: {
+        title: string;
+        description: string;
+        sandboxToggle: string;
+        exportCsv: string;
+        exporting: string;
+        dismiss: string;
+        totalsLabel: string;
+        viewsLabel: string;
+        /** Saved views. `quotingStale` takes `{days}`. */
+        views: { all: string; new: string; unassigned: string; quotingStale: string };
+        /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
+        viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
+        searchLabel: string;
+        searchPlaceholder: string;
+        statusFilter: string;
+        anyStatus: string;
+        assignedFilter: string;
+        anyAssignment: string;
+        unassigned: string;
+        clearFilters: string;
+        /** "{count} leads". */
+        countOne: string;
+        countMany: string;
+        sandboxExcluded: string;
+        tableLabel: string;
+        columns: {
+          lead: string;
+          address: string;
+          status: string;
+          tenant: string;
+          source: string;
+          score: string;
+          timeline: string;
+          consent: string;
+          created: string;
+        };
+        consentIn: string;
+        consentOut: string;
+        sandboxBadge: string;
+        emptyHeading: string;
+        emptyMessage: string;
+        noResultsHeading: string;
+        noResultsMessage: string;
+        errorHeading: string;
+        retry: string;
+        loading: string;
+        actionsHeader: string;
+        loadMore: string;
+        loadingMore: string;
+        drawer: {
+          loading: string;
+          refreshing: string;
+          retry: string;
+          close: string;
+          cancel: string;
+          save: string;
+          saving: string;
+          /** Toast after a successful save. */
+          saved: string;
+          readOnlyHint: string;
+          sections: {
+            pipeline: string;
+            contact: string;
+            property: string;
+            invoices: string;
+            notes: string;
+            comments: string;
+            activity: string;
+            record: string;
+          };
+          statusLabel: string;
+          builderLabel: string;
+          unassigned: string;
+          labels: {
+            email: string;
+            phone: string;
+            source: string;
+            tenant: string;
+            magicLink: string;
+            contactConsent: string;
+            marketingConsent: string;
+            address: string;
+            projectType: string;
+            livingArea: string;
+            finishTier: string;
+            totalRange: string;
+            buildRange: string;
+            land: string;
+            estimated: string;
+            leadScore: string;
+            consented: string;
+            sheetsSynced: string;
+            snapshots: string;
+            unsubscribed: string;
+            nudgeSent: string;
+          };
+          /** "{sqft} sq ft". */
+          sqftValue: string;
+          yes: string;
+          no: string;
+          magicLink: { sent: string; used: string; expired: string; none: string };
+          openEstimate: string;
+          noEstimate: string;
+          invoicesHint: string;
+          openInvoices: string;
+          noNotes: string;
+          addNoteLabel: string;
+          addNotePlaceholder: string;
+          addNote: string;
+          addingNote: string;
+          notesHint: string;
+          commentsHint: string;
+          noActivity: string;
+          honeypotBadge: string;
+        };
+      },
+      /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
+      entities: {
+        technicalIds: string;
+        copyId: string;
+        idCopied: string;
+        /** Link text when a record has no human label in the payload. */
+        viewLead: string;
+        viewInvoice: string;
+        /** Disclosure label for an audit event's raw JSON payload. */
+        rawPayload: string;
+      };
       funnels: {
         /** Page heading. */
         title: string;
@@ -1502,47 +2125,110 @@ export interface AppConfig {
         conversionPrefix: string;
         /** Shown when conversion is meaningless (first step / zero prior). */
         noConversion: string;
+        /** Accessible name of the date-preset button group. */
+        presetsLabel: string;
+        /** Date presets: label + trailing day count (today inclusive). */
+        presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
+        /** Date preset that clears both dates. */
+        presetAll: string;
+        /** KPI label: entry → final step conversion. */
+        overallConversion: string;
+        /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
+        overallConversionSub: string;
+        /** Drop-off annotation; `{count}` = people lost since the previous step. */
+        dropOff: string;
+        /** Accessible name of the funnel step list. */
+        stepsLabel: string;
       };
+      /** Admin API keys (api-mcp/02; redesign #546, review S13). */
       apiKeys: {
         title: string;
         subtitle: string;
         issueButton: string;
-        issueTitle: string;
-        nameLabel: string;
-        namePlaceholder: string;
-        tenantLabel: string;
-        tenantPlaceholder: string;
+        /** DataTable. */
+        tableLabel: string;
+        colName: string;
+        colBuilder: string;
+        colPrefix: string;
+        colScopes: string;
+        colLastUsed: string;
+        colStatus: string;
+        never: string;
+        noBuilder: string;
+        sandboxChip: string;
+        openKey: string;
+        empty: string;
+        emptyMessage: string;
+        loadError: string;
+        loadErrorMessage: string;
+        retry: string;
+        /** Key drawer. */
+        tabsLabel: string;
+        tabOverview: string;
+        tabUsage: string;
+        builderLabel: string;
+        prefixLabel: string;
+        modeLabel: string;
+        modeLive: string;
+        modeSandbox: string;
+        createdLabel: string;
+        lastUsedLabel: string;
+        revokedAtLabel: string;
+        accessHeading: string;
+        accessHint: string;
+        revokedNote: string;
         scopesLabel: string;
+        scopesError: string;
         rateLimitLabel: string;
-        sandboxLabel: string;
-        sandboxHint: string;
-        createButton: string;
-        cancelButton: string;
-        copyButton: string;
-        copiedButton: string;
-        plaintextWarning: string;
+        rateLimitHint: string;
+        rateLimitError: string;
+        saveButton: string;
+        savedToast: string;
+        saveError: string;
+        closeButton: string;
+        dangerHeading: string;
+        rotateHint: string;
+        revokeHint: string;
         rotateButton: string;
         revokeButton: string;
+        rotateConfirmTitle: string;
         rotateConfirm: string;
+        revokeConfirmTitle: string;
         revokeConfirm: string;
-        confirmYes: string;
-        confirmNo: string;
-        editButton: string;
-        saveButton: string;
-        usageTitle: string;
+        cancelButton: string;
+        revokedToast: string;
+        actionError: string;
+        /** Usage tab. */
+        usageChartLabel: string;
+        usageTotal: string;
+        usageShowTable: string;
         usageLoading: string;
         usageEmpty: string;
         usageDateHeader: string;
         usageEndpointHeader: string;
         usageRequestsHeader: string;
         usageEstimatesHeader: string;
-        loading: string;
-        empty: string;
-        loadError: string;
-        revokedLabel: string;
-        activeLabel: string;
-        lastUsedLabel: string;
-        createdLabel: string;
+        /** Issue modal. */
+        issueTitle: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        nameError: string;
+        builderPlaceholder: string;
+        builderHint: string;
+        builderEmpty: string;
+        sandboxLabel: string;
+        sandboxHint: string;
+        createButton: string;
+        issueError: string;
+        /** One-time secret modal. */
+        secretTitle: string;
+        plaintextWarning: string;
+        secretLabel: string;
+        copyButton: string;
+        copiedButton: string;
+        copyFailed: string;
+        ackLabel: string;
+        doneButton: string;
       };
       /**
        * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.

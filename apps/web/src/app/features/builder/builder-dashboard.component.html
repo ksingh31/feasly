@@ -1,296 +1,206 @@
-<div class="builder-pipeline">
-  <!-- Due-invoice banners: one gold banner per invoice needing attention. -->
+<div class="leads-home">
+  <!-- Due-invoice banners: one banner per invoice needing attention. -->
   <app-due-invoice-banners />
 
-  <div class="builder-pipeline__header">
-    <div>
-      <h1 id="builder-dashboard-heading">{{ copy.dashboardHeading }}</h1>
-      <p class="builder-pipeline__subtitle">{{ copy.leadsSubtitle }}</p>
-    </div>
-  </div>
+  <ui-page-header
+    headingId="builder-dashboard-heading"
+    [heading]="home.heading"
+    [description]="copy.leadsSubtitle"
+  />
 
-  @if (leadsStatus() === 'loading') {
-    <div class="builder-pipeline__loading" role="status">
-      <span class="sr-only">{{ copy.loadingLeads }}</span>
-      @for (i of [0, 1, 2]; track i) {
-        <div class="builder-pipeline__skeleton" aria-hidden="true">
-          <div class="builder-pipeline__skeleton-avatar"></div>
-          <div class="builder-pipeline__skeleton-lines">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+  <!-- Needs you (always first) — server-grouped. -->
+  <section class="leads-home__section" aria-labelledby="needs-you-heading" data-testid="needs-you">
+    <h2 id="needs-you-heading" class="leads-home__h2">
+      {{ home.needsYouHeading }}
+      @if (needsYouStatus() === 'ready' && needsYouCount() > 0) {
+        <span class="leads-home__count">{{ needsYouCount() }}</span>
+      }
+    </h2>
+
+    @if (needsYouStatus() === 'loading' && !needsYou()) {
+      <ui-skeleton variant="rows" [count]="2" [label]="copy.loadingLeads" />
+    } @else if (needsYouStatus() === 'error' && !needsYou()) {
+      <p class="leads-home__note" role="status">{{ home.needsYouError }}</p>
+    } @else if (needsYou() && needsYouCount() === 0) {
+      <ui-empty-state variant="all-clear" [heading]="home.allClearHeading" [message]="home.allClearMessage" />
+    } @else {
+      @for (group of needsYouGroups(); track group.key) {
+        <div class="needs-group" [attr.data-group]="group.key">
+          <h3 class="needs-group__title">
+            {{ group.title }} <span class="leads-home__count">{{ group.items.length }}</span>
+          </h3>
+          <ul class="needs-group__cards" role="list">
+            @for (item of group.items; track item.id) {
+              <li class="needs-card" data-testid="needs-card">
+                <div class="needs-card__head">
+                  <span class="needs-card__avatar" aria-hidden="true">{{ initials(item.name) }}</span>
+                  <div class="needs-card__who">
+                    <button
+                      type="button"
+                      class="needs-card__name"
+                      (click)="openLead(item.id)"
+                    >{{ item.name }}</button>
+                    <span class="needs-card__chips">
+                      <ui-status-chip domain="leadHeat" [status]="heat(item.leadScore)" [label]="heatLabel(item.leadScore)" />
+                      <ui-status-chip domain="lead" [status]="item.status" [label]="statusLabel(item.status)" />
+                    </span>
+                  </div>
+                </div>
+                <p class="needs-card__meta">{{ home.timelinePrefix }} {{ item.timeline }} · {{ item.addressKey }}</p>
+                <p class="needs-card__age">
+                  {{ group.ageLabel }}
+                  <time [attr.datetime]="item.waitingSince" [attr.title]="item.waitingSince | kitDateTime">{{
+                    item.waitingSince | kitRelative
+                  }}</time>
+                </p>
+                <div class="needs-card__actions">
+                  @if (item.phone) {
+                    <a
+                      class="contact-link"
+                      data-testid="needs-call"
+                      [href]="tel(item.phone)"
+                      [attr.aria-label]="callAria(item.name)"
+                      >{{ home.callLabel }}</a
+                    >
+                  }
+                  <a
+                    class="contact-link"
+                    data-testid="needs-email"
+                    [href]="mailto(item.email)"
+                    [attr.aria-label]="emailAria(item.name)"
+                    >{{ home.emailLabel }}</a
+                  >
+                  @if (group.key === 'wonWithoutContract') {
+                    @if (isAdmin()) {
+                      <a
+                        class="contact-link contact-link--primary"
+                        data-testid="needs-record"
+                        [routerLink]="[]"
+                        [queryParams]="{ open: item.id }"
+                        queryParamsHandling="merge"
+                        >{{ home.recordContractCta }}</a
+                      >
+                    } @else {
+                      <span class="needs-card__note">{{ home.recordContractMemberNote }}</span>
+                    }
+                  }
+                </div>
+              </li>
+            }
+          </ul>
         </div>
       }
-    </div>
-  } @else if (loadFailed()) {
-    <div class="builder-pipeline__error" role="alert">
-      <h2>{{ copy.leadsErrorHeading }}</h2>
-      <p>{{ copy.loadError }}</p>
-      <button type="button" (click)="retryLoad()">{{ copy.retryLabel }}</button>
-    </div>
-  } @else {
-    <!-- Pipeline summary: clickable totals drive the ephemeral status filter. -->
-    <div
-      class="builder-pipeline__totals"
-      role="group"
-      [attr.aria-label]="copy.summaryHeading"
-    >
-      <button
-        type="button"
-        class="builder-pipeline__total"
-        [class.builder-pipeline__total--active]="statusFilter() === 'all'"
-        [attr.aria-pressed]="statusFilter() === 'all'"
-        (click)="filterByStatus('all')"
-      >
-        <span class="builder-pipeline__total-count">{{ summary().total }}</span>
-        <span class="builder-pipeline__total-label">{{ copy.summaryTotal }}</span>
-      </button>
-      @for (status of statuses; track status) {
+    }
+  </section>
+
+  <!-- Pipeline: segmented status filter + search + table (cards on phones). -->
+  <section class="leads-home__section" aria-labelledby="pipeline-heading" data-testid="pipeline">
+    <h2 id="pipeline-heading" class="leads-home__h2">{{ home.pipelineHeading }}</h2>
+
+    <div class="segments" role="group" [attr.aria-label]="home.statusFilterLabel">
+      @for (segment of segments(); track segment.label) {
         <button
           type="button"
-          class="builder-pipeline__total"
-          [class.builder-pipeline__total--active]="statusFilter() === status"
-          [attr.aria-pressed]="statusFilter() === status"
-          (click)="filterByStatus(status)"
+          class="segments__item"
+          data-testid="status-segment"
+          [attr.data-status]="segment.value ?? 'all'"
+          [class.segments__item--active]="statusFilter() === segment.value"
+          [attr.aria-pressed]="statusFilter() === segment.value"
+          (click)="setStatus(segment.value)"
         >
-          <span class="builder-pipeline__total-count">{{ summary()[status] }}</span>
-          <span class="builder-pipeline__total-label">{{ statusLabel(status) }}</span>
+          {{ segment.label }}
+          <span class="segments__count">{{ segment.count }}</span>
         </button>
       }
     </div>
 
-    @if (updateError() === 'forbidden') {
-      <p class="builder-pipeline__banner" role="alert">{{ copy.updateForbidden }}</p>
-    } @else if (updateError() === 'failed') {
-      <p class="builder-pipeline__banner" role="alert">{{ copy.updateFailed }}</p>
-    }
+    <ui-filter-bar
+      [search]="list.search()"
+      [debounceMs]="debounceMs"
+      [searchLabel]="home.searchLabel"
+      [searchPlaceholder]="home.searchPlaceholder"
+      [clearAllLabel]="home.clearFiltersLabel"
+      (searchChange)="list.setSearch($event)"
+      (clearAll)="list.clearFilters()"
+    />
 
-    @if (leads().length === 0) {
-      <div class="builder-pipeline__empty" role="status">
-        <h2>{{ copy.leadsEmptyHeading }}</h2>
-        <p>{{ copy.emptyLeads }}</p>
-        <p>{{ copy.leadsEmptyGuidance }}</p>
-      </div>
-    } @else {
-      <div class="builder-pipeline__filter">
-        <label for="builder-status-filter">{{ copy.filterLabel }}</label>
-        <select
-          id="builder-status-filter"
-          (change)="onFilterChange($event)"
-        >
-          <option value="all" [selected]="statusFilter() === 'all'">{{ copy.filterAllLabel }}</option>
-          @for (status of statuses; track status) {
-            <option [value]="status" [selected]="status === statusFilter()">{{ statusLabel(status) }}</option>
+    <ui-data-table
+      [label]="home.tableLabel"
+      [rows]="pageRows()"
+      [columns]="columns"
+      [rowId]="rowId"
+      [rowFlagged]="isStale"
+      [sort]="list.sort()"
+      [loading]="leadsStatus() === 'loading' || leadsStatus() === 'idle'"
+      [error]="loadFailed() ? copy.loadError : null"
+      [filtered]="filtered()"
+      [selectedId]="openId()"
+      [page]="list.page()"
+      [pageSize]="home.pageSize"
+      [total]="filteredLeads().length"
+      [emptyHeading]="copy.leadsEmptyHeading"
+      [emptyMessage]="copy.leadsEmptyGuidance"
+      [noResultsHeading]="home.noResultsHeading"
+      [noResultsMessage]="home.noResultsMessage"
+      [clearFiltersLabel]="home.clearFiltersLabel"
+      [errorHeading]="copy.leadsErrorHeading"
+      [retryLabel]="copy.retryLabel"
+      [loadingLabel]="copy.loadingLeads"
+      [actionsHeader]="home.actionsHeader"
+      [sortByLabel]="home.sortByLabel"
+      [noSortLabel]="home.defaultSortLabel"
+      [ascendingLabel]="home.ascendingLabel"
+      [descendingLabel]="home.descendingLabel"
+      [previousLabel]="home.previousLabel"
+      [nextLabel]="home.nextLabel"
+      [pageLabel]="home.pageLabel"
+      [pageOfLabel]="home.pageOfLabel"
+      (sortChange)="list.setSort($event)"
+      (pageChange)="list.setPage($event)"
+      (open)="openLead($event.id)"
+      (retry)="retryLoad()"
+      (clearFilters)="list.clearFilters()"
+    >
+      <ng-template uiCell="lead" let-lead>
+        <span class="lead-cell">
+          <span class="lead-cell__avatar" aria-hidden="true">{{ initials(lead.name) }}</span>
+          <span class="lead-cell__name">{{ lead.name }}</span>
+          <ui-status-chip domain="leadHeat" [status]="heat(lead.leadScore)" [label]="heatLabel(lead.leadScore)" />
+        </span>
+      </ng-template>
+      <ng-template uiCell="status" let-lead>
+        <ui-status-chip domain="lead" [status]="lead.status" [label]="statusLabel(lead.status)" />
+      </ng-template>
+      <ng-template uiCell="activity" let-lead>
+        <span class="activity-cell">
+          <time [attr.datetime]="lead.statusUpdatedAt" [attr.title]="lead.statusUpdatedAt | kitDateTime">{{
+            lead.statusUpdatedAt | kitRelative
+          }}</time>
+          @if (isStale(lead)) {
+            <span class="stale-tag" data-testid="stale-tag">{{ home.staleLabel }}</span>
           }
-        </select>
-      </div>
-
-      @if (filterEmpty) {
-        <div class="builder-pipeline__empty" role="status">
-          <h2>{{ copy.leadsFilterEmptyHeading }}</h2>
-          <p>{{ copy.leadsFilterEmptyGuidance }}</p>
-          <button type="button" (click)="clearFilter()">{{ copy.leadsClearFilter }}</button>
-        </div>
-      } @else {
-        <div class="builder-pipeline__cards">
-          @for (lead of filteredLeads(); track lead.id) {
-            <article class="builder-lead-card">
-              <div class="builder-lead-card__avatar" aria-hidden="true">
-                {{ initials(lead.name) }}
-              </div>
-              <div class="builder-lead-card__main">
-                <div class="builder-lead-card__top">
-                  <h2 class="builder-lead-card__name">{{ lead.name }}</h2>
-                  <span
-                    class="builder-lead-card__badge builder-lead-card__badge--{{ lead.status }}"
-                  >
-                    {{ statusLabel(lead.status) }}
-                  </span>
-                </div>
-                <p class="builder-lead-card__contact">
-                  <span>
-                    <a
-                      class="builder-lead-card__link"
-                      data-testid="lead-email-link"
-                      [href]="mailtoHref(lead.email)"
-                      ><span class="sr-only">{{ copy.leadEmailLabel }}: </span>{{ lead.email }}</a
-                    >
-                  </span>
-                  <span aria-hidden="true"> · </span>
-                  <span>
-                    <span class="sr-only">{{ copy.leadAddressLabel }}: </span>
-                    {{ lead.addressKey }}
-                  </span>
-                </p>
-                <dl class="builder-lead-card__meta">
-                  <div>
-                    <dt>{{ copy.leadScoreLabel }}</dt>
-                    <dd>{{ lead.leadScore }}</dd>
-                  </div>
-                  <div>
-                    <dt>{{ copy.leadTimelineLabel }}</dt>
-                    <dd>{{ lead.timeline }}</dd>
-                  </div>
-                  @if (lead.phone) {
-                    <div>
-                      <dt>{{ copy.leadPhoneLabel }}</dt>
-                      <dd>
-                        <a
-                          class="builder-lead-card__link"
-                          data-testid="lead-phone-link"
-                          [href]="telHref(lead.phone)"
-                          >{{ lead.phone }}</a
-                        >
-                      </dd>
-                    </div>
-                  }
-                  <div>
-                    <dt>{{ copy.leadProjectLabel }}</dt>
-                    <dd>{{ lead.projectType }}</dd>
-                  </div>
-                  <div>
-                    <dt>{{ copy.leadCreatedLabel }}</dt>
-                    <dd>{{ formatDate(lead.createdAt) }}</dd>
-                  </div>
-                  <div>
-                    <dt>{{ copy.leadStatusUpdatedLabel }}</dt>
-                    <dd>{{ formatDate(lead.statusUpdatedAt) }}</dd>
-                  </div>
-                </dl>
-                @if (lead.status === 'won') {
-                  @if (lead.hasInvoice) {
-                    <p class="builder-lead-card__won builder-lead-card__won--recorded">
-                      {{ copy.leadsRecordedCta }} —
-                      <a
-                        [routerLink]="['/builder/invoices']"
-                        [queryParams]="invoiceLinkParams(lead)"
-                        >{{ invoiceCtaLabel(lead) }}</a
-                      >
-                    </p>
-                  } @else {
-                    <p class="builder-lead-card__won">
-                      {{ copy.leadsWonHint }}
-                      <a
-                        [routerLink]="['/builder/record-contract']"
-                        [queryParams]="{ lead: lead.id }"
-                        >{{ copy.leadsWonReportCta }}</a
-                      >
-                    </p>
-                  }
-                }
-              </div>
-              <div
-                class="builder-lead-card__side"
-                role="group"
-                [attr.aria-label]="copy.actionsLabel"
-              >
-                @if (isStatusLocked(lead)) {
-                  <!-- Recorded contract (won + invoice): status is locked, badge is read-only. -->
-                  <span class="builder-lead-card__locked" role="note">
-                    {{ copy.leadsStatusLocked }}
-                  </span>
-                } @else {
-                  <label class="builder-lead-card__status">
-                    <span class="sr-only">{{ statusControlLabel(lead.name) }}</span>
-                    <select
-                      [disabled]="isUpdating(lead.id)"
-                      (change)="onLeadStatusSelect(lead.id, $any($event.target).value)"
-                    >
-                      @for (status of statuses; track status) {
-                        <!-- [selected] on the option (not [value] on the select):
-                             the select's value binding runs before the @for
-                             options exist on first render, so it never takes
-                             effect; option-level selectedness is order-safe. -->
-                        <option [value]="status" [selected]="status === pendingStatusFor(lead)">{{ statusLabel(status) }}</option>
-                      }
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    class="builder-lead-card__apply"
-                    [disabled]="!canApplyLeadStatus(lead)"
-                    (click)="applyLeadStatus(lead.id)"
-                  >
-                    {{ copy.leadsStatusApply }}
-                  </button>
-                  @if (isUpdating(lead.id)) {
-                    <span class="builder-lead-card__saving" role="status">
-                      {{ copy.leadsStatusSaving }}
-                    </span>
-                  }
-                }
-              </div>
-            <section
-              class="builder-lead-card__notes-section"
-              [attr.aria-label]="copy.commentsSectionTitle + ': ' + lead.name"
+        </span>
+      </ng-template>
+      <ng-template uiRowActions let-lead>
+        <span class="row-contact">
+          @if (lead.phone) {
+            <a
+              class="contact-link"
+              data-testid="row-call"
+              [href]="tel(lead.phone)"
+              [attr.aria-label]="callAria(lead.name)"
+              >{{ home.callLabel }}</a
             >
-              <button
-                type="button"
-                class="builder-lead-card__notes-header"
-                (click)="toggleNotes(lead.id)"
-                [attr.aria-expanded]="notesExpanded(lead.id)"
-                [attr.aria-controls]="'lead-notes-' + lead.id"
-              >
-                <span class="builder-lead-card__notes-title">{{ copy.commentsSectionTitle }}</span>
-                <span
-                  class="builder-lead-card__notes-count"
-                  [class.builder-lead-card__notes-count--zero]="commentCountFor(lead) === 0"
-                >{{ commentCountFor(lead) }}</span>
-                <svg
-                  class="builder-lead-card__notes-chevron"
-                  [class.builder-lead-card__notes-chevron--open]="notesExpanded(lead.id)"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                ><path d="m6 9 6 6 6-6" /></svg>
-              </button>
-              @if (!notesExpanded(lead.id)) {
-                @if (latestCommentFor(lead); as latest) {
-                  <button
-                    type="button"
-                    class="builder-lead-card__notes-preview"
-                    (click)="toggleNotes(lead.id)"
-                  >
-                    <span class="builder-lead-card__notes-preview-meta">
-                      {{ latest.authorDisplayName }} · {{ formatNoteTimestamp(latest.createdAt) }}
-                    </span>
-                    <span class="builder-lead-card__notes-preview-body">{{ latest.body }}</span>
-                  </button>
-                } @else {
-                  <div class="builder-lead-card__notes-empty">
-                    <p>{{ copy.commentsEmptyHint }}</p>
-                    <button
-                      type="button"
-                      class="builder-lead-card__notes-cta"
-                      (click)="toggleNotes(lead.id)"
-                    >
-                      {{ copy.commentsAddFirstNote }}
-                    </button>
-                  </div>
-                }
-              } @else {
-                <div
-                  class="builder-lead-card__notes-thread"
-                  [id]="'lead-notes-' + lead.id"
-                >
-                  <app-builder-lead-comments
-                    [leadId]="lead.id"
-                    (commentsChanged)="onCommentsChanged(lead.id, $event)"
-                  />
-                </div>
-              }
-            </section>
-            </article>
           }
-        </div>
-      }
-    }
-  }
+          <a
+            class="contact-link"
+            data-testid="row-email"
+            [href]="mailto(lead.email)"
+            [attr.aria-label]="emailAria(lead.name)"
+            >{{ home.emailLabel }}</a
+          >
+        </span>
+      </ng-template>
+    </ui-data-table>
+  </section>
 </div>

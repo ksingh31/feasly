@@ -1,0 +1,25 @@
+<ui-field-shell
+  [label]="label()"
+  [controlId]="controlId()"
+  [hintId]="hintId()"
+  [errorId]="errorId()"
+  [hint]="hint()"
+  [error]="error()"
+  [required]="required()"
+>
+  <input
+    class="ui-field__control"
+    [id]="controlId()"
+    [type]="type()"
+    [value]="value()"
+    [disabled]="isDisabled()"
+    [required]="required()"
+    [attr.placeholder]="placeholder()"
+    [attr.autocomplete]="autocomplete()"
+    [attr.inputmode]="inputmode()"
+    [attr.aria-invalid]="error() ? 'true' : null"
+    [attr.aria-describedby]="describedBy()"
+    (input)="onInput($any($event.target).value)"
+    (blur)="markTouched()"
+  />
+</ui-field-shell>

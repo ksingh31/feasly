@@ -9,6 +9,10 @@ import {
 import { SetProfilePropertyContext } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 import type { CommunityProfileCopy, CommunityProfileView } from '@feasly/contracts';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
+
+/** Configured estimate display step (#608). */
+const ROUNDING_STEP = DEFAULT_APP_CONFIG.limits.estimateRoundingStep;
 
 /**
  * Property-profile variant: /communities/:slug/ for condo/apartment-dominated
@@ -92,7 +96,7 @@ describe('CommunityProfilePageComponent', () => {
   async function createComponent(): Promise<ComponentFixture<CommunityProfilePageComponent>> {
     const created = TestBed.createComponent(CommunityProfilePageComponent);
     created.componentRef.setInput('view', view);
-    created.componentRef.setInput('copy', resolveProfileCopy(rawCopy, view));
+    created.componentRef.setInput('copy', resolveProfileCopy(rawCopy, view, ROUNDING_STEP));
     created.detectChanges();
     await created.whenStable();
     return created;
@@ -133,7 +137,7 @@ describe('CommunityProfilePageComponent', () => {
   });
 
   it('replaces repeated placeholders, not just the first (live {name} bug)', () => {
-    const resolved = resolveProfileCopy(rawCopy, view);
+    const resolved = resolveProfileCopy(rawCopy, view, ROUNDING_STEP);
     // The mock lede contains {name} twice — both must be filled.
     expect(resolved.lede).not.toContain('{name}');
     expect(resolved.lede.match(/Beltline/g)?.length).toBe(2);
@@ -202,7 +206,7 @@ describe('CommunityProfilePageComponent', () => {
   });
 
   it('resolveProfileCopy is the single source for render + JSON-LD copy', () => {
-    const resolved = resolveProfileCopy(rawCopy, view);
+    const resolved = resolveProfileCopy(rawCopy, view, ROUNDING_STEP);
     expect(resolved.faqItems[0]).toEqual({ q: 'Q for Beltline?', a: 'A 2026.' });
     expect(resolved.finePrint).toBe('Figures from the 2026 roll for Beltline.');
   });

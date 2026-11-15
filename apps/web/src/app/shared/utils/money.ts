@@ -42,34 +42,39 @@ export function formatWholeCad(value: number): string {
   return `$${normalized.toLocaleString('en-CA')}`;
 }
 
-/**
- * Display rounding step for consumer estimate figures (#504, review M1):
- * estimates are ranges, so no figure renders more precise than $1,000.
- */
-const ESTIMATE_ROUNDING_STEP = 1_000;
 /** At or above this magnitude, figures render compact as "$3.24M". */
 const COMPACT_MILLION = 1_000_000;
 /** Compact millions show two decimals — i.e. $10k precision at the $3M scale. */
 const COMPACT_STEP = 10_000;
 
 /**
- * Formats an estimate figure (whole dollars) rounded to the nearest $1,000.
- * 609901 -> "$610,000". Display formatting only — never feeds a calculation.
+ * Formats an estimate figure (whole dollars) rounded to the nearest `step`.
+ * With step 1000: 609901 -> "$610,000". Display formatting only — never
+ * feeds a calculation.
+ *
+ * `step` is the display rounding step for consumer estimate figures (#504,
+ * review M1): estimates are ranges, so no figure renders more precise than
+ * the step. Callers pass `ConfigService.get('limits').estimateRoundingStep`
+ * (#608) — never a literal. A non-positive or non-finite step renders the
+ * figure to the whole dollar instead of dividing by zero.
  */
-export function formatRoundedCad(value: number): string {
+export function formatRoundedCad(value: number, step: number): string {
   const normalized = Number.isFinite(value) ? value : 0;
-  return formatWholeCad(Math.round(normalized / ESTIMATE_ROUNDING_STEP) * ESTIMATE_ROUNDING_STEP);
+  if (!Number.isFinite(step) || step <= 0) {
+    return formatWholeCad(normalized);
+  }
+  return formatWholeCad(Math.round(normalized / step) * step);
 }
 
 /**
  * Formats an estimate figure for headlines: "$3.24M" at or above $1M
- * ($10k precision), otherwise rounded to $1,000 ("$608,000").
+ * ($10k precision), otherwise rounded to `step` ("$608,000" at step 1000).
  */
-export function formatCompactCad(value: number): string {
+export function formatCompactCad(value: number, step: number): string {
   const normalized = Number.isFinite(value) ? value : 0;
   const steps = Math.round(Math.abs(normalized) / COMPACT_STEP);
   if (steps * COMPACT_STEP < COMPACT_MILLION) {
-    return formatRoundedCad(normalized);
+    return formatRoundedCad(normalized, step);
   }
   const sign = normalized < 0 ? '-' : '';
   const perMillion = COMPACT_MILLION / COMPACT_STEP;
@@ -79,8 +84,11 @@ export function formatCompactCad(value: number): string {
 }
 
 /** Headline range, e.g. "$3.24M – $3.39M" or "$608,000 – $735,000". */
-export function formatCompactRange(range: { readonly low: number; readonly high: number }): string {
-  return `${formatCompactCad(range.low)} – ${formatCompactCad(range.high)}`;
+export function formatCompactRange(
+  range: { readonly low: number; readonly high: number },
+  step: number,
+): string {
+  return `${formatCompactCad(range.low, step)} – ${formatCompactCad(range.high, step)}`;
 }
 
 /** Per-sq-ft rate in whole dollars: 242.37 -> "$242". */
@@ -143,6 +151,27 @@ export function percentOfCents(cents: number, ratePercent: number): number {
 export function formatRatePercent(ratePercent: number): string {
   const rounded = Math.round(ratePercent * 10_000) / 10_000;
   return `${Number(rounded.toFixed(4))}%`;
+}
+
+/**
+ * Groups a string of whole-dollar digits with en-CA thousands separators.
+ * "1250000" -> "1,250,000"; leading zeros drop ("007" -> "7"); "" -> "".
+ * Non-digits are ignored. Used by the UI-kit MoneyField while typing.
+ */
+export function groupDollarDigits(digits: string): string {
+  const clean = digits.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * Integer cents -> grouped whole dollars without the "$" (cents truncated).
+ * 125000000 -> "1,250,000"; null / non-finite / negative -> "".
+ */
+export function centsToGroupedDollars(cents: number | null): string {
+  if (cents === null || !Number.isFinite(cents) || cents < 0) {
+    return '';
+  }
+  return groupDollarDigits(String(Math.floor(Math.trunc(cents) / 100)));
 }
 
 /**

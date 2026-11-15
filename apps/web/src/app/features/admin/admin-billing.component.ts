@@ -1,375 +1,275 @@
-import { DatePipe, DOCUMENT } from '@angular/common';
-import {
-  ChangeDetectorRef,
-  Component,
-  DestroyRef,
-  ElementRef,
-  inject,
-  OnInit,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { Component, DestroyRef, Injector, OnInit, computed, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { fromEvent } from 'rxjs';
-import { Store } from '@ngxs/store';
 import { RouterLink } from '@angular/router';
-import type {
-  BillingHealthDunningInvoice,
-  BillingHealthInReviewInvoice,
-} from '@feasly/contracts';
+import { Store } from '@ngxs/store';
+import { filter, switchMap } from 'rxjs';
+import type { BillingHealthDunningInvoice, BillingHealthInReviewInvoice } from '@feasly/contracts';
+import {
+  type DataTableColumn,
+  DataTableComponent,
+  ErrorStateComponent,
+  KitDateTimePipe,
+  KitMoneyPipe,
+  KpiGridComponent,
+  KpiTileComponent,
+  PageHeaderComponent,
+  SkeletonComponent,
+  StatusChipComponent,
+  UiButtonComponent,
+  UiConfirmService,
+  UiDrawerService,
+  UiModalService,
+  type UiRowAction,
+  UiRowActionsComponent,
+  UiRowActionsDirective,
+  UiToastService,
+  injectDrawerParam,
+} from '@app/shared/ui';
 import { LoadBillingHealth, RetryInvoiceCharge } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
+import { AdminBuildersState } from './admin-builders.state';
+import { LoadBuilders } from './admin-builders.actions';
 import { AdminCreateInvoiceComponent } from './admin-create-invoice.component';
-import {
-  AdminManageInvoiceComponent,
-  type ManageInvoiceInput,
-} from './admin-manage-invoice.component';
-import { formatCentsToCad } from '../../shared/utils/money';
+import { AdminInvoiceDrawerComponent, type AdminInvoiceDrawerData } from './admin-invoice-drawer.component';
+import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
+import type { AdminInvoiceActionData } from './admin-invoice-action-modal';
+import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail } from './admin-invoices.actions';
+import { AdminInvoicesState } from './admin-invoices.state';
+import { plannedMethodLabel } from './admin-invoice-view';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import {
+  builderNameFor,
+  daysOverdue,
+  ratePercentLabel,
+  retriesExhausted,
+  retryConfirmOptions,
+  retryLabel,
+  stripeModeKey,
+} from './admin-billing-view';
 
 /**
- * Focusable controls inside the manage-invoice dialog. Mirrors the
- * lead-detail modal's selector; deliberately no offsetParent filter so it
- * stays testable under jsdom, where offsetParent is always null.
- */
-const MANAGE_DIALOG_FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
-  'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/**
- * Billing-health dashboard (billing/03 follow-on — `/admin/billing`,
- * was OPS-007).
+ * Admin Billing overview (#544, review S9) — `/admin/billing`.
  *
- * Karan's money overview: MRR (from Stripe subscription data under the
- * flat model), commission collected in the trailing 30 days, in-review
- * invoice aging buckets (<48h / <7d / overdue), the in-review invoice
- * work queue, disputed totals, the dunning work queue with
- * `past_due_since`, and the Stripe webhook health panel.
+ * PageHeader with [Create invoice] (opens a modal with builder + lead
+ * pickers) and [Refresh]; the billing model and Stripe mode sit in the
+ * header as non-interactive StatusChips. KPI tiles (MRR, collected 30d,
+ * disputed, in-review aging), then two kit DataTables — In review and
+ * Dunning — whose rows open the invoice drawer in place (`?open=<id>`).
+ * Each row has one "Manage" button plus an overflow: Record payment, and
+ * (dunning) Retry charge. Every money action confirms with the amount and
+ * the builder. Webhook health lives on its own page (#547); a diagnostics
+ * link points there.
  *
- * Mutating actions on this page (two-click confirm each):
- * - BILL-03: "Retry charge" per failed invoice.
- * - "Manage" per in-review invoice: commission-rate override or record
- *   an off-Stripe payment (mark as paid). The manage modal is also
- *   offered from dunning rows so a failed charge paid offline can be
- *   cleared. Marking paid cancels the scheduled auto-charge — the
- *   builder can never be charged twice.
- * - Manual invoice creation ("Create invoice"): builder → lead →
- *   contract value excl. land → 1% commission → 7-day review window.
- * Everything else stays read-only.
- * Status badges always pair a text label with color, never color alone.
- *
- * noindex,nofollow via the robots guard on the parent admin route; excluded
- * from prerendering like all admin pages.
+ * Write actions render only with `billing:manage` (the backend 403s
+ * without it). noindex,nofollow via the robots guard; not prerendered.
  */
 @Component({
   selector: 'app-admin-billing',
   standalone: true,
-  imports: [DatePipe, RouterLink, AdminCreateInvoiceComponent, AdminManageInvoiceComponent],
+  imports: [
+    RouterLink,
+    PageHeaderComponent,
+    StatusChipComponent,
+    UiButtonComponent,
+    KpiGridComponent,
+    KpiTileComponent,
+    DataTableComponent,
+    UiRowActionsDirective,
+    UiRowActionsComponent,
+    ErrorStateComponent,
+    SkeletonComponent,
+    KitDateTimePipe,
+    KitMoneyPipe,
+  ],
   templateUrl: './admin-billing.component.html',
   styleUrl: './admin-billing.component.scss',
 })
 export class AdminBillingComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly drawers = inject(UiDrawerService);
+  private readonly modals = inject(UiModalService);
+  private readonly confirms = inject(UiConfirmService);
+  private readonly toasts = inject(UiToastService);
 
   protected readonly health = this.store.selectSignal(BillingHealthState.health);
-  protected readonly loadStatus = this.store.selectSignal(
-    BillingHealthState.loadStatus,
-  );
+  protected readonly loadStatus = this.store.selectSignal(BillingHealthState.loadStatus);
   protected readonly error = this.store.selectSignal(BillingHealthState.error);
-  protected readonly hasDunning = this.store.selectSignal(
-    BillingHealthState.hasDunning,
-  );
-  protected readonly hasWebhookIssues = this.store.selectSignal(
-    BillingHealthState.hasWebhookIssues,
-  );
+  protected readonly hasWebhookIssues = this.store.selectSignal(BillingHealthState.hasWebhookIssues);
   /** Invoice id currently retrying its charge, or null. BILL-03. */
-  protected readonly retryingInvoiceId = this.store.selectSignal(
-    BillingHealthState.retryingInvoiceId,
-  );
-  /** One-shot retry feedback shown in the dunning queue. BILL-03. */
-  protected readonly retryFeedback = this.store.selectSignal(
-    BillingHealthState.retryFeedback,
-  );
+  protected readonly retryingInvoiceId = this.store.selectSignal(BillingHealthState.retryingInvoiceId);
+  private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
 
-  /**
-   * Write-action gating (display only — the backend 403s without
-   * `billing:manage`): create invoice, manage (mark paid / rate override),
-   * and charge retries render only for sessions that can use them.
-   * Read-only staff see the money overview without the action buttons.
-   */
-  protected readonly canManageBilling = adminCan(
-    this.store,
-    ADMIN_PERMISSIONS.billingManage,
-  );
+  /** `billing:manage` — read-only staff see the overview without actions. */
+  protected readonly canManageBilling = adminCan(this.store, ADMIN_PERMISSIONS.billingManage);
 
-  /** Invoice awaiting the second (confirm) click of the retry flow. */
-  private confirmRetryId: string | null = null;
+  /** `?open=<id>` — the invoice whose drawer is open. */
+  protected readonly openId = injectDrawerParam();
 
-  /** Whether the manual-invoice creation form is open. */
-  protected readonly showCreateForm = signal(false);
+  protected readonly stripeMode = computed(() => {
+    const h = this.health();
+    return h ? stripeModeKey(h.stripe) : null;
+  });
 
-  /** Invoice open in the manage modal, or null. */
-  protected readonly managedInvoice = signal<ManageInvoiceInput | null>(null);
+  protected readonly inReviewRows = computed(() => this.health()?.inReviewInvoices ?? []);
+  protected readonly dunningRows = computed(() => this.health()?.dunning ?? []);
+  protected readonly maxRetries = computed(() => this.health()?.maxChargeRetries);
 
-  private readonly document = inject(DOCUMENT);
-  private readonly cdr = inject(ChangeDetectorRef);
+  protected readonly inReviewId = (row: BillingHealthInReviewInvoice): string => row.id;
+  protected readonly dunningId = (row: BillingHealthDunningInvoice): string => row.id;
 
-  /** The manage dialog wrapper (role=dialog); present only while open. */
-  private readonly manageDialog =
-    viewChild<ElementRef<HTMLElement>>('manageDialog');
+  protected readonly inReviewColumns: readonly DataTableColumn<BillingHealthInReviewInvoice>[] = [
+    { key: 'builder', header: 'Builder', cardRole: 'title', value: (r) => this.builderName(r.tenantKey) },
+    { key: 'commissionCents', header: 'Amount', kind: 'money', cardRole: 'meta' },
+    { key: 'rate', header: 'Rate', cardRole: 'hidden', value: (r) => ratePercentLabel(r.commissionRatePercent) },
+    { key: 'reviewDueAt', header: 'Review due', kind: 'date', cardRole: 'meta' },
+    { key: 'method', header: 'Paid by', cardRole: 'meta', value: (r) => plannedMethodLabel(r.paymentMethod) },
+  ];
 
-  /** Button that opened the manage dialog — focus returns here on close. */
-  private manageInvoker: HTMLElement | null = null;
+  protected readonly dunningColumns: readonly DataTableColumn<BillingHealthDunningInvoice>[] = [
+    { key: 'builder', header: 'Builder', cardRole: 'title', value: (r) => this.builderName(r.tenantKey) },
+    { key: 'commissionCents', header: 'Amount', kind: 'money', cardRole: 'meta' },
+    { key: 'pastDueSince', header: 'Past due since', kind: 'date', cardRole: 'hidden' },
+    { key: 'daysOverdue', header: 'Days overdue', kind: 'count', cardRole: 'meta', value: (r) => daysOverdue(r.pastDueSince) },
+    {
+      key: 'retries',
+      header: 'Retries',
+      cardRole: 'meta',
+      value: (r) => `${r.retryCount} of ${this.maxRetries() ?? '—'}`,
+    },
+    { key: 'lastFailureReason', header: 'Last failure', cardRole: 'hidden' },
+  ];
 
   constructor() {
-    // Esc must close the dialog wherever focus is (a keydown binding on
-    // the dialog div only fired when focus was already inside — which
-    // never happened on open), and Tab must cycle inside the dialog
-    // while it is open. One document-level listener, no-op when closed.
-    fromEvent<KeyboardEvent>(this.document, 'keydown')
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => this.onManageDialogKeydown(event));
+    // Deep links and Back/Forward drive the drawer off the URL.
+    effect(() => {
+      const id = this.openId();
+      untracked(() => {
+        if (id !== null && this.drawers.openDrawer?.urlId !== id) this.openInvoice(id);
+      });
+    });
   }
 
   ngOnInit(): void {
-    this.store
-      .dispatch(new LoadBillingHealth())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+    this.refresh();
+    if (this.store.selectSnapshot(AdminBuildersState.listStatus) === 'idle') {
+      this.store.dispatch(new LoadBuilders());
+    }
   }
 
-  /** Manual refresh — the panel reloads from the server. */
   protected refresh(): void {
-    this.store
-      .dispatch(new LoadBillingHealth())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+    this.store.dispatch(new LoadBillingHealth());
   }
 
-  /** Open/close the manual-invoice creation form. */
-  protected openCreateForm(): void {
-    this.showCreateForm.set(true);
+  protected builderName(tenantKey: string): string {
+    return builderNameFor(this.builders(), tenantKey);
   }
 
-  protected closeCreateForm(): void {
-    this.showCreateForm.set(false);
+  protected plural(count: number, one: string, many: string): string {
+    return `${count} ${count === 1 ? one : many}`;
   }
 
-  /** Open the manage modal for an in-review invoice. */
-  protected openManageInReview(
-    invoice: BillingHealthInReviewInvoice,
-    event?: Event,
-  ): void {
-    this.captureManageInvoker(event);
-    this.managedInvoice.set({
-      id: invoice.id,
-      tenantKey: invoice.tenantKey,
-      commissionCents: invoice.commissionCents,
-      currency: invoice.currency,
-      commissionRatePercent: invoice.commissionRatePercent,
-      contractValueCents: invoice.contractValueCents,
-      paymentMethod: invoice.paymentMethod,
-      reviewDueAt: invoice.reviewDueAt,
-      status: 'in_review',
+  // ---- Create invoice -------------------------------------------------
+
+  protected openCreateInvoice(): void {
+    if (!this.canManageBilling()) return;
+    this.modals.open<AdminCreateInvoiceComponent, boolean>(AdminCreateInvoiceComponent, {
+      size: 'md',
+      injector: this.injector,
     });
-    this.finalizeManageOpen();
   }
 
-  /** Open the manage modal from a dunning row (failed charge paid offline). */
-  protected openManageDunning(
-    invoice: BillingHealthDunningInvoice,
-    event?: Event,
-  ): void {
-    this.captureManageInvoker(event);
-    this.managedInvoice.set({
-      id: invoice.id,
-      tenantKey: invoice.tenantKey,
-      commissionCents: invoice.commissionCents,
-      currency: invoice.currency,
-      contractValueCents: invoice.contractValueCents,
-      commissionRatePercent: invoice.commissionRatePercent,
-      paymentMethod: invoice.paymentMethod,
-      reviewDueAt: null,
-      status: 'failed',
+  // ---- Row actions ----------------------------------------------------
+
+  protected openInvoice(invoiceId: string): void {
+    this.drawers.open<AdminInvoiceDrawerComponent, void, AdminInvoiceDrawerData>(AdminInvoiceDrawerComponent, {
+      data: { invoiceId },
+      size: 'lg',
+      urlId: invoiceId,
+      injector: this.injector,
     });
-    this.finalizeManageOpen();
+  }
+
+  protected inReviewActions(): readonly UiRowAction[] {
+    return this.canManageBilling() ? [{ id: 'record-payment', label: 'Record payment…' }] : [];
+  }
+
+  protected dunningActions(row: BillingHealthDunningInvoice): readonly UiRowAction[] {
+    if (!this.canManageBilling()) return [];
+    const exhausted = retriesExhausted(row.retryCount, this.maxRetries());
+    return [
+      {
+        id: 'retry',
+        label: `${retryLabel(row.retryCount, this.maxRetries())}…`,
+        disabled: exhausted || this.retryingInvoiceId() === row.id,
+        hint: exhausted ? 'All retries used. Record the payment or contact the builder.' : undefined,
+      },
+      { id: 'record-payment', label: 'Record payment…' },
+    ];
+  }
+
+  protected onRowAction(invoiceId: string, action: string): void {
+    if (action === 'record-payment') {
+      this.recordPayment(invoiceId);
+      return;
+    }
+    if (action === 'retry') {
+      const row = this.dunningRows().find((r) => r.id === invoiceId);
+      if (row) this.retryCharge(row);
+    }
+  }
+
+  /** BILL-03 retry: always through ConfirmDialog naming the amount + builder. */
+  protected retryCharge(row: BillingHealthDunningInvoice): void {
+    const maxRetries = this.maxRetries();
+    if (!this.canManageBilling() || retriesExhausted(row.retryCount, maxRetries)) return;
+    this.confirms
+      .confirm(
+        retryConfirmOptions({
+          builderName: this.builderName(row.tenantKey),
+          commissionCents: row.commissionCents,
+          retryCount: row.retryCount,
+          maxRetries,
+        }),
+      )
+      .pipe(
+        filter(Boolean),
+        switchMap(() => this.store.dispatch(new RetryInvoiceCharge(row.id))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        const feedback = this.store.selectSnapshot(BillingHealthState.retryFeedback);
+        if (feedback) this.toasts.show({ message: feedback.message, tone: feedback.ok ? 'success' : 'danger' });
+      });
   }
 
   /**
-   * Render the freshly opened dialog and move focus into it, synchronously
-   * (no timer — deterministic in tests and immediate for screen readers).
+   * Record payment from the queue: loads the invoice, then opens the same
+   * focused modal the drawer uses (builder, amount, before → after).
    */
-  private finalizeManageOpen(): void {
-    this.cdr.detectChanges();
-    this.focusFirstInManageDialog();
-  }
-
-  /**
-   * Remember the button that opened the dialog so focus can return to it
-   * on close. currentTarget (not activeElement) is the reliable source —
-   * Safari doesn't move focus to buttons on mouse click.
-   */
-  private captureManageInvoker(event?: Event): void {
-    const target = event?.currentTarget;
-    this.manageInvoker = target instanceof HTMLElement ? target : null;
-  }
-
-  /** Close the manage modal — every close path funnels through here. */
-  protected closeManage(): void {
-    this.managedInvoice.set(null);
-    const invoker = this.manageInvoker;
-    this.manageInvoker = null;
-    // The work queue can re-render while the dialog is open (health
-    // reloads after a successful action); only restore focus when the
-    // invoking button is still in the document.
-    if (invoker && this.document.contains(invoker)) {
-      invoker.focus();
-    }
-  }
-
-  /** Document-level keydown while the manage dialog is open. */
-  private onManageDialogKeydown(event: KeyboardEvent): void {
-    if (!this.managedInvoice()) {
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.closeManage();
-      return;
-    }
-    if (event.key === 'Tab') {
-      this.trapManageDialogTab(event);
-    }
-  }
-
-  /** Focus the dialog's first control (the @if block has rendered). */
-  private focusFirstInManageDialog(): void {
-    if (!this.managedInvoice()) {
-      return;
-    }
-    const dialog = this.manageDialog()?.nativeElement;
-    if (!dialog) {
-      return;
-    }
-    const first = this.manageDialogFocusables()[0];
-    if (first) {
-      first.focus();
-    } else {
-      // No focusable control yet — make the dialog itself the target.
-      dialog.setAttribute('tabindex', '-1');
-      dialog.focus();
-    }
-  }
-
-  /** Keep Tab / Shift+Tab cycling inside the open dialog. */
-  private trapManageDialogTab(event: KeyboardEvent): void {
-    const dialog = this.manageDialog()?.nativeElement;
-    if (!dialog) {
-      return;
-    }
-    const focusables = this.manageDialogFocusables();
-    if (focusables.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = this.document.activeElement as HTMLElement | null;
-    if (!active || !dialog.contains(active)) {
-      // Focus escaped the dialog somehow — pull it back in.
-      event.preventDefault();
-      (event.shiftKey ? last : first).focus();
-      return;
-    }
-    if (event.shiftKey && active === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  private manageDialogFocusables(): HTMLElement[] {
-    const dialog = this.manageDialog()?.nativeElement;
-    if (!dialog) {
-      return [];
-    }
-    return Array.from(
-      dialog.querySelectorAll<HTMLElement>(MANAGE_DIALOG_FOCUSABLE),
-    );
-  }
-
-  /**
-   * BILL-03 retry flow. First click arms the confirm state ("Retry charge"
-   * becomes "Confirm retry"); the second click dispatches. A charge retry
-   * is a real money action, so it always requires the deliberate second
-   * click — never a single tap.
-   */
-  protected requestRetry(invoiceId: string): void {
-    this.confirmRetryId = invoiceId;
-  }
-
-  protected cancelRetry(): void {
-    this.confirmRetryId = null;
-  }
-
-  protected isConfirming(invoiceId: string): boolean {
-    return this.confirmRetryId === invoiceId;
-  }
-
-  protected confirmRetry(invoiceId: string): void {
-    this.confirmRetryId = null;
+  protected recordPayment(invoiceId: string): void {
+    if (!this.canManageBilling()) return;
     this.store
-      .dispatch(new RetryInvoiceCharge(invoiceId))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
-  /**
-   * "Retry 2 of 3" — the next attempt number against the cap from the
-   * health payload. Falls back to a plain label when the cap is unknown.
-   */
-  protected retryButtonLabel(
-    retryCount: number,
-    maxRetries: number | undefined,
-  ): string {
-    if (maxRetries === undefined || maxRetries <= 0) return 'Retry charge';
-    return `Retry ${Math.min(retryCount + 1, maxRetries)} of ${maxRetries}`;
-  }
-
-  /** True when the invoice has used all its charge retries. */
-  protected retriesExhausted(
-    retryCount: number,
-    maxRetries: number | undefined,
-  ): boolean {
-    return maxRetries !== undefined && retryCount >= maxRetries;
-  }
-
-  protected formatCents(cents: number | null): string {
-    if (cents === null) return '—';
-    return formatCentsToCad(cents);
-  }
-
-  /** "1.5%" — trims float dust from stored percents. */
-  protected formatRatePercent(rate: number): string {
-    return `${Number(rate.toFixed(4))}%`;
-  }
-
-  /**
-   * Whole days between now and an ISO timestamp (dunning age). Integer
-   * math on the epoch — no float rounding surprises.
-   */
-  protected daysOverdue(iso: string): number {
-    const then = new Date(iso).getTime();
-    if (!Number.isFinite(then)) return 0;
-    return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
-  }
-
-  protected modelLabel(model: 'commission' | 'flat'): string {
-    // The commission model now bills at each builder's negotiated rate
-    // (default 1%) — the badge names the model, not a single rate.
-    return model === 'commission' ? 'Commission' : 'Flat plan';
+      .dispatch(new LoadAdminInvoiceDetail(invoiceId))
+      .pipe(
+        switchMap(() => {
+          const invoice = this.store.selectSnapshot(AdminInvoicesState.detail);
+          if (invoice === null || invoice.id !== invoiceId) {
+            this.toasts.show({ message: 'Couldn’t load that invoice. Try again.', tone: 'danger' });
+            return [];
+          }
+          return this.modals.open<AdminInvoicePaymentModalComponent, boolean, AdminInvoiceActionData>(
+            AdminInvoicePaymentModalComponent,
+            { data: { invoice }, size: 'sm', injector: this.injector },
+          ).closed;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        complete: () => {
+          if (this.drawers.openDrawer === null) this.store.dispatch(new ClearAdminInvoiceDetail());
+        },
+      });
   }
 }

@@ -20,6 +20,20 @@ export class LoadBuilderLeads {
   static readonly type = '[Builder] Load leads';
 }
 
+/** Loads the Leads home "Needs you" feed (#526/#527). */
+export class LoadBuilderNeedsYou {
+  static readonly type = '[Builder] Load needs-you feed';
+}
+
+/**
+ * Re-reads the pipeline and "Needs you" feed without a loading skeleton —
+ * after a write elsewhere changed server-derived lead fields (e.g. a
+ * recorded contract sets `hasInvoice`, #529).
+ */
+export class RefreshBuilderLeadsQuietly {
+  static readonly type = '[Builder] Refresh leads quietly';
+}
+
 /** Transitions a lead's pipeline status (contacted/quoted/won/lost). */
 export class UpdateBuilderLeadStatus {
   static readonly type = '[Builder] Update lead status';

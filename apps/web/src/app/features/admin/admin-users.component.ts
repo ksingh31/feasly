@@ -1,57 +1,65 @@
 import {
-  ChangeDetectorRef,
   Component,
-  ElementRef,
+  computed,
+  DestroyRef,
+  effect,
   inject,
+  Injector,
   OnInit,
-  viewChild,
+  signal,
+  untracked,
 } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
-import {
-  FormBuilder,
-  FormControl,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import type { DialogRef } from '@angular/cdk/dialog';
+import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
+import { filter } from 'rxjs';
 import type {
   AdminUser,
-  AdminUserBuilderRole,
-  AdminUserStaffRole,
   AdminUserStatus,
-  AdminUserUpdateBody,
   Builder,
 } from '@feasly/contracts';
 import {
-  CloseDeactivateAdminUser,
-  CloseDeleteAdminUser,
+  type UiDrawerRef,
+  type UiRowAction,
+  UI_DRAWER_URL_PARAM,
+  injectDrawerParam,
+  UiConfirmService,
+  UiDrawerService,
+  UiButtonComponent,
+  UiModalService,
+  UiRowActionsComponent,
+} from '@app/shared/ui';
+import {
   CloseEditAdminUser,
   CloseInviteAdminUser,
   DeactivateAdminUser,
   DeleteAdminUser,
   DismissAdminUsersNotice,
-  InviteAdminUser,
   LoadAdminUsers,
-  OpenDeactivateAdminUser,
-  OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
   ReactivateAdminUser,
   ResendAdminUserInvite,
-  UpdateAdminUser,
 } from './admin-users.actions';
 import { AdminUsersState } from './admin-users.state';
 import { AdminAuthState } from './admin-auth.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
-import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
+import {
+  ADMIN_BUILDER_ROLE_LABELS,
+  ADMIN_STAFF_ROLE_LABELS,
+  AdminUserEditDrawerComponent,
+  type AdminUserEditDrawerData,
+} from './admin-user-edit-drawer.component';
+import { AdminUserInviteModalComponent } from './admin-user-invite-modal.component';
 
-const STAFF_ROLES = ['super_admin', 'admin', 'viewer'] as const;
-const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
-  'builder_admin',
-  'builder_member',
-];
+/** Row-menu action ids (#542). */
+type UserRowAction = 'edit' | 'resend' | 'reactivate' | 'deactivate' | 'delete';
+
+/** Explainer on the disabled Deactivate item for the sole staff admin (auth/07). */
+const LAST_ADMIN_DEACTIVATE_HINT = 'Every organization needs at least one active administrator.';
 
 /**
  * Admin user management (auth/03) — the team-user table.
@@ -65,6 +73,12 @@ const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
  * The protected seed account and the current admin's own row refuse
  * dangerous actions with an explanatory note.
  *
+ * Review 2026-11-13 S8 (#542): each row has one ⋮ `RowActions` menu
+ * (Edit · Resend invite · Reactivate/Deactivate · Delete); Edit opens a
+ * single-form drawer with one Save (`AdminUserEditDrawerComponent`);
+ * Deactivate and Delete confirm through the shared ConfirmDialog (Delete
+ * is type-the-email-to-confirm).
+ *
  * Guarded by `adminGuard`; noindex via the robots guard; lazy-loaded so it
  * stays out of the public initial bundle. All state lives in
  * `AdminUsersState` — the component only dispatches actions and reads
@@ -73,43 +87,35 @@ const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [ReactiveFormsModule, InfoTooltipComponent],
+  imports: [UiRowActionsComponent, UiButtonComponent],
   templateUrl: './admin-users.component.html',
   styleUrls: ['./admin-users.component.scss'],
 })
 export class AdminUsersComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly fb = inject(FormBuilder);
-  private readonly cdr = inject(ChangeDetectorRef);
-  private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly drawers = inject(UiDrawerService);
+  private readonly modals = inject(UiModalService);
+  private readonly confirms = inject(UiConfirmService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly users = this.store.selectSignal(AdminUsersState.users);
   protected readonly total = this.store.selectSignal(AdminUsersState.total);
   protected readonly listStatus = this.store.selectSignal(AdminUsersState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminUsersState.listError);
   protected readonly inviteOpen = this.store.selectSignal(AdminUsersState.inviteOpen);
-  protected readonly inviting = this.store.selectSignal(AdminUsersState.inviting);
-  protected readonly inviteError = this.store.selectSignal(AdminUsersState.inviteError);
   protected readonly editingId = this.store.selectSignal(AdminUsersState.editingId);
   protected readonly updating = this.store.selectSignal(AdminUsersState.updating);
   protected readonly updateError = this.store.selectSignal(AdminUsersState.updateError);
   /**
-   * auth/07: the table row a failed row action targeted — its 409 surfaces
-   * inline on that row, never as a generic banner.
+   * auth/07: the table row a failed row action targeted — its error
+   * surfaces inline on that row, never as a generic banner.
    */
   protected readonly updateErrorUserId = this.store.selectSignal(
     AdminUsersState.updateErrorUserId,
   );
-  protected readonly deletingId = this.store.selectSignal(AdminUsersState.deletingId);
-  /** #473: user whose deactivate confirmation is open. */
-  protected readonly deactivatingId = this.store.selectSignal(
-    AdminUsersState.deactivatingId,
-  );
-  /** Cancel button in the deactivate confirmation — focused by default. */
-  private readonly deactivateCancel =
-    viewChild<ElementRef<HTMLButtonElement>>('deactivateCancel');
-  /** Row button that opened the deactivate confirmation — focus returns here. */
-  private deactivateInvoker: HTMLElement | null = null;
   protected readonly deleting = this.store.selectSignal(AdminUsersState.deleting);
 
   /** `users:manage` holders only — read-only staff get a read-only table. */
@@ -117,259 +123,209 @@ export class AdminUsersComponent implements OnInit {
     this.store,
     ADMIN_PERMISSIONS.usersManage,
   );
-  protected readonly deleteError = this.store.selectSignal(AdminUsersState.deleteError);
   protected readonly resendingId = this.store.selectSignal(AdminUsersState.resendingId);
   /** Lowercased email the admin session was issued for — marks the self row. */
   protected readonly selfEmail = this.store.selectSignal(AdminAuthState.email);
   protected readonly notice = this.store.selectSignal(AdminUsersState.notice);
   protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
 
-  /** Invite form: email, name, role, and (for builder roles) the org. */
-  protected readonly inviteForm = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    name: ['', [Validators.required, Validators.maxLength(200)]],
-    role: ['viewer' as string, [Validators.required]],
-    builderId: [''],
+  /** The ⋮ menu items for each row, keyed by user id (#542). */
+  protected readonly rowActions = computed(() => {
+    const map = new Map<string, UiRowAction[]>();
+    for (const user of this.users()) map.set(user.id, this.actionsFor(user));
+    return map;
   });
 
-  /** Edit form: name + staff role. Memberships are edited via the checkbox list. */
-  protected readonly editForm = this.fb.nonNullable.group({
-    name: ['', [Validators.required, Validators.maxLength(200)]],
-    role: [''],
-  });
+  private drawerRef: UiDrawerRef<boolean, AdminUserEditDrawerComponent> | null = null;
+  /** The open invite modal, if any — driven by `AdminUsersState.inviteOpen`. */
+  private inviteRef: DialogRef<void, AdminUserInviteModalComponent> | null = null;
 
-  /** Delete confirmation: type the user's email to confirm. */
-  protected readonly deleteForm = this.fb.nonNullable.group({
-    confirmation: [''],
-  });
+  /** `?open=<id>` — the user whose edit drawer is open (⌘K hits, #538). */
+  protected readonly openId = injectDrawerParam();
+  /** The first LoadAdminUsers on this page has settled (rows are current). */
+  private readonly loaded = signal(false);
 
-  protected readonly staffRoles = STAFF_ROLES;
-  protected readonly builderRoles = BUILDER_ROLES;
+  constructor() {
+    // ⌘K hits, EntityLinks and Back/Forward drive the edit drawer off the
+    // URL once the list is loaded; a param naming an unknown user is dropped.
+    effect(() => {
+      const id = this.openId();
+      const ready = this.loaded() && this.manageUsersSignal();
+      untracked(() => this.syncDrawer(id, ready));
+    });
+    // #548: the invite modal follows `inviteOpen` — opened by the header
+    // button, closed by the state on a successful invite.
+    effect(() => {
+      const open = this.inviteOpen();
+      untracked(() => this.syncInvite(open));
+    });
+  }
 
   ngOnInit(): void {
-    this.store.dispatch([new LoadAdminUsers(), new LoadBuilders()]);
+    this.store
+      .dispatch(new LoadAdminUsers())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loaded.set(true),
+        error: () => this.loaded.set(true),
+      });
+    this.store.dispatch(new LoadBuilders());
+  }
+
+  private syncDrawer(id: string | null, ready: boolean): void {
+    if (id === null || !ready || this.drawers.openDrawer?.urlId === id) return;
+    const user = this.users().find((u) => u.id === id);
+    if (!user) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { [UI_DRAWER_URL_PARAM]: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+      return;
+    }
+    this.openEdit(user);
   }
 
   // ------------------------------------------------------------- invite
 
   protected openInvite(): void {
-    this.inviteForm.reset({ email: '', name: '', role: 'viewer', builderId: '' });
     this.store.dispatch(new OpenInviteAdminUser());
   }
 
-  protected closeInvite(): void {
-    this.store.dispatch(new CloseInviteAdminUser());
+  private syncInvite(open: boolean): void {
+    if (open && !this.inviteRef) {
+      const ref = this.modals.open<AdminUserInviteModalComponent, void>(AdminUserInviteModalComponent, {
+        size: 'sm',
+        injector: this.injector,
+      });
+      this.inviteRef = ref;
+      ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        if (this.inviteRef !== ref) return;
+        this.inviteRef = null;
+        // User dismissal (Esc, scrim, Cancel): clear the state flag too.
+        if (this.inviteOpen()) this.store.dispatch(new CloseInviteAdminUser());
+      });
+    } else if (!open && this.inviteRef) {
+      const ref = this.inviteRef;
+      this.inviteRef = null;
+      ref.close();
+    }
   }
 
-  protected inviteRoleIsBuilder(): boolean {
-    const role = this.inviteForm.controls.role.value;
-    return (BUILDER_ROLES as readonly string[]).includes(role);
+  // ---------------------------------------------------------- row menu
+
+  protected onRowAction(user: AdminUser, action: string): void {
+    switch (action as UserRowAction) {
+      case 'edit':
+        this.openEdit(user);
+        break;
+      case 'resend':
+        this.store.dispatch(new ResendAdminUserInvite(user.id));
+        break;
+      case 'reactivate':
+        this.store.dispatch(new ReactivateAdminUser(user.id));
+        break;
+      case 'deactivate':
+        this.confirmDeactivate(user);
+        break;
+      case 'delete':
+        this.confirmDelete(user);
+        break;
+    }
   }
 
-  protected submitInvite(): void {
-    if (this.inviteForm.invalid || this.inviting()) {
-      this.inviteForm.markAllAsTouched();
-      return;
+  private actionsFor(user: AdminUser): UiRowAction[] {
+    const actions: UiRowAction[] = [];
+    if (this.canEdit(user)) {
+      actions.push({ id: 'edit', label: 'Edit' });
     }
-    const { email, name, role, builderId } = this.inviteForm.getRawValue();
-    if (this.inviteRoleIsBuilder() && !builderId) {
-      this.inviteForm.controls.builderId.setErrors({ required: true });
-      this.inviteForm.controls.builderId.markAsTouched();
-      return;
+    if (user.status === 'invited' && this.canEdit(user)) {
+      const sending = this.resendingId() === user.id;
+      actions.push({
+        id: 'resend',
+        label: sending ? 'Sending…' : 'Resend invite',
+        disabled: sending,
+      });
     }
-    this.store.dispatch(
-      new InviteAdminUser({
-        email: email.trim(),
-        name: name.trim(),
-        role: role as AdminUserStaffRole | AdminUserBuilderRole,
-        builderId: this.inviteRoleIsBuilder() && builderId ? builderId : undefined,
-      }),
-    );
+    if (this.canToggleActive(user)) {
+      if (user.status === 'disabled') {
+        actions.push({ id: 'reactivate', label: 'Reactivate', disabled: this.updating() });
+      } else {
+        const sole = this.isSoleStaffAdmin(user);
+        actions.push({
+          id: 'deactivate',
+          label: 'Deactivate',
+          tone: 'danger',
+          disabled: this.updating() || sole,
+          hint: sole ? LAST_ADMIN_DEACTIVATE_HINT : undefined,
+        });
+      }
+    }
+    if (this.canDelete(user)) {
+      actions.push({ id: 'delete', label: 'Delete', tone: 'danger', disabled: this.deleting() });
+    }
+    return actions;
   }
 
   // --------------------------------------------------------------- edit
 
+  /** One drawer, one form, one Save (#542). */
   protected openEdit(user: AdminUser): void {
-    this.editDrawerControls.clear();
-    this.editDrawerRoleControls.clear();
-    this.editForm.reset({ name: user.name, role: user.staffRole ?? '' });
-    // auth/07: the sole remaining active staff admin's role is locked by
-    // the backend 409 — disable the select up front with an explainer.
-    if (this.isSoleStaffAdmin(user)) {
-      this.editForm.controls.role.disable();
-    } else {
-      this.editForm.controls.role.enable();
-    }
     this.store.dispatch(new OpenEditAdminUser(user.id));
+    const ref = this.drawers.open<AdminUserEditDrawerComponent, boolean, AdminUserEditDrawerData>(
+      AdminUserEditDrawerComponent,
+      {
+        data: { userId: user.id, lockStaffRole: this.isSoleStaffAdmin(user) },
+        size: 'md',
+        urlId: user.id,
+        injector: this.injector,
+      },
+    );
+    this.drawerRef = ref;
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.drawerRef !== ref) return;
+      this.drawerRef = null;
+      this.store.dispatch(new CloseEditAdminUser());
+    });
   }
 
-  protected closeEdit(): void {
-    this.store.dispatch(new CloseEditAdminUser());
-  }
-
-  protected editingUser(): AdminUser | null {
-    const id = this.editingId();
-    return this.users().find((u) => u.id === id) ?? null;
-  }
-
-  protected editRoleIsBuilder(): boolean {
-    const role = this.editForm.controls.role.value;
-    return (BUILDER_ROLES as readonly string[]).includes(role);
-  }
-
-  protected submitEdit(): void {
-    const user = this.editingUser();
-    if (!user || this.editForm.invalid || this.updating()) {
-      this.editForm.markAllAsTouched();
-      return;
-    }
-    const { name, role } = this.editForm.getRawValue();
-    // An empty role keeps a builder-only user builder-only (no staff role
-    // is granted by accident); a chosen role only changes when it differs.
-    // Passing null strips the staff role entirely.
-    const trimmedName = name.trim();
-    const staffRole = role === '' ? null : (role as AdminUserStaffRole);
-    const body: AdminUserUpdateBody = {
-      ...(trimmedName !== user.name ? { name: trimmedName } : {}),
-      ...(staffRole !== (user.staffRole ?? null) ? { staffRole } : {}),
-    };
-    if (Object.keys(body).length === 0) {
-      this.closeEdit();
-      return;
-    }
-    this.store.dispatch(new UpdateAdminUser(user.id, body));
-  }
-
-  /** Membership checkboxes in the edit drawer: one FormControl per builder. */
-  protected membershipControl(builderId: string): FormControl<boolean> {
-    const key = `membership-${builderId}`;
-    let control = this.editDrawerControls.get(key);
-    if (!control) {
-      const user = this.editingUser();
-      control = this.fb.nonNullable.control(
-        user?.memberships.some((m) => m.builderId === builderId) ?? false,
-      );
-      this.editDrawerControls.set(key, control);
-    }
-    return control;
-  }
-
-  /** Membership role select in the edit drawer: one per builder. */
-  protected membershipRoleControl(
-    builderId: string,
-  ): FormControl<AdminUserBuilderRole> {
-    const key = `membership-role-${builderId}`;
-    let control = this.editDrawerRoleControls.get(key);
-    if (!control) {
-      const user = this.editingUser();
-      control = this.fb.nonNullable.control<AdminUserBuilderRole>(
-        user?.memberships.find((m) => m.builderId === builderId)?.role ??
-          'builder_member',
-      );
-      this.editDrawerRoleControls.set(key, control);
-    }
-    return control;
-  }
-
-  private readonly editDrawerControls = new Map<string, FormControl<boolean>>();
-  private readonly editDrawerRoleControls = new Map<
-    string,
-    FormControl<AdminUserBuilderRole>
-  >();
-
-  protected submitMemberships(): void {
-    const user = this.editingUser();
-    if (!user || this.updating()) {
-      return;
-    }
-    const memberships = this.builders()
-      .filter((b) => this.membershipControl(b.id).value)
-      .map((b) => ({
-        builderId: b.id,
-        role: this.membershipRoleControl(b.id).value,
-      }));
-    this.store.dispatch(new UpdateAdminUser(user.id, { memberships }));
-  }
-
-  // ------------------------------------------------- activate / delete
+  // ------------------------------------------------- deactivate / delete
 
   /**
-   * #473: Deactivate never fires in one click — it opens a confirmation
-   * naming the user and the consequence (signed out everywhere). Cancel is
-   * focused by default so a stray Enter/Space is harmless.
+   * #473 / #542: Deactivate never fires in one click — the shared
+   * ConfirmDialog names the user and the consequence (signed out
+   * everywhere), with Cancel focused by default.
    */
-  protected openDeactivate(user: AdminUser, event?: Event): void {
-    const target = event?.currentTarget;
-    this.deactivateInvoker = target instanceof HTMLElement ? target : null;
-    this.store.dispatch(new OpenDeactivateAdminUser(user.id));
-    // Render synchronously, then move focus (no timer — deterministic).
-    this.cdr.detectChanges();
-    this.deactivateCancel()?.nativeElement.focus();
+  private confirmDeactivate(user: AdminUser): void {
+    this.confirms
+      .confirm({
+        title: `Deactivate ${user.name}?`,
+        body:
+          `${user.name} (${user.email}) will be signed out everywhere immediately ` +
+          "and won't be able to sign in until an admin reactivates them.",
+        verb: 'Deactivate',
+        tone: 'danger',
+      })
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.dispatch(new DeactivateAdminUser(user.id)));
   }
 
-  protected closeDeactivate(): void {
-    this.store.dispatch(new CloseDeactivateAdminUser());
-    this.restoreDeactivateFocus();
-  }
-
-  protected deactivatingUser(): AdminUser | null {
-    const id = this.deactivatingId();
-    return this.users().find((u) => u.id === id) ?? null;
-  }
-
-  protected confirmDeactivate(): void {
-    const user = this.deactivatingUser();
-    if (!user || this.updating()) {
-      return;
-    }
-    this.store.dispatch(new DeactivateAdminUser(user.id));
-  }
-
-  private restoreDeactivateFocus(): void {
-    const invoker = this.deactivateInvoker;
-    this.deactivateInvoker = null;
-    if (invoker && this.document.contains(invoker)) {
-      invoker.focus();
-    }
-  }
-
-  protected reactivate(user: AdminUser): void {
-    this.store.dispatch(new ReactivateAdminUser(user.id));
-  }
-
-  protected resendInvite(user: AdminUser): void {
-    this.store.dispatch(new ResendAdminUserInvite(user.id));
-  }
-
-  protected openDelete(user: AdminUser): void {
-    this.deleteForm.reset({ confirmation: '' });
-    this.store.dispatch(new OpenDeleteAdminUser(user.id));
-  }
-
-  protected closeDelete(): void {
-    this.store.dispatch(new CloseDeleteAdminUser());
-  }
-
-  protected deletingUser(): AdminUser | null {
-    const id = this.deletingId();
-    return this.users().find((u) => u.id === id) ?? null;
-  }
-
-  protected deleteConfirmationMatches(): boolean {
-    const user = this.deletingUser();
-    return (
-      !!user &&
-      this.deleteForm.controls.confirmation.value.trim().toLowerCase() ===
-        user.email.toLowerCase()
-    );
-  }
-
-  protected confirmDelete(): void {
-    const user = this.deletingUser();
-    if (!user || !this.deleteConfirmationMatches() || this.deleting()) {
-      return;
-    }
-    this.store.dispatch(new DeleteAdminUser(user.id));
+  /** Delete (never-accepted invites only): type the email to confirm. */
+  private confirmDelete(user: AdminUser): void {
+    this.confirms
+      .confirm({
+        title: `Delete ${user.email}?`,
+        body:
+          'They never accepted their invite, so deleting removes the invitation ' +
+          "and their sign-in account permanently. This can't be undone.",
+        verb: 'Delete',
+        tone: 'danger',
+        typeToConfirm: user.email,
+        typeToConfirmPrompt: 'To confirm, type',
+      })
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.dispatch(new DeleteAdminUser(user.id)));
   }
 
   protected dismissNotice(): void {
@@ -384,13 +340,9 @@ export class AdminUsersComponent implements OnInit {
 
   protected roleLabel(user: AdminUser): string {
     if (user.staffRole) {
-      return (
-        { super_admin: 'Super admin', admin: 'Admin', viewer: 'Viewer' } as const
-      )[user.staffRole];
+      return ADMIN_STAFF_ROLE_LABELS[user.staffRole];
     }
-    return user.memberships
-      .map((m) => (m.role === 'builder_admin' ? 'Builder admin' : 'Builder member'))
-      .join(', ');
+    return user.memberships.map((m) => ADMIN_BUILDER_ROLE_LABELS[m.role]).join(', ');
   }
 
   protected statusLabel(status: AdminUserStatus): string {
@@ -402,7 +354,7 @@ export class AdminUsersComponent implements OnInit {
   protected builderName(builderId: string): string {
     const builders: Builder[] = this.builders();
     return (
-      builders.find((b) => b.id === builderId)?.displayName ?? builderId
+      builders.find((b) => b.id === builderId)?.displayName ?? '—'
     );
   }
 
@@ -434,21 +386,12 @@ export class AdminUsersComponent implements OnInit {
   }
 
   /**
-   * Deterministic id for a last-admin ⓘ tooltip bubble. The disabled
-   * control's `aria-describedby` and the tooltip's `[tooltipId]` both
-   * use it (template refs can't cross `@if` block boundaries).
-   */
-  protected lastAdminTipId(user: AdminUser | null, kind: 'role' | 'deactivate'): string {
-    return `last-admin-${kind}-${user?.id ?? 'unknown'}`;
-  }
-
-  /**
    * auth/07: whether this row is the sole remaining active staff admin
-   * (`super_admin`/`admin`) in the loaded list. The template disables
-   * their staff-role select and their Deactivate action, with an ⓘ
-   * tooltip explainer; the backend 409 is the real enforcement. Pending /
-   * deactivated users never count. (The list is paginated, so an admin
-   * on another page isn't visible here — the 409 still protects them.)
+   * (`super_admin`/`admin`) in the loaded list. Their Deactivate menu item
+   * and their drawer staff-role select are disabled with an explainer; the
+   * backend 409 is the real enforcement. Pending / deactivated users never
+   * count. (The list is paginated, so an admin on another page isn't
+   * visible here — the 409 still protects them.)
    */
   protected isSoleStaffAdmin(user: AdminUser | null): boolean {
     if (

@@ -2,7 +2,6 @@
 // language (design pass, 2026-09-28): panel container, underline tabs,
 // admin-style table, alert/error/empty/skeleton states. Uses the shared
 // --color-* tokens; no new shared components.
-@use '../../shared/form-controls' as *;
 @use '../../shared/stacked-table' as *;
 
 .builder-invoices {
@@ -20,86 +19,6 @@
 .builder-invoices__sub {
   margin: 0.25rem 0 0;
   color: var(--color-text-muted, #6b6257);
-}
-
-.builder-invoices__note {
-  margin: 0;
-  color: var(--color-text-muted, #6b6257);
-  font-size: 0.95rem;
-}
-
-/* Per-invoice payment method (billing/12): shared select chrome. */
-.builder-invoices__select {
-  /* Shared select chrome: custom chevron with proper arrow spacing
-     (replaces the cramped native arrow on every browser). */
-  @include feasly-select;
-  width: 100%;
-  max-width: 20rem;
-  margin-bottom: 0.5rem;
-}
-
-/* Apply flow (Karan 2026-10-02): the select stages a choice; Apply
-   confirms it. The row wraps so select + Apply never overflow at 390px. */
-.builder-invoices__method-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.builder-invoices__select--inline {
-  flex: 1 1 13rem;
-  min-width: 0;
-  margin-bottom: 0;
-}
-
-.builder-invoices__apply {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-accent, #a8761a);
-  border-radius: 0.375rem;
-  background: var(--color-accent, #a8761a);
-  color: #fff;
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  min-height: 44px;
-
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-}
-
-.builder-invoices__reset {
-  background: none;
-  border: none;
-  padding: 0.5rem 0.25rem;
-  font: inherit;
-  font-size: 0.9375rem;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  color: inherit;
-  min-height: 44px;
-}
-
-.builder-invoices__saved {
-  margin: 0 0 0.5rem;
-  color: #2e7d32;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.builder-invoices__alert-text {
-  margin: 0.5rem 0 0;
-  color: #a02323;
-  font-size: 0.95rem;
-  font-weight: 600;
 }
 
 /* Invoice-number search (above the list). */
@@ -207,8 +126,9 @@
 }
 
 .builder-invoices__pill--in_review {
-  background: #fff4d6;
-  color: #8a6d00;
+  // Kit status tokens: #8a6d00 on #fff4d6 measured 4.49:1 (axe, #536).
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
 .builder-invoices__pill--finalized {
@@ -232,8 +152,9 @@
 }
 
 .builder-invoices__pill--void {
-  background: #f0ede8;
-  color: #9a938a;
+  // Kit tokens: the old #9a938a on #f0ede8 was 2.6:1.
+  background: var(--status-neutral-bg);
+  color: var(--muted);
 }
 
 .builder-invoices__countdown {
@@ -249,114 +170,6 @@
   white-space: nowrap;
   background: #eef2f7;
   color: #475569;
-}
-
-/* White-card detail panels (admin stat-panel treatment). */
-.builder-invoices__panel {
-  background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.builder-invoices__panel-title {
-  font-size: 1.125rem;
-  margin: 0;
-}
-
-.builder-invoices__facts {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-
-  > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  dt {
-    font-size: 0.8125rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted, #6b6257);
-  }
-
-  dd {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-    text-align: right;
-  }
-}
-
-.builder-invoices__timeline {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--color-border, #e5e0d8);
-  }
-
-  li:last-child {
-    border-bottom: none;
-  }
-}
-
-.builder-invoices__timeline-label {
-  color: var(--color-text-muted, #6b6257);
-}
-
-.builder-invoices__back {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  color: inherit;
-  min-height: 44px;
-}
-
-/* Charge-state banners. */
-.builder-invoices__banner {
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-}
-
-.builder-invoices__banner--error {
-  background: #fdecea;
-  color: #a02323;
-  border: 1px solid #f5c6c0;
-
-  a {
-    color: inherit;
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-}
-
-.builder-invoices__banner--success {
-  background: #e9f5ec;
-  color: #1e7e34;
-  border: 1px solid #bfe3c8;
 }
 
 /* Pagination (admin billing-panel__btn treatment). */

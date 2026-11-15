@@ -1064,7 +1064,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "type": "string",
           },
           "assessmentYear": {
+            "description": "Assessment roll year; a fallback (current year) when assessmentYearInferred is true",
             "type": "integer",
+          },
+          "assessmentYearInferred": {
+            "description": "True when the City row had no roll year and assessmentYear is a fallback",
+            "type": "boolean",
           },
           "community": {
             "type": "string",

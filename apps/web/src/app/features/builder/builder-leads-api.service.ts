@@ -4,6 +4,7 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
@@ -42,6 +43,19 @@ export class BuilderLeadsApiService {
   listLeads(): Observable<BuilderLeadListResponse> {
     return this.call(
       this.http.get<BuilderLeadListResponse>(this.leadsBase, { withCredentials: true }),
+    );
+  }
+
+  /**
+   * Leads home "Needs you" feed (#526): uncontacted, stale and
+   * won-without-contract groups plus status counts. Grouping, sorting and
+   * the staleness rule are all server-side.
+   */
+  needsYou(): Observable<BuilderLeadsNeedsYouResponse> {
+    return this.call(
+      this.http.get<BuilderLeadsNeedsYouResponse>(`${this.leadsBase}/needs-you`, {
+        withCredentials: true,
+      }),
     );
   }
 

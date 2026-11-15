@@ -50,6 +50,7 @@ infra/bicep/
     monitoring.bicep            # Log Analytics + workspace-based App Insights
     storage.bicep               # StorageV2, `tenant-assets` + `deployment` containers,
                                 # lifecycle rule: dispute-evidence -> archive @90d, delete @7yr
+    subscription-cost-reader.bicep  # SUBSCRIPTION scope: Cost Management Reader for the deployer/ops identity (#574)
     dns.bicep                   # AUTHOR ONLY — not wired into main.bicep (no domain owned yet, FND-014)
 ```
 
@@ -113,3 +114,25 @@ approval). Each prod deploy needs Karan's approval — no standing auto-promote.
   `docs/oidc-setup.md`. The deployer identity receives "Key Vault Secrets
   Officer" on the vault (in-template role assignment) so CI can write/read
   secrets; it must also hold **Contributor** on the resource group (runbook).
+- **Cost read access (#574, #637):** `modules/subscription-cost-reader.bicep`
+  grants the deployer identity the built-in, read-only **Cost Management
+  Reader** role on the subscription, so the nightly ops review (same OIDC
+  identity) can run `az consumption budget list` against the
+  subscription-scoped `feasly-monthly-cap` budget. No cost. It is wired with
+  `scope: subscription()` but **gated off** (`grantDeployerCostReader = false`
+  by default and in every `.bicepparam`): the CD identity holds rights only at
+  resource-group scope, so it cannot write the subscription-scope nested
+  deployment or role assignment, and turning the flag on fails what-if and the
+  whole CD deploy (#637). The role must be granted **once, by hand**, by
+  someone with Owner / User Access Administrator on the subscription:
+
+  ```bash
+  az role assignment create \
+    --assignee-object-id <CD OIDC identity object id> \
+    --assignee-principal-type ServicePrincipal \
+    --role "Cost Management Reader" \
+    --scope /subscriptions/<subscription id>
+  ```
+
+  Only set `grantDeployerCostReader = true` if the deployer itself is given
+  subscription-level `roleAssignments/write`.

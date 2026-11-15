@@ -1,0 +1,47 @@
+// Shared control chrome for the UI-kit fields (TextField, Select,
+// MoneyField, DateField). Tokens only.
+
+@mixin ui-field-control {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  /* ≥3:1 against the card so the control's edge is perceivable (WCAG 1.4.11). */
+  border: 1px solid color-mix(in srgb, var(--text) 38%, var(--card));
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: var(--type-body);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: var(--muted);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--status-danger-fg);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Phones: 44px tap target; 16px text stops iOS zoom-on-focus. */
+  @media (max-width: 767px), (pointer: coarse) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,32 @@
+@use './field-control' as *;
+
+:host {
+  display: block;
+}
+
+.ui-money {
+  position: relative;
+}
+
+.ui-money__prefix {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--muted);
+  font: var(--type-body);
+  pointer-events: none;
+}
+
+.ui-money--disabled .ui-money__prefix {
+  opacity: 0.4;
+}
+
+.ui-field__control {
+  @include ui-field-control;
+}
+
+.ui-money__control {
+  padding-left: calc(var(--space-3) + var(--space-1) + 1ch);
+  font-variant-numeric: tabular-nums;
+}

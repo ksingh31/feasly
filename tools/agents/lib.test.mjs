@@ -1,8 +1,9 @@
 // Unit tests for the agent pipeline decision logic. Run: node --test tools/agents/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as lib from './lib.mjs';
 import {
-  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, decideMerge, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
+  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, decideMerge, judgeClaimedIssue, findMergedPrFor, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -79,6 +80,32 @@ test('claimed issue: no PR within grace → none; past grace → requeue; repeat
   assert.equal(judgeClaimedIssue({ ...base, claimedAt: ago(5), comments: [] }).action, 'requeue');
   const twice = [{ body: MARKERS.requeue }, { body: `x ${MARKERS.requeue}` }];
   assert.equal(judgeClaimedIssue({ ...base, claimedAt: ago(5), comments: twice }).action, 'escalate');
+});
+
+test('claimed issue whose PR already merged → close, never requeue or escalate (#635)', () => {
+  const base = { issue: issue(1), linkedPr: null, now: NOW, cfg: DEFAULTS, mergedPr: { number: 9 } };
+  assert.deepEqual(judgeClaimedIssue({ ...base, claimedAt: ago(1), comments: [] }), { action: 'close', reason: 'delivered by merged PR #9' });
+  assert.equal(judgeClaimedIssue({ ...base, claimedAt: ago(5), comments: [] }).action, 'close');
+  const twice = [{ body: MARKERS.requeue }, { body: MARKERS.requeue }];
+  assert.equal(judgeClaimedIssue({ ...base, claimedAt: ago(5), comments: twice }).action, 'close');
+  // An open PR (follow-up work in flight) still wins over an older merged one.
+  assert.equal(judgeClaimedIssue({ ...base, linkedPr: { number: 10 }, issue: issue(1, ['size:L']), claimedAt: ago(5), comments: [] }).action, 'none');
+});
+
+test('findMergedPrFor: closing reference or agent branch, merged since the claim', () => {
+  const merged = [
+    { number: 20, headRefName: 'feat/ui-kit', mergedAt: ago(2), closingIssuesReferences: [{ number: 501 }] },
+    { number: 21, headRefName: 'agent/issue-502-thing', mergedAt: ago(2), closingIssuesReferences: [] },
+    { number: 22, headRefName: 'agent/issue-5030-other', mergedAt: ago(2) },
+    { number: 23, headRefName: 'fix/old', mergedAt: ago(50), closingIssuesReferences: [{ number: 504 }] },
+  ];
+  assert.equal(findMergedPrFor(501, merged, ago(5))?.number, 20);
+  assert.equal(findMergedPrFor(502, merged, ago(5))?.number, 21);
+  assert.equal(findMergedPrFor(503, merged, ago(5)), null); // prefix must not match issue-5030
+  assert.equal(findMergedPrFor(504, merged, ago(5)), null); // merged before this claim (reopened issue)
+  assert.equal(findMergedPrFor(504, merged)?.number, 23);
+  assert.equal(findMergedPrFor(501, [], ago(5)), null);
+  assert.equal(findMergedPrFor(501, [{ number: 24, closingIssuesReferences: [{ number: 501 }] }], ago(5)), null); // not merged
 });
 
 test('claimed issue with PR: overdue once past its size budget', () => {
@@ -174,4 +201,11 @@ test('sensitive paths hold auto-merge', () => {
     'docs/legal/approved-copy.md',
   ]);
   assert.equal(hits.length, 2); // only infra/bicep + docs/legal of the samples
+});
+
+test('linkedIssues extracts closing-keyword references only', () => {
+  const { linkedIssues } = lib;
+  assert.deepEqual(linkedIssues('Fixes #12\ncloses #3, Resolves #4. See #99. fixed #12'), [12, 3, 4]);
+  assert.deepEqual(linkedIssues(''), []);
+  assert.deepEqual(linkedIssues(null), []);
 });

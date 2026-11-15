@@ -54,7 +54,8 @@ export class PropertyCardComponent implements OnInit {
     if (!p) return '';
     return formatFreshnessLine(
       this.config.get('copy').dataFreshness,
-      p.assessmentYear,
+      // Never claim a roll year we didn't read (#622): inferred → generic copy.
+      p.assessmentYearInferred ? null : p.assessmentYear,
       this.dataFreshness.freshness().refreshedMonth,
     ).line;
   });

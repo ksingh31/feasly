@@ -1,12 +1,11 @@
-@use '../../shared/form-controls' as *;
 @use '../../shared/stacked-table' as *;
 
 /**
  * Admin user management (auth/03) — the team-user table.
  *
  * Cream background, charcoal text, brass accents — same admin family as the
- * builders page. Table of users on top; invite/edit/delete open as modal
- * dialogs. On phones (<= 640px) each user row stacks into a card (#476).
+ * builders page. Table of users on top with a ⋮ menu per row (#542);
+ * invite opens a kit modal (#548), edit a drawer, deactivate/delete a ConfirmDialog. On phones (<= 640px) each user row stacks into a card (#476).
  */
 
 .users-page {
@@ -42,24 +41,9 @@
 }
 
 .users-page__primary {
+  /* The kit's ui-button primary (#548, review M6); layout only here. */
   align-self: center;
-  padding: 0.625rem 1.25rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: var(--accent-deep);
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.users-page__primary:hover {
-  filter: brightness(0.95);
-}
-
-.users-page__primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  flex: none;
 }
 
 .users-page__banner {
@@ -196,32 +180,9 @@
 }
 
 .users-page__actions {
+  width: 1%;
+  text-align: right;
   white-space: nowrap;
-}
-
-.users-page__actions button {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  background: transparent;
-  color: var(--accent-deep);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.users-page__actions button:hover {
-  text-decoration: underline;
-}
-
-.users-page__actions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  text-decoration: none;
-}
-
-.users-page__danger-link {
-  color: #8c2f26;
 }
 
 .users-page__empty {
@@ -230,88 +191,15 @@
   padding: 2rem 1rem;
 }
 
-/* ------------------------------------------------------------ modals */
 
-.users-page__overlay {
-  position: fixed;
-  inset: 0;
-  /* Above the admin mobile nav dropdown (z-index 100) — same rule as the
-     lead-detail and api-keys modals (see PR #286). */
-  z-index: 150;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2rem 1rem;
-  overflow-y: auto;
-  background: rgb(0 0 0 / 0.45);
-}
 
-.users-page__modal {
-  width: 100%;
-  max-width: 34rem;
-  background: var(--cream);
-  color: var(--text);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.25);
-}
 
-.users-page__modal h2 {
-  margin: 0;
-  font-family: var(--font-headline);
-  font-size: 1.375rem;
-}
 
-.users-page__modal-sub {
-  margin: 0.5rem 0 1rem;
-  color: var(--muted);
-}
 
-.users-page__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  margin-bottom: 1rem;
-  font-weight: 600;
-}
 
-.users-page__field input {
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: #fff;
-  color: var(--text);
-  font: inherit;
-  font-weight: 400;
-}
 
-.users-page__field select {
-  /* Shared select chrome: custom chevron with proper arrow spacing. */
-  @include feasly-select;
-  font-weight: 400;
-}
-
-/* Row wrapper for a control + its ⓘ tooltip (auth/07 last-admin). */
-.users-page__field-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.users-page__field-row select {
-  flex: 1;
-  min-width: 0;
-}
-
-.users-page__field-error {
-  font-size: 0.8125rem;
-  font-weight: 400;
-  color: #8c2f26;
-}
-
-/* auth/07: inline explainer under a disabled control when the row is the
-   sole remaining active staff admin. Wraps inside the cell (the actions
-   cell is nowrap) and never widens the table on mobile. */
+/* auth/07: inline row note. Wraps inside the cell (the actions cell is
+   nowrap) and never widens the table on mobile. */
 .users-page__note {
   display: block;
   margin: 0.375rem 0 0;
@@ -328,74 +216,8 @@
   color: #8c2f26;
 }
 
-.users-page__modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
 
-.users-page__modal-actions button {
-  padding: 0.625rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
 
-.users-page__modal-actions .users-page__primary {
-  border: none;
-}
-
-.users-page__danger {
-  background: #8c2f26;
-  border-color: #8c2f26;
-  color: #fff;
-}
-
-.users-page__danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.users-page__drawer-sub {
-  margin: 1.5rem 0 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.users-page__memberships {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.users-page__membership {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: #fff;
-}
-
-.users-page__membership label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.users-page__membership select {
-  /* Shared select chrome: custom chevron with proper arrow spacing. */
-  @include feasly-select($font-size: 0.875rem, $pad-y: 0.375rem, $pad-left: 0.5rem, $radius: 0.375rem);
-}
 
 /* ---------------------------------------------------------- responsive */
 
@@ -404,25 +226,17 @@
     padding: 1rem;
   }
 
+  /* Stacked cards: the ⋮ menu sits at the card's bottom-right. */
+  .users-page__table tbody td.users-page__actions {
+    width: auto;
+    justify-content: flex-end;
+  }
+
   .users-page__header h1 {
     font-size: 1.5rem;
   }
 
   .users-page__primary {
     width: 100%;
-  }
-
-  .users-page__modal {
-    padding: 1.25rem;
-  }
-
-  .users-page__overlay {
-    padding: 1rem 0.5rem;
-    align-items: flex-start;
-  }
-
-  .users-page__membership {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }

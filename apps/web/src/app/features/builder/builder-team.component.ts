@@ -2,6 +2,8 @@ import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
+import { filter, switchMap } from 'rxjs';
+import { StatusChipComponent, UiConfirmService, UiToastService } from '@app/shared/ui';
 import { SeoService } from '../../core/seo/seo.service';
 import { InfoTooltipComponent } from '../../shared/components/info-tooltip';
 import { BUILDER_COPY } from './builder-copy';
@@ -13,6 +15,7 @@ import {
   InviteBuilderTeamUser,
   LoadBuilderTeam,
   RemoveBuilderTeamUser,
+  ResendBuilderTeamInvite,
   SetBuilderTeamUserRole,
   SetBuilderTeamUserStatus,
 } from './builder-team.state';
@@ -32,7 +35,13 @@ import type { BuilderTeamUser } from './builder-auth.contracts';
  * banner, skeleton rows, table (name/email/role/status/added/actions),
  * empty state, error + retry, invite and confirm modals.
  *
- * Deactivation kills the member's session immediately (backend); removal
+ * Team v2 (#535, review 2026-11-13 Should-fix 6): the signed-in user's row
+ * carries a "You" tag and no manage controls; pending invites offer only
+ * Resend + Revoke; deactivated rows are greyed with no role select;
+ * Deactivate and Revoke confirm in the shared ConfirmDialog and report in
+ * a toast. On phones each row stacks into a card with no horizontal scroll.
+ *
+ * Deactivation kills the member's session immediately (backend); revoking
  * is only allowed while the invite was never accepted (backend enforces).
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
@@ -40,7 +49,7 @@ import type { BuilderTeamUser } from './builder-auth.contracts';
 @Component({
   selector: 'app-builder-team',
   standalone: true,
-  imports: [ReactiveFormsModule, InfoTooltipComponent],
+  imports: [ReactiveFormsModule, InfoTooltipComponent, StatusChipComponent],
   templateUrl: './builder-team.component.html',
   styleUrls: ['./builder-team.component.scss'],
 })
@@ -49,6 +58,8 @@ export class BuilderTeamComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly confirms = inject(UiConfirmService);
+  private readonly toasts = inject(UiToastService);
 
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(BUILDER_COPY);
@@ -119,12 +130,6 @@ export class BuilderTeamComponent implements OnInit {
     role: ['builder_member' as 'builder_admin' | 'builder_member', Validators.required],
   });
 
-  /** User id awaiting confirm for deactivate/remove; null when no dialog. */
-  protected confirmAction: {
-    id: string;
-    kind: 'deactivate' | 'remove';
-  } | null = null;
-
   /** Invite modal open state; only ever opened behind the admin gate. */
   protected inviteOpen = false;
 
@@ -156,17 +161,6 @@ export class BuilderTeamComponent implements OnInit {
 
   protected roleLabel(role: BuilderTeamUser['role']): string {
     return role === 'builder_admin' ? this.copy.orgRoleAdmin : this.copy.orgRoleMember;
-  }
-
-  protected statusLabel(status: BuilderTeamUser['status']): string {
-    switch (status) {
-      case 'active':
-        return this.copy.teamStatusActive;
-      case 'invited':
-        return this.copy.teamStatusInvited;
-      case 'deactivated':
-        return this.copy.teamStatusDeactivated;
-    }
   }
 
   protected get nameInvalid(): boolean {
@@ -242,40 +236,95 @@ export class BuilderTeamComponent implements OnInit {
     this.store.dispatch(new ClearBuilderTeamFeedback());
   }
 
+  /** True for the signed-in user's own row ("You" tag, no manage controls). */
+  protected isSelf(user: BuilderTeamUser): boolean {
+    const selfEmail = this.builderSession()?.email?.toLowerCase() ?? null;
+    return selfEmail !== null && user.email.toLowerCase() === selfEmail;
+  }
+
+  /**
+   * Role select renders only for admins, on rows they can change: never
+   * their own (the backend refuses self-changes) and never a deactivated
+   * member (greyed row, role as text).
+   */
+  protected canEditRole(user: BuilderTeamUser): boolean {
+    return this.isBuilderAdmin() && !this.isSelf(user) && user.status !== 'deactivated';
+  }
+
+  /** Deactivate — destructive, so it goes through the shared ConfirmDialog. */
   protected askDeactivate(user: BuilderTeamUser): void {
-    this.confirmAction = { id: user.id, kind: 'deactivate' };
+    if (this.rowActionsDisabled() || this.isSoleAdmin(user)) return;
+    this.confirmThen(
+      {
+        title: this.fill(this.copy.teamDeactivateTitle, user),
+        body: this.copy.teamDeactivateBody,
+        verb: this.copy.teamDeactivateLabel,
+      },
+      new SetBuilderTeamUserStatus(user.id, 'deactivated'),
+      user,
+      this.copy.teamDeactivated,
+    );
   }
 
-  protected askRemove(user: BuilderTeamUser): void {
-    this.confirmAction = { id: user.id, kind: 'remove' };
+  /** Revoke a pending invite — destructive, confirmed in the ConfirmDialog. */
+  protected askRevoke(user: BuilderTeamUser): void {
+    if (this.rowActionsDisabled()) return;
+    this.confirmThen(
+      {
+        title: this.fill(this.copy.teamRevokeTitle, user),
+        body: this.copy.teamRevokeBody,
+        verb: this.copy.teamRevokeLabel,
+      },
+      new RemoveBuilderTeamUser(user.id),
+      user,
+      this.copy.teamRevoked,
+    );
   }
 
-  protected cancelConfirm(): void {
-    // Never dismiss mid-flight — the row buttons are id-scoped and the
-    // dialog closes itself when the action completes.
-    if (this.updatingUserId() !== null) return;
-    this.confirmAction = null;
-  }
-
-  protected confirmDialog(): void {
-    const action = this.confirmAction;
-    // Re-entry guard: one confirm at a time.
-    if (!action || this.updatingUserId() !== null) return;
-    // The dialog stays open while the action is in flight so the confirm
-    // button can show its busy state; it closes on completion.
-    const done$ =
-      action.kind === 'deactivate'
-        ? this.store.dispatch(new SetBuilderTeamUserStatus(action.id, 'deactivated'))
-        : this.store.dispatch(new RemoveBuilderTeamUser(action.id));
-    done$
+  /** Re-send a pending invite (not destructive — no confirm), toast on success. */
+  protected resend(user: BuilderTeamUser): void {
+    if (this.rowActionsDisabled()) return;
+    this.store
+      .dispatch(new ResendBuilderTeamInvite(user.id))
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.confirmAction = null;
-      });
+      .subscribe(() => this.toastIfSucceeded(user, this.copy.teamResent));
   }
 
   protected reactivate(user: BuilderTeamUser): void {
-    this.store.dispatch(new SetBuilderTeamUserStatus(user.id, 'active'));
+    if (this.rowActionsDisabled()) return;
+    this.store
+      .dispatch(new SetBuilderTeamUserStatus(user.id, 'active'))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.toastIfSucceeded(user, this.copy.teamReactivated));
+  }
+
+  private confirmThen(
+    options: { title: string; body: string; verb: string },
+    action: SetBuilderTeamUserStatus | RemoveBuilderTeamUser,
+    user: BuilderTeamUser,
+    successTemplate: string,
+  ): void {
+    this.confirms
+      .confirm({ ...options, tone: 'danger', cancelLabel: this.copy.teamConfirmNo })
+      .pipe(
+        filter(Boolean),
+        switchMap(() => this.store.dispatch(action)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.toastIfSucceeded(user, successTemplate));
+  }
+
+  /** Failures stay inline on the row (auth/07); only success toasts. */
+  private toastIfSucceeded(user: BuilderTeamUser, template: string): void {
+    const failed =
+      this.store.selectSnapshot(BuilderTeamState.actionError) &&
+      this.store.selectSnapshot(BuilderTeamState.actionErrorUserId) === user.id;
+    if (!failed) this.toasts.show({ message: this.fill(template, user) });
+  }
+
+  /** Fills `{name}` / `{email}` placeholders in a copy template. */
+  protected fill(template: string, user: BuilderTeamUser): string {
+    return template.replace('{name}', user.name).replace('{email}', user.email);
   }
 
   /**
@@ -367,32 +416,13 @@ export class BuilderTeamComponent implements OnInit {
     });
   }
 
-  protected confirmText(): string {
-    const name =
-      this.users().find((user) => user.id === this.confirmAction?.id)?.name ??
-      'this person';
-    const template =
-      this.confirmAction?.kind === 'remove'
-        ? this.copy.teamRemoveConfirm
-        : this.copy.teamDeactivateConfirm;
-    return template.replace('{name}', name);
-  }
-
-  /** Confirm-button label: the busy state names the in-flight action. */
-  protected confirmYesLabel(): string {
-    if (this.updatingUserId() === null) return this.copy.teamConfirmYes;
-    return this.confirmAction?.kind === 'remove'
-      ? this.copy.teamRemoving
-      : this.copy.teamDeactivating;
-  }
-
   /**
-   * Row action buttons are disabled while a confirm dialog is open or a
-   * row action is in flight — a second tap can never queue a second
-   * remove/deactivate.
+   * Row action buttons are disabled while a row action is in flight — a
+   * second tap can never queue a second revoke/deactivate. (The modal
+   * ConfirmDialog blocks the page while it is open.)
    */
   protected rowActionsDisabled(): boolean {
-    return this.confirmAction !== null || this.updatingUserId() !== null;
+    return this.updatingUserId() !== null;
   }
 
   /**
@@ -405,8 +435,7 @@ export class BuilderTeamComponent implements OnInit {
     if (user.status !== 'active' || user.role !== 'builder_member') {
       return false;
     }
-    const selfEmail = this.builderSession()?.email?.toLowerCase() ?? null;
-    return selfEmail === null || user.email.toLowerCase() !== selfEmail;
+    return !this.isSelf(user);
   }
 
   /**

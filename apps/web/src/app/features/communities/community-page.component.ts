@@ -335,7 +335,7 @@ export class CommunityPageComponent implements OnInit {
    * average like $609,901 claims precision it does not have).
    */
   formatCad(value: number): string {
-    return formatRoundedCad(value);
+    return formatRoundedCad(value, this.config.get('limits').estimateRoundingStep);
   }
 
   /** The visitor's own City-assessed value — a City fact, shown exactly. */
@@ -413,6 +413,7 @@ export class CommunityPageComponent implements OnInit {
         statNote: this.copy.statNote,
       },
       profileView,
+      this.config.get('limits').estimateRoundingStep,
     );
     this.profileView = profileView;
     this.profileCopy = resolvedCopy;

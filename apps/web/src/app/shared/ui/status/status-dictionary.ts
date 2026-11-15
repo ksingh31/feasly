@@ -39,6 +39,19 @@ export type BuilderStatusKey = BuilderStatus | 'past_due' | 'degraded' | 'suspen
 export type ApiKeyStatusKey = 'active' | 'revoked';
 /** Dispute review SLA — derive the key with {@link disputeSlaKey}. */
 export type DisputeSlaKey = 'on_track' | 'due_today' | 'overdue';
+/** Lead-score heat pill (builder review: Hot ≥85, Warm 65–84, Cool <65). */
+export type LeadHeatKey = 'hot' | 'warm' | 'cool';
+/** Calibration import lifecycle (`CalibrationImportHistoryItem.status`). */
+export type CalibrationImportKey = 'frozen' | 'draft' | 'superseded';
+/** Ops worker health (Sheets sync); `not_started` = the worker never ran. */
+export type SyncHealthKey = 'healthy' | 'lagging' | 'failing' | 'not_started';
+/** Ops attention flag: webhooks, calibration facts. Callers pass `label`. */
+export type OpsFlagKey = 'ok' | 'attention' | 'problem';
+
+/** Admin Billing header: the active billing model (#544). */
+export type BillingModelKey = 'commission' | 'flat';
+/** Admin Billing header: which Stripe key is configured (#544). */
+export type StripeModeKey = 'test' | 'live' | 'not_configured';
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -87,7 +100,43 @@ const DISPUTE_SLA: Dictionary<DisputeSlaKey> = {
   overdue: { label: 'Overdue', tone: 'danger' },
 };
 
+const LEAD_HEAT: Dictionary<LeadHeatKey> = {
+  hot: { label: 'Hot', tone: 'danger' },
+  warm: { label: 'Warm', tone: 'warning' },
+  cool: { label: 'Cool', tone: 'info' },
+};
+
 /** Every domain the dictionary covers, keyed by domain name. */
+const CALIBRATION_IMPORT: Dictionary<CalibrationImportKey> = {
+  frozen: { label: 'Frozen', tone: 'success' },
+  draft: { label: 'Draft', tone: 'warning' },
+  superseded: { label: 'Superseded', tone: 'neutral' },
+};
+
+const SYNC_HEALTH: Dictionary<SyncHealthKey> = {
+  healthy: { label: 'Healthy', tone: 'success' },
+  lagging: { label: 'Lagging', tone: 'warning' },
+  failing: { label: 'Failing', tone: 'danger' },
+  not_started: { label: 'Not started', tone: 'neutral' },
+};
+
+const OPS_FLAG: Dictionary<OpsFlagKey> = {
+  ok: { label: 'All clear', tone: 'success' },
+  attention: { label: 'Needs attention', tone: 'warning' },
+  problem: { label: 'Problem', tone: 'danger' },
+};
+
+const BILLING_MODEL: Dictionary<BillingModelKey> = {
+  commission: { label: 'Commission', tone: 'neutral' },
+  flat: { label: 'Flat plan', tone: 'neutral' },
+};
+
+const STRIPE_MODE: Dictionary<StripeModeKey> = {
+  test: { label: 'Stripe test mode', tone: 'info' },
+  live: { label: 'Stripe live', tone: 'warning' },
+  not_configured: { label: 'Stripe not configured', tone: 'danger' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -95,6 +144,12 @@ export const STATUS_DICTIONARY = {
   builder: BUILDER,
   apiKey: API_KEY,
   disputeSla: DISPUTE_SLA,
+  leadHeat: LEAD_HEAT,
+  calibrationImport: CALIBRATION_IMPORT,
+  syncHealth: SYNC_HEALTH,
+  opsFlag: OPS_FLAG,
+  billingModel: BILLING_MODEL,
+  stripeMode: STRIPE_MODE,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;
@@ -106,6 +161,8 @@ export type StatusDomain = keyof typeof STATUS_DICTIONARY;
 const ENUM_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
   e_transfer: 'E-transfer',
   api_key: 'API key',
+  api: 'API',
+  mcp: 'MCP',
   super_admin: 'Super admin',
 };
 

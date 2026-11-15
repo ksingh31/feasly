@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
  * Watchdog: finds stalled agent work and moves it (requeue / re-review /
- * fix round / escalate to needs:karan). Never merges, closes, or deletes.
+ * fix round / park as agent:stuck). Never merges or deletes; the only thing it
+ * closes is a claimed issue whose PR has already merged (close as completed
+ * instead of requeueing finished work — #635).
  * Writes a JSON summary (default watchdog-summary.json) that the architect
  * agent turns into the daily digest.
  *
  *   node tools/agents/watchdog.mjs [--dry-run] [--out <file>]
  */
 import { writeFileSync } from 'node:fs';
-import { LABELS, MARKERS, DEFAULTS, judgeClaimedIssue, judgeAgentPr, branchPrefixFor } from './lib.mjs';
-import { ghWrite, intVar, listIssues, listAgentPrs, labeledAt, issueComments, prChecks } from './gh.mjs';
+import { LABELS, MARKERS, DEFAULTS, judgeClaimedIssue, judgeAgentPr, branchPrefixFor, findMergedPrFor } from './lib.mjs';
+import { ghWrite, intVar, listIssues, listAgentPrs, listMergedPrs, labeledAt, issueComments, prChecks } from './gh.mjs';
 
 const outIdx = process.argv.indexOf('--out');
 const outFile = outIdx > -1 ? process.argv[outIdx + 1] : 'watchdog-summary.json';
@@ -23,19 +25,29 @@ const now = Date.now();
 const summary = { generatedAt: new Date(now).toISOString(), issues: [], prs: [], ready: 0, needsKaran: [] };
 
 const prs = listAgentPrs();
+let mergedPrs = null; // fetched lazily: only needed when a claimed issue has no open PR
 for (const issue of listIssues(LABELS.claimed)) {
   const linkedPr = prs.find((p) => p.headRefName.startsWith(branchPrefixFor(issue.number))) ?? null;
   const claimedAt = labeledAt(issue.number, LABELS.claimed) ?? issue.createdAt;
+  let mergedPr = null;
+  if (!linkedPr) {
+    mergedPrs ??= listMergedPrs();
+    mergedPr = findMergedPrFor(issue.number, mergedPrs, claimedAt);
+  }
   const comments = issueComments(issue.number);
-  const verdict = judgeClaimedIssue({ issue, claimedAt, linkedPr, comments, now, cfg });
-  summary.issues.push({ number: issue.number, title: issue.title, claimedAt, pr: linkedPr?.number ?? null, ...verdict });
+  const verdict = judgeClaimedIssue({ issue, claimedAt, linkedPr, mergedPr, comments, now, cfg });
+  summary.issues.push({ number: issue.number, title: issue.title, claimedAt, pr: linkedPr?.number ?? mergedPr?.number ?? null, ...verdict });
 
-  if (verdict.action === 'requeue') {
+  if (verdict.action === 'close') {
+    ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed]);
+    ghWrite(['issue', 'close', String(issue.number), '--reason', 'completed', '--comment', `Watchdog: ${verdict.reason} (${mergedPr.url ?? `#${mergedPr.number}`}) — closing as completed instead of requeueing.`]);
+  } else if (verdict.action === 'requeue') {
     ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', LABELS.ready]);
     ghWrite(['issue', 'comment', String(issue.number), '--body', `${MARKERS.requeue}\nWatchdog: ${verdict.reason} — requeued.`]);
   } else if (verdict.action === 'escalate') {
-    ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', LABELS.needsKaran]);
-    ghWrite(['issue', 'comment', String(issue.number), '--body', `Watchdog: ${verdict.reason}. Parked for Karan.`]);
+    ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', 'agent:stuck']);
+    // Escalation policy: repeated agent failures are the orchestrator's to fix, not an owner decision.
+    ghWrite(['issue', 'comment', String(issue.number), '--body', `Watchdog: ${verdict.reason}. Parked as agent:stuck for the orchestrator.`]);
   } else if (verdict.action === 'overdue') {
     ghWrite(['issue', 'comment', String(issue.number), '--body', `${MARKERS.overdue}\nWatchdog: ${verdict.reason}. The architect will look at splitting or re-planning it in the next digest.`]);
   }

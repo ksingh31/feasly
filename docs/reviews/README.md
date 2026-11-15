@@ -5,6 +5,7 @@
 | 2026-11-13 | Consumer site (funnel, report, SEO pages, embed) | [2026-11-13-consumer.md](2026-11-13-consumer.md) |
 | 2026-11-13 | Builder portal | [2026-11-13-builder.md](2026-11-13-builder.md) |
 | 2026-11-13 | Admin console | [2026-11-13-admin.md](2026-11-13-admin.md) |
+| 2026-11-15 | Admin console: visual QA re-run (#548) | [2026-11-15-admin-visual-qa.md](2026-11-15-admin-visual-qa.md) |
 
 Method: a local Playwright run captured every route at 1440×900 and 390×844
 (loaded + empty data, every drawer/modal/confirm open), plus axe-core and a

@@ -187,6 +187,21 @@ function makeHarness(): Harness {
       }
       return ids.sort();
     },
+    async listActiveOrgAdminEmails(builderId) {
+      const emails: string[] = [];
+      for (const [userId, list] of membershipRows) {
+        const row = userRows.get(userId);
+        if (
+          row?.status === 'active' &&
+          list.some(
+            (m) => m.builderId === builderId && m.role === 'builder_admin',
+          )
+        ) {
+          emails.push(row.email);
+        }
+      }
+      return emails.sort();
+    },
   };
 
   const entra: EntraUserService = {

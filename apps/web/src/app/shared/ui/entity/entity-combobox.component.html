@@ -1,0 +1,69 @@
+<div class="combobox" [class.combobox--invalid]="!!error()">
+  <label class="combobox__label" [for]="inputId">{{ label() }}</label>
+  <div class="combobox__control">
+    <input
+      [id]="inputId"
+      class="combobox__input"
+      type="text"
+      role="combobox"
+      autocomplete="off"
+      spellcheck="false"
+      aria-autocomplete="list"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listId"
+      [attr.aria-activedescendant]="activeId()"
+      [attr.aria-describedby]="describedBy()"
+      [attr.aria-invalid]="error() ? true : null"
+      [attr.placeholder]="placeholder() || null"
+      [disabled]="disabled()"
+      [value]="inputText()"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+      (blur)="onBlur()"
+    />
+    <button
+      type="button"
+      class="combobox__chevron"
+      tabindex="-1"
+      aria-hidden="true"
+      [disabled]="disabled()"
+      (mousedown)="$event.preventDefault()"
+      (click)="toggleList()"
+    >
+      <svg viewBox="0 0 16 16" width="16" height="16" focusable="false">
+        <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" />
+      </svg>
+    </button>
+  </div>
+  <ul class="combobox__list" role="listbox" [id]="listId" [attr.aria-label]="label()" [hidden]="!open()">
+    @if (loading()) {
+      <li class="combobox__status" role="presentation">{{ loadingLabel() }}</li>
+    } @else {
+      @for (option of shown(); track option.id; let i = $index) {
+        <li
+          class="combobox__option"
+          role="option"
+          [id]="optionId(i)"
+          [class.combobox__option--active]="i === activeIndex()"
+          [attr.aria-selected]="isSelected(option)"
+          (mousedown)="onOptionPointerDown($event, option)"
+          (mouseenter)="activeIndex.set(i)"
+        >
+          <span class="combobox__option-label">{{ option.label }}</span>
+          @if (option.meta) {
+            <span class="sr-only">, </span>
+            <span class="combobox__option-meta">{{ option.meta }}</span>
+          }
+        </li>
+      } @empty {
+        <li class="combobox__status" role="presentation">{{ emptyLabel() }}</li>
+      }
+    }
+  </ul>
+  @if (hint()) {
+    <p class="combobox__hint" [id]="hintId">{{ hint() }}</p>
+  }
+  @if (error()) {
+    <p class="combobox__error" [id]="errorId">{{ error() }}</p>
+  }
+</div>

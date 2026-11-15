@@ -1,0 +1,22 @@
+/** Invite-user modal (#548). Tokens only. */
+
+.invite-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.invite-modal__sub {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.invite-modal__alert {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  font: var(--type-body-sm);
+}

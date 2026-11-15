@@ -235,7 +235,14 @@ export const PropertyRecordSchema = z
     lotSqft: z.number().describe('Lot size in square feet'),
     zoning: z.string().describe('City land-use designation, verbatim'),
     assessedValue: z.number().int().describe('City-assessed value, integer CAD'),
-    assessmentYear: z.number().int(),
+    assessmentYear: z
+      .number()
+      .int()
+      .describe('Assessment roll year; a fallback (current year) when assessmentYearInferred is true'),
+    assessmentYearInferred: z
+      .boolean()
+      .optional()
+      .describe('True when the City row had no roll year and assessmentYear is a fallback'),
     yearBuilt: z.number().int().nullable(),
     assessmentClass: z.string().describe("City assessment class code, verbatim (e.g. 'R', 'NR')"),
     isNonResidential: z

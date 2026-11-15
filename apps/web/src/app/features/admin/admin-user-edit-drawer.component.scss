@@ -1,0 +1,125 @@
+@use '../../shared/form-controls' as *;
+
+// Edit-user drawer body (#542). The chrome (header, sticky footer, sheet on
+// phones) comes from `ui-drawer`; this only styles the form.
+
+.user-drawer__email {
+  overflow-wrap: anywhere;
+}
+
+.user-drawer__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.user-drawer__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.user-drawer__heading {
+  margin: 0;
+  font: var(--type-body);
+  font-weight: 700;
+}
+
+.user-drawer__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.user-drawer__label {
+  font-weight: 600;
+}
+
+.user-drawer__field input {
+  min-height: 40px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.user-drawer__field input:focus-visible,
+.user-drawer__field select:focus-visible,
+.user-drawer__membership select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.user-drawer__field select {
+  @include feasly-select;
+  min-height: 40px;
+}
+
+.user-drawer__field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Control + its ⓘ tooltip (auth/07 last-admin). */
+.user-drawer__field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.user-drawer__field-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-drawer__field-error,
+.user-drawer__error {
+  margin: 0;
+  color: var(--danger);
+  font: var(--type-body-sm);
+}
+
+.user-drawer__memberships {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.user-drawer__membership {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.user-drawer__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.user-drawer__check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-deep);
+}
+
+.user-drawer__membership select {
+  @include feasly-select($font-size: 0.875rem, $pad-y: 0.375rem, $pad-left: 0.5rem, $radius: 0.375rem);
+}
+
+.user-drawer__muted {
+  margin: 0;
+  color: var(--muted);
+}

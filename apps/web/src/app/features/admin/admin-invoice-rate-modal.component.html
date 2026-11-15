@@ -1,0 +1,51 @@
+<ui-modal heading="Change commission rate" asForm (submitted)="save()">
+  <p class="invoice-modal__context">{{ invoice.invoiceNumber }} · {{ builderName }}</p>
+
+  <ui-text-field
+    label="New rate (%)"
+    inputmode="decimal"
+    required
+    [formControl]="rate"
+    hint="Above 0% and up to 10%."
+    [error]="rateError()"
+  />
+
+  <dl class="invoice-modal__compare" data-testid="rate-before-after">
+    <div class="invoice-modal__row">
+      <dt>Rate</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ beforeRate }}</span>
+        @if (afterRate(); as after) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after" data-testid="rate-after">{{ after }}</strong>
+        }
+      </dd>
+    </div>
+    <div class="invoice-modal__row">
+      <dt>Commission</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ invoice.commissionCents | kitMoney }}</span>
+        @if (afterCents() !== null) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after">{{ afterCents() | kitMoney }}</strong>
+        }
+      </dd>
+    </div>
+  </dl>
+
+  <p class="invoice-modal__note">
+    The commission is recalculated from the signed contract value
+    ({{ invoice.contractValueCents | kitMoney }}, excluding land). Only this invoice changes.
+  </p>
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button data-testid="rate-submit" [loading]="submitting()" [disabled]="!canSave()">
+      Change rate
+    </button>
+  </ng-container>
+</ui-modal>

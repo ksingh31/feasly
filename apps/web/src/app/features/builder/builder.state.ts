@@ -1,11 +1,12 @@
 import { inject, Injectable } from '@angular/core';
-import { of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
 import type {
@@ -25,8 +26,10 @@ import {
   FailBuilderEntraSignIn,
   LoadBuilderLeads,
   LoadBuilderMemberships,
+  LoadBuilderNeedsYou,
   LoadBuilderSession,
   LogoutBuilder,
+  RefreshBuilderLeadsQuietly,
   SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
 } from './builder.actions';
@@ -70,6 +73,12 @@ export interface BuilderStateModel {
   leads: readonly BuilderLeadListItem[];
   summary: BuilderLeadListResponse['summary'];
   leadsStatus: BuilderLeadsStatus;
+  /**
+   * Leads home "Needs you" feed (#527), memory-only (homeowner PII).
+   * Null until the first load succeeds.
+   */
+  needsYou: BuilderLeadsNeedsYouResponse | null;
+  needsYouStatus: BuilderLeadsStatus;
   /** Lead id currently being status-updated (disables its action buttons). */
   updatingLeadId: string | null;
   /** Last lead-update failure: 'forbidden' | 'failed' | null. */
@@ -93,6 +102,7 @@ export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
   quoted: 0,
   won: 0,
   lost: 0,
+  needsRecording: 0,
 };
 
 const defaults: BuilderStateModel = {
@@ -107,6 +117,8 @@ const defaults: BuilderStateModel = {
   leads: [],
   summary: EMPTY_SUMMARY,
   leadsStatus: 'idle',
+  needsYou: null,
+  needsYouStatus: 'idle',
   updatingLeadId: null,
   updateError: null,
   viewAsBusy: false,
@@ -191,10 +203,22 @@ export class BuilderState {
     return state.session?.builderId ?? null;
   }
 
-  /** auth/05: the session's active org display name. */
+  /**
+   * auth/05: the session's active org display name. `/me` carries no org
+   * name, so after a reload (the session identity is never persisted) the
+   * name resolves from the memberships list by the active org id (#502:
+   * the shell must always show the current org).
+   */
   @Selector()
   static activeBuilderName(state: BuilderStateModel): string | null {
-    return state.session?.builderName ?? null;
+    const session = state.session;
+    if (!session) return null;
+    if (session.builderName) return session.builderName;
+    if (!session.builderId) return null;
+    return (
+      (state.memberships ?? []).find((m) => m.builderId === session.builderId)
+        ?.builderName ?? null
+    );
   }
 
   /** auth/05: the user's role in the active org. */
@@ -227,6 +251,16 @@ export class BuilderState {
   @Selector()
   static leadsStatus(state: BuilderStateModel): BuilderLeadsStatus {
     return state.leadsStatus;
+  }
+
+  @Selector()
+  static needsYou(state: BuilderStateModel): BuilderLeadsNeedsYouResponse | null {
+    return state.needsYou;
+  }
+
+  @Selector()
+  static needsYouStatus(state: BuilderStateModel): BuilderLeadsStatus {
+    return state.needsYouStatus;
   }
 
   @Selector()
@@ -426,6 +460,23 @@ export class BuilderState {
     );
   }
 
+  @Action(LoadBuilderNeedsYou)
+  loadBuilderNeedsYou(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    ctx.patchState({ needsYouStatus: 'loading' });
+    return this.leadsApi.needsYou().pipe(
+      tap((response) => ctx.patchState({ needsYou: response, needsYouStatus: 'ready' })),
+      catchError(() => {
+        ctx.patchState({ needsYouStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(RefreshBuilderLeadsQuietly)
+  refreshBuilderLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return forkJoin([this.refreshLeadsQuietly(ctx), this.refreshNeedsYouQuietly(ctx)]);
+  }
+
   @Action(UpdateBuilderLeadStatus)
   updateBuilderLeadStatus(
     ctx: StateContext<BuilderStateModel>,
@@ -434,6 +485,14 @@ export class BuilderState {
     ctx.patchState({ updatingLeadId: action.leadId, updateError: null });
     return this.leadsApi.updateStatus(action.leadId, action.status).pipe(
       tap(() => this.applyStatusLocally(ctx, action.leadId, action.status)),
+      // `needsRecording` is derived server-side only (#530) — refresh the
+      // pipeline quietly (no loading skeleton) so the flag and its summary
+      // count come from the backend, never from a client-side rule.
+      // The "Needs you" groups are server-derived too (#527): a status
+      // change can move a lead in or out of a group.
+      switchMap(() =>
+        forkJoin([this.refreshLeadsQuietly(ctx), this.refreshNeedsYouQuietly(ctx)]),
+      ),
       catchError((error: unknown) => {
         const code =
           typeof error === 'object' && error !== null && 'code' in error
@@ -464,14 +523,43 @@ export class BuilderState {
     const state = ctx.getState();
     const now = new Date().toISOString();
     const leads = state.leads.map((lead) =>
-      lead.id === leadId ? { ...lead, status, statusUpdatedAt: now } : lead,
+      lead.id === leadId
+        ? {
+            ...lead,
+            status,
+            statusUpdatedAt: now,
+          }
+        : lead,
     );
     const summary = { ...EMPTY_SUMMARY };
     for (const lead of leads) {
       summary[lead.status] += 1;
+      if (lead.needsRecording) {
+        summary.needsRecording += 1;
+      }
     }
     summary.total = leads.length;
     ctx.patchState({ leads, summary, updatingLeadId: null, updateError: null });
+  }
+
+  /**
+   * Re-reads the pipeline after a confirmed write without flipping
+   * `leadsStatus` to 'loading'. A failed refresh keeps the optimistic state —
+   * the write itself already succeeded.
+   */
+  private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return this.leadsApi.listLeads().pipe(
+      tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      catchError(() => of(null)),
+    );
+  }
+
+  /** Re-reads the "Needs you" feed after a write; a failure keeps the last feed. */
+  private refreshNeedsYouQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return this.leadsApi.needsYou().pipe(
+      tap((response) => ctx.patchState({ needsYou: response, needsYouStatus: 'ready' })),
+      catchError(() => of(null)),
+    );
   }
 
   @Action(LogoutBuilder)

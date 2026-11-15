@@ -1,0 +1,15 @@
+@if (tiered().length > 0) {
+  <section [class]="'money-strip money-strip--' + tone()" [attr.aria-label]="label()">
+    <p class="money-strip__line">
+      @for (item of tiered(); track $index; let first = $first) {
+        @if (!first) {
+          <span class="money-strip__sep" aria-hidden="true"> · </span>
+        }
+        <span [class]="'money-strip__item money-strip__item--' + item.tone">{{ item.text }}</span>
+      }
+    </p>
+    @if (ctaLabel()) {
+      <button type="button" class="money-strip__cta" (click)="cta.emit()">{{ ctaLabel() }}</button>
+    }
+  </section>
+}

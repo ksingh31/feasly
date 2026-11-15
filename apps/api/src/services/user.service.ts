@@ -222,6 +222,12 @@ export interface MembershipStore {
    * per-org last-admin guard calls this inside `transact()`.
    */
   listActiveOrgAdminIds(builderId: string): Promise<string[]>;
+  /**
+   * Issue #530: emails of active `builder_admin` users in this org, for
+   * notifications. Plain read — NO row locks (unlike
+   * listActiveOrgAdminIds, which is for the last-admin guard).
+   */
+  listActiveOrgAdminEmails(builderId: string): Promise<string[]>;
 }
 
 export interface UserServiceDeps {

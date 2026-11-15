@@ -68,6 +68,19 @@ export function listAgentPrs() {
   );
 }
 
+/**
+ * Recently merged PRs (any author/label) with the issues they close, so the
+ * watchdog can tell "claimed, no PR" apart from "claimed, PR already merged".
+ */
+export function listMergedPrs(limit = 200) {
+  return (
+    ghJson([
+      'pr', 'list', '--state', 'merged', '--base', 'main', '--limit', String(limit),
+      '--json', 'number,headRefName,mergedAt,url,closingIssuesReferences',
+    ]) ?? []
+  );
+}
+
 /** When the given label was most recently added to an issue (timeline API). */
 export function labeledAt(issueNumber, label) {
   const events = ghJson(['api', `repos/${repoSlug()}/issues/${issueNumber}/events?per_page=100`, '--paginate', '--slurp']) ?? [];

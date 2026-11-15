@@ -227,7 +227,8 @@ export function createDrizzleInvitationStore(
         .select()
         .from(invitations)
         .where(eq(invitations.email, email))
-        .orderBy(desc(invitations.createdAt))
+        // id breaks createdAt ties (two invites in the same instant) so "latest" is deterministic.
+        .orderBy(desc(invitations.createdAt), desc(invitations.id))
         .limit(1);
       const row = rows[0];
       return row ? toInvitationRecord(row) : null;
@@ -339,6 +340,23 @@ export function createDrizzleMembershipStore(
         .orderBy(users.id)
         .for('update');
       return rows.map((r: { id: string }) => r.id);
+    },
+
+    async listActiveOrgAdminEmails(builderId: string) {
+      // Issue #530: notification read — no FOR UPDATE, no transaction.
+      const rows = await database
+        .select({ email: users.email })
+        .from(builderMemberships)
+        .innerJoin(users, eq(builderMemberships.userId, users.id))
+        .where(
+          and(
+            eq(builderMemberships.builderId, builderId),
+            eq(builderMemberships.role, 'builder_admin'),
+            eq(users.status, 'active'),
+          ),
+        )
+        .orderBy(users.email);
+      return rows.map((r: { email: string }) => r.email);
     },
   };
 }

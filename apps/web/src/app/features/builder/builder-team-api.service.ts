@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, timeout } from 'rxjs';
+import { catchError, map, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   BuilderTeamDeleteResponse,
@@ -12,6 +12,31 @@ import type {
 } from './builder-auth.contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
+
+/**
+ * Wire status values the API speaks (`@feasly/contracts` `BuilderOrgUser`):
+ * the backend calls a deactivated member `disabled`, the team page calls
+ * it `deactivated`. Mapped here, at the API-client boundary only (#647).
+ */
+type WireStatus = 'active' | 'invited' | 'disabled';
+type WireTeamUser = Omit<BuilderTeamUser, 'status'> & {
+  readonly status: WireStatus | BuilderTeamUser['status'];
+};
+
+/** Normalize a response user: wire `disabled` → UI `deactivated`. */
+function fromWireUser(user: WireTeamUser): BuilderTeamUser {
+  return user.status === 'disabled'
+    ? { ...user, status: 'deactivated' }
+    : (user as BuilderTeamUser);
+}
+
+/** Map a request body: UI `deactivated` → wire `disabled`. */
+function toWireUpdateBody(
+  body: BuilderTeamUpdateBody,
+): Omit<BuilderTeamUpdateBody, 'status'> & { readonly status?: 'active' | 'disabled' } {
+  if (body.status === undefined) return body as Omit<BuilderTeamUpdateBody, 'status'>;
+  return { ...body, status: body.status === 'deactivated' ? 'disabled' : body.status };
+}
 
 /**
  * Builder team-management API client (auth/05, builder org accounts).
@@ -53,27 +78,69 @@ export class BuilderTeamApiService {
   /** Org user list, newest first. */
   listUsers(): Observable<BuilderTeamListResponse> {
     return this.call(
-      this.http.get<BuilderTeamListResponse>(this.usersBase, {
-        withCredentials: true,
-      }),
+      this.http
+        .get<{ readonly users: readonly WireTeamUser[] }>(this.usersBase, {
+          withCredentials: true,
+        })
+        .pipe(
+          map(
+            (res): BuilderTeamListResponse => ({
+              ...res,
+              users: res.users.map(fromWireUser),
+            }),
+          ),
+        ),
     );
   }
 
   /** Invite a user by name/email/role (provisions their Entra account + emails the invite). */
   inviteUser(body: BuilderTeamInviteBody): Observable<BuilderTeamInviteResponse> {
     return this.call(
-      this.http.post<BuilderTeamInviteResponse>(`${this.usersBase}/invite`, body, {
-        withCredentials: true,
-      }),
+      this.http
+        .post<
+          Omit<BuilderTeamInviteResponse, 'user'> & { readonly user: WireTeamUser }
+        >(`${this.usersBase}/invite`, body, {
+          withCredentials: true,
+        })
+        .pipe(
+          map(
+            (res): BuilderTeamInviteResponse => ({
+              ...res,
+              user: fromWireUser(res.user),
+            }),
+          ),
+        ),
+    );
+  }
+
+  /** Re-send a pending invitation (#535) — fresh link, old one withdrawn. */
+  resendInvite(id: string): Observable<BuilderTeamInviteResponse> {
+    return this.call(
+      this.http
+        .post<
+          Omit<BuilderTeamInviteResponse, 'user'> & { readonly user: WireTeamUser }
+        >(`${this.userUrl(id)}/resend-invite`, {}, {
+          withCredentials: true,
+        })
+        .pipe(
+          map(
+            (res): BuilderTeamInviteResponse => ({
+              ...res,
+              user: fromWireUser(res.user),
+            }),
+          ),
+        ),
     );
   }
 
   /** Rename, change role, or deactivate/reactivate. */
   updateUser(id: string, body: BuilderTeamUpdateBody): Observable<BuilderTeamUser> {
     return this.call(
-      this.http.patch<BuilderTeamUser>(this.userUrl(id), body, {
-        withCredentials: true,
-      }),
+      this.http
+        .patch<WireTeamUser>(this.userUrl(id), toWireUpdateBody(body), {
+          withCredentials: true,
+        })
+        .pipe(map(fromWireUser)),
     );
   }
 

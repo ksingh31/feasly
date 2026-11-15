@@ -52,6 +52,10 @@ apps/web/src/app/features/admin/admin-login.component.html
 # story's acceptance criteria — they change by product decision, not by
 # deploy tuning. Copy-pinned by admin-estimate-lookup.component.spec.ts.
 apps/web/src/app/features/admin/admin-estimate-lookup.component.html
+# Kit migration (#547): the component builds KeyValueList rows and the bucket
+# aria-label from kit-pipe output (`$x ($low–$high)`) — formatting templates,
+# not tunables. Pinned by admin-estimate-lookup.component.spec.ts.
+apps/web/src/app/features/admin/admin-estimate-lookup.component.ts
 
 # Unsubscribe center page (email/03): the only long literals are the import
 # paths of the shared site-nav/site-footer chrome components. All user copy
@@ -139,20 +143,14 @@ apps/web/src/app/features/compare/compare-results/compare-results.component.ts
 apps/web/src/app/core/seo/jsonld-schemas.ts
 apps/web/src/app/core/seo/seo.service.ts
 
-# Leads explorer filters (admin/02): lead_score is a fixed 0–100 domain
-# scale (the `100` clamp is a domain bound, not a tunable); the `T00:00:00` /
-# `T23:59:59.999` day-boundary times are calendar constants for the date-range
-# filter, not tunables. They change by product decision, never by deploy tuning.
-apps/web/src/app/features/admin/admin-leads.component.ts
+# Admin Leads saved views (#539): `24 * 60 * 60 * 1000` is the ms-per-day
+# calendar constant for the "Quoting > N days" cutoff (N itself is config:
+# admin.leads.quotingStaleDays), not a tunable.
+apps/web/src/app/features/admin/admin-leads-view.ts
 
-# Lead detail note maxlength (admin/02): the 5000-char bound is a validation
-# limit matching the backend, not a deploy tunable.
-apps/web/src/app/features/admin/admin-lead-detail.component.ts
-
-# Quarantine-tab placeholder copy (admin/02): explains that approve/discard
-# needs a backend endpoint — product copy pinned by the story's placeholder
-# rule, not tunable text.
-apps/web/src/app/features/admin/admin-leads.component.html
+# Lead drawer note maxlength (admin/02, #539): the 5000-char bound is a
+# validation limit matching the backend, not a deploy tunable.
+apps/web/src/app/features/admin/admin-lead-drawer.component.ts
 
 # Cents-to-CAD formatting (admin/02 AC2): `100` is the mathematical
 # cents-per-dollar constant, and the `$x – $y` format strings are display
@@ -163,6 +161,14 @@ apps/web/src/app/shared/utils/money.ts
 # and accept/reject confirmations are pinned story copy describing the
 # dispute SLA + resolution semantics — not tunables.
 apps/web/src/app/features/admin/admin-disputes.component.html
+# Dispute queue + drawer copy (#545, admin review S12): the confirm titles/
+# bodies (void + refund amount, fresh review window), the resolution toasts
+# and the drawer meta line are pinned story copy — the admin console has no
+# copy config. Copy-pinned by admin-disputes-view.spec.ts and
+# admin-dispute-drawer.component.spec.ts.
+apps/web/src/app/features/admin/admin-disputes-view.ts
+apps/web/src/app/features/admin/admin-dispute-drawer.component.ts
+apps/web/src/app/features/admin/admin-dispute-drawer.component.html
 
 # Calibration console copy (admin/09): the subtitle, warning, and empty-state
 # strings are UI copy pinned by the story's acceptance criteria — they change
@@ -180,6 +186,12 @@ apps/web/src/app/features/admin/admin-calibration.state.ts
 # acceptance criteria — it changes by product decision, not by deploy
 # tuning. Pinned by sheets-sync state specs.
 apps/web/src/app/features/admin/admin-sheets-status.component.html
+
+# Admin Webhooks page copy (#547, split out of /admin/billing): alert and
+# empty-state strings are admin-facing UI copy (same category as the
+# billing-health entry) — they change by product decision, not by deploy
+# tuning. Copy-pinned by admin-webhooks.component.spec.ts.
+apps/web/src/app/features/admin/admin-webhooks.component.html
 # Embed relay code shape (embed/06): the 64-hex regex is a protocol constant —
 # the server issues 32-byte relay codes (64 hex chars), so the iframe's
 # inbound gate only accepts exactly that shape. It changes by protocol
@@ -219,19 +231,25 @@ apps/web/src/app/features/admin/admin-create-invoice.component.html
 # label; the server's response figure is authoritative.
 apps/web/src/app/features/admin/admin-create-invoice.component.ts
 
-# Manage-invoice modal copy (billing, /admin/billing): the rate-override and
-# record-payment explanatory copy and the success/error feedback are
-# admin-facing money-action copy that changes by product decision, not by
-# deploy tuning. Pinned by admin-manage-invoice.component.spec.ts.
-apps/web/src/app/features/admin/admin-manage-invoice.component.html
+# Invoice drawer + action modals (#543, replace the manage-invoice modal):
+# the rate / payment-method / record-payment consequence copy and the
+# drawer labels are admin-facing money-action copy that changes by product
+# decision, not by deploy tuning. Pinned by admin-invoice-drawer.component.spec.ts
+# and admin-invoice-modals.spec.ts.
+apps/web/src/app/features/admin/admin-invoice-drawer.component.html
+apps/web/src/app/features/admin/admin-invoice-method-modal.component.html
+apps/web/src/app/features/admin/admin-invoice-payment-modal.component.html
+apps/web/src/app/features/admin/admin-invoice-rate-modal.component.html
 
-# Manage-invoice modal implementation constants: `10` is the server's
+# Invoice action implementation constants (#543): `10` is the server's
 # 0 < rate <= 10 percent bound mirrored from the commission-rate zod schema,
 # `120` is the reference maxlength mirrored from the mark-paid schema, and
 # `100` is the percent-math divisor — none are deploy-tunable; changing any
 # requires the backend contract to change in lockstep. Pinned by
-# admin-manage-invoice.component.spec.ts.
-apps/web/src/app/features/admin/admin-manage-invoice.component.ts
+# admin-invoice-view.spec.ts and admin-invoice-modals.spec.ts.
+apps/web/src/app/features/admin/admin-invoice-view.ts
+apps/web/src/app/features/admin/admin-invoice-rate-modal.component.ts
+apps/web/src/app/features/admin/admin-invoice-payment-modal.component.ts
 
 # Calgary coverage heuristic (core/utils/coverage.ts, port of
 # apps/api/src/lib/coverage.ts): the T2/T3 FSA prefixes and non-Calgary city
@@ -263,6 +281,8 @@ apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts
 # admin-builders.component.spec.ts.
 apps/web/src/app/features/admin/admin-builders.component.html
 apps/web/src/app/features/admin/admin-builders.component.ts
+apps/web/src/app/features/admin/admin-builder-drawer.component.html
+apps/web/src/app/features/admin/admin-builder-drawer.component.ts
 
 # Builder team invite form (auth/05): Validators.maxLength(120) for the
 # name field mirrors the backend zod schema (API contract, not a tunable).
@@ -286,6 +306,14 @@ apps/web/src/app/core/api/api-error.ts
 # tuning. The maxLength(200) validation limits mirror the backend zod schema
 # (API contract, not tunables), and the page-size default (50) matches the
 # backend list default. Copy-pinned by admin-users.component.spec.ts.
+# The edit drawer (#542) carries the same edit-form copy and the same
+# maxLength(200) contract limit, moved out of admin-users.component.html.
+# The invite modal (#548) carries the invite-form copy and the same
+# maxLength(200) limit, moved out of admin-users.component.html onto the kit.
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.html
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.ts
+apps/web/src/app/features/admin/admin-user-invite-modal.component.html
+apps/web/src/app/features/admin/admin-user-invite-modal.component.ts
 apps/web/src/app/features/admin/admin-users-api.service.ts
 apps/web/src/app/features/admin/admin-users.component.html
 apps/web/src/app/features/admin/admin-users.component.ts
@@ -300,7 +328,7 @@ apps/web/src/app/features/builder/builder-invoices-api.service.ts
 # Report-contract datetime helpers (billing/01 builder lane): the `60`
 # minutes-per-hour and `T00:00:00` day-boundary literals are ISO-8601
 # formatting facts, not deploy tunables. Pinned by
-# builder-report-contract.component.spec.ts.
+# builder-record-contract-panel.component.spec.ts (submit payload).
 apps/web/src/app/shared/utils/datetime.ts
 
 # D-03 shared entry-point test harness: drives the shared address-autocomplete

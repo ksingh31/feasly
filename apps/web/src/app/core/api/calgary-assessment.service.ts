@@ -395,7 +395,10 @@ function outOfCoverage(): ApiError {
 function toPropertyRecord(row: AssessmentRow): PropertyRecord {
   const address = (row.address ?? '').trim();
   const assessedValue = toNumber(row.assessed_value) ?? 0;
-  const assessmentYear = toNumber(row.roll_year) ?? new Date().getFullYear();
+  const rollYear = toNumber(row.roll_year);
+  // Fallback kept for existing contract consumers (expand phase, #622);
+  // `assessmentYearInferred` tells them the year was not read from the City.
+  const assessmentYear = rollYear ?? new Date().getFullYear();
   const modDate = row.mod_date?.split('T')[0] ?? '';
   return {
     addressKey: address,
@@ -405,6 +408,7 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
     zoning: row.land_use_designation?.trim() ?? '',
     assessedValue: Math.round(assessedValue),
     assessmentYear,
+    assessmentYearInferred: rollYear === null,
     yearBuilt: toNumber(row.year_of_construction),
     assessmentClass: row.assessment_class?.trim() ?? '',
     isNonResidential: isNonResidentialRow(row),

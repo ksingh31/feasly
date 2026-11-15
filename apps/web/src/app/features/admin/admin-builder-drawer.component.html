@@ -1,0 +1,214 @@
+<ui-drawer [heading]="heading()" asForm [dirty]="form.dirty" (submitted)="save()">
+  @if (builder; as b) {
+    <ui-status-chip uiDrawerChip domain="builder" [status]="b.status" />
+  }
+  @if (builder; as b) {
+    <code uiDrawerMeta class="builder-drawer__slug">{{ b.tenantKey }}</code>
+  }
+
+  <div [formGroup]="form" class="builder-drawer">
+    @if (saveError(); as err) {
+      <div class="builder-drawer__alert" role="alert">
+        <span>{{ err }}</span>
+        <button type="button" ui-button variant="ghost" size="sm" (click)="dismissSaveError()">Dismiss</button>
+      </div>
+    }
+
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-identity">
+      <h3 class="builder-drawer__heading" id="builder-drawer-identity">Identity</h3>
+      <div class="builder-drawer__grid">
+        <ui-text-field
+          label="Business name"
+          required
+          formControlName="businessName"
+          autocomplete="organization"
+          [error]="fieldError('businessName')"
+        />
+        <ui-text-field
+          label="Display name"
+          required
+          formControlName="displayName"
+          hint="The name buyers see on reports and emails."
+          [error]="fieldError('displayName')"
+        />
+        <ui-text-field
+          label="Sign-in key"
+          required
+          formControlName="tenantKey"
+          [hint]="tenantKeyHint"
+          [error]="fieldError('tenantKey')"
+        />
+        <ui-select
+          label="Status"
+          formControlName="status"
+          [options]="statusOptions"
+          hint="Inactive builders can't sign in."
+        />
+      </div>
+    </section>
+
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-contact">
+      <h3 class="builder-drawer__heading" id="builder-drawer-contact">Contact</h3>
+      <div class="builder-drawer__grid">
+        <ui-text-field
+          label="Email"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          hint="Where the sign-in invite and notifications go."
+          [error]="fieldError('email')"
+        />
+        <ui-text-field
+          label="Phone"
+          type="tel"
+          formControlName="phone"
+          autocomplete="tel"
+          [error]="fieldError('phone')"
+        />
+      </div>
+    </section>
+
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-branding">
+      <h3 class="builder-drawer__heading" id="builder-drawer-branding">Branding</h3>
+      <div class="builder-drawer__brand">
+        <div class="builder-drawer__logo" data-testid="logo-preview">
+          @if (logoPreview(); as src) {
+            @if (!logoBroken()) {
+              <img [src]="src" alt="Logo preview" (error)="logoBroken.set(true)" />
+            } @else {
+              <span class="builder-drawer__logo-empty">Couldn't load this logo</span>
+            }
+          } @else {
+            <span class="builder-drawer__logo-empty">No logo</span>
+          }
+        </div>
+        <div class="builder-drawer__brand-fields">
+          <ui-text-field
+            label="Logo URL"
+            type="url"
+            formControlName="logoUrl"
+            placeholder="https://…"
+            hint="Shown on their builder portal and reports."
+            [error]="fieldError('logoUrl')"
+          />
+          <div class="builder-drawer__color">
+            <ui-text-field
+              label="Brand color"
+              formControlName="accentColor"
+              placeholder="#C8A24B"
+              hint="As #rrggbb. Leave blank for the default."
+              [error]="fieldError('accentColor')"
+            />
+            <span
+              class="builder-drawer__swatch"
+              data-testid="accent-swatch"
+              aria-hidden="true"
+              [class.builder-drawer__swatch--empty]="!accentPreview()"
+              [style.background]="accentPreview()"
+            ></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-commercial">
+      <h3 class="builder-drawer__heading" id="builder-drawer-commercial">Commercial</h3>
+      <div class="builder-drawer__grid">
+        <ui-select
+          label="Plan"
+          formControlName="plan"
+          [options]="planOptions"
+          [placeholder]="undecidedLabel"
+        />
+        <ui-select
+          label="Default payment method"
+          formControlName="defaultPaymentMethod"
+          [options]="methodOptions"
+          hint="A manual method pauses the card auto-charge on new invoices."
+        />
+        <div class="builder-drawer__rate">
+          <ui-text-field
+            label="Commission rate (%)"
+            formControlName="commissionRate"
+            inputmode="decimal"
+            [hint]="isEdit ? 'Between 0 and 10. 1 = 1%.' : 'Between 0 and 10. Blank uses the 1% default.'"
+            [error]="fieldError('commissionRate')"
+          />
+          @if (rateChange(); as change) {
+            <div class="builder-drawer__rate-change" data-testid="rate-change" role="status">
+              <p class="builder-drawer__rate-diff">
+                <span class="builder-drawer__rate-before">{{ change.before }}</span>
+                <span aria-hidden="true"> → </span>
+                <span class="builder-drawer__sr">changes to </span>
+                <strong>{{ change.after }}</strong>
+              </p>
+              <p class="builder-drawer__rate-note">
+                Applies to invoices created from now on. Existing invoices
+                keep the rate they were created with.
+              </p>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-origins">
+      <h3 class="builder-drawer__heading" id="builder-drawer-origins">
+        Embed origins
+        <span class="builder-drawer__count">({{ originCount() }})</span>
+      </h3>
+      <ui-field-shell
+        label="Allowed websites"
+        controlId="builder-drawer-origins-input"
+        hintId="builder-drawer-origins-hint"
+        errorId="builder-drawer-origins-error"
+        hint="One per line. Only these sites may load this builder's estimator."
+      >
+        <textarea
+          id="builder-drawer-origins-input"
+          class="builder-drawer__textarea"
+          formControlName="allowedOrigins"
+          rows="3"
+          placeholder="elitebuilders.ca&#10;www.elitebuilders.ca"
+          autocapitalize="none"
+          spellcheck="false"
+          aria-describedby="builder-drawer-origins-hint"
+        ></textarea>
+      </ui-field-shell>
+    </section>
+
+    <details
+      class="builder-drawer__advanced"
+      data-testid="advanced"
+      [open]="advancedOpen()"
+      (toggle)="toggleAdvanced($event)"
+    >
+      <summary class="builder-drawer__summary">Advanced</summary>
+      <ui-field-shell
+        label="Settings (JSON)"
+        controlId="builder-drawer-settings-input"
+        hintId="builder-drawer-settings-hint"
+        errorId="builder-drawer-settings-error"
+        hint="Optional technical settings as a JSON object."
+        [error]="fieldError('settings')"
+      >
+        <textarea
+          id="builder-drawer-settings-input"
+          class="builder-drawer__textarea builder-drawer__textarea--mono"
+          formControlName="settings"
+          rows="6"
+          placeholder='{ "key": "value" }'
+          autocapitalize="none"
+          spellcheck="false"
+          [attr.aria-invalid]="fieldError('settings') ? 'true' : null"
+          [attr.aria-describedby]="fieldError('settings') ? 'builder-drawer-settings-error' : 'builder-drawer-settings-hint'"
+        ></textarea>
+      </ui-field-shell>
+    </details>
+  </div>
+
+  <button uiDrawerFooterStart type="button" ui-button variant="secondary" (click)="ref.requestClose()">Cancel</button>
+  <button uiDrawerFooterEnd type="submit" ui-button data-testid="builder-save" [loading]="saving()">
+    {{ isEdit ? 'Save changes' : 'Add builder' }}
+  </button>
+</ui-drawer>

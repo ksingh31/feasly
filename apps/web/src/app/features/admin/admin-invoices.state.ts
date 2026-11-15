@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
-import { catchError, of, tap } from 'rxjs';
+import { catchError, map, of, switchMap, tap } from 'rxjs';
+import type { DisputeDetailResponse } from '@feasly/contracts';
+import { AdminDisputesApiService } from './admin-disputes-api.service';
 import { BuilderInvoicesApiService } from '../builder/builder-invoices-api.service';
 import type { BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
 import {
@@ -9,6 +11,7 @@ import {
   DismissAdminInvoiceDetailError,
   DismissAdminInvoiceListError,
   LoadAdminInvoiceDetail,
+  LoadAdminInvoiceDispute,
   LoadAdminInvoices,
   SetAdminInvoiceFilters,
 } from './admin-invoices.actions';
@@ -36,6 +39,9 @@ export interface AdminInvoicesStateModel {
   detailStatus: AdminInvoiceDetailStatus;
   /** Friendly detail error message, or null. */
   detailError: string | null;
+  /** Open dispute for the detail invoice (disputed invoices only), or null. */
+  dispute: DisputeDetailResponse | null;
+  disputeStatus: AdminInvoiceDetailStatus;
 }
 
 const DEFAULT_FILTERS: AdminInvoiceFilters = { status: null, invoiceNumber: null };
@@ -51,6 +57,8 @@ const defaults: AdminInvoicesStateModel = {
   detail: null,
   detailStatus: 'idle',
   detailError: null,
+  dispute: null,
+  disputeStatus: 'idle',
 };
 
 /**
@@ -77,6 +85,7 @@ const defaults: AdminInvoicesStateModel = {
 @Injectable()
 export class AdminInvoicesState {
   private readonly api = inject(BuilderInvoicesApiService);
+  private readonly disputesApi = inject(AdminDisputesApiService);
 
   /**
    * Friendly message for an API failure: prefer the server's message,
@@ -134,6 +143,16 @@ export class AdminInvoicesState {
   @Selector()
   static detailStatus(state: AdminInvoicesStateModel): AdminInvoiceDetailStatus {
     return state.detailStatus;
+  }
+
+  @Selector()
+  static dispute(state: AdminInvoicesStateModel): DisputeDetailResponse | null {
+    return state.dispute;
+  }
+
+  @Selector()
+  static disputeStatus(state: AdminInvoicesStateModel): AdminInvoiceDetailStatus {
+    return state.disputeStatus;
   }
 
   @Selector()
@@ -199,11 +218,23 @@ export class AdminInvoicesState {
     ctx: StateContext<AdminInvoicesStateModel>,
     action: LoadAdminInvoiceDetail,
   ) {
-    ctx.patchState({ detailStatus: 'loading', detailError: null, detail: null });
+    // A refresh of the invoice already shown (after a drawer action) keeps
+    // it on screen instead of flashing back to the loading state.
+    const refreshing = ctx.getState().detail?.id === action.id;
+    ctx.patchState(
+      refreshing
+        ? { detailError: null }
+        : { detailStatus: 'loading', detailError: null, detail: null, dispute: null, disputeStatus: 'idle' },
+    );
     return this.api.getInvoice(action.id).pipe(
-      tap((invoice) =>
-        ctx.patchState({ detail: invoice, detailStatus: 'ready' }),
-      ),
+      tap((invoice) => {
+        ctx.patchState({ detail: invoice, detailStatus: 'ready' });
+        if (invoice.status === 'disputed') {
+          ctx.dispatch(new LoadAdminInvoiceDispute(invoice.id));
+        } else {
+          ctx.patchState({ dispute: null, disputeStatus: 'idle' });
+        }
+      }),
       catchError((error: unknown) => {
         ctx.patchState({
           detail: null,
@@ -218,9 +249,43 @@ export class AdminInvoicesState {
     );
   }
 
+  /**
+   * The disputes API is keyed by dispute id, so find the open dispute for
+   * this invoice in the open-disputes list, then load its detail (audit
+   * trail). No open dispute → `dispute: null`, status ready. A failure
+   * leaves the drawer usable (it falls back to the invoice's own dates).
+   */
+  @Action(LoadAdminInvoiceDispute)
+  loadDispute(
+    ctx: StateContext<AdminInvoicesStateModel>,
+    action: LoadAdminInvoiceDispute,
+  ) {
+    ctx.patchState({ dispute: null, disputeStatus: 'loading' });
+    return this.disputesApi.listDisputes().pipe(
+      map((res) => res.disputes.find((d) => d.invoiceId === action.invoiceId) ?? null),
+      switchMap((match) =>
+        match === null ? of(null) : this.disputesApi.getDispute(match.id),
+      ),
+      tap((dispute) => {
+        if (ctx.getState().detail?.id !== action.invoiceId) return;
+        ctx.patchState({ dispute, disputeStatus: 'ready' });
+      }),
+      catchError(() => {
+        ctx.patchState({ dispute: null, disputeStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(ClearAdminInvoiceDetail)
   clearDetail(ctx: StateContext<AdminInvoicesStateModel>) {
-    ctx.patchState({ detail: null, detailStatus: 'idle', detailError: null });
+    ctx.patchState({
+      detail: null,
+      detailStatus: 'idle',
+      detailError: null,
+      dispute: null,
+      disputeStatus: 'idle',
+    });
   }
 
   @Action(DismissAdminInvoiceListError)

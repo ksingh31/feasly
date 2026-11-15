@@ -1,185 +1,130 @@
-@use '../../shared/form-controls' as *;
+/**
+ * Admin Funnels (admin/07, kit migration #547). Kit PageHeader / fields /
+ * buttons / KpiTile; this file lays out the filter card and the funnel
+ * bars. Tokens only.
+ */
 
-/* Admin funnel dashboard (admin/07): per-step counts + conversion bars. */
+:host {
+  display: block;
+}
 
 .funnels {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 120px 24px 80px;
-  background: var(--cream);
-  min-height: 60vh;
-}
-
-.funnels__header {
-  margin-bottom: 28px;
-}
-
-.funnels__header h1 {
-  font-family: var(--font-ui);
-  font-size: clamp(28px, 4vw, 40px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
-  color: var(--text);
-}
-
-.funnels__subtitle {
-  font-size: 17px;
-  color: var(--text-muted);
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .funnels__filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-end;
-  padding: 20px;
-  margin-bottom: 24px;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.funnels__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.funnels__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
 }
 
 .funnels__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.funnels__field span {
-  font-weight: 600;
-}
-
-.funnels__field input {
-  font: inherit;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--cream);
-  color: var(--text);
-  min-width: 160px;
-}
-
-.funnels__field select {
-  /* Shared select chrome: custom chevron with proper arrow spacing. */
-  @include feasly-select($pad-y: 0.625rem, $pad-left: 0.75rem, $radius: 0.5rem, $bg: var(--cream));
-  min-width: 160px;
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .funnels__actions {
   display: flex;
-  gap: 12px;
-}
-
-.funnels__apply,
-.funnels__reset {
-  font: inherit;
-  font-weight: 600;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.funnels__apply {
-  background: var(--accent);
-  color: var(--cream);
-}
-
-.funnels__apply:disabled,
-.funnels__reset:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.funnels__reset {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .funnels__notice {
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: var(--surface);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font: var(--type-body-sm);
+  color: var(--muted);
 }
 
 .funnels__notice--error {
-  border-color: var(--danger, #b3261e);
-  color: var(--danger, #b3261e);
+  border-color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
 }
 
 .funnels__steps {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
 
 .funnels__step-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 8px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
 }
 
 .funnels__step-label {
-  font-size: 18px;
-  font-weight: 700;
+  font: var(--type-body);
+  font-weight: 600;
   color: var(--text);
 }
 
 .funnels__step-count {
-  font-size: 24px;
-  font-weight: 700;
+  font: var(--type-body);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--accent-text);
+  text-align: end;
+  color: var(--text);
 }
 
 .funnels__bar {
-  height: 28px;
-  border-radius: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--cream-2);
   overflow: hidden;
 }
 
 .funnels__bar-fill {
   height: 100%;
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  opacity: 0.85;
-  border-radius: 5px;
   transition: width 0.3s ease;
 }
 
-.funnels__conversion {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
+@media (prefers-reduced-motion: reduce) {
+  .funnels__bar-fill {
+    transition: none;
+  }
 }
 
-@media (max-width: 600px) {
-  .funnels {
-    padding: 96px 16px 64px;
-  }
+.funnels__conversion {
+  margin: var(--space-1) 0 0;
+  font: var(--type-meta);
+  color: var(--muted);
+}
 
-  .funnels__filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .funnels__field input,
-  .funnels__field select {
-    min-width: 0;
-    width: 100%;
-  }
+.funnels__drop {
+  color: var(--status-warning-fg);
 }

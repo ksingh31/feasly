@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@angular/cdk": "^22.2.5",
     "@angular/common": "^22.2.5",
     "@angular/compiler": "^22.2.5",
     "@angular/core": "^22.2.5",
@@ -20,6 +21,8 @@
     "@angular/compiler-cli": "^22.2.5",
     "@angular/platform-server": "^22.2.5",
     "@angular/ssr": "^22.2.6",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "@types/pg": "^8.23.1",
     "jsdom": "^30.0.0",
     "pg": "^8.23.0",
@@ -32,7 +35,7 @@
   "private": true,
   "scripts": {
     "build": "ng build",
-    "lint": "node tools/check-no-hardcode.mjs && node tools/check-scss-colours.mjs && node tools/check-security-headers.mjs && node tools/sync-embed-csp.mjs --check && node tools/check-reduced-motion.mjs",
+    "lint": "node tools/check-no-hardcode.mjs && node tools/check-scss-colours.mjs && node tools/check-security-headers.mjs && node tools/sync-embed-csp.mjs --check && node tools/check-reduced-motion.mjs && tsc -p e2e/tsconfig.json",
     "ng": "ng",
     "prebuild": "npm run build --workspace @feasly/contracts && npm run build --workspace @feasly/cost-engine && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts && tsx scripts/build-community-mix.ts && tsx scripts/build-community-ranges.ts && tsx scripts/build-community-pages.ts && node snippet/build.mjs",
     "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts && tsx scripts/build-404-page.ts",
@@ -42,7 +45,8 @@
     "test:scripts": "vitest run scripts/",
     "verify:seo": "ng build --configuration=production && node tools/check-prerender-seo.mjs",
     "watch": "ng build --watch --configuration development",
-    "test:tools": "vitest run tools/"
+    "test:tools": "vitest run tools/",
+    "e2e": "playwright test"
   },
   "version": "0.1.0"
 }

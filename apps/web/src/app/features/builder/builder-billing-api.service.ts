@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  BuilderBillingOverviewResponse,
   CardOnFileStatus,
   CommissionRateResponse,
   SetupIntentResponse,
@@ -167,6 +168,19 @@ export class BuilderBillingApiService {
         { method },
         { withCredentials: true },
       ),
+    );
+  }
+
+  /**
+   * Money page header (#531): outstanding total, next auto-charge, failed
+   * invoices, plan + configured rate, and the card on file — one call,
+   * tenant-scoped server-side. All figures are integer cents from the API.
+   */
+  getOverview(): Observable<BuilderBillingOverviewResponse> {
+    const v1 = `${this.config.get('api').baseUrl}/api/v1`;
+    const url = `${v1}/builder/billing/overview`;
+    return this.call(
+      this.http.get<BuilderBillingOverviewResponse>(url, { withCredentials: true }),
     );
   }
 }

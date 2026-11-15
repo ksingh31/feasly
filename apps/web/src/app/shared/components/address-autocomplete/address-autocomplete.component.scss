@@ -125,6 +125,8 @@
 
 .ac-out-of-coverage .ac-retry {
   margin-top: 10px;
+  /* B11 (#514): the primary way out of this state — ≥44px touch target. */
+  min-height: 44px;
   color: var(--accent-text);
   border-color: var(--accent);
 }
