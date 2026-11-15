@@ -1,6 +1,7 @@
 // Unit tests for the agent pipeline decision logic. Run: node --test tools/agents/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as lib from './lib.mjs';
 import {
   planDispatch, orderOf, blockersOf, shouldReleaseBacklog, decideMerge, judgeClaimedIssue, findMergedPrFor, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
@@ -200,4 +201,11 @@ test('sensitive paths hold auto-merge', () => {
     'docs/legal/approved-copy.md',
   ]);
   assert.equal(hits.length, 2); // only infra/bicep + docs/legal of the samples
+});
+
+test('linkedIssues extracts closing-keyword references only', () => {
+  const { linkedIssues } = lib;
+  assert.deepEqual(linkedIssues('Fixes #12\ncloses #3, Resolves #4. See #99. fixed #12'), [12, 3, 4]);
+  assert.deepEqual(linkedIssues(''), []);
+  assert.deepEqual(linkedIssues(null), []);
 });

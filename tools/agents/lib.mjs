@@ -287,3 +287,10 @@ export function decideMerge(pr) {
 export function sensitiveFiles(paths) {
   return paths.filter((p) => SENSITIVE_PATHS.some((re) => re.test(p)));
 }
+
+/** Issue numbers a PR body closes via GitHub keywords ("Fixes #12", "closes #3, resolves #4"). */
+export function linkedIssues(body) {
+  const out = new Set();
+  for (const m of String(body ?? '').matchAll(/\b(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)/gi)) out.add(Number(m[1]));
+  return [...out];
+}
