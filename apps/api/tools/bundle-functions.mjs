@@ -304,6 +304,11 @@ const targets = [
     entry: 'src/functions/builder-leads-status.ts',
     out: 'builder-leads-status/index.js',
   },
+  // Issue #530: member "Mark won" → admins notified to record the contract.
+  {
+    entry: 'src/functions/builder-leads-mark-won.ts',
+    out: 'builder-leads-mark-won/index.js',
+  },
   // billing/05 lead comments (builder).
   {
     entry: 'src/functions/builder-lead-comments.ts',

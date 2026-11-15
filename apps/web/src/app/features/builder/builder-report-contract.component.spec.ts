@@ -89,6 +89,7 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       invoiceSummary: null,
       commentCount: 0,
       latestComment: null,
+      needsRecording: false,
     },
     {
       id: RECORDED_LEAD_ID,
@@ -106,9 +107,10 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
       invoiceSummary: INVOICE,
       commentCount: 0,
       latestComment: null,
+      needsRecording: false,
     },
   ],
-  summary: { total: 2, new: 0, contacted: 0, quoted: 1, won: 1, lost: 0 },
+  summary: { total: 2, new: 0, contacted: 0, quoted: 1, won: 1, lost: 0, needsRecording: 0 },
 };
 
 async function setup(
@@ -499,7 +501,7 @@ describe('BuilderReportContractComponent', () => {
   it('shows the no-reportable-leads message when every lead is recorded', async () => {
     const recordedOnly: BuilderLeadListResponse = {
       leads: [LEADS_RESPONSE.leads[1]],
-      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 0 },
     };
     const { fixture } = await setup(
       () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),
@@ -574,7 +576,7 @@ describe('BuilderReportContractComponent', () => {
           invoiceSummary: { ...INVOICE, paymentMethod: 'cheque' as const },
         },
       ],
-      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+      summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 0 },
     };
     const { fixture } = await setup(
       () => of({ billed: true, invoiceId: 'inv-1', invoiceStatus: 'in_review' }),

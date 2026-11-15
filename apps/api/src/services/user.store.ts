@@ -340,5 +340,22 @@ export function createDrizzleMembershipStore(
         .for('update');
       return rows.map((r: { id: string }) => r.id);
     },
+
+    async listActiveOrgAdminEmails(builderId: string) {
+      // Issue #530: notification read — no FOR UPDATE, no transaction.
+      const rows = await database
+        .select({ email: users.email })
+        .from(builderMemberships)
+        .innerJoin(users, eq(builderMemberships.userId, users.id))
+        .where(
+          and(
+            eq(builderMemberships.builderId, builderId),
+            eq(builderMemberships.role, 'builder_admin'),
+            eq(users.status, 'active'),
+          ),
+        )
+        .orderBy(users.email);
+      return rows.map((r: { email: string }) => r.email);
+    },
   };
 }

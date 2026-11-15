@@ -11,6 +11,11 @@
  *   403 (AC1: cross-builder reads are forbidden). Writes
  *   `lead_status_history` (append-only, for the attribution track) + audit
  *   row with the builder's email.
+ * - `markWon(id, tenantKey, actorEmail)` — issue #530: any org member may
+ *   mark a lead won (no contract details, so no invoice). The lead then
+ *   carries `needsRecording` and every active org admin is emailed to
+ *   record the signed contract (falls back to the Feasly ops inbox when
+ *   the org has no admin). Recording stays `builder:billing`-only.
  *
  * - `getNeedsYou(tenantKey)` — the Leads home "Needs you" groups
  *   (issue #526): uncontacted, stale, won-without-contract, each sorted by
@@ -29,6 +34,7 @@ import type {
   BuilderLeadInvoiceSummary,
   BuilderLeadListItem,
   BuilderLeadListResponse,
+  BuilderLeadMarkWonResponse,
   BuilderLeadNeedsYouItem,
   BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
@@ -46,8 +52,9 @@ import type {
 import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
+import type { EmailService } from './email/email.service';
 import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store';
-import type { UserStore } from './user.service';
+import type { MembershipStore, UserStore } from './user.service';
 
 export const BuilderLeadStatusSchema = z.enum([
   'new',
@@ -106,6 +113,21 @@ export interface BuilderLeadsService {
     tenantKey: string,
     builderEmail: string,
   ): Promise<{ readonly ok: true; readonly billing?: BillableEventResult }>;
+  /**
+   * Issue #530: mark a lead won WITHOUT recording the contract (member-
+   * allowed). Same 404/403 scoping as updateStatus; 409
+   * LEAD_STATUS_LOCKED when a contract is already recorded. Already-won
+   * leads return `changed: false` and are not re-notified. On a real
+   * transition every active org admin (except the actor) is emailed a
+   * "Needs recording" notice — best-effort: an email failure never fails
+   * the request (the lead list's `needsRecording` flag is the durable
+   * item).
+   */
+  markWon(
+    id: string,
+    tenantKey: string,
+    actorEmail: string,
+  ): Promise<BuilderLeadMarkWonResponse>;
 }
 
 export interface BuilderLeadsServiceDeps {
@@ -138,6 +160,19 @@ export interface BuilderLeadsServiceDeps {
    * 'Unknown', matching the comments service).
    */
   readonly users?: Pick<UserStore, 'findById'>;
+  /**
+   * Issue #530: org-admin lookup for the "Needs recording" notice.
+   * Optional for tests that don't cover notifications.
+   */
+  readonly memberships?: Pick<MembershipStore, 'listActiveOrgAdminEmails'>;
+  /** Issue #530: sends the "Needs recording" notice. Optional in tests. */
+  readonly email?: Pick<EmailService, 'sendContractNeedsRecording'>;
+  /**
+   * Issue #530: where the notice goes when the org has no active admin
+   * (config OPS_ALERT_EMAIL) — Feasly staff can record it from the admin
+   * console. Omitted = no fallback.
+   */
+  readonly fallbackAdminInbox?: string;
   /**
    * Latest status change per lead (lead_status_history) for the "Needs
    * you" staleness rule. Optional for tests that don't cover it — falls
@@ -246,6 +281,7 @@ function toListItem(
     invoiceSummary,
     commentCount: comment?.count ?? 0,
     latestComment: comment?.latest ?? null,
+    needsRecording: record.status === 'won' && invoiceSummary === null,
   };
 }
 
@@ -260,6 +296,9 @@ export function createBuilderLeadsService(
     invoiceSummaries,
     commentSummaries,
     users,
+    memberships,
+    email,
+    fallbackAdminInbox,
     statusChanges,
     needsYou,
   } = deps;
@@ -278,7 +317,124 @@ export function createBuilderLeadsService(
     return builder;
   }
 
-  return {
+  /**
+   * auth/04 (iron rule): the read is scoped by (id, builder_id) in SQL. A
+   * cross-tenant row is never pulled into the service. Distinguishes
+   * "exists but isn't yours" (403 + audit) from "doesn't exist" (404)
+   * with a boolean probe — no row data.
+   */
+  async function requireOwnLead(
+    id: string,
+    builderId: string,
+    tenantKey: string,
+    actorEmail: string,
+  ) {
+    const record = await leadStore.findByIdAndBuilderId({ id, builderId });
+    if (record) {
+      return record;
+    }
+    const exists = await leadStore.existsById(id);
+    if (exists) {
+      await audit.log({
+        actorEmail,
+        action: 'builder_leads_cross_builder_denied',
+        detail: `leadId=${id} tenantKey=${tenantKey}`,
+      });
+      throw new HttpError(
+        403,
+        ErrorCodes.FORBIDDEN,
+        'This lead belongs to a different builder.',
+        false,
+      );
+    }
+    throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
+  }
+
+  async function hasRecordedContract(
+    leadId: string,
+    builderTenantKey: string,
+  ): Promise<boolean> {
+    return (
+      invoiceSummaries !== undefined &&
+      (await invoiceSummaries.hasInvoiceForLead({
+        leadId,
+        tenantKey: builderTenantKey,
+      }))
+    );
+  }
+
+  /**
+   * Issue #530: email every active org admin (except the actor) that a
+   * lead needs its contract recorded. Falls back to the Feasly ops inbox
+   * when the org has no active admin at all. Best-effort — never throws; returns
+   * how many emails were accepted.
+   */
+  async function notifyAdminsNeedsRecording(input: {
+    readonly builderId: string;
+    readonly builderName: string;
+    readonly actorEmail: string;
+    readonly lead: {
+      readonly id: string;
+      readonly name: string;
+      readonly addressKey: string;
+    };
+  }): Promise<number> {
+    if (email === undefined) {
+      return 0;
+    }
+    const actor = input.actorEmail.trim().toLowerCase();
+    const recipients = new Set<string>();
+    let orgAdminCount = 0;
+    let lookupFailed = false;
+    if (memberships !== undefined) {
+      const adminEmails = await memberships
+        .listActiveOrgAdminEmails(input.builderId)
+        .catch(() => {
+          lookupFailed = true;
+          return [] as string[];
+        });
+      orgAdminCount = adminEmails.length;
+      for (const adminEmail of adminEmails) {
+        const address = adminEmail.trim().toLowerCase();
+        if (address && address !== actor) {
+          recipients.add(address);
+        }
+      }
+    }
+    // A failed lookup is NOT "the org has no admin": don't send the lead's
+    // name/address to Feasly ops on a DB blip. Warn (ids only, no PII); the
+    // lead still shows as "Needs recording" in the portal and Needs-you feed.
+    if (lookupFailed) {
+      console.warn(
+        `builder-leads: org admin lookup failed for builder ${input.builderId}; skipping ops fallback`,
+      );
+    }
+    // Fallback only when the org has NO active admin — if the actor is the
+    // sole admin, they can record it themselves; Feasly ops isn't needed.
+    if (!lookupFailed && orgAdminCount === 0 && fallbackAdminInbox) {
+      recipients.add(fallbackAdminInbox);
+    }
+
+    let sent = 0;
+    for (const to of recipients) {
+      const delivery = await email
+        .sendContractNeedsRecording({
+          to,
+          markedBy: input.actorEmail,
+          leadName: input.lead.name,
+          address: input.lead.addressKey,
+          builderName: input.builderName,
+          leadId: input.lead.id,
+        })
+        .catch(() => null);
+      if (delivery?.sent) {
+        sent++;
+      }
+    }
+    return sent;
+  }
+
+  const service: BuilderLeadsService = {
     async listLeads(tenantKey: string): Promise<BuilderLeadListResponse> {
       const builder = await requireBuilder(tenantKey);
       const records = await leadStore.listByBuilderId({
@@ -361,18 +517,18 @@ export function createBuilderLeadsService(
         };
       };
 
-      const summary = countByStatus(records);
+      const summary = { ...countByStatus(records), needsRecording: 0 };
 
-      return {
-        leads: records.map((record) =>
-          toListItem(
-            record,
-            byLeadId.get(record.id) ?? null,
-            commentPreviewFor(record.id),
-          ),
+      const leads = records.map((record) =>
+        toListItem(
+          record,
+          byLeadId.get(record.id) ?? null,
+          commentPreviewFor(record.id),
         ),
-        summary,
-      };
+      );
+      summary.needsRecording = leads.filter((lead) => lead.needsRecording).length;
+
+      return { leads, summary };
     },
 
     async getNeedsYou(tenantKey: string): Promise<BuilderLeadsNeedsYouResponse> {
@@ -481,29 +637,7 @@ export function createBuilderLeadsService(
       // state. The read AND the write are both scoped by
       // (id, builder_id) — a cross-tenant row is never pulled into the
       // service, never honored, and never silently re-scoped.
-      const record = await leadStore.findByIdAndBuilderId({
-        id,
-        builderId: builder.id,
-      });
-      if (!record) {
-        // Distinguish "exists but isn't yours" (403 + audit) from
-        // "doesn't exist" (404) with a boolean probe — no row data.
-        const exists = await leadStore.existsById(id);
-        if (exists) {
-          await audit.log({
-            actorEmail: builderEmail,
-            action: 'builder_leads_cross_builder_denied',
-            detail: `leadId=${id} tenantKey=${tenantKey}`,
-          });
-          throw new HttpError(
-            403,
-            ErrorCodes.FORBIDDEN,
-            'This lead belongs to a different builder.',
-            false,
-          );
-        }
-        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
-      }
+      const record = await requireOwnLead(id, builder.id, tenantKey, builderEmail);
 
       const oldStatus = record.status;
       const newStatus = parsed.data.status;
@@ -514,11 +648,7 @@ export function createBuilderLeadsService(
       // before any billing or write side effects.
       if (
         newStatus !== oldStatus &&
-        invoiceSummaries !== undefined &&
-        (await invoiceSummaries.hasInvoiceForLead({
-          leadId: id,
-          tenantKey: builder.tenantKey,
-        }))
+        (await hasRecordedContract(id, builder.tenantKey))
       ) {
         throw new HttpError(
           409,
@@ -594,5 +724,63 @@ export function createBuilderLeadsService(
         billing === undefined ? { ok: true } : { ok: true, billing };
       return result;
     },
+
+    async markWon(
+      id: string,
+      tenantKey: string,
+      actorEmail: string,
+    ): Promise<BuilderLeadMarkWonResponse> {
+      const builder = await requireBuilder(tenantKey);
+      const record = await requireOwnLead(id, builder.id, tenantKey, actorEmail);
+
+      // A recorded lead is already closed out — nothing to mark.
+      if (await hasRecordedContract(id, builder.tenantKey)) {
+        throw new HttpError(
+          409,
+          ErrorCodes.LEAD_STATUS_LOCKED,
+          'Status is locked: a signed contract is already recorded for this lead.',
+          false,
+        );
+      }
+
+      // Idempotent: already won (and still unrecorded) — no write, no
+      // re-notify. The lead list keeps showing it as "Needs recording".
+      if (record.status === 'won') {
+        return {
+          ok: true,
+          status: 'won',
+          needsRecording: true,
+          changed: false,
+          adminsNotified: 0,
+        };
+      }
+
+      // The won transition itself reuses updateStatus WITHOUT contract
+      // details: billing parks the win (no invoice), history + audit are
+      // written exactly as for any other status change.
+      await service.updateStatus(id, { status: 'won' }, tenantKey, actorEmail);
+
+      const adminsNotified = await notifyAdminsNeedsRecording({
+        builderId: builder.id,
+        builderName: builder.displayName,
+        actorEmail,
+        lead: { id: record.id, name: record.name, addressKey: record.addressKey },
+      });
+
+      await audit.log({
+        actorEmail,
+        action: 'builder_leads_marked_won',
+        detail: `leadId=${id} tenantKey=${tenantKey} adminsNotified=${adminsNotified}`,
+      });
+
+      return {
+        ok: true,
+        status: 'won',
+        needsRecording: true,
+        changed: true,
+        adminsNotified,
+      };
+    },
   };
+  return service;
 }
