@@ -1,8 +1,11 @@
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   forwardRef,
+  inject,
   input,
   linkedSignal,
   output,
@@ -71,6 +74,8 @@ export class EntityComboboxComponent implements ControlValueAccessor {
   private readonly query = signal('');
   private readonly editing = signal(false);
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   private onChange: (value: string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;
 
@@ -121,6 +126,19 @@ export class EntityComboboxComponent implements ControlValueAccessor {
     return this.open() && index >= 0 && index < this.shown().length
       ? this.optionId(index)
       : null;
+  });
+
+  /**
+   * The list scrolls (max-height), and aria-activedescendant does not scroll
+   * by itself, so keep the active option visible as ↑/↓ move it.
+   */
+  private readonly scrollActiveIntoView = afterRenderEffect(() => {
+    const id = this.activeId();
+    if (id === null) {
+      return;
+    }
+    const option = this.host.nativeElement.querySelector<HTMLElement>(`#${id}`);
+    option?.scrollIntoView?.({ block: 'nearest' });
   });
 
   protected readonly describedBy = computed(() => {

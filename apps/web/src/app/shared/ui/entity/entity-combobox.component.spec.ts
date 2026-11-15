@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EntityComboboxComponent } from './entity-combobox.component';
 import { type EntityOption, filterEntityOptions } from './entity-option';
 
@@ -115,6 +115,45 @@ describe('EntityComboboxComponent', () => {
     expect(input().value).toBe('Crafted Infill Co.');
     expect(input().getAttribute('aria-expanded')).toBe('false');
     expect(input().hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
+  describe('long list', () => {
+    const original = Element.prototype.scrollIntoView;
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+
+    it('scrolls the active option into view as ↓/↑ move it', () => {
+      const scrolled: { label: string | undefined; arg: unknown }[] = [];
+      Element.prototype.scrollIntoView = vi.fn(function (this: Element, arg?: unknown) {
+        scrolled.push({ label: this.querySelector('.combobox__option-label')?.textContent ?? undefined, arg });
+      }) as typeof Element.prototype.scrollIntoView;
+
+      const host = setup();
+      host.options.set(
+        Array.from({ length: 20 }, (_, i) => ({ id: `b-${i}`, label: `Builder ${i}` })),
+      );
+      fixture.detectChanges();
+
+      key('ArrowDown'); // opens on Builder 0
+      for (let i = 0; i < 12; i++) {
+        key('ArrowDown');
+      }
+      expect(activeLabel()).toBe('Builder 12');
+      expect(scrolled.at(-1)).toEqual({ label: 'Builder 12', arg: { block: 'nearest' } });
+
+      key('Enter');
+      key('ArrowDown'); // reopen on the selected option
+      key('ArrowUp');
+      expect(activeLabel()).toBe('Builder 11');
+      expect(scrolled.at(-1)?.label).toBe('Builder 11');
+
+      for (let i = 0; i < 12; i++) {
+        key('ArrowUp');
+      }
+      expect(activeLabel()).toBe('Builder 19');
+      expect(scrolled.at(-1)?.label).toBe('Builder 19');
+    });
   });
 
   it('typing filters, emits the query and Enter picks the first match', () => {

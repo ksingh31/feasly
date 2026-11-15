@@ -29,11 +29,9 @@
             >
               {{ isExpanded(row.event.id) ? hideDetailsLabel() : showDetailsLabel() }}
             </button>
-            @if (isExpanded(row.event.id)) {
-              <pre class="timeline__payload" [id]="uid + '-payload-' + i">{{
-                row.payload
-              }}</pre>
-            }
+            <pre class="timeline__payload" [id]="uid + '-payload-' + i" [hidden]="!isExpanded(row.event.id)">{{
+              row.payload
+            }}</pre>
           }
         </div>
       </li>

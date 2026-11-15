@@ -114,11 +114,14 @@ describe('TimelineComponent', () => {
     const toggle = fixture.nativeElement.querySelector('.timeline__toggle') as HTMLButtonElement;
     expect(fixture.nativeElement.querySelectorAll('.timeline__toggle').length).toBe(1);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(fixture.nativeElement.querySelector('.timeline__payload')).toBeNull();
+    const payload = fixture.nativeElement.querySelector('.timeline__payload') as HTMLElement;
+    // Always rendered (hidden) so aria-controls resolves even when collapsed.
+    expect(toggle.getAttribute('aria-controls')).toBe(payload.id);
+    expect(payload.hidden).toBe(true);
 
     toggle.click();
     fixture.detectChanges();
-    const payload = fixture.nativeElement.querySelector('.timeline__payload') as HTMLElement;
+    expect(payload.hidden).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(toggle.textContent?.trim()).toBe('Hide details');
     expect(payload.textContent).toContain('"amount": 19800');
@@ -126,7 +129,7 @@ describe('TimelineComponent', () => {
 
     toggle.click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.timeline__payload')).toBeNull();
+    expect(payload.hidden).toBe(true);
   });
 
   it('renders an empty state for no events', () => {
