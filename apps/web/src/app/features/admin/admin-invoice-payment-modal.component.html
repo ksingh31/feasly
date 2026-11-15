@@ -1,0 +1,48 @@
+<ui-modal heading="Record payment" asForm (submitted)="save()">
+  <p class="invoice-modal__context">{{ invoice.invoiceNumber }} · {{ invoice.tenantKey }}</p>
+
+  <div [formGroup]="form" class="invoice-modal__fields">
+    <ui-select label="Paid by" required formControlName="method" [options]="options" placeholder="Choose a method" />
+    <ui-text-field
+      label="Reference (optional)"
+      formControlName="reference"
+      hint="Cheque or trace number."
+      [error]="referenceError()"
+    />
+    <ui-date-field label="Paid on" required formControlName="paidDate" [max]="today" [error]="dateError()" />
+  </div>
+
+  <dl class="invoice-modal__compare" data-testid="payment-before-after">
+    <div class="invoice-modal__row">
+      <dt>Status</dt>
+      <dd>
+        <ui-status-chip domain="invoice" [status]="invoice.status" />
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <ui-status-chip domain="invoice" status="paid" />
+      </dd>
+    </div>
+    <div class="invoice-modal__row">
+      <dt>Balance due</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ invoice.commissionCents | kitMoney }}</span>
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <strong class="invoice-modal__after">{{ 0 | kitMoney }}</strong>
+      </dd>
+    </div>
+  </dl>
+
+  <p class="invoice-modal__note">
+    The invoice is marked paid and the scheduled card charge is cancelled, so the builder is never charged twice.
+  </p>
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button data-testid="payment-submit" [loading]="submitting()" [disabled]="!canSave()">
+      Record payment
+    </button>
+  </ng-container>
+</ui-modal>

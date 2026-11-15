@@ -2,9 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import type { BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
 import { AdminInvoicesComponent } from './admin-invoices.component';
@@ -39,7 +39,8 @@ const INVOICE_A: BuilderCommissionInvoice = {
 
 /**
  * AdminInvoicesComponent (QA admin-console fix 3): the admin invoice list
- * with status filter, invoice-number search, pagination, and detail links.
+ * with status filter, invoice-number search, pagination, and the invoice
+ * drawer (#543) opened from a row.
  */
 describe('AdminInvoicesComponent', () => {
   let store: Store;
@@ -84,11 +85,26 @@ describe('AdminInvoicesComponent', () => {
 
   function rows(): HTMLElement[] {
     return Array.from(
-      fixture.debugElement.queryAll(By.css('.invoices-page__table tbody tr')),
+      fixture.debugElement.queryAll(By.css('.ui-dt__table tbody tr')),
     ).map((row) => row.nativeElement as HTMLElement);
   }
 
-  it('loads on init and renders invoice rows with detail links', async () => {
+  afterEach(() => {
+    // Drawers live in a CDK overlay outside the fixture.
+    document.querySelectorAll('.cdk-overlay-container').forEach((el) => (el.innerHTML = ''));
+  });
+
+  /** Polls until the predicate holds or the deadline passes. */
+  async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (!predicate()) {
+      if (Date.now() > deadline) throw new Error('waitFor: condition not met');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      fixture.detectChanges();
+    }
+  }
+
+  it('loads on init and renders invoice rows in the kit table', async () => {
     await setup();
     await loadPage();
 
@@ -101,11 +117,25 @@ describe('AdminInvoicesComponent', () => {
     expect(rowList[0].textContent).toContain('Ava Smith');
     expect(rowList[0].textContent).toContain('$100');
     expect(rowList[0].textContent).toContain('Paid');
-    const link = rowList[0].querySelector(
-      'a.invoices-page__link',
-    ) as HTMLAnchorElement;
-    expect(link).not.toBeNull();
-    expect(link.getAttribute('href')).toBe('/admin/billing/invoices/inv-1');
+  });
+
+  it('opens the invoice drawer from a row and mirrors it in the URL (#543)', async () => {
+    await setup();
+    await loadPage();
+    const router = TestBed.inject(Router);
+
+    rows()[0].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/billing/invoices/inv-1') && r.method === 'GET')
+      .flush(INVOICE_A);
+    await waitFor(() => document.querySelector('app-admin-invoice-drawer')?.textContent?.includes('INV-0042') ?? false);
+
+    expect(router.url).toContain('open=inv-1');
+    const drawer = document.querySelector('app-admin-invoice-drawer') as HTMLElement;
+    expect(drawer.textContent).toContain('Activity');
+    expect(drawer.textContent).toContain('Technical IDs');
   });
 
   it('shows the designed empty state when there are no invoices', async () => {
@@ -113,7 +143,7 @@ describe('AdminInvoicesComponent', () => {
     await loadPage([]);
 
     const page = fixture.nativeElement as HTMLElement;
-    expect(page.textContent).toContain('No invoices found');
+    expect(page.textContent).toContain('No invoices yet');
     expect(rows().length).toBe(0);
   });
 
@@ -151,11 +181,9 @@ describe('AdminInvoicesComponent', () => {
     fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;
-    const error = page.querySelector(
-      '.invoices-page__state--error',
-    ) as HTMLElement;
+    const error = page.querySelector('ui-error-state') as HTMLElement;
     expect(error).not.toBeNull();
-    expect(error.textContent).toContain('Please try again');
+    expect(error.textContent).toContain('Couldn’t load invoices');
     expect(error.textContent).toContain('Try again');
   });
 

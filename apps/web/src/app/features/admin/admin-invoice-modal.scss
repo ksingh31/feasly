@@ -1,0 +1,70 @@
+// Admin invoice action modals (#543). Tokens only.
+
+:host {
+  display: block;
+}
+
+.invoice-modal__context {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.invoice-modal__fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.invoice-modal__compare {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas-2);
+}
+
+.invoice-modal__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+
+  dt {
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  dd {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.invoice-modal__before {
+  color: var(--muted);
+}
+
+.invoice-modal__after {
+  color: var(--text);
+}
+
+.invoice-modal__note {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.invoice-modal__alert {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+}

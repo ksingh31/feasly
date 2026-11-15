@@ -194,165 +194,15 @@ describe('AdminBillingComponent (billing/03)', () => {
     expect(text).toContain('1%');
   });
 
-  it('opens the manage modal from an in-review Manage button and closes it', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage');
-    expect(manageButton).toBeDefined();
-    (manageButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    let modal = fixture.nativeElement.querySelector('app-admin-manage-invoice');
-    expect(modal).not.toBeNull();
-    expect(modal.textContent).toContain('Record payment');
-    // Close via the modal's Close button.
-    const closeButton = Array.from(modal.querySelectorAll('button')).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Close',
-    ) as HTMLButtonElement;
-    expect(closeButton).toBeDefined();
-    closeButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    modal = fixture.nativeElement.querySelector('app-admin-manage-invoice');
-    expect(modal).toBeNull();
-  });
-
-  it('renders the manage modal with a dialog shell, backdrop close, and Esc close', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage');
-    (manageButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const modal = fixture.nativeElement.querySelector('.billing-modal');
-    expect(modal).not.toBeNull();
-    expect(modal.getAttribute('role')).toBe('dialog');
-    expect(modal.getAttribute('aria-modal')).toBe('true');
-    // Backdrop click closes the modal.
-    (
-      modal.querySelector('.billing-modal__backdrop') as HTMLElement
-    ).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
-    // Re-open, then Esc closes it.
-    (manageButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const reopened = fixture.nativeElement.querySelector('.billing-modal');
-    expect(reopened).not.toBeNull();
-    reopened.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
-  });
-
-  it('moves focus into the dialog when the manage modal opens', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
-    ) as HTMLButtonElement;
-    manageButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const dialog = fixture.nativeElement.querySelector(
-      '.billing-modal',
-    ) as HTMLElement;
-    expect(dialog).not.toBeNull();
-    const active = document.activeElement as HTMLElement;
-    // Focus lands on the dialog's first control (the rate input), not body.
-    expect(dialog.contains(active)).toBe(true);
-    expect(active.id).toBe('manage-rate');
-  });
-
-  it('traps Tab and Shift+Tab cycling inside the manage modal', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
-    ) as HTMLButtonElement;
-    manageButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const dialog = fixture.nativeElement.querySelector(
-      '.billing-modal',
-    ) as HTMLElement;
-    const focusables = Array.from(
-      dialog.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), ' +
-          'select:not([disabled]), textarea:not([disabled]), ' +
-          '[tabindex]:not([tabindex="-1"])',
-      ),
-    );
-    expect(focusables.length).toBeGreaterThan(1);
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    // Tab on the last control wraps to the first.
-    last.focus();
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
-    );
-    expect(document.activeElement).toBe(first);
-    // Shift+Tab on the first control wraps to the last.
-    first.focus();
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', {
-        key: 'Tab',
-        shiftKey: true,
-        bubbles: true,
-      }),
-    );
-    expect(document.activeElement).toBe(last);
-    // Focus that escaped the dialog is pulled back in on Tab.
-    (document.activeElement as HTMLElement).blur();
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
-    );
-    expect(dialog.contains(document.activeElement as Node)).toBe(true);
-  });
-
-  it('closes on Esc even when focus is outside the dialog', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
-    ) as HTMLButtonElement;
-    manageButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).not.toBeNull();
-    // Focus never entered the dialog (the pre-fix bug: Esc was bound on the
-    // dialog div, so it only fired when focus was already inside).
-    (document.activeElement as HTMLElement).blur();
-    expect(document.activeElement).toBe(document.body);
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
-  });
-
-  it('returns focus to the invoking button when the modal closes', async () => {
-    const manageButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Manage',
-    ) as HTMLButtonElement;
-    manageButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).not.toBeNull();
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.billing-modal')).toBeNull();
-    expect(document.activeElement).toBe(manageButton);
+  it('links Manage to the invoice drawer on the Invoices page (#543)', () => {
+    const links = Array.from(
+      fixture.nativeElement.querySelectorAll('a.billing-panel__link'),
+    ) as HTMLAnchorElement[];
+    const manage = links.filter((a) => a.textContent?.trim() === 'Manage');
+    expect(manage.length).toBeGreaterThan(0);
+    expect(manage[0].getAttribute('href')).toContain('/admin/billing/invoices?open=');
+    // The old in-page manage modal is gone.
+    expect(fixture.nativeElement.querySelector('[role="dialog"]')).toBeNull();
   });
 
   describe('viewer permission gating (QA admin-console finding 8)', () => {
@@ -375,11 +225,16 @@ describe('AdminBillingComponent (billing/03)', () => {
       );
     }
 
+    function linkLabels(): string[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('a.billing-panel__link')).map(
+        (a) => ((a as HTMLAnchorElement).textContent ?? '').trim(),
+      );
+    }
+
     it('shows the write UI to billing managers', () => {
       const labels = buttonLabels();
       expect(labels).toContain('Create invoice');
-      expect(labels).toContain('Manage');
-      expect(labels).toContain('Mark as paid');
+      expect(linkLabels()).toContain('Manage');
       expect(labels.some((l) => l.startsWith('Retry'))).toBe(true);
     });
 
@@ -387,8 +242,8 @@ describe('AdminBillingComponent (billing/03)', () => {
       await renderAsViewer();
       const labels = buttonLabels();
       expect(labels).not.toContain('Create invoice');
-      expect(labels).not.toContain('Manage');
-      expect(labels).not.toContain('Mark as paid');
+      expect(linkLabels()).not.toContain('Manage');
+      expect(linkLabels()).toContain('Details');
       expect(labels.some((l) => l.startsWith('Retry'))).toBe(false);
       // The money overview itself stays visible.
       const text = fixture.nativeElement.textContent as string;
@@ -399,24 +254,6 @@ describe('AdminBillingComponent (billing/03)', () => {
         fixture.nativeElement.querySelectorAll('a.billing-panel__link').length,
       ).toBeGreaterThan(0);
     });
-  });
-
-  it('opens the manage modal from a dunning Mark as paid button', async () => {
-    const markPaidButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find(
-      (b) => (b as HTMLButtonElement).textContent?.trim() === 'Mark as paid',
-    );
-    expect(markPaidButton).toBeDefined();
-    (markPaidButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const modal = fixture.nativeElement.querySelector(
-      'app-admin-manage-invoice',
-    );
-    expect(modal).not.toBeNull();
-    // Failed-charge context: no review-due date on the invoice summary.
-    expect(modal.textContent).toContain('Failed charge');
   });
 
   it('shows manual handling when retries are exhausted', async () => {
