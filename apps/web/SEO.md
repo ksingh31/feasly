@@ -48,15 +48,29 @@ Community District Boundaries, `surr-xmvs`), **or** it is on the include list,
 **or** it is in the optional top-N by residential record count — minus the
 exclude list, and only with at least `minRecords` (100) residential records.
 The include list holds the 40 pages that existed before #690, so no indexed
-URL disappears. Edit the JSON, not the scripts; a config edit regenerates the
+URL disappears, plus the 28 established infill communities from the marketing
+plan (section 3), which are pinned whatever the rule says. Edit the JSON, not the scripts; a config edit regenerates the
 data on the next build (the aggregates file records a hash of the selection).
 
 **Averages.** Build-guide figures use single-detached and semi-detached homes
 only (`sub_property_use` R110/R111/R120/R121 on the latest roll). A community
 with fewer than `guide.minRecords` (50) such homes falls back to all
 residential dwellings and always gets the profile page, never a guide.
-Profile pages show the all-residential average (condos included; condo
-common elements, parking and storage excluded).
+Profile pages show the all-residential average, built from dwelling units
+only: the config's `dwellingCodePrefixes` (R1xx houses and semi-detached,
+R2xx townhouses, R3xx condo units, R4xx rowhouse/duplex units). Whole rental
+or mixed-use buildings (R5xx–R9xx, X), commercial space (C, S) and condo
+parking/storage (A) are excluded from every average and from the dwelling
+mix, so one $40M building can't read as a single home (Downtown Commercial
+Core went from ~$1.1M to ~$261k, Beltline from ~$723k to ~$332k).
+
+**Hand-written intros.** `apps/web/scripts/config/community-intros.json`
+holds a factual, community-specific introduction (one-line summary and a
+short body) for each established infill community, keyed by the City's exact
+`comm_name`. Both page variants render the body under the H1; llms.txt uses
+the summary and llms-full.txt the body. `build-community-pages.ts` fails the
+build if an intro names a community without a page, reuses a sentence from
+another intro, or breaks the copy rules.
 
 **Page count (2026-11-15): 144** community pages (113 established/inner-city,
 31 newer; 21 of them profile pages), 155 prerendered routes in total, 153

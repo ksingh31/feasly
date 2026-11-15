@@ -3,6 +3,9 @@
   <main class="community-profile" id="main-content" tabindex="-1">
     <p class="eyebrow">{{ copy().kicker }}</p>
     <h1>{{ v.displayName }}, Calgary</h1>
+    @if (v.intro) {
+      <p class="intro">{{ v.intro }}</p>
+    }
     <p class="lede"><strong>{{ copy().ledeLead }}</strong> — {{ copy().lede }}</p>
 
     @if (propertyContext(); as ctx) {

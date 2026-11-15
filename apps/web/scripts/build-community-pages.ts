@@ -80,6 +80,57 @@ export function pageAggregate(agg: AggregateRow, type: string): AggregateRow {
   return { slug: agg.slug, name: agg.name, count: agg.count, avgAssessedValue: agg.avgAssessedValue, avgLotSqft: agg.avgLotSqft };
 }
 
+/** Hand-written community introduction (scripts/config/community-intros.json). */
+export interface CommunityIntro {
+  /** One factual sentence: llms.txt line and page lede. */
+  readonly summary: string;
+  /** Two or three factual sentences shown on the page. */
+  readonly body: string;
+}
+
+export const INTROS_PATH = join(SCRIPT_DIR, 'config', 'community-intros.json');
+
+/** Words community copy must never use (CLAUDE.md copy rules). */
+const BANNED_INTRO_WORDS = /guarantee|appraisal|market value|accura|unlock|\$\s?\d/i;
+
+/**
+ * Loads and validates the hand-written intros against the selected
+ * communities. Throws when an intro names a community that has no page
+ * (a misspelt City name would otherwise vanish silently), when two intros
+ * share a sentence (template swaps are not unique copy), or when copy
+ * breaks the copy rules. Pure apart from the file read.
+ */
+export function loadIntros(
+  communityNames: readonly string[],
+  path: string = INTROS_PATH,
+): Map<string, CommunityIntro> {
+  const raw = readJson<{ intros?: Record<string, CommunityIntro> }>(path).intros ?? {};
+  const known = new Set(communityNames);
+  const seen = new Set<string>();
+  const out = new Map<string, CommunityIntro>();
+  for (const [name, intro] of Object.entries(raw)) {
+    if (!known.has(name)) {
+      throw new Error(`build-community-pages: intro for ${JSON.stringify(name)} matches no selected community (use the City's exact comm_name)`);
+    }
+    for (const field of ['summary', 'body'] as const) {
+      const text = intro?.[field];
+      if (typeof text !== 'string' || text.trim().length < 40) {
+        throw new Error(`build-community-pages: intro ${field} for ${name} is missing or too short`);
+      }
+      if (BANNED_INTRO_WORDS.test(text)) {
+        throw new Error(`build-community-pages: intro ${field} for ${name} breaks the copy rules`);
+      }
+      for (const sentence of text.split(/(?<=\.)\s+/)) {
+        const key = sentence.trim().toLowerCase();
+        if (seen.has(key)) throw new Error(`build-community-pages: intro sentence reused (${name}): ${sentence}`);
+        seen.add(key);
+      }
+    }
+    out.set(name, { summary: intro.summary.trim(), body: intro.body.trim() });
+  }
+  return out;
+}
+
 interface NearbyEntry {
   slug: string;
   name: string;
@@ -126,6 +177,7 @@ function main(): void {
     : '';
 
   const aggregateBySlug = new Map(aggregates.map((a) => [a.slug, a]));
+  const intros = loadIntros(aggregates.map((a) => a.name));
 
   // Start clean so a community dropped from the selection leaves no orphan file.
   rmSync(OUTPUT_DIR, { recursive: true, force: true });
@@ -172,6 +224,8 @@ function main(): void {
       range,
       nearby,
     };
+    const intro = intros.get(agg.name);
+    if (intro) pageData['intro'] = intro;
     if (type === 'profile') {
       const mix = mixBySlug.get(slug);
       if (mix) pageData['mix'] = mix;

@@ -1,0 +1,117 @@
+{
+  "$comment": "Hand-written, community-specific introductions for the established infill communities (SEO/GEO gap 3, marketing plan section 3). Keyed by the City's exact community name (comm_name). build-community-pages.ts copies each entry into its page JSON; both page variants render it and llms.txt uses the summary. Rules: facts only (location, landmarks, housing stock, what gets built), no dollar figures (those come from the cost engine and the City roll), no accuracy claims, never 'guarantee', 'appraisal' or 'market value'. Every summary and body must be unique (build-community-pages.spec.ts checks).",
+  "intros": {
+    "ALTADORE": {
+      "summary": "Inner-city southwest community beside Marda Loop and River Park, where 1950s bungalows are steadily replaced by new semi-detached and single-detached infills.",
+      "body": "Altadore sits in southwest Calgary between the Marda Loop shops on 33 and 34 Avenue SW and the Elbow River, with River Park and Sandy Beach along its eastern edge. Much of its original housing is post-war bungalows on 50-foot lots. Those lots are often split into two 25-foot lots for a pair of new homes, which has made Altadore one of the busiest infill markets in the city."
+    },
+    "SOUTH CALGARY": {
+      "summary": "Southwest inner-city community north of Marda Loop with a mix of older houses, new infills and low-rise condos close to 17 Avenue and Crowchild Trail.",
+      "body": "South Calgary covers the blocks north of Marda Loop, between Crowchild Trail and 14 Street SW. It mixes older detached houses with newer semi-detached infills, rowhouses and low-rise apartment buildings. Single-family infill still happens lot by lot on the quieter residential streets."
+    },
+    "KILLARNEY/GLENGARRY": {
+      "summary": "Southwest community west of Crowchild Trail where wartime and post-war homes on narrow lots are being rebuilt as side-by-side infills and rowhouses.",
+      "body": "Killarney/Glengarry runs west of Crowchild Trail from 17 Avenue SW, with 37 Street SW as its main commercial street; it is home to the Killarney Aquatic and Recreation Centre. Its long blocks of modest older homes have drawn steady redevelopment: side-by-side semi-detached homes, rowhouses and a growing number of apartment buildings."
+    },
+    "RICHMOND": {
+      "summary": "Southwest inner-city community on both sides of Crowchild Trail, between 17 and 33 Avenue SW, known for new semi-detached infills on split lots.",
+      "body": "Richmond (Richmond/Knob Hill) lies on both sides of Crowchild Trail between 17 Avenue SW and 33 Avenue SW, next to Killarney and the former Currie Barracks lands. Its streets of 1940s and 1950s houses have seen many lots redeveloped into pairs of semi-detached infills."
+    },
+    "MOUNT PLEASANT": {
+      "summary": "North-central inner-city community north of 16 Avenue NW, where narrow-lot single-detached and semi-detached infills replace early 20th-century homes.",
+      "body": "Mount Pleasant is a North Hill community just north of 16 Avenue NW, bordering Confederation Park and a short walk from SAIT. Its grid of 25- and 50-foot lots has made it a long-running infill area. Older bungalows and character homes sit beside new two-storey single-detached and semi-detached builds."
+    },
+    "CAPITOL HILL": {
+      "summary": "Northwest community between 16 Avenue NW and Confederation Park, just north of SAIT, with active narrow-lot infill on a grid of older bungalows.",
+      "body": "Capitol Hill sits north of 16 Avenue NW, across from SAIT and North Hill Centre, with Confederation Park on its northern edge and 14 Street NW running through it. Most of its original homes are small mid-century bungalows. Many have been replaced by single-detached and semi-detached infills on 25-foot lots."
+    },
+    "TUXEDO PARK": {
+      "summary": "North-central inner-city community along Centre Street N, mixing early 1900s homes with new infills and townhouses.",
+      "body": "Tuxedo Park stretches along Centre Street N on the North Hill, a few minutes from downtown by Centre Street and Edmonton Trail. Its housing ranges from early 1900s character homes to recent infills and townhouses. Townhouses and small apartment buildings cluster along the Centre Street corridor."
+    },
+    "CRESCENT HEIGHTS": {
+      "summary": "Inner-city community on the escarpment directly north of downtown, with skyline views along Crescent Road and more apartments and condos than houses.",
+      "body": "Crescent Heights sits on the bluff directly north of downtown across the Bow River, with Crescent Park and McHugh Bluff giving it some of Calgary's best-known skyline views. It is one of the city's older neighbourhoods. Early 1900s houses share its streets with walk-up apartments and newer condo buildings."
+    },
+    "RENFREW": {
+      "summary": "Northeast inner-city community east of Edmonton Trail and south of 16 Avenue NE, where post-war homes are being replaced by infills and rowhouses.",
+      "body": "Renfrew lies east of Edmonton Trail NE and south of 16 Avenue NE, next to Bridgeland, and was largely built out in the 1940s and 1950s. Many of its post-war bungalows have been replaced by single-detached infills, semi-detached pairs and rowhouses. Some streets on the escarpment look over downtown."
+    },
+    "HILLHURST": {
+      "summary": "Northwest inner-city community around Kensington Road and 10 Street NW, beside Riley Park and the Bow River, with houses, infills and condos.",
+      "body": "Hillhurst takes in much of the Kensington shopping district, with Riley Park, the Bow River pathways and the Sunnyside CTrain station close by. Its blocks mix early 1900s houses with newer infills, rowhouses and condo buildings. Single-family infill continues on its quieter residential streets."
+    },
+    "WEST HILLHURST": {
+      "summary": "Northwest community between the Bow River and Kensington Road west of 14 Street NW, where post-war bungalows are rebuilt as single and semi-detached infills.",
+      "body": "West Hillhurst runs west from Hillhurst toward Crowchild Trail, between the Bow River and the escarpment, with shops along 19 Street NW. Its post-war bungalows on 50-foot lots are a steady source of infill. New single-detached homes and pairs of semi-detached homes are common."
+    },
+    "PARKDALE": {
+      "summary": "Small northwest community on the Bow River near Foothills Medical Centre, where older bungalows give way to larger single-detached and semi-detached infills.",
+      "body": "Parkdale lies along the north bank of the Bow River and Parkdale Boulevard, close to Foothills Medical Centre, the University of Calgary and the river pathways. Its mid-century bungalows are often replaced by larger two-storey single-detached homes or semi-detached pairs."
+    },
+    "ST. ANDREWS HEIGHTS": {
+      "summary": "Small northwest community of mostly single-detached homes on the hill beside Foothills Medical Centre, where new builds tend to replace one house with one house.",
+      "body": "St. Andrews Heights is a small, mostly single-detached community on the hill next to Foothills Medical Centre. It has almost no semi-detached housing. Redevelopment here usually means a new single-detached home replacing an older one on the same lot, not a lot split."
+    },
+    "MONTGOMERY": {
+      "summary": "Northwest community along Bowness Road and the Bow River, a former town annexed in 1963, with steady single and semi-detached infill.",
+      "body": "Montgomery sits on the north bank of the Bow River along Bowness Road and 16 Avenue NW, next to Shouldice Athletic Park. It was a separate town until Calgary annexed it in 1963. Its 1950s homes on wide lots are frequently replaced by semi-detached pairs and new single-detached houses."
+    },
+    "BANFF TRAIL": {
+      "summary": "Northwest community beside McMahon Stadium and the Banff Trail CTrain station, mostly single-detached homes with growing semi-detached infill.",
+      "body": "Banff Trail is next to McMahon Stadium and the Banff Trail CTrain station, between Crowchild Trail and the University of Calgary area. Most of its homes are mid-century single-detached houses. Its location near transit and the university has made semi-detached infill and small multi-unit projects increasingly common."
+    },
+    "HIGHLAND PARK": {
+      "summary": "North-central community between 4 Street NW and Edmonton Trail north of 32 Avenue, with a grid of older homes and ongoing semi-detached infill.",
+      "body": "Highland Park lies north of 32 Avenue N between 4 Street NW and Edmonton Trail, with McKnight Boulevard to the north and Centre Street N running through it. Its post-war homes on regular lots have seen a steady stream of single-detached and semi-detached infills."
+    },
+    "WINSTON HEIGHTS/MOUNTVIEW": {
+      "summary": "North-central community around Edmonton Trail NE and the Winston Heights golf course, where older bungalows are rebuilt as single and semi-detached infills.",
+      "body": "Winston Heights/Mountview straddles Edmonton Trail NE north of 16 Avenue, around the Winston Heights golf course. Its mid-century bungalows on generous lots attract both new single-detached homes and side-by-side semi-detached infills."
+    },
+    "ROSEDALE": {
+      "summary": "Small North Hill community between 4 and 10 Street NW above Crescent Road, almost entirely single-detached homes with downtown views from its south edge.",
+      "body": "Rosedale sits between 4 Street and 10 Street NW, from 16 Avenue down to Crescent Road, where the bluff looks over downtown and the mountains. Its first homes date from about 1909 and is almost entirely single-detached housing. New builds here are usually one large house replacing an older one."
+    },
+    "CAMBRIAN HEIGHTS": {
+      "summary": "Northwest community of 1950s single-detached homes between 14 Street NW and Confederation Park, just southeast of Nose Hill Park.",
+      "body": "Cambrian Heights is a 1950s community of mostly single-detached homes, bounded by 14 Street NW to the west and close to both Confederation Park and Nose Hill Park. Its bungalows on wide lots are gradually being replaced, mostly by new single-detached homes, with some semi-detached infill."
+    },
+    "LAKEVIEW": {
+      "summary": "Southwest community of 1960s single-detached homes on large lots beside the Glenmore Reservoir and North Glenmore Park.",
+      "body": "Lakeview sits on the north shore of the Glenmore Reservoir, next to North Glenmore Park and the reservoir pathways. Built mostly in the 1960s, it is overwhelmingly single-detached homes on large lots. Rebuilds tend to be a larger single-detached house on the same lot rather than a lot split."
+    },
+    "ELBOYA": {
+      "summary": "Southwest community along the Elbow River near Elbow Drive, with single-detached homes on generous lots and frequent full rebuilds.",
+      "body": "Elboya lies along the Elbow River near Elbow Drive and 50 Avenue SW, next to Britannia. Its housing is mainly single-detached homes on generous lots, with some apartments near the main roads. Older homes are commonly replaced by large new single-detached houses."
+    },
+    "BRITANNIA": {
+      "summary": "Small southwest community on the Elbow River bluff around Britannia Plaza, made up almost entirely of single-detached homes on large lots.",
+      "body": "Britannia is a small community on the bluff above the Elbow River, west of Elbow Drive, with the Britannia Plaza shops at its edge. It has no semi-detached housing and only a few condos; nearly every home is a single-detached house on a large lot. New construction here usually means a custom home replacing an older one."
+    },
+    "BANKVIEW": {
+      "summary": "Inner-city southwest community on the hillside south of 17 Avenue SW and west of 14 Street, mostly apartments and condos with some detached homes.",
+      "body": "Bankview climbs the hillside south of 17 Avenue SW and west of 14 Street SW, so many of its streets look east over the Beltline and downtown. Apartments and condos make up most of its housing. Detached and semi-detached homes are a minority, scattered among the walk-ups."
+    },
+    "SPRUCE CLIFF": {
+      "summary": "West-end community on the cliff above the Bow River along Bow Trail SW, mostly apartments and condos with a pocket of detached homes.",
+      "body": "Spruce Cliff sits on the escarpment above the Bow River along Bow Trail SW, close to the West LRT line and the river pathways. Most homes here are units in apartment and condo buildings. A smaller area of single-detached and semi-detached homes sits back from the cliff."
+    },
+    "WILDWOOD": {
+      "summary": "West-end community of single-detached homes between Bow Trail and the Bow River, next to Edworthy Park.",
+      "body": "Wildwood lies between Bow Trail SW and the Bow River, with Edworthy Park and the river pathways along its northern edge. Almost every home is single-detached, many of them 1950s bungalows on wide lots. Redevelopment here is mostly new single-detached homes replacing older ones."
+    },
+    "GLENDALE": {
+      "summary": "West-end community of mostly 1950s single-detached homes west of 37 Street SW, near the 45 Street CTrain station.",
+      "body": "Glendale lies west of 37 Street SW and south of 17 Avenue SW, with the 45 Street CTrain station on its northern edge. It is almost entirely single-detached housing, largely 1950s bungalows on wide lots. Those lots draw new single-detached homes and, increasingly, semi-detached infill."
+    },
+    "INGLEWOOD": {
+      "summary": "One of Calgary's oldest neighbourhoods, east of downtown along 9 Avenue SE, mixing early homes, new infills and condos near the Bow and Elbow rivers.",
+      "body": "Inglewood grew up along 9 Avenue SE, east of downtown where the Bow and Elbow rivers meet, and is one of Calgary's oldest neighbourhoods. The Inglewood Bird Sanctuary sits at its eastern edge. Its housing mixes early 1900s homes, newer infills and recent condo buildings near the main street."
+    },
+    "RAMSAY": {
+      "summary": "Inner-city southeast community on the hill beside Inglewood and the Stampede grounds, mostly older single-detached homes with some new infill.",
+      "body": "Ramsay climbs the hillside between Inglewood and the Elbow River, overlooking the Stampede grounds from Scotsman's Hill. It is one of the city's older neighbourhoods, and most homes are early single-detached houses. Infill is bringing new single-detached and semi-detached homes to its streets."
+    }
+  }
+}

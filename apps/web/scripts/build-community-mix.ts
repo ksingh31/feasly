@@ -52,7 +52,7 @@ import type {
 } from './community-mix.schema.js';
 
 import { reportRefreshFailure, resolveRefreshFailure } from './snapshot-fallback.js';
-import { loadCitySelection } from './community-selection.schema.js';
+import { isDwellingCode, loadCitySelection } from './community-selection.schema.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-mix.json');
@@ -174,13 +174,20 @@ export function classifyCommunities(
   onWarn: (message: string) => void = console.warn,
   /** Slugs that must get the profile page (config overrides + residential-basis communities). */
   forceProfile: ReadonlySet<string> = new Set(),
+  /**
+   * Which `sub_property_use` codes are one home. Production passes the
+   * selection config's `dwellingCodePrefixes` (so whole buildings, mixed-use
+   * and commercial records never count as "apartments"); the default only
+   * drops condo common elements / parking / storage (`A*`).
+   */
+  isDwelling: (code: string) => boolean = (code) => !code.startsWith('A'),
 ): CommunityDwellingMix[] {
   const wanted = new Set(slugs);
   const buckets = new Map<string, { singleDetached: number; semiDuplex: number; multiFamily: number }>();
   for (const row of rows) {
     const slug = slugify(row.commName);
     if (!wanted.has(slug)) continue;
-    if (!row.subPropertyUse || row.subPropertyUse.startsWith('A')) continue; // common elements / parking / storage
+    if (!row.subPropertyUse || !isDwelling(row.subPropertyUse)) continue; // not a dwelling unit
     if (!Number.isFinite(row.count) || row.count <= 0) continue;
     let b = buckets.get(slug);
     if (!b) {
@@ -279,13 +286,15 @@ export function writeTypesFile(
   return parsed.data;
 }
 
-function readAggregates(): { slugs: string[]; residentialBasis: string[] } {
+function readAggregates(): { slugs: string[]; residentialBasis: string[]; generatedAt: string } {
   const parsed: unknown = JSON.parse(readFileSync(AGGREGATES_PATH, 'utf8'));
   const communities = (parsed as { communities?: Array<{ slug?: string; basis?: string }> }).communities;
+  const generatedAt = String((parsed as { generatedAt?: string }).generatedAt ?? '');
   if (!Array.isArray(communities)) throw new Error(`build-community-mix: cannot read slugs from ${AGGREGATES_PATH}`);
   return {
     slugs: communities.map((c) => String(c.slug)).filter(Boolean),
     residentialBasis: communities.filter((c) => c.basis === 'residential').map((c) => String(c.slug)),
+    generatedAt,
   };
 }
 
@@ -321,8 +330,9 @@ function readCachedMix(): CommunityMixFile | null {
 
 export async function run(config: MixBuildConfig): Promise<void> {
   const age = ageInDays();
-  const { slugs, residentialBasis } = readAggregates();
-  const forceProfile = new Set([...loadCitySelection().selection.profileOverrides, ...residentialBasis]);
+  const { slugs, residentialBasis, generatedAt: aggregatesAt } = readAggregates();
+  const { selection } = loadCitySelection();
+  const forceProfile = new Set([...selection.profileOverrides, ...residentialBasis]);
   // The page list and forced profiles change with the selection config (#690):
   // a cached mix that no longer matches either is regenerated.
   const cached = readCachedMix();
@@ -331,6 +341,9 @@ export async function run(config: MixBuildConfig): Promise<void> {
     age !== null &&
     age < MAX_AGE_DAYS &&
     cached !== null &&
+    // Regenerated aggregates (e.g. a dwelling-code config change) mean the
+    // mix must be recounted with the same rules.
+    new Date(cached.generatedAt).getTime() >= new Date(aggregatesAt).getTime() &&
     cachedMixMatches(cached, slugs, forceProfile)
   ) {
     console.log(
@@ -346,7 +359,9 @@ export async function run(config: MixBuildConfig): Promise<void> {
   const rollYear = await latestRollYear(config);
   const rows = await fetchMixCounts(config, rollYear);
   console.log(`build-community-mix: fetched ${rows.length} community×use rows for roll ${rollYear}`);
-  const mixes = classifyCommunities(rows, slugs, console.warn, forceProfile);
+  const mixes = classifyCommunities(rows, slugs, console.warn, forceProfile, (code) =>
+    isDwellingCode(code, selection.dwellingCodePrefixes),
+  );
   const profiles = mixes.filter((m) => m.communityType === 'profile').map((m) => m.slug);
   console.log(`build-community-mix: ${mixes.length} classified, profile: ${profiles.join(', ') || '(none)'}`);
   writeMix(mixes, rollYear);

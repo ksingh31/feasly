@@ -28,7 +28,7 @@ import {
   scanDenyList,
 } from './community-aggregates.schema.js';
 import type { CommunityAggregate } from './community-aggregates.schema.js';
-import { loadCitySelection } from './community-selection.schema.js';
+import { isDwellingCode, loadCitySelection } from './community-selection.schema.js';
 import type { CitySelection } from './community-selection.schema.js';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +43,7 @@ const BASE_SELECTION: CitySelection = {
   exclude: [],
   topByCount: 0,
   minRecords: 100,
+  dwellingCodePrefixes: ['R1', 'R2', 'R3', 'R4'],
   guide: { subPropertyUses: ['R110', 'R111', 'R120', 'R121'], minRecords: 50 },
   establishedStructures: ['CENTRE CITY', 'INNER CITY', '1950s'],
   profileOverrides: [],
@@ -297,7 +298,7 @@ describe('Socrata fetchers', () => {
     const rows = await fetchResidentialAggregates(
       cfg,
       '2026',
-      ['R110', 'R120'],
+      { codes: ['R110', 'R120'] },
       stubFetch([{ comm_name: 'ALTADORE', count: '2044', avg_assessed_value: '1', avg_land_size_sf: '2' }], true, 200, urls),
     );
     expect(rows[0]).toMatchObject({ commName: 'ALTADORE', count: '2044' });
@@ -306,17 +307,35 @@ describe('Socrata fetchers', () => {
     expect(where).toContain("sub_property_use in('R110','R120')");
   });
 
-  it('residential aggregates exclude A-codes (common elements, parking, storage)', async () => {
+  it('residential aggregates keep only the configured dwelling-unit code prefixes', async () => {
     const urls: string[] = [];
-    await fetchResidentialAggregates(cfg, '2026', undefined, stubFetch([], true, 200, urls));
-    expect(new URL(urls[0] ?? '').searchParams.get('$where')).toContain("NOT starts_with(sub_property_use, 'A')");
+    await fetchResidentialAggregates(cfg, '2026', { prefixes: ['R1', 'R3'] }, stubFetch([], true, 200, urls));
+    const where = new URL(urls[0] ?? '').searchParams.get('$where') ?? '';
+    expect(where).toContain("(starts_with(sub_property_use, 'R1') OR starts_with(sub_property_use, 'R3'))");
+    // Whole buildings, mixed-use and commercial records never enter the average.
+    expect(where).not.toContain('NOT starts_with');
+  });
+
+  it('the shipped Calgary config counts houses, townhouses and condo units only', () => {
+    const { selection } = loadCitySelection();
+    expect(selection.dwellingCodePrefixes).toEqual(['R1', 'R2', 'R3', 'R4']);
+    for (const home of ['R110', 'R120', 'R201', 'R301', 'R402']) {
+      expect(isDwellingCode(home, selection.dwellingCodePrefixes)).toBe(true);
+    }
+    // Rental/mixed-use buildings, commercial space and condo parking (#gap-4).
+    for (const notAHome of ['R620', 'R940', 'X061', 'S410', 'C207', 'A004', 'R010']) {
+      expect(isDwellingCode(notAHome, selection.dwellingCodePrefixes)).toBe(false);
+    }
   });
 
   it('rejects unsafe codes and roll years before building a query', async () => {
-    await expect(fetchResidentialAggregates(cfg, '2026', ["R110') OR ('1"], stubFetch([]))).rejects.toThrow(
+    await expect(fetchResidentialAggregates(cfg, '2026', { codes: ["R110') OR ('1"] }, stubFetch([]))).rejects.toThrow(
       /invalid sub_property_use/,
     );
-    await expect(fetchResidentialAggregates(cfg, "2026' OR '1", undefined, stubFetch([]))).rejects.toThrow(
+    await expect(fetchResidentialAggregates(cfg, '2026', { prefixes: ["R1') OR ('1"] }, stubFetch([]))).rejects.toThrow(
+      /invalid sub_property_use/,
+    );
+    await expect(fetchResidentialAggregates(cfg, "2026' OR '1", { prefixes: ['R1'] }, stubFetch([]))).rejects.toThrow(
       /invalid roll year/,
     );
   });

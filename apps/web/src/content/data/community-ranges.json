@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T20:39:25.944Z",
+  "generatedAt": "2026-11-15T20:53:38.847Z",
   "costDataVersion": "v0.4.1-uncalibrated",
   "calibrated": false,
   "buildSqft": 2400,
@@ -10,23 +10,23 @@
         "standard": {
           "buildLow": 523000,
           "buildHigh": 703000,
-          "landValue": 722797,
-          "totalLow": 1245797,
-          "totalHigh": 1425797
+          "landValue": 332043,
+          "totalLow": 855043,
+          "totalHigh": 1035043
         },
         "premium": {
           "buildLow": 699000,
           "buildHigh": 938000,
-          "landValue": 722797,
-          "totalLow": 1421797,
-          "totalHigh": 1660797
+          "landValue": 332043,
+          "totalLow": 1031043,
+          "totalHigh": 1270043
         },
         "luxury": {
           "buildLow": 961000,
           "buildHigh": 1296000,
-          "landValue": 722797,
-          "totalLow": 1683797,
-          "totalHigh": 2018797
+          "landValue": 332043,
+          "totalLow": 1293043,
+          "totalHigh": 1628043
         }
       }
     },
@@ -317,32 +317,6 @@
       }
     },
     {
-      "slug": "sage-hill",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 780691,
-          "totalLow": 1243691,
-          "totalHigh": 1395691
-        },
-        "premium": {
-          "buildLow": 624000,
-          "buildHigh": 828000,
-          "landValue": 780691,
-          "totalLow": 1404691,
-          "totalHigh": 1608691
-        },
-        "luxury": {
-          "buildLow": 856000,
-          "buildHigh": 1144000,
-          "landValue": 780691,
-          "totalLow": 1636691,
-          "totalHigh": 1924691
-        }
-      }
-    },
-    {
       "slug": "edgemont",
       "tiers": {
         "standard": {
@@ -365,6 +339,32 @@
           "landValue": 894140,
           "totalLow": 1765140,
           "totalHigh": 2059140
+        }
+      }
+    },
+    {
+      "slug": "sage-hill",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 780691,
+          "totalLow": 1243691,
+          "totalHigh": 1395691
+        },
+        "premium": {
+          "buildLow": 624000,
+          "buildHigh": 828000,
+          "landValue": 780691,
+          "totalLow": 1404691,
+          "totalHigh": 1608691
+        },
+        "luxury": {
+          "buildLow": 856000,
+          "buildHigh": 1144000,
+          "landValue": 780691,
+          "totalLow": 1636691,
+          "totalHigh": 1924691
         }
       }
     },
@@ -473,32 +473,6 @@
       }
     },
     {
-      "slug": "skyview-ranch",
-      "tiers": {
-        "standard": {
-          "buildLow": 461000,
-          "buildHigh": 613000,
-          "landValue": 679344,
-          "totalLow": 1140344,
-          "totalHigh": 1292344
-        },
-        "premium": {
-          "buildLow": 622000,
-          "buildHigh": 826000,
-          "landValue": 679344,
-          "totalLow": 1301344,
-          "totalHigh": 1505344
-        },
-        "luxury": {
-          "buildLow": 854000,
-          "buildHigh": 1140000,
-          "landValue": 679344,
-          "totalLow": 1533344,
-          "totalHigh": 1819344
-        }
-      }
-    },
-    {
       "slug": "west-springs",
       "tiers": {
         "standard": {
@@ -521,6 +495,32 @@
           "landValue": 1088855,
           "totalLow": 1952855,
           "totalHigh": 2244855
+        }
+      }
+    },
+    {
+      "slug": "skyview-ranch",
+      "tiers": {
+        "standard": {
+          "buildLow": 461000,
+          "buildHigh": 613000,
+          "landValue": 679344,
+          "totalLow": 1140344,
+          "totalHigh": 1292344
+        },
+        "premium": {
+          "buildLow": 622000,
+          "buildHigh": 826000,
+          "landValue": 679344,
+          "totalLow": 1301344,
+          "totalHigh": 1505344
+        },
+        "luxury": {
+          "buildLow": 854000,
+          "buildHigh": 1140000,
+          "landValue": 679344,
+          "totalLow": 1533344,
+          "totalHigh": 1819344
         }
       }
     },
@@ -889,32 +889,6 @@
       }
     },
     {
-      "slug": "livingston",
-      "tiers": {
-        "standard": {
-          "buildLow": 460000,
-          "buildHigh": 612000,
-          "landValue": 761398,
-          "totalLow": 1221398,
-          "totalHigh": 1373398
-        },
-        "premium": {
-          "buildLow": 621000,
-          "buildHigh": 825000,
-          "landValue": 761398,
-          "totalLow": 1382398,
-          "totalHigh": 1586398
-        },
-        "luxury": {
-          "buildLow": 851000,
-          "buildHigh": 1137000,
-          "landValue": 761398,
-          "totalLow": 1612398,
-          "totalHigh": 1898398
-        }
-      }
-    },
-    {
       "slug": "arbour-lake",
       "tiers": {
         "standard": {
@@ -937,6 +911,32 @@
           "landValue": 811742,
           "totalLow": 1674742,
           "totalHigh": 1964742
+        }
+      }
+    },
+    {
+      "slug": "livingston",
+      "tiers": {
+        "standard": {
+          "buildLow": 460000,
+          "buildHigh": 612000,
+          "landValue": 761398,
+          "totalLow": 1221398,
+          "totalHigh": 1373398
+        },
+        "premium": {
+          "buildLow": 621000,
+          "buildHigh": 825000,
+          "landValue": 761398,
+          "totalLow": 1382398,
+          "totalHigh": 1586398
+        },
+        "luxury": {
+          "buildLow": 851000,
+          "buildHigh": 1137000,
+          "landValue": 761398,
+          "totalLow": 1612398,
+          "totalHigh": 1898398
         }
       }
     },
@@ -993,32 +993,6 @@
       }
     },
     {
-      "slug": "whitehorn",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 617000,
-          "landValue": 528618,
-          "totalLow": 991618,
-          "totalHigh": 1145618
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 831000,
-          "landValue": 528618,
-          "totalLow": 1153618,
-          "totalHigh": 1359618
-        },
-        "luxury": {
-          "buildLow": 859000,
-          "buildHigh": 1147000,
-          "landValue": 528618,
-          "totalLow": 1387618,
-          "totalHigh": 1675618
-        }
-      }
-    },
-    {
       "slug": "silver-springs",
       "tiers": {
         "standard": {
@@ -1045,32 +1019,6 @@
       }
     },
     {
-      "slug": "killarney-glengarry",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 890477,
-          "totalLow": 1353477,
-          "totalHigh": 1505477
-        },
-        "premium": {
-          "buildLow": 624000,
-          "buildHigh": 828000,
-          "landValue": 890477,
-          "totalLow": 1514477,
-          "totalHigh": 1718477
-        },
-        "luxury": {
-          "buildLow": 856000,
-          "buildHigh": 1144000,
-          "landValue": 890477,
-          "totalLow": 1746477,
-          "totalHigh": 2034477
-        }
-      }
-    },
-    {
       "slug": "dalhousie",
       "tiers": {
         "standard": {
@@ -1093,6 +1041,32 @@
           "landValue": 779555,
           "totalLow": 1654555,
           "totalHigh": 1950555
+        }
+      }
+    },
+    {
+      "slug": "killarney-glengarry",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 890477,
+          "totalLow": 1353477,
+          "totalHigh": 1505477
+        },
+        "premium": {
+          "buildLow": 624000,
+          "buildHigh": 828000,
+          "landValue": 890477,
+          "totalLow": 1514477,
+          "totalHigh": 1718477
+        },
+        "luxury": {
+          "buildLow": 856000,
+          "buildHigh": 1144000,
+          "landValue": 890477,
+          "totalLow": 1746477,
+          "totalHigh": 2034477
         }
       }
     },
@@ -1175,6 +1149,32 @@
       }
     },
     {
+      "slug": "whitehorn",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 617000,
+          "landValue": 528618,
+          "totalLow": 991618,
+          "totalHigh": 1145618
+        },
+        "premium": {
+          "buildLow": 625000,
+          "buildHigh": 831000,
+          "landValue": 528618,
+          "totalLow": 1153618,
+          "totalHigh": 1359618
+        },
+        "luxury": {
+          "buildLow": 859000,
+          "buildHigh": 1147000,
+          "landValue": 528618,
+          "totalLow": 1387618,
+          "totalHigh": 1675618
+        }
+      }
+    },
+    {
       "slug": "renfrew",
       "tiers": {
         "standard": {
@@ -1253,32 +1253,6 @@
       }
     },
     {
-      "slug": "crescent-heights",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 907166,
-          "totalLow": 1370166,
-          "totalHigh": 1522166
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 829000,
-          "landValue": 907166,
-          "totalLow": 1532166,
-          "totalHigh": 1736166
-        },
-        "luxury": {
-          "buildLow": 858000,
-          "buildHigh": 1146000,
-          "landValue": 907166,
-          "totalLow": 1765166,
-          "totalHigh": 2053166
-        }
-      }
-    },
-    {
       "slug": "rundle",
       "tiers": {
         "standard": {
@@ -1331,6 +1305,32 @@
       }
     },
     {
+      "slug": "crescent-heights",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 907166,
+          "totalLow": 1370166,
+          "totalHigh": 1522166
+        },
+        "premium": {
+          "buildLow": 625000,
+          "buildHigh": 829000,
+          "landValue": 907166,
+          "totalLow": 1532166,
+          "totalHigh": 1736166
+        },
+        "luxury": {
+          "buildLow": 858000,
+          "buildHigh": 1146000,
+          "landValue": 907166,
+          "totalLow": 1765166,
+          "totalHigh": 2053166
+        }
+      }
+    },
+    {
       "slug": "ogden",
       "tiers": {
         "standard": {
@@ -1357,32 +1357,6 @@
       }
     },
     {
-      "slug": "altadore",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 1303428,
-          "totalLow": 1766428,
-          "totalHigh": 1918428
-        },
-        "premium": {
-          "buildLow": 624000,
-          "buildHigh": 828000,
-          "landValue": 1303428,
-          "totalLow": 1927428,
-          "totalHigh": 2131428
-        },
-        "luxury": {
-          "buildLow": 857000,
-          "buildHigh": 1145000,
-          "landValue": 1303428,
-          "totalLow": 2160428,
-          "totalHigh": 2448428
-        }
-      }
-    },
-    {
       "slug": "marlborough-park",
       "tiers": {
         "standard": {
@@ -1405,6 +1379,32 @@
           "landValue": 525987,
           "totalLow": 1389987,
           "totalHigh": 1679987
+        }
+      }
+    },
+    {
+      "slug": "altadore",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 1303428,
+          "totalLow": 1766428,
+          "totalHigh": 1918428
+        },
+        "premium": {
+          "buildLow": 624000,
+          "buildHigh": 828000,
+          "landValue": 1303428,
+          "totalLow": 1927428,
+          "totalHigh": 2131428
+        },
+        "luxury": {
+          "buildLow": 857000,
+          "buildHigh": 1145000,
+          "landValue": 1303428,
+          "totalLow": 2160428,
+          "totalHigh": 2448428
         }
       }
     },
@@ -1461,32 +1461,6 @@
       }
     },
     {
-      "slug": "bridgeland-riverside",
-      "tiers": {
-        "standard": {
-          "buildLow": 462000,
-          "buildHigh": 614000,
-          "landValue": 943174,
-          "totalLow": 1405174,
-          "totalHigh": 1557174
-        },
-        "premium": {
-          "buildLow": 623000,
-          "buildHigh": 827000,
-          "landValue": 943174,
-          "totalLow": 1566174,
-          "totalHigh": 1770174
-        },
-        "luxury": {
-          "buildLow": 855000,
-          "buildHigh": 1143000,
-          "landValue": 943174,
-          "totalLow": 1798174,
-          "totalHigh": 2086174
-        }
-      }
-    },
-    {
       "slug": "penbrooke-meadows",
       "tiers": {
         "standard": {
@@ -1535,6 +1509,32 @@
           "landValue": 629986,
           "totalLow": 1494986,
           "totalHigh": 1786986
+        }
+      }
+    },
+    {
+      "slug": "bridgeland-riverside",
+      "tiers": {
+        "standard": {
+          "buildLow": 462000,
+          "buildHigh": 614000,
+          "landValue": 943174,
+          "totalLow": 1405174,
+          "totalHigh": 1557174
+        },
+        "premium": {
+          "buildLow": 623000,
+          "buildHigh": 827000,
+          "landValue": 943174,
+          "totalLow": 1566174,
+          "totalHigh": 1770174
+        },
+        "luxury": {
+          "buildLow": 855000,
+          "buildHigh": 1143000,
+          "landValue": 943174,
+          "totalLow": 1798174,
+          "totalHigh": 2086174
         }
       }
     },
@@ -1721,32 +1721,6 @@
       }
     },
     {
-      "slug": "glamorgan",
-      "tiers": {
-        "standard": {
-          "buildLow": 469000,
-          "buildHigh": 627000,
-          "landValue": 699190,
-          "totalLow": 1168190,
-          "totalHigh": 1326190
-        },
-        "premium": {
-          "buildLow": 631000,
-          "buildHigh": 839000,
-          "landValue": 699190,
-          "totalLow": 1330190,
-          "totalHigh": 1538190
-        },
-        "luxury": {
-          "buildLow": 867000,
-          "buildHigh": 1159000,
-          "landValue": 699190,
-          "totalLow": 1566190,
-          "totalHigh": 1858190
-        }
-      }
-    },
-    {
       "slug": "oakridge",
       "tiers": {
         "standard": {
@@ -1769,6 +1743,32 @@
           "landValue": 871118,
           "totalLow": 1747118,
           "totalHigh": 2043118
+        }
+      }
+    },
+    {
+      "slug": "glamorgan",
+      "tiers": {
+        "standard": {
+          "buildLow": 469000,
+          "buildHigh": 627000,
+          "landValue": 699190,
+          "totalLow": 1168190,
+          "totalHigh": 1326190
+        },
+        "premium": {
+          "buildLow": 631000,
+          "buildHigh": 839000,
+          "landValue": 699190,
+          "totalLow": 1330190,
+          "totalHigh": 1538190
+        },
+        "luxury": {
+          "buildLow": 867000,
+          "buildHigh": 1159000,
+          "landValue": 699190,
+          "totalLow": 1566190,
+          "totalHigh": 1858190
         }
       }
     },
@@ -1830,23 +1830,49 @@
         "standard": {
           "buildLow": 524000,
           "buildHigh": 704000,
-          "landValue": 1122091,
-          "totalLow": 1646091,
-          "totalHigh": 1826091
+          "landValue": 261272,
+          "totalLow": 785272,
+          "totalHigh": 965272
         },
         "premium": {
           "buildLow": 701000,
           "buildHigh": 940000,
-          "landValue": 1122091,
-          "totalLow": 1823091,
-          "totalHigh": 2062091
+          "landValue": 261272,
+          "totalLow": 962272,
+          "totalHigh": 1201272
         },
         "luxury": {
           "buildLow": 963000,
           "buildHigh": 1298000,
-          "landValue": 1122091,
-          "totalLow": 2085091,
-          "totalHigh": 2420091
+          "landValue": 261272,
+          "totalLow": 1224272,
+          "totalHigh": 1559272
+        }
+      }
+    },
+    {
+      "slug": "richmond",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 968036,
+          "totalLow": 1431036,
+          "totalHigh": 1583036
+        },
+        "premium": {
+          "buildLow": 624000,
+          "buildHigh": 828000,
+          "landValue": 968036,
+          "totalLow": 1592036,
+          "totalHigh": 1796036
+        },
+        "luxury": {
+          "buildLow": 857000,
+          "buildHigh": 1145000,
+          "landValue": 968036,
+          "totalLow": 1825036,
+          "totalHigh": 2113036
         }
       }
     },
@@ -1877,28 +1903,54 @@
       }
     },
     {
-      "slug": "richmond",
+      "slug": "willow-park",
       "tiers": {
         "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 968036,
-          "totalLow": 1431036,
-          "totalHigh": 1583036
+          "buildLow": 473000,
+          "buildHigh": 633000,
+          "landValue": 952639,
+          "totalLow": 1425639,
+          "totalHigh": 1585639
         },
         "premium": {
-          "buildLow": 624000,
-          "buildHigh": 828000,
-          "landValue": 968036,
-          "totalLow": 1592036,
-          "totalHigh": 1796036
+          "buildLow": 639000,
+          "buildHigh": 851000,
+          "landValue": 952639,
+          "totalLow": 1591639,
+          "totalHigh": 1803639
         },
         "luxury": {
-          "buildLow": 857000,
-          "buildHigh": 1145000,
-          "landValue": 968036,
-          "totalLow": 1825036,
-          "totalHigh": 2113036
+          "buildLow": 877000,
+          "buildHigh": 1173000,
+          "landValue": 952639,
+          "totalLow": 1829639,
+          "totalHigh": 2125639
+        }
+      }
+    },
+    {
+      "slug": "lakeview",
+      "tiers": {
+        "standard": {
+          "buildLow": 472000,
+          "buildHigh": 632000,
+          "landValue": 1122479,
+          "totalLow": 1594479,
+          "totalHigh": 1754479
+        },
+        "premium": {
+          "buildLow": 637000,
+          "buildHigh": 849000,
+          "landValue": 1122479,
+          "totalLow": 1759479,
+          "totalHigh": 1971479
+        },
+        "luxury": {
+          "buildLow": 875000,
+          "buildHigh": 1171000,
+          "landValue": 1122479,
+          "totalLow": 1997479,
+          "totalHigh": 2293479
         }
       }
     },
@@ -1955,32 +2007,6 @@
       }
     },
     {
-      "slug": "willow-park",
-      "tiers": {
-        "standard": {
-          "buildLow": 473000,
-          "buildHigh": 633000,
-          "landValue": 952639,
-          "totalLow": 1425639,
-          "totalHigh": 1585639
-        },
-        "premium": {
-          "buildLow": 639000,
-          "buildHigh": 851000,
-          "landValue": 952639,
-          "totalLow": 1591639,
-          "totalHigh": 1803639
-        },
-        "luxury": {
-          "buildLow": 877000,
-          "buildHigh": 1173000,
-          "landValue": 952639,
-          "totalLow": 1829639,
-          "totalHigh": 2125639
-        }
-      }
-    },
-    {
       "slug": "forest-lawn",
       "tiers": {
         "standard": {
@@ -2003,32 +2029,6 @@
           "landValue": 482418,
           "totalLow": 1348418,
           "totalHigh": 1640418
-        }
-      }
-    },
-    {
-      "slug": "lakeview",
-      "tiers": {
-        "standard": {
-          "buildLow": 472000,
-          "buildHigh": 632000,
-          "landValue": 1122479,
-          "totalLow": 1594479,
-          "totalHigh": 1754479
-        },
-        "premium": {
-          "buildLow": 637000,
-          "buildHigh": 849000,
-          "landValue": 1122479,
-          "totalLow": 1759479,
-          "totalHigh": 1971479
-        },
-        "luxury": {
-          "buildLow": 875000,
-          "buildHigh": 1171000,
-          "landValue": 1122479,
-          "totalLow": 1997479,
-          "totalHigh": 2293479
         }
       }
     },
@@ -2059,32 +2059,6 @@
       }
     },
     {
-      "slug": "inglewood",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 617000,
-          "landValue": 861472,
-          "totalLow": 1324472,
-          "totalHigh": 1478472
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 829000,
-          "landValue": 861472,
-          "totalLow": 1486472,
-          "totalHigh": 1690472
-        },
-        "luxury": {
-          "buildLow": 858000,
-          "buildHigh": 1146000,
-          "landValue": 861472,
-          "totalLow": 1719472,
-          "totalHigh": 2007472
-        }
-      }
-    },
-    {
       "slug": "forest-heights",
       "tiers": {
         "standard": {
@@ -2107,6 +2081,32 @@
           "landValue": 471426,
           "totalLow": 1335426,
           "totalHigh": 1625426
+        }
+      }
+    },
+    {
+      "slug": "inglewood",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 617000,
+          "landValue": 861472,
+          "totalLow": 1324472,
+          "totalHigh": 1478472
+        },
+        "premium": {
+          "buildLow": 625000,
+          "buildHigh": 829000,
+          "landValue": 861472,
+          "totalLow": 1486472,
+          "totalHigh": 1690472
+        },
+        "luxury": {
+          "buildLow": 858000,
+          "buildHigh": 1146000,
+          "landValue": 861472,
+          "totalLow": 1719472,
+          "totalHigh": 2007472
         }
       }
     },
@@ -2137,32 +2137,6 @@
       }
     },
     {
-      "slug": "windsor-park",
-      "tiers": {
-        "standard": {
-          "buildLow": 464000,
-          "buildHigh": 618000,
-          "landValue": 913795,
-          "totalLow": 1377795,
-          "totalHigh": 1531795
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 831000,
-          "landValue": 913795,
-          "totalLow": 1538795,
-          "totalHigh": 1744795
-        },
-        "luxury": {
-          "buildLow": 859000,
-          "buildHigh": 1147000,
-          "landValue": 913795,
-          "totalLow": 1772795,
-          "totalHigh": 2060795
-        }
-      }
-    },
-    {
       "slug": "queensland",
       "tiers": {
         "standard": {
@@ -2189,28 +2163,28 @@
       }
     },
     {
-      "slug": "albert-park-radisson-heights",
+      "slug": "windsor-park",
       "tiers": {
         "standard": {
-          "buildLow": 465000,
-          "buildHigh": 621000,
-          "landValue": 517987,
-          "totalLow": 982987,
-          "totalHigh": 1138987
+          "buildLow": 464000,
+          "buildHigh": 618000,
+          "landValue": 913795,
+          "totalLow": 1377795,
+          "totalHigh": 1531795
         },
         "premium": {
-          "buildLow": 627000,
-          "buildHigh": 833000,
-          "landValue": 517987,
-          "totalLow": 1144987,
-          "totalHigh": 1350987
+          "buildLow": 625000,
+          "buildHigh": 831000,
+          "landValue": 913795,
+          "totalLow": 1538795,
+          "totalHigh": 1744795
         },
         "luxury": {
-          "buildLow": 862000,
-          "buildHigh": 1152000,
-          "landValue": 517987,
-          "totalLow": 1379987,
-          "totalHigh": 1669987
+          "buildLow": 859000,
+          "buildHigh": 1147000,
+          "landValue": 913795,
+          "totalLow": 1772795,
+          "totalHigh": 2060795
         }
       }
     },
@@ -2237,6 +2211,32 @@
           "landValue": 781803,
           "totalLow": 1640803,
           "totalHigh": 1930803
+        }
+      }
+    },
+    {
+      "slug": "albert-park-radisson-heights",
+      "tiers": {
+        "standard": {
+          "buildLow": 465000,
+          "buildHigh": 621000,
+          "landValue": 517987,
+          "totalLow": 982987,
+          "totalHigh": 1138987
+        },
+        "premium": {
+          "buildLow": 627000,
+          "buildHigh": 833000,
+          "landValue": 517987,
+          "totalLow": 1144987,
+          "totalHigh": 1350987
+        },
+        "luxury": {
+          "buildLow": 862000,
+          "buildHigh": 1152000,
+          "landValue": 517987,
+          "totalLow": 1379987,
+          "totalHigh": 1669987
         }
       }
     },
@@ -2371,32 +2371,6 @@
       }
     },
     {
-      "slug": "lower-mount-royal",
-      "tiers": {
-        "standard": {
-          "buildLow": 459000,
-          "buildHigh": 611000,
-          "landValue": 952576,
-          "totalLow": 1411576,
-          "totalHigh": 1563576
-        },
-        "premium": {
-          "buildLow": 620000,
-          "buildHigh": 822000,
-          "landValue": 952576,
-          "totalLow": 1572576,
-          "totalHigh": 1774576
-        },
-        "luxury": {
-          "buildLow": 849000,
-          "buildHigh": 1133000,
-          "landValue": 952576,
-          "totalLow": 1801576,
-          "totalHigh": 2085576
-        }
-      }
-    },
-    {
       "slug": "highland-park",
       "tiers": {
         "standard": {
@@ -2419,6 +2393,32 @@
           "landValue": 708005,
           "totalLow": 1568005,
           "totalHigh": 1858005
+        }
+      }
+    },
+    {
+      "slug": "lower-mount-royal",
+      "tiers": {
+        "standard": {
+          "buildLow": 459000,
+          "buildHigh": 611000,
+          "landValue": 952576,
+          "totalLow": 1411576,
+          "totalHigh": 1563576
+        },
+        "premium": {
+          "buildLow": 620000,
+          "buildHigh": 822000,
+          "landValue": 952576,
+          "totalLow": 1572576,
+          "totalHigh": 1774576
+        },
+        "luxury": {
+          "buildLow": 849000,
+          "buildHigh": 1133000,
+          "landValue": 952576,
+          "totalLow": 1801576,
+          "totalHigh": 2085576
         }
       }
     },
@@ -2501,32 +2501,6 @@
       }
     },
     {
-      "slug": "sunalta",
-      "tiers": {
-        "standard": {
-          "buildLow": 461000,
-          "buildHigh": 613000,
-          "landValue": 764951,
-          "totalLow": 1225951,
-          "totalHigh": 1377951
-        },
-        "premium": {
-          "buildLow": 622000,
-          "buildHigh": 826000,
-          "landValue": 764951,
-          "totalLow": 1386951,
-          "totalHigh": 1590951
-        },
-        "luxury": {
-          "buildLow": 855000,
-          "buildHigh": 1141000,
-          "landValue": 764951,
-          "totalLow": 1619951,
-          "totalHigh": 1905951
-        }
-      }
-    },
-    {
       "slug": "fairview",
       "tiers": {
         "standard": {
@@ -2549,6 +2523,32 @@
           "landValue": 634727,
           "totalLow": 1500727,
           "totalHigh": 1792727
+        }
+      }
+    },
+    {
+      "slug": "sunalta",
+      "tiers": {
+        "standard": {
+          "buildLow": 461000,
+          "buildHigh": 613000,
+          "landValue": 764951,
+          "totalLow": 1225951,
+          "totalHigh": 1377951
+        },
+        "premium": {
+          "buildLow": 622000,
+          "buildHigh": 826000,
+          "landValue": 764951,
+          "totalLow": 1386951,
+          "totalHigh": 1590951
+        },
+        "luxury": {
+          "buildLow": 855000,
+          "buildHigh": 1141000,
+          "landValue": 764951,
+          "totalLow": 1619951,
+          "totalHigh": 1905951
         }
       }
     },
@@ -2683,32 +2683,6 @@
       }
     },
     {
-      "slug": "rosscarrock",
-      "tiers": {
-        "standard": {
-          "buildLow": 464000,
-          "buildHigh": 618000,
-          "landValue": 789603,
-          "totalLow": 1253603,
-          "totalHigh": 1407603
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 831000,
-          "landValue": 789603,
-          "totalLow": 1414603,
-          "totalHigh": 1620603
-        },
-        "luxury": {
-          "buildLow": 859000,
-          "buildHigh": 1149000,
-          "landValue": 789603,
-          "totalLow": 1648603,
-          "totalHigh": 1938603
-        }
-      }
-    },
-    {
       "slug": "parkdale",
       "tiers": {
         "standard": {
@@ -2731,6 +2705,32 @@
           "landValue": 1103740,
           "totalLow": 1962740,
           "totalHigh": 2250740
+        }
+      }
+    },
+    {
+      "slug": "rosscarrock",
+      "tiers": {
+        "standard": {
+          "buildLow": 464000,
+          "buildHigh": 618000,
+          "landValue": 789603,
+          "totalLow": 1253603,
+          "totalHigh": 1407603
+        },
+        "premium": {
+          "buildLow": 625000,
+          "buildHigh": 831000,
+          "landValue": 789603,
+          "totalLow": 1414603,
+          "totalHigh": 1620603
+        },
+        "luxury": {
+          "buildLow": 859000,
+          "buildHigh": 1149000,
+          "landValue": 789603,
+          "totalLow": 1648603,
+          "totalHigh": 1938603
         }
       }
     },
@@ -2792,23 +2792,23 @@
         "standard": {
           "buildLow": 524000,
           "buildHigh": 704000,
-          "landValue": 409199,
-          "totalLow": 933199,
-          "totalHigh": 1113199
+          "landValue": 287834,
+          "totalLow": 811834,
+          "totalHigh": 991834
         },
         "premium": {
           "buildLow": 701000,
           "buildHigh": 940000,
-          "landValue": 409199,
-          "totalLow": 1110199,
-          "totalHigh": 1349199
+          "landValue": 287834,
+          "totalLow": 988834,
+          "totalHigh": 1227834
         },
         "luxury": {
           "buildLow": 963000,
           "buildHigh": 1298000,
-          "landValue": 409199,
-          "totalLow": 1372199,
-          "totalHigh": 1707199
+          "landValue": 287834,
+          "totalLow": 1250834,
+          "totalHigh": 1585834
         }
       }
     },
@@ -2839,32 +2839,6 @@
       }
     },
     {
-      "slug": "collingwood",
-      "tiers": {
-        "standard": {
-          "buildLow": 472000,
-          "buildHigh": 630000,
-          "landValue": 933754,
-          "totalLow": 1405754,
-          "totalHigh": 1563754
-        },
-        "premium": {
-          "buildLow": 634000,
-          "buildHigh": 846000,
-          "landValue": 933754,
-          "totalLow": 1567754,
-          "totalHigh": 1779754
-        },
-        "luxury": {
-          "buildLow": 874000,
-          "buildHigh": 1168000,
-          "landValue": 933754,
-          "totalLow": 1807754,
-          "totalHigh": 2101754
-        }
-      }
-    },
-    {
       "slug": "point-mckay",
       "tiers": {
         "standard": {
@@ -2887,6 +2861,32 @@
           "landValue": 531345,
           "totalLow": 1494345,
           "totalHigh": 1829345
+        }
+      }
+    },
+    {
+      "slug": "collingwood",
+      "tiers": {
+        "standard": {
+          "buildLow": 472000,
+          "buildHigh": 630000,
+          "landValue": 933754,
+          "totalLow": 1405754,
+          "totalHigh": 1563754
+        },
+        "premium": {
+          "buildLow": 634000,
+          "buildHigh": 846000,
+          "landValue": 933754,
+          "totalLow": 1567754,
+          "totalHigh": 1779754
+        },
+        "luxury": {
+          "buildLow": 874000,
+          "buildHigh": 1168000,
+          "landValue": 933754,
+          "totalLow": 1807754,
+          "totalHigh": 2101754
         }
       }
     },
@@ -2917,32 +2917,6 @@
       }
     },
     {
-      "slug": "ramsay",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 615000,
-          "landValue": 838389,
-          "totalLow": 1301389,
-          "totalHigh": 1453389
-        },
-        "premium": {
-          "buildLow": 624000,
-          "buildHigh": 828000,
-          "landValue": 838389,
-          "totalLow": 1462389,
-          "totalHigh": 1666389
-        },
-        "luxury": {
-          "buildLow": 857000,
-          "buildHigh": 1145000,
-          "landValue": 838389,
-          "totalLow": 1695389,
-          "totalHigh": 1983389
-        }
-      }
-    },
-    {
       "slug": "maple-ridge",
       "tiers": {
         "standard": {
@@ -2965,6 +2939,32 @@
           "landValue": 785720,
           "totalLow": 1656720,
           "totalHigh": 1950720
+        }
+      }
+    },
+    {
+      "slug": "ramsay",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 615000,
+          "landValue": 838389,
+          "totalLow": 1301389,
+          "totalHigh": 1453389
+        },
+        "premium": {
+          "buildLow": 624000,
+          "buildHigh": 828000,
+          "landValue": 838389,
+          "totalLow": 1462389,
+          "totalHigh": 1666389
+        },
+        "luxury": {
+          "buildLow": 857000,
+          "buildHigh": 1145000,
+          "landValue": 838389,
+          "totalLow": 1695389,
+          "totalHigh": 1983389
         }
       }
     },
@@ -2995,32 +2995,6 @@
       }
     },
     {
-      "slug": "greenview",
-      "tiers": {
-        "standard": {
-          "buildLow": 468000,
-          "buildHigh": 626000,
-          "landValue": 568341,
-          "totalLow": 1036341,
-          "totalHigh": 1194341
-        },
-        "premium": {
-          "buildLow": 631000,
-          "buildHigh": 839000,
-          "landValue": 568341,
-          "totalLow": 1199341,
-          "totalHigh": 1407341
-        },
-        "luxury": {
-          "buildLow": 866000,
-          "buildHigh": 1158000,
-          "landValue": 568341,
-          "totalLow": 1434341,
-          "totalHigh": 1726341
-        }
-      }
-    },
-    {
       "slug": "rutland-park",
       "tiers": {
         "standard": {
@@ -3047,28 +3021,28 @@
       }
     },
     {
-      "slug": "shaganappi",
+      "slug": "greenview",
       "tiers": {
         "standard": {
-          "buildLow": 464000,
-          "buildHigh": 618000,
-          "landValue": 922880,
-          "totalLow": 1386880,
-          "totalHigh": 1540880
+          "buildLow": 468000,
+          "buildHigh": 626000,
+          "landValue": 568341,
+          "totalLow": 1036341,
+          "totalHigh": 1194341
         },
         "premium": {
-          "buildLow": 626000,
-          "buildHigh": 832000,
-          "landValue": 922880,
-          "totalLow": 1548880,
-          "totalHigh": 1754880
+          "buildLow": 631000,
+          "buildHigh": 839000,
+          "landValue": 568341,
+          "totalLow": 1199341,
+          "totalHigh": 1407341
         },
         "luxury": {
-          "buildLow": 860000,
-          "buildHigh": 1150000,
-          "landValue": 922880,
-          "totalLow": 1782880,
-          "totalHigh": 2072880
+          "buildLow": 866000,
+          "buildHigh": 1158000,
+          "landValue": 568341,
+          "totalLow": 1434341,
+          "totalHigh": 1726341
         }
       }
     },
@@ -3099,28 +3073,28 @@
       }
     },
     {
-      "slug": "cliff-bungalow",
+      "slug": "shaganappi",
       "tiers": {
         "standard": {
-          "buildLow": 462000,
-          "buildHigh": 614000,
-          "landValue": 1130652,
-          "totalLow": 1592652,
-          "totalHigh": 1744652
+          "buildLow": 464000,
+          "buildHigh": 618000,
+          "landValue": 922880,
+          "totalLow": 1386880,
+          "totalHigh": 1540880
         },
         "premium": {
-          "buildLow": 623000,
-          "buildHigh": 827000,
-          "landValue": 1130652,
-          "totalLow": 1753652,
-          "totalHigh": 1957652
+          "buildLow": 626000,
+          "buildHigh": 832000,
+          "landValue": 922880,
+          "totalLow": 1548880,
+          "totalHigh": 1754880
         },
         "luxury": {
-          "buildLow": 855000,
-          "buildHigh": 1143000,
-          "landValue": 1130652,
-          "totalLow": 1985652,
-          "totalHigh": 2273652
+          "buildLow": 860000,
+          "buildHigh": 1150000,
+          "landValue": 922880,
+          "totalLow": 1782880,
+          "totalHigh": 2072880
         }
       }
     },
@@ -3173,6 +3147,32 @@
           "landValue": 922601,
           "totalLow": 1777601,
           "totalHigh": 2065601
+        }
+      }
+    },
+    {
+      "slug": "cliff-bungalow",
+      "tiers": {
+        "standard": {
+          "buildLow": 462000,
+          "buildHigh": 614000,
+          "landValue": 1130652,
+          "totalLow": 1592652,
+          "totalHigh": 1744652
+        },
+        "premium": {
+          "buildLow": 623000,
+          "buildHigh": 827000,
+          "landValue": 1130652,
+          "totalLow": 1753652,
+          "totalHigh": 1957652
+        },
+        "luxury": {
+          "buildLow": 855000,
+          "buildHigh": 1143000,
+          "landValue": 1130652,
+          "totalLow": 1985652,
+          "totalHigh": 2273652
         }
       }
     },
@@ -3281,32 +3281,6 @@
       }
     },
     {
-      "slug": "kelvin-grove",
-      "tiers": {
-        "standard": {
-          "buildLow": 477000,
-          "buildHigh": 637000,
-          "landValue": 1297521,
-          "totalLow": 1774521,
-          "totalHigh": 1934521
-        },
-        "premium": {
-          "buildLow": 641000,
-          "buildHigh": 855000,
-          "landValue": 1297521,
-          "totalLow": 1938521,
-          "totalHigh": 2152521
-        },
-        "luxury": {
-          "buildLow": 881000,
-          "buildHigh": 1179000,
-          "landValue": 1297521,
-          "totalLow": 2178521,
-          "totalHigh": 2476521
-        }
-      }
-    },
-    {
       "slug": "chinook-park",
       "tiers": {
         "standard": {
@@ -3329,6 +3303,32 @@
           "landValue": 985066,
           "totalLow": 1861066,
           "totalHigh": 2157066
+        }
+      }
+    },
+    {
+      "slug": "kelvin-grove",
+      "tiers": {
+        "standard": {
+          "buildLow": 477000,
+          "buildHigh": 637000,
+          "landValue": 1297521,
+          "totalLow": 1774521,
+          "totalHigh": 1934521
+        },
+        "premium": {
+          "buildLow": 641000,
+          "buildHigh": 855000,
+          "landValue": 1297521,
+          "totalLow": 1938521,
+          "totalHigh": 2152521
+        },
+        "luxury": {
+          "buildLow": 881000,
+          "buildHigh": 1179000,
+          "landValue": 1297521,
+          "totalLow": 2178521,
+          "totalHigh": 2476521
         }
       }
     },
@@ -3437,32 +3437,6 @@
       }
     },
     {
-      "slug": "greenwood-greenbriar",
-      "tiers": {
-        "standard": {
-          "buildLow": 463000,
-          "buildHigh": 617000,
-          "landValue": 950597,
-          "totalLow": 1413597,
-          "totalHigh": 1567597
-        },
-        "premium": {
-          "buildLow": 625000,
-          "buildHigh": 829000,
-          "landValue": 950597,
-          "totalLow": 1575597,
-          "totalHigh": 1779597
-        },
-        "luxury": {
-          "buildLow": 858000,
-          "buildHigh": 1146000,
-          "landValue": 950597,
-          "totalLow": 1808597,
-          "totalHigh": 2096597
-        }
-      }
-    },
-    {
       "slug": "scarboro",
       "tiers": {
         "standard": {
@@ -3485,6 +3459,32 @@
           "landValue": 1321398,
           "totalLow": 2196398,
           "totalHigh": 2492398
+        }
+      }
+    },
+    {
+      "slug": "greenwood-greenbriar",
+      "tiers": {
+        "standard": {
+          "buildLow": 463000,
+          "buildHigh": 617000,
+          "landValue": 950597,
+          "totalLow": 1413597,
+          "totalHigh": 1567597
+        },
+        "premium": {
+          "buildLow": 625000,
+          "buildHigh": 829000,
+          "landValue": 950597,
+          "totalLow": 1575597,
+          "totalHigh": 1779597
+        },
+        "luxury": {
+          "buildLow": 858000,
+          "buildHigh": 1146000,
+          "landValue": 950597,
+          "totalLow": 1808597,
+          "totalHigh": 2096597
         }
       }
     },

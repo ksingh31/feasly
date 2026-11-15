@@ -104,6 +104,8 @@ export interface CommunityProfileView {
   readonly mostCommonType: DwellingBucket;
   /** Up to 3 nearby community slugs (display names resolved from the aggregates). */
   readonly nearby: readonly { slug: string; displayName: string }[];
+  /** Hand-written, community-specific introduction (established infill communities). */
+  readonly intro?: string;
 }
 
 /**

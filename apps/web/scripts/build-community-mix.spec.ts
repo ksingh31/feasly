@@ -5,7 +5,7 @@ import {
   PROFILE_MULTI_FAMILY_THRESHOLD,
   type MixCountRow,
 } from './build-community-mix.js';
-import { loadCitySelection } from './community-selection.schema.js';
+import { isDwellingCode, loadCitySelection } from './community-selection.schema.js';
 
 const row = (commName: string, subPropertyUse: string, count: number): MixCountRow => ({
   commName,
@@ -38,6 +38,22 @@ describe('build-community-mix classifyCommunities', () => {
     expect(mix.communityType).toBe('build-guide');
     expect(mix.mix.semiDuplex).toBe(782);
     expect(mix.mostCommonType).toBe('singleDetached');
+  });
+
+  it('counts only configured dwelling-unit codes, so whole buildings never read as apartments', () => {
+    const rows = [
+      row('DOWNTOWN COMMERCIAL CORE', 'R301', 1145),
+      row('DOWNTOWN COMMERCIAL CORE', 'R110', 5),
+      row('DOWNTOWN COMMERCIAL CORE', 'X061', 37),
+      row('DOWNTOWN COMMERCIAL CORE', 'R940', 5),
+      row('DOWNTOWN COMMERCIAL CORE', 'S410', 2),
+    ];
+    const prefixes = loadCitySelection().selection.dwellingCodePrefixes;
+    const [mix] = classifyCommunities(rows, ['downtown-commercial-core'], () => undefined, new Set(), (code) =>
+      isDwellingCode(code, prefixes),
+    );
+    expect(mix.mix.multiFamily).toBe(1145);
+    expect(mix.dwellingUnits).toBe(1150);
   });
 
   it('excludes A-codes (common elements, parking, storage) from dwelling counts', () => {

@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-11-15T19:35:26.540Z",
+  "generatedAt": "2026-11-15T20:53:31.592Z",
   "costDataVersion": "v0.4.1-uncalibrated",
-  "selectionHash": "dc2f14069a13874c",
+  "selectionHash": "9e605ce4beb6b6e3",
   "communities": [
     {
-      "count": 11626,
-      "avgAssessedValue": 722797,
-      "avgLotSqft": 19724,
+      "count": 11396,
+      "avgAssessedValue": 332043,
+      "avgLotSqft": 19721,
       "slug": "beltline",
       "name": "BELTLINE",
       "basis": "residential",
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 11626,
-        "avgAssessedValue": 722797,
-        "avgLotSqft": 19724
+        "count": 11396,
+        "avgAssessedValue": 332043,
+        "avgLotSqft": 19721
       }
     },
     {
@@ -58,9 +58,9 @@
       "group": "newer",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 7558,
-        "avgAssessedValue": 644382,
-        "avgLotSqft": 12320
+        "count": 7529,
+        "avgAssessedValue": 626002,
+        "avgLotSqft": 12158
       }
     },
     {
@@ -73,9 +73,9 @@
       "group": "newer",
       "sector": "SOUTH",
       "residential": {
-        "count": 7427,
-        "avgAssessedValue": 668409,
-        "avgLotSqft": 18350
+        "count": 7290,
+        "avgAssessedValue": 671047,
+        "avgLotSqft": 17204
       }
     },
     {
@@ -88,9 +88,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 7217,
-        "avgAssessedValue": 798641,
-        "avgLotSqft": 36310
+        "count": 7211,
+        "avgAssessedValue": 769238,
+        "avgLotSqft": 36256
       }
     },
     {
@@ -103,9 +103,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 7156,
-        "avgAssessedValue": 529765,
-        "avgLotSqft": 19114
+        "count": 7154,
+        "avgAssessedValue": 524836,
+        "avgLotSqft": 19077
       }
     },
     {
@@ -118,9 +118,9 @@
       "group": "newer",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 6758,
-        "avgAssessedValue": 731465,
-        "avgLotSqft": 12734
+        "count": 6757,
+        "avgAssessedValue": 726988,
+        "avgLotSqft": 12710
       }
     },
     {
@@ -133,9 +133,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 6342,
-        "avgAssessedValue": 697700,
-        "avgLotSqft": 11565
+        "count": 6340,
+        "avgAssessedValue": 681661,
+        "avgLotSqft": 11523
       }
     },
     {
@@ -148,9 +148,9 @@
       "group": "newer",
       "sector": "NORTH",
       "residential": {
-        "count": 6152,
-        "avgAssessedValue": 709879,
-        "avgLotSqft": 7561
+        "count": 6148,
+        "avgAssessedValue": 675187,
+        "avgLotSqft": 7411
       }
     },
     {
@@ -178,24 +178,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 5390,
-        "avgAssessedValue": 536998,
-        "avgLotSqft": 20725
-      }
-    },
-    {
-      "count": 2061,
-      "avgAssessedValue": 780691,
-      "avgLotSqft": 4147,
-      "slug": "sage-hill",
-      "name": "SAGE HILL",
-      "basis": "detached-semi",
-      "group": "newer",
-      "sector": "NORTH",
-      "residential": {
-        "count": 5336,
-        "avgAssessedValue": 626719,
-        "avgLotSqft": 25155
+        "count": 5389,
+        "avgAssessedValue": 536851,
+        "avgLotSqft": 20726
       }
     },
     {
@@ -208,9 +193,24 @@
       "group": "newer",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 5318,
-        "avgAssessedValue": 840656,
-        "avgLotSqft": 32841
+        "count": 5316,
+        "avgAssessedValue": 834646,
+        "avgLotSqft": 32799
+      }
+    },
+    {
+      "count": 2061,
+      "avgAssessedValue": 780691,
+      "avgLotSqft": 4147,
+      "slug": "sage-hill",
+      "name": "SAGE HILL",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 5311,
+        "avgAssessedValue": 537943,
+        "avgLotSqft": 24905
       }
     },
     {
@@ -238,9 +238,9 @@
       "group": "newer",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 4991,
-        "avgAssessedValue": 634094,
-        "avgLotSqft": 12187
+        "count": 4983,
+        "avgAssessedValue": 631914,
+        "avgLotSqft": 12172
       }
     },
     {
@@ -253,9 +253,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 4924,
-        "avgAssessedValue": 793992,
-        "avgLotSqft": 93885
+        "count": 4914,
+        "avgAssessedValue": 743278,
+        "avgLotSqft": 93828
       }
     },
     {
@@ -268,24 +268,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 4893,
-        "avgAssessedValue": 784725,
-        "avgLotSqft": 35451
-      }
-    },
-    {
-      "count": 1687,
-      "avgAssessedValue": 679344,
-      "avgLotSqft": 3730,
-      "slug": "skyview-ranch",
-      "name": "SKYVIEW RANCH",
-      "basis": "detached-semi",
-      "group": "newer",
-      "sector": "NORTHEAST",
-      "residential": {
-        "count": 4624,
-        "avgAssessedValue": 578213,
-        "avgLotSqft": 34021
+        "count": 4887,
+        "avgAssessedValue": 733993,
+        "avgLotSqft": 35390
       }
     },
     {
@@ -298,9 +283,24 @@
       "group": "newer",
       "sector": "WEST",
       "residential": {
-        "count": 4623,
-        "avgAssessedValue": 936863,
-        "avgLotSqft": 12857
+        "count": 4609,
+        "avgAssessedValue": 890151,
+        "avgLotSqft": 12736
+      }
+    },
+    {
+      "count": 1687,
+      "avgAssessedValue": 679344,
+      "avgLotSqft": 3730,
+      "slug": "skyview-ranch",
+      "name": "SKYVIEW RANCH",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 4607,
+        "avgAssessedValue": 451157,
+        "avgLotSqft": 33840
       }
     },
     {
@@ -313,9 +313,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 4582,
-        "avgAssessedValue": 777604,
-        "avgLotSqft": 7483
+        "count": 4581,
+        "avgAssessedValue": 774951,
+        "avgLotSqft": 7450
       }
     },
     {
@@ -328,9 +328,9 @@
       "group": "newer",
       "sector": "SOUTH",
       "residential": {
-        "count": 4526,
-        "avgAssessedValue": 651176,
-        "avgLotSqft": 47366
+        "count": 4519,
+        "avgAssessedValue": 605152,
+        "avgLotSqft": 47334
       }
     },
     {
@@ -343,9 +343,9 @@
       "group": "established",
       "sector": "NORTH",
       "residential": {
-        "count": 4512,
-        "avgAssessedValue": 586679,
-        "avgLotSqft": 53054
+        "count": 4470,
+        "avgAssessedValue": 544379,
+        "avgLotSqft": 53148
       }
     },
     {
@@ -373,9 +373,9 @@
       "group": "newer",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 4362,
-        "avgAssessedValue": 569283,
-        "avgLotSqft": 11804
+        "count": 4361,
+        "avgAssessedValue": 568701,
+        "avgLotSqft": 11795
       }
     },
     {
@@ -388,9 +388,9 @@
       "group": "established",
       "sector": "NORTH",
       "residential": {
-        "count": 4280,
-        "avgAssessedValue": 529293,
-        "avgLotSqft": 100456
+        "count": 4277,
+        "avgAssessedValue": 521855,
+        "avgLotSqft": 100426
       }
     },
     {
@@ -403,9 +403,9 @@
       "group": "newer",
       "sector": "WEST",
       "residential": {
-        "count": 4266,
-        "avgAssessedValue": 1100636,
-        "avgLotSqft": 29605
+        "count": 4222,
+        "avgAssessedValue": 1011618,
+        "avgLotSqft": 27388
       }
     },
     {
@@ -433,9 +433,9 @@
       "group": "newer",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 4171,
-        "avgAssessedValue": 684099,
-        "avgLotSqft": 22126
+        "count": 4170,
+        "avgAssessedValue": 684038,
+        "avgLotSqft": 22121
       }
     },
     {
@@ -448,9 +448,9 @@
       "group": "newer",
       "sector": "SOUTH",
       "residential": {
-        "count": 4168,
-        "avgAssessedValue": 537392,
-        "avgLotSqft": 16503
+        "count": 4166,
+        "avgAssessedValue": 532386,
+        "avgLotSqft": 16487
       }
     },
     {
@@ -463,9 +463,9 @@
       "group": "newer",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 4121,
-        "avgAssessedValue": 617536,
-        "avgLotSqft": 37623
+        "count": 4108,
+        "avgAssessedValue": 518577,
+        "avgLotSqft": 37448
       }
     },
     {
@@ -478,9 +478,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 4087,
-        "avgAssessedValue": 952684,
-        "avgLotSqft": 41263
+        "count": 4086,
+        "avgAssessedValue": 943864,
+        "avgLotSqft": 41189
       }
     },
     {
@@ -493,9 +493,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 4053,
-        "avgAssessedValue": 687102,
-        "avgLotSqft": 15987
+        "count": 3950,
+        "avgAssessedValue": 637902,
+        "avgLotSqft": 15597
       }
     },
     {
@@ -508,24 +508,9 @@
       "group": "established",
       "sector": "EAST",
       "residential": {
-        "count": 3898,
-        "avgAssessedValue": 461873,
-        "avgLotSqft": 31686
-      }
-    },
-    {
-      "count": 3050,
-      "avgAssessedValue": 761398,
-      "avgLotSqft": 3619,
-      "slug": "livingston",
-      "name": "LIVINGSTON",
-      "basis": "detached-semi",
-      "group": "newer",
-      "sector": "NORTH",
-      "residential": {
-        "count": 3814,
-        "avgAssessedValue": 725857,
-        "avgLotSqft": 5612
+        "count": 3887,
+        "avgAssessedValue": 416679,
+        "avgLotSqft": 31598
       }
     },
     {
@@ -538,9 +523,24 @@
       "group": "newer",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 3813,
-        "avgAssessedValue": 751505,
-        "avgLotSqft": 20242
+        "count": 3809,
+        "avgAssessedValue": 712754,
+        "avgLotSqft": 20142
+      }
+    },
+    {
+      "count": 3050,
+      "avgAssessedValue": 761398,
+      "avgLotSqft": 3619,
+      "slug": "livingston",
+      "name": "LIVINGSTON",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 3807,
+        "avgAssessedValue": 690599,
+        "avgLotSqft": 5465
       }
     },
     {
@@ -553,9 +553,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 3806,
-        "avgAssessedValue": 582444,
-        "avgLotSqft": 83738
+        "count": 3798,
+        "avgAssessedValue": 522684,
+        "avgLotSqft": 83582
       }
     },
     {
@@ -568,24 +568,9 @@
       "group": "newer",
       "sector": "SOUTH",
       "residential": {
-        "count": 3596,
-        "avgAssessedValue": 621582,
-        "avgLotSqft": 7167
-      }
-    },
-    {
-      "count": 3171,
-      "avgAssessedValue": 528618,
-      "avgLotSqft": 4608,
-      "slug": "whitehorn",
-      "name": "WHITEHORN",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "NORTHEAST",
-      "residential": {
-        "count": 3510,
-        "avgAssessedValue": 501321,
-        "avgLotSqft": 13650
+        "count": 3595,
+        "avgAssessedValue": 605204,
+        "avgLotSqft": 7083
       }
     },
     {
@@ -598,24 +583,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 3502,
-        "avgAssessedValue": 694829,
-        "avgLotSqft": 50627
-      }
-    },
-    {
-      "count": 2093,
-      "avgAssessedValue": 890477,
-      "avgLotSqft": 4204,
-      "slug": "killarney-glengarry",
-      "name": "KILLARNEY/GLENGARRY",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 3494,
-        "avgAssessedValue": 765675,
-        "avgLotSqft": 121832
+        "count": 3501,
+        "avgAssessedValue": 693116,
+        "avgLotSqft": 50618
       }
     },
     {
@@ -628,9 +598,24 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 3477,
-        "avgAssessedValue": 655347,
-        "avgLotSqft": 66866
+        "count": 3467,
+        "avgAssessedValue": 603594,
+        "avgLotSqft": 66918
+      }
+    },
+    {
+      "count": 2093,
+      "avgAssessedValue": 890477,
+      "avgLotSqft": 4204,
+      "slug": "killarney-glengarry",
+      "name": "KILLARNEY/GLENGARRY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 3433,
+        "avgAssessedValue": 713963,
+        "avgLotSqft": 123818
       }
     },
     {
@@ -643,9 +628,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 3420,
-        "avgAssessedValue": 504252,
-        "avgLotSqft": 27465
+        "count": 3418,
+        "avgAssessedValue": 497821,
+        "avgLotSqft": 27424
       }
     },
     {
@@ -658,9 +643,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 3322,
-        "avgAssessedValue": 523792,
-        "avgLotSqft": 46911
+        "count": 3319,
+        "avgAssessedValue": 505817,
+        "avgLotSqft": 46936
       }
     },
     {
@@ -673,9 +658,24 @@
       "group": "newer",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 3318,
-        "avgAssessedValue": 716564,
-        "avgLotSqft": 23506
+        "count": 3317,
+        "avgAssessedValue": 707488,
+        "avgLotSqft": 23469
+      }
+    },
+    {
+      "count": 3171,
+      "avgAssessedValue": 528618,
+      "avgLotSqft": 4608,
+      "slug": "whitehorn",
+      "name": "WHITEHORN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 3303,
+        "avgAssessedValue": 521422,
+        "avgLotSqft": 7367
       }
     },
     {
@@ -688,9 +688,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 3229,
-        "avgAssessedValue": 650211,
-        "avgLotSqft": 35063
+        "count": 3189,
+        "avgAssessedValue": 624992,
+        "avgLotSqft": 35380
       }
     },
     {
@@ -718,24 +718,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 3068,
-        "avgAssessedValue": 514644,
-        "avgLotSqft": 38635
-      }
-    },
-    {
-      "count": 1161,
-      "avgAssessedValue": 907166,
-      "avgLotSqft": 4359,
-      "slug": "crescent-heights",
-      "name": "CRESCENT HEIGHTS",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 2979,
-        "avgAssessedValue": 648347,
-        "avgLotSqft": 12147
+        "count": 3055,
+        "avgAssessedValue": 456051,
+        "avgLotSqft": 38432
       }
     },
     {
@@ -748,9 +733,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 2976,
-        "avgAssessedValue": 546849,
-        "avgLotSqft": 51009
+        "count": 2972,
+        "avgAssessedValue": 509806,
+        "avgLotSqft": 50700
       }
     },
     {
@@ -763,9 +748,24 @@
       "group": "established",
       "sector": "NORTH",
       "residential": {
-        "count": 2945,
-        "avgAssessedValue": 589560,
-        "avgLotSqft": 45353
+        "count": 2932,
+        "avgAssessedValue": 550129,
+        "avgLotSqft": 45243
+      }
+    },
+    {
+      "count": 1161,
+      "avgAssessedValue": 907166,
+      "avgLotSqft": 4359,
+      "slug": "crescent-heights",
+      "name": "CRESCENT HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2894,
+        "avgAssessedValue": 549346,
+        "avgLotSqft": 12224
       }
     },
     {
@@ -778,24 +778,9 @@
       "group": "established",
       "sector": "SOUTHEAST",
       "residential": {
-        "count": 2912,
-        "avgAssessedValue": 560652,
-        "avgLotSqft": 24011
-      }
-    },
-    {
-      "count": 2044,
-      "avgAssessedValue": 1303428,
-      "avgLotSqft": 4272,
-      "slug": "altadore",
-      "name": "ALTADORE",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 2866,
-        "avgAssessedValue": 1127614,
-        "avgLotSqft": 10103
+        "count": 2893,
+        "avgAssessedValue": 503234,
+        "avgLotSqft": 23605
       }
     },
     {
@@ -814,6 +799,21 @@
       }
     },
     {
+      "count": 2044,
+      "avgAssessedValue": 1303428,
+      "avgLotSqft": 4272,
+      "slug": "altadore",
+      "name": "ALTADORE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2810,
+        "avgAssessedValue": 1085814,
+        "avgLotSqft": 10129
+      }
+    },
+    {
       "count": 1979,
       "avgAssessedValue": 791661,
       "avgLotSqft": 5943,
@@ -823,9 +823,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 2766,
-        "avgAssessedValue": 749092,
-        "avgLotSqft": 5967
+        "count": 2746,
+        "avgAssessedValue": 655534,
+        "avgLotSqft": 5658
       }
     },
     {
@@ -838,24 +838,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2758,
-        "avgAssessedValue": 990321,
-        "avgLotSqft": 7701
-      }
-    },
-    {
-      "count": 940,
-      "avgAssessedValue": 943174,
-      "avgLotSqft": 4062,
-      "slug": "bridgeland-riverside",
-      "name": "BRIDGELAND/RIVERSIDE",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 2753,
-        "avgAssessedValue": 825449,
-        "avgLotSqft": 23440
+        "count": 2730,
+        "avgAssessedValue": 934332,
+        "avgLotSqft": 7622
       }
     },
     {
@@ -868,9 +853,9 @@
       "group": "established",
       "sector": "EAST",
       "residential": {
-        "count": 2723,
-        "avgAssessedValue": 439344,
-        "avgLotSqft": 35263
+        "count": 2720,
+        "avgAssessedValue": 431093,
+        "avgLotSqft": 35229
       }
     },
     {
@@ -883,9 +868,24 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 2714,
-        "avgAssessedValue": 546200,
-        "avgLotSqft": 84246
+        "count": 2703,
+        "avgAssessedValue": 525873,
+        "avgLotSqft": 84330
+      }
+    },
+    {
+      "count": 940,
+      "avgAssessedValue": 943174,
+      "avgLotSqft": 4062,
+      "slug": "bridgeland-riverside",
+      "name": "BRIDGELAND/RIVERSIDE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2661,
+        "avgAssessedValue": 571570,
+        "avgLotSqft": 23432
       }
     },
     {
@@ -898,9 +898,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 2599,
-        "avgAssessedValue": 542073,
-        "avgLotSqft": 42859
+        "count": 2598,
+        "avgAssessedValue": 508967,
+        "avgLotSqft": 42629
       }
     },
     {
@@ -928,9 +928,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2516,
-        "avgAssessedValue": 876195,
-        "avgLotSqft": 14647
+        "count": 2473,
+        "avgAssessedValue": 767536,
+        "avgLotSqft": 14664
       }
     },
     {
@@ -943,9 +943,9 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 2474,
-        "avgAssessedValue": 656819,
-        "avgLotSqft": 71648
+        "count": 2441,
+        "avgAssessedValue": 581651,
+        "avgLotSqft": 71954
       }
     },
     {
@@ -958,9 +958,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2403,
-        "avgAssessedValue": 883255,
-        "avgLotSqft": 7195
+        "count": 2373,
+        "avgAssessedValue": 840462,
+        "avgLotSqft": 7157
       }
     },
     {
@@ -973,9 +973,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 2364,
-        "avgAssessedValue": 570806,
-        "avgLotSqft": 24894
+        "count": 2361,
+        "avgAssessedValue": 553636,
+        "avgLotSqft": 24779
       }
     },
     {
@@ -988,24 +988,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 2322,
-        "avgAssessedValue": 689208,
-        "avgLotSqft": 27768
-      }
-    },
-    {
-      "count": 1198,
-      "avgAssessedValue": 699190,
-      "avgLotSqft": 5896,
-      "slug": "glamorgan",
-      "name": "GLAMORGAN",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "WEST",
-      "residential": {
-        "count": 2267,
-        "avgAssessedValue": 686216,
-        "avgLotSqft": 126922
+        "count": 2313,
+        "avgAssessedValue": 616339,
+        "avgLotSqft": 27368
       }
     },
     {
@@ -1018,9 +1003,24 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 2257,
-        "avgAssessedValue": 749636,
-        "avgLotSqft": 68122
+        "count": 2256,
+        "avgAssessedValue": 747096,
+        "avgLotSqft": 68113
+      }
+    },
+    {
+      "count": 1198,
+      "avgAssessedValue": 699190,
+      "avgLotSqft": 5896,
+      "slug": "glamorgan",
+      "name": "GLAMORGAN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 2254,
+        "avgAssessedValue": 539593,
+        "avgLotSqft": 127133
       }
     },
     {
@@ -1033,9 +1033,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 2256,
-        "avgAssessedValue": 569579,
-        "avgLotSqft": 74894
+        "count": 2242,
+        "avgAssessedValue": 555897,
+        "avgLotSqft": 75275
       }
     },
     {
@@ -1048,39 +1048,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2249,
-        "avgAssessedValue": 577909,
-        "avgLotSqft": 12067
+        "count": 2153,
+        "avgAssessedValue": 422022,
+        "avgLotSqft": 12166
       }
     },
     {
-      "count": 2196,
-      "avgAssessedValue": 1122091,
-      "avgLotSqft": 24787,
+      "count": 2140,
+      "avgAssessedValue": 261272,
+      "avgLotSqft": 24865,
       "slug": "downtown-commercial-core",
       "name": "DOWNTOWN COMMERCIAL CORE",
       "basis": "residential",
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2196,
-        "avgAssessedValue": 1122091,
-        "avgLotSqft": 24787
-      }
-    },
-    {
-      "count": 51,
-      "avgAssessedValue": 775833,
-      "avgLotSqft": 3187,
-      "slug": "mission",
-      "name": "MISSION",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 2100,
-        "avgAssessedValue": 779875,
-        "avgLotSqft": 24646
+        "count": 2140,
+        "avgAssessedValue": 261272,
+        "avgLotSqft": 24865
       }
     },
     {
@@ -1093,39 +1078,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2066,
-        "avgAssessedValue": 944065,
-        "avgLotSqft": 5530
+        "count": 2038,
+        "avgAssessedValue": 875298,
+        "avgLotSqft": 5454
       }
     },
     {
-      "count": 846,
-      "avgAssessedValue": 1029576,
-      "avgLotSqft": 3855,
-      "slug": "south-calgary",
-      "name": "SOUTH CALGARY",
+      "count": 51,
+      "avgAssessedValue": 775833,
+      "avgLotSqft": 3187,
+      "slug": "mission",
+      "name": "MISSION",
       "basis": "detached-semi",
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 2032,
-        "avgAssessedValue": 851686,
-        "avgLotSqft": 10230
-      }
-    },
-    {
-      "count": 1467,
-      "avgAssessedValue": 749372,
-      "avgLotSqft": 4193,
-      "slug": "tuxedo-park",
-      "name": "TUXEDO PARK",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 2022,
-        "avgAssessedValue": 751026,
-        "avgLotSqft": 5927
+        "count": 2019,
+        "avgAssessedValue": 453074,
+        "avgLotSqft": 23960
       }
     },
     {
@@ -1138,24 +1108,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 2010,
-        "avgAssessedValue": 860777,
-        "avgLotSqft": 58489
-      }
-    },
-    {
-      "count": 1601,
-      "avgAssessedValue": 482418,
-      "avgLotSqft": 5703,
-      "slug": "forest-lawn",
-      "name": "FOREST LAWN",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "EAST",
-      "residential": {
-        "count": 2006,
-        "avgAssessedValue": 547944,
-        "avgLotSqft": 7428
+        "count": 2005,
+        "avgAssessedValue": 833681,
+        "avgLotSqft": 58467
       }
     },
     {
@@ -1168,9 +1123,54 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 1993,
-        "avgAssessedValue": 1087193,
-        "avgLotSqft": 30688
+        "count": 1990,
+        "avgAssessedValue": 1050978,
+        "avgLotSqft": 30561
+      }
+    },
+    {
+      "count": 846,
+      "avgAssessedValue": 1029576,
+      "avgLotSqft": 3855,
+      "slug": "south-calgary",
+      "name": "SOUTH CALGARY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1978,
+        "avgAssessedValue": 703583,
+        "avgLotSqft": 10224
+      }
+    },
+    {
+      "count": 1467,
+      "avgAssessedValue": 749372,
+      "avgLotSqft": 4193,
+      "slug": "tuxedo-park",
+      "name": "TUXEDO PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1969,
+        "avgAssessedValue": 669928,
+        "avgLotSqft": 5818
+      }
+    },
+    {
+      "count": 1601,
+      "avgAssessedValue": 482418,
+      "avgLotSqft": 5703,
+      "slug": "forest-lawn",
+      "name": "FOREST LAWN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 1953,
+        "avgAssessedValue": 464797,
+        "avgLotSqft": 6925
       }
     },
     {
@@ -1183,24 +1183,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 1941,
-        "avgAssessedValue": 625782,
-        "avgLotSqft": 27492
-      }
-    },
-    {
-      "count": 907,
-      "avgAssessedValue": 861472,
-      "avgLotSqft": 4469,
-      "slug": "inglewood",
-      "name": "INGLEWOOD",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 1933,
-        "avgAssessedValue": 720686,
-        "avgLotSqft": 16953
+        "count": 1917,
+        "avgAssessedValue": 546992,
+        "avgLotSqft": 27214
       }
     },
     {
@@ -1213,9 +1198,24 @@
       "group": "established",
       "sector": "EAST",
       "residential": {
-        "count": 1912,
-        "avgAssessedValue": 432242,
-        "avgLotSqft": 23477
+        "count": 1907,
+        "avgAssessedValue": 425378,
+        "avgLotSqft": 23468
+      }
+    },
+    {
+      "count": 907,
+      "avgAssessedValue": 861472,
+      "avgLotSqft": 4469,
+      "slug": "inglewood",
+      "name": "INGLEWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1897,
+        "avgAssessedValue": 632069,
+        "avgLotSqft": 16960
       }
     },
     {
@@ -1228,24 +1228,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1866,
-        "avgAssessedValue": 654739,
-        "avgLotSqft": 13884
-      }
-    },
-    {
-      "count": 559,
-      "avgAssessedValue": 913795,
-      "avgLotSqft": 4626,
-      "slug": "windsor-park",
-      "name": "WINDSOR PARK",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 1784,
-        "avgAssessedValue": 671166,
-        "avgLotSqft": 28647
+        "count": 1805,
+        "avgAssessedValue": 496109,
+        "avgLotSqft": 13901
       }
     },
     {
@@ -1258,24 +1243,24 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 1756,
-        "avgAssessedValue": 547237,
-        "avgLotSqft": 72377
+        "count": 1754,
+        "avgAssessedValue": 538505,
+        "avgLotSqft": 72332
       }
     },
     {
-      "count": 1289,
-      "avgAssessedValue": 517987,
-      "avgLotSqft": 4952,
-      "slug": "albert-park-radisson-heights",
-      "name": "ALBERT PARK/RADISSON HEIGHTS",
+      "count": 559,
+      "avgAssessedValue": 913795,
+      "avgLotSqft": 4626,
+      "slug": "windsor-park",
+      "name": "WINDSOR PARK",
       "basis": "detached-semi",
       "group": "established",
-      "sector": "EAST",
+      "sector": "CENTRE",
       "residential": {
-        "count": 1714,
-        "avgAssessedValue": 602109,
-        "avgLotSqft": 12574
+        "count": 1747,
+        "avgAssessedValue": 491523,
+        "avgLotSqft": 28812
       }
     },
     {
@@ -1288,9 +1273,24 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 1700,
-        "avgAssessedValue": 798027,
-        "avgLotSqft": 5980
+        "count": 1673,
+        "avgAssessedValue": 752811,
+        "avgLotSqft": 5696
+      }
+    },
+    {
+      "count": 1289,
+      "avgAssessedValue": 517987,
+      "avgLotSqft": 4952,
+      "slug": "albert-park-radisson-heights",
+      "name": "ALBERT PARK/RADISSON HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 1663,
+        "avgAssessedValue": 476919,
+        "avgLotSqft": 11794
       }
     },
     {
@@ -1303,9 +1303,9 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 1650,
-        "avgAssessedValue": 628066,
-        "avgLotSqft": 39081
+        "count": 1637,
+        "avgAssessedValue": 520435,
+        "avgLotSqft": 38577
       }
     },
     {
@@ -1318,9 +1318,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1607,
-        "avgAssessedValue": 944556,
-        "avgLotSqft": 5410
+        "count": 1546,
+        "avgAssessedValue": 789223,
+        "avgLotSqft": 5025
       }
     },
     {
@@ -1333,9 +1333,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1527,
-        "avgAssessedValue": 750001,
-        "avgLotSqft": 42190
+        "count": 1526,
+        "avgAssessedValue": 724772,
+        "avgLotSqft": 42144
       }
     },
     {
@@ -1363,24 +1363,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1442,
-        "avgAssessedValue": 766432,
-        "avgLotSqft": 28193
-      }
-    },
-    {
-      "count": 66,
-      "avgAssessedValue": 952576,
-      "avgLotSqft": 3154,
-      "slug": "lower-mount-royal",
-      "name": "LOWER MOUNT ROYAL",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 1437,
-        "avgAssessedValue": 567929,
-        "avgLotSqft": 16107
+        "count": 1428,
+        "avgAssessedValue": 736492,
+        "avgLotSqft": 28341
       }
     },
     {
@@ -1393,9 +1378,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1433,
-        "avgAssessedValue": 734210,
-        "avgLotSqft": 9549
+        "count": 1399,
+        "avgAssessedValue": 655177,
+        "avgLotSqft": 9475
+      }
+    },
+    {
+      "count": 66,
+      "avgAssessedValue": 952576,
+      "avgLotSqft": 3154,
+      "slug": "lower-mount-royal",
+      "name": "LOWER MOUNT ROYAL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1366,
+        "avgAssessedValue": 374785,
+        "avgLotSqft": 16520
       }
     },
     {
@@ -1408,9 +1408,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 1332,
-        "avgAssessedValue": 891253,
-        "avgLotSqft": 6063
+        "count": 1322,
+        "avgAssessedValue": 880793,
+        "avgLotSqft": 5992
       }
     },
     {
@@ -1423,9 +1423,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1301,
-        "avgAssessedValue": 1043149,
-        "avgLotSqft": 5639
+        "count": 1268,
+        "avgAssessedValue": 859691,
+        "avgLotSqft": 5500
       }
     },
     {
@@ -1438,24 +1438,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 1297,
-        "avgAssessedValue": 936881,
-        "avgLotSqft": 24835
-      }
-    },
-    {
-      "count": 193,
-      "avgAssessedValue": 764951,
-      "avgLotSqft": 3843,
-      "slug": "sunalta",
-      "name": "SUNALTA",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 1290,
-        "avgAssessedValue": 651581,
-        "avgLotSqft": 11317
+        "count": 1262,
+        "avgAssessedValue": 566372,
+        "avgLotSqft": 24360
       }
     },
     {
@@ -1468,9 +1453,24 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 1257,
-        "avgAssessedValue": 687285,
-        "avgLotSqft": 5849
+        "count": 1254,
+        "avgAssessedValue": 634727,
+        "avgLotSqft": 5649
+      }
+    },
+    {
+      "count": 193,
+      "avgAssessedValue": 764951,
+      "avgLotSqft": 3843,
+      "slug": "sunalta",
+      "name": "SUNALTA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1192,
+        "avgAssessedValue": 342521,
+        "avgLotSqft": 11548
       }
     },
     {
@@ -1483,9 +1483,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1187,
-        "avgAssessedValue": 2121051,
-        "avgLotSqft": 7316
+        "count": 1185,
+        "avgAssessedValue": 2122815,
+        "avgLotSqft": 7315
       }
     },
     {
@@ -1498,9 +1498,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 1186,
-        "avgAssessedValue": 773127,
-        "avgLotSqft": 129246
+        "count": 1184,
+        "avgAssessedValue": 634948,
+        "avgLotSqft": 128870
       }
     },
     {
@@ -1513,9 +1513,9 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 1154,
-        "avgAssessedValue": 701545,
-        "avgLotSqft": 28165
+        "count": 1151,
+        "avgAssessedValue": 670132,
+        "avgLotSqft": 27934
       }
     },
     {
@@ -1528,9 +1528,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 1051,
-        "avgAssessedValue": 1240383,
-        "avgLotSqft": 76870
+        "count": 1044,
+        "avgAssessedValue": 1077943,
+        "avgLotSqft": 76550
       }
     },
     {
@@ -1543,24 +1543,9 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 1039,
-        "avgAssessedValue": 998556,
-        "avgLotSqft": 6884
-      }
-    },
-    {
-      "count": 807,
-      "avgAssessedValue": 789603,
-      "avgLotSqft": 4678,
-      "slug": "rosscarrock",
-      "name": "ROSSCARROCK",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "WEST",
-      "residential": {
-        "count": 1010,
-        "avgAssessedValue": 810403,
-        "avgLotSqft": 5716
+        "count": 1035,
+        "avgAssessedValue": 985945,
+        "avgLotSqft": 6547
       }
     },
     {
@@ -1573,9 +1558,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 977,
-        "avgAssessedValue": 1002657,
-        "avgLotSqft": 6993
+        "count": 967,
+        "avgAssessedValue": 945828,
+        "avgLotSqft": 6786
+      }
+    },
+    {
+      "count": 807,
+      "avgAssessedValue": 789603,
+      "avgLotSqft": 4678,
+      "slug": "rosscarrock",
+      "name": "ROSSCARROCK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 965,
+        "avgAssessedValue": 734966,
+        "avgLotSqft": 5475
       }
     },
     {
@@ -1588,9 +1588,9 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 963,
-        "avgAssessedValue": 875066,
-        "avgLotSqft": 8004
+        "count": 953,
+        "avgAssessedValue": 827375,
+        "avgLotSqft": 7945
       }
     },
     {
@@ -1603,24 +1603,24 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 945,
-        "avgAssessedValue": 1073830,
-        "avgLotSqft": 6147
+        "count": 936,
+        "avgAssessedValue": 1062243,
+        "avgLotSqft": 6132
       }
     },
     {
-      "count": 931,
-      "avgAssessedValue": 409199,
-      "avgLotSqft": 112174,
+      "count": 926,
+      "avgAssessedValue": 287834,
+      "avgLotSqft": 111441,
       "slug": "lincoln-park",
       "name": "LINCOLN PARK",
       "basis": "residential",
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 931,
-        "avgAssessedValue": 409199,
-        "avgLotSqft": 112174
+        "count": 926,
+        "avgAssessedValue": 287834,
+        "avgLotSqft": 111441
       }
     },
     {
@@ -1633,24 +1633,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 897,
-        "avgAssessedValue": 2295904,
-        "avgLotSqft": 11071
-      }
-    },
-    {
-      "count": 769,
-      "avgAssessedValue": 933754,
-      "avgLotSqft": 6648,
-      "slug": "collingwood",
-      "name": "COLLINGWOOD",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "NORTHWEST",
-      "residential": {
-        "count": 853,
-        "avgAssessedValue": 909928,
-        "avgLotSqft": 19946
+        "count": 885,
+        "avgAssessedValue": 2251092,
+        "avgLotSqft": 11044
       }
     },
     {
@@ -1669,6 +1654,21 @@
       }
     },
     {
+      "count": 769,
+      "avgAssessedValue": 933754,
+      "avgLotSqft": 6648,
+      "slug": "collingwood",
+      "name": "COLLINGWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 845,
+        "avgAssessedValue": 903963,
+        "avgLotSqft": 20033
+      }
+    },
+    {
       "count": 826,
       "avgAssessedValue": 701375,
       "avgLotSqft": 5691,
@@ -1678,24 +1678,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 846,
-        "avgAssessedValue": 701285,
-        "avgLotSqft": 5634
-      }
-    },
-    {
-      "count": 799,
-      "avgAssessedValue": 838389,
-      "avgLotSqft": 4249,
-      "slug": "ramsay",
-      "name": "RAMSAY",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 825,
-        "avgAssessedValue": 972204,
-        "avgLotSqft": 5016
+        "count": 844,
+        "avgAssessedValue": 698267,
+        "avgLotSqft": 5615
       }
     },
     {
@@ -1714,6 +1699,21 @@
       }
     },
     {
+      "count": 799,
+      "avgAssessedValue": 838389,
+      "avgLotSqft": 4249,
+      "slug": "ramsay",
+      "name": "RAMSAY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 801,
+        "avgAssessedValue": 839117,
+        "avgLotSqft": 4255
+      }
+    },
+    {
       "count": 737,
       "avgAssessedValue": 675216,
       "avgLotSqft": 5685,
@@ -1723,24 +1723,9 @@
       "group": "established",
       "sector": "NORTH",
       "residential": {
-        "count": 792,
-        "avgAssessedValue": 703282,
-        "avgLotSqft": 13167
-      }
-    },
-    {
-      "count": 227,
-      "avgAssessedValue": 568341,
-      "avgLotSqft": 5711,
-      "slug": "greenview",
-      "name": "GREENVIEW",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "CENTRE",
-      "residential": {
-        "count": 762,
-        "avgAssessedValue": 414943,
-        "avgLotSqft": 62593
+        "count": 786,
+        "avgAssessedValue": 668409,
+        "avgLotSqft": 13022
       }
     },
     {
@@ -1753,24 +1738,24 @@
       "group": "established",
       "sector": "WEST",
       "residential": {
-        "count": 760,
-        "avgAssessedValue": 745174,
-        "avgLotSqft": 182798
+        "count": 757,
+        "avgAssessedValue": 592380,
+        "avgLotSqft": 181449
       }
     },
     {
-      "count": 471,
-      "avgAssessedValue": 922880,
-      "avgLotSqft": 4862,
-      "slug": "shaganappi",
-      "name": "SHAGANAPPI",
+      "count": 227,
+      "avgAssessedValue": 568341,
+      "avgLotSqft": 5711,
+      "slug": "greenview",
+      "name": "GREENVIEW",
       "basis": "detached-semi",
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 736,
-        "avgAssessedValue": 968490,
-        "avgLotSqft": 8589
+        "count": 752,
+        "avgAssessedValue": 342788,
+        "avgLotSqft": 62913
       }
     },
     {
@@ -1783,24 +1768,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 730,
-        "avgAssessedValue": 871184,
-        "avgLotSqft": 6231
+        "count": 725,
+        "avgAssessedValue": 847179,
+        "avgLotSqft": 5974
       }
     },
     {
-      "count": 125,
-      "avgAssessedValue": 1130652,
-      "avgLotSqft": 3970,
-      "slug": "cliff-bungalow",
-      "name": "CLIFF BUNGALOW",
+      "count": 471,
+      "avgAssessedValue": 922880,
+      "avgLotSqft": 4862,
+      "slug": "shaganappi",
+      "name": "SHAGANAPPI",
       "basis": "detached-semi",
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 719,
-        "avgAssessedValue": 796104,
-        "avgLotSqft": 13593
+        "count": 715,
+        "avgAssessedValue": 721508,
+        "avgLotSqft": 8238
       }
     },
     {
@@ -1813,9 +1798,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 710,
-        "avgAssessedValue": 1192936,
-        "avgLotSqft": 22874
+        "count": 705,
+        "avgAssessedValue": 1168393,
+        "avgLotSqft": 22868
       }
     },
     {
@@ -1828,9 +1813,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 683,
-        "avgAssessedValue": 621843,
-        "avgLotSqft": 25270
+        "count": 680,
+        "avgAssessedValue": 622271,
+        "avgLotSqft": 25370
+      }
+    },
+    {
+      "count": 125,
+      "avgAssessedValue": 1130652,
+      "avgLotSqft": 3970,
+      "slug": "cliff-bungalow",
+      "name": "CLIFF BUNGALOW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 651,
+        "avgAssessedValue": 498320,
+        "avgLotSqft": 14340
       }
     },
     {
@@ -1843,9 +1843,9 @@
       "group": "established",
       "sector": "NORTHEAST",
       "residential": {
-        "count": 647,
-        "avgAssessedValue": 521518,
-        "avgLotSqft": 198683
+        "count": 643,
+        "avgAssessedValue": 464823,
+        "avgLotSqft": 199305
       }
     },
     {
@@ -1858,9 +1858,9 @@
       "group": "established",
       "sector": "EAST",
       "residential": {
-        "count": 619,
-        "avgAssessedValue": 575735,
-        "avgLotSqft": 6551
+        "count": 614,
+        "avgAssessedValue": 555407,
+        "avgLotSqft": 6179
       }
     },
     {
@@ -1873,9 +1873,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 589,
-        "avgAssessedValue": 1567244,
-        "avgLotSqft": 6154
+        "count": 587,
+        "avgAssessedValue": 1560914,
+        "avgLotSqft": 6142
       }
     },
     {
@@ -1888,24 +1888,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 535,
-        "avgAssessedValue": 1212898,
-        "avgLotSqft": 79549
-      }
-    },
-    {
-      "count": 355,
-      "avgAssessedValue": 1297521,
-      "avgLotSqft": 7911,
-      "slug": "kelvin-grove",
-      "name": "KELVIN GROVE",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "SOUTH",
-      "residential": {
-        "count": 530,
-        "avgAssessedValue": 1195958,
-        "avgLotSqft": 31516
+        "count": 534,
+        "avgAssessedValue": 1184926,
+        "avgLotSqft": 79464
       }
     },
     {
@@ -1918,9 +1903,24 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 528,
-        "avgAssessedValue": 954277,
-        "avgLotSqft": 8963
+        "count": 527,
+        "avgAssessedValue": 931705,
+        "avgLotSqft": 8888
+      }
+    },
+    {
+      "count": 355,
+      "avgAssessedValue": 1297521,
+      "avgLotSqft": 7911,
+      "slug": "kelvin-grove",
+      "name": "KELVIN GROVE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 526,
+        "avgAssessedValue": 986840,
+        "avgLotSqft": 30980
       }
     },
     {
@@ -1933,9 +1933,9 @@
       "group": "established",
       "sector": "NORTHWEST",
       "residential": {
-        "count": 527,
-        "avgAssessedValue": 1855777,
-        "avgLotSqft": 10337
+        "count": 508,
+        "avgAssessedValue": 1046240,
+        "avgLotSqft": 9049
       }
     },
     {
@@ -1963,9 +1963,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 445,
-        "avgAssessedValue": 930197,
-        "avgLotSqft": 6219
+        "count": 443,
+        "avgAssessedValue": 927429,
+        "avgLotSqft": 6190
       }
     },
     {
@@ -1978,24 +1978,9 @@
       "group": "established",
       "sector": "SOUTH",
       "residential": {
-        "count": 436,
-        "avgAssessedValue": 1511570,
-        "avgLotSqft": 11877
-      }
-    },
-    {
-      "count": 62,
-      "avgAssessedValue": 950597,
-      "avgLotSqft": 4413,
-      "slug": "greenwood-greenbriar",
-      "name": "GREENWOOD/GREENBRIAR",
-      "basis": "detached-semi",
-      "group": "established",
-      "sector": "NORTHWEST",
-      "residential": {
-        "count": 384,
-        "avgAssessedValue": 855667,
-        "avgLotSqft": 71396
+        "count": 433,
+        "avgAssessedValue": 1426477,
+        "avgLotSqft": 11280
       }
     },
     {
@@ -2008,9 +1993,24 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 383,
-        "avgAssessedValue": 1196777,
-        "avgLotSqft": 10873
+        "count": 382,
+        "avgAssessedValue": 1191559,
+        "avgLotSqft": 10885
+      }
+    },
+    {
+      "count": 62,
+      "avgAssessedValue": 950597,
+      "avgLotSqft": 4413,
+      "slug": "greenwood-greenbriar",
+      "name": "GREENWOOD/GREENBRIAR",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 381,
+        "avgAssessedValue": 581801,
+        "avgLotSqft": 61833
       }
     },
     {
@@ -2038,9 +2038,9 @@
       "group": "established",
       "sector": "CENTRE",
       "residential": {
-        "count": 293,
-        "avgAssessedValue": 2477724,
-        "avgLotSqft": 10481
+        "count": 289,
+        "avgAssessedValue": 2491048,
+        "avgLotSqft": 10509
       }
     },
     {

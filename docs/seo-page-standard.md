@@ -58,7 +58,9 @@ Answer engines lift short, self-contained, well-sourced passages. Write so that 
 
 ## Known gaps (2026-11-15)
 
-Found while writing this standard; to be fixed in follow-up stories:
-
-1. Community pages cover the top 40 communities by record count, which are mostly suburban. None of the established infill communities (Altadore, South Calgary/Marda Loop, Killarney-Glengarry, Mount Pleasant, …) has a page. See marketing plan §3.
-2. Community aggregates include non-residential parcels, which produces outliers such as Downtown Commercial Core at ~$5.4M average assessed. Restrict them to residential parcels.
+None open. The five gaps found while writing this standard were fixed on
+2026-11-15: the prerender check, sitemap and llms.txt share one route
+manifest (`indexable-pages.json`); llms.txt lists every guide and page; the
+established infill communities have pages with hand-written intros;
+community averages count dwelling units only; and the cost-data version id
+is spelled correctly (`v0.4.1-uncalibrated`).

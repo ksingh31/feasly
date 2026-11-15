@@ -44,6 +44,8 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
 const TYPES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-types.json');
 const RANGES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-ranges.json');
+/** Hand-written intros for the established infill communities (same copy the pages render). */
+const INTROS_PATH = join(SCRIPT_DIR, 'config', 'community-intros.json');
 
 /** Size limits from SEO-07 AC1. */
 const LLMS_TXT_MAX_BYTES = 50 * 1024;
@@ -62,6 +64,8 @@ interface CommunitySummary {
   readonly name: string;
   readonly avgAssessedValue: number;
   readonly count: number;
+  /** Hand-written one-line summary and body (established infill communities). */
+  readonly intro?: { readonly summary: string; readonly body: string };
   readonly tiers?: {
     readonly standard: CommunityTierRanges;
     readonly premium: CommunityTierRanges;
@@ -159,6 +163,11 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
     }
   }
 
+  const intros: Record<string, { summary: string; body: string }> = existsSync(INTROS_PATH)
+    ? ((JSON.parse(readFileSync(INTROS_PATH, 'utf-8')) as { intros?: Record<string, { summary: string; body: string }> })
+        .intros ?? {})
+    : {};
+
   const communities: CommunitySummary[] = raw.communities.map((c) => {
     const profile = types[c.slug] === 'profile';
     const view = profile && c.residential ? c.residential : c;
@@ -167,6 +176,7 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
       name: c.name,
       avgAssessedValue: view.avgAssessedValue,
       count: view.count,
+      ...(intros[c.name] ? { intro: intros[c.name] } : {}),
       // Profile pages (condo/apartment-dominated) show no build ranges, so neither does llms.txt.
       tiers: profile ? undefined : tiersBySlug.get(c.slug),
     };
@@ -214,7 +224,7 @@ function buildLlmsTxt(
       ? ` | Build: Std ${formatMoney(c.tiers.standard.buildLow)}–${formatMoney(c.tiers.standard.buildHigh)}, Prem ${formatMoney(c.tiers.premium.buildLow)}–${formatMoney(c.tiers.premium.buildHigh)}, Lux ${formatMoney(c.tiers.luxury.buildLow)}–${formatMoney(c.tiers.luxury.buildHigh)}; Total: Std ${formatMoney(c.tiers.standard.totalLow)}–${formatMoney(c.tiers.standard.totalHigh)}, Prem ${formatMoney(c.tiers.premium.totalLow)}–${formatMoney(c.tiers.premium.totalHigh)}, Lux ${formatMoney(c.tiers.luxury.totalLow)}–${formatMoney(c.tiers.luxury.totalHigh)}`
       : ' (build-cost ranges pending)';
     lines.push(
-      `- **${c.name}**: avg assessed ${formatMoney(c.avgAssessedValue)} (${c.count.toLocaleString()} records)${rangeText} — ${siteUrl}/communities/${c.slug}/`,
+      `- **${c.name}**: ${c.intro ? `${c.intro.summary} ` : ''}avg assessed ${formatMoney(c.avgAssessedValue)} (${c.count.toLocaleString()} records)${rangeText} — ${siteUrl}/communities/${c.slug}/`,
     );
   }
 
@@ -288,6 +298,7 @@ function buildLlmsFullTxt(
     lines.push(
       `### ${c.name}`,
       `- URL: ${siteUrl}/communities/${c.slug}/`,
+      ...(c.intro ? [`- About: ${c.intro.body}`] : []),
       `- Average City-assessed value: ${formatMoney(c.avgAssessedValue)} (not market value, ${c.count.toLocaleString()} assessment records)`,
       `- 2,400 sq ft new-build planning ranges (not quotes):`,
       tierLines,

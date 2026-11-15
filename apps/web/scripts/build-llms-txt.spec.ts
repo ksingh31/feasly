@@ -199,4 +199,20 @@ describe('build-llms-txt (SEO-07)', () => {
       expect(content).toContain('not quotes'); // planning-range disclaimer present
     }
   });
+
+  it('states each established infill community with its hand-written summary', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'llms-'));
+    const { llmsTxt, llmsFullTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
+    const intros = (
+      JSON.parse(readFileSync(join(SPEC_DIR, 'config', 'community-intros.json'), 'utf-8')) as {
+        intros: Record<string, { summary: string; body: string }>;
+      }
+    ).intros;
+    expect(Object.keys(intros).length).toBeGreaterThanOrEqual(28);
+    for (const [name, intro] of Object.entries(intros)) {
+      const line = llmsTxt.split('\n').find((l) => l.startsWith(`- **${name}**:`));
+      expect(line).toContain(intro.summary);
+      expect(llmsFullTxt).toContain(`- About: ${intro.body}`);
+    }
+  });
 });

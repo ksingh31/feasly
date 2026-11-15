@@ -19,9 +19,11 @@
  *   - when a community has fewer than guide.minRecords such homes, the top
  *     level falls back to all residential dwellings, basis 'residential',
  *     and build-community-mix forces the profile page (never a guide);
- *   - `residential`: every residential dwelling record (condos included,
- *     condo common elements/parking/storage `A*` codes excluded) — the view
- *     profile pages show.
+ *   - `residential`: every dwelling-unit record — the config's
+ *     `dwellingCodePrefixes` (houses, semi-detached, townhouses, condo
+ *     units). Whole rental/mixed-use buildings, commercial space and condo
+ *     parking/storage are excluded, so one large building cannot skew a
+ *     community average — the view profile pages show.
  *
  * Data: three anonymous Socrata reads (server-side GROUP BY, one request
  * each): community boundaries (`surr-xmvs`), and two aggregates over the
@@ -192,22 +194,30 @@ function soqlList(codes: readonly string[]): string {
   return codes.map((c) => `'${c}'`).join(',');
 }
 
+/** Which records an aggregate is built from: exact codes, or code prefixes. */
+export type UseFilter = { readonly codes: readonly string[] } | { readonly prefixes: readonly string[] };
+
 /**
  * Residential-dwelling aggregates per community over one roll — one
- * server-side GROUP BY. `subPropertyUses` given → only those codes (the
- * guide basis: single/semi-detached); omitted → every residential dwelling
- * record except `A*` codes (condo common elements, parking, storage).
+ * server-side GROUP BY. `{ codes }` → only those `sub_property_use` codes
+ * (the guide basis: single/semi-detached); `{ prefixes }` → every code
+ * starting with one of them (the dwelling-unit allowlist from config).
  */
 export async function fetchResidentialAggregates(
   config: Pick<BuildConfig, 'socrataBaseUrl' | 'socrataDataset'>,
   rollYear: string,
-  subPropertyUses?: readonly string[],
+  filter: UseFilter,
   fetchImpl: typeof fetch = fetch,
 ): Promise<RawAggregateRow[]> {
   if (!/^\d{4}$/.test(rollYear)) throw new Error(`invalid roll year ${JSON.stringify(rollYear)}`);
-  const useFilter = subPropertyUses
-    ? `sub_property_use in(${soqlList(subPropertyUses)})`
-    : `NOT starts_with(sub_property_use, 'A')`;
+  let useFilter: string;
+  if ('codes' in filter) {
+    useFilter = `sub_property_use in(${soqlList(filter.codes)})`;
+  } else {
+    if (filter.prefixes.length === 0) throw new Error('dwelling code prefix list is empty');
+    soqlList(filter.prefixes); // validates each prefix is a plain token
+    useFilter = `(${filter.prefixes.map((p) => `starts_with(sub_property_use, '${p}')`).join(' OR ')})`;
+  }
   const params = new URLSearchParams({
     $select: 'comm_name,count(*),avg(assessed_value),avg(land_size_sf)',
     $where: `roll_year='${rollYear}' AND assessment_class='RE' AND property_type='LI' AND ${useFilter}`,
@@ -419,8 +429,8 @@ export async function run(config: BuildConfig): Promise<void> {
   const rollYear = await latestRollYear(config);
   const [boundaries, residentialRows, guideRows] = await Promise.all([
     fetchBoundaries(config),
-    fetchResidentialAggregates(config, rollYear),
-    fetchResidentialAggregates(config, rollYear, config.selection.guide.subPropertyUses),
+    fetchResidentialAggregates(config, rollYear, { prefixes: config.selection.dwellingCodePrefixes }),
+    fetchResidentialAggregates(config, rollYear, { codes: config.selection.guide.subPropertyUses }),
   ]);
   console.log(
     `build-community-data: roll ${rollYear}: ${boundaries.length} boundaries, ${residentialRows.length} residential and ${guideRows.length} detached/semi community rows (city=${config.city})`,

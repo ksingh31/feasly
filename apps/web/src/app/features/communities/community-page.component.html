@@ -9,6 +9,9 @@
 
     <p class="eyebrow">Calgary community cost guide</p>
     <h1>How much does it cost to build a home in {{ community.displayName }}, Calgary?</h1>
+    @if (community.intro) {
+      <p class="intro">{{ community.intro }}</p>
+    }
 
     @if (propertyContext(); as ctx) {
       <!-- Coverage-redirect card (QA 2026-10-04): the estimator's coverage

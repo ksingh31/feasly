@@ -29,6 +29,15 @@ export const citySelectionSchema = z.object({
   topByCount: z.number().int().min(0).max(200),
   /** Minimum residential assessment records for a page. */
   minRecords: z.number().int().positive(),
+  /**
+   * `sub_property_use` prefixes that count as a dwelling unit (houses,
+   * semi-detached, townhouses, condo units). Everything else on the
+   * residential roll (whole rental or mixed-use buildings, commercial
+   * space, condo parking/storage) is excluded from every community
+   * average and the dwelling mix, so a $40M apartment building never
+   * reads as one "home".
+   */
+  dwellingCodePrefixes: z.array(z.string().regex(/^[A-Z][A-Z0-9]*$/)).min(1),
   /** Records that build-guide averages are made of. */
   guide: z.object({
     /** Assessment `sub_property_use` codes: single-detached and semi-detached. */
@@ -68,4 +77,9 @@ export function loadCitySelection(
   const selection = parsed.data.cities[key];
   if (!selection) throw new Error(`community-selection: no config for city ${JSON.stringify(key)} in ${path}`);
   return { city: key, selection };
+}
+
+/** True when a `sub_property_use` code is a dwelling unit under the given prefixes. */
+export function isDwellingCode(code: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((prefix) => code.startsWith(prefix));
 }

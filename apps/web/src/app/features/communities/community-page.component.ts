@@ -52,6 +52,8 @@ interface CommunityView {
   avgAssessedValue: number;
   avgLotSqft: number;
   tiers: TierRow[];
+  /** Hand-written intro (established infill communities only). */
+  intro?: string;
 }
 
 /**
@@ -79,6 +81,8 @@ export interface CommunityPageData {
     buildSqft: number;
   } | null;
   nearby: Array<{ slug: string; name: string }>;
+  /** Hand-written, community-specific intro (scripts/config/community-intros.json). */
+  intro?: { summary: string; body: string };
   mix?: {
     dwellingUnits: number;
     mix: { singleDetached: number; semiDuplex: number; multiFamily: number };
@@ -404,6 +408,7 @@ export class CommunityPageComponent implements OnInit {
       mix: mix?.mix ?? { singleDetached: 0, semiDuplex: 0, multiFamily: 0 },
       mostCommonType: (mix?.mostCommonType as CommunityProfileView['mostCommonType']) ?? 'multiFamily',
       nearby,
+      ...(view.intro ? { intro: view.intro } : {}),
     };
     const resolvedCopy = resolveFn(
       {
@@ -474,6 +479,7 @@ export class CommunityPageComponent implements OnInit {
       avgAssessedValue: agg.avgAssessedValue,
       avgLotSqft: agg.avgLotSqft,
       tiers,
+      ...(pageData.intro ? { intro: pageData.intro.body } : {}),
     };
   }
 }
