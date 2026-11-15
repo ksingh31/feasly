@@ -15,8 +15,8 @@
  * not expressible. The 403 + audit-row guarantee lives where a cross-user
  * target IS expressible — confirming another user's erasure request.
  *
- * Erasure semantics: lead rows (the PII store) and waitlist signups are
- * hard-deleted, magic
+ * Erasure semantics: lead rows (the PII store), their callback requests
+ * (name/phone, #639) and waitlist signups are hard-deleted, magic
  * links are revoked (rows kept as anonymized audit — hashes only),
  * erasure_requests flips to 'completed'. Estimate snapshots are
  * insert-only by design and contain no name/email/phone — they remain as
@@ -37,6 +37,7 @@ import {
   ERASURE_CONSEQUENCES_DRAFT,
   EXPORT_RETENTION_NOTICE_DRAFT,
 } from '../lib/legal-copy';
+import type { CallbackRequestStore } from './callback-request.store';
 import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
@@ -87,6 +88,8 @@ export interface PrivacyServiceDeps {
   readonly privacy: PrivacyStore;
   /** #520: waitlist signups are personal data — exported and erased too. */
   readonly waitlist: WaitlistStore;
+  /** #639: callback requests (name/phone) are exported and erased too. */
+  readonly callbacks: CallbackRequestStore;
   readonly blockers: ErasureBlockerChecker;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
@@ -191,6 +194,12 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       } catch (error) {
         throw new Error('waitlist lookup failed', { cause: error });
       }
+      let callbacks;
+      try {
+        callbacks = await deps.callbacks.listByLeadIds(leadIds);
+      } catch (error) {
+        throw new Error('callback request lookup failed', { cause: error });
+      }
       await deps.privacy.audit({ leadId: auth.leadId, action: 'export' });
 
       return {
@@ -232,10 +241,18 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
           usedAt: m.usedAt ? m.usedAt.toISOString() : null,
           revokedAt: m.revokedAt ? m.revokedAt.toISOString() : null,
         })),
-        // No server-side stores yet (documented in the story) — the shape
+        // No server-side store yet (documented in the story) — the shape
         // is frozen now so clients need no breaking change later.
         reportShares: [],
-        callbackRequests: [],
+        callbackRequests: callbacks.map((c) => ({
+          id: c.id,
+          leadId: c.leadId,
+          name: c.name,
+          phone: c.phone,
+          window: c.window,
+          status: c.status,
+          createdAt: c.createdAt.toISOString(),
+        })),
         erasureRequests: erasureHistory.map((r) => ({
           id: r.id,
           status: r.status,
@@ -391,6 +408,14 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       } catch (error) {
         throw new Error('magic link revocation failed', { cause: error });
       }
+      // Callback requests reference leads with ON DELETE NO ACTION — they
+      // must go first or the lead delete fails on the FK (#639).
+      let callbacksDeleted: number;
+      try {
+        callbacksDeleted = await deps.callbacks.deleteByLeadIds(leadIds);
+      } catch (error) {
+        throw new Error('callback request deletion failed', { cause: error });
+      }
       let deleted: number;
       try {
         deleted = await deps.leads.deleteByEmail(auth.email);
@@ -412,7 +437,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       await deps.privacy.audit({
         leadId: auth.leadId,
         action: 'erase.confirm',
-        detail: `revoked:${revoked},deleted:${deleted},waitlist:${waitlistDeleted}`,
+        detail: `revoked:${revoked},deleted:${deleted},waitlist:${waitlistDeleted},callbacks:${callbacksDeleted}`,
       });
       return {
         requestId: completed.id,

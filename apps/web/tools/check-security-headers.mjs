@@ -19,6 +19,10 @@
  *   4. The /embed and /embed/* routes must override frame-ancestors (the
  *      embed track needs framing) WITHOUT opening a wildcard (#516).
  *   5. No `$schema` key — swa-cli 1.1.10 crashes on it (see TOOLS.md).
+ *   6. No `X-Robots-Tag` and no `/robots.txt` route in the checked-in file:
+ *      the noindex rules are build-generated for non-production builds only
+ *      (scripts/build-seo-artifacts.ts, #707). Hard-coding them here would
+ *      de-index production too.
  *
  * Usage: node apps/web/tools/check-security-headers.mjs (paths resolve
  * from the script location, so any cwd works).
@@ -59,6 +63,14 @@ try {
 
 if ('$schema' in config) {
   fail('top-level $schema key present — swa-cli 1.1.10 crashes on it');
+}
+
+// Noindex is build-generated for non-production only (#707).
+if (Object.keys(config.globalHeaders ?? {}).some((h) => h.toLowerCase() === 'x-robots-tag')) {
+  fail('globalHeaders must not set X-Robots-Tag — build-seo-artifacts.ts adds it to non-production builds only');
+}
+if ((config.routes ?? []).some((r) => r.route === '/robots.txt')) {
+  fail('routes must not handle /robots.txt — build-seo-artifacts.ts adds that rewrite to non-production builds only');
 }
 
 const headers = config.globalHeaders ?? {};

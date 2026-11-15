@@ -85,6 +85,8 @@ function fakeStores(opts?: { live?: boolean }) {
       } as CallbackRequestRecord;
     },
     listByLeadId: async () => [],
+    listByLeadIds: async () => [],
+    deleteByLeadIds: async () => 0,
   };
   const service: CallbackService = createCallbackService({
     magicLinks,

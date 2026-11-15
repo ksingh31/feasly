@@ -72,6 +72,21 @@ only Karan can provide.
 - [ ] Browser QA per the QA rule: Chrome desktop, Safari/WebKit, 375px
       responsive — covering the legal pages, lead gate, report, and print.
 - [ ] SEO artifacts in place (sitemap, robots, llms.txt, per-page meta).
+- [ ] **Search launch runbook (#707)** — once the production domain is decided:
+  1. Set `SITE_URL=https://<domain>` on the **production** web build only.
+     Builds without it (dev, staging, PR previews) are non-production: the
+     generated `staticwebapp.config.json` sends `X-Robots-Tag: noindex, nofollow`
+     on every response and serves `robots.txt` as `Disallow: /`
+     (`apps/web/scripts/build-seo-artifacts.ts`). Never set `SITE_URL` on a
+     non-production build.
+  2. Confirm the production build log prints `apply-site-url: site.url -> "https://<domain>"`
+     and `check-prerender-seo` notes `production build for https://<domain>: indexable`.
+  3. On the live domain: `curl -sI https://<domain>/` has no `X-Robots-Tag`;
+     `curl -s https://<domain>/robots.txt` shows `Allow: /` and the `Sitemap:` line.
+  4. Verify the domain in Google Search Console and Bing Webmaster Tools.
+  5. Submit `https://<domain>/sitemap.xml` in both.
+  6. Confirm no non-production host is indexed: search `site:azurestaticapps.net feasly`
+     and request removal in Search Console for anything found.
 - [ ] SWA preview environments cleaned (cap: 3 staging envs).
 
 ## Post-launch (not blocking)
