@@ -1,5 +1,6 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
@@ -77,11 +78,20 @@ describe('AdminCreateInvoiceComponent (#544 create-invoice modal)', () => {
     await TestBed.configureTestingModule({
       imports: [AdminCreateInvoiceComponent],
       providers: [
+        provideRouter([]),
         provideStore([BillingHealthState, AdminBuildersState]),
         { provide: AdminBillingApiService, useValue: billingApi },
         { provide: AdminBuildersApiService, useValue: { listBuilders: vi.fn(() => of({ builders: BUILDERS })) } },
         { provide: AdminLeadsApiService, useValue: leadsApi },
-        { provide: ConfigService, useValue: { get: () => ({ debounceMs: 0 }) } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) =>
+              key === 'copy'
+                ? { admin: { entities: { viewInvoice: 'View invoice', copyId: 'Copy ID', idCopied: 'ID copied' } } }
+                : { debounceMs: 0 },
+          },
+        },
         { provide: DialogRef, useValue: ref },
       ],
     }).compileComponents();
@@ -201,6 +211,23 @@ describe('AdminCreateInvoiceComponent (#544 create-invoice modal)', () => {
     expect(done).toContain('Custom Rate Builder');
     (q('create-invoice-close') as HTMLButtonElement).click();
     expect(ref.close).toHaveBeenCalledWith(true);
+  });
+
+  it('links to the created invoice instead of printing its UUID (#538)', async () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    await fillValidForm();
+    component.startReview();
+    await fixture.whenStable();
+    (q('create-invoice-confirm') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    const done = q('create-invoice-done') as HTMLElement;
+    expect(done.querySelector('ui-entity-link')?.textContent).toContain('View invoice');
+    expect(done.textContent).not.toContain(INVOICE_RESPONSE.invoiceId);
+    component.openInvoice(INVOICE_RESPONSE.invoiceId);
+    expect(ref.close).toHaveBeenCalledWith(true);
+    expect(navigate).toHaveBeenCalledWith(['/admin/billing/invoices'], {
+      queryParams: { open: INVOICE_RESPONSE.invoiceId },
+    });
   });
 
   it('keeps a friendly server error inline on the review step', async () => {

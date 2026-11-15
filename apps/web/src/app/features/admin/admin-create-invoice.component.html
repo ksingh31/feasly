@@ -5,6 +5,19 @@
       <p class="create-invoice__context">{{ selectedBuilderName() }} · {{ selectedLead()?.label }}</p>
       <dl class="create-invoice__compare">
         <div class="create-invoice__row">
+          <dt>Invoice</dt>
+          <dd>
+            <ui-entity-link
+              [entityId]="invoice.invoiceId"
+              [label]="entityCopy.viewInvoice"
+              kind="invoice"
+              [copyLabel]="entityCopy.copyId"
+              [copiedLabel]="entityCopy.idCopied"
+              (opened)="openInvoice($event)"
+            />
+          </dd>
+        </div>
+        <div class="create-invoice__row">
           <dt>Status</dt>
           <dd><ui-status-chip domain="invoice" [status]="invoice.status" /></dd>
         </div>

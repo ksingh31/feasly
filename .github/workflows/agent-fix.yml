@@ -95,7 +95,17 @@ jobs:
           REASON: ${{ inputs.reason }}
         run: |
           # Usage limit / overload is transient: wait and retry without counting it.
-          if [ -n "$EXEC" ] && [ -f "$EXEC" ] && grep -qiE 'rate.?limit|usage limit|overloaded|529|quota' "$EXEC"; then
+          # Judge only the final result entry (a $0 run never reached the model);
+          # grepping the whole transcript matched issue numbers like #529.
+          cap=0
+          if [ -n "$EXEC" ] && [ -f "$EXEC" ]; then
+            if jq -e 'map(select(.type=="result")) | last | . != null and ((.total_cost_usd // 0) == 0)' "$EXEC" >/dev/null 2>&1; then
+              cap=1
+            elif jq -r 'map(select(.type=="result")) | last | (.result // "")' "$EXEC" 2>/dev/null | grep -qiE 'rate.?limit|usage limit|overloaded|\b529\b|quota'; then
+              cap=1
+            fi
+          fi
+          if [ "$cap" = 1 ]; then
             echo "transient model capacity error — retrying in 10 min"; sleep 600
             gh workflow run agent-fix.yml -R "$GITHUB_REPOSITORY" -f pr="$PR" -f reason="$REASON (retry after capacity error)"
             exit 0

@@ -1,0 +1,82 @@
+<div class="admin-palette">
+  <label class="sr-only" id="admin-palette-title" for="admin-palette-input">{{ copy.title }}</label>
+  <div class="admin-palette__field">
+    <svg class="admin-palette__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+      <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    </svg>
+    <input
+      id="admin-palette-input"
+      class="admin-palette__input"
+      type="text"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-controls="admin-palette-list"
+      aria-describedby="admin-palette-status"
+      [attr.aria-expanded]="status() === 'hits'"
+      [attr.aria-activedescendant]="activeId()"
+      [attr.maxlength]="maxQuery"
+      [placeholder]="copy.placeholder"
+      [value]="query()"
+      autocomplete="off"
+      spellcheck="false"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+    />
+    <button type="button" class="admin-palette__close" (click)="close()">
+      <kbd>{{ copy.escKey }}</kbd><span class="sr-only">&nbsp;{{ copy.close }}</span>
+    </button>
+  </div>
+
+  <div class="admin-palette__body">
+    <div class="admin-palette__list" id="admin-palette-list" role="listbox" [attr.aria-label]="copy.resultsLabel">
+      @for (group of groups(); track group.kind) {
+        <div role="group" class="admin-palette__group" [attr.aria-labelledby]="'admin-palette-group-' + group.kind">
+          <div class="admin-palette__group-label" role="presentation" [id]="'admin-palette-group-' + group.kind">
+            {{ group.label }}
+          </div>
+          @for (row of group.hits; track row.hit.kind + row.hit.id) {
+            <div
+              role="option"
+              class="admin-palette__option"
+              [id]="optionId(row.index)"
+              [class.admin-palette__option--active]="row.index === activeIndex()"
+              [attr.aria-selected]="row.index === activeIndex()"
+              [attr.data-kind]="row.hit.kind"
+              (mousedown)="onOptionPointerDown($event, row.hit)"
+              (mouseenter)="activeIndex.set(row.index)"
+            >
+              <span class="admin-palette__label">{{ row.hit.label }}</span>
+              @if (row.hit.sublabel) {
+                <span class="admin-palette__sublabel">{{ row.hit.sublabel }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <p class="admin-palette__state" id="admin-palette-status" role="status" aria-live="polite">
+      @switch (status()) {
+        @case ('empty') {
+          {{ copy.hint }}
+        }
+        @case ('loading') {
+          {{ copy.loading }}
+        }
+        @case ('none') {
+          {{ copy.noResults }}
+        }
+        @case ('error') {
+          {{ copy.error }}
+          <button type="button" class="admin-palette__retry" (click)="retry()">{{ copy.retry }}</button>
+        }
+        @case ('hits') {
+          <span class="sr-only">{{ copy.navHint }}</span>
+        }
+      }
+    </p>
+  </div>
+
+  <p class="admin-palette__footer" aria-hidden="true">{{ copy.navHint }}</p>
+</div>

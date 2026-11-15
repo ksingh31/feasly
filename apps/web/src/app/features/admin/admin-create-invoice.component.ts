@@ -2,11 +2,13 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { Subject, debounceTime, distinctUntilChanged, startWith } from 'rxjs';
 import type { AdminLeadListItem, Builder, ManualInvoiceRequest, ManualInvoiceResponse } from '@feasly/contracts';
 import {
   EntityComboboxComponent,
+  EntityLinkComponent,
   type EntityOption,
   KitDateTimePipe,
   KitMoneyPipe,
@@ -23,6 +25,7 @@ import { todayLocalDateString } from '../../shared/utils/datetime';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { BillingHealthState } from './billing-health.state';
+import { openAdminEntity } from './admin-entity-routes';
 import {
   ClearInvoiceLeads,
   CreateManualInvoice,
@@ -88,6 +91,7 @@ export function leadOption(lead: AdminLeadListItem): EntityOption {
     UiModalComponent,
     UiButtonComponent,
     EntityComboboxComponent,
+    EntityLinkComponent,
     UiMoneyFieldComponent,
     UiDateFieldComponent,
     StatusChipComponent,
@@ -102,6 +106,9 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ref = inject<DialogRef<boolean>>(DialogRef, { optional: true });
+  private readonly router = inject(Router);
+
+  protected readonly entityCopy = this.config.get('copy').admin.entities;
 
   readonly builders = this.store.selectSignal(AdminBuildersState.builders);
   readonly listStatus = this.store.selectSignal(AdminBuildersState.listStatus);
@@ -252,6 +259,12 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
       contractSignedAt: toIsoWithOffset(signedAt),
     };
     this.store.dispatch(new CreateManualInvoice(body)).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+  }
+
+  /** EntityLink (#538): close the modal, then open the new invoice's drawer. */
+  openInvoice(id: string): void {
+    this.close();
+    openAdminEntity(this.router, 'invoice', id);
   }
 
   /** Closes with `true` once an invoice was created, so the page can react. */

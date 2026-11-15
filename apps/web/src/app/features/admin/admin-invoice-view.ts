@@ -17,6 +17,7 @@ import {
   MANUAL_PAYMENT_METHOD_LABELS,
   PLANNED_PAYMENT_METHOD_LABELS,
 } from './admin-billing-api.service';
+import { humanisePayload } from './admin-disputes-view';
 
 /** Rate range the backend accepts for a per-invoice override (percent). */
 export const INVOICE_RATE_MIN_EXCLUSIVE = 0;
@@ -89,16 +90,23 @@ function eventTone(type: string): TimelineEvent['tone'] {
   return 'info';
 }
 
-/** Billing audit rows (the dispute's audit trail) → timeline events. */
+/**
+ * Billing audit rows (the dispute's audit trail) → timeline events.
+ * Payloads are humanised (money formatted, raw ids dropped — #538: ids
+ * only appear in the Technical IDs section).
+ */
 export function auditTrailToTimeline(events: readonly BillingEvent[]): TimelineEvent[] {
-  return events.map((e) => ({
-    id: e.id,
-    at: e.createdAt,
-    type: e.eventType,
-    ...(EVENT_TITLES[e.eventType] ? { title: EVENT_TITLES[e.eventType] } : {}),
-    tone: eventTone(e.eventType),
-    ...(e.payload ? { payload: e.payload } : {}),
-  }));
+  return events.map((e) => {
+    const details = humanisePayload(e.payload);
+    return {
+      id: e.id,
+      at: e.createdAt,
+      type: e.eventType,
+      ...(EVENT_TITLES[e.eventType] ? { title: EVENT_TITLES[e.eventType] } : {}),
+      tone: eventTone(e.eventType),
+      ...(details ? { payload: details } : {}),
+    };
+  });
 }
 
 /**

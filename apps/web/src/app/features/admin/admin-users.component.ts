@@ -2,10 +2,14 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   Injector,
   OnInit,
+  signal,
+  untracked,
 } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
@@ -20,6 +24,8 @@ import type {
 import {
   type UiDrawerRef,
   type UiRowAction,
+  UI_DRAWER_URL_PARAM,
+  injectDrawerParam,
   UiConfirmService,
   UiDrawerService,
   UiRowActionsComponent,
@@ -98,6 +104,8 @@ export class AdminUsersComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly drawers = inject(UiDrawerService);
   private readonly confirms = inject(UiConfirmService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly users = this.store.selectSignal(AdminUsersState.users);
   protected readonly total = this.store.selectSignal(AdminUsersState.total);
@@ -151,8 +159,45 @@ export class AdminUsersComponent implements OnInit {
 
   private drawerRef: UiDrawerRef<boolean, AdminUserEditDrawerComponent> | null = null;
 
+  /** `?open=<id>` — the user whose edit drawer is open (⌘K hits, #538). */
+  protected readonly openId = injectDrawerParam();
+  /** The first LoadAdminUsers on this page has settled (rows are current). */
+  private readonly loaded = signal(false);
+
+  constructor() {
+    // ⌘K hits, EntityLinks and Back/Forward drive the edit drawer off the
+    // URL once the list is loaded; a param naming an unknown user is dropped.
+    effect(() => {
+      const id = this.openId();
+      const ready = this.loaded() && this.manageUsersSignal();
+      untracked(() => this.syncDrawer(id, ready));
+    });
+  }
+
   ngOnInit(): void {
-    this.store.dispatch([new LoadAdminUsers(), new LoadBuilders()]);
+    this.store
+      .dispatch(new LoadAdminUsers())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loaded.set(true),
+        error: () => this.loaded.set(true),
+      });
+    this.store.dispatch(new LoadBuilders());
+  }
+
+  private syncDrawer(id: string | null, ready: boolean): void {
+    if (id === null || !ready || this.drawers.openDrawer?.urlId === id) return;
+    const user = this.users().find((u) => u.id === id);
+    if (!user) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { [UI_DRAWER_URL_PARAM]: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+      return;
+    }
+    this.openEdit(user);
   }
 
   // ------------------------------------------------------------- invite
@@ -257,6 +302,7 @@ export class AdminUsersComponent implements OnInit {
       {
         data: { userId: user.id, lockStaffRole: this.isSoleStaffAdmin(user) },
         size: 'md',
+        urlId: user.id,
         injector: this.injector,
       },
     );
@@ -332,7 +378,7 @@ export class AdminUsersComponent implements OnInit {
   protected builderName(builderId: string): string {
     const builders: Builder[] = this.builders();
     return (
-      builders.find((b) => b.id === builderId)?.displayName ?? builderId
+      builders.find((b) => b.id === builderId)?.displayName ?? '—'
     );
   }
 

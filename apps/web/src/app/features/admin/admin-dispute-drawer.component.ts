@@ -11,6 +11,7 @@ import {
   KeyValueListComponent,
   SkeletonComponent,
   StatusChipComponent,
+  TechnicalIdsComponent,
   TimelineComponent,
   UiButtonComponent,
   UiConfirmService,
@@ -18,12 +19,14 @@ import {
   UiDrawerRef,
   UiToastService,
 } from '@app/shared/ui';
+import { ConfigService } from '../../core/config/config.service';
 import { formatEdmontonDateTime } from '../../shared/utils/edmonton';
 import { formatCentsToCad } from '../../shared/utils/money';
 import {
   acceptConfirmOptions,
   disputeEvidenceItems,
   disputeSlaChip,
+  disputeTechnicalIds,
   disputeTimeline,
   rejectConfirmOptions,
 } from './admin-disputes-view';
@@ -34,13 +37,12 @@ import {
 } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { openAdminEntity } from './admin-entity-routes';
 
 export interface AdminDisputeDrawerData {
   readonly disputeId: string;
 }
 
-/** Admin invoice detail route prefix (the Invoice EntityLink target). */
-const INVOICE_ROUTE = ['/admin', 'billing', 'invoices'] as const;
 /** Mirrors the API's note limit (ResolveDisputeRequest). */
 const NOTE_MAX_LENGTH = 2000;
 
@@ -67,6 +69,7 @@ const NOTE_MAX_LENGTH = 2000;
     KeyValueListComponent,
     TimelineComponent,
     EntityLinkComponent,
+    TechnicalIdsComponent,
     SkeletonComponent,
     ErrorStateComponent,
   ],
@@ -81,6 +84,9 @@ export class AdminDisputeDrawerComponent {
   private readonly toasts = inject(UiToastService);
   private readonly ref = inject(UiDrawerRef, { optional: true });
   private readonly data = inject<AdminDisputeDrawerData>(DIALOG_DATA);
+
+  /** EntityLink + Technical IDs copy (#538). */
+  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
 
   protected readonly disputeId = this.data.disputeId;
   protected readonly noteMaxLength = NOTE_MAX_LENGTH;
@@ -116,7 +122,7 @@ export class AdminDisputeDrawerComponent {
 
   protected readonly heading = computed(() => {
     const item = this.detail() ?? this.listItem();
-    return item ? `Dispute on ${item.invoiceId}` : 'Dispute';
+    return item ? `Dispute · ${item.tenantKey}` : 'Dispute';
   });
 
   protected readonly sla = computed(() => {
@@ -146,6 +152,12 @@ export class AdminDisputeDrawerComponent {
     return d ? disputeEvidenceItems(d.evidenceSnapshot) : [];
   });
 
+  /** Raw ids, only inside the collapsed Technical IDs section (#538). */
+  protected readonly technicalIds = computed(() => {
+    const d = this.detail();
+    return d ? disputeTechnicalIds(d) : [];
+  });
+
   protected readonly timeline = computed(() => {
     const d = this.detail();
     return d ? disputeTimeline(d.auditTrail) : [];
@@ -165,7 +177,11 @@ export class AdminDisputeDrawerComponent {
   }
 
   protected openInvoice(invoiceId: string): void {
-    void this.router.navigate([...INVOICE_ROUTE, invoiceId]);
+    openAdminEntity(this.router, 'invoice', invoiceId);
+  }
+
+  protected openLead(leadId: string): void {
+    openAdminEntity(this.router, 'lead', leadId);
   }
 
   protected accept(): void {
@@ -175,7 +191,7 @@ export class AdminDisputeDrawerComponent {
       .confirm(acceptConfirmOptions(d))
       .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
       .subscribe(() =>
-        this.resolve(new AcceptAdminDispute(d.id, this.noteOrUndefined()), `Dispute accepted — invoice ${d.invoiceId} voided`),
+        this.resolve(new AcceptAdminDispute(d.id, this.noteOrUndefined()), `Dispute accepted — ${d.tenantKey} invoice voided`),
       );
   }
 
@@ -186,7 +202,7 @@ export class AdminDisputeDrawerComponent {
       .confirm(rejectConfirmOptions(d))
       .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
       .subscribe(() =>
-        this.resolve(new RejectAdminDispute(d.id, this.noteOrUndefined()), `Dispute rejected — invoice ${d.invoiceId} back in review`),
+        this.resolve(new RejectAdminDispute(d.id, this.noteOrUndefined()), `Dispute rejected — ${d.tenantKey} invoice back in review`),
       );
   }
 

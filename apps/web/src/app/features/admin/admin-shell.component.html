@@ -87,21 +87,16 @@
 
       <div class="admin-topbar__search">
         <button
-          #searchButton
           type="button"
           class="admin-topbar__search-button"
-          aria-describedby="admin-search-hint"
-          (click)="showSearchHint()"
-          (blur)="hideSearchHint()"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="paletteOpen()"
+          [attr.aria-keyshortcuts]="copy.searchKeyShortcuts"
+          (click)="openPalette()"
         >
           <span class="admin-topbar__search-label">{{ copy.searchLabel }}</span>
           <kbd class="admin-topbar__kbd">{{ copy.searchShortcut }}</kbd>
         </button>
-        <p id="admin-search-hint" class="admin-topbar__search-hint" role="status">
-          @if (searchHintVisible()) {
-            {{ copy.searchComingSoon }}
-          }
-        </p>
       </div>
 
       @if (environmentLabel) {
