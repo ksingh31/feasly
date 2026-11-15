@@ -91,6 +91,7 @@ export async function mcpHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
     },
     () => app.mcpRoute.handle(headers, req.body),
   );
