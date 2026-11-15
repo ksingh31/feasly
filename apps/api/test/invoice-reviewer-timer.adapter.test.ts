@@ -96,6 +96,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     },
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
+    retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     refundPaymentIntent: async (paymentIntentId) => ({
       id: 're_test',
       status: 'succeeded',
@@ -157,6 +158,7 @@ function newRealService(testDb: TestDb, stripe: StripeService): {
       billing: BILLING,
       commission,
       audit,
+      stripe,
     }),
     commission,
   };

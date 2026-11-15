@@ -1882,12 +1882,15 @@ export function createComposition(
       audit: billingAuditService,
       commission: commissionService,
       flatPlan: flatPlanService,
+      email: emailService,
+      opsInbox: config.email.opsInbox,
     });
   const invoiceReviewerService: InvoiceReviewerService =
     createInvoiceReviewerService({
       billing: config.billing,
       commission: commissionService,
       audit: billingAuditService,
+      stripe: stripeService,
     });
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,

@@ -10,17 +10,43 @@
  * a manual method pauses the auto-charge until staff marks the invoice
  * paid.
  *
+ * Reconciliation (#711): after finalizing, every invoice that has sat
+ * 'finalized' (charge in progress) longer than
+ * BILLING_SETTLEMENT_THRESHOLD_HOURS is checked against Stripe — the
+ * webhook that should have settled it may never have landed. The
+ * PaymentIntent's real status settles it: `succeeded` → paid,
+ * `requires_payment_method` / `canceled` → failed (dunning), anything else
+ * (`processing`, `requires_action`, …) stays pending. Settlement audit rows
+ * carry `source: 'reconciliation'`. Read-only against Stripe.
+ *
  * Never lets one bad invoice kill the batch: per-invoice errors are
  * collected and returned (the timer logs aggregates, never PII).
  */
 import type { BillingConfig } from '../../config';
 import type { CommissionService } from './commission.service';
 import type { BillingAuditService } from './billing-audit.service';
+import type { StripeService } from './stripe.service';
+
+/** Default hours before a 'finalized' invoice is reconciled (#711). */
+const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
+const HOUR_MS = 60 * 60 * 1000;
+
+/** PaymentIntent statuses that mean the charge definitively failed. */
+const FAILED_PI_STATUSES: ReadonlySet<string> = new Set([
+  'requires_payment_method',
+  'canceled',
+]);
 
 export interface InvoiceReviewerResult {
   readonly finalized: number;
   readonly skipped: number;
   readonly failed: number;
+  /** #711: stuck 'finalized' invoices settled paid from Stripe. */
+  readonly reconciledPaid: number;
+  /** #711: stuck 'finalized' invoices settled failed from Stripe. */
+  readonly reconciledFailed: number;
+  /** #711: stuck invoices whose PaymentIntent is still in flight. */
+  readonly stillPending: number;
   readonly errors: ReadonlyArray<{ invoiceId: string; message: string }>;
 }
 
@@ -33,19 +59,87 @@ export interface InvoiceReviewerServiceDeps {
   readonly billing: BillingConfig;
   readonly commission: CommissionService;
   readonly audit: BillingAuditService;
+  /** Read-only PaymentIntent lookup for reconciliation (#711). */
+  readonly stripe: Pick<StripeService, 'retrievePaymentIntent'>;
 }
 
 export function createInvoiceReviewerService(
   deps: InvoiceReviewerServiceDeps,
 ): InvoiceReviewerService {
-  const { billing, commission, audit } = deps;
+  const { billing, commission, audit, stripe } = deps;
+
+  interface ReconcileResult {
+    reconciledPaid: number;
+    reconciledFailed: number;
+    stillPending: number;
+    failed: number;
+    errors: Array<{ invoiceId: string; message: string }>;
+  }
+
+  async function reconcile(
+    reviewNow: Date,
+    // Invoices finalized in THIS cycle are never stuck — skip them even if
+    // the threshold is tiny.
+    justFinalized: ReadonlySet<string>,
+  ): Promise<ReconcileResult> {
+    const thresholdHours =
+      billing.settlementThresholdHours ?? DEFAULT_SETTLEMENT_THRESHOLD_HOURS;
+    const cutoff = new Date(reviewNow.getTime() - thresholdHours * HOUR_MS);
+    const stuck = (await commission.findAwaitingSettlement(cutoff)).filter(
+      (invoice) => !justFinalized.has(invoice.id),
+    );
+    const result: ReconcileResult = {
+      reconciledPaid: 0,
+      reconciledFailed: 0,
+      stillPending: 0,
+      failed: 0,
+      errors: [],
+    };
+    for (const invoice of stuck) {
+      const piId = invoice.stripePaymentIntentId;
+      if (piId === null) continue;
+      try {
+        const intent = await stripe.retrievePaymentIntent(piId);
+        if (intent.status === 'succeeded') {
+          await commission.markPaidByPaymentIntent(piId, {
+            source: 'reconciliation',
+          });
+          result.reconciledPaid += 1;
+        } else if (FAILED_PI_STATUSES.has(intent.status)) {
+          await commission.markFailedByPaymentIntent(
+            piId,
+            intent.lastPaymentErrorMessage,
+            { source: 'reconciliation' },
+          );
+          result.reconciledFailed += 1;
+        } else {
+          result.stillPending += 1;
+        }
+      } catch (error) {
+        result.failed += 1;
+        result.errors.push({
+          invoiceId: invoice.id,
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    return result;
+  }
 
   return {
     async runReviewCycle(reviewNow: Date): Promise<InvoiceReviewerResult> {
       // The reviewer only charges under the commission model — under 'flat'
       // the cycle is a no-op (flat charges run through Stripe subscriptions).
       if (billing.model !== 'commission') {
-        return { finalized: 0, skipped: 0, failed: 0, errors: [] };
+        return {
+          finalized: 0,
+          skipped: 0,
+          failed: 0,
+          reconciledPaid: 0,
+          reconciledFailed: 0,
+          stillPending: 0,
+          errors: [],
+        };
       }
       const due = await commission.findDueReviews(reviewNow);
       // billing/12: manual-method invoices are skipped by findDueReviews
@@ -54,10 +148,12 @@ export function createInvoiceReviewerService(
       let finalized = 0;
       let failed = 0;
       const errors: Array<{ invoiceId: string; message: string }> = [];
+      const justFinalized = new Set<string>();
 
       for (const invoice of due) {
         try {
           await commission.finalizeInvoice(invoice.id);
+          justFinalized.add(invoice.id);
           finalized += 1;
         } catch (error) {
           failed += 1;
@@ -69,15 +165,36 @@ export function createInvoiceReviewerService(
         }
       }
 
+      const reconciled = await reconcile(reviewNow, justFinalized);
+      failed += reconciled.failed;
+      errors.push(...reconciled.errors);
+      const { reconciledPaid, reconciledFailed, stillPending } = reconciled;
+
       await audit.append({
         tenantKey: null,
         eventType: 'reviewer.cycle_completed',
         entityType: 'invoice_reviewer',
         entityId: `cycle-${reviewNow.toISOString()}`,
-        payload: { finalized, skipped, failed, due: due.length },
+        payload: {
+          finalized,
+          skipped,
+          failed,
+          due: due.length,
+          reconciledPaid,
+          reconciledFailed,
+          stillPending,
+        },
       });
 
-      return { finalized, skipped, failed, errors };
+      return {
+        finalized,
+        skipped,
+        failed,
+        reconciledPaid,
+        reconciledFailed,
+        stillPending,
+        errors,
+      };
     },
   };
 }

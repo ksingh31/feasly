@@ -1,5 +1,9 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Store } from '@ngxs/store';
+import type {
+  BillingHealthAwaitingSettlementInvoice,
+  BillingHealthUnprocessedEvent,
+} from '@feasly/contracts';
 import {
   type DataTableColumn,
   DataTableComponent,
@@ -31,6 +35,10 @@ interface WebhookTypeRow {
  * page map (docs/reviews/2026-11-13-admin.md): a health chip, KPI tiles
  * (received / unhandled / model mismatches, trailing 24h), an
  * unhandled-types alert, and the event-type DataTable. Read-only.
+ *
+ * #711: also lists events received but not processed (the handler threw
+ * and no redelivery has succeeded) and commission invoices awaiting
+ * settlement past the threshold — each with an empty state when clear.
  *
  * Data comes from the existing billing-health payload
  * (`GET /api/v1/admin/billing` → `webhooks`) via BillingHealthState — no
@@ -70,12 +78,26 @@ export class AdminWebhooksComponent implements OnInit {
 
   protected readonly webhooks = computed(() => this.health()?.webhooks ?? null);
 
-  /** Header chip: problem on model mismatches, attention on unhandled types. */
+  /** #711: recorded-but-unprocessed events (oldest first, from the API). */
+  protected readonly unprocessedRows = computed<readonly BillingHealthUnprocessedEvent[]>(
+    () => this.webhooks()?.unprocessed ?? [],
+  );
+
+  /** #711: invoices finalized past the settlement threshold. */
+  protected readonly awaitingRows = computed<readonly BillingHealthAwaitingSettlementInvoice[]>(
+    () => this.webhooks()?.awaitingSettlement ?? [],
+  );
+
+  /**
+   * Header chip: problem on model mismatches or unprocessed events (money
+   * may have moved without the invoice changing); attention on unhandled
+   * types or invoices awaiting settlement.
+   */
   protected readonly flag = computed(() => {
     const w = this.webhooks();
     if (!w) return null;
-    if (w.modelMismatch24h > 0) return 'problem';
-    return w.unhandled24h > 0 ? 'attention' : 'ok';
+    if (w.modelMismatch24h > 0 || this.unprocessedRows().length > 0) return 'problem';
+    return w.unhandled24h > 0 || this.awaitingRows().length > 0 ? 'attention' : 'ok';
   });
 
   /** Busiest event types first. */
@@ -90,6 +112,20 @@ export class AdminWebhooksComponent implements OnInit {
     { key: 'count', header: 'Events (24h)', kind: 'count' },
   ];
   protected readonly rowId = (row: WebhookTypeRow): string => row.type;
+
+  protected readonly unprocessedColumns: readonly DataTableColumn<BillingHealthUnprocessedEvent>[] = [
+    { key: 'eventId', header: 'Event', kind: 'id', cardRole: 'title' },
+    { key: 'type', header: 'Event type', kind: 'id', cardRole: 'meta' },
+    { key: 'receivedAt', header: 'Received', kind: 'date', cardRole: 'meta' },
+  ];
+  protected readonly unprocessedId = (row: BillingHealthUnprocessedEvent): string => row.eventId;
+
+  protected readonly awaitingColumns: readonly DataTableColumn<BillingHealthAwaitingSettlementInvoice>[] = [
+    { key: 'tenantKey', header: 'Builder', kind: 'id', cardRole: 'title' },
+    { key: 'commissionCents', header: 'Amount', kind: 'money', cardRole: 'meta' },
+    { key: 'awaitingSince', header: 'Charge started', kind: 'date', cardRole: 'meta' },
+  ];
+  protected readonly awaitingId = (row: BillingHealthAwaitingSettlementInvoice): string => row.id;
 
   ngOnInit(): void {
     this.refresh();

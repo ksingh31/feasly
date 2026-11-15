@@ -31,6 +31,18 @@ export interface CardSummary {
   readonly expYear: number;
 }
 
+/**
+ * A PaymentIntent's settlement-relevant state (#711 reconciliation).
+ * `status` is Stripe's raw status string (`succeeded`, `processing`,
+ * `requires_payment_method`, `canceled`, …).
+ */
+export interface PaymentIntentStatus {
+  readonly id: string;
+  readonly status: string;
+  /** `last_payment_error.message` when Stripe recorded a decline. */
+  readonly lastPaymentErrorMessage?: string;
+}
+
 /** Normalized Stripe webhook event — the fields billing cares about. */
 export interface NormalizedStripeEvent {  readonly id: string;
   readonly type: string;
@@ -87,6 +99,11 @@ export interface StripeClient {
     paymentIntentId: string,
     idempotencyKey: string,
   ): Promise<{ id: string; status: string }>;
+  /**
+   * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
+   * never confirms, captures, or cancels.
+   */
+  retrievePaymentIntent(paymentIntentId: string): Promise<PaymentIntentStatus>;
   createSubscription(input: {
     customerId: string;
     priceId: string;
@@ -143,6 +160,11 @@ export interface StripeService {
     paymentIntentId: string,
     idempotencyKey: string,
   ): Promise<{ id: string; status: string }>;
+  /**
+   * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
+   * never confirms, captures, or cancels.
+   */
+  retrievePaymentIntent(paymentIntentId: string): Promise<PaymentIntentStatus>;
   /**
    * Verify the webhook signature and normalize the event. Throws
    * INVALID_SIGNATURE (401) on a bad signature — never a 500.
@@ -292,6 +314,17 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       );
       return { id: refund.id, status: refund.status ?? 'unknown' };
     },
+    async retrievePaymentIntent(paymentIntentId) {
+      const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const message = intent.last_payment_error?.message;
+      return {
+        id: intent.id,
+        status: intent.status,
+        ...(typeof message === 'string' && message.length > 0
+          ? { lastPaymentErrorMessage: message }
+          : {}),
+      };
+    },
     constructWebhookEvent(rawBody, signature, webhookSecret) {
       const event = stripe.webhooks.constructEvent(
         rawBody,
@@ -341,6 +374,8 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
       requireClient().cancelSubscription(subscriptionId),
     refundPaymentIntent: (paymentIntentId, idempotencyKey) =>
       requireClient().refundPaymentIntent(paymentIntentId, idempotencyKey),
+    retrievePaymentIntent: (paymentIntentId) =>
+      requireClient().retrievePaymentIntent(paymentIntentId),
 
     verifyWebhook(rawBody: Buffer, signature: string): NormalizedStripeEvent {
       const webhookSecret = billing.stripeWebhookSecret;
