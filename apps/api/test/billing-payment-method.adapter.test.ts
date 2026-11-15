@@ -16,6 +16,7 @@ import { createBillingRoute } from '../src/routes/billing.route';
 import type { BillingService } from '../src/services/billing/billing.service';
 import type { BuilderGuard } from '../src/middleware/builder-guard';
 import type { AdminGuard } from '../src/middleware/admin-guard';
+import type { InvoicePdfService } from '../src/services/billing/invoice-pdf.service';
 import type { CommissionCardService } from '../src/services/billing/commission-card.service';
 
 interface FakeProblem {
@@ -136,6 +137,7 @@ function wireRoute(): {
   fakeApp.billingRoute = createBillingRoute({
     billing,
     commissionCard: {} as unknown as CommissionCardService,
+    invoicePdf: {} as unknown as InvoicePdfService,
     builderGuard,
     adminGuard: {} as unknown as AdminGuard,
   });

@@ -109,21 +109,34 @@
       </section>
     }
 
-    @if (inv.status === 'failed' || questionHref) {
-      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-actions">
-        <h3 id="invoice-drawer-actions" class="invoice-drawer__heading">{{ t.actionsHeading }}</h3>
-        <div class="invoice-drawer__actions">
-          @if (inv.status === 'failed') {
-            <a ui-button routerLink="/builder/billing" data-testid="invoice-update-card">{{ copy.invoicesUpdateCardCta }}</a>
-          }
-          @if (questionHref) {
-            <a ui-button variant="secondary" data-testid="invoice-question" [href]="questionHref">{{
-              t.questionInvoice
-            }}</a>
-          }
-        </div>
-      </section>
-    }
+    <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-actions">
+      <h3 id="invoice-drawer-actions" class="invoice-drawer__heading">{{ t.actionsHeading }}</h3>
+      <div class="invoice-drawer__actions">
+        @if (inv.status === 'failed') {
+          <a ui-button routerLink="/builder/billing" data-testid="invoice-update-card">{{ copy.invoicesUpdateCardCta }}</a>
+        }
+        <button
+          type="button"
+          ui-button
+          variant="secondary"
+          data-testid="invoice-download-pdf"
+          [attr.aria-label]="downloadAria()"
+          [attr.aria-busy]="pdfDownloading()"
+          [disabled]="pdfDownloading()"
+          (click)="downloadPdf()"
+        >
+          {{ pdfDownloading() ? t.downloadingPdf : t.downloadPdf }}
+        </button>
+        @if (questionHref) {
+          <a ui-button variant="secondary" data-testid="invoice-question" [href]="questionHref">{{
+            t.questionInvoice
+          }}</a>
+        }
+      </div>
+      @if (pdfFailed()) {
+        <p class="invoice-drawer__note" role="alert" data-testid="invoice-download-error">{{ t.downloadPdfError }}</p>
+      }
+    </section>
   } @else if (loadFailed()) {
     <div class="invoice-drawer__error" role="alert">
       <p>{{ copy.invoicesLoadError }}</p>

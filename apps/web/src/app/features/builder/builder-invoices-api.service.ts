@@ -4,7 +4,7 @@ import { catchError, map, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type { CommissionInvoice } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { toApiError } from '../../core/api/api-error';
+import { toApiError, toBlobApiError } from '../../core/api/api-error';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 
 /**
@@ -152,6 +152,25 @@ export class BuilderInvoicesApiService {
         },
       ),
     );
+  }
+
+  /**
+   * Invoice PDF / receipt (#661): `GET /invoices/{id}/pdf`, rendered
+   * server-side from the same figures as the JSON read. Fetched as a blob
+   * (cookie auth can't ride a plain navigation to the API origin) with the
+   * export timeout — the PDF route can cold-start like the CSV export.
+   * Blob-aware error mapping reads the problem+json out of the Blob body.
+   */
+  downloadInvoicePdf(id: string): Observable<Blob> {
+    return this.http
+      .get(`${this.billingBase}/invoices/${encodeURIComponent(id)}/pdf`, {
+        withCredentials: true,
+        responseType: 'blob',
+      })
+      .pipe(
+        timeout(this.config.get('api').exportTimeoutMs),
+        catchError(toBlobApiError),
+      );
   }
 
   /**

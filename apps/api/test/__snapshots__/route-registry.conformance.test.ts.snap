@@ -155,6 +155,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "GET /api/v1/billing/invoices/{id}/pdf": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "GET /api/v1/billing/payment-method": [
     "super_admin",
     "admin",

@@ -1,7 +1,9 @@
+import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, makeEnvironmentProviders } from '@angular/core';
 import type { EnvironmentProviders } from '@angular/core';
-import { of } from 'rxjs';
+import { of, timer } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
+import { ConfigService } from '../../core/config/config.service';
 import { Action, NgxsOnInit, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import {
@@ -13,6 +15,7 @@ import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
   ClearInvoicesState,
   ClearInvoiceSelection,
+  DownloadInvoicePdf,
   LoadActionableInvoices,
   LoadInvoices,
   SelectInvoice,
@@ -53,6 +56,10 @@ export interface BuilderInvoicesStateModel {
    * means no filter. Persists across pagination; cleared with the state.
    */
   invoiceNumberFilter: string;
+  /** Invoice whose PDF is downloading (#661); null when none. */
+  pdfDownloadingId: string | null;
+  /** Invoice whose last PDF download failed; null after a success/retry. */
+  pdfErrorId: string | null;
 }
 
 const defaults: BuilderInvoicesStateModel = {
@@ -70,6 +77,8 @@ const defaults: BuilderInvoicesStateModel = {
   detailStatus: 'idle',
   paymentMethodSaveStatus: 'idle',
   invoiceNumberFilter: '',
+  pdfDownloadingId: null,
+  pdfErrorId: null,
 };
 
 /**
@@ -88,6 +97,8 @@ const defaults: BuilderInvoicesStateModel = {
 export class BuilderInvoicesState implements NgxsOnInit {
   private readonly api = inject(BuilderInvoicesApiService);
   private readonly copy = inject(BUILDER_COPY);
+  private readonly config = inject(ConfigService);
+  private readonly document = inject(DOCUMENT);
 
   ngxsOnInit(ctx: StateContext<BuilderInvoicesStateModel>): void {
     ctx.patchState({
@@ -168,6 +179,18 @@ export class BuilderInvoicesState implements NgxsOnInit {
   @Selector()
   static invoiceNumberFilter(state: BuilderInvoicesStateModel): string {
     return state.invoiceNumberFilter;
+  }
+
+  /** Invoice whose PDF is downloading (#661); null when none. */
+  @Selector()
+  static pdfDownloadingId(state: BuilderInvoicesStateModel): string | null {
+    return state?.pdfDownloadingId ?? null;
+  }
+
+  /** Invoice whose last PDF download failed (#661); null otherwise. */
+  @Selector()
+  static pdfErrorId(state: BuilderInvoicesStateModel): string | null {
+    return state?.pdfErrorId ?? null;
   }
 
   @Action(LoadInvoices)
@@ -304,9 +327,60 @@ export class BuilderInvoicesState implements NgxsOnInit {
     );
   }
 
+  /**
+   * Fetches the server-rendered invoice PDF and hands it to the browser as
+   * a download (#661). One download at a time; a failure is kept in state
+   * (per invoice) for the drawer to show, never thrown into the dispatch
+   * stream (that would land the builder on the global error page).
+   */
+  @Action(DownloadInvoicePdf)
+  downloadPdf(
+    ctx: StateContext<BuilderInvoicesStateModel>,
+    action: DownloadInvoicePdf,
+  ) {
+    if (ctx.getState().pdfDownloadingId !== null) {
+      return;
+    }
+    ctx.patchState({ pdfDownloadingId: action.id, pdfErrorId: null });
+    return this.api.downloadInvoicePdf(action.id).pipe(
+      tap((blob) => {
+        ctx.patchState({ pdfDownloadingId: null });
+        this.saveBlob(
+          blob,
+          this.copy.invoiceDrawer.pdfFilename.replace('{number}', action.invoiceNumber),
+        );
+      }),
+      catchError(() => {
+        ctx.patchState({ pdfDownloadingId: null, pdfErrorId: action.id });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(ClearInvoicesState)
   clear(ctx: StateContext<BuilderInvoicesStateModel>) {
     ctx.setState(defaults);
+  }
+
+  /**
+   * Triggers the browser download for a fetched blob. The object URL is
+   * revoked after a configured delay, not synchronously: revoking it in
+   * the same task as the click aborts the download in Safari/WebKit (same
+   * fix as the admin CSV export). `timer` completes after one emission, so
+   * nothing is left running.
+   */
+  private saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = this.document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    this.document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    timer(this.config.get('api').downloadRevokeDelayMs).subscribe(() =>
+      URL.revokeObjectURL(url),
+    );
   }
 }
 

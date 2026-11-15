@@ -340,6 +340,11 @@ const targets = [
     entry: 'src/functions/billing-invoice-get.ts',
     out: 'billing-invoice-get/index.js',
   },
+  // #661: builder invoice PDF/receipt download.
+  {
+    entry: 'src/functions/billing-invoice-pdf.ts',
+    out: 'billing-invoice-pdf/index.js',
+  },
   // BILL-04: paginated invoice list for the builder portal.
   {
     entry: 'src/functions/billing-invoice-list.ts',

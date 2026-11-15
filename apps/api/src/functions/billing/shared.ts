@@ -57,6 +57,11 @@ export async function dispatchBilling(
    * Adapters pass this; the registry is the single source of truth.
    */
   readonly path?: string;
+  /**
+   * #661: the result is `{ pdf: Buffer, filename }` — sent as raw
+   * `application/pdf` bytes with an attachment Content-Disposition.
+   */
+  readonly pdf?: boolean;
   },
 ): Promise<void> {
   const origin = req.headers?.['origin'];
@@ -108,6 +113,28 @@ export async function dispatchBilling(
         ...corsHeaders,
       },
       body: result,
+    };
+    return;
+  }
+
+  if (opts?.pdf === true && typeof result === 'object' && result !== null) {
+    const { pdf, filename } = result as {
+      readonly pdf: Buffer;
+      readonly filename: string;
+    };
+    context.res = {
+      status: 200,
+      headers: {
+        ...middleware.securityHeaders(),
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'private, no-store',
+        [CORRELATION_RESPONSE_HEADER]: correlationId,
+        ...corsHeaders,
+      },
+      // v3 model: isRaw keeps the Buffer as bytes (no JSON serialization).
+      isRaw: true,
+      body: pdf,
     };
     return;
   }

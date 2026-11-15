@@ -64,6 +64,8 @@ interface Setup {
   readonly invoice?: BuilderCommissionInvoice;
   readonly getFails?: boolean;
   readonly questionHref?: string;
+  /** #661: what the PDF download returns. */
+  readonly pdf?: Subject<Blob> | 'ok' | 'fail';
 }
 
 async function setup(options: Setup = {}) {
@@ -71,6 +73,12 @@ async function setup(options: Setup = {}) {
   let fail = options.getFails ?? false;
   const api = {
     getInvoice: vi.fn(() => (fail ? throwError(() => new Error('boom')) : of(inv))),
+    downloadInvoicePdf: vi.fn(() => {
+      const pdf = options.pdf ?? 'ok';
+      if (pdf === 'ok') return of(new Blob(['%PDF-1.4'], { type: 'application/pdf' }));
+      if (pdf === 'fail') return throwError(() => new Error('pdf failed'));
+      return pdf.asObservable();
+    }),
   };
   const modalClosed = new Subject<BuilderPaymentMethod | undefined>();
   const modals = { open: vi.fn(() => ({ closed: modalClosed.asObservable() })) };
@@ -253,5 +261,74 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     fixture.detectChanges();
     expect(api.getInvoice).toHaveBeenCalledTimes(2);
     expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('$6,850');
+  });
+
+  describe('Download PDF (#661)', () => {
+    function stubDownload() {
+      const createObjectURL = vi.fn(() => 'blob:invoice');
+      const revokeObjectURL = vi.fn();
+      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push(this.download);
+      });
+      const clicked: string[] = [];
+      return { createObjectURL, revokeObjectURL, click, clicked };
+    }
+
+    it('offers "Download PDF" for every invoice, named for the invoice', async () => {
+      for (const status of ['in_review', 'paid', 'failed', 'void'] as const) {
+        const { el } = await setup({ invoice: invoice({ status }) });
+        const btn = q(el, 'invoice-download-pdf') as HTMLButtonElement;
+        expect(btn.textContent?.trim()).toBe(T.downloadPdf);
+        expect(btn.getAttribute('aria-label')).toBe('Download PDF of invoice INV-0042');
+      }
+    });
+
+    it('fetches the server PDF and saves it as feasly-<number>.pdf', async () => {
+      const dl = stubDownload();
+      const { el, api, fixture } = await setup({ invoice: invoice({ status: 'paid', paidAt: iso(-1) }) });
+      (q(el, 'invoice-download-pdf') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(api.downloadInvoicePdf).toHaveBeenCalledWith('inv-1');
+      expect(dl.createObjectURL).toHaveBeenCalledTimes(1);
+      expect(dl.clicked).toEqual(['feasly-INV-0042.pdf']);
+      expect(q(el, 'invoice-download-error')).toBeNull();
+      dl.click.mockRestore();
+    });
+
+    it('disables the button while the PDF is being prepared', async () => {
+      const pending = new Subject<Blob>();
+      const dl = stubDownload();
+      const { el, api, fixture } = await setup({ pdf: pending });
+      const btn = q(el, 'invoice-download-pdf') as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+      expect(btn.disabled).toBe(true);
+      expect(btn.getAttribute('aria-busy')).toBe('true');
+      expect(btn.textContent?.trim()).toBe(T.downloadingPdf);
+      btn.click();
+      expect(api.downloadInvoicePdf).toHaveBeenCalledTimes(1);
+      pending.next(new Blob(['%PDF']));
+      pending.complete();
+      fixture.detectChanges();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent?.trim()).toBe(T.downloadPdf);
+      dl.click.mockRestore();
+    });
+
+    it('shows an inline error when the download fails, and clears it on retry', async () => {
+      const dl = stubDownload();
+      const { el, fixture, api } = await setup({ pdf: 'fail' });
+      (q(el, 'invoice-download-pdf') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(q(el, 'invoice-download-error')?.textContent).toContain(T.downloadPdfError);
+      expect(dl.clicked).toEqual([]);
+      api.downloadInvoicePdf.mockReturnValueOnce(of(new Blob(['%PDF'])));
+      (q(el, 'invoice-download-pdf') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(q(el, 'invoice-download-error')).toBeNull();
+      expect(dl.clicked).toEqual(['feasly-INV-0042.pdf']);
+      dl.click.mockRestore();
+    });
   });
 });
