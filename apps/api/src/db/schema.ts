@@ -20,6 +20,7 @@
  */
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -895,6 +896,28 @@ export const commissionInvoices = pgTable(
      * the invoice is unpaid.
      */
     paymentMethod: text('payment_method').notNull().default('card'),
+    /**
+     * Sales tax (#714, migration 0051) snapshotted at creation: the GST
+     * rate in PERCENT (5 = 5%). 0 = no tax (tax disabled, or a legacy row
+     * backfilled with zero tax). Changing BILLING_TAX_RATE never alters
+     * an existing invoice; a commission-rate override on an unpaid invoice
+     * recalculates tax at this snapshotted rate.
+     */
+    taxRatePercent: doublePrecision('tax_rate_percent').notNull().default(0),
+    /**
+     * Pricing mode snapshotted at creation: false = commission plus tax
+     * (`commission_cents` is the pre-tax subtotal); true = the commission
+     * includes tax (subtotal = total − tax).
+     */
+    taxInclusive: boolean('tax_inclusive').notNull().default(false),
+    /** Tax amount, integer cents. 0 when the invoice carries no tax. */
+    taxCents: integer('tax_cents').notNull().default(0),
+    /**
+     * commission_cents + tax_cents — the amount charged, integer cents.
+     * Expand step: nullable; migration 0051 backfilled existing rows with
+     * commission_cents. Readers fall back to commission + tax when null.
+     */
+    totalCents: integer('total_cents'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

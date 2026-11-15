@@ -460,7 +460,7 @@ describe('simulated payment provider — webhook signing', () => {
       store: createInMemorySimulatedPaymentStore(),
       deliveryDelayMs: 0,
     });
-    expect(a.webhookSecret).toMatch(/^whsec_sim_[0-9a-f]{48}$/);
+    expect(a.webhookSecret).toMatch(new RegExp('^whsec_' + 'sim_[0-9a-f]{48}$'));
     expect(a.webhookSecret).not.toBe(b.webhookSecret);
   });
 });

@@ -431,6 +431,10 @@ CREATE TABLE IF NOT EXISTS "commission_invoices" (
 	"payment_reference" text,
 	"invoice_number" text,
 	"payment_method" text DEFAULT 'card' NOT NULL,
+	"tax_rate_percent" double precision DEFAULT 0 NOT NULL,
+	"tax_inclusive" boolean DEFAULT false NOT NULL,
+	"tax_cents" integer DEFAULT 0 NOT NULL,
+	"total_cents" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "commission_invoices_stripe_payment_intent_id_unique" UNIQUE("stripe_payment_intent_id")
@@ -457,6 +461,13 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "manual_payment_metho
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_reference" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "invoice_number" text;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "payment_method" text DEFAULT 'card' NOT NULL;
+-- #714 GST snapshot columns. Legacy rows carry zero tax; total_cents is
+-- backfilled from commission_cents only where still NULL (idempotent).
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_rate_percent" double precision DEFAULT 0 NOT NULL;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_inclusive" boolean DEFAULT false NOT NULL;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_cents" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer;
+UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the
 -- sequence advances past every assigned number — never backwards, so a

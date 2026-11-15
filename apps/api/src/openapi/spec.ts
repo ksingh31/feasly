@@ -34,6 +34,7 @@ import {
   WaitlistResponseSchema,
   CallbackWindowSchema,
   CityDataFreshnessResponseSchema,
+  ZoningDistrictsResponseSchema,
   CommunityStatsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
@@ -138,6 +139,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
   registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
+  registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
   registry.register('RenoEstimateInputs', RenoEstimateInputsSchema);
@@ -636,6 +638,32 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Dataset freshness',
         content: {
           'application/json': { schema: CityDataFreshnessResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/zoning/districts (#687)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/zoning/districts',
+    summary: 'Get the zoning rules catalogue',
+    description:
+      'The active zoning rules catalogue for the configured city: for each ' +
+      'land-use district, the building forms typically allowed (permitted or ' +
+      'discretionary) and key rules (height, lot coverage, density), each ' +
+      'with its bylaw section. Only verified values are returned; an absent ' +
+      'rule means "see the City\'s bylaw". Confirm with the City at sourceUrl. ' +
+      'Public by design; cached (Cache-Control public).',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
+    responses: {
+      '200': {
+        description: 'Zoning rules catalogue',
+        content: {
+          'application/json': { schema: ZoningDistrictsResponseSchema },
         },
       },
       ...errorResponses(),

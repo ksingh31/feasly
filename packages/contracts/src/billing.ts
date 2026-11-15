@@ -28,8 +28,29 @@ export interface CommissionInvoice {
   readonly leadName: string;
   /** Signed construction contract value, integer cents, excl. land. */
   readonly contractValueCents: number;
-  /** round(contractValueCents * effectiveRate), integer cents. */
+  /**
+   * The pre-tax commission (invoice subtotal), integer cents. With
+   * commission-plus-tax pricing (the default) this is
+   * round(contractValueCents * effectiveRate).
+   */
   readonly commissionCents: number;
+  /*
+   * Sales tax (#714). The API always sends these; they are optional only so
+   * fixtures written before #714 keep compiling. Absent = no tax
+   * (subtotal = total = commissionCents).
+   */
+  /** Pre-tax subtotal, integer cents (same value as `commissionCents`). */
+  readonly subtotalCents?: number;
+  /** Tax rate snapshotted at invoice creation, in PERCENT (5 = 5%). 0 = no tax. */
+  readonly taxRatePercent?: number;
+  /** True when the commission was priced tax-inclusive. */
+  readonly taxInclusive?: boolean;
+  /** Tax amount, integer cents. */
+  readonly taxCents?: number;
+  /** subtotal + tax — the amount charged, integer cents. */
+  readonly totalCents?: number;
+  /** Tax label (e.g. "GST") when the invoice carries tax; null otherwise. */
+  readonly taxLabel?: string | null;
   readonly currency: string;
   /** Off-session PaymentIntent id — set at finalize. Null before. */
   readonly stripePaymentIntentId: string | null;
@@ -146,6 +167,10 @@ export interface SetCommissionRateResponse {
   readonly contractValueCents: number;
   /** round(contractValueCents * rate) after the override, integer cents. */
   readonly commissionCents: number;
+  /** Tax recalculated at the invoice's snapshotted rate (#714), integer cents. */
+  readonly taxCents?: number;
+  /** commission + tax after the override (#714), integer cents. */
+  readonly totalCents?: number;
   readonly currency: string;
 }
 
@@ -364,6 +389,10 @@ export interface ManualInvoiceResponse {
   readonly leadId: string;
   readonly contractValueCents: number;
   readonly commissionCents: number;
+  /** Tax amount (#714), integer cents. */
+  readonly taxCents?: number;
+  /** commission + tax (#714), integer cents. */
+  readonly totalCents?: number;
   readonly currency: string;
   /** ISO 8601 — end of the builder's review/dispute window. */
   readonly reviewDueAt: string | null;
@@ -394,7 +423,7 @@ export interface BillingOverviewFailedInvoice {
 export interface BillingOverviewNextCharge {
   readonly invoiceId: string;
   readonly invoiceNumber: string;
-  /** Amount to be charged, integer cents. */
+  /** Amount to be charged (commission + tax, #714), integer cents. */
   readonly amountCents: number;
   /** ISO 8601 — end of the review window, when the charge runs. */
   readonly chargeAt: string;
@@ -416,7 +445,7 @@ export interface BuilderBillingOverviewResponse {
   readonly commissionRatePercent: number | null;
   readonly currency: string;
   /**
-   * Sum of commission still owed across unpaid invoices (draft,
+   * Sum owed (commission + tax, #714) across unpaid invoices (draft,
    * in_review, finalized, failed), integer cents. Disputed invoices are
    * excluded — their charge clock is frozen until resolved.
    */

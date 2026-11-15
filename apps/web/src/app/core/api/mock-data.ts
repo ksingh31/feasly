@@ -32,7 +32,7 @@ import type {
   RenoType,
 } from '@feasly/contracts';
 import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
-import aggregates from '../../../content/data/community-aggregates.json';
+import communityIndex from '../../../content/data/community-index.json';
 import type { CommunityStats } from './api.service';
 
 /** Cost-data version stamped on mock estimates. The real engine versions its model. */
@@ -444,8 +444,9 @@ export function mockRenoEstimate(
 /**
  * Community stats for the mock API (NBH-01 / NBH-03).
  *
- * The figures come from the checked-in City-of-Calgary aggregates
- * (`content/data/community-aggregates.json`) — the same real data the
+ * The figures come from the checked-in City-of-Calgary aggregates (via the
+ * slim `content/data/community-index.json`, the figures each community page
+ * shows) — the same real data the
  * backend's community-stats endpoint serves — so the mock shows honest
  * assessed values, not invented ones. Throws a not_found ApiError for
  * unknown slugs, mirroring the backend route.
@@ -554,7 +555,7 @@ interface CommunityAggregateEntry {
   avgLotSqft: number | null;
 }
 
-const AGGREGATES_JSON = aggregates as {
+const AGGREGATES_JSON = communityIndex as {
   generatedAt: string;
   communities: CommunityAggregateEntry[];
 };

@@ -69,6 +69,14 @@ param postgresBackupRetentionDays int = 7
 @description('Grant the deploying identity (CI OIDC = nightly ops identity) read-only Cost Management Reader on the subscription so it can read the feasly-monthly-cap budget (#574). OFF by default (#637): the CD identity is RG-scoped and cannot write subscription-scope deployments/role assignments, so turning this on fails what-if. Enable only when the deployer holds Owner/User Access Administrator on the subscription; otherwise grant the role once by hand.')
 param grantDeployerCostReader bool = false
 
+@description('Flex Consumption maximum instance count (#733, owner decision 2026-11-15: 10).')
+@minValue(1)
+@maxValue(1000)
+param functionMaximumInstanceCount int = 10
+
+@description('Log Analytics daily ingestion cap in GB, as a string because Bicep has no float literal (#733, owner decision 2026-11-15: 0.1).')
+param logAnalyticsDailyQuotaGb string = '0.1'
+
 @description('Principal type of the deployer identity (CI uses the OIDC managed identity)')
 // --- Naming ---
 // Globally-unique resource types (SWA, Function App, Postgres, Key Vault, Storage)
@@ -164,6 +172,7 @@ module monitoring 'modules/monitoring.bicep' = {
     name: aiName
     workspaceName: lawName
     location: location
+    dailyQuotaGb: logAnalyticsDailyQuotaGb
   }
 }
 
@@ -317,6 +326,8 @@ module functionApp 'modules/function-app.bicep' = {
     backupCheckSubscriptionId: subscription().subscriptionId
     backupCheckResourceGroup: resourceGroup().name
     backupCheckServerName: postgres.outputs.serverName
+    // #733 cost guardrail: bounded scale-out.
+    maximumInstanceCount: functionMaximumInstanceCount
   }
   // The dev ACS secret (below) must exist before the app first resolves its
   // Key Vault references at startup. Skipped automatically when the
