@@ -4,7 +4,7 @@
 // StorageV2 account. DNS zone module is authored but NOT wired in (no domain yet).
 //
 // Usage: what-if / create against rg-feasly-<env>. See infra/bicep/README.md.
-// Target: subscription "Azure subscription 1" (9b7d7805-311a-4e4f-ac48-5d281d7e1185),
+// Target: subscription "Azure subscription 1" (id: `gh variable get AZURE_SUBSCRIPTION_ID`),
 // region canadacentral everywhere.
 targetScope = 'resourceGroup'
 
@@ -51,7 +51,7 @@ param sheetsServiceAccountPrivateKey string = ''
 @description('Custom domain (empty until FND-014 resolves the domain purchase)')
 param domainName string = ''
 
-@description('Ops alert email for metric alert action group (BE8-001). Standing test email until Karan names the ops inbox.')
+@description('Ops alert email for metric alert action group (BE8-001). Defaults to the seeded super_admin address until the owner names an ops inbox; allowlisted in tools/personal-id-allowlist.txt (#758).')
 param opsAlertEmail string = 'karanbirsingh667@gmail.com'
 
 @description('Postgres Flexible Server SKU (Burstable tier)')
