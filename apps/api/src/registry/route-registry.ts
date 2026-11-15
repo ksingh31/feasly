@@ -676,6 +676,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'pipeline summary (new/contacted/quoted/won/lost).',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/leads/needs-you',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Leads home "Needs you" feed (tenant-scoped): uncontacted, stale ' +
+      '(no status change in LEAD_NEEDS_YOU_STALE_DAYS+ days) and won ' +
+      'without a recorded contract, each sorted by score then age, plus ' +
+      'status counts for the segmented filter.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',

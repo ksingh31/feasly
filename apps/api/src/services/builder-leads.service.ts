@@ -17,6 +17,10 @@
  *   record the signed contract (falls back to the Feasly ops inbox when
  *   the org has no admin). Recording stays `builder:billing`-only.
  *
+ * - `getNeedsYou(tenantKey)` — the Leads home "Needs you" groups
+ *   (issue #526): uncontacted, stale, won-without-contract, each sorted by
+ *   score then age, plus the status counts for the segmented filter.
+ *
  * Builder isolation is enforced at the service layer: every read filters by
  * builder_id at the database level, and every write re-verifies the lead's
  * assignment before touching it. Billing still keys on tenant_key (the
@@ -31,7 +35,10 @@ import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadMarkWonResponse,
+  BuilderLeadNeedsYouItem,
+  BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
+  BuilderLeadStatusCounts,
   BuilderPaymentMethod,
   CommentAuthorKind,
   CommissionInvoiceStatus,
@@ -46,7 +53,7 @@ import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
-import type { LeadStore } from './lead.store';
+import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store';
 import type { MembershipStore, UserStore } from './user.service';
 
 export const BuilderLeadStatusSchema = z.enum([
@@ -76,6 +83,17 @@ export interface BuilderLeadsService {
    * Only leads with a matching builder_id are returned.
    */
   listLeads(tenantKey: string): Promise<BuilderLeadListResponse>;
+  /**
+   * Leads home "Needs you" feed (issue #526), tenant-scoped like
+   * `listLeads`. Groups (a lead lands in at most one):
+   * - `uncontacted` — status `new`;
+   * - `stale` — `contacted`/`quoted` with no status change for
+   *   `staleAfterDays`+ days;
+   * - `wonWithoutContract` — `won` with no commission invoice.
+   * Each group: score desc, then `waitingSince` asc (oldest first), then id.
+   * `counts` covers every scanned lead.
+   */
+  getNeedsYou(tenantKey: string): Promise<BuilderLeadsNeedsYouResponse>;
   /**
    * Transition a lead's pipeline status. Throws 404 when the lead doesn't
    * exist, 403 when it isn't assigned to this builder, and 409
@@ -155,6 +173,71 @@ export interface BuilderLeadsServiceDeps {
    * console. Omitted = no fallback.
    */
   readonly fallbackAdminInbox?: string;
+  /**
+   * Latest status change per lead (lead_status_history) for the "Needs
+   * you" staleness rule. Optional for tests that don't cover it — falls
+   * back to the row's `updatedAt`.
+   */
+  readonly statusChanges?: LeadStatusChangeStore;
+  /**
+   * "Needs you" tunables from config (`lead.needsYouStaleDays`,
+   * `lead.needsYouScanLimit`). Required by `getNeedsYou` — it fails with
+   * 500 when absent rather than inventing a threshold.
+   */
+  readonly needsYou?: {
+    readonly staleAfterDays: number;
+    readonly scanLimit: number;
+  };
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function countByStatus(
+  records: ReadonlyArray<{ readonly status: string }>,
+): BuilderLeadStatusCounts {
+  const counts = {
+    total: records.length,
+    new: 0,
+    contacted: 0,
+    quoted: 0,
+    won: 0,
+    lost: 0,
+  };
+  for (const record of records) {
+    switch (record.status) {
+      case 'new':
+        counts.new++;
+        break;
+      case 'contacted':
+        counts.contacted++;
+        break;
+      case 'quoted':
+        counts.quoted++;
+        break;
+      case 'won':
+        counts.won++;
+        break;
+      case 'lost':
+        counts.lost++;
+        break;
+    }
+  }
+  return counts;
+}
+
+/** Score desc → waitingSince asc (oldest first) → id (stable). */
+function compareNeedsYou(
+  a: BuilderLeadNeedsYouItem,
+  b: BuilderLeadNeedsYouItem,
+): number {
+  if (a.leadScore !== b.leadScore) {
+    return b.leadScore - a.leadScore;
+  }
+  const byAge = Date.parse(a.waitingSince) - Date.parse(b.waitingSince);
+  if (byAge !== 0) {
+    return byAge;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export interface WonBillingResult {
@@ -216,7 +299,10 @@ export function createBuilderLeadsService(
     memberships,
     email,
     fallbackAdminInbox,
+    statusChanges,
+    needsYou,
   } = deps;
+  const clock = deps.clock ?? (() => new Date());
 
   /**
    * Resolve the session's tenant key to the builder row. Every portal
@@ -419,34 +505,7 @@ export function createBuilderLeadsService(
         };
       };
 
-      const summary = {
-        total: records.length,
-        new: 0,
-        contacted: 0,
-        quoted: 0,
-        won: 0,
-        lost: 0,
-        needsRecording: 0,
-      };
-      for (const record of records) {
-        switch (record.status) {
-          case 'new':
-            summary.new++;
-            break;
-          case 'contacted':
-            summary.contacted++;
-            break;
-          case 'quoted':
-            summary.quoted++;
-            break;
-          case 'won':
-            summary.won++;
-            break;
-          case 'lost':
-            summary.lost++;
-            break;
-        }
-      }
+      const summary = { ...countByStatus(records), needsRecording: 0 };
 
       const leads = records.map((record) =>
         toListItem(
@@ -458,6 +517,90 @@ export function createBuilderLeadsService(
       summary.needsRecording = leads.filter((lead) => lead.needsRecording).length;
 
       return { leads, summary };
+    },
+
+    async getNeedsYou(tenantKey: string): Promise<BuilderLeadsNeedsYouResponse> {
+      if (needsYou === undefined) {
+        throw new HttpError(
+          500,
+          ErrorCodes.INTERNAL_ERROR,
+          'Needs-you feed is not configured.',
+          true,
+        );
+      }
+      const builder = await requireBuilder(tenantKey);
+      const records = await leadStore.listByBuilderId({
+        builderId: builder.id,
+        limit: needsYou.scanLimit,
+      });
+
+      // Recorded contracts: one tenant-scoped query. Same rule as the
+      // list's `hasInvoice` and the status lock — any invoice counts.
+      const recordedLeadIds = new Set<string>();
+      if (invoiceSummaries !== undefined && records.some((r) => r.status === 'won')) {
+        for (const summary of await invoiceSummaries.findByTenantKey(builder.tenantKey)) {
+          recordedLeadIds.add(summary.leadId);
+        }
+      }
+
+      // Status-change times only matter for the stale and won groups.
+      const changeIds = records
+        .filter((r) => r.status === 'contacted' || r.status === 'quoted' || r.status === 'won')
+        .map((r) => r.id);
+      const latestChange: ReadonlyMap<string, Date> | null =
+        statusChanges === undefined
+          ? null
+          : await statusChanges.latestStatusChangeByLeadIds(changeIds);
+      const statusChangedAt = (record: LeadRecord): Date =>
+        latestChange === null
+          ? record.updatedAt
+          : latestChange.get(record.id) ?? record.createdAt;
+
+      const staleCutoff = clock().getTime() - needsYou.staleAfterDays * MS_PER_DAY;
+      const uncontacted: BuilderLeadNeedsYouItem[] = [];
+      const stale: BuilderLeadNeedsYouItem[] = [];
+      const wonWithoutContract: BuilderLeadNeedsYouItem[] = [];
+
+      for (const record of records) {
+        const changedAt = statusChangedAt(record);
+        const item = (waitingSince: Date): BuilderLeadNeedsYouItem => ({
+          id: record.id,
+          name: record.name,
+          email: record.email,
+          phone: record.phone,
+          timeline: record.timeline,
+          leadScore: record.leadScore,
+          status: record.status as BuilderLeadStatus,
+          addressKey: record.addressKey,
+          createdAt: record.createdAt.toISOString(),
+          statusChangedAt: changedAt.toISOString(),
+          waitingSince: waitingSince.toISOString(),
+        });
+        switch (record.status) {
+          case 'new':
+            uncontacted.push(item(record.createdAt));
+            break;
+          case 'contacted':
+          case 'quoted':
+            if (changedAt.getTime() <= staleCutoff) {
+              stale.push(item(changedAt));
+            }
+            break;
+          case 'won':
+            if (!recordedLeadIds.has(record.id)) {
+              wonWithoutContract.push(item(changedAt));
+            }
+            break;
+        }
+      }
+
+      return {
+        uncontacted: uncontacted.sort(compareNeedsYou),
+        stale: stale.sort(compareNeedsYou),
+        wonWithoutContract: wonWithoutContract.sort(compareNeedsYou),
+        staleAfterDays: needsYou.staleAfterDays,
+        counts: countByStatus(records),
+      };
     },
 
     async updateStatus(
