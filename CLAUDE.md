@@ -55,6 +55,12 @@ typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.
 - Merge only when **every** PR check is green (required or not), after `bash tools/verify-local.sh` → VERIFY: PASS.
 - Approved redesign: `docs/design/portal-ui-kit.md` + the reviews in `docs/reviews/`; design stories wait in `backlog` until all bugs are fixed.
 
+## Escalation policy (owner, 2026-11-15)
+Use `needs:karan` ONLY for app/product-flow decisions (gate fields, waitlists, pricing/plans, legal copy),
+genuine unknowns, or things needing the owner's access or spend (Azure RBAC, paid tiers). Everything else —
+red main, flaky checks, pipeline fixes, engineering trade-offs, repeated failures — decide (pick the option that
+keeps existing guarantees, note why on the issue), file a bug, and fix it.
+
 ## Hard rules
 - Every dollar figure comes from `packages/cost-engine`. LLM writes narrative only.
 - No hardcoded values (web: ConfigService; api: `config.ts`). Routes never import `db/`.
