@@ -15,6 +15,7 @@ feasly/
   packages/contracts/    # shared DTOs + zod schemas (REST + postMessage)
   packages/embed-loader/ # vanilla JS loader snippet (<5KB, no framework)
   packages/mcp/          # MCP server (thin wrapper over cost-engine + contracts)
+  packages/zoning/       # per-city zoning rules catalogue + pure resolver (no dollars)
   packages/eslint-config/# shared flat eslint config (Section 2)
   packages/tsconfig/     # shared tsconfig.base.json + per-project variants
   infra/bicep/
@@ -62,6 +63,28 @@ Turborepo is **not** used at MVP (extra infra). Order is enforced via
 `npm run build` at root: `npm run build -w @feasly/contracts -w @feasly/cost-engine && npm run build --workspaces --if-present`. CI runs `tsc -b` from the root
 project file, which builds references in dependency order automatically.
 Circular references are forbidden and `tsc -b` fails on them — that is the guard.
+
+### `packages/zoning` — DECISION (issue #687, 2026-11-15)
+
+Zoning rules ("what can be built where") live in their own pure package,
+**not** in `packages/cost-engine`: the engine owns every dollar figure, the
+zoning package owns none, and keeping them apart lets the no-dollars rule be
+tested on the whole package. Same purity bar as the engine — zero I/O, zero
+runtime deps (types from `@feasly/contracts` only), no clock (callers pass
+`asOf`).
+
+- Data: one file per city version in `packages/zoning/src/data/`
+  (`calgary-2026-08-04.ts`), registered in `src/catalogues.ts`. Every form
+  and rule carries a bylaw section and `verified`; the resolver drops
+  unverified values, so nothing unchecked is ever served.
+- Shapes: `ZoningRulesVersion` (source) and `ZoningDistrict` /
+  `ZoningDistrictsResponse` (public, verified-only) in `@feasly/contracts`;
+  the zod schemas live with the other API schemas in
+  `apps/api/src/openapi/schemas.ts` (contracts stays types-only).
+- A new city = a data file + one line in `catalogues.ts` + `ZONING_CITY`
+  config. No resolver change.
+- `apps/web` reads zoning through the API (`GET /api/v1/zoning/districts`),
+  never by importing the package.
 
 ### Shared configs
 

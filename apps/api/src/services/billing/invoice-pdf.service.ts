@@ -8,11 +8,18 @@
  * Paid invoices carry a receipt block (amount, charge date, card used or
  * the manual method + reference).
  *
+ * Sales tax (#714): an invoice with a snapshotted tax rate also shows the
+ * supplier's legal name, address and GST/HST registration number, and a
+ * subtotal / tax / total breakdown (also on the receipt). Untaxed invoices
+ * render exactly as before.
+ *
  * Tenant isolation: a builder asking for another tenant's invoice gets a
  * 404 (not the 403 the JSON read returns) so the endpoint never confirms
  * that a foreign invoice id exists.
  */
 import type { Builder } from '@feasly/contracts';
+import type { BillingTaxConfig } from '../../config';
+import { formatTaxRatePercent } from '../../lib/tax-math';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import { DISPUTE_SLA_TIMEZONE } from '../../lib/business-days';
 import { renderPdf, type PdfOp } from '../../lib/simple-pdf';
@@ -36,6 +43,11 @@ export const INVOICE_PDF_COPY = {
   contractLabel: 'Contract value',
   rateLabel: 'Commission rate',
   commissionLabel: 'Commission',
+  subtotalLabel: 'Commission (subtotal)',
+  totalLabel: 'Total',
+  supplierLabel: 'Supplier',
+  supplierAddressLabel: 'Supplier address',
+  registrationSuffix: 'registration number',
   paymentHeading: 'Payment',
   methodLabel: 'Payment method',
   reviewEndsLabel: 'Review window ends',
@@ -85,6 +97,11 @@ export interface InvoicePdfServiceDeps {
   readonly billing: Pick<BillingService, 'getInvoice'>;
   readonly commissionCard: Pick<CommissionCardService, 'getCard'>;
   readonly builders: { getByTenantKey(tenantKey: string): Promise<Builder | null> };
+  /** Supplier details printed on taxed invoices (#714). */
+  readonly tax?: Pick<
+    BillingTaxConfig,
+    'label' | 'supplierLegalName' | 'supplierAddress' | 'registrationNumber'
+  >;
 }
 
 /** "$1,234.56" from integer cents. */
@@ -118,6 +135,11 @@ export interface InvoicePdfModel {
   readonly billedTo: string | null;
   /** "Visa •••• 4242" when known; null otherwise. */
   readonly card: string | null;
+  /**
+   * Supplier tax details (#714). Printed only when the invoice carries a
+   * tax rate; ignored on untaxed invoices.
+   */
+  readonly tax?: InvoicePdfServiceDeps['tax'];
 }
 
 /** Pure layout: model → page ops. Exported for tests. */
@@ -153,10 +175,27 @@ export function layoutInvoicePdf(model: InvoicePdfModel): PdfOp[] {
   if (model.billedTo) row(c.billedToLabel, model.billedTo);
   row(c.leadLabel, inv.leadName || c.none);
 
+  // #714: taxed invoice → supplier block + subtotal/tax/total lines.
+  const tax = inv.taxRatePercent > 0 && model.tax ? model.tax : null;
+  const taxLine = tax
+    ? `${inv.taxLabel ?? tax.label} (${formatTaxRatePercent(inv.taxRatePercent)})`
+    : '';
+  if (tax) {
+    row(c.supplierLabel, tax.supplierLegalName);
+    row(c.supplierAddressLabel, tax.supplierAddress);
+    row(`${inv.taxLabel ?? tax.label} ${c.registrationSuffix}`, tax.registrationNumber);
+  }
+
   heading(c.breakdownHeading);
   row(c.contractLabel, formatInvoiceCad(inv.contractValueCents));
   row(c.rateLabel, formatRate(inv.effectiveRatePercent));
-  row(c.commissionLabel, formatInvoiceCad(inv.commissionCents), true);
+  if (tax) {
+    row(c.subtotalLabel, formatInvoiceCad(inv.subtotalCents));
+    row(taxLine, formatInvoiceCad(inv.taxCents));
+    row(c.totalLabel, formatInvoiceCad(inv.totalCents), true);
+  } else {
+    row(c.commissionLabel, formatInvoiceCad(inv.commissionCents), true);
+  }
 
   heading(c.paymentHeading);
   row(c.methodLabel, c.methods[inv.paymentMethod] ?? inv.paymentMethod);
@@ -173,7 +212,11 @@ export function layoutInvoicePdf(model: InvoicePdfModel): PdfOp[] {
 
   if (inv.status === 'paid') {
     heading(c.receiptHeading);
-    row(c.receiptAmount, formatInvoiceCad(inv.commissionCents), true);
+    row(c.receiptAmount, formatInvoiceCad(tax ? inv.totalCents : inv.commissionCents), true);
+    if (tax) {
+      row(c.subtotalLabel, formatInvoiceCad(inv.subtotalCents));
+      row(taxLine, formatInvoiceCad(inv.taxCents));
+    }
     row(c.receiptDate, formatDate(inv.paidAt));
     if (inv.manualPaymentMethod) {
       row(c.receiptPaidBy, c.methods[inv.manualPaymentMethod] ?? inv.manualPaymentMethod);
@@ -194,7 +237,7 @@ export function invoicePdfFilename(invoiceNumber: string): string {
 export function createInvoicePdfService(
   deps: InvoicePdfServiceDeps,
 ): InvoicePdfService {
-  const { billing, commissionCard, builders } = deps;
+  const { billing, commissionCard, builders, tax } = deps;
 
   async function loadInvoice(
     invoiceId: string,
@@ -242,7 +285,12 @@ export function createInvoicePdfService(
       ]);
       const pdf = renderPdf({
         title: `${INVOICE_PDF_COPY.title} ${invoice.invoiceNumber}`,
-        ops: layoutInvoicePdf({ invoice, billedTo: name, card }),
+        ops: layoutInvoicePdf({
+          invoice,
+          billedTo: name,
+          card,
+          ...(tax ? { tax } : {}),
+        }),
       });
       return { pdf, filename: invoicePdfFilename(invoice.invoiceNumber) };
     },
