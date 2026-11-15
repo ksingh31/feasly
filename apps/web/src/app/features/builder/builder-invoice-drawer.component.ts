@@ -31,7 +31,7 @@ import {
   paymentMethodEditable,
   reviewCountdown,
 } from './builder-invoice-view';
-import { SelectInvoice } from './builder-invoices.actions';
+import { DownloadInvoicePdf, SelectInvoice } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
@@ -52,7 +52,8 @@ export interface BuilderInvoiceDrawerData {
  * - Payment method with a single "Change" link that opens a small modal
  *   showing before/after (no inline select + Apply).
  * - Timeline from the invoice's timestamps, always sorted oldest → newest.
- * - Receipt for paid invoices; actions: question this invoice, update card.
+ * - Receipt for paid invoices; actions: download PDF (#661), question
+ *   this invoice, update card.
  *
  * Reads the invoice live from BuilderInvoicesState so a saved method
  * change re-renders in place.
@@ -81,6 +82,16 @@ export class BuilderInvoiceDrawerComponent {
   private readonly selected = this.store.selectSignal(BuilderInvoicesState.selected);
   private readonly detailStatus = this.store.selectSignal(BuilderInvoicesState.detailStatus);
   private readonly card = this.store.selectSignal(BuilderBillingState.card);
+  private readonly pdfDownloadingId = this.store.selectSignal(BuilderInvoicesState.pdfDownloadingId);
+  private readonly pdfErrorId = this.store.selectSignal(BuilderInvoicesState.pdfErrorId);
+
+  /** #661: this invoice's PDF is being fetched. */
+  protected readonly pdfDownloading = computed(() => this.pdfDownloadingId() === this.data.invoiceId);
+  /** #661: the last PDF download for this invoice failed. */
+  protected readonly pdfFailed = computed(() => this.pdfErrorId() === this.data.invoiceId);
+  protected readonly downloadAria = computed(() =>
+    fillCopy(this.t.downloadPdfAria, { number: this.invoice()?.invoiceNumber ?? '' }),
+  );
 
   /** The invoice this drawer was opened for, once loaded. */
   protected readonly invoice = computed<BuilderCommissionInvoice | null>(() => {
@@ -150,6 +161,13 @@ export class BuilderInvoiceDrawerComponent {
 
   protected date(iso: string | null): string {
     return formatEdmontonMediumDate(iso);
+  }
+
+  /** #661: download the server-rendered invoice/receipt PDF. */
+  protected downloadPdf(): void {
+    const inv = this.invoice();
+    if (!inv || this.pdfDownloading()) return;
+    this.store.dispatch(new DownloadInvoicePdf(inv.id, inv.invoiceNumber));
   }
 
   protected retry(): void {

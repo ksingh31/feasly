@@ -1317,6 +1317,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/billing/invoices/{id}/pdf',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Download a commission invoice as a PDF (#661), rendered from the ' +
+      'same server figures as the JSON read; paid invoices include the ' +
+      'receipt block. Builders get only their own tenant\'s invoices ' +
+      '(404 for another tenant\'s id); admins see all.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/invoices',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,

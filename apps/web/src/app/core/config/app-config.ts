@@ -549,6 +549,16 @@ export interface BuilderInvoiceDrawerCopy {
   timelineEmpty: string;
   actionsHeading: string;
   questionInvoice: string;
+  /** #661: invoice PDF/receipt download button. */
+  downloadPdf: string;
+  /** Button label while the PDF is being fetched. */
+  downloadingPdf: string;
+  /** Accessible name of the download button: `{number}`. */
+  downloadPdfAria: string;
+  /** Inline error when the PDF download fails. */
+  downloadPdfError: string;
+  /** Saved file name: `{number}` invoice number. */
+  pdfFilename: string;
   /** Toast after a method change: `{method}`. */
   methodChangedToast: string;
   modalHeading: string;

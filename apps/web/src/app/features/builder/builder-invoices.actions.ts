@@ -46,6 +46,18 @@ export class UpdateInvoicePaymentMethod {
   ) {}
 }
 
+/**
+ * Downloads an invoice's PDF / receipt (#661). `invoiceNumber` names the
+ * saved file; the PDF itself is rendered server-side.
+ */
+export class DownloadInvoicePdf {
+  static readonly type = '[BuilderInvoices] Download PDF';
+  constructor(
+    public readonly id: string,
+    public readonly invoiceNumber: string,
+  ) {}
+}
+
 /** Closes the detail view (keeps the loaded list). */
 export class ClearInvoiceSelection {
   static readonly type = '[BuilderInvoices] Clear selection';
