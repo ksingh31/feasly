@@ -37,7 +37,25 @@
   --accent-text: #8a5f12;
   /* Status */
   --danger: #b3261e;
+  --danger-bg: #fdf0ef;
   --focus-ring: rgba(168, 118, 26, 0.35);
+  /* Report cost-bucket chart fills (structure uses --accent). */
+  --chart-interior: #b4552d;
+  --chart-design: #6f7a3a;
+
+  /* ── Primary CTA (consumer review S1, issue #511) ──
+   * ONE primary style per surface: charcoal on cream, brass on dark.
+   * Every consumer primary button/link uses these — never a local colour. */
+  --cta-bg: var(--canvas);
+  --cta-fg: var(--on-dark);
+  --cta-bg-hover: var(--canvas-2);
+  --cta-on-dark-bg: var(--accent-dark);
+  --cta-on-dark-fg: var(--canvas);
+  --cta-on-dark-bg-hover: #d6a244;
+  /* ── Wizard column (consumer review S2, issue #511) ──
+   * Every wizard step (scope → details → analyzing → gate → preview →
+   * report, plus the reno steps) uses this one column width. */
+  --wizard-width: 720px;
 
   /* ── Product tokens (portal UI kit §1, docs/design/portal-ui-kit.md) ── */
   /* Semantic status tones (chips, banners, KPI borders) */
@@ -165,7 +183,7 @@ textarea {
 .form-error {
   margin-top: 10px;
   padding: 12px 14px;
-  background: #fdf0ef;
+  background: var(--danger-bg);
   border: 1px solid rgba(179, 38, 30, 0.25);
   border-radius: 10px;
   font-size: 14px;

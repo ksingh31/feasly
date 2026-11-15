@@ -10,8 +10,8 @@
   padding: 1.25rem 1.25rem 2.5rem;
   font-family: var(--font-ui);
   color: var(--text);
-  background: var(--surface, #fffdf8);
-  border: 1px solid var(--border, #e8e0d2);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
 }
 
@@ -66,8 +66,10 @@
   padding: 0.75rem 1rem;
   border: 0;
   border-radius: 0.5rem;
-  background: var(--embed-accent, var(--accent));
-  color: #fff;
+  /* A builder's validated accent wins (white-label); otherwise the one
+     Feasly primary CTA (charcoal on cream, consumer review S1). */
+  background: var(--embed-accent, var(--cta-bg));
+  color: var(--cta-fg);
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 1rem;

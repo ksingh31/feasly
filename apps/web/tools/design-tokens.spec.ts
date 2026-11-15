@@ -126,7 +126,111 @@ describe('consumer contrast fixes (review M5)', () => {
   it('error page CTA is the charcoal primary, not white on brass', () => {
     const css = readFileSync(join(WEB, 'src/app/features/error/state-page.scss'), 'utf8');
     const body = rule(css, '.state-page .cta');
-    expect(body).toMatch(/background:\s*var\(--canvas\);/);
+    expect(body).toMatch(/background:\s*var\(--cta-bg\);/);
     expect(body).not.toMatch(/background:\s*var\(--accent\);/);
+  });
+});
+
+/**
+ * Issue #511 (consumer review S1, S2, S10): one primary CTA style, one wizard
+ * column width, no off-token hex literals in consumer stylesheets.
+ */
+const APP = join(WEB, 'src/app');
+const read = (rel: string): string => readFileSync(join(APP, rel), 'utf8');
+
+/** Consumer-facing stylesheets (portals are covered by the portal UI kit). */
+const CONSUMER_DIRS = ['wizard', 'report', 'embed', 'error', 'communities', 'landing', 'compare', 'consent', 'sample-report'];
+const consumerFiles = CONSUMER_DIRS.flatMap((d) => scssFiles(join(APP, 'features', d)));
+
+describe('primary CTA token (review S1)', () => {
+  const CTA_TOKENS: Record<string, string> = {
+    '--cta-bg': 'var(--canvas)',
+    '--cta-fg': 'var(--on-dark)',
+    '--cta-bg-hover': 'var(--canvas-2)',
+    '--cta-on-dark-bg': 'var(--accent-dark)',
+    '--cta-on-dark-fg': 'var(--canvas)',
+    '--cta-on-dark-bg-hover': '#d6a244',
+  };
+
+  it.each(Object.entries(CTA_TOKENS))('%s is defined and documented', (name, value) => {
+    expect(tokenValue(name)).toBe(value);
+    expect(DOCS).toContain(`\`${name}\``);
+  });
+
+  it.each([
+    ['features/wizard/wizard-shell.scss', '.cta', '--cta-bg'],
+    ['features/error/state-page.scss', '.state-page .cta', '--cta-bg'],
+    ['features/compare/compare-picker-page.component.scss', '.cta', '--cta-bg'],
+    ['features/compare/compare-results/compare-results.component.scss', '.compare-results__unlock', '--cta-bg'],
+    ['features/communities/community-page.component.scss', '.community .cta-card .cta', '--cta-on-dark-bg'],
+    ['features/communities/community-profile-page.component.scss', '.community-profile .cta-card .cta', '--cta-on-dark-bg'],
+    ['features/landing/landing-page.component.scss', '.sample-report-link a', '--cta-on-dark-bg'],
+  ])('%s %s uses the %s token', (file, selector, token) => {
+    expect(rule(read(file), selector)).toContain(`background: var(${token});`);
+  });
+
+  it('embed CTA falls back to the primary token when no builder accent is set', () => {
+    expect(rule(read('features/embed/embed-shell.component.scss'), '.embed-cta')).toContain(
+      'background: var(--embed-accent, var(--cta-bg));',
+    );
+  });
+
+  it('reno scope uses the shared wizard CTA, not a local brass one', () => {
+    expect(read('features/wizard/reno-scope-page.component.scss')).not.toMatch(/^\.cta\s*\{/m);
+  });
+
+  it('no consumer CTA puts white text on brass', () => {
+    const offenders = consumerFiles.filter((f) =>
+      [...readFileSync(f, 'utf8').matchAll(/([^{}]*cta[^{}]*)\{([^{}]*)\}/g)].some(
+        ([, , body]) => /background:\s*var\(--accent(-deep)?\)/.test(body) && /color:\s*#fff\b/.test(body),
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('wizard column width (review S2)', () => {
+  it('--wizard-width is defined and documented', () => {
+    expect(tokenValue('--wizard-width')).toBe('720px');
+    expect(DOCS).toContain('`--wizard-width`');
+  });
+
+  it('the shared shell sizes every step from the token and never shrinks to content', () => {
+    const body = rule(read('features/wizard/wizard-shell.scss'), '.wrap');
+    expect(body).toContain('max-width: var(--wizard-width);');
+    expect(body).toMatch(/\bwidth:\s*100%;/);
+  });
+
+  it('no wizard step overrides the column width', () => {
+    const offenders = scssFiles(join(APP, 'features/wizard'))
+      .filter((f) => !f.endsWith('wizard-shell.scss'))
+      .filter((f) => /^\s*max-width:\s*\d/m.test(readFileSync(f, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('every wizard step and the report use the shared shell', () => {
+    const dirs = [join(APP, 'features/wizard'), join(APP, 'features/report')];
+    const pages = dirs.flatMap((d) =>
+      readdirSync(d)
+        .filter((f) => f.endsWith('-page.component.ts'))
+        .map((f) => join(d, f)),
+    );
+    expect(pages.length).toBeGreaterThan(5);
+    for (const p of pages) expect(readFileSync(p, 'utf8'), p).toContain('wizard-shell.scss');
+  });
+});
+
+describe('off-token hex literals (review S10)', () => {
+  it.each(['#e8e0d2', '#fffdf8', '#5e470c', '#d9a441', '#c08a24', '#f8f6f1', '#b4552d', '#6f7a3a', '#e8e2d5'])(
+    'consumer stylesheets never use %s',
+    (hex) => {
+      const offenders = consumerFiles.filter((f) => readFileSync(f, 'utf8').toLowerCase().includes(hex));
+      expect(offenders).toEqual([]);
+    },
+  );
+
+  it('consumer stylesheets have no hex fallbacks on var() (they hide undefined tokens)', () => {
+    const offenders = consumerFiles.filter((f) => /var\(--[\w-]+,\s*#/.test(readFileSync(f, 'utf8')));
+    expect(offenders).toEqual([]);
   });
 });
