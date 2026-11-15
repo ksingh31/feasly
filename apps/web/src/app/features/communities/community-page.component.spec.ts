@@ -15,17 +15,17 @@ import { toDisplayName } from './community-names';
 
 const mockProfileCopy: RawCommunityProfileCopy = {
   kicker: 'Community property profile',
-  titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+  titleTemplate: 'Feasly — {name}, Calgary property values & assessed values',
   descriptionTemplate:
     'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
   lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
-  ledeLead: "We don't quote this property type yet",
-  propertyValueLabel: "This property's assessed value",
+  ledeLead: "We don't quote apartments, condos or townhouses yet",
+  propertyValueLabel: "This address's assessed value",
   communityAverageLabel: '{name} average',
-  comparePropertyTag: 'This property',
+  comparePropertyTag: 'This address',
   compareBarCaption: 'Bars drawn proportional to the larger value.',
   compareBarLabelTemplate:
-    'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+    'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
   honestNote:
     'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   averageHeroLabel: '{name} average assessed value',
@@ -98,12 +98,12 @@ describe('CommunityPageComponent', () => {
     // Coverage-redirect card (guide variant, QA 2026-10-04).
     coverageLede:
       "We can't build-cost this address yet — here's the City-assessed value, compared with the {name} average.",
-    propertyValueLabel: "This property's assessed value",
+    propertyValueLabel: "This address's assessed value",
     communityAverageLabel: '{name} average',
-    comparePropertyTag: 'This property',
+    comparePropertyTag: 'This address',
     compareBarCaption: 'Bars drawn proportional to the larger value.',
     compareBarLabelTemplate:
-      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+      'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
     coverageHonestNote:
       'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   };
@@ -379,7 +379,7 @@ describe('CommunityPageComponent', () => {
       const card = fixture.nativeElement.querySelector('.coverage-card');
       // The rejected property's address and assessed value…
       expect(card.textContent).toContain('13310 14 ST NW, Calgary, AB');
-      expect(card.textContent).toContain("This property's assessed value");
+      expect(card.textContent).toContain("This address's assessed value");
       expect(card.textContent).toContain('$76,500');
       // …against the community average (Mahogany mock: $719,666).
       expect(card.textContent).toContain('Mahogany average');
@@ -430,13 +430,13 @@ describe('CommunityPageComponent', () => {
       // Live-bug regression: the lede template holds {name} twice — both
       // must be interpolated, never rendered literally.
       expect(html).not.toContain('{name}');
-      expect(html).toContain("We don't quote this property type yet");
+      expect(html).toContain("We don't quote apartments, condos or townhouses yet");
     });
 
     it('sets the honest profile title (no build-cost claim)', async () => {
       await setup('beltline');
       const title = TestBed.inject(Title);
-      expect(title.getTitle()).toBe('Beltline Calgary Property Values & Assessed Values | Feasly');
+      expect(title.getTitle()).toBe('Feasly — Beltline, Calgary property values & assessed values');
       expect(title.getTitle()).not.toContain('Cost to build');
     });
 

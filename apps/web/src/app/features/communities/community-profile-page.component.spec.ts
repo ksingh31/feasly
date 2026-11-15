@@ -20,17 +20,17 @@ describe('CommunityProfilePageComponent', () => {
 
   const rawCopy: CommunityProfileCopy = {
     kicker: 'Community property profile',
-    titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+    titleTemplate: 'Feasly — {name}, Calgary property values & assessed values',
     descriptionTemplate:
       'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
     lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
-    ledeLead: "We don't quote this property type yet",
-    propertyValueLabel: "This property's assessed value",
+    ledeLead: "We don't quote apartments, condos or townhouses yet",
+    propertyValueLabel: "This address's assessed value",
     communityAverageLabel: '{name} average',
-    comparePropertyTag: 'This property',
+    comparePropertyTag: 'This address',
     compareBarCaption: 'Bars drawn proportional to the larger value.',
     compareBarLabelTemplate:
-      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+      'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
     honestNote:
       'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
     averageHeroLabel: '{name} average assessed value',
@@ -164,7 +164,7 @@ describe('CommunityProfilePageComponent', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('1017 11 Ave SW, Calgary, AB');
     expect(html).toContain('$20,630,000');
-    expect(html).toContain("This property's assessed value");
+    expect(html).toContain("This address's assessed value");
     expect(html).toContain('Beltline average');
     // Proportional bars: property is the larger value → full width.
     const bars = fixture.nativeElement.querySelectorAll('.bars');
