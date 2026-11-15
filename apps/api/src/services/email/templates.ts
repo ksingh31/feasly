@@ -304,10 +304,10 @@ export function renderNudgeEmail(
   const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
   const subject = `Your ${ctx.brandName} estimate is still waiting for you`;
   const body = `<p>${greeting}</p>
-<p>You started a build estimate yesterday but haven't unlocked the full numbers yet. Your estimate is saved — pick up right where you left off.</p>
+<p>You started a build estimate yesterday but haven't opened your full report yet. Your estimate is saved — pick up right where you left off.</p>
 ${ctaButton(input.resumeUrl, 'See my full estimate')}
 ${fallbackLink(input.resumeUrl)}`;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nYou started a build estimate yesterday but haven't unlocked the full numbers yet. Your estimate is saved — pick up right where you left off:\n\n${input.resumeUrl}\n\n${leadEmailFooterText(input.unsubscribeUrl)}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nYou started a build estimate yesterday but haven't opened your full report yet. Your estimate is saved — pick up right where you left off:\n\n${input.resumeUrl}\n\n${leadEmailFooterText(input.unsubscribeUrl)}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return {
     subject,
     html: layout(

@@ -10,6 +10,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildItemListSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { formatRoundedCad } from '../../shared/utils/money';
 import aggregates from '../../../content/data/community-aggregates.json';
 import typeData from '../../../content/data/community-types.json';
 import { toDisplayName } from './community-names';
@@ -49,14 +50,23 @@ export class CommunitiesIndexPageComponent implements OnInit {
   /** Community index copy (config-owned, no hardcoded literals). */
   protected readonly indexCopy = this.config.get('copy').marketing.communities;
 
-  /** 40 communities in aggregate-data order (largest first). */
-  protected readonly communities: readonly CommunityAggregate[] = (
-    aggregates as CommunityAggregatesFile
-  ).communities;
-
   /** slug → page type ('build-guide' | 'profile'); unknown slugs default to 'build-guide'. */
   private readonly communityTypes: ReadonlyMap<string, CommunityType> = new Map(
     Object.entries((typeData as CommunityTypesFile).types),
+  );
+
+  /**
+   * Display order (consumer review S8): single-family build-guide
+   * communities first, condo/apartment-dominated profile communities last,
+   * each group alphabetical by display name. Aggregate-data order put
+   * Beltline — a condo district we can't quote — first.
+   */
+  protected readonly communities: readonly CommunityAggregate[] = [
+    ...(aggregates as CommunityAggregatesFile).communities,
+  ].sort(
+    (a, b) =>
+      Number(this.isProfile(a)) - Number(this.isProfile(b)) ||
+      toDisplayName(a.name).localeCompare(toDisplayName(b.name), 'en-CA'),
   );
 
   ngOnInit(): void {
@@ -75,7 +85,7 @@ export class CommunitiesIndexPageComponent implements OnInit {
     );
   }
 
-  /** Formatted average assessed value, e.g. "$607,351". */
+  /** Formatted average assessed value, rounded to $1,000 (#504), e.g. "$607,000". */
   assessedValue(community: CommunityAggregate): string {
     return this.formatCad(community.avgAssessedValue);
   }
@@ -96,10 +106,6 @@ export class CommunitiesIndexPageComponent implements OnInit {
   }
 
   private formatCad(value: number): string {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      maximumFractionDigits: 0,
-    }).format(value);
+    return formatRoundedCad(value);
   }
 }

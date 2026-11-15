@@ -12,6 +12,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   APPROVED_DISCLAIMER,
   checkBannedPhrases,
+  checkSingleUnlock,
+  jsonStrings,
+  templateText,
   extractStringLiterals,
   scanUnit,
   stripHtmlComments,
@@ -118,5 +121,93 @@ describe('checkBannedPhrases disclaimer presence', () => {
     const { failures, notes } = checkBannedPhrases(root);
     expect(failures.filter((f) => f.startsWith('mcp surface'))).toEqual([]);
     expect(notes.some((n) => n.includes('MCP server not merged yet'))).toBe(true);
+  });
+});
+
+describe('single "Unlock" in user-facing copy (#506)', () => {
+  const defaultsRel = ['apps', 'web', 'src', 'app', 'core', 'config', 'app-config.defaults.ts'];
+  const jsonRel = ['apps', 'web', 'public', 'assets', 'config', 'app-config.json'];
+  const templateRel = ['apps', 'web', 'src', 'app', 'features', 'x', 'x.component.html'];
+
+  function write(rel: string[], content: string) {
+    const p = join(root, ...rel);
+    mkdirSync(join(p, '..'), { recursive: true });
+    writeFileSync(p, content);
+  }
+
+  function defaults(extra = '', cta = "'Unlock my free report →'") {
+    return [
+      'export const DEFAULTS = {',
+      '  copy: {',
+      '    compare: {',
+      "      unlockCta: 'Show my free comparison →',",
+      '    },',
+      '    report: {',
+      "      // the one unlock CTA (comments are not copy)",
+      `      unlockCta: ${cta},`,
+      `      lockedNote: 'Revealed when you get your free report.',${extra}`,
+      '    },',
+      '  },',
+      '};',
+      '',
+    ].join('\n');
+  }
+
+  it('passes the real repository (exactly one "Unlock", on the preview CTA)', () => {
+    expect(checkSingleUnlock()).toEqual([]);
+  });
+
+  it('passes a single Unlock on copy.report.unlockCta', () => {
+    write(defaultsRel, defaults());
+    write(jsonRel, JSON.stringify({ copy: { report: { unlockCta: 'Unlock my free report →' } } }));
+    write(templateRel, '<a class="cta unlock" (click)="unlock()">{{ copy.unlockCta }}</a>\n@if (unlocked() && f(); as x) { <p>Hi</p> }');
+    expect(checkSingleUnlock(root)).toEqual([]);
+  });
+
+  it('fails a second Unlock string in the defaults (any case or form)', () => {
+    write(defaultsRel, defaults("\n      tierLockedNote: 'The breakdown unlocks with your report.',"));
+    const failures = checkSingleUnlock(root);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('found 2');
+  });
+
+  it('fails when the one Unlock is not the preview CTA', () => {
+    write(
+      defaultsRel,
+      defaults("\n      submitLabel: 'Unlock my report →',", "'Get my free report →'"),
+    );
+    expect(checkSingleUnlock(root).some((f) => f.includes('must be the preview CTA'))).toBe(true);
+  });
+
+  it('fails visible template text with Unlock but ignores bindings and attributes', () => {
+    write(defaultsRel, defaults());
+    write(templateRel, '<button class="unlock" (click)="unlock()">Unlock now</button>');
+    const failures = checkSingleUnlock(root);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('Unlock now');
+  });
+
+  it('fails an Unlock in the runtime JSON outside copy.report.unlockCta', () => {
+    write(defaultsRel, defaults());
+    write(jsonRel, JSON.stringify({ copy: { gate: { submitLabel: 'Unlock my free report →' } } }));
+    const failures = checkSingleUnlock(root);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('copy.gate.submitLabel');
+  });
+
+  it('is part of the full banned-phrase check', () => {
+    write(defaultsRel, defaults("\n      x: 'unlock it',"));
+    expect(checkBannedPhrases(root).failures.some((f) => f.includes('"Unlock"'))).toBe(true);
+  });
+
+  it('templateText keeps only visible text', () => {
+    expect(templateText('<!-- unlock --><a class="unlock">{{ copy.unlockCta }}</a>').trim()).toBe('');
+  });
+
+  it('jsonStrings walks nested objects and arrays with dotted paths', () => {
+    expect(jsonStrings({ a: { b: ['x', { c: 'y' }] } })).toEqual([
+      { path: 'a.b[0]', text: 'x' },
+      { path: 'a.b[1].c', text: 'y' },
+    ]);
   });
 });

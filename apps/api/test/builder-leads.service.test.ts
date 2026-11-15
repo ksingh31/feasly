@@ -527,6 +527,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
       readonly invoiceNumber: string;
       readonly contractValueCents: number;
       readonly commissionCents: number;
+      readonly currency: string;
       readonly status: string;
       readonly reviewDueAt: Date | null;
       readonly paymentMethod: string;
@@ -556,6 +557,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
         invoiceNumber: 'INV-0042',
         contractValueCents: 50000000,
         commissionCents: 500000,
+        currency: 'CAD',
         status: 'in_review',
         reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
         paymentMethod: 'cheque',
@@ -601,6 +603,7 @@ describe('builder-leads status lock (2026-09-29)', () => {
         invoiceNumber: 'INV-0042',
         contractValueCents: 50000000,
         commissionCents: 500000,
+        currency: 'CAD',
         status: 'in_review',
         reviewDueAt: new Date('2026-10-06T00:00:00.000Z'),
         paymentMethod: 'card',

@@ -418,6 +418,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'escalate); audit-logged.',
   },
   // ── Admin user management (auth/03) ───────────────────────────────
+  // Admin redesign — ⌘K global search across leads, invoices, builders, users.
+  {
+    method: 'GET',
+    path: '/api/v1/admin/search',
+    auth: 'admin',
+    permissions: ['leads:read'] as const,
+    rateLimit: '60/min per session + 300/min per IP (dedicated search limiters)',
+    status: 'live',
+    summary:
+      'Global admin search: typed hits (lead, invoice, builder, user) with ' +
+      'display labels and IDs. Staff only; each kind gated by its own ' +
+      'read permission.',
+  },
   {
     method: 'GET',
     path: '/api/v1/admin/users',
@@ -1212,6 +1225,20 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Builder reads their org\'s negotiated commission rate (percent), ' +
       'for the "Record signed contract" live preview. Falls back to the ' +
       'configured default when the builder row is missing.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/billing/overview',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder portal Money page header in one call (#531): outstanding ' +
+      'total (unpaid, non-disputed invoices), next card auto-charge ' +
+      '(amount, date, card last4), failed invoices, plan type + the ' +
+      'org\'s configured commission rate (default 1%), and card on file. ' +
+      'Tenant-scoped to the builder session.',
   },
   {
     method: 'GET',

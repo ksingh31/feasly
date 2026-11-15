@@ -20,6 +20,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { formatRoundedCad, formatWholeCad } from '../../shared/utils/money';
 import type {
   CommunityProfileCopy,
   CommunityProfileView,
@@ -324,18 +325,22 @@ export class CommunityPageComponent implements OnInit {
    */
   compareBarLabel(assessedValue: number): string {
     return this.copy.compareBarLabelTemplate
-      .replace('{propertyValue}', this.formatCad(assessedValue))
+      .replace('{propertyValue}', this.formatExactCad(assessedValue))
       .replace('{name}', this.community?.displayName ?? '')
       .replace('{avgAssessed}', this.formatCad(this.community?.avgAssessedValue ?? 0));
   }
 
-  /** Formats whole CAD dollars (no cents — money is integer downstream). */
+  /**
+   * Community averages and tier estimates, rounded to $1,000 (#504 — an
+   * average like $609,901 claims precision it does not have).
+   */
   formatCad(value: number): string {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      maximumFractionDigits: 0,
-    }).format(value);
+    return formatRoundedCad(value);
+  }
+
+  /** The visitor's own City-assessed value — a City fact, shown exactly. */
+  formatExactCad(value: number): string {
+    return formatWholeCad(value);
   }
 
   /**

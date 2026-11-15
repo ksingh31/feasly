@@ -28,6 +28,11 @@ describe('loadConfig', () => {
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
       },
+      adminSearch: {
+        ipRateLimit: { windowMs: 60_000, maxRequests: 300 },
+        rateLimit: { windowMs: 60_000, maxRequests: 60 },
+        maxHitsPerKind: 5,
+      },
       webhook: {
         rateLimit: { windowMs: 60_000, maxRequests: 100 },
       },

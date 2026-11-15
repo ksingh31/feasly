@@ -217,8 +217,21 @@ import {
 } from './services/builder-auth.store';
 import {
   createSessionAdminGuard,
+  createAdminSearchPipeline,
   type AdminGuard,
 } from './middleware/admin-guard';
+import {
+  createAdminSearchRoute,
+  type AdminSearchRoute,
+} from './routes/admin-search.route';
+import {
+  createAdminSearchService,
+  type AdminSearchService,
+} from './services/admin-search.service';
+import {
+  createDrizzleAdminSearchStore,
+  type AdminSearchStore,
+} from './services/admin-search.store';
 import {
   createSessionBuilderGuard,
   type BuilderGuard,
@@ -500,6 +513,14 @@ import {
   type InvoiceSummaryStore,
 } from './services/billing/invoice-summary.store';
 import {
+  createBillingOverviewService,
+  type BillingOverviewService,
+} from './services/billing/billing-overview.service';
+import {
+  createBuilderBillingOverviewRoute,
+  type BuilderBillingOverviewRoute,
+} from './routes/builder/billing-overview.route';
+import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
 } from './routes/stripe-webhooks.route';
@@ -609,6 +630,12 @@ export interface AppComposition {
   readonly builderViewAsRoute: BuilderViewAsRoute;
   /** auth/03: admin user management (invite, edit, deactivate, delete). */
   readonly adminUsersRoute: AdminUsersRoute;
+  /** Admin ⌘K global search: dedicated per-IP + per-session limiters + route. */
+  readonly adminSearchIpRateLimiter: RateLimiter;
+  readonly adminSearchSessionRateLimiter: RateLimiter;
+  readonly adminSearchPipeline: RequestPipeline;
+  readonly adminSearchService: AdminSearchService;
+  readonly adminSearchRoute: AdminSearchRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
@@ -697,6 +724,10 @@ export interface AppComposition {
   readonly billingService: BillingService;
   /** billing/01: thin route for /api/v1/billing/*. */
   readonly billingRoute: BillingRoute;
+  /** #531: Money page header — one-call builder billing overview. */
+  readonly billingOverviewService: BillingOverviewService;
+  /** #531: thin route for GET /api/v1/builder/billing/overview. */
+  readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -748,6 +779,8 @@ export interface CompositionOptions {
   readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
+  /** Admin global search store override (tests). */
+  readonly adminSearchStore?: AdminSearchStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -1335,6 +1368,35 @@ export function createComposition(
     permissionGuard,
     builders: builderService,
   });
+  // Admin ⌘K global search. The palette fires per keystroke, so it runs on
+  // its own limiters. Primary is per client IP and runs BEFORE any token is
+  // trusted — a session-token key alone is bypassable by rotating random
+  // Bearer tokens (each a fresh bucket + a session lookup before the 401).
+  // Secondary is per admin session (token hash — see
+  // adminSessionRateLimitKey), skipped when no token is presented.
+  const adminSearchIpRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.ipRateLimit.windowMs,
+    maxRequests: config.adminSearch.ipRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchSessionRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.rateLimit.windowMs,
+    maxRequests: config.adminSearch.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchPipeline: RequestPipeline = createAdminSearchPipeline({
+    ipLimiter: adminSearchIpRateLimiter,
+    sessionLimiter: adminSearchSessionRateLimiter,
+    logger: options.logger,
+  });
+  const adminSearchService: AdminSearchService = createAdminSearchService({
+    store: options.adminSearchStore ?? createDrizzleAdminSearchStore({ db: db.db }),
+    config: { maxHitsPerKind: config.adminSearch.maxHitsPerKind },
+  });
+  const adminSearchRoute: AdminSearchRoute = createAdminSearchRoute({
+    search: adminSearchService,
+    permissionGuard,
+  });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
     permissionGuard,
@@ -1699,6 +1761,20 @@ export function createComposition(
   const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
     db: db.db,
   });
+  // #531 builder portal Money page header: one tenant-scoped read over the
+  // invoice summaries + configured rate + card on file.
+  const billingOverviewService: BillingOverviewService =
+    createBillingOverviewService({
+      billing: config.billing,
+      invoiceSummaries: invoiceSummaryStore,
+      commission: commissionService,
+      commissionCard: commissionCardService,
+    });
+  const builderBillingOverviewRoute: BuilderBillingOverviewRoute =
+    createBuilderBillingOverviewRoute({
+      overview: billingOverviewService,
+      builderGuard,
+    });
   // billing/05 lead comments store — created here (ahead of the leads
   // service) so the lead list can carry per-lead notes counts/previews.
   const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
@@ -1858,6 +1934,11 @@ export function createComposition(
     adminViewAsRoute,
     builderViewAsRoute,
     adminUsersRoute,
+    adminSearchIpRateLimiter,
+    adminSearchSessionRateLimiter,
+    adminSearchPipeline,
+    adminSearchService,
+    adminSearchRoute,
     userService,
     userStore,
     invitationStore,
@@ -1919,6 +2000,8 @@ export function createComposition(
     embedBillingHookService,
     billingService,
     billingRoute,
+    billingOverviewService,
+    builderBillingOverviewRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,

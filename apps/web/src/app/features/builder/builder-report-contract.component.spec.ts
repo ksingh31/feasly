@@ -329,7 +329,7 @@ describe('BuilderReportContractComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('$650,000');
     expect(text).toContain('$6,500');
-    expect(text).toContain('7-day review window');
+    expect(text).toContain('We charge your card 7 days after the invoice is issued');
   });
 
   it('shows the RFC 7807 server message on failure', async () => {
@@ -381,10 +381,11 @@ describe('BuilderReportContractComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     // Explainer card: what happens when a won deal is reported.
     expect(text).toContain('What happens next');
-    expect(text).toContain('auto-charges 7 days later');
+    expect(text).toContain(
+      'We charge your card 7 days after the invoice is issued. You can question it any time before then.',
+    );
     // No dispute flow is reachable from the builder portal (QA 2026-10-04).
     expect(text).not.toContain('unless disputed');
-    expect(text).toContain('contact Feasly if something looks wrong');
     // Form card + labeled inputs.
     expect(text).toContain('Record details');
     expect(text).toContain('Which lead signed?');
@@ -530,7 +531,7 @@ describe('BuilderReportContractComponent', () => {
       expect(text).toContain('$6,500');
       expect(text).toContain('Oct 6, 2026');
       expect(text).toContain('Auto-charges');
-      expect(text).toContain('charge your card on file');
+      expect(text).toContain('We charge your card 7 days after the invoice is issued');
       expect(text).toContain('View invoice');
       expect(text).toContain('Back to leads');
       expect(text).not.toContain('Report another contract');
@@ -560,7 +561,9 @@ describe('BuilderReportContractComponent', () => {
     // No card-charge promise for a manual-method org.
     expect(text).toContain('your card won’t be charged');
     expect(text).toContain('Pay by cheque');
-    expect(text).not.toContain('charge your card on file');
+    // Only the general "What happens next" explainer mentions card timing —
+    // the manual-method success message itself makes no card-charge promise.
+    expect(text.split('We charge your card 7 days after the invoice is issued').length - 1).toBe(1);
     // No auto-charge countdown for a manual-method invoice.
     expect(text).not.toContain('Auto-charges');
   });

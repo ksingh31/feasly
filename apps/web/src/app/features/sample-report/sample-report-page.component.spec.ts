@@ -87,10 +87,9 @@ describe('SampleReportPageComponent', () => {
 
   it('renders one hero total with a planning range — no Low/Base/High labels', () => {
     const text: string = fixture.nativeElement.textContent;
-    expect(text).toContain('$635,000');
-    expect(text).toContain('Likely planning range');
-    expect(text).toContain('$561,000');
-    expect(text).toContain('$727,000');
+    // #504: range-first headline, base secondary.
+    expect(text).toContain('$561,000 – $727,000');
+    expect(text).toContain('Most likely ≈ $635,000');
     // The consumer/04 redesign removed the Low / Base / High triple.
     const hero = fixture.nativeElement.querySelector('.hero-total');
     expect(hero.textContent).not.toMatch(/\bLow\b/);
@@ -103,6 +102,9 @@ describe('SampleReportPageComponent', () => {
     expect(landCard).not.toBeNull();
     expect(landCard.textContent).toContain('$165,000');
     expect(landCard.textContent).toContain('City of Calgary assessment · not a market price');
+    // #505: same honest label + existing-home note as the real report.
+    expect(landCard.textContent).toContain('City-assessed property value (land + existing home)');
+    expect(landCard.textContent).toContain('Includes the current house; teardown value may differ.');
     // No range dash in the land figure.
     const figure = landCard.querySelector('.figure-single');
     expect(figure.textContent.trim()).toBe('$165,000');

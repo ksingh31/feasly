@@ -3,6 +3,7 @@
 // admin-style table, alert/error/empty/skeleton states. Uses the shared
 // --color-* tokens; no new shared components.
 @use '../../shared/form-controls' as *;
+@use '../../shared/stacked-table' as *;
 
 .builder-invoices {
   display: flex;
@@ -137,8 +138,9 @@
   }
 }
 
-/* Admin-style table (billing-panel__table treatment). The scroll wrapper
- * keeps 390px viewports usable without collapsing columns. */
+/* Admin-style table (billing-panel__table treatment). On phones (<= 640px)
+ * each invoice row stacks into a card (#476); the scroll wrapper is only a
+ * desktop fallback. */
 .builder-invoices__table-scroll {
   overflow-x: auto;
   border: 1px solid var(--color-border, #e5e0d8);
@@ -157,7 +159,9 @@
     text-align: left;
     padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--color-border, #e5e0d8);
-    white-space: nowrap;
+    /* Cells wrap (no global nowrap) so all eight columns, including
+       'Review deadline', fit the 64rem panel at desktop widths (#476). */
+    vertical-align: top;
   }
 
   tbody tr:last-child td {
@@ -170,6 +174,8 @@
     letter-spacing: 0.04em;
     color: var(--color-text-muted, #6b6257);
   }
+
+  @include feasly-stacked-table;
 }
 
 .builder-invoices__row-link {
@@ -183,6 +189,7 @@
   text-underline-offset: 2px;
   cursor: pointer;
   min-height: 44px;
+  white-space: nowrap;
 }
 
 .builder-invoices__pill {

@@ -13,31 +13,9 @@ import {
   type ComparisonResult,
   type ComparisonRowSet,
   type CostData,
-  type RangedAmount,
 } from './types';
 import { calculateBuildBand } from './engine';
-
-/** Whole dollars only — cents never leave the server. */
-function wholeDollars(value: number): number {
-  return Math.round(value);
-}
-
-/**
- * Symmetric band around a base. Math.round is monotonically non-decreasing,
- * so low <= base <= high holds for every non-negative base and spread.
- */
-function band(base: number, spread: number): RangedAmount {
-  const b = wholeDollars(base);
-  return {
-    low: wholeDollars(b * (1 - spread)),
-    base: b,
-    high: wholeDollars(b * (1 + spread)),
-  };
-}
-
-function addBands(a: RangedAmount, b: RangedAmount): RangedAmount {
-  return { low: a.low + b.low, base: a.base + b.base, high: a.high + b.high };
-}
+import { addBands, band, outputGranularity, wholeDollars } from './bands';
 
 /**
  * Run the neighbourhood comparison.
@@ -47,6 +25,8 @@ function addBands(a: RangedAmount, b: RangedAmount): RangedAmount {
  * - Build = standard engine build (hard + soft + contingency) — identical
  *   across communities (same house design, same sqft, same tier)
  * - Total = land + build (componentwise)
+ * - Land and build bands round to the table's `roundTo` granularity (#581);
+ *   tables without it keep whole-dollar output
  *
  * Exactly one row-set carries lowestLand: true — the cheapest by
  * City-assessed value (`assessedValueBySlug`), which is the land figure the
@@ -126,7 +106,7 @@ export function createComparisonEstimate(
 
     // Land: avgLotSqft × landRatePerSqft ± landSpread.
     const landBase = wholeDollars(avgLotSqft) * costData.comparison.landRatePerSqft;
-    const land = band(landBase, costData.comparison.landSpread);
+    const land = band(landBase, costData.comparison.landSpread, outputGranularity(costData));
 
     // Total: land + build (componentwise).
     const total = addBands(land, build);

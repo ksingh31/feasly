@@ -1,7 +1,12 @@
+@use '../../shared/stacked-table' as *;
+
 .usage__table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+
+  /* Phones: each usage row stacks into a card (#476). */
+  @include feasly-stacked-table;
 }
 
 .usage__table th,

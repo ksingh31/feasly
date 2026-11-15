@@ -4,11 +4,17 @@
  * a malformed future version fails loudly at load time, not mid-estimate.
  */
 import { describe, expect, it } from 'vitest';
-import { assertValidCostData, PLACEHOLDER_COST_DATA } from '../src/cost-data';
+import {
+  assertValidCostData,
+  BUNDLED_COST_DATA,
+  BUNDLED_COST_DATA_VERSIONS,
+  COST_DATA_V0_3_0,
+  PLACEHOLDER_COST_DATA,
+} from '../src/cost-data';
 
 describe('placeholder cost-data table', () => {
   it('is versioned and explicitly marked uncalibrated', () => {
-    expect(PLACEHOLDER_COST_DATA.version).toBe('v0.3.0-unclibrated');
+    expect(PLACEHOLDER_COST_DATA.version).toBe('v0.4.0-unclibrated');
     expect(PLACEHOLDER_COST_DATA.calibrated).toBe(false);
     expect(PLACEHOLDER_COST_DATA.source).toBe('placeholder');
   });
@@ -60,5 +66,34 @@ describe('placeholder cost-data table', () => {
     expect(() =>
       assertValidCostData({ ...PLACEHOLDER_COST_DATA, landSpread: 0.05 }),
     ).toThrow(/landSpread was removed/);
+  });
+
+  it('publishes a top-level $1,000 output granularity from v0.4.0 (#581)', () => {
+    expect(PLACEHOLDER_COST_DATA.roundTo).toBe(1_000);
+  });
+
+  it('rejects a non-positive or fractional roundTo', () => {
+    for (const roundTo of [0, -1000, 12.5, '1000', null]) {
+      expect(() => assertValidCostData({ ...PLACEHOLDER_COST_DATA, roundTo })).toThrow(/roundTo/);
+    }
+  });
+
+  it('accepts a table with no roundTo (pre-v0.4.0 whole-dollar output)', () => {
+    expect(COST_DATA_V0_3_0.roundTo).toBeUndefined();
+    expect(() => assertValidCostData(COST_DATA_V0_3_0)).not.toThrow();
+  });
+
+  it('keeps the previous table bundled so pinned estimates reproduce', () => {
+    expect(BUNDLED_COST_DATA_VERSIONS).toEqual(['v0.3.0-unclibrated', 'v0.4.0-unclibrated']);
+    expect(BUNDLED_COST_DATA['v0.3.0-unclibrated']).toBe(COST_DATA_V0_3_0);
+    expect(BUNDLED_COST_DATA['v0.4.0-unclibrated']).toBe(PLACEHOLDER_COST_DATA);
+  });
+
+  it('v0.4.0 differs from v0.3.0 only by version, comment and roundTo', () => {
+    const strip = (d: Record<string, unknown>) => {
+      const { version: _v, _comment: _c, roundTo: _r, ...rest } = d;
+      return rest;
+    };
+    expect(strip({ ...PLACEHOLDER_COST_DATA })).toEqual(strip({ ...COST_DATA_V0_3_0 }));
   });
 });
