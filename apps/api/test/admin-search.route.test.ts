@@ -13,7 +13,12 @@ import { createAdminSearchRoute } from '../src/routes/admin-search.route';
 import type { AdminSearchService } from '../src/services/admin-search.service';
 import { createPermissionGuard } from '../src/middleware/permission-guard';
 import { HttpError } from '../src/middleware/errors';
-import { adminSessionRateLimitKey } from '../src/middleware/admin-guard';
+import {
+  adminSessionRateLimitKey,
+  createAdminSearchPipeline,
+} from '../src/middleware/admin-guard';
+import { createRateLimiter } from '../src/middleware/rate-limit';
+import { isProblemDetails } from '../src/middleware/errors';
 import { effectivePermissions } from '../src/auth/permissions';
 import type { AuthContext, AuthContextService } from '../src/services/auth-context.service';
 import type { BuilderRole, StaffRole } from '../src/services/user.service';
@@ -140,36 +145,89 @@ describe('GET /api/v1/admin/search — validation + contract', () => {
 
 describe('adminSessionRateLimitKey', () => {
   it('keys on a hash of the session token, never the raw token', () => {
-    const key = adminSessionRateLimitKey({ headers: HEADERS, clientIp: '1.2.3.4' });
+    const key = adminSessionRateLimitKey({ headers: HEADERS });
     expect(key).toMatch(/^session:[0-9a-f]{64}$/);
     expect(key).not.toContain('valid-test-session');
   });
 
-  it('gives the same key for the same session across IPs, different keys per session', () => {
-    const a = adminSessionRateLimitKey({ headers: HEADERS, clientIp: '1.1.1.1' });
-    const b = adminSessionRateLimitKey({ headers: HEADERS, clientIp: '2.2.2.2' });
+  it('gives the same key for the same session, different keys per session', () => {
+    const a = adminSessionRateLimitKey({ headers: HEADERS });
     const c = adminSessionRateLimitKey({
       headers: { cookie: 'feasly_admin_session=another' },
-      clientIp: '1.1.1.1',
     });
-    expect(a).toBe(b);
     expect(a).not.toBe(c);
   });
 
   it('prefers the Bearer token over the cookie (same as the guard)', () => {
     const bearer = adminSessionRateLimitKey({
       headers: { authorization: 'Bearer tok-1', cookie: 'feasly_admin_session=tok-2' },
-      clientIp: undefined,
     });
     const bearerOnly = adminSessionRateLimitKey({
       headers: { authorization: 'Bearer tok-1' },
-      clientIp: undefined,
     });
     expect(bearer).toBe(bearerOnly);
   });
 
-  it('falls back to the client IP without a session', () => {
-    expect(adminSessionRateLimitKey({ headers: {}, clientIp: '9.9.9.9' })).toBe('ip:9.9.9.9');
-    expect(adminSessionRateLimitKey({ headers: {}, clientIp: undefined })).toBe('ip:unknown');
+  it('returns undefined without a session (the per-IP limiter covers it)', () => {
+    expect(adminSessionRateLimitKey({ headers: {} })).toBeUndefined();
+  });
+});
+
+describe('createAdminSearchPipeline — limiter order', () => {
+  function pipelineWith(ipMax: number, sessionMax: number) {
+    const handler = vi.fn().mockResolvedValue('ok');
+    const pipeline = createAdminSearchPipeline({
+      ipLimiter: createRateLimiter({ windowMs: 60_000, maxRequests: ipMax, maxTrackedKeys: 1000 }),
+      sessionLimiter: createRateLimiter({
+        windowMs: 60_000,
+        maxRequests: sessionMax,
+        maxTrackedKeys: 1000,
+      }),
+      logger: () => undefined,
+    });
+    return { pipeline, handler };
+  }
+
+  it('throttles one IP rotating random Bearer tokens (no per-token bypass)', async () => {
+    const { pipeline, handler } = pipelineWith(5, 60);
+    const results: unknown[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      results.push(
+        await pipeline.run(
+          { headers: { authorization: `Bearer random-${i}` }, clientIp: '6.6.6.6' },
+          handler,
+        ),
+      );
+    }
+    expect(handler).toHaveBeenCalledTimes(5);
+    const denied = results.slice(5);
+    expect(denied.every((r) => isProblemDetails(r) && r.status === 429)).toBe(true);
+  });
+
+  it('throttles anonymous requests (no token) per IP', async () => {
+    const { pipeline, handler } = pipelineWith(3, 60);
+    for (let i = 0; i < 5; i += 1) {
+      await pipeline.run({ headers: {}, clientIp: '7.7.7.7' }, handler);
+    }
+    expect(handler).toHaveBeenCalledTimes(3);
+  });
+
+  it('enforces the per-session budget across IPs', async () => {
+    const { pipeline, handler } = pipelineWith(100, 2);
+    const ips = ['1.1.1.1', '2.2.2.2', '3.3.3.3'];
+    const results: unknown[] = [];
+    for (const ip of ips) {
+      results.push(await pipeline.run({ headers: HEADERS, clientIp: ip }, handler));
+    }
+    expect(handler).toHaveBeenCalledTimes(2);
+    const last = results[2];
+    expect(isProblemDetails(last) && last.status === 429).toBe(true);
+  });
+
+  it('gives each session its own budget behind the same IP', async () => {
+    const { pipeline, handler } = pipelineWith(100, 1);
+    await pipeline.run({ headers: { authorization: 'Bearer a' }, clientIp: '8.8.8.8' }, handler);
+    await pipeline.run({ headers: { authorization: 'Bearer b' }, clientIp: '8.8.8.8' }, handler);
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 });

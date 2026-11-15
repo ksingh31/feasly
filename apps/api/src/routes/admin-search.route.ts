@@ -7,7 +7,8 @@
  *   users) with display labels and IDs. Feasly staff only (`leads:read`,
  *   which no builder role holds) → builder roles get 403. Which kinds a
  *   caller sees is decided per permission inside AdminSearchService.
- *   Rate-limited per admin session by the dedicated adminSearchPipeline.
+ *   Rate-limited per IP, then per admin session, by the dedicated
+ *   adminSearchPipeline.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/

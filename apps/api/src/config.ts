@@ -75,9 +75,14 @@ const EnvSchema = z.object({
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
 
-  // Admin global search (⌘K palette): dedicated limiter keyed per admin
-  // session — palettes fire per keystroke, so it is separate from the
-  // general API budget. 60/min per session (frozen registry).
+  // Admin global search (⌘K palette): dedicated limiters — palettes fire
+  // per keystroke, so they are separate from the general API budget.
+  // Primary: per client IP, checked BEFORE the session token is looked at,
+  // so rotating random Bearer tokens can't dodge throttling (300/min per
+  // IP — generous enough for an office of admins behind one NAT).
+  // Secondary: 60/min per session (frozen registry).
+  ADMIN_SEARCH_IP_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  ADMIN_SEARCH_IP_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
   ADMIN_SEARCH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ADMIN_SEARCH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(60),
   /** Max hits returned per kind (leads, invoices, builders, users). */
@@ -439,7 +444,12 @@ export interface AnalyticsConfig {
 }
 
 export interface AdminSearchConfig {
-  /** Per-session limiter for GET /api/v1/admin/search. */
+  /**
+   * Primary per-IP limiter for GET /api/v1/admin/search. Keyed on the
+   * client IP so unauthenticated callers can't bypass it with random tokens.
+   */
+  readonly ipRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Secondary per-session limiter for GET /api/v1/admin/search. */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
   /** Max hits returned per kind. */
   readonly maxHitsPerKind: number;
@@ -1153,6 +1163,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       },
     },
     adminSearch: {
+      ipRateLimit: {
+        windowMs: e.ADMIN_SEARCH_IP_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.ADMIN_SEARCH_IP_RATE_LIMIT_MAX_REQUESTS,
+      },
       rateLimit: {
         windowMs: e.ADMIN_SEARCH_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ADMIN_SEARCH_RATE_LIMIT_MAX_REQUESTS,

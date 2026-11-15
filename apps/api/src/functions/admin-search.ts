@@ -3,9 +3,9 @@
  *
  * Admin ⌘K global search. Same edge shape as admin-users/shared.ts (CORS,
  * cached composition, correlation ID, registry-enforced permissions) but
- * runs through the dedicated `adminSearchPipeline`, whose limiter is keyed
- * per admin session — a palette fires per keystroke and must not eat the
- * general API budget.
+ * runs through the dedicated `adminSearchPipeline` (per-IP limiter first,
+ * then per admin session) — a palette fires per keystroke and must not eat
+ * the general API budget.
  *
  * Bundled by `npm run bundle:functions` into `admin-search/index.js`.
  */

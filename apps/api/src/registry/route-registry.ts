@@ -424,7 +424,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/search',
     auth: 'admin',
     permissions: ['leads:read'] as const,
-    rateLimit: '60/min per session (dedicated search limiter)',
+    rateLimit: '60/min per session + 300/min per IP (dedicated search limiters)',
     status: 'live',
     summary:
       'Global admin search: typed hits (lead, invoice, builder, user) with ' +

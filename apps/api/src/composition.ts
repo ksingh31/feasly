@@ -217,7 +217,7 @@ import {
 } from './services/builder-auth.store';
 import {
   createSessionAdminGuard,
-  adminSessionRateLimitKey,
+  createAdminSearchPipeline,
   type AdminGuard,
 } from './middleware/admin-guard';
 import {
@@ -622,8 +622,9 @@ export interface AppComposition {
   readonly builderViewAsRoute: BuilderViewAsRoute;
   /** auth/03: admin user management (invite, edit, deactivate, delete). */
   readonly adminUsersRoute: AdminUsersRoute;
-  /** Admin ⌘K global search: dedicated per-session limiter + route. */
-  readonly adminSearchRateLimiter: RateLimiter;
+  /** Admin ⌘K global search: dedicated per-IP + per-session limiters + route. */
+  readonly adminSearchIpRateLimiter: RateLimiter;
+  readonly adminSearchSessionRateLimiter: RateLimiter;
   readonly adminSearchPipeline: RequestPipeline;
   readonly adminSearchService: AdminSearchService;
   readonly adminSearchRoute: AdminSearchRoute;
@@ -1356,16 +1357,24 @@ export function createComposition(
     builders: builderService,
   });
   // Admin ⌘K global search. The palette fires per keystroke, so it runs on
-  // its own limiter keyed per admin session (token hash; client IP when
-  // there is no session — see adminSessionRateLimitKey).
-  const adminSearchRateLimiter: RateLimiter = createRateLimiter({
+  // its own limiters. Primary is per client IP and runs BEFORE any token is
+  // trusted — a session-token key alone is bypassable by rotating random
+  // Bearer tokens (each a fresh bucket + a session lookup before the 401).
+  // Secondary is per admin session (token hash — see
+  // adminSessionRateLimitKey), skipped when no token is presented.
+  const adminSearchIpRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.ipRateLimit.windowMs,
+    maxRequests: config.adminSearch.ipRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchSessionRateLimiter: RateLimiter = createRateLimiter({
     windowMs: config.adminSearch.rateLimit.windowMs,
     maxRequests: config.adminSearch.rateLimit.maxRequests,
     maxTrackedKeys: config.rateLimit.maxTrackedKeys,
   });
-  const adminSearchPipeline: RequestPipeline = createRequestPipeline({
-    rateLimiter: adminSearchRateLimiter,
-    keyFor: adminSessionRateLimitKey,
+  const adminSearchPipeline: RequestPipeline = createAdminSearchPipeline({
+    ipLimiter: adminSearchIpRateLimiter,
+    sessionLimiter: adminSearchSessionRateLimiter,
     logger: options.logger,
   });
   const adminSearchService: AdminSearchService = createAdminSearchService({
@@ -1894,7 +1903,8 @@ export function createComposition(
     adminViewAsRoute,
     builderViewAsRoute,
     adminUsersRoute,
-    adminSearchRateLimiter,
+    adminSearchIpRateLimiter,
+    adminSearchSessionRateLimiter,
     adminSearchPipeline,
     adminSearchService,
     adminSearchRoute,
