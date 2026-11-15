@@ -79,5 +79,6 @@ if (merged > 0) {
   ghWrite(['workflow', 'run', 'cd.yml', '--ref', 'main', '-f', 'target=dev']);
   // B: a GITHUB_TOKEN merge fires no 'pull_request: closed' event, so wake the orchestrator ourselves.
   ghWrite(['workflow', 'run', 'agent-dispatch.yml', '--ref', 'main']);
+  ghWrite(['workflow', 'run', 'swa-preview-janitor.yml', '--ref', 'main']); // merged PR's preview
   console.log('triggered CI + dev deploy on main');
 }

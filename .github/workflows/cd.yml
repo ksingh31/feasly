@@ -41,6 +41,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  pull-requests: read # preview housekeeping looks up PR states
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -74,12 +75,45 @@ jobs:
             echo "No apps/web on this branch — skipping SWA preview."
           fi
 
-      - name: Build web app (production, prerendered)
+      # Previews only for PRs that change what the web app serves (docs/pipeline/API-only
+      # PRs don't need one) — keeps the Free plan's 3 staging slots for real UI work.
+      - name: Does this PR change the web app?
+        id: webchange
         if: steps.web.outputs.present == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE"
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(apps/web/|packages/contracts/|package-lock\.json$)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "No web-app changes — skipping SWA preview."
+          fi
+
+      - name: Login to Azure (OIDC) for preview housekeeping
+        if: steps.webchange.outputs.changed == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Never fail on the 3-slot cap: drop previews of closed PRs, then evict the least
+      # recently updated open PR's preview if still full (rebuilt on its next push).
+      - name: Free a preview slot
+        if: steps.webchange.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAKE_ROOM_FOR: ${{ github.event.pull_request.number }}
+        run: bash infra/swa/free-preview-slot.sh
+
+      - name: Build web app (production, prerendered)
+        if: steps.webchange.outputs.changed == 'true'
         run: npm run build --workspace @feasly/web
 
       - name: Deploy SWA preview environment
-        if: steps.web.outputs.present == 'true'
+        if: steps.webchange.outputs.changed == 'true'
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
