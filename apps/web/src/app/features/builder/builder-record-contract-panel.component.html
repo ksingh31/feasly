@@ -58,7 +58,7 @@
 
   <!-- Live preview at the org's configured rate, with charge date and card. -->
   <div class="record-panel__preview" data-testid="record-preview">
-    @if (overviewStatus() === 'error') {
+    @if (loadFailed()) {
       <p class="record-panel__body record-panel__error" role="alert">{{ t.rateError }}</p>
       <button type="button" ui-button variant="secondary" size="sm" class="record-panel__cta" (click)="loadBilling()">
         {{ copy.contractRetry }}

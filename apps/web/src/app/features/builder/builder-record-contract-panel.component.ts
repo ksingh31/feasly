@@ -83,6 +83,7 @@ export class BuilderRecordContractPanelComponent {
   private readonly overview = this.store.selectSignal(BuilderBillingState.overview);
   protected readonly overviewStatus = this.store.selectSignal(BuilderBillingState.overviewStatus);
   private readonly defaultMethod = this.store.selectSignal(BuilderBillingState.defaultMethod);
+  private readonly defaultMethodStatus = this.store.selectSignal(BuilderBillingState.defaultMethodStatus);
 
   protected readonly submitStatus = this.store.selectSignal(BuilderReportContractState.submitStatus);
   protected readonly submitError = this.store.selectSignal(BuilderReportContractState.error);
@@ -132,8 +133,21 @@ export class BuilderRecordContractPanelComponent {
   /** Expected charge date: today on the billing calendar + the review window. */
   protected readonly chargeDate = formatEdmontonDatePlusDays(this.chargeDelayDays);
 
-  /** Review is possible once the rate (or flat plan) is known. */
-  protected readonly ready = computed(() => this.overviewStatus() === 'ready' && this.overview() !== null);
+  /**
+   * Review is possible once the rate (or flat plan) AND the default payment
+   * method are known — a manual-method org must never see a card-charge
+   * promise because the method request was slow or failed (QA 2026-10-04).
+   */
+  protected readonly ready = computed(
+    () =>
+      this.overviewStatus() === 'ready' &&
+      this.overview() !== null &&
+      (this.flat() || this.defaultMethodStatus() === 'ready'),
+  );
+  /** Either billing read failed (the method only matters off the flat plan); retry re-dispatches both. */
+  protected readonly loadFailed = computed(
+    () => this.overviewStatus() === 'error' || (!this.flat() && this.defaultMethodStatus() === 'error'),
+  );
 
   protected readonly valueError = computed(() => {
     if (!this.attempted()) return null;

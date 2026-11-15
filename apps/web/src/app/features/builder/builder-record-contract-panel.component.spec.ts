@@ -70,7 +70,7 @@ const IN_THREE_DAYS = new Date(Date.now() + 3 * 86_400_000).toISOString();
 
 interface Options {
   readonly overview?: BuilderBillingOverviewResponse | 'error';
-  readonly method?: BuilderPaymentMethod;
+  readonly method?: BuilderPaymentMethod | 'error' | Subject<{ defaultMethod: BuilderPaymentMethod }>;
   readonly confirm?: boolean;
   readonly report?: Subject<ReportContractResult> | 'error';
 }
@@ -80,7 +80,13 @@ function setup(options: Options = {}) {
     getOverview: vi.fn(() =>
       options.overview === 'error' ? throwError(() => ({ code: 'http_500' })) : of(options.overview ?? overview()),
     ),
-    getDefaultPaymentMethod: vi.fn(() => of({ defaultMethod: options.method ?? 'card' })),
+    getDefaultPaymentMethod: vi.fn(() =>
+      options.method === 'error'
+        ? throwError(() => ({ code: 'http_500' }))
+        : options.method instanceof Subject
+          ? options.method.asObservable()
+          : of({ defaultMethod: options.method ?? 'card' }),
+    ),
     reportContract: vi.fn(() => {
       if (options.report === 'error') return throwError(() => ({ code: 'http_500', message: 'Server hiccup.' }));
       return options.report
@@ -191,6 +197,36 @@ describe('BuilderRecordContractPanelComponent (#529)', () => {
     billingApi.getOverview.mockReturnValue(of(overview()));
     (el.querySelector('[data-testid="record-preview"] button') as HTMLButtonElement).click();
     await until(() => !review(el).disabled, 'review enabled after retry');
+  });
+
+  it('a failed default-method load keeps Review disabled with no card promise, then retries', async () => {
+    const { el, billingApi, confirms } = setup({ method: 'error' });
+    await until(() => el.querySelector('[role="alert"]') !== null, 'billing error');
+    expect(el.textContent).toContain(T.rateError);
+    expect(review(el).disabled).toBe(true);
+    expect(el.querySelector('[data-testid="record-card"]')).toBeNull();
+    expect(el.querySelector('[data-testid="record-charge-date"]')).toBeNull();
+    expect(el.textContent).not.toContain('4242');
+    typeValue(el, '650000');
+    review(el).click();
+    TestBed.tick();
+    expect(confirms.confirm).not.toHaveBeenCalled();
+    billingApi.getDefaultPaymentMethod.mockReturnValue(of({ defaultMethod: 'cheque' }));
+    (el.querySelector('[data-testid="record-preview"] button') as HTMLButtonElement).click();
+    await until(() => !review(el).disabled, 'review enabled after retry');
+    expect(text(el, 'record-card')).toBe('Paid by cheque — no card charge');
+  });
+
+  it('a slow default-method load keeps Review disabled until the method is known', async () => {
+    const method = new Subject<{ defaultMethod: BuilderPaymentMethod }>();
+    const { el } = setup({ method });
+    await until(() => el.querySelector('[data-testid="record-preview"] [role="status"]') !== null, 'loading');
+    expect(review(el).disabled).toBe(true);
+    expect(el.querySelector('[data-testid="record-card"]')).toBeNull();
+    method.next({ defaultMethod: 'cheque' });
+    method.complete();
+    await until(() => !review(el).disabled, 'review enabled once method known');
+    expect(text(el, 'record-card')).toBe('Paid by cheque — no card charge');
   });
 
   it('validates value and date before confirming', async () => {
