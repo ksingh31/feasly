@@ -109,52 +109,48 @@ export interface PricingCoverageFacts {
  * the assessed-value issue: the user always gets the most specific message.
  *
  * Eligibility (Karan, 2026-10-02 — final rule): the estimator quotes every
- * zone where a single-family home can legally be built. Eligible:
- * blank/unknown zoning (fail open — never block on missing data), 'DC'
- * (Direct Control — common for new-community greenfield lots, fail open),
- * 'R-C1'/'R-C1S' (single-detached), 'R-C2' (duplex — single-family homes do
- * get built in duplex-zoned areas), 'R-CG' (rowhouse), 'R-G' and 'H-GO'.
- * Rationale: per the City's Land Use Bylaw 1P2007 these are exactly the
- * districts where a single-detached dwelling is a listed use — R-CG/R-G
- * cover most inner-city infill teardown lots, which are prime rebuild
- * leads. Everything else — M-* (multi-residential), C-*, I-*, S-*, etc. —
- * is not supported.
+ * zone where a single-family home can legally be built — the land-use
+ * districts where a single-detached dwelling is a listed use per the City's
+ * Land Use Bylaw 1P2007. The list lives in config
+ * (`coverage.singleFamilyDistricts.<city>`, #685) and is passed in, so no
+ * district code is hardcoded here. Blank/unknown zoning fails open (never
+ * block on missing data); 'DC' is in the configured list (fail open for
+ * new-community greenfield lots). Everything else — multi-residential,
+ * commercial, industrial, special purpose — is not supported.
  */
 export type PricingCoverageIssue = 'non-residential' | 'unsupported-property-type' | 'assessed-value';
-
-/**
- * Land-use designations where a single-family home can legally be built,
- * matched case-insensitively against each district token of the City
- * `land_use_designation`.
- */
-const SINGLE_FAMILY_ZONING = new Set(['R-C1', 'R-C1S', 'R-C2', 'R-CG', 'R-G', 'H-GO', 'DC']);
 
 /**
  * True when the parcel's zoning is outside the single-family set the
  * estimator quotes. The City dataset returns compound designations as a
  * comma-joined list (e.g. 'R-C1,R-CG', 'R-1N,R-G'); the parcel is supported
- * when ANY district token is in the set, since a single-detached home is
- * buildable under that district (#562). Fails open: blank/unknown/missing
+ * when ANY district token is in the configured list (case-insensitive),
+ * since a single-detached home is buildable under that district (#562). Fails open: blank/unknown/missing
  * zoning (or a list with no non-blank tokens) returns false — never block on
  * missing data.
  */
-function isUnsupportedPropertyType(zoning: string | null | undefined): boolean {
+function isUnsupportedPropertyType(
+  zoning: string | null | undefined,
+  singleFamilyDistricts: readonly string[],
+): boolean {
   const districts = (zoning ?? '')
     .split(',')
     .map((token) => token.trim().toUpperCase())
     .filter((token) => token.length > 0);
   if (districts.length === 0) return false;
-  return !districts.some((district) => SINGLE_FAMILY_ZONING.has(district));
+  const supported = new Set(singleFamilyDistricts.map((code) => code.trim().toUpperCase()));
+  return !districts.some((district) => supported.has(district));
 }
 
 export function pricingCoverageIssue(
   facts: PricingCoverageFacts,
   bounds: PricingCoverageBounds,
+  singleFamilyDistricts: readonly string[],
 ): PricingCoverageIssue | null {
   if (facts.isNonResidential) {
     return 'non-residential';
   }
-  if (isUnsupportedPropertyType(facts.zoning)) {
+  if (isUnsupportedPropertyType(facts.zoning, singleFamilyDistricts)) {
     return 'unsupported-property-type';
   }
   const assessed = Math.round(facts.assessedValue);

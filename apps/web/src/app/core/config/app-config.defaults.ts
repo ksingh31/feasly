@@ -112,6 +112,37 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
      */
     estimateRoundingStep: 1000,
   },
+  coverage: {
+    singleFamilyDistricts: {
+      /**
+       * Calgary Land Use Bylaw 1P2007 low-density districts where a
+       * single-detached dwelling is a listed use (Karan, 2026-10-02 rule),
+       * plus the districts lots reverted to when citywide rezoning was
+       * repealed effective 2026-08-04 (#685). 'DC' (Direct Control) is
+       * fail-open: common on new-community greenfield lots. Deliberately
+       * absent: R-MH (manufactured homes), R-Gm (the "m" modifier removes
+       * single-detached as a use), M-*, MU-*, C-*, I-*, S-*. R-CGex is
+       * pending bylaw verification (no single-detached homes on it today).
+       */
+      calgary: [
+        'R-C1',
+        'R-C1S',
+        'R-C1L',
+        'R-C1LS',
+        'R-C1N',
+        'R-C2',
+        'R-1',
+        'R-1S',
+        'R-1N',
+        'R-2',
+        'R-2M',
+        'R-CG',
+        'R-G',
+        'H-GO',
+        'DC',
+      ],
+    },
+  },
   analytics: {
     enabled: false,
     optInWording: 'Allow anonymous usage analytics to help improve Feasly.',
@@ -867,7 +898,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         ctaReno: 'Renovation estimates — coming soon',
         zoningCardTitle: 'Why we ask about your address',
         zoningCardBody:
-          'Your address tells us your lot\u2019s City land use designation \u2014 the zoning code that decides what can be built there. We quote single-family homes in residential zones (R-C1, R-C1S, R-C2, R-CG, R-G, H-GO), so if your lot is zoned for apartments, shops, or industry, we\u2019ll say so plainly instead of inventing a number.',
+          'Your address tells us your lot\u2019s City land use designation \u2014 the zoning code that decides what can be built there. We quote single-family homes in every residential zone where a single-detached house is allowed (our zoning guide lists them), so if your lot is zoned for apartments, shops, or industry, we\u2019ll say so plainly instead of inventing a number.',
         zoningCardCta: 'Learn about Calgary zoning →',
       },
       faq: {
@@ -1032,6 +1063,18 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             build: 'Yes',
           },
           {
+            code: 'R-C1L / R-C1Ls',
+            name: 'Residential – Contextual Large Parcel One Dwelling',
+            allows: 'Single-detached homes on large lots (the "s" version also allows a secondary suite)',
+            build: 'Yes',
+          },
+          {
+            code: 'R-C1N',
+            name: 'Residential – Contextual Narrow Parcel One Dwelling',
+            allows: 'Single-detached homes on narrow lots, plus suites',
+            build: 'Yes',
+          },
+          {
             code: 'R-C2',
             name: 'Residential – Contextual Duplex',
             allows: 'Single-detached, semi-detached and duplex homes, plus suites',
@@ -1042,6 +1085,24 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             name: 'Residential – Contextual Grade-Oriented Infill',
             allows: 'Single-detached, semi-detached, rowhouses and suites (up to about 4 units)',
             build: 'Yes — single-detached is a listed use',
+          },
+          {
+            code: 'R-1 / R-1s / R-1N',
+            name: 'Residential – One Dwelling (newer communities)',
+            allows: 'Single-detached homes; R-1s adds a secondary suite, R-1N is for narrow lots',
+            build: 'Yes',
+          },
+          {
+            code: 'R-2',
+            name: 'Residential – One / Two Dwelling',
+            allows: 'Single-detached, semi-detached and duplex homes',
+            build: 'Yes',
+          },
+          {
+            code: 'R-2M',
+            name: 'Residential – Low Density Multiple Dwelling',
+            allows: 'Single-detached, semi-detached, duplex and row homes',
+            build: 'Yes',
           },
           {
             code: 'R-G',
@@ -1128,7 +1189,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Why does Feasly only quote single-family homes?',
-            a: 'Our estimator prices single-family new builds. When you enter an address, we check the City land use designation: lots zoned R-C1, R-C1S, R-C2, R-CG, R-G, or H-GO get a quote, and anything else gets a plain "not supported" message. We would rather turn down a quote than invent a number for a building type we do not price.',
+            a: 'Our estimator prices single-family new builds. When you enter an address, we check the City land use designation: lots in a zone where a single-detached house is allowed (the zones marked \u201cYes\u201d in the zoning table on this page) get a quote, and anything else gets a plain "not supported" message. We would rather turn down a quote than invent a number for a building type we do not price.',
             anchor: 'why-single-family-only',
           },
           {

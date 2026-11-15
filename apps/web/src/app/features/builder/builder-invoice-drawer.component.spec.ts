@@ -267,7 +267,10 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     function stubDownload() {
       const createObjectURL = vi.fn(() => 'blob:invoice');
       const revokeObjectURL = vi.fn();
-      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      // defineProperty, not assignment: another spec in the same worker may
+      // have left these as non-writable own properties (order-dependent leak).
+      Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
       const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
         clicked.push(this.download);
       });
