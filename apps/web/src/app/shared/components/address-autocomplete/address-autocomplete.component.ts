@@ -22,7 +22,8 @@ const ADDRESS_NOT_FOUND = 'ADDRESS_NOT_FOUND';
  * the landing page (S0) and the wizard address step (S1).
  *
  * Emits the full `PropertyRecord` once a suggestion resolves — parents never
- * touch address keys. Keyboard: ArrowUp/Down to move, Enter to pick the
+ * touch address keys. Keyboard: ArrowUp/Down to move (on a closed list they
+ * open it — ArrowUp on the last option), Enter to pick the
  * highlighted suggestion (or `submitted` when nothing is highlighted),
  * Escape to dismiss.
  */
@@ -80,6 +81,16 @@ export class AddressAutocompleteComponent {
    * input references the listbox only while it is rendered.
    */
   readonly listboxRendered = computed(() => this.open() && this.suggestions().length > 0);
+  /**
+   * id of the highlighted option, or null. `aria-activedescendant` must name
+   * an option that is in the DOM (#579), so it is set only while the
+   * listbox is rendered and the index is within the current suggestions.
+   */
+  readonly activeDescendantId = computed(() => {
+    const index = this.activeIndex();
+    if (!this.listboxRendered() || index < 0 || index >= this.suggestions().length) return null;
+    return `${this.listboxId}-opt-${index}`;
+  });
 
   /** Address key currently resolving to a full record (for retry). */
   private pendingKey: string | null = null;
@@ -288,7 +299,15 @@ export class AddressAutocompleteComponent {
       case 'ArrowUp':
         event.preventDefault();
         if (count > 0) {
-          this.activeIndex.set(Math.max(this.activeIndex() - 1, 0));
+          // ARIA combobox pattern: ArrowUp on a closed list (or an open one
+          // with nothing highlighted) opens it on the last option. The index
+          // never moves while the list stays closed (#579).
+          if (!this.open() || this.activeIndex() < 0) {
+            this.open.set(true);
+            this.activeIndex.set(count - 1);
+          } else {
+            this.activeIndex.set(Math.max(this.activeIndex() - 1, 0));
+          }
         }
         break;
       case 'Enter':
