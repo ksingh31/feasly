@@ -93,6 +93,8 @@ describe('enumLabel', () => {
     ['builder-admin', 'Builder admin'],
     ['SUPER_ADMIN', 'Super admin'],
     ['api_key', 'API key'],
+    ['api', 'API'],
+    ['mcp', 'MCP'],
   ])('%s → %s', (value, label) => {
     expect(enumLabel(value)).toBe(label);
   });

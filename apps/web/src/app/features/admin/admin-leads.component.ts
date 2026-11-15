@@ -1,24 +1,44 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  Injector,
+  computed,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Store } from '@ngxs/store';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import type {
-  AdminLeadFilters,
-  AdminLeadStatus,
-} from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
-import { AdminLeadDetailComponent } from './admin-lead-detail.component';
+import { filter } from 'rxjs';
+import type { AdminLeadListItem, AdminLeadStatus } from '@feasly/contracts';
+import { ConfigService } from '@app/core/config/config.service';
+import {
+  type DataTableColumn,
+  DataTableComponent,
+  type FilterBarSelect,
+  FilterBarComponent,
+  KitCountPipe,
+  PageHeaderComponent,
+  UiButtonComponent,
+  UiCellDirective,
+  UiConfirmService,
+  UiDrawerService,
+  UiRowActionsDirective,
+  enumLabel,
+  injectDrawerParam,
+  injectTableQuery,
+  statusPresentation,
+} from '@app/shared/ui';
+import { AdminLeadDrawerComponent, type AdminLeadDrawerData } from './admin-lead-drawer.component';
 import {
   ApproveQuarantinedLead,
-  ClearSelectedAdminLead,
   DiscardQuarantinedLead,
   DismissExportError,
   DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
-  SelectAdminLead,
   SetAdminLeadsTab,
   ToggleAdminLeadsSandbox,
   type AdminLeadsTab,
@@ -27,54 +47,69 @@ import { AdminLeadsState } from './admin-leads.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import {
+  ADMIN_LEADS_VIEWS,
+  ASSIGNED_PARAM,
+  type AdminLeadsView,
+  LEADS_FILTER_KEYS,
+  PIPELINE_STATUSES,
+  STATUS_PARAM,
+  UNASSIGNED,
+  VIEW_PARAM,
+  fill,
+  leadsFilters,
+  parseStatus,
+  parseView,
+} from './admin-leads-view';
 
-const STATUS_OPTIONS: readonly ('' | AdminLeadStatus)[] = [
-  '',
-  'new',
-  'contacted',
-  'quoting',
-  'won',
-  'lost',
-];
-
-/** Pipeline statuses in the order Karan works them (drives the totals row). */
-const PIPELINE_STATUSES: readonly AdminLeadStatus[] = [
-  'new',
-  'contacted',
-  'quoting',
-  'won',
-  'lost',
-];
-
-/**
- * Assignment filter options: all leads, unassigned only, then one option
- * per builder appended dynamically from AdminBuildersState.
- */
-const ASSIGNED_OPTIONS: readonly ('' | 'unassigned')[] = ['', 'unassigned'];
+/** Saved-view id → copy key. */
+const VIEW_COPY_KEY: Readonly<Record<AdminLeadsView, 'all' | 'new' | 'unassigned' | 'quotingStale'>> = {
+  all: 'all',
+  new: 'new',
+  unassigned: 'unassigned',
+  'quoting-stale': 'quotingStale',
+};
 
 /**
- * Leads explorer (admin/02) — Karan's daily lead view. FE-9 redesign:
- * cream/charcoal/brass premium theme, pipeline totals row, exactly three
- * filters (search, status, assigned), lead cards with avatar initials,
- * and a centered lead-detail modal replacing the old side drawer.
+ * Admin Leads (#539, admin review S5/S6) — the team's daily lead view.
  *
- * Tabs (all/quarantine), the sandbox toggle, and CSV export are unchanged.
- * Guarded by `adminGuard`; noindex via the robots guard; excluded from
- * prerendering. All state lives in `AdminLeadsState` — the component only
- * dispatches actions and reads signals.
+ * - Saved views (All · New · Unassigned · Quoting > N days), pipeline
+ *   totals as filter tiles, FilterBar (search, status, builder) — all in
+ *   the URL (`view`, `status`, `assigned`, `q`), so views are shareable.
+ * - Kit DataTable (48px rows; card list below 768px) with labelled columns.
+ *   The list API is cursor-paged, so "Load more" appends below the table.
+ * - A row opens the lead drawer (`?open=<id>`; deep links and Back work).
+ * - Tabs (all / quarantine), sandbox toggle and CSV export carry over.
+ *
+ * All state lives in AdminLeadsState; this component maps URL → actions.
  */
 @Component({
   selector: 'app-admin-leads',
   standalone: true,
-  imports: [ReactiveFormsModule, AdminLeadDetailComponent],
+  imports: [
+    PageHeaderComponent,
+    FilterBarComponent,
+    DataTableComponent,
+    UiCellDirective,
+    UiRowActionsDirective,
+    UiButtonComponent,
+    KitCountPipe,
+  ],
   templateUrl: './admin-leads.component.html',
   styleUrls: ['./admin-leads.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AdminLeadsComponent implements OnInit {
+export class AdminLeadsComponent {
   private readonly store = inject(Store);
-  private readonly fb = inject(FormBuilder);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(ConfigService);
+  private readonly drawers = inject(UiDrawerService);
+  private readonly confirms = inject(UiConfirmService);
+  private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly copy = this.config.get('copy').admin.leads;
+  protected readonly debounceMs = this.config.get('timings').filterDebounceMs;
+  private readonly staleDays = this.config.get('admin').leads.quotingStaleDays;
 
   protected readonly leads = this.store.selectSignal(AdminLeadsState.leads);
   protected readonly totalCount = this.store.selectSignal(AdminLeadsState.totalCount);
@@ -84,105 +119,131 @@ export class AdminLeadsComponent implements OnInit {
   protected readonly includeSandbox = this.store.selectSignal(AdminLeadsState.includeSandbox);
   protected readonly listStatus = this.store.selectSignal(AdminLeadsState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminLeadsState.listError);
-  protected readonly selectedLeadId = this.store.selectSignal(AdminLeadsState.selectedLeadId);
   protected readonly exporting = this.store.selectSignal(AdminLeadsState.exporting);
   protected readonly exportError = this.store.selectSignal(AdminLeadsState.exportError);
-  protected readonly quarantineActionId = this.store.selectSignal(
-    AdminLeadsState.quarantineActionId,
+  protected readonly quarantineActionId = this.store.selectSignal(AdminLeadsState.quarantineActionId);
+  protected readonly quarantineActionKind = this.store.selectSignal(AdminLeadsState.quarantineActionKind);
+  protected readonly quarantineActionError = this.store.selectSignal(AdminLeadsState.quarantineActionError);
+  private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
+
+  /** Quarantine approve/discard are `leads:manage` writes. */
+  protected readonly canManageLeads = adminCan(this.store, ADMIN_PERMISSIONS.leadsManage);
+
+  /** Search, saved view and filters — all in the URL. */
+  protected readonly list = injectTableQuery({ filterKeys: LEADS_FILTER_KEYS });
+  /** `?open=<id>` — the lead whose drawer is open. */
+  protected readonly openId = injectDrawerParam();
+
+  protected readonly view = computed(() => parseView(this.list.filters()[VIEW_PARAM]));
+  protected readonly statusFilter = computed(() => parseStatus(this.list.filters()[STATUS_PARAM]));
+
+  protected readonly views = computed(() =>
+    ADMIN_LEADS_VIEWS.map((id) => ({
+      id,
+      label: fill(this.copy.views[VIEW_COPY_KEY[id]], { days: this.staleDays }),
+    })),
   );
-  protected readonly quarantineActionKind = this.store.selectSignal(
-    AdminLeadsState.quarantineActionKind,
+  protected readonly viewHint = computed(() =>
+    fill(this.copy.viewHints[VIEW_COPY_KEY[this.view()]], { days: this.staleDays }),
   );
-  protected readonly quarantineActionError = this.store.selectSignal(
-    AdminLeadsState.quarantineActionError,
+
+  protected readonly pipelineStatuses = PIPELINE_STATUSES;
+
+  protected readonly selects = computed<readonly FilterBarSelect[]>(() => [
+    {
+      key: STATUS_PARAM,
+      label: this.copy.statusFilter,
+      placeholder: this.copy.anyStatus,
+      options: PIPELINE_STATUSES.map((s) => ({ value: s, label: this.statusLabel(s) })),
+    },
+    {
+      key: ASSIGNED_PARAM,
+      label: this.copy.assignedFilter,
+      placeholder: this.copy.anyAssignment,
+      options: [
+        { value: UNASSIGNED, label: this.copy.unassigned },
+        ...this.builders().map((b) => ({ value: b.id, label: b.displayName })),
+      ],
+    },
+  ]);
+
+  /** Anything narrowing the list (drives the empty-state variant). */
+  protected readonly filtered = computed(
+    () => this.list.search() !== '' || Object.keys(this.list.filters()).length > 0,
   );
+
+  protected readonly countLabel = computed(() =>
+    fill(this.totalCount() === 1 ? this.copy.countOne : this.copy.countMany, { count: this.totalCount() }),
+  );
+
+  protected readonly rowId = (lead: AdminLeadListItem): string => lead.id;
+
+  protected readonly columns: readonly DataTableColumn<AdminLeadListItem>[] = [
+    { key: 'lead', header: this.copy.columns.lead, cardRole: 'title', value: (l) => l.name },
+    { key: 'address', header: this.copy.columns.address, cardRole: 'meta', value: (l) => l.addressKey },
+    {
+      key: 'status',
+      header: this.copy.columns.status,
+      kind: 'status',
+      statusDomain: 'lead',
+      cardRole: 'chip',
+    },
+    { key: 'tenant', header: this.copy.columns.tenant, kind: 'id', cardRole: 'hidden', value: (l) => l.tenantKey },
+    { key: 'source', header: this.copy.columns.source, cardRole: 'meta', value: (l) => enumLabel(l.source) },
+    { key: 'score', header: this.copy.columns.score, kind: 'count', cardRole: 'hidden', value: (l) => l.leadScore },
+    { key: 'timeline', header: this.copy.columns.timeline, cardRole: 'hidden', value: (l) => l.timeline },
+    { key: 'consent', header: this.copy.columns.consent, cardRole: 'hidden', value: (l) => l.contactConsent },
+    { key: 'created', header: this.copy.columns.created, kind: 'date', cardRole: 'meta', value: (l) => l.createdAt },
+  ];
 
   /**
-   * Quarantine approve/discard are write actions (`leads:manage`) —
-   * read-only staff see the quarantined rows but no action buttons.
+   * Stable key for "what the list should show" — the drawer's `?open=`
+   * param also changes the URL, and must not trigger a reload.
    */
-  protected readonly canManageLeads = adminCan(
-    this.store,
-    ADMIN_PERMISSIONS.leadsManage,
+  private readonly listKey = computed(() =>
+    JSON.stringify({ q: this.list.search(), f: this.list.filters() }),
   );
 
-  /** Lead id awaiting the second (confirm) click of the discard flow. */
-  protected readonly confirmDiscardId = signal<string | null>(null);
-
-  protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly pipelineStatuses = PIPELINE_STATUSES;
-  protected readonly assignedOptions = ASSIGNED_OPTIONS;
-  protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
-
-  /** Mobile filter disclosure (filters collapse behind a toggle at 390px). */
-  protected readonly filtersOpen = signal(false);
-
-  protected readonly filtersForm = this.fb.nonNullable.group({
-    search: [''],
-    status: ['' as '' | AdminLeadStatus],
-    /** '' = all, 'unassigned' = no builder assigned, otherwise a builder UUID (sent as builderId). */
-    assigned: ['' as '' | 'unassigned' | string],
-  });
-
-  ngOnInit(): void {
-    this.store.dispatch(new LoadAdminLeads());
+  constructor() {
     this.store.dispatch(new LoadBuilders());
 
-    // Free-text search is debounced (shared timings.debounceMs); every other
-    // filter applies on change.
-    this.filtersForm.controls.search.valueChanges
-      .pipe(
-        debounceTime(this.config.get('timings').debounceMs),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(() => this.applyFilters());
+    effect(() => {
+      this.listKey();
+      untracked(() => this.load());
+    });
 
-    // Clear any open modal when leaving the page so a stale selection
-    // doesn't linger in memory-only state.
-    this.destroyRef.onDestroy(() => {
-      this.store.dispatch(new ClearSelectedAdminLead());
+    // Deep links and Back/Forward drive the drawer off the URL.
+    effect(() => {
+      const id = this.openId();
+      if (id) untracked(() => this.openDrawer(id));
     });
   }
 
-  /** Collects the form into backend filters; empty values are omitted. */
-  private collectFilters(): AdminLeadFilters {
-    const raw = this.filtersForm.getRawValue();
-    // The contract marks every filter readonly — build a mutable copy here.
-    const filters: { -readonly [K in keyof AdminLeadFilters]: AdminLeadFilters[K] } = {};
-    const search = raw.search.trim();
-    if (search) {
-      filters.search = search;
-    }
-    if (raw.status) {
-      filters.status = raw.status;
-    }
-    // `assigned` maps to the backend `builderId` param: '' = no filter,
-    // 'unassigned' = leads with no builder, otherwise a builder UUID.
-    if (raw.assigned) {
-      filters.builderId = raw.assigned;
-    }
-    return filters;
+  private load(): void {
+    const filters = leadsFilters(this.list.search(), this.list.filters(), new Date(), this.staleDays);
+    this.store.dispatch(new LoadAdminLeads(filters, this.tab()));
   }
 
-  protected applyFilters(): void {
-    this.store.dispatch(new LoadAdminLeads(this.collectFilters(), this.tab()));
+  protected selectView(view: AdminLeadsView): void {
+    this.list.setFilter(VIEW_PARAM, view === 'all' ? null : view);
   }
 
-  protected clearFilters(): void {
-    this.filtersForm.reset({ search: '', status: '', assigned: '' });
-    this.applyFilters();
-  }
-
-  /** Pipeline totals row: clicking a status filters the list to it. */
+  /** Totals tile: filter to that status (click again to clear). */
   protected filterByStatus(status: AdminLeadStatus): void {
-    const current = this.filtersForm.controls.status.value;
-    this.filtersForm.controls.status.setValue(current === status ? '' : status);
-    this.applyFilters();
+    this.list.setFilter(STATUS_PARAM, this.statusFilter() === status ? null : status);
   }
 
-  protected toggleFilters(): void {
-    this.filtersOpen.update((open) => !open);
+  protected openLead(lead: AdminLeadListItem): void {
+    this.openDrawer(lead.id);
+  }
+
+  private openDrawer(id: string): void {
+    this.drawers.open<AdminLeadDrawerComponent, unknown, AdminLeadDrawerData>(AdminLeadDrawerComponent, {
+      data: { id },
+      urlId: id,
+      size: 'md',
+      injector: this.injector,
+    });
   }
 
   protected setTab(tab: AdminLeadsTab): void {
@@ -193,20 +254,12 @@ export class AdminLeadsComponent implements OnInit {
     this.store.dispatch(new ToggleAdminLeadsSandbox(include));
   }
 
-  protected selectLead(id: string): void {
-    this.store.dispatch(new SelectAdminLead(id));
-  }
-
-  protected closeDetail(): void {
-    this.store.dispatch(new ClearSelectedAdminLead());
-  }
-
   protected loadMore(): void {
     this.store.dispatch(new LoadMoreAdminLeads());
   }
 
   protected retry(): void {
-    this.applyFilters();
+    this.load();
   }
 
   protected exportCsv(): void {
@@ -217,66 +270,32 @@ export class AdminLeadsComponent implements OnInit {
     this.store.dispatch(new DismissExportError());
   }
 
-  /**
-   * Quarantine moderation. Approve is a single click (the lead simply
-   * returns to the pipeline); discard is destructive-ish (hidden from
-   * every listing) so it needs the deliberate second click. Button
-   * clicks stopPropagation — the card itself opens the detail modal.
-   */
-  protected approveLead(id: string): void {
-    this.confirmDiscardId.set(null);
-    this.store.dispatch(new ApproveQuarantinedLead(id));
+  protected approveLead(lead: AdminLeadListItem): void {
+    this.store.dispatch(new ApproveQuarantinedLead(lead.id));
   }
 
-  protected armDiscard(id: string): void {
-    this.confirmDiscardId.set(id);
-  }
-
-  protected cancelDiscard(): void {
-    this.confirmDiscardId.set(null);
-  }
-
-  protected confirmDiscard(id: string): void {
-    this.confirmDiscardId.set(null);
-    this.store.dispatch(new DiscardQuarantinedLead(id));
+  /** Discard hides the lead from every list — confirm first. */
+  protected discardLead(lead: AdminLeadListItem): void {
+    this.confirms
+      .confirm({
+        title: fill(this.copy.discardConfirmTitle, { name: lead.name }),
+        body: this.copy.discardConfirmBody,
+        verb: this.copy.discard,
+        tone: 'danger',
+      })
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.dispatch(new DiscardQuarantinedLead(lead.id)));
   }
 
   protected dismissQuarantineError(): void {
     this.store.dispatch(new DismissQuarantineActionError());
   }
 
-  /** True while this lead has an in-flight quarantine action. */
   protected quarantineBusy(id: string): boolean {
     return this.quarantineActionId() === id;
   }
 
-  protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.selectedLeadId()) {
-      this.store.dispatch(new ClearSelectedAdminLead());
-    }
-  }
-
-  /** Avatar initials from the lead name (first letters of first/last word). */
-  protected initials(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) {
-      return '•';
-    }
-    const first = parts[0][0] ?? '';
-    const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
-    return (first + last).toUpperCase();
-  }
-
-  protected formatDate(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-CA');
-  }
-
-  protected projectTypeLabel(value: string): string {
-    return value === 'new_build' ? 'New build' : value === 'renovation' ? 'Renovation' : value;
-  }
-
   protected statusLabel(status: AdminLeadStatus): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
+    return statusPresentation('lead', status).label;
   }
 }

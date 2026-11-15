@@ -1,0 +1,178 @@
+<ui-drawer
+  [heading]="lead()?.name ?? copy.loading"
+  [dirty]="dirty() && !saving()"
+  [closeLabel]="copy.close"
+  asForm
+  (submitted)="save()"
+>
+  @if (lead(); as l) {
+    <ui-status-chip uiDrawerChip domain="lead" [status]="l.status" />
+  }
+  @if (lead(); as l) {
+    <span uiDrawerMeta class="lead-drawer__meta">
+      {{ l.email }}
+      @if (l.sandbox) {
+        <span class="lead-drawer__badge">{{ pageCopy.sandboxBadge }}</span>
+      }
+      @if (l.quarantined) {
+        <span class="lead-drawer__badge lead-drawer__badge--warn">{{ copy.honeypotBadge }}</span>
+      }
+    </span>
+  }
+
+  @if (lead(); as l) {
+    @if (detailStatus() === 'loading') {
+      <p class="lead-drawer__note" role="status">{{ copy.refreshing }}</p>
+    }
+    @if (detailRefreshError(); as refreshErr) {
+      <p class="lead-drawer__error" role="alert">{{ refreshErr }}</p>
+    }
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-pipeline">
+      <h3 id="lead-drawer-pipeline" class="lead-drawer__heading">{{ copy.sections.pipeline }}</h3>
+      <div class="lead-drawer__fields">
+        <ui-select
+          [label]="copy.statusLabel"
+          [options]="statusOptions"
+          [value]="statusPick()"
+          [disabled]="!canManageLeads() || saving()"
+          (valueChange)="onStatusPick($event)"
+        />
+        <ui-select
+          [label]="copy.builderLabel"
+          [placeholder]="copy.unassigned"
+          [options]="builderOptions()"
+          [value]="builderPick()"
+          [disabled]="!canAssignLeads() || saving() || buildersStatus() === 'loading'"
+          (valueChange)="onBuilderPick($event)"
+        />
+      </div>
+      @if (!canEdit()) {
+        <p class="lead-drawer__note">{{ copy.readOnlyHint }}</p>
+      }
+      @if (statusUpdateError(); as err) {
+        <p class="lead-drawer__error" role="alert">{{ err }}</p>
+      }
+      @if (assignError(); as err) {
+        <p class="lead-drawer__error" role="alert">{{ err }}</p>
+      }
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-contact">
+      <h3 id="lead-drawer-contact" class="lead-drawer__heading">{{ copy.sections.contact }}</h3>
+      <ui-key-value-list [items]="contactItems()" />
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-property">
+      <h3 id="lead-drawer-property" class="lead-drawer__heading">{{ copy.sections.property }}</h3>
+      @if (l.estimate; as estimate) {
+        <ui-key-value-list [items]="propertyItems()" />
+        <a class="lead-drawer__link" [routerLink]="['/admin/estimates', estimate.estimateId]">
+          {{ copy.openEstimate }} <span aria-hidden="true">→</span>
+        </a>
+      } @else {
+        <p class="lead-drawer__note">{{ copy.noEstimate }}</p>
+      }
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-invoices">
+      <h3 id="lead-drawer-invoices" class="lead-drawer__heading">{{ copy.sections.invoices }}</h3>
+      <p class="lead-drawer__note">{{ copy.invoicesHint }}</p>
+      <a class="lead-drawer__link" routerLink="/admin/billing/invoices">
+        {{ copy.openInvoices }} <span aria-hidden="true">→</span>
+      </a>
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-notes">
+      <h3 id="lead-drawer-notes" class="lead-drawer__heading">{{ copy.sections.notes }}</h3>
+      @if (l.notes.length > 0) {
+        <ol class="lead-drawer__list">
+          @for (note of l.notes; track note.id) {
+            <li>
+              <p class="lead-drawer__note-text">{{ note.note }}</p>
+              <span class="lead-drawer__muted">{{ note.createdAt | kitDateTime }}</span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="lead-drawer__note">{{ copy.noNotes }}</p>
+      }
+      @if (canManageLeads()) {
+        <div class="lead-drawer__composer">
+          <label class="lead-drawer__composer-label" for="lead-drawer-note">{{ copy.addNoteLabel }}</label>
+          <textarea
+            id="lead-drawer-note"
+            class="lead-drawer__textarea"
+            [formControl]="noteControl"
+            rows="3"
+            maxlength="5000"
+            [placeholder]="copy.addNotePlaceholder"
+          ></textarea>
+          <button
+            type="button"
+            ui-button
+            variant="secondary"
+            size="sm"
+            [loading]="notePosting()"
+            [disabled]="noteControl.invalid || notePosting()"
+            (click)="addNote()"
+          >
+            {{ notePosting() ? copy.addingNote : copy.addNote }}
+          </button>
+        </div>
+      }
+      @if (noteError(); as noteErr) {
+        <p class="lead-drawer__error" role="alert">{{ noteErr }}</p>
+      }
+      <p class="lead-drawer__muted">{{ copy.notesHint }}</p>
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-comments">
+      <h3 id="lead-drawer-comments" class="lead-drawer__heading">{{ copy.sections.comments }}</h3>
+      <p class="lead-drawer__muted">{{ copy.commentsHint }}</p>
+      <app-admin-lead-comments [leadId]="l.id" />
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-activity">
+      <h3 id="lead-drawer-activity" class="lead-drawer__heading">{{ copy.sections.activity }}</h3>
+      @if (l.statusHistory.length > 0) {
+        <ol class="lead-drawer__list">
+          @for (entry of l.statusHistory; track entry.changedAt) {
+            <li>
+              {{ statusLabel(entry.oldStatus) }} → <strong>{{ statusLabel(entry.newStatus) }}</strong>
+              <span class="lead-drawer__muted">
+                {{ entry.changedAt | kitDateTime }}
+                @if (entry.changedBy) {
+                  · {{ entry.changedBy }}
+                }
+              </span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="lead-drawer__note">{{ copy.noActivity }}</p>
+      }
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-record">
+      <h3 id="lead-drawer-record" class="lead-drawer__heading">{{ copy.sections.record }}</h3>
+      <ui-key-value-list [items]="recordItems()" />
+    </section>
+  } @else if (detailStatus() === 'error') {
+    <div class="lead-drawer__state" role="alert">
+      <p>{{ detailError() }}</p>
+      <button type="button" ui-button variant="secondary" (click)="retry()">{{ copy.retry }}</button>
+    </div>
+  } @else {
+    <p class="lead-drawer__state" role="status">{{ copy.loading }}</p>
+  }
+
+  <button uiDrawerFooterStart type="button" ui-button variant="secondary" (click)="ref.requestClose()">
+    {{ canEdit() ? copy.cancel : copy.close }}
+  </button>
+  @if (canEdit()) {
+    <button uiDrawerFooterEnd type="submit" ui-button [loading]="saving()" [disabled]="!dirty() || saving()">
+      {{ saving() ? copy.saving : copy.save }}
+    </button>
+  }
+</ui-drawer>
