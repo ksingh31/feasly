@@ -5,6 +5,8 @@
  * the '@app/shared' barrel so the consumer entry chunk doesn't pull in portal
  * components (Lighthouse resource-summary budget).
  */
+export * from './status';
+export * from './format';
 export { EmptyStateComponent } from './empty-state';
 export type { EmptyStateVariant, UiLink } from './empty-state';
 export { ErrorStateComponent } from './error-state';

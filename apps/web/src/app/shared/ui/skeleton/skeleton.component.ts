@@ -25,7 +25,6 @@ export type SkeletonVariant = 'text' | 'rows' | 'block';
     class: 'ui-skeleton',
     role: 'status',
     'aria-live': 'polite',
-    'aria-busy': 'true',
   },
 })
 export class SkeletonComponent {

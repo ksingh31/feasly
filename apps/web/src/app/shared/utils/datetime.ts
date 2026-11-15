@@ -32,3 +32,47 @@ export function todayLocalDateString(): string {
     now.getDate(),
   )}`;
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+const WEEK_MS = 604_800_000;
+/** 30-day month / 365-day year: coarse buckets for relative copy only. */
+const MONTH_MS = 2_592_000_000;
+const YEAR_MS = 31_536_000_000;
+
+const relativeFormatter = new Intl.RelativeTimeFormat('en-CA', { numeric: 'auto' });
+
+/** Shown for instants under a minute away — relative copy never uses seconds. */
+export const RELATIVE_JUST_NOW = 'Just now';
+
+/**
+ * ISO instant → relative copy against `now` ("2 days ago", "in 3 hours",
+ * "yesterday"). Never outputs seconds: anything under a minute is
+ * "Just now". Returns '—' for null or unparseable input.
+ */
+export function formatRelativeTime(iso: string | null, now: Date = new Date()): string {
+  if (!iso) {
+    return '—';
+  }
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) {
+    return '—';
+  }
+  const diff = time - now.getTime();
+  const abs = Math.abs(diff);
+  if (abs < MINUTE_MS) {
+    return RELATIVE_JUST_NOW;
+  }
+  const steps: ReadonlyArray<readonly [number, number, Intl.RelativeTimeFormatUnit]> = [
+    [HOUR_MS, MINUTE_MS, 'minute'],
+    [DAY_MS, HOUR_MS, 'hour'],
+    [WEEK_MS, DAY_MS, 'day'],
+    [MONTH_MS, WEEK_MS, 'week'],
+    [YEAR_MS, MONTH_MS, 'month'],
+    [Number.POSITIVE_INFINITY, YEAR_MS, 'year'],
+  ];
+  const [, unitMs, unit] = steps.find(([limit]) => abs < limit) ?? steps[steps.length - 1];
+  const sign = diff < 0 ? -1 : 1;
+  return relativeFormatter.format(sign * Math.floor(abs / unitMs), unit);
+}

@@ -24,11 +24,11 @@ function setup(init?: (h: HostComponent) => void) {
 }
 
 describe('SkeletonComponent', () => {
-  it('is a polite, busy status region with a screen-reader label', () => {
+  it('is a polite status region (not aria-busy, so the label is announced) with a screen-reader label', () => {
     const { root } = setup((h) => h.label.set('Loading leads'));
     expect(root().getAttribute('role')).toBe('status');
     expect(root().getAttribute('aria-live')).toBe('polite');
-    expect(root().getAttribute('aria-busy')).toBe('true');
+    expect(root().hasAttribute('aria-busy')).toBe(false);
     expect(root().querySelector('.sr-only')?.textContent).toBe('Loading leads');
     expect(root().querySelector('.ui-skeleton__bars')?.getAttribute('aria-hidden')).toBe('true');
   });

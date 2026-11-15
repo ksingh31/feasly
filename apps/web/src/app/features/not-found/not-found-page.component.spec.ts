@@ -23,8 +23,6 @@ describe('NotFoundPageComponent', () => {
         landing: 'Landing description.',
         scopeTitle: 'Feasly — Scope',
         scope: 'Scope description.',
-        detailsTitle: 'Feasly — Details',
-        details: 'Details description.',
         reportTitle: 'Feasly — Report',
         report: 'Report description.',
         privacyTitle: 'Feasly — Privacy',

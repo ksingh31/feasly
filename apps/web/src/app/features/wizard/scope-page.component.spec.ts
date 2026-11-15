@@ -17,7 +17,7 @@ class BlankComponent {}
 /**
  * RENO-02: scope step renders two enabled project-type cards (New Build +
  * Renovation, no "coming soon"), preselects New Build on first visit, stores
- * the selection in NGXS, and routes per project type (new build → details,
+ * the selection in NGXS, and routes per project type (new build → preview,
  * renovation → reno scope-inputs). No dollar figures on this step.
  */
 describe('ScopePageComponent', () => {
@@ -63,7 +63,7 @@ describe('ScopePageComponent', () => {
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },
-          { path: 'estimate/details', component: BlankComponent },
+          { path: 'estimate/preview', component: BlankComponent },
           { path: 'estimate/reno-scope', component: BlankComponent },
         ]),
         provideStore([WizardState]),
@@ -174,10 +174,10 @@ describe('ScopePageComponent', () => {
     fresh.destroy();
   });
 
-  it('New Build CTA routes to the details step and records the project type', async () => {
+  it('New Build CTA routes straight to the preview step (#507) and records the project type', async () => {
     chooseCard('new-build');
     cta().click();
-    await pollUrl('/estimate/details');
+    await pollUrl('/estimate/preview');
     expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
     expect(store.selectSnapshot((s) => s.wizard.step)).toBe(3);
   });
