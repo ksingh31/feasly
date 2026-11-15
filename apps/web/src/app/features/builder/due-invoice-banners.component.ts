@@ -195,17 +195,11 @@ export class DueInvoiceBannersComponent {
     );
   }
 
-  /** × on one banner: stop the bar's toggle, dismiss (persists). */
+  /** × on one banner: dismiss (persists). */
   protected onDismiss(invoice: CommissionInvoice, event: Event): void {
     event.stopPropagation();
     event.preventDefault();
     this.store.dispatch(new DismissBanner(invoice.id));
-  }
-
-  protected onDismissKey(invoice: CommissionInvoice, event: KeyboardEvent): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      this.onDismiss(invoice, event);
-    }
   }
 
   /** × on the slim summary bar: dismiss every visible banner. */
@@ -215,11 +209,5 @@ export class DueInvoiceBannersComponent {
     this.store.dispatch(
       new DismissAllBanners(this.dueInvoices().map((invoice) => invoice.id)),
     );
-  }
-
-  protected onDismissAllKey(event: KeyboardEvent): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      this.onDismissAll(event);
-    }
   }
 }

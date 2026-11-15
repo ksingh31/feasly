@@ -86,59 +86,15 @@
                 </span>
               </td>
               <td class="users-page__actions">
-                @if (canEdit(user)) {
-                  <button type="button" (click)="openEdit(user)">Edit</button>
-                }
-                @if (canToggleActive(user)) {
-                  @if (user.status === 'disabled') {
-                    <button
-                      type="button"
-                      (click)="reactivate(user)"
-                      [disabled]="updating()"
-                    >
-                      Reactivate
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="users-page__danger-link"
-                      (click)="openDeactivate(user, $event)"
-                      [disabled]="updating() || isSoleStaffAdmin(user)"
-                      [attr.aria-describedby]="isSoleStaffAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
-                    >
-                      Deactivate
-                    </button>
-                    <!-- auth/07: deactivating the last admin is refused by
-                         the backend 409 — the ⓘ tooltip beside the disabled
-                         action explains why (replaces the inline note). -->
-                    @if (isSoleStaffAdmin(user)) {
-                      <app-info-tooltip
-                        [tooltipId]="lastAdminTipId(user, 'deactivate')"
-                        text="Every organization needs at least one active administrator."
-                        label="Why can't this user be deactivated?"
-                      />
-                    }
-                  }
-                }
-                @if (user.status === 'invited' && canEdit(user)) {
-                  <button
-                    type="button"
-                    (click)="resendInvite(user)"
-                    [disabled]="resendingId() === user.id"
-                  >
-                    {{ resendingId() === user.id ? 'Sending…' : 'Resend invite' }}
-                  </button>
-                }
-                @if (canDelete(user)) {
-                  <button
-                    type="button"
-                    class="users-page__danger-link"
-                    (click)="openDelete(user)"
-                  >
-                    Delete
-                  </button>
-                }
-                <!-- auth/07: a backend 409 (e.g. the last-admin race)
+                <!-- #542: one ⋮ menu per row (Edit · Resend invite ·
+                     Reactivate/Deactivate · Delete). Protected rows and
+                     read-only staff get no menu at all. -->
+                <ui-row-actions
+                  [actions]="rowActions().get(user.id) ?? []"
+                  [label]="'Actions for ' + user.name"
+                  (selected)="onRowAction(user, $event)"
+                />
+                <!-- auth/07: a backend error (e.g. the last-admin 409 race)
                      surfaces inline on the row it targeted, never as a
                      generic banner. -->
                 @if (updateError() && updateErrorUserId() === user.id) {
@@ -160,9 +116,10 @@
         </tbody>
       </table>
     </div>
-    <!-- Row-tagged failures render inline on their row (auth/07); this
-         banner is only the fallback for drawer-save failures. -->
-    @if (updateError() && updateErrorUserId() === null) {
+    <!-- Row-tagged failures render inline on their row (auth/07); drawer
+         save failures show inside the open drawer. This is only the
+         fallback for an untagged failure with no drawer open. -->
+    @if (updateError() && updateErrorUserId() === null && editingId() === null) {
       <p class="users-page__state users-page__state--error">{{ updateError() }}</p>
     }
   }
@@ -203,16 +160,12 @@
           <select formControlName="role">
             <optgroup label="Staff">
               @for (role of staffRoles; track role) {
-                <option [value]="role">
-                  {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
-                </option>
+                <option [value]="role">{{ staffRoleLabels[role] }}</option>
               }
             </optgroup>
             <optgroup label="Builder">
               @for (role of builderRoles; track role) {
-                <option [value]="role">
-                  {{ role === 'builder_admin' ? 'Builder admin' : 'Builder member' }}
-                </option>
+                <option [value]="role">{{ builderRoleLabels[role] }}</option>
               }
             </optgroup>
           </select>
@@ -242,184 +195,6 @@
             [disabled]="inviting()"
           >
             {{ inviting() ? 'Sending…' : 'Send invite' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-}
-
-<!-- Edit drawer -->
-@if (editingUser(); as editing) {
-  <div class="users-page__overlay" (click)="closeEdit()">
-    <div
-      class="users-page__modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-title"
-      (click)="$event.stopPropagation()"
-    >
-      <h2 id="edit-title">Edit {{ editing.email }}</h2>
-      <form [formGroup]="editForm" (ngSubmit)="submitEdit()">
-        <label class="users-page__field">
-          <span>Name</span>
-          <input type="text" formControlName="name" autocomplete="off" />
-          @if (editForm.controls.name.touched && editForm.controls.name.invalid) {
-            <span class="users-page__field-error">Enter the person's name.</span>
-          }
-        </label>
-        <label class="users-page__field">
-          <span>Staff role</span>
-          <span class="users-page__field-row">
-            <select
-              formControlName="role"
-              [attr.aria-describedby]="isSoleStaffAdmin(editingUser()) ? lastAdminTipId(editingUser(), 'role') : null"
-            >
-              <option value="">No staff role (builder organizations only)</option>
-              @for (role of staffRoles; track role) {
-                <option [value]="role">
-                  {{ role === 'super_admin' ? 'Super admin' : role === 'admin' ? 'Admin' : 'Viewer' }}
-                </option>
-              }
-            </select>
-            <!-- auth/07: the sole remaining active staff admin's role is
-                 locked by the backend 409 — the ⓘ tooltip beside the
-                 disabled select explains why (replaces the inline note). -->
-            @if (isSoleStaffAdmin(editingUser())) {
-              <app-info-tooltip
-                [tooltipId]="lastAdminTipId(editingUser(), 'role')"
-                text="You can't change the role of the last administrator. Add another administrator first."
-                label="Why can't this role be changed?"
-              />
-            }
-          </span>
-        </label>
-        @if (updateError()) {
-          <p class="users-page__state users-page__state--error">{{ updateError() }}</p>
-        }
-        <div class="users-page__modal-actions">
-          <button type="button" (click)="closeEdit()">Cancel</button>
-          <button
-            type="submit"
-            class="users-page__primary"
-            [disabled]="updating()"
-          >
-            {{ updating() ? 'Saving…' : 'Save changes' }}
-          </button>
-        </div>
-      </form>
-
-      <h3 class="users-page__drawer-sub">Builder organizations</h3>
-      <div class="users-page__memberships">
-        @for (b of builders(); track b.id) {
-          <div class="users-page__membership">
-            <label>
-              <input
-                type="checkbox"
-                [formControl]="membershipControl(b.id)"
-              />
-              {{ b.displayName }}
-            </label>
-            @if (membershipControl(b.id).value) {
-              <select
-                [formControl]="membershipRoleControl(b.id)"
-                aria-label="Role in {{ b.displayName }}"
-              >
-                <option value="builder_admin">Builder admin</option>
-                <option value="builder_member">Builder member</option>
-              </select>
-            }
-          </div>
-        } @empty {
-          <p class="users-page__muted">No builder organizations yet.</p>
-        }
-      </div>
-      <div class="users-page__modal-actions">
-        <button
-          type="button"
-          class="users-page__primary"
-          (click)="submitMemberships()"
-          [disabled]="updating()"
-        >
-          {{ updating() ? 'Saving…' : 'Save organizations' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Deactivate confirmation (#473): names the user and the consequence;
-     Cancel is focused by default. -->
-@if (deactivatingUser(); as deactivating) {
-  <div class="users-page__overlay" (click)="closeDeactivate()">
-    <div
-      class="users-page__modal"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="deactivate-title"
-      aria-describedby="deactivate-desc"
-      (click)="$event.stopPropagation()"
-      (keydown.escape)="closeDeactivate()"
-    >
-      <h2 id="deactivate-title">Deactivate {{ deactivating.name }}?</h2>
-      <p id="deactivate-desc" class="users-page__modal-sub">
-        {{ deactivating.name }} ({{ deactivating.email }}) will be signed out
-        everywhere immediately and won't be able to sign in until an admin
-        reactivates them.
-      </p>
-      <div class="users-page__modal-actions">
-        <button
-          #deactivateCancel
-          type="button"
-          (click)="closeDeactivate()"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="users-page__danger"
-          (click)="confirmDeactivate()"
-          [disabled]="updating()"
-        >
-          {{ updating() ? 'Deactivating…' : 'Deactivate user' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Delete confirmation -->
-@if (deletingUser(); as deletingUser) {
-  <div class="users-page__overlay" (click)="closeDelete()">
-    <div
-      class="users-page__modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="delete-title"
-      (click)="$event.stopPropagation()"
-    >
-      <h2 id="delete-title">Delete {{ deletingUser.email }}?</h2>
-      <p class="users-page__modal-sub">
-        They never accepted their invite, so deleting removes the invitation
-        and their sign-in account permanently. This can't be undone. Users who
-        already signed in can't be deleted — deactivate them instead.
-      </p>
-      <form [formGroup]="deleteForm" (ngSubmit)="confirmDelete()">
-        <label class="users-page__field">
-          <span>Type <strong>{{ deletingUser.email }}</strong> to confirm</span>
-          <input type="text" formControlName="confirmation" autocomplete="off" />
-        </label>
-        @if (deleteError()) {
-          <p class="users-page__state users-page__state--error">{{ deleteError() }}</p>
-        }
-        <div class="users-page__modal-actions">
-          <button type="button" (click)="closeDelete()">Cancel</button>
-          <button
-            type="submit"
-            class="users-page__danger"
-            [disabled]="!deleteConfirmationMatches() || deleting()"
-          >
-            {{ deleting() ? 'Deleting…' : 'Delete user' }}
           </button>
         </div>
       </form>

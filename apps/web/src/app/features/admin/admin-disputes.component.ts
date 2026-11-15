@@ -1,219 +1,153 @@
-import { JsonPipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { Component, DestroyRef, Injector, OnInit, computed, effect, inject, untracked } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, type Params, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { DisputeListItem } from '@feasly/contracts';
-import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import {
-  AcceptAdminDispute,
-  ClearSelectedAdminDispute,
-  DismissAdminDisputeResolution,
-  LoadAdminDisputes,
-  RejectAdminDispute,
-  SelectAdminDispute,
-} from './admin-disputes.actions';
+  DataTableComponent,
+  type DataTableColumn,
+  EntityLinkComponent,
+  PageHeaderComponent,
+  StatusChipComponent,
+  UiButtonComponent,
+  UiCellDirective,
+  type UiDrawerRef,
+  UiDrawerService,
+} from '@app/shared/ui';
+import { type DisputeSlaChip, disputeSlaChip } from './admin-disputes-view';
+import { ClearSelectedAdminDispute, LoadAdminDisputes, SelectAdminDispute } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
-import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { AdminDisputeDrawerComponent, type AdminDisputeDrawerData } from './admin-dispute-drawer.component';
+
+/** Query param holding the open dispute (portal-ui-kit §3: `?open=<id>`). */
+const OPEN_PARAM = 'open';
+/** Admin invoice detail route prefix (the Invoice EntityLink target). */
+const INVOICE_ROUTE = ['/admin', 'billing', 'invoices'] as const;
 
 /**
- * Dispute console (billing/01 follow-on, was OPS-009) — Karan's queue for
- * builder invoice disputes.
+ * Admin Disputes (#545, admin review S12) — Karan's queue for builder
+ * invoice disputes, oldest first (server order).
  *
- * Open disputes, oldest first, each with its 5-business-day resolution SLA
- * countdown on the America/Edmonton calendar. Selecting a dispute opens the
- * detail panel: the IMMUTABLE evidence snapshot (invoice money/state at
- * dispute-open time — never the live row), the billing audit trail, and the
- * accept/reject actions with an optional note.
+ * A kit DataTable (Opened · Invoice · Builder · Amount · Reason · SLA) —
+ * the SLA chip reads "4 days left" (neutral), "Due today" (warning) or
+ * "Overdue 1d" (danger) from the server's business-day countdown on the
+ * America/Edmonton calendar. Breached rows are flagged. Clicking a row
+ * opens the dispute drawer (`?open=<id>`): evidence snapshot, humanised
+ * audit timeline, and Note + [Reject] [Accept…] through ConfirmDialog.
  *
- * - Accept: voids the invoice; when it was already paid, Stripe refunds
- *   the charge first (credit note).
- * - Reject: the invoice returns to in_review with a fresh 7-day window.
- *
- * Both are audit-logged server-side. An SLA breach escalates via ops alerts
- * and NEVER auto-resolves — breached disputes stay open until a human acts.
- *
- * Guarded by `adminGuard`; noindex via the robots guard; lazy-loaded so it
- * stays out of the public initial bundle. All state lives in
- * `AdminDisputesState` — the component only dispatches actions and reads
- * signals.
+ * An SLA breach escalates via ops alerts and NEVER auto-resolves.
+ * Guarded by `adminGuard`; noindex; lazy-loaded. All state lives in
+ * `AdminDisputesState` — the page only dispatches actions and reads signals.
  */
 @Component({
   selector: 'app-admin-disputes',
   standalone: true,
-  imports: [ReactiveFormsModule, JsonPipe],
+  imports: [
+    PageHeaderComponent,
+    DataTableComponent,
+    UiCellDirective,
+    StatusChipComponent,
+    EntityLinkComponent,
+    UiButtonComponent,
+  ],
   templateUrl: './admin-disputes.component.html',
   styleUrls: ['./admin-disputes.component.scss'],
 })
 export class AdminDisputesComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly drawers = inject(UiDrawerService);
 
   protected readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
   protected readonly listStatus = this.store.selectSignal(AdminDisputesState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminDisputesState.listError);
-  protected readonly selectedDisputeId = this.store.selectSignal(AdminDisputesState.selectedDisputeId);
-  protected readonly detail = this.store.selectSignal(AdminDisputesState.detail);
-  protected readonly detailStatus = this.store.selectSignal(AdminDisputesState.detailStatus);
-  protected readonly detailError = this.store.selectSignal(AdminDisputesState.detailError);
-  protected readonly resolving = this.store.selectSignal(AdminDisputesState.resolving);
-  protected readonly resolveError = this.store.selectSignal(AdminDisputesState.resolveError);
-  protected readonly lastResolution = this.store.selectSignal(AdminDisputesState.lastResolution);
 
-  /**
-   * Accept/reject are money actions (`billing:manage`) — read-only staff
-   * see the dispute evidence and audit trail but no resolution buttons.
-   */
-  protected readonly canManageBilling = adminCan(
-    this.store,
-    ADMIN_PERMISSIONS.billingManage,
-  );
-
-  /** Optional admin note recorded on the dispute + audit trail. */
-  protected readonly resolutionForm = this.fb.nonNullable.group({
-    note: [''],
+  protected readonly countLabel = computed(() => {
+    const n = this.disputes().length;
+    return n === 1 ? '1 open dispute' : `${n} open disputes`;
   });
 
-  /** Two-step confirm: which action is awaiting confirmation. */
-  protected confirmingAction: 'accept' | 'reject' | null = null;
+  protected readonly rowId = (d: DisputeListItem): string => d.id;
+  protected readonly isBreached = (d: DisputeListItem): boolean => d.breached;
+
+  protected readonly columns: readonly DataTableColumn<DisputeListItem>[] = [
+    { key: 'openedAt', header: 'Opened', kind: 'date', cardRole: 'meta' },
+    { key: 'invoice', header: 'Invoice', kind: 'id', cardRole: 'title', value: (d) => d.invoiceId },
+    { key: 'builder', header: 'Builder', cardRole: 'meta', value: (d) => d.tenantKey },
+    { key: 'amount', header: 'Amount', kind: 'money', cardRole: 'meta', value: (d) => d.commissionCents },
+    { key: 'reason', header: 'Reason', kind: 'text', cardRole: 'hidden' },
+    { key: 'sla', header: 'SLA', cardRole: 'chip', value: (d) => disputeSlaChip(d).label },
+  ];
+
+  private readonly queryParams = toSignal(this.route.queryParams, {
+    initialValue: this.route.snapshot.queryParams as Params,
+  });
+
+  protected readonly openId = computed(() => {
+    const raw = this.queryParams()[OPEN_PARAM];
+    return typeof raw === 'string' && raw ? raw : null;
+  });
+
+  private drawerRef: UiDrawerRef<unknown, AdminDisputeDrawerComponent> | null = null;
+
+  constructor() {
+    // `?open=<id>` drives the drawer for deep links and Back/Forward. The
+    // drawer loads the detail itself, so it needn't wait for the list.
+    effect(() => {
+      const id = this.openId();
+      if (id) untracked(() => this.openDrawer(id));
+    });
+    this.destroyRef.onDestroy(() => this.store.dispatch(new ClearSelectedAdminDispute()));
+  }
 
   ngOnInit(): void {
-    this.store.dispatch(new LoadAdminDisputes());
-
-    // Deep link from the invoice drawer (#543): `?open=<disputeId>`.
-    const openId = this.route?.snapshot.queryParamMap.get('open') ?? null;
-    if (openId) {
-      this.selectDispute(openId);
-    }
-
-    // Clear any open selection when leaving the page so a stale dispute
-    // doesn't linger in memory-only state.
-    this.destroyRef.onDestroy(() => {
-      this.store.dispatch(new ClearSelectedAdminDispute());
-    });
+    this.reload();
   }
 
   protected reload(): void {
-    this.store.dispatch(new LoadAdminDisputes());
-  }
-
-  protected selectDispute(id: string): void {
-    this.confirmingAction = null;
-    this.resolutionForm.reset({ note: '' });
-    this.store.dispatch(new SelectAdminDispute(id));
-  }
-
-  protected closeDetail(): void {
-    this.confirmingAction = null;
-    this.store.dispatch(new ClearSelectedAdminDispute());
-  }
-
-  protected dismissResolution(): void {
-    this.store.dispatch(new DismissAdminDisputeResolution());
-  }
-
-  protected armConfirm(action: 'accept' | 'reject'): void {
-    this.confirmingAction = action;
-  }
-
-  protected cancelConfirm(): void {
-    this.confirmingAction = null;
-  }
-
-  protected acceptSelected(): void {
-    const id = this.selectedDisputeId();
-    if (id === null) {
-      return;
-    }
-    this.confirmingAction = null;
-    this.store.dispatch(
-      new AcceptAdminDispute(id, this.resolutionNoteOrUndefined()),
-    );
-    this.resolutionForm.reset({ note: '' });
-  }
-
-  protected rejectSelected(): void {
-    const id = this.selectedDisputeId();
-    if (id === null) {
-      return;
-    }
-    this.confirmingAction = null;
-    this.store.dispatch(
-      new RejectAdminDispute(id, this.resolutionNoteOrUndefined()),
-    );
-    this.resolutionForm.reset({ note: '' });
-  }
-
-  private resolutionNoteOrUndefined(): string | undefined {
-    const note = this.resolutionForm.getRawValue().note.trim();
-    return note === '' ? undefined : note;
-  }
-
-  protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.selectedDisputeId()) {
-      this.closeDetail();
-    }
-  }
-
-  // ------------------------------------------------------------------ display
-
-  protected formatMoney(cents: number): string {
-    return formatCentsToCad(cents);
-  }
-
-  /** ISO instant → America/Edmonton local time (the SLA calendar). */
-  protected formatEdmonton(iso: string): string {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-      return '—';
-    }
-    return date.toLocaleString('en-CA', {
-      timeZone: 'America/Edmonton',
-      dateStyle: 'medium',
-      timeStyle: 'short',
+    this.store.dispatch(new LoadAdminDisputes()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      error: () => undefined,
     });
   }
 
-  /** SLA countdown label from the server-computed business days. */
-  protected slaLabel(item: DisputeListItem): string {
-    const remaining = item.businessDaysRemaining;
-    if (remaining > 1) {
-      return `${remaining} business days left`;
-    }
-    if (remaining === 1) {
-      return '1 business day left';
-    }
-    if (remaining === 0) {
-      return 'Due today';
-    }
-    const overdue = Math.abs(remaining);
-    return overdue === 1 ? '1 business day overdue' : `${overdue} business days overdue`;
+  protected sla(d: DisputeListItem): DisputeSlaChip {
+    return disputeSlaChip(d);
   }
 
-  /** Which snapshot rows the evidence grid renders, in order. */
-  protected snapshotRows(): readonly (readonly [string, string])[] {
-    const detail = this.detail();
-    if (detail === null) {
-      return [];
-    }
-    const s = detail.evidenceSnapshot;
-    const reviewDue = s.reviewDueAt === null ? '—' : this.formatEdmonton(s.reviewDueAt);
-    const rateLabel = formatRatePercent(s.effectiveRatePercent ?? 1);
-    return [
-      ['Invoice ID', s.invoiceId],
-      ['Tenant', s.tenantKey],
-      ['Attribution ID', s.attributionId],
-      ['Lead ID', s.leadId],
-      ['Contract value (excl. land)', this.formatMoney(s.contractValueCents)],
-      [`Commission (${rateLabel})`, this.formatMoney(s.commissionCents)],
-      ['Currency', s.currency],
-      ['Payment intent', s.stripePaymentIntentId ?? '—'],
-      ['Invoice created', this.formatEdmonton(s.invoiceCreatedAt)],
-      ['Disputed at', this.formatEdmonton(s.disputedAt)],
-      ['Review due at', reviewDue],
-      ['Dispute reason', s.disputeReason],
-    ];
+  protected openDispute(d: DisputeListItem): void {
+    this.openDrawer(d.id);
+  }
+
+  protected openInvoice(invoiceId: string): void {
+    void this.router.navigate([...INVOICE_ROUTE, invoiceId]);
+  }
+
+  private openDrawer(id: string): void {
+    const ref = this.drawers.open<AdminDisputeDrawerComponent, unknown, AdminDisputeDrawerData>(
+      AdminDisputeDrawerComponent,
+      {
+        data: { disputeId: id },
+        size: 'lg',
+        urlId: id,
+        injector: this.injector,
+        discardConfirm: {
+          title: 'Discard your note?',
+          body: 'The note hasn’t been sent with a decision yet.',
+          verb: 'Discard',
+          cancelLabel: 'Keep editing',
+        },
+      },
+    );
+    if (ref === this.drawerRef) return;
+    this.drawerRef = ref;
+    this.store.dispatch(new SelectAdminDispute(id));
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.drawerRef !== ref) return;
+      this.drawerRef = null;
+      this.store.dispatch(new ClearSelectedAdminDispute());
+    });
   }
 }

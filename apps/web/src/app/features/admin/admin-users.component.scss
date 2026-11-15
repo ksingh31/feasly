@@ -5,8 +5,8 @@
  * Admin user management (auth/03) — the team-user table.
  *
  * Cream background, charcoal text, brass accents — same admin family as the
- * builders page. Table of users on top; invite/edit/delete open as modal
- * dialogs. On phones (<= 640px) each user row stacks into a card (#476).
+ * builders page. Table of users on top with a ⋮ menu per row (#542);
+ * invite opens a modal, edit a drawer, deactivate/delete a ConfirmDialog. On phones (<= 640px) each user row stacks into a card (#476).
  */
 
 .users-page {
@@ -196,32 +196,9 @@
 }
 
 .users-page__actions {
+  width: 1%;
+  text-align: right;
   white-space: nowrap;
-}
-
-.users-page__actions button {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  background: transparent;
-  color: var(--accent-deep);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.users-page__actions button:hover {
-  text-decoration: underline;
-}
-
-.users-page__actions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  text-decoration: none;
-}
-
-.users-page__danger-link {
-  color: #8c2f26;
 }
 
 .users-page__empty {
@@ -291,27 +268,14 @@
   font-weight: 400;
 }
 
-/* Row wrapper for a control + its ⓘ tooltip (auth/07 last-admin). */
-.users-page__field-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.users-page__field-row select {
-  flex: 1;
-  min-width: 0;
-}
-
 .users-page__field-error {
   font-size: 0.8125rem;
   font-weight: 400;
   color: #8c2f26;
 }
 
-/* auth/07: inline explainer under a disabled control when the row is the
-   sole remaining active staff admin. Wraps inside the cell (the actions
-   cell is nowrap) and never widens the table on mobile. */
+/* auth/07: inline row note. Wraps inside the cell (the actions cell is
+   nowrap) and never widens the table on mobile. */
 .users-page__note {
   display: block;
   margin: 0.375rem 0 0;
@@ -350,58 +314,17 @@
   border: none;
 }
 
-.users-page__danger {
-  background: #8c2f26;
-  border-color: #8c2f26;
-  color: #fff;
-}
-
-.users-page__danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.users-page__drawer-sub {
-  margin: 1.5rem 0 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.users-page__memberships {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.users-page__membership {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: #fff;
-}
-
-.users-page__membership label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.users-page__membership select {
-  /* Shared select chrome: custom chevron with proper arrow spacing. */
-  @include feasly-select($font-size: 0.875rem, $pad-y: 0.375rem, $pad-left: 0.5rem, $radius: 0.375rem);
-}
-
 /* ---------------------------------------------------------- responsive */
 
 @media (max-width: 640px) {
   .users-page {
     padding: 1rem;
+  }
+
+  /* Stacked cards: the ⋮ menu sits at the card's bottom-right. */
+  .users-page__table tbody td.users-page__actions {
+    width: auto;
+    justify-content: flex-end;
   }
 
   .users-page__header h1 {
@@ -418,11 +341,6 @@
 
   .users-page__overlay {
     padding: 1rem 0.5rem;
-    align-items: flex-start;
-  }
-
-  .users-page__membership {
-    flex-direction: column;
     align-items: flex-start;
   }
 }
