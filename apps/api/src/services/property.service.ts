@@ -16,16 +16,25 @@
  *   retryable); unknown addresses throw NOT_FOUND (404).
  * - No PII in logs: addresses are public City data, but query strings are
  *   never logged — only error classes and row counts.
+ * - #686: `zoning` carries the parcel's CURRENT district from the city's
+ *   LandUseProvider (Calgary: Land Use Districts map), resolved at a point
+ *   inside the parcel polygon and cached for `landUse.cacheTtlMs`. On
+ *   timeout, error, or no polygon hit it falls back to the roll's
+ *   designation (`landUse.source = 'assessment-roll'`) — a district failure
+ *   never fails the lookup.
  */
 import type {
   AutocompleteResponse,
   AutocompleteSuggestion,
+  PropertyLandUse,
   PropertyRecord,
 } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../middleware/errors';
 import { detectCoverageSignal } from '../lib/coverage';
 import { normalizeAddressQuery, type NormalizedAddressQuery } from '../lib/address-query';
+import { parcelInteriorPoint, type LonLat } from '../lib/geo';
 import type { PropertyDataConfig } from '../config';
+import type { LandUseDistrict, LandUseProvider } from './land-use.service';
 
 /** Raw Socrata row from the "Current Year Property Assessments (Parcel)" dataset. */
 interface AssessmentRow {
@@ -39,6 +48,8 @@ interface AssessmentRow {
   readonly land_use_designation?: string;
   readonly land_size_sf?: string | number;
   readonly mod_date?: string;
+  /** Parcel polygon (GeoJSON MultiPolygon). */
+  readonly multipolygon?: unknown;
 }
 
 /** Columns read for autocomplete (kept narrow: less over the wire). */
@@ -55,6 +66,7 @@ const DETAIL_FIELDS = [
   'land_use_designation',
   'land_size_sf',
   'mod_date',
+  'multipolygon',
 ];
 
 /** Minimum query length, mirroring the frontend autocomplete gate. */
@@ -79,7 +91,12 @@ export interface PropertyService {
    * @throws HttpError 404 NOT_FOUND when the City has no record.
    * @throws HttpError 503 DEPENDENCY_UNAVAILABLE when the City API is down.
    */
-  getProperty(addressKey: string): Promise<PropertyRecord>;
+  getProperty(addressKey: string, options?: GetPropertyOptions): Promise<PropertyRecord>;
+}
+
+export interface GetPropertyOptions {
+  /** Request correlation ID — included in the district-fallback warning. */
+  readonly correlationId?: string;
 }
 
 /** Coerces a Socrata numeric-ish value; null when missing or malformed. */
@@ -180,6 +197,17 @@ export interface PropertyServiceDeps {
    * Optional — the service works without a metric sink (tests, local dev).
    */
   readonly onLookupMiss?: (reason: LookupMissReason, addressKey: string) => void;
+  /**
+   * #686: current land-use district source for this city, and how long a
+   * resolved district is reused. Absent → `zoning` is the roll value
+   * (`landUse.source = 'assessment-roll'`).
+   */
+  readonly landUse?: {
+    readonly provider: LandUseProvider;
+    readonly cacheTtlMs: number;
+  };
+  /** Warning sink for the district fallback (default console.warn). */
+  readonly logWarning?: (message: string) => void;
 }
 
 /**
@@ -247,13 +275,92 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
   };
 }
 
+/** Roll record plus the point used for the district lookup (cached together). */
+interface RollEntry {
+  readonly record: PropertyRecord;
+  readonly point: LonLat | null;
+}
+
+/** A district check result: the district, or null for "no polygon hit". */
+interface DistrictCheck {
+  readonly district: LandUseDistrict | null;
+  readonly checkedOn: string;
+}
+
+/** Fallback: the roll's designation, flagged as such. */
+function rollLandUse(record: PropertyRecord): PropertyLandUse | undefined {
+  if (!record.zoning) return undefined;
+  return {
+    district: record.zoning,
+    description: '',
+    source: 'assessment-roll',
+    asOf: record.dataAsOf,
+  };
+}
+
+/** Error class only — never the message (it may carry the request URL). */
+function errorClass(error: unknown): string {
+  return error instanceof Error ? error.name : typeof error;
+}
+
 export function createPropertyService(
   config: PropertyDataConfig,
   deps: PropertyServiceDeps = {},
 ): PropertyService {
   const resourceUrl = `${config.socrataBaseUrl}/resource/${config.datasetId}.json`;
   const searchCache = new Map<string, CacheEntry<AutocompleteResponse>>();
-  const propertyCache = new Map<string, CacheEntry<PropertyRecord>>();
+  const propertyCache = new Map<string, CacheEntry<RollEntry>>();
+  const districtCache = new Map<string, CacheEntry<DistrictCheck>>();
+  const logWarning = deps.logWarning ?? ((message: string) => console.warn(message));
+
+  /**
+   * Applies the current district to a roll record. Resolved districts and
+   * "no hit" answers are cached for the land-use TTL; failures are not
+   * cached (the next lookup retries) and fall back to the roll value.
+   */
+  async function withLandUse(
+    key: string,
+    entry: RollEntry,
+    options: GetPropertyOptions,
+  ): Promise<PropertyRecord> {
+    const fallback = (): PropertyRecord => {
+      const landUse = rollLandUse(entry.record);
+      return landUse ? { ...entry.record, landUse } : entry.record;
+    };
+    const landUseDeps = deps.landUse;
+    if (!landUseDeps || !entry.point) return fallback();
+
+    let check = cached(districtCache, key);
+    if (!check) {
+      try {
+        const district = await landUseDeps.provider.resolve(entry.point);
+        check = { district, checkedOn: new Date().toISOString().split('T')[0] };
+        districtCache.set(key, {
+          expires: Date.now() + landUseDeps.cacheTtlMs,
+          value: check,
+        });
+      } catch (error) {
+        logWarning(
+          `[property] land-use district lookup failed (${errorClass(error)}); ` +
+            `using assessment-roll designation. correlationId=${options.correlationId ?? 'none'}`,
+        );
+        return fallback();
+      }
+    }
+    if (!check.district) return fallback();
+    const { district, description, dcBylaw } = check.district;
+    return {
+      ...entry.record,
+      zoning: district,
+      landUse: {
+        district,
+        description,
+        source: 'land-use-districts',
+        asOf: check.checkedOn,
+        ...(dcBylaw ? { dcBylaw } : {}),
+      },
+    };
+  }
 
   function cached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
     const entry = cache.get(key);
@@ -313,7 +420,7 @@ export function createPropertyService(
    * assessed value are skipped; none usable means a reno/05 miss
    * (OUT_OF_COVERAGE vs ADDRESS_NOT_FOUND by coverage signal).
    */
-  function toProperty(key: string, body: unknown): PropertyRecord {
+  function toProperty(key: string, body: unknown): RollEntry {
     const rows = Array.isArray(body) ? body : [];
     let best: AssessmentRow | undefined;
     let bestValue = -1;
@@ -326,7 +433,7 @@ export function createPropertyService(
       }
     }
     if (!best || bestValue < 0) miss(key, key, deps.onLookupMiss);
-    return toPropertyRecord(best);
+    return { record: toPropertyRecord(best), point: parcelInteriorPoint(best.multipolygon) };
   }
 
   return {
@@ -380,7 +487,10 @@ export function createPropertyService(
       return response;
     },
 
-    async getProperty(addressKey: string): Promise<PropertyRecord> {
+    async getProperty(
+      addressKey: string,
+      options: GetPropertyOptions = {},
+    ): Promise<PropertyRecord> {
       const key = addressKey.trim();
       if (!key) miss(addressKey, '', deps.onLookupMiss);
       // Reno/05: an explicit out-of-coverage key never hits Socrata.
@@ -388,16 +498,16 @@ export function createPropertyService(
         miss(key, key, deps.onLookupMiss);
       }
       const hit = cached(propertyCache, key);
-      if (hit) return hit;
+      if (hit) return withLandUse(key, hit, options);
 
       const params = new URLSearchParams({
         $select: DETAIL_FIELDS.join(','),
         $where: `address=${soqlString(key)}`,
         $limit: String(config.searchRowLimit),
       });
-      const property = toProperty(key, await fetchRows(params));
-      store(propertyCache, key, property);
-      return property;
+      const entry = toProperty(key, await fetchRows(params));
+      store(propertyCache, key, entry);
+      return withLandUse(key, entry, options);
     },
   };
 }

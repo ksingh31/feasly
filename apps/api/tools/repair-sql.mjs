@@ -38,6 +38,8 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "unsubscribed_at" timestamp with ti
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "contact_opt_out_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "nudge_sent_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "report_opened_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "follow_up_sent_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;

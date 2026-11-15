@@ -143,6 +143,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
     },
   },
+  deepLink: {
+    addressMinLength: 3,
+    addressMaxLength: 120,
+    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search'],
+  },
   analytics: {
     enabled: false,
     optInWording: 'Allow anonymous usage analytics to help improve Feasly.',

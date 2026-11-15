@@ -318,6 +318,13 @@ describe('property service', () => {
         isNonResidential: false,
         dataAsOf: '2026-01-15',
         stale: false,
+        // #686: no land-use provider wired → the roll value, flagged as such.
+        landUse: {
+          district: 'C-C2',
+          description: '',
+          source: 'assessment-roll',
+          asOf: '2026-01-15',
+        },
       });
     });
 

@@ -4,12 +4,15 @@
  * Pure render functions: every template takes a `TemplateContext` carrying
  * the URLs (app base, unsubscribe base) so no URL is ever hardcoded here —
  * the layer-boundary test forbids URL literals in services/. Copy rules:
- *   - magic-link: single CTA, states the 7-day expiry, plain-text fallback.
- *     Consumer magic-link emails carry the unsubscribe footer
+ *   - magic-link: single CTA, states the expiry, plain-text fallback.
+ *     The consumer variant is the report email (#703): names the property,
+ *     lists what the report holds, states the real (reusable-until-expiry)
+ *     link rules. Consumer magic-link emails carry the unsubscribe footer
  *     (admin/builder sign-in links are team credentials — no footer).
  *   - share: carries the partner's FRESH bearer share URL — never the
  *     owner's magic link. No dollar figures in email copy, ever. The
  *     recipient is not a lead (one-off, owner-initiated) — no footer.
+ *   - follow-up (#703, non-transactional): same footer + headers as nudge.
  *   - nudge (non-transactional): unsubscribe footer via
  *     renderLeadEmailFooter; the service also sets List-Unsubscribe headers.
  *   - callback-team / ops-alert: internal team mail — no footer.
@@ -57,7 +60,7 @@ function layout(
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light only"></head>
 <body style="margin:0;padding:0;background-color:#faf6ef;font-family:'Instrument Sans',-apple-system,'Segoe UI',Arial,sans-serif;color:#232323;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf6ef;padding:32px 16px;">
 <tr><td align="center">
@@ -114,44 +117,113 @@ export interface MagicLinkTemplateInput {
    * credentials, not lead marketing, and carry no footer.
    */
   readonly unsubscribeUrl?: string;
+  /**
+   * #703 (consumer only): display address of the property the report is
+   * for, e.g. "1412 Prospect Av SW". Named in the subject and body.
+   */
+  readonly address?: string;
+  /**
+   * #703 (consumer only): when the link stops working — the stored
+   * `expires_at` of the issued token. Rendered as a date
+   * (America/Edmonton); falls back to `expiresInDays` when absent.
+   */
+  readonly expiresOn?: Date;
 }
 
-/** Consumer magic-link emails carry the unsubscribe footer; admin/builder do not. */
-export function renderMagicLinkEmail(
+const TRUST_LINE_TEXT =
+  'Deterministic cost math · not a contractor quote · cost data currently uncalibrated.';
+
+/**
+ * Consumer report email (#703). Names the property, lists what the report
+ * holds, and states the REAL link rules: the owner link is a reusable
+ * bearer handle until it expires (`isMagicLinkLive` ignores `used_at`), so
+ * the copy says "open it as often as you like" — never "only once". No
+ * dollar figures (banned-patterns.txt).
+ */
+function renderConsumerReportEmail(
   ctx: TemplateContext,
   input: MagicLinkTemplateInput,
 ): RenderedEmail {
-  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
-  const subject =
-    input.audience === 'admin'
-      ? `Your ${ctx.brandName} admin sign-in link`
-      : input.audience === 'builder'
-        ? `Your ${ctx.brandName} builder dashboard sign-in link`
-        : `Your ${ctx.brandName} estimate is ready — sign in to view it`;
-  const isAdmin = input.audience === 'admin';
-  const ctaLabel =
-    isAdmin
-      ? `Sign in to ${ctx.brandName} admin`
-      : input.audience === 'builder'
-        ? 'Open builder dashboard'
-        : 'View my estimate';
-  const body = `<p>${greeting}</p>
-<p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
+  const address = input.address?.trim() ? input.address.trim() : undefined;
+  const subject = address
+    ? `Your estimate for ${address}`
+    : `Your ${ctx.brandName} estimate is ready`;
+  const until = input.expiresOn
+    ? `until ${formatEdmontonDate(input.expiresOn)}`
+    : `for ${input.expiresInDays} days`;
+  const ctaLabel = 'View my estimate';
+  const greetingText = input.name ? `Hi ${input.name},` : 'Hi there,';
+  const greetingHtml = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const introText = address
+    ? `Your build-cost estimate for ${address} is ready.`
+    : 'Your build-cost estimate is ready.';
+  const introHtml = address
+    ? `Your build-cost estimate for <strong>${esc(address)}</strong> is ready.`
+    : 'Your build-cost estimate is ready.';
+  const contents = [
+    'The estimated cost range for your build',
+    'A line-by-line cost breakdown',
+    'Next steps, including how to talk to a builder',
+  ];
+  const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
+  const freshLink =
+    'After that, open the same link and enter your email address — we will send you a fresh one.';
+  const body = `<p>${greetingHtml}</p>
+<p>${introHtml}</p>
+<p style="margin:0 0 4px;">Your report includes:</p>
+<ul style="margin:0 0 12px;padding-left:20px;">
+${contents.map((c) => `<li>${esc(c)}</li>`).join('\n')}
+</ul>
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
+<p>${esc(linkRules)}</p>
+<p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
 ${fallbackLink(input.magicLinkUrl)}`;
-  const footerUrl =
-    input.audience === 'consumer' ? input.unsubscribeUrl : undefined;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.${
-    footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : ''
-  }`;
+  const footerUrl = input.unsubscribeUrl;
+  const text =
+    `${greetingText}\n\n${introText}\n\nYour report includes:\n` +
+    contents.map((c) => `- ${c}`).join('\n') +
+    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
+    (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
   return {
     subject,
     html: layout(
       ctx,
-      'Your secure sign-in link',
+      address ? `Your estimate for ${esc(address)}` : 'Your estimate is ready',
       body,
       footerUrl ? renderLeadEmailFooter(footerUrl) : undefined,
     ),
+    text,
+  };
+}
+
+/**
+ * Consumer magic-link emails are the report email (#703) and carry the
+ * unsubscribe footer; admin/builder sign-in links do not. Builder links
+ * ARE single-use (`markUsed` on verify), so their copy keeps that line.
+ */
+export function renderMagicLinkEmail(
+  ctx: TemplateContext,
+  input: MagicLinkTemplateInput,
+): RenderedEmail {
+  if (input.audience === 'consumer') {
+    return renderConsumerReportEmail(ctx, input);
+  }
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const isAdmin = input.audience === 'admin';
+  const subject = isAdmin
+    ? `Your ${ctx.brandName} admin sign-in link`
+    : `Your ${ctx.brandName} builder dashboard sign-in link`;
+  const ctaLabel = isAdmin
+    ? `Sign in to ${ctx.brandName} admin`
+    : 'Open builder dashboard';
+  const body = `<p>${greeting}</p>
+<p>Here's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.</p>
+${ctaButton(input.magicLinkUrl, ctaLabel)}
+${fallbackLink(input.magicLinkUrl)}`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nHere's your secure sign-in link. It expires in ${input.expiresInDays} days and can only be used once.\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}`;
+  return {
+    subject,
+    html: layout(ctx, 'Your secure sign-in link', body),
     text,
   };
 }
@@ -313,6 +385,67 @@ ${fallbackLink(input.resumeUrl)}`;
     html: layout(
       ctx,
       'Your estimate is waiting',
+      body,
+      renderLeadEmailFooter(input.unsubscribeUrl),
+    ),
+    text,
+  };
+}
+
+export interface FollowUpTemplateInput {
+  readonly name?: string;
+  /** Display address of the property, e.g. "1412 Prospect Av SW". */
+  readonly address?: string;
+  /** Owner report URL (fresh owner link). */
+  readonly reportUrl: string;
+  /** One-click unsubscribe URL (token embedded). */
+  readonly unsubscribeUrl: string;
+}
+
+/**
+ * #703 post-report follow-up. NON-transactional: sent once, a few days
+ * after the homeowner first opened their report, only with marketing
+ * consent; carries the one-click unsubscribe footer (and the service sets
+ * List-Unsubscribe headers). No dollar figures.
+ */
+export function renderFollowUpEmail(
+  ctx: TemplateContext,
+  input: FollowUpTemplateInput,
+): RenderedEmail {
+  const address = input.address?.trim() ? input.address.trim() : undefined;
+  const subject = address
+    ? `Questions about your estimate for ${address}?`
+    : 'Questions about your estimate?';
+  const greetingText = input.name ? `Hi ${input.name},` : 'Hi there,';
+  const greetingHtml = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const introText = address
+    ? `A few days ago you opened your build-cost estimate for ${address}. If anything in it raised questions, there are two easy next steps from your report:`
+    : 'A few days ago you opened your build-cost estimate. If anything in it raised questions, there are two easy next steps from your report:';
+  const introHtml = address
+    ? `A few days ago you opened your build-cost estimate for <strong>${esc(address)}</strong>. If anything in it raised questions, there are two easy next steps from your report:`
+    : esc(introText);
+  const steps = [
+    'Request a callback — a builder can walk you through the numbers.',
+    'Adjust your inputs — try a different size or finish level and see how the estimate changes.',
+  ];
+  const ctaLabel = 'Open my report';
+  const body = `<p>${greetingHtml}</p>
+<p>${introHtml}</p>
+<ul style="margin:0 0 12px;padding-left:20px;">
+${steps.map((s) => `<li>${esc(s)}</li>`).join('\n')}
+</ul>
+${ctaButton(input.reportUrl, ctaLabel)}
+${fallbackLink(input.reportUrl)}
+<p style="font-size:14px;color:#5c574f;">This is the only follow-up we will send about this estimate.</p>`;
+  const text =
+    `${greetingText}\n\n${introText}\n\n` +
+    steps.map((s) => `- ${s}`).join('\n') +
+    `\n\n${ctaLabel}: ${input.reportUrl}\n\nThis is the only follow-up we will send about this estimate.\n\n${leadEmailFooterText(input.unsubscribeUrl)}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}`;
+  return {
+    subject,
+    html: layout(
+      ctx,
+      'Questions about your estimate?',
       body,
       renderLeadEmailFooter(input.unsubscribeUrl),
     ),
