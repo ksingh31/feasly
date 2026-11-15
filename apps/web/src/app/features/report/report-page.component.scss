@@ -704,3 +704,16 @@ a.cta.secondary.another-address {
   color: var(--muted);
   text-align: center;
 }
+
+/* #706: privacy self-service entry at the foot of the report. */
+.privacy-data-link {
+  text-align: center;
+  margin: var(--space-6) 0 0;
+  font-size: var(--type-body-sm);
+}
+
+.privacy-data-link a {
+  color: var(--muted);
+  display: inline-block;
+  padding: var(--space-3) 0;
+}

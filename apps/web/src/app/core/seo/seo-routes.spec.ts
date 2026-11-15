@@ -112,6 +112,9 @@ describe('seo-routes', () => {
       analyzing: 'analyzing',
       'r/:token': 'r/abc123',
       'unsubscribe/:token': 'unsubscribe/abc123',
+      'privacy/my-data': 'privacy/my-data',
+      'privacy/confirm/:requestId':
+        'privacy/confirm/3f9b2c1a-0000-4000-8000-000000000000',
       'embed/**': 'embed/acme/embed.js',
       'admin': 'admin',
       'admin/leads': 'admin/leads',

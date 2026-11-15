@@ -102,6 +102,31 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
+  // Privacy self-service (#706): download / delete my data + the erase
+  // confirmation landing. Private (noindex, robots-disallowed by exact
+  // path — the public policy at /privacy/ stays crawlable), never prerendered; PrivacyState lazy-loads with the pages.
+  {
+    path: 'privacy/my-data',
+    loadComponent: () =>
+      import('./features/privacy/my-data-page.component').then((m) => m.MyDataPageComponent),
+    canActivate: [
+      robotsGuard,
+      lazyProvider(async () => (await import('./features/privacy/privacy.state')).privacyStateProvider),
+    ],
+    data: { noindex: true },
+  },
+  {
+    path: 'privacy/confirm/:requestId',
+    loadComponent: () =>
+      import('./features/privacy/confirm-erase-page.component').then(
+        (m) => m.ConfirmErasePageComponent,
+      ),
+    canActivate: [
+      robotsGuard,
+      lazyProvider(async () => (await import('./features/privacy/privacy.state')).privacyStateProvider),
+    ],
+    data: { noindex: true },
+  },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },

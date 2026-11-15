@@ -431,5 +431,11 @@
   @if (showPrintDisclaimer()) {
     <p class="print-only print-disclaimer">{{ printDisclaimer }}</p>
   }
+  <!-- #706: privacy self-service entry — owner token sessions only. -->
+  @if (reportToken() && !partnerView()) {
+    <p class="privacy-data-link no-print">
+      <a routerLink="/privacy/my-data">{{ privacyDataLinkLabel }}</a>
+    </p>
+  }
 </main>
 <app-site-footer />

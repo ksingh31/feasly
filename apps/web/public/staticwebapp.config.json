@@ -28,6 +28,14 @@
       "rewrite": "/index.html"
     },
     {
+      "route": "/privacy/my-data",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/privacy/confirm/*",
+      "rewrite": "/index.html"
+    },
+    {
       "route": "/error",
       "rewrite": "/index.html"
     },
