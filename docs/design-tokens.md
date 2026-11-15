@@ -63,14 +63,13 @@ body line-height 1.65–1.7; buttons 15–16px semibold.
 | `--accent-bg`  | `rgba(168,118,26,.08)` | Brass wash behind badges.                  |
 | `--border`     | `rgba(26,22,18,.1)`  | Hairline borders on cream.                  |
 | `--danger`     | `#b3261e`            | Errors.                                     |
+| `--danger-bg`  | `#fdf0ef`            | Error banner wash (`.form-error`, autocomplete error). |
+| `--chart-interior` | `#b4552d`        | Report breakdown bar: interior bucket (structure uses `--accent`). |
+| `--chart-design` | `#6f7a3a`          | Report breakdown bar: design bucket.        |
 | `--focus-ring` | `rgba(168,118,26,.35)` | Focus outlines.                           |
 
 Karan prefers this warm cream/charcoal/brass direction over the older live
 site look — when in doubt, lean warmer and roomier, not flatter and greyer.
-
-| `--danger-bg`  | `#fdf0ef`            | Error banner wash (`.form-error`, autocomplete error). |
-| `--chart-interior` | `#b4552d`        | Report breakdown bar: interior bucket (structure uses `--accent`). |
-| `--chart-design` | `#6f7a3a`          | Report breakdown bar: design bucket.        |
 
 Never put white text on `--accent`.
 
@@ -89,6 +88,7 @@ colour, `filter: brightness()`, or white-on-brass.
 | `--cta-on-dark-bg`       | `var(--accent-dark)` | Primary CTA background **on dark** surfaces (`--canvas` cards, dark CTA bands). |
 | `--cta-on-dark-fg`       | `var(--canvas)`      | Primary CTA text on dark.                 |
 | `--cta-on-dark-bg-hover` | `#d6a244`            | Hover on dark.                            |
+| `--cta-on-accent-fg`     | `#ffffff`            | Text on a builder's white-label accent (embed CTA). Accents are validated against white, so the embed sets `--embed-accent-fg` to this whenever an accent is applied. |
 
 Rule: **charcoal on cream, brass on dark.** The wizard's shared `.cta` (in
 `features/wizard/wizard-shell.scss`) is the reference implementation; reuse it

@@ -52,6 +52,9 @@
   --cta-on-dark-bg: var(--accent-dark);
   --cta-on-dark-fg: var(--canvas);
   --cta-on-dark-bg-hover: #d6a244;
+  /* Text on a builder's white-label accent: the API validates accents
+   * against white (>= 4.5:1), so accent fills always carry white text. */
+  --cta-on-accent-fg: #ffffff;
   /* ── Wizard column (consumer review S2, issue #511) ──
    * Every wizard step (scope → details → analyzing → gate → preview →
    * report, plus the reno steps) uses this one column width. */

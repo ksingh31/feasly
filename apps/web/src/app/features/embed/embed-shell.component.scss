@@ -69,7 +69,9 @@
   /* A builder's validated accent wins (white-label); otherwise the one
      Feasly primary CTA (charcoal on cream, consumer review S1). */
   background: var(--embed-accent, var(--cta-bg));
-  color: var(--cta-fg);
+  /* Accent fills keep white text (the contrast the API validated);
+     the default CTA uses --cta-fg. */
+  color: var(--embed-accent-fg, var(--cta-fg));
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 1rem;
