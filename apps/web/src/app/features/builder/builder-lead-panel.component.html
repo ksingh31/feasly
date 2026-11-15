@@ -108,9 +108,13 @@
         } @else {
           <p class="lead-panel__won" data-testid="panel-record">
             {{ copy.leadsWonHint }}
-            <a [routerLink]="['/builder/record-contract']" [queryParams]="{ lead: lead.id }">{{
-              copy.leadsWonReportCta
-            }}</a>
+            @if (isAdmin()) {
+              <a [routerLink]="['/builder/record-contract']" [queryParams]="{ lead: lead.id }">{{
+                copy.leadsWonReportCta
+              }}</a>
+            } @else {
+              {{ home.recordContractMemberNote }}
+            }
           </p>
         }
       }

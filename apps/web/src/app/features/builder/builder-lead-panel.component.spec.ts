@@ -46,7 +46,11 @@ function listOf(lead: BuilderLeadListItem): BuilderLeadListResponse {
   };
 }
 
-async function setup(lead: Partial<BuilderLeadListItem> = {}, patch?: Subject<{ ok: true }>) {
+async function setup(
+  lead: Partial<BuilderLeadListItem> = {},
+  patch?: Subject<{ ok: true }>,
+  role: 'builder_admin' | 'builder_member' = 'builder_admin',
+) {
   let current: BuilderLeadListItem = { ...BASE, ...lead };
   const leadsApi = {
     listLeads: vi.fn(() => of(listOf(current))),
@@ -71,6 +75,24 @@ async function setup(lead: Partial<BuilderLeadListItem> = {}, patch?: Subject<{ 
     ],
   });
   const store = TestBed.inject(Store);
+  const snapshot = store.snapshot();
+  store.reset({
+    ...snapshot,
+    builder: {
+      ...snapshot.builder,
+      session: {
+        authenticated: true,
+        email: 'owner@builder.ca',
+        name: null,
+        builderId: 'elite-craft',
+        builderName: 'Elite Craft',
+        role,
+        memberships: [],
+        viewAs: null,
+        viewAsDisplayName: null,
+      },
+    },
+  });
   store.dispatch(new LoadBuilderLeads());
   const fixture = TestBed.createComponent(BuilderLeadPanelComponent);
   fixture.detectChanges();
@@ -141,6 +163,21 @@ describe('BuilderLeadPanelComponent (#527)', () => {
     expect(select(el)).not.toBeNull();
     const record = el.querySelector('[data-testid="panel-record"] a') as HTMLAnchorElement;
     expect(record.getAttribute('href')).toBe('/builder/record-contract?lead=lead-a');
+  });
+
+  it('won without a contract, member: no record link, shows the admin note', async () => {
+    const { el } = await setup({ status: 'won', needsRecording: true }, undefined, 'builder_member');
+    const record = el.querySelector('[data-testid="panel-record"]') as HTMLElement;
+    expect(record.querySelector('a')).toBeNull();
+    expect(record.textContent).toContain(COPY.leadsHome.recordContractMemberNote);
+  });
+
+  it('does not show an update error this panel did not cause', async () => {
+    const { el, fixture, store } = await setup();
+    const snapshot = store.snapshot();
+    store.reset({ ...snapshot, builder: { ...snapshot.builder, updateError: 'failed' } });
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('locks the status for a recorded contract and links the invoice (#474)', async () => {

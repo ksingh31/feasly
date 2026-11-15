@@ -69,7 +69,13 @@ export class BuilderLeadPanelComponent {
 
   private readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly updatingLeadId = this.store.selectSignal(BuilderState.updatingLeadId);
-  protected readonly updateError = this.store.selectSignal(BuilderState.updateError);
+  private readonly storeUpdateError = this.store.selectSignal(BuilderState.updateError);
+  protected readonly isAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
+  /** True once this panel dispatched an Apply — scopes the global updateError to this lead. */
+  private readonly appliedHere = signal(false);
+  protected readonly updateError = computed(() =>
+    this.appliedHere() ? this.storeUpdateError() : null,
+  );
 
   protected readonly lead = computed<BuilderLeadListItem | null>(
     () => this.leads().find((l) => l.id === this.data.leadId) ?? null,
@@ -154,6 +160,7 @@ export class BuilderLeadPanelComponent {
       this.pending.set(null);
       return;
     }
+    this.appliedHere.set(true);
     this.store
       .dispatch(new UpdateBuilderLeadStatus(lead.id, pending))
       .pipe(takeUntilDestroyed(this.destroyRef))
