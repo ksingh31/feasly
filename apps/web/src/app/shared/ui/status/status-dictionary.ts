@@ -39,6 +39,8 @@ export type BuilderStatusKey = BuilderStatus | 'past_due' | 'degraded' | 'suspen
 export type ApiKeyStatusKey = 'active' | 'revoked';
 /** Dispute review SLA — derive the key with {@link disputeSlaKey}. */
 export type DisputeSlaKey = 'on_track' | 'due_today' | 'overdue';
+/** Lead-score heat pill (builder review: Hot ≥85, Warm 65–84, Cool <65). */
+export type LeadHeatKey = 'hot' | 'warm' | 'cool';
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -87,6 +89,12 @@ const DISPUTE_SLA: Dictionary<DisputeSlaKey> = {
   overdue: { label: 'Overdue', tone: 'danger' },
 };
 
+const LEAD_HEAT: Dictionary<LeadHeatKey> = {
+  hot: { label: 'Hot', tone: 'danger' },
+  warm: { label: 'Warm', tone: 'warning' },
+  cool: { label: 'Cool', tone: 'info' },
+};
+
 /** Every domain the dictionary covers, keyed by domain name. */
 export const STATUS_DICTIONARY = {
   lead: LEAD,
@@ -95,6 +103,7 @@ export const STATUS_DICTIONARY = {
   builder: BUILDER,
   apiKey: API_KEY,
   disputeSla: DISPUTE_SLA,
+  leadHeat: LEAD_HEAT,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

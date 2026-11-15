@@ -40,6 +40,7 @@ const COLUMNS: DataTableColumn<Lead>[] = [
       [error]="error()"
       [filtered]="filtered()"
       [selectedId]="selectedId()"
+      [rowFlagged]="rowFlagged()"
       [selectable]="selectable()"
       [(selection)]="selection"
       [page]="page()"
@@ -70,6 +71,7 @@ class HostComponent {
   readonly error = signal<string | null>(null);
   readonly filtered = signal(false);
   readonly selectedId = signal<string | null>(null);
+  readonly rowFlagged = signal<((row: Lead) => boolean) | null>(null);
   readonly selectable = signal(false);
   readonly selection = signal<readonly string[]>([]);
   readonly page = signal(1);
@@ -158,6 +160,18 @@ describe('DataTableComponent', () => {
     expect(rows(el)[1].classList).toContain('ui-dt__row--open');
     expect(rows(el)[1].getAttribute('aria-current')).toBe('true');
     expect(rows(el)[0].classList).not.toContain('ui-dt__row--open');
+  });
+
+  it('flags rows (table and cards) when rowFlagged says so', () => {
+    const el = setup();
+    expect(el.querySelector('.ui-dt__row--flagged')).toBeNull();
+    host.rowFlagged.set((row) => row.id === 'l1');
+    render();
+    expect(rows(el)[0].classList).toContain('ui-dt__row--flagged');
+    expect(rows(el)[1].classList).not.toContain('ui-dt__row--flagged');
+    const cards = el.querySelectorAll('.ui-dt__card');
+    expect(cards[0].classList).toContain('ui-dt__card--flagged');
+    expect(cards[1].classList).not.toContain('ui-dt__card--flagged');
   });
 
   it('selection: row and select-all checkboxes drive the model and bulk bar', () => {

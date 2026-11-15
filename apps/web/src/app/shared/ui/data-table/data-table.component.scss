@@ -132,6 +132,16 @@ tbody tr:last-child td {
 .ui-dt__card:hover {
   background: var(--cream);
 }
+.ui-dt__row--flagged,
+.ui-dt__card--flagged {
+  background: var(--status-warning-bg);
+}
+.ui-dt__row--flagged > td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-warning-fg);
+}
+.ui-dt__card--flagged {
+  box-shadow: inset 3px 0 0 var(--status-warning-fg);
+}
 .ui-dt__row--open,
 .ui-dt__row--open:hover,
 .ui-dt__card--open,
