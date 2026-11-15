@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
+import { stubObjectUrls } from '../../shared/test-helpers/object-url.stub';
 import {
   AddAdminLeadNote,
   DismissAdminLeadNoteError,
@@ -429,43 +430,46 @@ describe('AdminLeadsState', () => {
   });
 
   it('exports the filtered set and triggers a download', async () => {
-    // jsdom has no URL.createObjectURL — define it for this test only.
-    const createObjectURL = vi.fn(() => 'blob:mock');
-    const revokeObjectURL = vi.fn();
-    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
-    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
-    // Spy on a real anchor so jsdom's appendChild accepts it.
-    const realCreateElement = document.createElement.bind(document);
-    const click = vi.fn();
-    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
-      const el = realCreateElement(tagName, options);
-      if (tagName === 'a') {
-        vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(click);
-      }
-      return el;
-    }) as typeof document.createElement);
-    vi.useFakeTimers();
+    // Stub the download plumbing for this test only; restored in `finally`
+    // so the shared URL global never leaks into other specs (#744).
+    const urls = stubObjectUrls('blob:mock');
+    const { revokeObjectURL } = urls;
+    try {
+      // Spy on a real anchor so jsdom's appendChild accepts it.
+      const realCreateElement = document.createElement.bind(document);
+      const click = vi.fn();
+      vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+        const el = realCreateElement(tagName, options);
+        if (tagName === 'a') {
+          vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(click);
+        }
+        return el;
+      }) as typeof document.createElement);
+      vi.useFakeTimers();
 
-    const done = store.dispatch(new LoadAdminLeads({ source: 'web' }));
-    httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads')).flush(listResponse([], null, 0));
-    await done.toPromise();
+      const done = store.dispatch(new LoadAdminLeads({ source: 'web' }));
+      httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads')).flush(listResponse([], null, 0));
+      await done.toPromise();
 
-    const exportDone = store.dispatch(new ExportAdminLeadsCsv());
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/export.csv'));
-    expect(req.request.params.get('source')).toBe('web');
-    req.flush(new Blob(['a,b'], { type: 'text/csv' }));
-    await exportDone.toPromise();
+      const exportDone = store.dispatch(new ExportAdminLeadsCsv());
+      const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/export.csv'));
+      expect(req.request.params.get('source')).toBe('web');
+      req.flush(new Blob(['a,b'], { type: 'text/csv' }));
+      await exportDone.toPromise();
 
-    expect(click).toHaveBeenCalled();
-    // The object URL must NOT be revoked synchronously: revoking it in the
-    // same task as the programmatic click aborts the download in
-    // Safari/WebKit (2026-09-28: Export CSV silently did nothing on iPhone).
-    expect(revokeObjectURL).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1000);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
-    expect(store.selectSnapshot(AdminLeadsState.exporting)).toBe(false);
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+      expect(click).toHaveBeenCalled();
+      // The object URL must NOT be revoked synchronously: revoking it in the
+      // same task as the programmatic click aborts the download in
+      // Safari/WebKit (2026-09-28: Export CSV silently did nothing on iPhone).
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1000);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+      expect(store.selectSnapshot(AdminLeadsState.exporting)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      urls.restore();
+    }
   });
 
   it('records export errors inline without crashing to the /error page', async () => {
