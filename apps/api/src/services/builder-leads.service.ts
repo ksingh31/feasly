@@ -134,6 +134,12 @@ export interface BuilderLeadsService {
   ): Promise<BuilderLeadMarkWonResponse>;
 }
 
+interface StatusChangeResult {
+  readonly ok: true;
+  readonly changed: boolean;
+  readonly billing?: BillableEventResult;
+}
+
 export interface BuilderLeadsServiceDeps {
   readonly leadStore: LeadStore;
   readonly audit: AdminAuditStore;
@@ -438,6 +444,148 @@ export function createBuilderLeadsService(
     return sent;
   }
 
+  /**
+   * Shared status-change path for updateStatus and markWon. `changed` is
+   * true only when THIS request's compare-and-set write moved the row
+   * (#620) — a no-op or a lost race to the same status reports false, so
+   * callers with side effects (markWon's admin notice) can skip them.
+   */
+  async function changeStatus(
+    id: string,
+    body: unknown,
+    tenantKey: string,
+    builderEmail: string,
+  ): Promise<StatusChangeResult> {
+    const parsed = BuilderLeadStatusBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Invalid status body.',
+        false,
+      );
+    }
+
+    const builder = await requireBuilder(tenantKey);
+
+    // auth/04 (iron rule): tenant scoping happens in SQL from session
+    // state. The read AND the write are both scoped by
+    // (id, builder_id) — a cross-tenant row is never pulled into the
+    // service, never honored, and never silently re-scoped.
+    const record = await requireOwnLead(id, builder.id, tenantKey, builderEmail);
+
+    const oldStatus = record.status;
+    const newStatus = parsed.data.status;
+
+    // Lead status lock (2026-09-29, Karan): once a signed contract is
+    // recorded (a commission invoice exists), the pipeline status is
+    // frozen — a won/recorded lead can never be flipped back. Rejected
+    // before any billing or write side effects.
+    if (
+      newStatus !== oldStatus &&
+      (await hasRecordedContract(id, builder.tenantKey))
+    ) {
+      throw new HttpError(
+        409,
+        ErrorCodes.LEAD_STATUS_LOCKED,
+        'Status is locked: a signed contract is already recorded for this lead.',
+        false,
+      );
+    }
+
+    // Contract details are only meaningful on a won transition.
+    const { contractValueCents, contractSignedAt } = parsed.data;
+    const hasContractDetails =
+      contractValueCents !== undefined || contractSignedAt !== undefined;
+    if (newStatus !== 'won' && hasContractDetails) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Contract details are only accepted with status "won".',
+        false,
+      );
+    }
+    if (hasContractDetails && (contractValueCents === undefined || contractSignedAt === undefined)) {
+      throw new HttpError(
+        400,
+        ErrorCodes.VALIDATION_FAILED,
+        'Contract details require both contractValueCents and contractSignedAt.',
+        false,
+      );
+    }
+
+    // Billing runs BEFORE the status update: won + invoice stay atomic.
+    // A billing failure leaves the pipeline status untouched so the
+    // builder can retry; the hook is idempotent against double-won.
+    let billing: BillableEventResult | undefined;
+    if (newStatus === 'won' && oldStatus !== 'won' && billingHook !== undefined) {
+      billing = await billingHook.recordBillableEvent(
+        builder.tenantKey,
+        'lead_won',
+        {
+          leadId: id,
+          introducedAt: record.createdAt,
+          contractValueCents,
+          contractSignedAt:
+            contractSignedAt === undefined ? undefined : new Date(contractSignedAt),
+        },
+      );
+    }
+
+    if (oldStatus !== newStatus) {
+      // auth/04: the write is tenant-scoped in SQL too — even if the
+      // read above were bypassed, this updates zero rows cross-tenant.
+      // #620: it is also a compare-and-set on the status we read, so two
+      // concurrent requests from the same read can't both append history.
+      const updated = await leadStore.updateStatusForBuilder({
+        id,
+        builderId: builder.id,
+        expectedStatus: oldStatus,
+        status: newStatus,
+      });
+      if (updated === null) {
+        // Lost the race: another request changed the status between our
+        // read and write. If it landed on the status we wanted, this is a
+        // duplicate of that transition — succeed without a second history
+        // row. Otherwise the builder is acting on a stale view: 409.
+        const current = await leadStore.findByIdAndBuilderId({
+          id,
+          builderId: builder.id,
+        });
+        if (current === null) {
+          throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
+        }
+        if (current.status !== newStatus) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            'This lead was updated by someone else. Refresh and try again.',
+            false,
+          );
+        }
+        return billing === undefined
+          ? { ok: true, changed: false }
+          : { ok: true, changed: false, billing };
+      }
+      await leadStore.appendStatusHistory({
+        id: randomUUID(),
+        leadId: id,
+        oldStatus,
+        newStatus,
+        changedBy: builderEmail,
+      });
+    }
+
+    await audit.log({
+      actorEmail: builderEmail,
+      action: 'builder_leads_status_changed',
+      detail: `leadId=${id} oldStatus=${oldStatus} newStatus=${newStatus} tenantKey=${tenantKey}`,
+    });
+
+    const changed = oldStatus !== newStatus;
+    return billing === undefined ? { ok: true, changed } : { ok: true, changed, billing };
+  }
+
   const service: BuilderLeadsService = {
     async listLeads(tenantKey: string): Promise<BuilderLeadListResponse> {
       const builder = await requireBuilder(tenantKey);
@@ -624,136 +772,9 @@ export function createBuilderLeadsService(
       body: unknown,
       tenantKey: string,
       builderEmail: string,
-    ): Promise<{ readonly ok: true }> {
-      const parsed = BuilderLeadStatusBodySchema.safeParse(body);
-      if (!parsed.success) {
-        throw new HttpError(
-          400,
-          ErrorCodes.VALIDATION_FAILED,
-          'Invalid status body.',
-          false,
-        );
-      }
-
-      const builder = await requireBuilder(tenantKey);
-
-      // auth/04 (iron rule): tenant scoping happens in SQL from session
-      // state. The read AND the write are both scoped by
-      // (id, builder_id) — a cross-tenant row is never pulled into the
-      // service, never honored, and never silently re-scoped.
-      const record = await requireOwnLead(id, builder.id, tenantKey, builderEmail);
-
-      const oldStatus = record.status;
-      const newStatus = parsed.data.status;
-
-      // Lead status lock (2026-09-29, Karan): once a signed contract is
-      // recorded (a commission invoice exists), the pipeline status is
-      // frozen — a won/recorded lead can never be flipped back. Rejected
-      // before any billing or write side effects.
-      if (
-        newStatus !== oldStatus &&
-        (await hasRecordedContract(id, builder.tenantKey))
-      ) {
-        throw new HttpError(
-          409,
-          ErrorCodes.LEAD_STATUS_LOCKED,
-          'Status is locked: a signed contract is already recorded for this lead.',
-          false,
-        );
-      }
-
-      // Contract details are only meaningful on a won transition.
-      const { contractValueCents, contractSignedAt } = parsed.data;
-      const hasContractDetails =
-        contractValueCents !== undefined || contractSignedAt !== undefined;
-      if (newStatus !== 'won' && hasContractDetails) {
-        throw new HttpError(
-          400,
-          ErrorCodes.VALIDATION_FAILED,
-          'Contract details are only accepted with status "won".',
-          false,
-        );
-      }
-      if (hasContractDetails && (contractValueCents === undefined || contractSignedAt === undefined)) {
-        throw new HttpError(
-          400,
-          ErrorCodes.VALIDATION_FAILED,
-          'Contract details require both contractValueCents and contractSignedAt.',
-          false,
-        );
-      }
-
-      // Billing runs BEFORE the status update: won + invoice stay atomic.
-      // A billing failure leaves the pipeline status untouched so the
-      // builder can retry; the hook is idempotent against double-won.
-      let billing: BillableEventResult | undefined;
-      if (newStatus === 'won' && oldStatus !== 'won' && billingHook !== undefined) {
-        billing = await billingHook.recordBillableEvent(
-          builder.tenantKey,
-          'lead_won',
-          {
-            leadId: id,
-            introducedAt: record.createdAt,
-            contractValueCents,
-            contractSignedAt:
-              contractSignedAt === undefined ? undefined : new Date(contractSignedAt),
-          },
-        );
-      }
-
-      if (oldStatus !== newStatus) {
-        // auth/04: the write is tenant-scoped in SQL too — even if the
-        // read above were bypassed, this updates zero rows cross-tenant.
-        // #620: it is also a compare-and-set on the status we read, so two
-        // concurrent requests from the same read can't both append history.
-        const updated = await leadStore.updateStatusForBuilder({
-          id,
-          builderId: builder.id,
-          expectedStatus: oldStatus,
-          status: newStatus,
-        });
-        if (updated === null) {
-          // Lost the race: another request changed the status between our
-          // read and write. If it landed on the status we wanted, this is a
-          // duplicate of that transition — succeed without a second history
-          // row. Otherwise the builder is acting on a stale view: 409.
-          const current = await leadStore.findByIdAndBuilderId({
-            id,
-            builderId: builder.id,
-          });
-          if (current === null) {
-            throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
-          }
-          if (current.status !== newStatus) {
-            throw new HttpError(
-              409,
-              ErrorCodes.CONFLICT,
-              'This lead was updated by someone else. Refresh and try again.',
-              false,
-            );
-          }
-          const duplicate: { readonly ok: true; readonly billing?: BillableEventResult } =
-            billing === undefined ? { ok: true } : { ok: true, billing };
-          return duplicate;
-        }
-        await leadStore.appendStatusHistory({
-          id: randomUUID(),
-          leadId: id,
-          oldStatus,
-          newStatus,
-          changedBy: builderEmail,
-        });
-      }
-
-      await audit.log({
-        actorEmail: builderEmail,
-        action: 'builder_leads_status_changed',
-        detail: `leadId=${id} oldStatus=${oldStatus} newStatus=${newStatus} tenantKey=${tenantKey}`,
-      });
-
-      const result: { readonly ok: true; readonly billing?: BillableEventResult } =
-        billing === undefined ? { ok: true } : { ok: true, billing };
-      return result;
+    ): Promise<{ readonly ok: true; readonly billing?: BillableEventResult }> {
+      const { billing } = await changeStatus(id, body, tenantKey, builderEmail);
+      return billing === undefined ? { ok: true } : { ok: true, billing };
     },
 
     async markWon(
@@ -786,10 +807,27 @@ export function createBuilderLeadsService(
         };
       }
 
-      // The won transition itself reuses updateStatus WITHOUT contract
+      // The won transition itself reuses the updateStatus path WITHOUT contract
       // details: billing parks the win (no invoice), history + audit are
       // written exactly as for any other status change.
-      await service.updateStatus(id, { status: 'won' }, tenantKey, actorEmail);
+      const { changed } = await changeStatus(
+        id,
+        { status: 'won' },
+        tenantKey,
+        actorEmail,
+      );
+
+      // #620: a concurrent "Mark won" already made (and announced) this
+      // transition — no second "Needs recording" notice.
+      if (!changed) {
+        return {
+          ok: true,
+          status: 'won',
+          needsRecording: true,
+          changed: false,
+          adminsNotified: 0,
+        };
+      }
 
       const adminsNotified = await notifyAdminsNeedsRecording({
         builderId: builder.id,

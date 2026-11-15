@@ -999,6 +999,26 @@ describe('builder-leads markWon → needs recording (#530)', () => {
     expect(statusHistory).toEqual([]);
   });
 
+  it('two concurrent "Mark won" clicks notify admins ONCE (#620)', async () => {
+    const { service, leads, sent, statusHistory } = makeMarkWonService();
+    const results = await Promise.all([
+      service.markWon('lead-1', 'elite-craft', 'member@elite.example'),
+      service.markWon('lead-1', 'elite-craft', 'other@elite.example'),
+    ]);
+    expect(leads.get('lead-1')?.status).toBe('won');
+    expect(statusHistory).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+    expect(results.filter((r) => r.changed)).toHaveLength(1);
+    const loser = results.find((r) => !r.changed);
+    expect(loser).toEqual({
+      ok: true,
+      status: 'won',
+      needsRecording: true,
+      changed: false,
+      adminsNotified: 0,
+    });
+  });
+
   it('a lead with a recorded contract is rejected with 409 LEAD_STATUS_LOCKED', async () => {
     const { service, leads, sent } = makeMarkWonService({ recordedLeadIds: ['lead-1'] });
     await expect(
