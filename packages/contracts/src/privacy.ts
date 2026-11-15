@@ -57,6 +57,16 @@ export interface PrivacyErasureRequestExport {
   readonly confirmedAt: string | null;
 }
 
+/** One waitlist signup (#520) held under the subject's email. */
+export interface PrivacyWaitlistSignupExport {
+  readonly topic: string;
+  readonly createdAt: string;
+  /** CASL consent timestamp captured with the signup. */
+  readonly consentTs: string;
+  /** Which consent wording the person agreed to (null = unknown). */
+  readonly consentVersion: string | null;
+}
+
 /**
  * GET /api/v1/privacy/export — everything Feasly holds about the bearer
  * identity. `reportShares` / `callbackRequests` are empty arrays until their
@@ -72,6 +82,8 @@ export interface PrivacyExportResponse {
   readonly reportShares: readonly unknown[];
   readonly callbackRequests: readonly unknown[];
   readonly erasureRequests: readonly PrivacyErasureRequestExport[];
+  /** #520: waitlist signups under the subject's email. */
+  readonly waitlistSignups?: readonly PrivacyWaitlistSignupExport[];
   /** Draft until the lawyer approves — see docs/legal/approved-copy.md. */
   readonly retentionNotice: string;
 }

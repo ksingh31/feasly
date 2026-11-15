@@ -14,6 +14,11 @@ export type WaitlistTopic = 'renovation' | 'toronto' | 'vancouver';
 export interface WaitlistRequest {
   readonly email: string;
   readonly topic: WaitlistTopic;
+  /**
+   * CASL express consent (owner decision 2026-11-15): the required
+   * checkbox. The API rejects a signup without `consent: true`.
+   */
+  readonly consent: true;
 }
 
 export interface WaitlistResponse {

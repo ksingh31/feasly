@@ -15,7 +15,8 @@
  * not expressible. The 403 + audit-row guarantee lives where a cross-user
  * target IS expressible — confirming another user's erasure request.
  *
- * Erasure semantics: lead rows (the PII store) are hard-deleted, magic
+ * Erasure semantics: lead rows (the PII store) and waitlist signups are
+ * hard-deleted, magic
  * links are revoked (rows kept as anonymized audit — hashes only),
  * erasure_requests flips to 'completed'. Estimate snapshots are
  * insert-only by design and contain no name/email/phone — they remain as
@@ -40,6 +41,7 @@ import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import type { PrivacyStore } from './privacy.store';
+import type { WaitlistStore } from './waitlist.store';
 
 /** A reason erasure cannot proceed yet (open dispute, in-review invoice…). */
 export interface ErasureBlocker {
@@ -83,6 +85,8 @@ export interface PrivacyServiceDeps {
   readonly leads: LeadStore;
   readonly estimates: EstimateStore;
   readonly privacy: PrivacyStore;
+  /** #520: waitlist signups are personal data — exported and erased too. */
+  readonly waitlist: WaitlistStore;
   readonly blockers: ErasureBlockerChecker;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
@@ -181,6 +185,12 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       } catch (error) {
         throw new Error('erasure history lookup failed', { cause: error });
       }
+      let waitlistSignups;
+      try {
+        waitlistSignups = await deps.waitlist.listByEmail(auth.email);
+      } catch (error) {
+        throw new Error('waitlist lookup failed', { cause: error });
+      }
       await deps.privacy.audit({ leadId: auth.leadId, action: 'export' });
 
       return {
@@ -231,6 +241,12 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
           status: r.status,
           createdAt: r.createdAt.toISOString(),
           confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null,
+        })),
+        waitlistSignups: waitlistSignups.map((w) => ({
+          topic: w.topic,
+          createdAt: w.createdAt.toISOString(),
+          consentTs: w.consentTs.toISOString(),
+          consentVersion: w.consentVersion,
         })),
         retentionNotice: EXPORT_RETENTION_NOTICE_DRAFT,
       };
@@ -381,6 +397,12 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       } catch (error) {
         throw new Error('lead deletion failed', { cause: error });
       }
+      let waitlistDeleted: number;
+      try {
+        waitlistDeleted = await deps.waitlist.deleteByEmail(auth.email);
+      } catch (error) {
+        throw new Error('waitlist deletion failed', { cause: error });
+      }
       let completed;
       try {
         completed = await deps.privacy.markCompleted(request.id, now);
@@ -390,7 +412,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       await deps.privacy.audit({
         leadId: auth.leadId,
         action: 'erase.confirm',
-        detail: `revoked:${revoked},deleted:${deleted}`,
+        detail: `revoked:${revoked},deleted:${deleted},waitlist:${waitlistDeleted}`,
       });
       return {
         requestId: completed.id,

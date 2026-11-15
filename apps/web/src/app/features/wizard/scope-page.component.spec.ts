@@ -389,9 +389,14 @@ describe('ScopePageComponent', () => {
       const input = root.querySelector<HTMLInputElement>('.wl-input')!;
       input.value = 'reno@example.com';
       input.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLInputElement>('.wl-consent input[type="checkbox"]')!.click();
       root.querySelector<HTMLButtonElement>('.wl-submit')!.click();
       fixture.detectChanges();
-      expect(joinWaitlist).toHaveBeenCalledWith({ email: 'reno@example.com', topic: 'renovation' });
+      expect(joinWaitlist).toHaveBeenCalledWith({
+        email: 'reno@example.com',
+        topic: 'renovation',
+        consent: true,
+      });
       expect(root.querySelector('.wl-success')?.textContent).toContain('renovation estimates');
     });
 

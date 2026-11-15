@@ -1529,6 +1529,16 @@ export interface AppConfig {
       error: string;
       /** What the email is used for (shown under the field). */
       privacyNote: string;
+      /**
+       * CASL consent checkbox label (owner decision 2026-11-15). REQUIRED to
+       * submit. Byte-checked against docs/legal/approved-copy.md "CASL
+       * waitlist consent wording" by tools/check-casl-copy.mjs.
+       */
+      consentLabel: string;
+      /** The words inside `consentLabel` that link to the privacy page. */
+      privacyLinkLabel: string;
+      /** Inline error when submitting without the consent box ticked. */
+      consentRequired: string;
       /** Shown after a successful signup, per topic. */
       successByTopic: Record<WaitlistTopic, string>;
       renovation: { heading: string; body: string };

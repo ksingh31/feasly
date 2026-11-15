@@ -707,6 +707,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       invalidEmail: 'Please enter a valid email address.',
       error: 'We couldn’t save that just now. Please try again in a moment.',
       privacyNote: 'We’ll only use this to email you when it’s ready. Nothing else.',
+      // DRAFT — pending legal review (owner decision 2026-11-15, same status
+      // as the lead-gate consent). REQUIRED to submit. Must byte-match
+      // docs/legal/approved-copy.md "CASL waitlist consent wording"
+      // (tools/check-casl-copy.mjs). Bump WAITLIST_CONSENT_VERSION in
+      // apps/api/src/lib/legal-copy.ts when it changes.
+      consentLabel:
+        'I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.',
+      privacyLinkLabel: 'Privacy Policy',
+      consentRequired: 'Please tick the box to agree, so we can email you.',
       successByTopic: {
         renovation: 'You’re on the list. We’ll email you when renovation estimates are ready.',
         toronto: 'You’re on the list. We’ll email you when Feasly covers Toronto.',

@@ -18,7 +18,11 @@ Waitlists for renovation and other cities (issue #520):
 
 - **Added** `waitlist.ts`: `WaitlistTopic` (`renovation` | `toronto` |
   `vancouver`), `WaitlistRequest` (`email`, `topic`) and `WaitlistResponse`
-  for `POST /api/v1/waitlist`.
+  for `POST /api/v1/waitlist`. `WaitlistRequest.consent` is the required
+  CASL consent checkbox (`true`); the API rejects a signup without it.
+- **Added** optional `PrivacyExportResponse.waitlistSignups`
+  (`PrivacyWaitlistSignupExport`: `topic`, `createdAt`, `consentTs`,
+  `consentVersion`): the privacy export covers waitlist signups.
 
 
 Builder Leads home "Needs you" feed (issue #526):

@@ -1,6 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import type { WaitlistTopic } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
 import { ConfigService } from '../../../core/config';
@@ -25,11 +26,15 @@ let nextInstanceId = 0;
  * address form, and nested forms are invalid HTML. Enter in the email
  * field submits this capture and never the surrounding form. All copy
  * comes from ConfigService; the only API call is `joinWaitlist`.
+ *
+ * CASL (owner decision 2026-11-15): a required, unticked consent checkbox
+ * (`copy.waitlist.consentLabel`, byte-checked against approved-copy.md);
+ * "Privacy Policy" in the label links to the privacy page.
  */
 @Component({
   selector: 'app-waitlist-signup',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './waitlist-signup.component.html',
   styleUrl: './waitlist-signup.component.scss',
 })
@@ -49,12 +54,37 @@ export class WaitlistSignupComponent {
   readonly errorId = `wl-error-${this.id}`;
   readonly noteId = `wl-note-${this.id}`;
   readonly radioName = `wl-city-${this.id}`;
+  readonly consentErrorId = `wl-consent-error-${this.id}`;
 
   readonly email = new FormControl('', {
     nonNullable: true,
     // Length is enforced by the API (400 on overflow), same as the report forms.
     validators: [Validators.required, Validators.email],
   });
+  /**
+   * CASL consent (owner decision 2026-11-15): REQUIRED, unticked by default.
+   * The API rejects a signup without it.
+   */
+  readonly consent = new FormControl(false, {
+    nonNullable: true,
+    validators: [Validators.requiredTrue],
+  });
+  /** Set when a submit was attempted without the consent box ticked. */
+  readonly showConsentError = signal(false);
+
+  /**
+   * The consent label split around the privacy link, so the byte-checked
+   * wording renders whole with "Privacy Policy" as a link.
+   */
+  readonly consentParts = (() => {
+    const label = this.copy.consentLabel;
+    const link = this.copy.privacyLinkLabel;
+    const at = link ? label.indexOf(link) : -1;
+    return at === -1
+      ? { before: label, link: '', after: '' }
+      : { before: label.slice(0, at), link, after: label.slice(at + link.length) };
+  })();
+
   readonly status = signal<SignupStatus>('idle');
   /** Set when a submit was attempted with an invalid email. */
   readonly showInvalid = signal(false);
@@ -101,14 +131,14 @@ export class WaitlistSignupComponent {
 
   submit(): void {
     if (this.status() === 'sending') return;
-    if (this.email.invalid) {
-      this.showInvalid.set(true);
-      return;
-    }
-    this.showInvalid.set(false);
+    const emailOk = this.email.valid;
+    const consentOk = this.consent.valid;
+    this.showInvalid.set(!emailOk);
+    this.showConsentError.set(!consentOk);
+    if (!emailOk || !consentOk) return;
     this.status.set('sending');
     this.api
-      .joinWaitlist({ email: this.email.value.trim(), topic: this.topic() })
+      .joinWaitlist({ email: this.email.value.trim(), topic: this.topic(), consent: true })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.status.set('sent'),

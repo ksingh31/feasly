@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../../core/api';
@@ -55,6 +56,7 @@ describe('AddressAutocompleteComponent', () => {
         provideHttpClientTesting(),
         providePropertyData(),
         provideApi(),
+        provideRouter([]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -334,7 +336,13 @@ describe('AddressAutocompleteComponent', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         imports: [AddressAutocompleteComponent],
-        providers: [provideHttpClient(), provideHttpClientTesting(), providePropertyData(), provideApi()],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          providePropertyData(),
+          provideApi(),
+          provideRouter([]),
+        ],
       });
       const http = TestBed.inject(HttpTestingController);
       const pending = TestBed.inject(ConfigService).load();
@@ -625,6 +633,7 @@ describe('AddressAutocompleteComponent with a slow backend', () => {
         provideHttpClientTesting(),
         providePropertyData(),
         provideApi(),
+        provideRouter([]),
       ],
     });
     const http = TestBed.inject(HttpTestingController);

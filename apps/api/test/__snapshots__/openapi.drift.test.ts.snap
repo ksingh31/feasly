@@ -1260,6 +1260,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "WaitlistRequest": {
         "properties": {
+          "consent": {
+            "enum": [
+              true,
+            ],
+            "type": "boolean",
+          },
           "email": {
             "format": "email",
             "maxLength": 254,
@@ -1272,6 +1278,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         "required": [
           "email",
           "topic",
+          "consent",
         ],
         "type": "object",
       },

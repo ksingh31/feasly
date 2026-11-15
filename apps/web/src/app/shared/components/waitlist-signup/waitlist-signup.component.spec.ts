@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WaitlistRequest, WaitlistResponse } from '@feasly/contracts';
@@ -39,6 +40,7 @@ describe('WaitlistSignupComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
         { provide: API_SERVICE, useValue: { joinWaitlist } as unknown as ApiService },
       ],
     });
@@ -67,6 +69,14 @@ describe('WaitlistSignupComponent', () => {
     fixture.detectChanges();
   }
 
+  const consentBox = (): HTMLInputElement =>
+    root().querySelector<HTMLInputElement>('.wl-consent input[type="checkbox"]')!;
+
+  function tickConsent(): void {
+    consentBox().click();
+    fixture.detectChanges();
+  }
+
   function submit(): void {
     submitButton().click();
     fixture.detectChanges();
@@ -89,8 +99,9 @@ describe('WaitlistSignupComponent', () => {
     root().querySelectorAll<HTMLInputElement>('input[type="radio"]')[1]!.click();
     fixture.detectChanges();
     typeEmail('  me@example.com ');
+    tickConsent();
     submit();
-    expect(joinWaitlist).toHaveBeenCalledWith({ email: 'me@example.com', topic: 'vancouver' });
+    expect(joinWaitlist).toHaveBeenCalledWith({ email: 'me@example.com', topic: 'vancouver', consent: true });
     expect(root().querySelector('.wl-success')?.textContent).toContain('Vancouver');
     expect(root().querySelector('.wl-input')).toBeNull();
   });
@@ -100,8 +111,39 @@ describe('WaitlistSignupComponent', () => {
     fixture.detectChanges();
     expect(root().querySelector('.wl-cities')).toBeNull();
     typeEmail('reno@example.com');
+    tickConsent();
     submit();
-    expect(joinWaitlist).toHaveBeenCalledWith({ email: 'reno@example.com', topic: 'renovation' });
+    expect(joinWaitlist).toHaveBeenCalledWith({ email: 'reno@example.com', topic: 'renovation', consent: true });
+  });
+
+  it('CASL: the consent box is unticked by default and shows the approved wording, Privacy Policy linked', () => {
+    expect(consentBox().checked).toBe(false);
+    const label = root().querySelector<HTMLElement>('.wl-consent')!;
+    expect(label.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.',
+    );
+    const link = label.querySelector<HTMLAnchorElement>('a')!;
+    expect(link.textContent?.trim()).toBe('Privacy Policy');
+    expect(link.getAttribute('href')).toBe('/privacy');
+    expect(consentBox().labels?.[0]).toBe(label);
+  });
+
+  it('CASL: submitting without consent shows an inline error and makes no API call', () => {
+    typeEmail('noconsent@example.com');
+    submit();
+    expect(joinWaitlist).not.toHaveBeenCalled();
+    const err = root().querySelector<HTMLElement>('[id^="wl-consent-error-"]');
+    expect(err?.textContent).toContain('tick the box');
+    expect(consentBox().getAttribute('aria-invalid')).toBe('true');
+    expect(consentBox().getAttribute('aria-describedby')).toBe(err?.id);
+    // Ticking it lets the same signup through, with consent on the wire.
+    tickConsent();
+    submit();
+    expect(joinWaitlist).toHaveBeenCalledWith({
+      email: 'noconsent@example.com',
+      topic: 'toronto',
+      consent: true,
+    });
   });
 
   it('invalid email: inline error, aria-invalid, no API call', () => {
@@ -115,6 +157,7 @@ describe('WaitlistSignupComponent', () => {
 
   it('Enter in the email field submits the capture, never the surrounding form', () => {
     typeEmail('enter@example.com');
+    tickConsent();
     emailInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     fixture.detectChanges();
     expect(joinWaitlist).toHaveBeenCalledTimes(1);
@@ -125,6 +168,7 @@ describe('WaitlistSignupComponent', () => {
     const pending = new Subject<WaitlistResponse>();
     joinWaitlist.mockReturnValue(pending.asObservable());
     typeEmail('slow@example.com');
+    tickConsent();
     submit();
     expect(submitButton().disabled).toBe(true);
     expect(submitButton().textContent?.trim()).toBe('Saving…');
@@ -139,6 +183,7 @@ describe('WaitlistSignupComponent', () => {
   it('API failure: honest error, the form stays usable for a retry', () => {
     joinWaitlist.mockReturnValue(throwError(() => new Error('boom')));
     typeEmail('err@example.com');
+    tickConsent();
     submit();
     expect(root().querySelector('.wl-error')?.textContent).toContain('try again');
     expect(submitButton().disabled).toBe(false);

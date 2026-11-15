@@ -45,6 +45,26 @@
     @if (showInvalid() && email.invalid) {
       <p class="wl-error" role="alert" [id]="errorId">{{ copy.invalidEmail }}</p>
     }
+    <!-- CASL consent (owner decision 2026-11-15): REQUIRED, unticked by
+         default. Wording is DRAFT pending legal review and byte-checked
+         against docs/legal/approved-copy.md. -->
+    <label class="wl-consent">
+      <input
+        type="checkbox"
+        [formControl]="consent"
+        [attr.aria-invalid]="showConsentError() && consent.invalid ? 'true' : null"
+        [attr.aria-describedby]="showConsentError() && consent.invalid ? consentErrorId : null"
+      />
+      <span
+        >{{ consentParts.before
+        }}@if (consentParts.link) {<a routerLink="/privacy">{{ consentParts.link }}</a>}{{
+          consentParts.after
+        }}</span
+      >
+    </label>
+    @if (showConsentError() && consent.invalid) {
+      <p class="wl-error" role="alert" [id]="consentErrorId">{{ copy.consentRequired }}</p>
+    }
     @if (status() === 'error') {
       <p class="wl-error" role="alert">{{ copy.error }}</p>
     }

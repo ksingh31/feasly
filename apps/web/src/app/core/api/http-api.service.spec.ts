@@ -150,7 +150,7 @@ describe('HttpApiService', () => {
     },
     {
       name: 'joinWaitlist',
-      call: (api) => api.joinWaitlist({ email: 'a@example.com', topic: 'toronto' }),
+      call: (api) => api.joinWaitlist({ email: 'a@example.com', topic: 'toronto', consent: true }),
       method: 'POST',
       url: `${BASE}/waitlist`,
     },

@@ -406,7 +406,7 @@ describe('MockApiService', () => {
 
     it('joinWaitlist echoes the topic', async () => {
       const res = await firstValueFrom(
-        service.joinWaitlist({ email: 'a@example.com', topic: 'renovation' }),
+        service.joinWaitlist({ email: 'a@example.com', topic: 'renovation', consent: true }),
       );
       expect(res).toEqual({ ok: true, topic: 'renovation' });
     });

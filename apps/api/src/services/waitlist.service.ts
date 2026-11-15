@@ -7,11 +7,16 @@
  * (email, topic). A repeat signup answers exactly like the first one, so
  * the endpoint never reveals whether an email is already on a list.
  *
+ * CASL: the request must carry `consent: true` (the required checkbox,
+ * wording in docs/legal/approved-copy.md "CASL waitlist consent wording");
+ * the row records `consent_ts` + `consent_version`.
+ *
  * No email is sent at signup: the list is read when a topic launches.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { WaitlistResponse, WaitlistTopic } from '@feasly/contracts';
+import { WAITLIST_CONSENT_VERSION } from '../lib/legal-copy';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { WaitlistStore } from './waitlist.store';
 
@@ -24,6 +29,9 @@ export const WaitlistRequestSchema = z
   .object({
     email: z.string().trim().min(1).max(254).email(),
     topic: z.enum(WAITLIST_TOPIC_VALUES),
+    // CASL express consent (owner decision 2026-11-15): the required
+    // checkbox. Anything but `true` is a 400 and nothing is stored.
+    consent: z.literal(true, { error: 'consent must be true to join the waitlist.' }),
   })
   .strict();
 
@@ -53,6 +61,7 @@ export function createWaitlistService(deps: WaitlistServiceDeps): WaitlistServic
         id: randomUUID(),
         email: email.toLowerCase(),
         topic,
+        consentVersion: WAITLIST_CONSENT_VERSION,
       });
       return { ok: true, topic };
     },

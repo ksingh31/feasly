@@ -1492,11 +1492,15 @@ export function createComposition(
     options.privacyStore ?? createDrizzlePrivacyStore({ db: db.db });
   // Erasure blockers (open disputes, in-review invoices) don't exist yet —
   // the dispute/invoice stories will replace this no-op with real checks.
+  // #520: built before the privacy service, which exports/erases it.
+  const waitlistStore: WaitlistStore =
+    options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
   const privacyService: PrivacyService = createPrivacyService({
     magicLinks: magicLinkStore,
     leads: leadStore,
     estimates: estimateStore,
     privacy: privacyStore,
+    waitlist: waitlistStore,
     blockers: createNoopBlockerChecker(),
   });
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
@@ -1675,8 +1679,6 @@ export function createComposition(
   const callbackRoute: CallbackRoute = createCallbackRoute({
     callbacks: callbackService,
   });
-  const waitlistStore: WaitlistStore =
-    options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
   const waitlistService: WaitlistService = createWaitlistService({
     waitlist: waitlistStore,
   });

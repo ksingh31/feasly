@@ -554,6 +554,8 @@ export const WaitlistRequestSchema = z
   .object({
     email: z.string().email().max(254),
     topic: WaitlistTopicSchema,
+    /** CASL express consent — the required checkbox. */
+    consent: z.literal(true),
   })
   .openapi('WaitlistRequest');
 

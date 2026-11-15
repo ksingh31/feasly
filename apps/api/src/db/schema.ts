@@ -1570,7 +1570,8 @@ export const embedRelayAuditLog = pgTable(
  * "Tell me when it's ready" for renovation estimates and for cities
  * outside Calgary. Email is stored lowercased + trimmed (same rule as
  * `leads`) so the (email, topic) unique index is an exact match; a repeat
- * signup is a no-op (`ON CONFLICT DO NOTHING`). Insert-only.
+ * signup is a no-op (`ON CONFLICT DO NOTHING`). Rows are deleted by a
+ * confirmed privacy erasure (PIPEDA) and included in the privacy export.
  */
 export const waitlistSignups = pgTable(
   'waitlist_signups',
@@ -1583,6 +1584,12 @@ export const waitlistSignups = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** CASL consent timestamp (owner decision 2026-11-15) — set at signup. */
+    consentTs: timestamp('consent_ts', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Version tag of the consent wording agreed to (legal-copy.ts). */
+    consentVersion: text('consent_version'),
   },
   (t) => [uniqueIndex('waitlist_signups_email_topic_idx').on(t.email, t.topic)],
 );
