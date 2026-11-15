@@ -640,6 +640,7 @@ ALTER TABLE "admin_audit_log" ADD COLUMN IF NOT EXISTS "actor_email" text;
 ALTER TABLE "admin_audit_log" ADD COLUMN IF NOT EXISTS "action" text NOT NULL;
 ALTER TABLE "admin_audit_log" ADD COLUMN IF NOT EXISTS "detail" text;
 ALTER TABLE "admin_audit_log" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "admin_audit_log_created_idx" ON "admin_audit_log" USING btree ("created_at");
 CREATE TABLE IF NOT EXISTS "admin_sessions" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

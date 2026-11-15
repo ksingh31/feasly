@@ -14,6 +14,15 @@ real backend. Changing them has a cost, so:
 
 ## Unreleased — 2026-11-15 (additive)
 
+Audit log viewer, finance exports and builder activity (issue #728):
+
+- **Added** `audit.ts`: `AuditLogEntry` / `AuditLogListQuery` /
+  `AuditLogListResponse` (merged admin + billing audit trail, keyset
+  cursor) for `GET /api/v1/admin/audit`; `FinanceSummary` (+ per-builder
+  rows, integer cents) for `GET /api/v1/admin/billing/summary`;
+  `INVOICE_EXPORT_COLUMNS` (invoice CSV header); `BuilderActivityEntry` /
+  `BuilderActivityResponse` for `GET /api/v1/builder/activity`.
+
 Zoning rules catalogue (issue #687):
 
 - **Added** `zoning.ts`: `BuildingForm` (+ `BUILDING_FORMS`),

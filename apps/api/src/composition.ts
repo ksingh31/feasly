@@ -246,6 +246,18 @@ import {
   type AdminSearchStore,
 } from './services/admin-search.store';
 import {
+  createAuditFinanceRoute,
+  type AuditFinanceRoute,
+} from './routes/audit-finance.route';
+import {
+  createAuditFinanceService,
+  type AuditFinanceService,
+} from './services/audit-finance.service';
+import {
+  createDrizzleAuditFinanceStore,
+  type AuditFinanceStore,
+} from './services/audit-finance.store';
+import {
   createSessionBuilderGuard,
   type BuilderGuard,
 } from './middleware/builder-guard';
@@ -712,6 +724,13 @@ export interface AppComposition {
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
   readonly adminLeadsStore: AdminLeadsStore;
+  /**
+   * #728: audit viewer, finance summary + invoice CSV exports, builder
+   * activity. Exports run on their own limiters (`financeExportPipeline`).
+   */
+  readonly auditFinanceService: AuditFinanceService;
+  readonly auditFinanceRoute: AuditFinanceRoute;
+  readonly financeExportPipeline: RequestPipeline;
   /** admin/09: calibration console (read-only version + report + history). */
   readonly adminCalibrationService: AdminCalibrationService;
   readonly adminCalibrationRoute: AdminCalibrationRoute;
@@ -836,6 +855,8 @@ export interface CompositionOptions {
   readonly adminLeadsStore?: AdminLeadsStore;
   /** Admin global search store override (tests). */
   readonly adminSearchStore?: AdminSearchStore;
+  /** #728 audit/finance store override (tests). */
+  readonly auditFinanceStore?: AuditFinanceStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -1523,6 +1544,38 @@ export function createComposition(
     builders: builderService,
     adminGuard,
   });
+  // #728: audit viewer, finance summary/exports, builder activity. The CSV
+  // exports get their own limiters: per client IP first (before any token
+  // is trusted), then per session (token hash) — the admin-search pattern.
+  const auditFinanceService: AuditFinanceService = createAuditFinanceService({
+    store: options.auditFinanceStore ?? createDrizzleAuditFinanceStore({ db: db.db }),
+    audit: adminAuditStore,
+    config: {
+      exportMaxRows: config.financeExport.maxRows,
+      maxRangeDays: config.financeExport.maxRangeDays,
+      defaultCommissionRate: config.billing.commissionRate,
+      currency: config.billing.flatCurrency,
+    },
+  });
+  const auditFinanceRoute: AuditFinanceRoute = createAuditFinanceRoute({
+    service: auditFinanceService,
+    adminGuard,
+    builderGuard,
+    permissionGuard,
+  });
+  const financeExportPipeline: RequestPipeline = createAdminSearchPipeline({
+    ipLimiter: createRateLimiter({
+      windowMs: config.financeExport.ipRateLimit.windowMs,
+      maxRequests: config.financeExport.ipRateLimit.maxRequests,
+      maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+    }),
+    sessionLimiter: createRateLimiter({
+      windowMs: config.financeExport.rateLimit.windowMs,
+      maxRequests: config.financeExport.rateLimit.maxRequests,
+      maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+    }),
+    logger: options.logger,
+  });
   // Builders table admin (embed/02 admin-UI migration): CRUD + the route is
   // admin-gated inside, like every other admin route.
   const adminBuildersRoute: AdminBuildersRoute = createAdminBuildersRoute({
@@ -2111,6 +2164,9 @@ export function createComposition(
     adminBuildersRoute,
     adminLeadsService,
     adminLeadsRoute,
+    auditFinanceService,
+    auditFinanceRoute,
+    financeExportPipeline,
     adminLeadsStore,
     adminCalibrationService,
     adminCalibrationRoute,

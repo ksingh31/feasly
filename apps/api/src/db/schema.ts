@@ -1411,7 +1411,11 @@ export const adminAuditLog = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index('admin_audit_log_action_idx').on(t.action)],
+  (t) => [
+    index('admin_audit_log_action_idx').on(t.action),
+    // #728: the audit viewer pages newest-first over every row.
+    index('admin_audit_log_created_idx').on(t.createdAt),
+  ],
 );
 
 /**

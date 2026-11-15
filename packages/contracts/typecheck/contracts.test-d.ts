@@ -5,6 +5,10 @@
  */
 import type {
   AnalyticsEvent,
+  AuditLogEntry,
+  AuditLogListResponse,
+  BuilderActivityResponse,
+  FinanceSummary,
   AutocompleteSuggestion,
   BuilderLeadListResponse,
   BuilderLeadNeedsYouItem,
@@ -32,7 +36,7 @@ import type {
   ZoningDistrictsResponse,
   ZoningRulesVersion,
 } from '../src';
-import { BUILDING_FORMS, CONTRACT_NAMES } from '../src';
+import { BUILDING_FORMS, CONTRACT_NAMES, INVOICE_EXPORT_COLUMNS } from '../src';
 
 // --- tiny assertion helpers (compile-time only) ---
 function assertType<T>(value: T): void {
@@ -194,6 +198,22 @@ const publicForm = zoningRes.districts[0]!.forms[0]!;
 // @ts-expect-error — the wire shape never carries a verified flag
 void publicForm.verified;
 assertType<number>(BUILDING_FORMS.length);
+
+// --- audit log + finance exports (issue #728): money is integer cents ---
+declare const auditPage: AuditLogListResponse;
+assertType<string | null>(auditPage.nextCursor);
+const auditEntry: AuditLogEntry = auditPage.items[0]!;
+assertType<'admin' | 'billing'>(auditEntry.source);
+assertType<boolean>(auditEntry.impersonation);
+// @ts-expect-error — the source is a closed union
+const badSource: AuditLogEntry = { ...auditEntry, source: 'privacy' };
+void badSource;
+declare const financeSummary: FinanceSummary;
+assertType<number>(financeSummary.invoicedCents);
+assertType<number>(financeSummary.byBuilder[0]!.refundedCents);
+declare const activity: BuilderActivityResponse;
+assertType<'team' | 'self'>(activity.scope);
+assertType<'invoice_number'>(INVOICE_EXPORT_COLUMNS[0]);
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;
