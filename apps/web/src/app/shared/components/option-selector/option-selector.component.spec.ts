@@ -45,6 +45,25 @@ describe('OptionSelectorComponent', () => {
     expect(el.querySelector('[data-option="standard"]')?.getAttribute('aria-checked')).toBe('false');
   });
 
+  it('defaults to its own boxed section with an h2', async () => {
+    const { fixture } = await setup(TIER_OPTIONS, 'premium' as FinishTier);
+    const section: HTMLElement = fixture.nativeElement.querySelector('.option-section');
+    expect(section.classList.contains('flat')).toBe(false);
+    expect(section.querySelector('h2')?.textContent).toBe('Choose one');
+  });
+
+  it('flat variant (#508) drops the box and uses an h3 for use inside a parent card', async () => {
+    const { fixture } = await setup(TIER_OPTIONS, 'premium' as FinishTier);
+    fixture.componentRef.setInput('flat', true);
+    fixture.detectChanges();
+    const section: HTMLElement = fixture.nativeElement.querySelector('.option-section');
+    expect(section.classList.contains('flat')).toBe(true);
+    expect(section.querySelector('h2')).toBeNull();
+    const h3 = section.querySelector('h3');
+    expect(h3?.textContent).toBe('Choose one');
+    expect(section.getAttribute('aria-labelledby')).toBe(h3?.id);
+  });
+
   it('emits selectedChange on click', async () => {
     const { fixture, comp } = await setup(TIER_OPTIONS, 'standard' as FinishTier);
     let emitted: string | null = null;
