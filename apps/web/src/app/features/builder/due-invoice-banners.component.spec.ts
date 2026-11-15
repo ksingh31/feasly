@@ -373,7 +373,7 @@ describe('DueInvoiceBannersComponent', () => {
     ]);
     expect(bannerBars(fixture)).toHaveLength(2);
     const x = fixture.nativeElement.querySelector(
-      '.due-bar .due-x',
+      '.due-head:not(.due-head--summary) .due-x',
     ) as HTMLElement;
     click(x, fixture);
     const bars = bannerBars(fixture);
@@ -428,7 +428,7 @@ describe('DueInvoiceBannersComponent', () => {
     ).find((el) => (el as HTMLElement).textContent?.includes('Collapse all'));
     click(collapseBtn as HTMLElement, fixture);
     const dismissAll = fixture.nativeElement.querySelector(
-      '.due-bar--summary .due-x',
+      '.due-head--summary .due-x',
     ) as HTMLElement;
     click(dismissAll, fixture);
     expect(
@@ -504,6 +504,21 @@ describe('DueInvoiceBannersComponent', () => {
     expect(text).toContain('INV-0053');
   });
 
+  it('never nests the dismiss button inside the toggle (axe nested-interactive, #536)', () => {
+    const { fixture } = setup([
+      makeInvoice({ id: 'a', status: 'failed' }),
+      makeInvoice({ id: 'b', status: 'failed' }),
+    ]);
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelectorAll('.due-bar .due-x, .due-bar [role="button"]')).toHaveLength(0);
+    const xs = Array.from(root.querySelectorAll('.due-x'));
+    expect(xs).toHaveLength(2);
+    for (const x of xs) {
+      expect(x.tagName).toBe('BUTTON');
+      expect(x.getAttribute('type')).toBe('button');
+    }
+  });
+
   it('a dismissal persists in NGXS state (not session-only)', () => {
     const now = Date.now();
     const { fixture, store } = setup([
@@ -521,7 +536,7 @@ describe('DueInvoiceBannersComponent', () => {
     ]);
     expect(bannerBars(fixture)).toHaveLength(2);
     const x = fixture.nativeElement.querySelector(
-      '.due-bar .due-x',
+      '.due-head:not(.due-head--summary) .due-x',
     ) as HTMLElement;
     click(x, fixture);
     expect(bannerBars(fixture)).toHaveLength(1);

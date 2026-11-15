@@ -65,23 +65,34 @@ $due-muted: #7a6e62;
   }
 }
 
-.due-bar {
+// The gold strip: the toggle (.due-bar) and the dismiss (.due-x) are
+// sibling buttons inside it — never nested (axe nested-interactive, #536).
+.due-head {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
-  width: 100%;
   background: $due-gold;
   color: $due-ink;
+  padding-right: 0.5rem;
+}
+
+.due-head:hover {
+  background: $due-gold-hover;
+}
+
+.due-bar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.875rem;
+  background: transparent;
+  color: inherit;
   border: none;
   font-family: inherit;
   font-size: 1rem;
   text-align: left;
   cursor: pointer;
   padding: 1rem 1.25rem;
-}
-
-.due-bar:hover {
-  background: $due-gold-hover;
 }
 
 .due-icon {
@@ -110,8 +121,14 @@ $due-muted: #7a6e62;
 
 .due-x {
   flex-shrink: 0;
-  width: 2.125rem;
-  height: 2.125rem;
+  // 44px touch target (mobile law).
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -124,7 +141,11 @@ $due-muted: #7a6e62;
 .due-x:hover,
 .due-x:focus-visible {
   background: rgba(26, 22, 18, 0.12);
-  outline: none;
+}
+
+.due-x:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
 }
 
 .due-body {

@@ -761,6 +761,11 @@ export interface AppConfig {
      * the chip. Per-deploy value: set in the served app-config.json.
      */
     environmentLabel: string;
+    /** Admin Leads saved views (#539). */
+    leads: {
+      /** "Quoting > N days" saved view: quoting leads created more than N days ago. */
+      quotingStaleDays: number;
+    };
     /**
      * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
      * deploy-time values — the compiled defaults are placeholders that
@@ -1714,6 +1719,138 @@ export interface AppConfig {
         environmentLabel: string;
         userMenuLabel: string;
         signOut: string;
+      };
+      /**
+       * Admin Leads (#539, admin review S5/S6): saved views, the kit
+       * DataTable and the lead drawer with one footer Save.
+       */
+      leads: {
+        title: string;
+        description: string;
+        sandboxToggle: string;
+        exportCsv: string;
+        exporting: string;
+        dismiss: string;
+        tabsLabel: string;
+        tabAll: string;
+        tabQuarantine: string;
+        quarantineNote: string;
+        totalsLabel: string;
+        viewsLabel: string;
+        /** Saved views. `quotingStale` takes `{days}`. */
+        views: { all: string; new: string; unassigned: string; quotingStale: string };
+        /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
+        viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
+        searchLabel: string;
+        searchPlaceholder: string;
+        statusFilter: string;
+        anyStatus: string;
+        assignedFilter: string;
+        anyAssignment: string;
+        unassigned: string;
+        clearFilters: string;
+        /** "{count} leads". */
+        countOne: string;
+        countMany: string;
+        sandboxExcluded: string;
+        tableLabel: string;
+        columns: {
+          lead: string;
+          address: string;
+          status: string;
+          tenant: string;
+          source: string;
+          score: string;
+          timeline: string;
+          consent: string;
+          created: string;
+        };
+        consentIn: string;
+        consentOut: string;
+        sandboxBadge: string;
+        quarantineBadge: string;
+        emptyHeading: string;
+        emptyMessage: string;
+        noResultsHeading: string;
+        noResultsMessage: string;
+        errorHeading: string;
+        retry: string;
+        loading: string;
+        actionsHeader: string;
+        loadMore: string;
+        loadingMore: string;
+        approve: string;
+        approving: string;
+        discard: string;
+        /** Confirm dialog; `{name}` is the lead name. */
+        discardConfirmTitle: string;
+        discardConfirmBody: string;
+        drawer: {
+          loading: string;
+          refreshing: string;
+          retry: string;
+          close: string;
+          cancel: string;
+          save: string;
+          saving: string;
+          /** Toast after a successful save. */
+          saved: string;
+          readOnlyHint: string;
+          sections: {
+            pipeline: string;
+            contact: string;
+            property: string;
+            invoices: string;
+            notes: string;
+            comments: string;
+            activity: string;
+            record: string;
+          };
+          statusLabel: string;
+          builderLabel: string;
+          unassigned: string;
+          labels: {
+            email: string;
+            phone: string;
+            source: string;
+            tenant: string;
+            magicLink: string;
+            contactConsent: string;
+            marketingConsent: string;
+            address: string;
+            projectType: string;
+            livingArea: string;
+            finishTier: string;
+            totalRange: string;
+            buildRange: string;
+            land: string;
+            estimated: string;
+            leadScore: string;
+            consented: string;
+            sheetsSynced: string;
+            snapshots: string;
+            unsubscribed: string;
+            nudgeSent: string;
+          };
+          /** "{sqft} sq ft". */
+          sqftValue: string;
+          yes: string;
+          no: string;
+          magicLink: { sent: string; used: string; expired: string; none: string };
+          openEstimate: string;
+          noEstimate: string;
+          invoicesHint: string;
+          openInvoices: string;
+          noNotes: string;
+          addNoteLabel: string;
+          addNotePlaceholder: string;
+          addNote: string;
+          addingNote: string;
+          notesHint: string;
+          commentsHint: string;
+          noActivity: string;
+          honeypotBadge: string;
+        };
       };
       funnels: {
         /** Page heading. */

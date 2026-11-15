@@ -1,16 +1,23 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
-import { provideStore, Store } from '@ngxs/store';
+/**
+ * Admin Builders page (#541, review S7): the narrow kit DataTable
+ * (name + slug, status, plan, rate, payment method), empty / error
+ * states, the builder drawer opened from a row, "Edit", "Add builder"
+ * and `?open=<id>` deep links, and viewer gating.
+ */
+import { TestBed } from '@angular/core/testing';
+import { provideLocationMocks } from '@angular/common/testing';
+import { Router, provideRouter } from '@angular/router';
+import { Store, provideStore } from '@ngxs/store';
+import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '../../core/config/config.service';
+import type { Builder, BuilderListResponse } from '@feasly/contracts';
+import { UiDrawerService } from '@app/shared/ui';
 import { AdminBuildersComponent } from './admin-builders.component';
+import { AdminBuilderDrawerComponent } from './admin-builder-drawer.component';
+import { AdminBuildersApiService } from './admin-builders-api.service';
 import { AdminBuildersState } from './admin-builders.state';
 import { AdminAuthState } from './admin-auth.state';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
-import { LoadBuilders } from './admin-builders.actions';
-import type { Builder } from '@feasly/contracts';
 
 const BUILDER_A: Builder = {
   id: 'b1',
@@ -33,470 +40,184 @@ const BUILDER_A: Builder = {
 const BUILDER_B: Builder = {
   ...BUILDER_A,
   id: 'b2',
-  tenantKey: 'north-homes',
-  businessName: 'North Homes Ltd',
-  displayName: 'North Homes',
+  tenantKey: 'bow-river-custom',
+  businessName: 'Bow River Custom Homes',
+  displayName: 'Bow River',
   email: null,
   plan: null,
   status: 'inactive',
+  commissionRatePercent: 1.25,
+  settings: { defaultPaymentMethod: 'e_transfer' },
 };
 
-/**
- * Poll an async UI condition until it holds (or the deadline passes).
- * Never asserts on UI state after a fixed sleep — the component's
- * dispatch → HTTP → NGXS → signal chain settles on its own schedule.
- */
-async function waitFor(
-  fixture: ComponentFixture<AdminBuildersComponent>,
-  condition: () => boolean,
-  label: string,
-  timeoutMs = 5000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    fixture.detectChanges();
-    if (condition()) {
-      return;
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`timed out waiting for: ${label}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
+interface Options {
+  readonly builders?: Builder[];
+  readonly listFails?: boolean;
+  readonly canManage?: boolean;
+  readonly url?: string;
+  readonly list?: Subject<BuilderListResponse>;
+}
+
+async function setup(options: Options = {}) {
+  const api = {
+    listBuilders: vi.fn(() =>
+      options.list
+        ? options.list.asObservable()
+        : options.listFails
+          ? throwError(() => ({ message: 'Could not load builders.' }))
+          : of({ builders: options.builders ?? [BUILDER_A, BUILDER_B] }),
+    ),
+  };
+  const drawerOpen = vi.fn();
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    imports: [AdminBuildersComponent],
+    providers: [
+      provideRouter([{ path: '**', component: AdminBuildersComponent }]),
+      provideLocationMocks(),
+      provideStore([AdminBuildersState, AdminAuthState]),
+      { provide: AdminBuildersApiService, useValue: api },
+      { provide: UiDrawerService, useValue: { open: drawerOpen, openDrawer: null } },
+    ],
+  });
+  const store = TestBed.inject(Store);
+  store.reset({
+    ...store.snapshot(),
+    adminAuth: {
+      ...store.selectSnapshot((s) => s.adminAuth),
+      permissions: options.canManage === false ? [] : [ADMIN_PERMISSIONS.buildersManage],
+    },
+  });
+  await TestBed.inject(Router).navigateByUrl(options.url ?? '/admin/builders');
+  const fixture = TestBed.createComponent(AdminBuildersComponent);
+  fixture.autoDetectChanges();
+  await fixture.whenStable();
+  const el = fixture.nativeElement as HTMLElement;
+  return { api, drawerOpen, store, fixture, el };
+}
+
+/** Poll (with a deadline) for an async UI state — never a fixed sleep. */
+async function until(cond: () => boolean, label: string, ms = 2000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${label}`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    TestBed.tick();
   }
 }
 
-/**
- * Admin builders page (embed/02 admin-UI migration): builders table,
- * create/edit form with validation, save + error states.
- */
-describe('AdminBuildersComponent', () => {
-  let store: Store;
-  let httpMock: HttpTestingController;
-  let fixture: ComponentFixture<AdminBuildersComponent>;
+const rows = (el: HTMLElement) => Array.from(el.querySelectorAll('.ui-dt__table tbody tr')) as HTMLElement[];
+const text = (node: Element) => node.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
-  async function setup(): Promise<void> {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [AdminBuildersComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        ConfigService,
-        // AdminAuthState is in the root store in production; the Add/Edit
-        // write UI gates on its permissions.
-        provideStore([AdminBuildersState, AdminAuthState]),
-      ],
-    });
-    const config = TestBed.inject(ConfigService);
-    const http = TestBed.inject(HttpTestingController);
-    const pending = config.load();
-    http.expectOne('/assets/config/app-config.json').flush({ api: { useMockApi: false } });
-    await pending;
-    store = TestBed.inject(Store);
-    httpMock = TestBed.inject(HttpTestingController);
-    // Existing tests exercise the write UI — the session manages builders.
+describe('AdminBuildersComponent (#541)', () => {
+  it('renders the narrow table: name + slug, status, plan, rate, payment method', async () => {
+    const { el } = await setup();
+    const headers = Array.from(el.querySelectorAll('.ui-dt__table thead th')).map(text);
+    expect(headers.slice(0, 6)).toEqual(['Builder', 'Status', 'Plan', 'Rate', 'Payment method', 'Email']);
+
+    const [a, b] = rows(el);
+    expect(a.querySelector('.builders-page__name')?.textContent).toBe('Elite Craft Builders');
+    expect(a.querySelector('.builders-page__slug')?.textContent).toBe('elite-craft');
+    expect(text(a)).toContain('Active');
+    expect(text(a)).toContain('Flat');
+    expect(text(a)).toContain('1%');
+    expect(text(a)).toContain('Card auto');
+    expect(text(a)).toContain('hello@elite.example');
+
+    expect(b.querySelector('.builders-page__slug')?.textContent).toBe('bow-river-custom');
+    expect(text(b)).toContain('Inactive');
+    expect(text(b)).toContain('Undecided');
+    expect(text(b)).toContain('1.25%');
+    expect(text(b)).toContain('E-transfer');
+  });
+
+  it('shows initials when the builder has no logo', async () => {
+    const { el } = await setup();
+    expect(rows(el)[0].querySelector('.builders-page__avatar')?.textContent?.trim()).toBe('EB');
+  });
+
+  it('shows the empty state when there are no builders', async () => {
+    const { el } = await setup({ builders: [] });
+    expect(text(el.querySelector('ui-empty-state')!)).toContain('No builders yet');
+  });
+
+  it('shows the error state and reloads on retry', async () => {
+    const { el, api } = await setup({ listFails: true });
+    expect(text(el.querySelector('ui-error-state')!)).toContain('Could not load builders.');
+    const retry = Array.from(el.querySelectorAll('ui-error-state button')).find(
+      (b) => text(b) === 'Try again',
+    ) as HTMLButtonElement;
+    retry.click();
+    expect(api.listBuilders).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the builder drawer from a row click and from Edit', async () => {
+    const { el, drawerOpen } = await setup();
+    rows(el)[1].click();
+    expect(drawerOpen).toHaveBeenCalledWith(
+      AdminBuilderDrawerComponent,
+      expect.objectContaining({ data: { builderId: 'b2' }, urlId: 'b2', size: 'lg' }),
+    );
+
+    (rows(el)[0].querySelector('[data-testid="edit-builder"]') as HTMLButtonElement).click();
+    expect(drawerOpen).toHaveBeenLastCalledWith(
+      AdminBuilderDrawerComponent,
+      expect.objectContaining({ data: { builderId: 'b1' }, urlId: 'b1' }),
+    );
+  });
+
+  it('opens a blank drawer (no URL id) from Add builder', async () => {
+    const { el, drawerOpen } = await setup();
+    (el.querySelector('[data-testid="add-builder"]') as HTMLButtonElement).click();
+    const [component, options] = drawerOpen.mock.calls[0];
+    expect(component).toBe(AdminBuilderDrawerComponent);
+    expect(options.data).toEqual({ builderId: null });
+    expect(options).not.toHaveProperty('urlId');
+  });
+
+  it('opens the drawer from a ?open=<id> deep link once the rows load', async () => {
+    const list = new Subject<BuilderListResponse>();
+    const { drawerOpen } = await setup({ url: '/admin/builders?open=b2', list });
+    expect(drawerOpen).not.toHaveBeenCalled();
+    list.next({ builders: [BUILDER_A, BUILDER_B] });
+    list.complete();
+    await until(() => drawerOpen.mock.calls.length === 1, 'deep-link drawer');
+    expect(drawerOpen.mock.calls[0][1]).toMatchObject({ data: { builderId: 'b2' }, urlId: 'b2' });
+  });
+
+  it('drops a ?open= id that names no builder', async () => {
+    const { drawerOpen } = await setup({ url: '/admin/builders?open=nope' });
+    const router = TestBed.inject(Router);
+    await until(() => !router.url.includes('open='), 'param dropped');
+    expect(drawerOpen).not.toHaveBeenCalled();
+  });
+
+  it('reflects a saved builder in the table without a reload', async () => {
+    const { el, store } = await setup();
     store.reset({
-      adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
-      adminAuth: {
-        ...store.selectSnapshot((s) => s.adminAuth),
-        permissions: [ADMIN_PERMISSIONS.buildersManage],
+      ...store.snapshot(),
+      adminBuilders: {
+        ...store.selectSnapshot((s) => s.adminBuilders),
+        builders: [{ ...BUILDER_A, commissionRatePercent: 1.5 }, BUILDER_B],
       },
     });
-    fixture = TestBed.createComponent(AdminBuildersComponent);
-  }
-
-  /** Mounts the page; flushes the LoadBuilders GET the component dispatches on init. */
-  async function loadPage(builders: Builder[] = [BUILDER_A, BUILDER_B]): Promise<void> {
-    fixture.detectChanges();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'GET')
-      .flush({ builders });
-    await fixture.whenStable();
-    fixture.detectChanges();
-  }
-
-  function rows(): HTMLElement[] {
-    return Array.from(
-      fixture.debugElement.queryAll(By.css('.builders-page__table tbody tr')),
-    ).map((row) => row.nativeElement as HTMLElement);
-  }
-
-  function setField(name: string, value: string): void {
-    const input = fixture.debugElement.query(
-      By.css(`[formControlName="${name}"]`),
-    ).nativeElement as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-    input.value = value;
-    input.dispatchEvent(new Event('input'));
-    input.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-  }
-
-  function fieldErrors(): string[] {
-    return fixture.debugElement
-      .queryAll(By.css('.builders-page__field-error'))
-      .map((el) => (el.nativeElement as HTMLElement).textContent ?? '');
-  }
-
-  function clickSubmit(): void {
-    const form = fixture.debugElement.query(By.css('.builders-page__form-card form'));
-    form.nativeElement.dispatchEvent(new Event('submit'));
-    fixture.detectChanges();
-  }
-
-  it('renders the builders table with status, plan, and sign-in key', async () => {
-    await setup();
-    await loadPage();
-
-    const tableRows = rows();
-    expect(tableRows).toHaveLength(2);
-    expect(tableRows[0].textContent).toContain('Elite Craft Builders');
-    expect(tableRows[0].textContent).toContain('elite-craft');
-    expect(tableRows[0].textContent).toContain('Active');
-    expect(tableRows[0].textContent).toContain('Flat');
-    expect(tableRows[0].textContent).toContain('hello@elite.example');
-    expect(tableRows[1].textContent).toContain('North Homes Ltd');
-    expect(tableRows[1].textContent).toContain('Inactive');
-    expect(tableRows[1].textContent).toContain('Undecided');
-  });
-
-  it('shows an empty state with a call to action when there are no builders', async () => {
-    await setup();
-    await loadPage([]);
-
-    const empty = fixture.debugElement.query(By.css('.builders-page__empty'));
-    expect(empty).toBeTruthy();
-    expect(empty.nativeElement.textContent).toContain('No builders yet');
-  });
-
-  it('rejects an invalid sign-in key with buyer-grade guidance', async () => {
-    await setup();
-    await loadPage();
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('tenantKey', 'Elite Craft!');
-    // Blur marks the control touched so the error renders.
-    const input = fixture.debugElement.query(By.css('[formControlName="tenantKey"]'));
-    input.nativeElement.dispatchEvent(new Event('blur'));
-    fixture.detectChanges();
-
-    expect(fieldErrors().join(' ')).toContain('lowercase letters, numbers, and dashes');
-  });
-
-  it('creates a builder and shows the success banner', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('businessName', 'North Homes Ltd');
-    setField('displayName', 'North Homes');
-    setField('tenantKey', 'north-homes');
-    setField('email', 'hello@north.example');
-    setField('plan', 'commission');
-
-    clickSubmit();
-
-    const req = httpMock.expectOne(
-      (r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST',
-    );
-    expect(req.request.body).toMatchObject({
-      tenantKey: 'north-homes',
-      businessName: 'North Homes Ltd',
-      displayName: 'North Homes',
-      email: 'hello@north.example',
-      plan: 'commission',
-    });
-    req.flush(BUILDER_B);
-
-    // The saved banner appears once NGXS processes the create response.
-    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
-    const banner = fixture.debugElement.query(
-      By.css('.builders-page__banner--success'),
-    );
-    expect(banner.nativeElement.textContent).toContain('Builder added.');
-    // The new row is in the table.
-    expect(rows()).toHaveLength(2);
-    expect(rows()[1].textContent).toContain('North Homes Ltd');
-  });
-
-  it('edits a builder with the sign-in key locked', async () => {
-    await setup();
-    await loadPage();
-
-    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
-    editButtons[0].nativeElement.click();
-    fixture.detectChanges();
-
-    // Form prefilled; the sign-in key is disabled (immutable after creation).
-    const tenantKey = fixture.debugElement.query(
-      By.css('[formControlName="tenantKey"]'),
-    ).nativeElement as HTMLInputElement;
-    expect(tenantKey.value).toBe('elite-craft');
-    expect(tenantKey.disabled).toBe(true);
-
-    setField('displayName', 'Elite Craft Homes');
-    clickSubmit();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toMatchObject({ displayName: 'Elite Craft Homes' });
-    // tenantKey is never sent on update.
-    expect(req.request.body).not.toHaveProperty('tenantKey');
-    req.flush({ ...BUILDER_A, displayName: 'Elite Craft Homes' });
-
-    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
-    const banner = fixture.debugElement.query(
-      By.css('.builders-page__banner--success'),
-    );
-    expect(banner.nativeElement.textContent).toContain('Builder saved.');
-    expect(rows()[0].textContent).toContain('Elite Craft Homes');
-  });
-
-  it('shows an inline error when the save fails', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('businessName', 'Duplicate');
-    setField('displayName', 'Duplicate');
-    setField('tenantKey', 'elite-craft');
-    clickSubmit();
-
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST')
-      .error(new ProgressEvent('error'));
-
-    await waitFor(
-      fixture,
-      () => store.selectSnapshot(AdminBuildersState.saveError) !== null,
-      'save error',
-    );
-    const banner = fixture.debugElement.query(
-      By.css('.builders-page__banner--error'),
-    );
-    expect(banner).toBeTruthy();
-    expect(banner.nativeElement.getAttribute('role')).toBe('alert');
-  });
-
-  it('rejects invalid JSON in the advanced settings field', async () => {
-    await setup();
-    await loadPage();
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('settings', '{ not json');
-    const textarea = fixture.debugElement.query(By.css('[formControlName="settings"]'));
-    textarea.nativeElement.dispatchEvent(new Event('blur'));
-    fixture.detectChanges();
-
-    expect(fieldErrors().join(' ')).toContain('valid JSON');
-  });
-
-  it('reloads the table when the list request fails and retry is clicked', async () => {
-    await setup();
-    fixture.detectChanges();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'GET')
-      .error(new ProgressEvent('error'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(store.selectSnapshot(AdminBuildersState.listStatus)).toBe('error');
-
-    fixture.debugElement.query(By.css('.builders-page__state--error button')).nativeElement.click();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'GET')
-      .flush({ builders: [BUILDER_A] });
-
-    await waitFor(fixture, () => rows().length === 1, 'table reload');
-    expect(rows()[0].textContent).toContain('Elite Craft Builders');
-  });
-
-  it('shows the per-builder commission rate in the table', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    expect(rows()[0].textContent).toContain('1%');
-  });
-
-  it('pre-fills the rate on edit and omits it from the payload when cleared', async () => {
-    await setup();
-    await loadPage();
-
-    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
-    editButtons[0].nativeElement.click();
-    fixture.detectChanges();
-
-    const rateInput = fixture.debugElement.query(
-      By.css('[formControlName="commissionRatePercent"]'),
-    ).nativeElement as HTMLInputElement;
-    expect(rateInput.value).toBe('1');
-
-    // Clear the field = no change: the PATCH must not carry the key.
-    setField('commissionRatePercent', '');
-    clickSubmit();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).not.toHaveProperty('commissionRatePercent');
-    req.flush(BUILDER_A);
-  });
-
-  it('sends the new rate when it changes on edit', async () => {
-    await setup();
-    await loadPage();
-
-    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
-    editButtons[0].nativeElement.click();
-    fixture.detectChanges();
-
-    setField('commissionRatePercent', '2');
-    clickSubmit();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toMatchObject({ commissionRatePercent: 2 });
-    req.flush({ ...BUILDER_A, commissionRatePercent: 2 });
-
-    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
-    expect(rows()[0].textContent).toContain('2%');
-  });
-
-  it('blocks saving a rate outside 0–10% with buyer-grade guidance', async () => {
-    await setup();
-    await loadPage();
-
-    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
-    editButtons[0].nativeElement.click();
-    fixture.detectChanges();
-
-    setField('commissionRatePercent', '11');
-    const rateInput = fixture.debugElement.query(
-      By.css('[formControlName="commissionRatePercent"]'),
-    );
-    rateInput.nativeElement.dispatchEvent(new Event('blur'));
-    fixture.detectChanges();
-
-    expect(fieldErrors().join(' ')).toContain('between 0 and 10');
-
-    clickSubmit();
-    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
-  });
-
-  it('includes the rate when creating a builder', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('businessName', 'North Homes Ltd');
-    setField('displayName', 'North Homes');
-    setField('tenantKey', 'north-homes');
-    setField('commissionRatePercent', '1.5');
-    clickSubmit();
-
-    const req = httpMock.expectOne(
-      (r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST',
-    );
-    expect(req.request.body).toMatchObject({ commissionRatePercent: 1.5 });
-    req.flush({ ...BUILDER_B, commissionRatePercent: 1.5 });
-
-    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
-    expect(rows()[1].textContent).toContain('1.5%');
-  });
-
-  it('shows the default payment method in the table', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    expect(rows()[0].textContent).toContain('Card on file (auto-charge)');
-  });
-
-  it('pre-fills the default payment method on edit and sends the dedicated field', async () => {
-    await setup();
-    await loadPage();
-
-    const editButtons = fixture.debugElement.queryAll(By.css('.builders-page__edit'));
-    editButtons[0].nativeElement.click();
-    fixture.detectChanges();
-
-    const methodSelect = fixture.debugElement.query(
-      By.css('[formControlName="defaultPaymentMethod"]'),
-    ).nativeElement as HTMLSelectElement;
-    expect(methodSelect.value).toBe('card');
-
-    setField('defaultPaymentMethod', 'e_transfer');
-    clickSubmit();
-
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toMatchObject({ defaultPaymentMethod: 'e_transfer' });
-    req.flush({
-      ...BUILDER_A,
-      settings: { defaultPaymentMethod: 'e_transfer' },
-    });
-
-    await waitFor(fixture, () => store.selectSnapshot(AdminBuildersState.saved), 'saved banner');
-    expect(rows()[0].textContent).toContain('E-transfer');
-  });
-
-  it('merges the default payment method into the settings JSON on create', async () => {
-    await setup();
-    await loadPage([BUILDER_A]);
-
-    fixture.debugElement.query(By.css('.builders-page__add')).nativeElement.click();
-    fixture.detectChanges();
-
-    setField('businessName', 'North Homes Ltd');
-    setField('displayName', 'North Homes');
-    setField('tenantKey', 'north-homes');
-    setField('defaultPaymentMethod', 'cheque');
-    clickSubmit();
-
-    const req = httpMock.expectOne(
-      (r) => r.url.endsWith('/api/v1/admin/builders') && r.method === 'POST',
-    );
-    expect(req.request.body.settings).toMatchObject({
-      defaultPaymentMethod: 'cheque',
-    });
-    expect(req.request.body).not.toHaveProperty('defaultPaymentMethod');
-    req.flush({ ...BUILDER_B });
+    await until(() => text(rows(el)[0]).includes('1.5%'), 'rate updates');
   });
 
   describe('viewer permission gating (QA admin-console finding 8)', () => {
-    it('hides the Add and Edit write UI from viewers but keeps the table', async () => {
-      await setup();
-      store.reset({
-        adminBuilders: store.selectSnapshot((s) => s.adminBuilders),
-        adminAuth: {
-          ...store.selectSnapshot((s) => s.adminAuth),
-          permissions: [],
-        },
-      });
-      await loadPage();
-
-      const page = fixture.nativeElement as HTMLElement;
-      expect(page.textContent).toContain('Elite Craft Builders');
-      expect(page.querySelector('.builders-page__add')).toBeNull();
-      expect(page.querySelector('.builders-page__edit')).toBeNull();
-      // No form card can open for viewers either.
-      expect(page.querySelector('.builders-page__form-card')).toBeNull();
+    it('hides Add and Edit from viewers, keeps the table, and never opens the drawer', async () => {
+      const { el, drawerOpen } = await setup({ canManage: false, url: '/admin/builders?open=b1' });
+      expect(text(el)).toContain('Elite Craft Builders');
+      expect(el.querySelector('[data-testid="add-builder"]')).toBeNull();
+      expect(el.querySelector('[data-testid="edit-builder"]')).toBeNull();
+      rows(el)[0].click();
+      expect(drawerOpen).not.toHaveBeenCalled();
     });
+  });
 
-    it('shows the Add and Edit write UI to builders managers', async () => {
-      await setup();
-      await loadPage();
-
-      const page = fixture.nativeElement as HTMLElement;
-      expect(page.querySelector('.builders-page__add')).not.toBeNull();
-      expect(page.querySelector('.builders-page__edit')).not.toBeNull();
-    });
+  it('loads the builders on init', async () => {
+    const { api, store } = await setup();
+    expect(api.listBuilders).toHaveBeenCalledTimes(1);
+    expect(store.selectSnapshot(AdminBuildersState.builders)).toHaveLength(2);
   });
 });

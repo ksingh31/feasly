@@ -310,14 +310,12 @@ export class AdminLeadsState {
     ctx: StateContext<AdminLeadsStateModel>,
     action: LoadAdminLeads,
   ): Observable<AdminLeadListResponse> {
+    // The open lead (if any) is left alone: the drawer is URL-driven
+    // (`?open=<id>`, #539) and owns the selection, so a filter change or a
+    // deep link loading the list must not wipe the drawer's detail.
     ctx.patchState({
       filters: { ...action.filters },
       tab: action.tab,
-      // A fresh load clears any open detail — its filters may no longer match.
-      selectedLeadId: null,
-      detail: null,
-      detailStatus: 'idle',
-      detailError: null,
     });
     return this.loadPage(ctx, null, false);
   }
