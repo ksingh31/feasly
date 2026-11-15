@@ -41,7 +41,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | Method | Path | Auth | Permissions | Rate limit | Status | Audit note |
 |---|---|---|---|---|---|---|
 | GET | `/api/health` | none | — | 100/min per IP | live | Status + version only; no data, no CORS headers. |
-| POST | `/api/v1/estimate` | none | — | 20/hr per IP · 20/hr per tenant (embed) | live | Anonymous by design; IP + tenant limits keyed on the unspoofable client IP (#729). |
+| POST | `/api/v1/estimate` | none | — | 20/hr per IP · 600/hr per tenant (embed; #737, 10× launch target) | live | Anonymous by design; IP + tenant limits keyed on the unspoofable client IP (#729). |
 | POST | `/api/v1/estimates/preview` | none | — | 20/hr per IP | live |  |
 | POST | `/api/v1/leads` | none | — | 10/min per IP (dedicated lead limiter) | live | Anonymous by design; dedicated lead limiter; body never logged (PII). |
 | GET | `/api/v1/magic-link/verify` | magic-token | — | 100/min per IP | live |  |
@@ -63,6 +63,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/zoning/districts` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public tenant config only; rates/margins never serialized (secret-leak test). |
 | POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Not live yet. Must get origin-allowlist and tenant-key checks before going live. |
 | POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live |  |
