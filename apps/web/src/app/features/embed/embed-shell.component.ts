@@ -288,7 +288,10 @@ export class EmbedShellComponent {
   /** Applies a validated hex accent as `--embed-accent`; invalid values are ignored. */
   private applyAccent(color: string): void {
     if (this.isBrowser && HEX_COLOR.test(color)) {
-      this.host.nativeElement.style.setProperty('--embed-accent', color);
+      const style = this.host.nativeElement.style;
+      style.setProperty('--embed-accent', color);
+      // Builder accents are validated against white text, not --cta-fg.
+      style.setProperty('--embed-accent-fg', 'var(--cta-on-accent-fg)');
     }
   }
 }

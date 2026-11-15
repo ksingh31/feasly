@@ -63,13 +63,50 @@ body line-height 1.65–1.7; buttons 15–16px semibold.
 | `--accent-bg`  | `rgba(168,118,26,.08)` | Brass wash behind badges.                  |
 | `--border`     | `rgba(26,22,18,.1)`  | Hairline borders on cream.                  |
 | `--danger`     | `#b3261e`            | Errors.                                     |
+| `--danger-bg`  | `#fdf0ef`            | Error banner wash (`.form-error`, autocomplete error). |
+| `--chart-interior` | `#b4552d`        | Report breakdown bar: interior bucket (structure uses `--accent`). |
+| `--chart-design` | `#6f7a3a`          | Report breakdown bar: design bucket.        |
 | `--focus-ring` | `rgba(168,118,26,.35)` | Focus outlines.                           |
 
 Karan prefers this warm cream/charcoal/brass direction over the older live
 site look — when in doubt, lean warmer and roomier, not flatter and greyer.
 
-Primary CTA on cream is charcoal (`--canvas` background, `--on-dark` text).
 Never put white text on `--accent`.
+
+## Primary CTA — one style (issue #511, consumer review S1)
+
+There is exactly **one** primary button style per surface. Every consumer
+primary CTA (wizard steps, reno scope, report, error/offline, compare, embed
+fallback, community and landing dark cards) uses these tokens — never a local
+colour, `filter: brightness()`, or white-on-brass.
+
+| Token                    | Value                | Use for                                   |
+|--------------------------|----------------------|-------------------------------------------|
+| `--cta-bg`               | `var(--canvas)`      | Primary CTA background **on cream/card**. |
+| `--cta-fg`               | `var(--on-dark)`     | Primary CTA text on cream/card.           |
+| `--cta-bg-hover`         | `var(--canvas-2)`    | Hover on cream/card.                      |
+| `--cta-on-dark-bg`       | `var(--accent-dark)` | Primary CTA background **on dark** surfaces (`--canvas` cards, dark CTA bands). |
+| `--cta-on-dark-fg`       | `var(--canvas)`      | Primary CTA text on dark.                 |
+| `--cta-on-dark-bg-hover` | `#d6a244`            | Hover on dark.                            |
+| `--cta-on-accent-fg`     | `#ffffff`            | Text on a builder's white-label accent (embed CTA). Accents are validated against white, so the embed sets `--embed-accent-fg` to this whenever an accent is applied. |
+
+Rule: **charcoal on cream, brass on dark.** The wizard's shared `.cta` (in
+`features/wizard/wizard-shell.scss`) is the reference implementation; reuse it
+on wizard/report pages instead of redeclaring a `.cta`. The embed widget may
+replace `--cta-bg` with the builder's validated accent (`--embed-accent`,
+white-label) and falls back to `--cta-bg`. Secondary actions stay outline
+(transparent, `--accent` border, `--accent-text` text).
+
+## Wizard column — one width (issue #511, consumer review S2)
+
+| Token            | Value   | Use for                                                     |
+|------------------|---------|-------------------------------------------------------------|
+| `--wizard-width` | `720px` | Max width of every wizard step and the report (`.wrap`).    |
+
+The shared `.wrap` in `wizard-shell.scss` sets `width: 100%;
+max-width: var(--wizard-width)`. The explicit width matters: page hosts are
+flex columns, and a `margin: auto` flex item shrinks to its content, which made
+the column jump between steps. Steps never override `max-width` on their root.
 
 ## Product tokens (portals) — added 2026-11-15, issue #493
 

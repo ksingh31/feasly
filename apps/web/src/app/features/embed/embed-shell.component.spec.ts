@@ -114,6 +114,8 @@ describe('EmbedShellComponent', () => {
     expect(el.querySelector('.embed-wordmark')?.textContent).toContain('Elite Craft');
     // Accent color applied as a CSS custom property on the host.
     expect(el.style.getPropertyValue('--embed-accent')).toBe('#a8761a');
+    // Accent CTA keeps white text (accents are validated against white).
+    expect(el.style.getPropertyValue('--embed-accent-fg')).toBe('var(--cta-on-accent-fg)');
     // No Feasly nav or footer nodes in the embed DOM.
     expect(el.querySelector('app-site-nav')).toBeNull();
     expect(el.querySelector('app-site-footer')).toBeNull();
@@ -167,6 +169,7 @@ describe('EmbedShellComponent', () => {
     );
     fixture.detectChanges();
     expect(el.style.getPropertyValue('--embed-accent')).toBe('#123456');
+    expect(el.style.getPropertyValue('--embed-accent-fg')).toBe('var(--cta-on-accent-fg)');
   });
 
   it('rejects non-hex theme colors even from allowlisted origins', () => {

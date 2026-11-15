@@ -47,7 +47,7 @@ $feasly-stacked-table-breakpoint: 640px !default;
     tbody tr {
       display: block;
       padding: 0.5rem 0;
-      border-top: 1px solid var(--border, #e5e0d8);
+      border-top: 1px solid var(--border);
     }
 
     tbody tr:first-child {
@@ -76,7 +76,7 @@ $feasly-stacked-table-breakpoint: 640px !default;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--muted, #6b6257);
+      color: var(--muted);
     }
   }
 }

@@ -307,8 +307,9 @@
 
 .community-profile .cta-card .cta {
   display: inline-block;
-  background: var(--accent-deep);
-  color: #fff;
+  /* Dark card → the brass-on-dark primary CTA (consumer review S1). */
+  background: var(--cta-on-dark-bg);
+  color: var(--cta-on-dark-fg);
   border-radius: 12px;
   padding: 17px 28px;
   font-weight: 600;
@@ -317,7 +318,7 @@
 }
 
 .community-profile .cta-card .cta:hover {
-  background: #5e470c;
+  background: var(--cta-on-dark-bg-hover);
 }
 
 .cta-link {

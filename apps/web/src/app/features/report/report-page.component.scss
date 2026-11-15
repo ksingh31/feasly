@@ -402,15 +402,15 @@
 }
 
 .bucket-structure {
-  background-color: #a8761a;
+  background-color: var(--accent);
 }
 
 .bucket-interior {
-  background-color: #b4552d;
+  background-color: var(--chart-interior);
 }
 
 .bucket-design {
-  background-color: #6f7a3a;
+  background-color: var(--chart-design);
 }
 
 .bucket-legend {
@@ -603,7 +603,7 @@
 
 .field-error {
   font-size: 13px;
-  color: #b3261e;
+  color: var(--danger);
   margin: 0;
 }
 
