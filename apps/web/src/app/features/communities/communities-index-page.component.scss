@@ -46,6 +46,28 @@
   max-width: 640px;
 }
 
+/* #690: established/infill communities first, then newer ones. */
+.community-section + .community-section {
+  margin-top: 64px;
+}
+
+.communities-index .section-heading {
+  font-family: var(--font-ui);
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.communities-index .section-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 24px;
+  max-width: 640px;
+}
+
 .community-grid {
   list-style: none;
   margin: 0;
@@ -74,7 +96,7 @@
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
 }
 
-.community-card h2 {
+.community-card h3 {
   font-family: var(--font-ui);
   font-size: 20px;
   font-weight: 600;

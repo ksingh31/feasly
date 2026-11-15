@@ -77,6 +77,8 @@ describe('CommunityPageComponent', () => {
       'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}.',
     statLabel: 'Average City-assessed value (not market value)',
     statNote: 'Stat note.',
+    statCountLabel: 'Detached and semi-detached homes assessed',
+    profileStatNote: 'Profile stat note.',
     basisNote: 'Basis note.',
     tierSectionTitle: 'What it costs to build in {name}',
     tierSectionSub: 'Sub.',

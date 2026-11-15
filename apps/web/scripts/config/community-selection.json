@@ -1,0 +1,66 @@
+{
+  "$comment": "Community guide page selection, per city (#690). Edit this file, not the build scripts: a community gets a page when it matches the rule (boundary class + community structure) OR is on the include list OR is in the top-N by residential record count, minus the exclude list, and only if it has at least minRecords residential assessment records. The include list keeps every community that was already indexed (no new 404s). Names are spelled as the City's assessment roll spells comm_name.",
+  "defaultCity": "calgary",
+  "cities": {
+    "calgary": {
+      "socrataBaseUrl": "https://data.calgary.ca",
+      "assessmentDataset": "4bsw-nn7w",
+      "boundariesDataset": "surr-xmvs",
+      "rule": {
+        "classes": ["Residential"],
+        "structures": ["INNER CITY", "1950s", "1960s/1970s"]
+      },
+      "include": [
+        "ARBOUR LAKE",
+        "AUBURN BAY",
+        "BEDDINGTON HEIGHTS",
+        "BELTLINE",
+        "BOWNESS",
+        "BRIDGELAND/RIVERSIDE",
+        "BRIDLEWOOD",
+        "CHAPARRAL",
+        "COPPERFIELD",
+        "CORNERSTONE",
+        "COVENTRY HILLS",
+        "CRANSTON",
+        "DOUGLASDALE/GLEN",
+        "DOVER",
+        "DOWNTOWN COMMERCIAL CORE",
+        "EDGEMONT",
+        "EVANSTON",
+        "EVERGREEN",
+        "HUNTINGTON HILLS",
+        "LAKE BONAVISTA",
+        "LEGACY",
+        "LIVINGSTON",
+        "MAHOGANY",
+        "MCKENZIE LAKE",
+        "MCKENZIE TOWNE",
+        "NEW BRIGHTON",
+        "PANORAMA HILLS",
+        "ROCKY RIDGE",
+        "ROYAL OAK",
+        "SADDLE RIDGE",
+        "SAGE HILL",
+        "SETON",
+        "SIGNAL HILL",
+        "SKYVIEW RANCH",
+        "SPRINGBANK HILL",
+        "TARADALE",
+        "TUSCANY",
+        "VARSITY",
+        "WALDEN",
+        "WEST SPRINGS"
+      ],
+      "exclude": [],
+      "topByCount": 0,
+      "minRecords": 100,
+      "guide": {
+        "subPropertyUses": ["R110", "R111", "R120", "R121"],
+        "minRecords": 50
+      },
+      "establishedStructures": ["CENTRE CITY", "INNER CITY", "1950s", "1960s/1970s"],
+      "profileOverrides": ["beltline", "downtown-commercial-core", "east-village"]
+    }
+  }
+}

@@ -51,8 +51,8 @@ import { PROPERTY_DATA_SERVICE } from './property-data.service';
  * to point at the live backend.
  *
  * Property data (autocomplete + records) delegates to PROPERTY_DATA_SERVICE
- * (FE1-002): the live City API by default, our /api/v1 property routes when
- * `propertyData.source` is 'backend'. Route shapes here are the client's
+ * (FE1-002): our /api/v1 property routes by default (#752), the live City
+ * API only when `propertyData.source` is 'live' (local dev). Route shapes here are the client's
  * proposal; the backend (BE-3+) implements the same contract DTOs, so any
  * route rename is a paired change.
  */

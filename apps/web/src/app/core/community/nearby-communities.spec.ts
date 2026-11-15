@@ -46,6 +46,19 @@ describe('nearbyCommunities', () => {
     }
   });
 
+  it('prefers same-sector communities when the data carries sectors (#690)', () => {
+    const withSectors: readonly NearbyInput[] = [
+      { slug: 'beltline', count: 11626, sector: 'CENTRE' },
+      { slug: 'panorama-hills', count: 8109, sector: 'NORTH' },
+      { slug: 'altadore', count: 3100, sector: 'CENTRE' },
+      { slug: 'south-calgary', count: 2500, sector: 'CENTRE' },
+      { slug: 'renfrew', count: 2400, sector: 'CENTRE' },
+    ];
+    expect(nearbyCommunities('altadore', withSectors, 3)).toEqual(['beltline', 'south-calgary', 'renfrew']);
+    // Unmapped quadrant + sector shortfall → record-count fill.
+    expect(nearbyCommunities('panorama-hills', withSectors, 2)).toEqual(['beltline', 'altadore']);
+  });
+
   it('respects a custom n', () => {
     expect(nearbyCommunities('beltline', ALL, 2)).toHaveLength(2);
   });

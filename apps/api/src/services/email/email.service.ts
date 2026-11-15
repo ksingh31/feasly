@@ -32,6 +32,7 @@ import {
   renderNudgeEmail,
   renderOpsAlertEmail,
   renderShareEmail,
+  type CommissionEmailTax,
   type TemplateContext,
 } from './templates';
 
@@ -133,6 +134,12 @@ export interface InvitationEmailInput {
  * unsubscribe footer (the builder is being charged real money; these are
  * account notices, not marketing).
  */
+/**
+ * #714: sales-tax block on builder billing emails. Absent on untaxed
+ * invoices (those emails stay exactly as before).
+ */
+export type { CommissionEmailTax } from './templates';
+
 export interface CommissionInvoiceReadyEmailInput {
   readonly to: string;
   /** Public invoice reference shown to the builder (short id). */
@@ -144,6 +151,7 @@ export interface CommissionInvoiceReadyEmailInput {
   readonly commissionRatePercent: number;
   /** End of the 7-day review window. */
   readonly reviewDueAt: Date;
+  readonly tax?: CommissionEmailTax;
 }
 
 export interface CommissionPaymentReceivedEmailInput {
@@ -152,6 +160,7 @@ export interface CommissionPaymentReceivedEmailInput {
   readonly commissionCents: number;
   readonly currency: string;
   readonly paidAt: Date;
+  readonly tax?: CommissionEmailTax;
 }
 
 export interface CommissionPaymentFailedEmailInput {
@@ -161,6 +170,7 @@ export interface CommissionPaymentFailedEmailInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  readonly tax?: CommissionEmailTax;
 }
 
 /**
@@ -493,6 +503,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         currency: input.currency,
         commissionRatePercent: input.commissionRatePercent,
         reviewDueAt: input.reviewDueAt,
+        ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
@@ -505,6 +516,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         paidAt: input.paidAt,
+        ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
@@ -517,6 +529,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
