@@ -5,7 +5,7 @@
  * (Money, failed-card strip, invoice detail and Billing specs assert their
  * triggers call it). AC2 — no publishable key never renders the
  * contradictory "card setup isn't available" outage note; the modal explains
- * that a saved card keeps working. Plus: token-styled Stripe Element,
+ * the contact route to change a saved card. Plus: token-styled Stripe Element,
  * reassurance + charge-timing copy, save enabled only for a complete card,
  * success refresh/toast/close, decline and load-failure paths.
  *
@@ -159,7 +159,7 @@ describe('BuilderCardModalComponent (#534)', () => {
     document.documentElement.style.removeProperty('--text');
   });
 
-  it('without a publishable key: no outage note, the saved card keeps working (AC2)', async () => {
+  it('without a publishable key: no outage note, contact copy to change the card (AC2)', async () => {
     const { open, api, container } = setup({ contactHref: 'mailto:billing@example.com' });
     ref = open(CARD);
     await until(() => text(container).includes(copy.cardModalUnavailableWithCard), 'unavailable copy');

@@ -1,0 +1,54 @@
+<ui-modal [heading]="t.modalHeading" [closeLabel]="t.closeLabel" asForm (submitted)="save()">
+  <div class="method-modal__compare">
+    <div class="method-modal__side" data-testid="method-before">
+      <p class="method-modal__label">{{ t.modalBefore }}</p>
+      <p class="method-modal__method">{{ beforeLabel }}</p>
+      <p class="method-modal__effect">{{ beforeEffect }}</p>
+    </div>
+    <div
+      class="method-modal__side method-modal__side--after"
+      [class.method-modal__side--changed]="changed()"
+      data-testid="method-after"
+      aria-live="polite"
+    >
+      <p class="method-modal__label">{{ t.modalAfter }}</p>
+      @if (afterLabel(); as after) {
+        <p class="method-modal__method">{{ after }}</p>
+      }
+      <p class="method-modal__effect">{{ afterEffect() }}</p>
+    </div>
+  </div>
+
+  <fieldset class="method-modal__options" [disabled]="saving()">
+    <legend class="method-modal__legend">{{ t.modalChooseLabel }}</legend>
+    @for (method of methods; track method) {
+      <label class="method-modal__option" [class.method-modal__option--picked]="picked() === method">
+        <input
+          type="radio"
+          name="invoice-payment-method"
+          data-testid="method-option"
+          [value]="method"
+          [checked]="picked() === method"
+          (change)="onPick($event)"
+        />
+        <span>{{ label(method) }}</span>
+        @if (method === current) {
+          <span class="method-modal__tag">{{ t.modalCurrentTag }}</span>
+        }
+      </label>
+    }
+  </fieldset>
+
+  @if (failed()) {
+    <p class="method-modal__error" role="alert">{{ copy.invoicesPaymentMethodSaveFailed }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" data-testid="method-cancel" (click)="cancel()">
+      {{ t.modalCancel }}
+    </button>
+    <button type="submit" ui-button data-testid="method-save" [disabled]="!changed()" [loading]="saving()">
+      {{ saving() ? t.modalSaving : t.modalSave }}
+    </button>
+  </ng-container>
+</ui-modal>
