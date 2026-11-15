@@ -1,5 +1,5 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import type { WaitlistTopic } from '@feasly/contracts';
@@ -29,7 +29,8 @@ let nextInstanceId = 0;
  *
  * CASL (owner decision 2026-11-15): a required, unticked consent checkbox
  * (`copy.waitlist.consentLabel`, byte-checked against approved-copy.md);
- * "Privacy Policy" in the label links to the privacy page.
+ * "Privacy Policy" in the label links to the privacy page. Submit stays
+ * disabled, and Enter does nothing, until the box is ticked (#740).
  */
 @Component({
   selector: 'app-waitlist-signup',
@@ -54,7 +55,8 @@ export class WaitlistSignupComponent {
   readonly errorId = `wl-error-${this.id}`;
   readonly noteId = `wl-note-${this.id}`;
   readonly radioName = `wl-city-${this.id}`;
-  readonly consentErrorId = `wl-consent-error-${this.id}`;
+  readonly consentId = `wl-consent-${this.id}`;
+  readonly consentHintId = `wl-consent-hint-${this.id}`;
 
   readonly email = new FormControl('', {
     nonNullable: true,
@@ -69,8 +71,10 @@ export class WaitlistSignupComponent {
     nonNullable: true,
     validators: [Validators.requiredTrue],
   });
-  /** Set when a submit was attempted without the consent box ticked. */
-  readonly showConsentError = signal(false);
+  /** Live consent state: gates the submit button and Enter (#740). */
+  readonly consentGiven = toSignal(this.consent.valueChanges, {
+    initialValue: this.consent.value,
+  });
 
   /**
    * The consent label split around the privacy link, so the byte-checked
@@ -130,12 +134,11 @@ export class WaitlistSignupComponent {
   }
 
   submit(): void {
-    if (this.status() === 'sending') return;
+    // Submit is disabled until consent is ticked; this also blocks Enter.
+    if (this.status() === 'sending' || !this.consent.valid) return;
     const emailOk = this.email.valid;
-    const consentOk = this.consent.valid;
     this.showInvalid.set(!emailOk);
-    this.showConsentError.set(!consentOk);
-    if (!emailOk || !consentOk) return;
+    if (!emailOk) return;
     this.status.set('sending');
     this.api
       .joinWaitlist({ email: this.email.value.trim(), topic: this.topic(), consent: true })

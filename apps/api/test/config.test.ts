@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels } from '../src/config';
+import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -201,7 +202,15 @@ describe('loadConfig', () => {
         relayResendCooldownSeconds: 60,
         sessionTtlSeconds: 43_200,
       },
+      waitlist: {
+        consentVersion: WAITLIST_CONSENT_VERSION,
+      },
     });
+  });
+
+  it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
+    const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
+    expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {

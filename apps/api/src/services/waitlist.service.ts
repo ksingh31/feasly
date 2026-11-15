@@ -9,14 +9,14 @@
  *
  * CASL: the request must carry `consent: true` (the required checkbox,
  * wording in docs/legal/approved-copy.md "CASL waitlist consent wording");
- * the row records `consent_ts` + `consent_version`.
+ * the row records `consent_ts` + `consent_version` (from
+ * `config.waitlist.consentVersion`, #740).
  *
  * No email is sent at signup: the list is read when a topic launches.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { WaitlistResponse, WaitlistTopic } from '@feasly/contracts';
-import { WAITLIST_CONSENT_VERSION } from '../lib/legal-copy';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { WaitlistStore } from './waitlist.store';
 
@@ -42,6 +42,8 @@ export interface WaitlistService {
 
 export interface WaitlistServiceDeps {
   readonly waitlist: WaitlistStore;
+  /** `config.waitlist.consentVersion` — stored as `consent_version`. */
+  readonly consentVersion: string;
 }
 
 export function createWaitlistService(deps: WaitlistServiceDeps): WaitlistService {
@@ -61,7 +63,7 @@ export function createWaitlistService(deps: WaitlistServiceDeps): WaitlistServic
         id: randomUUID(),
         email: email.toLowerCase(),
         topic,
-        consentVersion: WAITLIST_CONSENT_VERSION,
+        consentVersion: deps.consentVersion,
       });
       return { ok: true, topic };
     },
