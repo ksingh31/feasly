@@ -21,7 +21,8 @@ const UNKNOWN: DataFreshness = { refreshedMonth: null, rollYear: null };
  * Mock-aware: while the mock property harness serves the data
  * (`propertyData.source === 'mock'`) it never calls the endpoint — sample
  * values must never claim a live City check. A failed request resolves to
- * "unknown" (both null) and the surfaces fall back to honest generic copy.
+ * "unknown" (both null) and the surfaces fall back to honest generic copy;
+ * a failure is not cached, so the next `load()` tries again.
  */
 @Injectable({ providedIn: 'root' })
 export class DataFreshnessService {
@@ -43,7 +44,11 @@ export class DataFreshnessService {
       .getCityDataFreshness()
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        catchError(() => of<CityDataFreshnessResponse>(UNKNOWN)),
+        catchError(() => {
+          // A failure is not cached: the next landing / card mount retries.
+          this.requested = false;
+          return of<CityDataFreshnessResponse>(UNKNOWN);
+        }),
       )
       .subscribe((res) =>
         this.state.set({

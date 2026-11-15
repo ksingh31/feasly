@@ -43,6 +43,15 @@ describe('DataFreshnessService', () => {
     expect(service.freshness()).toEqual({ refreshedMonth: null, rollYear: null });
   });
 
+  it('retries on the next load after a failure (a blip is not cached)', () => {
+    const { service, call } = setup('live', throwError(() => new Error('down')));
+    service.load();
+    call.mockReturnValue(of({ refreshedMonth: 'November 2026', rollYear: 2026 }));
+    service.load();
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(service.freshness()).toEqual({ refreshedMonth: 'November 2026', rollYear: 2026 });
+  });
+
   it('never calls the endpoint on the mock property path', () => {
     const { service, call } = setup('mock', of({ refreshedMonth: 'November 2026', rollYear: 2026 }));
     service.load();
