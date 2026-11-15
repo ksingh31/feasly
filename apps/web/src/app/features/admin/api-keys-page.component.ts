@@ -201,7 +201,7 @@ export class ApiKeysPageComponent implements OnInit {
       injector: this.injector,
     });
     this.secretRef = ref;
-    ref.closed.subscribe(() => {
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.secretRef = null;
       // Closed without Done (e.g. navigation): the key is still gone for good.
       if (this.plaintext()) this.store.dispatch(new ClearPlaintext());
