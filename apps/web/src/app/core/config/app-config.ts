@@ -1020,6 +1020,12 @@ export interface AppConfig {
       selectHint: string;
       /** Shown when a 3+ char query returns zero suggestions. */
       noResults: string;
+      /** #701: no-results hint when the query is a postal code. */
+      noResultsPostalCode: string;
+      /** #701: no-results hint when the query has no house number. */
+      noResultsNoHouseNumber: string;
+      /** #701: no-results hint when the query names a unit/suite. */
+      noResultsUnit: string;
       /**
        * Calgary-only gate (reno/05): exact story-pinned copy. Shown when the
        * property lookup reports OUT_OF_COVERAGE. Do not paraphrase.

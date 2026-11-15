@@ -65,7 +65,7 @@
     suggestions().length === 0 &&
     status() === 'idle'
   ) {
-    <p class="ac-empty" role="status">{{ copy.noResults }}</p>
+    <p class="ac-empty" role="status">{{ noResultsCopy() }}</p>
   }
 
   @if (listboxRendered()) {
