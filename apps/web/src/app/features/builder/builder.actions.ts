@@ -20,6 +20,11 @@ export class LoadBuilderLeads {
   static readonly type = '[Builder] Load leads';
 }
 
+/** Loads the Leads home "Needs you" feed (#526/#527). */
+export class LoadBuilderNeedsYou {
+  static readonly type = '[Builder] Load needs-you feed';
+}
+
 /** Transitions a lead's pipeline status (contacted/quoted/won/lost). */
 export class UpdateBuilderLeadStatus {
   static readonly type = '[Builder] Update lead status';

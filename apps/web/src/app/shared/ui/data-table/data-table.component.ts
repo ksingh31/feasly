@@ -91,6 +91,12 @@ export class DataTableComponent<T> {
   readonly filtered = input(false, { transform: booleanAttribute });
   /** Row whose drawer is open; highlighted. */
   readonly selectedId = input<string | null>(null);
+  /**
+   * Rows needing attention (e.g. stale leads) get the warning-tone
+   * highlight. Visual only — pair it with text in a cell (a chip or label)
+   * so the state isn't conveyed by colour alone.
+   */
+  readonly rowFlagged = input<((row: T) => boolean) | null>(null);
   /** 36px rows instead of 48px. */
   readonly compact = input(false, { transform: booleanAttribute });
 
@@ -236,6 +242,10 @@ export class DataTableComponent<T> {
 
   protected isSelected(row: T): boolean {
     return this.selectedSet().has(this.rowId()(row));
+  }
+
+  protected isFlagged(row: T): boolean {
+    return this.rowFlagged()?.(row) ?? false;
   }
 
   protected isOpen(row: T): boolean {

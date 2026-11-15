@@ -17,12 +17,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BuilderAuthMeResponse,
   BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ActivateBuilderViewAs,
   ExitBuilderViewAs,
   LoadBuilderLeads,
+  LoadBuilderNeedsYou,
   LoadBuilderSession,
   LogoutBuilder,
   SetBuilderActiveOrg,
@@ -83,6 +85,30 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
   summary: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
 };
 
+const NEEDS_YOU_URL = '/api/v1/builder/leads/needs-you';
+
+const NEEDS_YOU: BuilderLeadsNeedsYouResponse = {
+  uncontacted: [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Jane Homeowner',
+      email: 'jane@example.com',
+      phone: '403-555-0101',
+      timeline: '3–6 months',
+      leadScore: 82,
+      status: 'new',
+      addressKey: '123 Main St SW',
+      createdAt: '2026-09-19T10:00:00.000Z',
+      statusChangedAt: '2026-09-19T10:00:00.000Z',
+      waitingSince: '2026-09-19T10:00:00.000Z',
+    },
+  ],
+  stale: [],
+  wonWithoutContract: [],
+  staleAfterDays: 7,
+  counts: { total: 2, new: 1, contacted: 1, quoted: 0, won: 0, lost: 0 },
+};
+
 describe('BuilderState (embed/09)', () => {
   let store: Store;
   let httpMock: HttpTestingController;
@@ -136,6 +162,29 @@ describe('BuilderState (embed/09)', () => {
     httpMock.verify();
   });
 
+  it('LoadBuilderNeedsYou stores the feed (#527)', async () => {
+    const done = store.dispatch(new LoadBuilderNeedsYou());
+    expect(snapshot().needsYouStatus).toBe('loading');
+    const req = httpMock.expectOne((r) => r.url.endsWith(NEEDS_YOU_URL));
+    expect(req.request.withCredentials).toBe(true);
+    req.flush(NEEDS_YOU);
+    await done;
+    expect(snapshot().needsYouStatus).toBe('ready');
+    expect(store.selectSnapshot(BuilderState.needsYou)).toEqual(NEEDS_YOU);
+    httpMock.verify();
+  });
+
+  it('LoadBuilderNeedsYou marks a failure without throwing', async () => {
+    const done = store.dispatch(new LoadBuilderNeedsYou());
+    httpMock
+      .expectOne((r) => r.url.endsWith(NEEDS_YOU_URL))
+      .flush({ code: 'INTERNAL' }, { status: 500, statusText: 'Server Error' });
+    await done;
+    expect(store.selectSnapshot(BuilderState.needsYouStatus)).toBe('error');
+    expect(store.selectSnapshot(BuilderState.needsYou)).toBeNull();
+    httpMock.verify();
+  });
+
   it('UpdateBuilderLeadStatus applies the transition and reconciles the summary', async () => {
     // Seed the pipeline first.
     const seed = store.dispatch(new LoadBuilderLeads());
@@ -168,7 +217,12 @@ describe('BuilderState (embed/09)', () => {
       ],
       summary: { total: 2, new: 0, contacted: 1, quoted: 0, won: 1, lost: 0, needsRecording: 1 },
     });
+    // #527: the "Needs you" groups are server-derived too — refreshed quietly.
+    httpMock
+      .expectOne((r) => r.url.endsWith(NEEDS_YOU_URL))
+      .flush({ ...NEEDS_YOU, uncontacted: [] });
     await done;
+    expect(snapshot().needsYou?.uncontacted).toEqual([]);
 
     const s = snapshot();
     expect(s.updatingLeadId).toBeNull();

@@ -1,868 +1,438 @@
 /**
- * Builder dashboard component tests (embed/09 redesign).
+ * Builder Leads home tests (#527).
  *
- * Verifies: summary totals rendering, lead-card fields, the per-lead
- * status control dispatch, the won-hint report-contract link, and the
- * loading / empty / filter-empty / error states (incl. Retry
- * redispatching LoadBuilderLeads).
+ * Verifies: the "Needs you" groups (cards, heat pill, age, tel:/mailto:,
+ * Record contract for admins), the all-clear and error states, the
+ * segmented status filter + search living in the URL, stale-row
+ * highlighting, the row → lead quick view (`?open=`), and the pipeline
+ * loading / empty / error slots.
  */
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { provideStore, Store } from '@ngxs/store';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
-import type { BuilderLeadListResponse, Comment } from '@feasly/contracts';
+import { Subject, of, throwError } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type {
+  BuilderLeadListItem,
+  BuilderLeadListResponse,
+  BuilderLeadNeedsYouItem,
+  BuilderLeadsNeedsYouResponse,
+} from '@feasly/contracts';
 import { BuilderDashboardComponent } from './builder-dashboard.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderState } from './builder.state';
+import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
+import { BuilderCommentsApiService } from './builder-comments-api.service';
 
-/** A minimal full Comment fixture for the expanded-thread flushes. */
-function threadComment(overrides: Partial<Comment> = {}): Comment {
-  const now = new Date().toISOString();
+const COPY = DEFAULT_BUILDER_COPY;
+
+function lead(overrides: Partial<BuilderLeadListItem>): BuilderLeadListItem {
   return {
-    id: 'c1',
-    entityType: 'lead',
-    entityId: LEAD_ID,
-    authorKind: 'builder',
-    authorId: 'builder@example.com',
-    authorDisplayName: 'A Builder',
-    visibility: 'org',
-    body: 'A note',
-    createdAt: now,
-    updatedAt: now,
-    edited: false,
-    deletedAt: null,
+    id: 'lead-a',
+    name: 'Jane Homeowner',
+    email: 'jane@example.com',
+    phone: '403-555-0101',
+    timeline: '0–3 months',
+    leadScore: 92,
+    status: 'new',
+    statusUpdatedAt: '2026-11-14T10:00:00.000Z',
+    addressKey: '3415 19 St SW',
+    projectType: 'new_build',
+    createdAt: '2026-11-14T10:00:00.000Z',
+    hasInvoice: false,
+    invoiceSummary: null,
+    commentCount: 0,
+    latestComment: null,
+    needsRecording: false,
     ...overrides,
   };
 }
 
-const LEAD_ID = '11111111-1111-4111-8111-111111111111';
+const JANE = lead({});
+const BOB = lead({
+  id: 'lead-b',
+  name: 'Bob Buyer',
+  email: 'bob@example.com',
+  phone: null,
+  leadScore: 70,
+  status: 'contacted',
+  statusUpdatedAt: '2026-11-01T10:00:00.000Z',
+  addressKey: '88 Elbow Dr SW',
+});
+const MOE = lead({
+  id: 'lead-c',
+  name: 'Moe Chan',
+  email: 'moe@example.com',
+  leadScore: 40,
+  status: 'won',
+  needsRecording: true,
+  statusUpdatedAt: '2026-11-10T10:00:00.000Z',
+  addressKey: '9 Crescent Rd NW',
+});
 
-const LEADS_RESPONSE: BuilderLeadListResponse = {
-  leads: [
-    {
-      id: LEAD_ID,
-      name: 'Jane Homeowner',
-      email: 'jane@example.com',
-      phone: '403-555-0101',
-      timeline: '3–6 months',
-      leadScore: 82,
-      status: 'new',
-      statusUpdatedAt: '2026-09-20T10:00:00.000Z',
-      addressKey: '123 Main St SW',
-      projectType: 'new-build',
-      createdAt: '2026-09-19T10:00:00.000Z',
-      hasInvoice: false,
-      invoiceSummary: null,
-      commentCount: 2,
-      latestComment: {
-        body: 'Called — no answer. Left a voicemail.',
-        authorDisplayName: 'A Builder',
-        authorKind: 'builder',
-        createdAt: '2026-09-28T10:00:00.000Z',
-      },
-      needsRecording: false,
-    },
-  ],
-  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
+const LIST: BuilderLeadListResponse = {
+  leads: [JANE, BOB, MOE],
+  summary: { total: 3, new: 1, contacted: 1, quoted: 0, won: 1, lost: 0, needsRecording: 1 },
 };
 
-// The same lead with zero notes: the section shows the empty-state CTA
-// instead of the preview, and the count pill reads 0.
-const NO_NOTES_RESPONSE: BuilderLeadListResponse = {
-  leads: [
-    {
-      ...LEADS_RESPONSE.leads[0],
-      commentCount: 0,
-      latestComment: null,
-      needsRecording: false,
-    },
-  ],
-  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
-};
-
-const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
-  leads: [
-    {
-      ...LEADS_RESPONSE.leads[0],
-      status: 'won',
-      hasInvoice: true,
-      invoiceSummary: {
-        id: 'inv-1',
-        invoiceNumber: 'INV-0042',
-        contractValueCents: 65000000,
-        status: 'in_review',
-        commissionCents: 650000,
-        reviewDueAt: '2026-10-06T23:59:59-06:00',
-        paymentMethod: 'card',
-      },
-    },
-  ],
-  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 0 },
-};
-
-const EMPTY_RESPONSE: BuilderLeadListResponse = {
-  leads: [],
-  summary: { total: 0, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
-};
-
-// Won but not yet recorded (no invoice): the card still shows the status
-// control so the builder can report the signed contract.
-const WON_NO_INVOICE_RESPONSE: BuilderLeadListResponse = {
-  leads: [
-    {
-      ...LEADS_RESPONSE.leads[0],
-      status: 'won',
-      hasInvoice: false,
-      invoiceSummary: null,
-      needsRecording: true,
-    },
-  ],
-  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 1 },
-};
-
-// Data inconsistency (#474): an invoice on a lead that is NOT won. The
-// status control must stay usable — the lock requires won + invoice.
-function invoicedLeadWithStatus(
-  status: 'new' | 'contacted' | 'quoted' | 'lost',
-): BuilderLeadListResponse {
+function item(l: BuilderLeadListItem, waitingSince = l.statusUpdatedAt): BuilderLeadNeedsYouItem {
   return {
-    leads: [{ ...RECORDED_LEAD_RESPONSE.leads[0], status }],
-    summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0, [status]: 1 },
+    id: l.id,
+    name: l.name,
+    email: l.email,
+    phone: l.phone,
+    timeline: l.timeline,
+    leadScore: l.leadScore,
+    status: l.status,
+    addressKey: l.addressKey,
+    createdAt: l.createdAt,
+    statusChangedAt: l.statusUpdatedAt,
+    waitingSince,
   };
 }
 
-async function setup() {
+const FEED: BuilderLeadsNeedsYouResponse = {
+  uncontacted: [item(JANE)],
+  stale: [item(BOB)],
+  wonWithoutContract: [item(MOE)],
+  staleAfterDays: 7,
+  counts: { total: 3, new: 1, contacted: 1, quoted: 0, won: 1, lost: 0 },
+};
+
+const EMPTY_FEED: BuilderLeadsNeedsYouResponse = {
+  ...FEED,
+  uncontacted: [],
+  stale: [],
+  wonWithoutContract: [],
+};
+
+@Component({ standalone: true, template: '' })
+class BlankComponent {}
+
+interface SetupOptions {
+  readonly url?: string;
+  readonly list?: BuilderLeadListResponse | 'error' | 'pending';
+  readonly feed?: BuilderLeadsNeedsYouResponse | 'error';
+  readonly role?: 'builder_admin' | 'builder_member';
+}
+
+async function setup(options: SetupOptions = {}) {
+  const list = options.list ?? LIST;
+  const feed = options.feed ?? FEED;
+  const pending = new Subject<BuilderLeadListResponse>();
+  const leadsApi = {
+    listLeads: vi.fn(() => {
+      if (list === 'pending') return pending.asObservable();
+      if (list === 'error') return throwError(() => new Error('down'));
+      return of(list);
+    }),
+    needsYou: vi.fn(() =>
+      feed === 'error' ? throwError(() => new Error('down')) : of(feed),
+    ),
+    updateStatus: vi.fn(() => of({ ok: true as const })),
+  };
+
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    imports: [BuilderDashboardComponent],
     providers: [
-      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
-      provideRouter([]),
-      provideHttpClient(),
-      provideHttpClientTesting(),
-      // The dashboard's due-invoice banners read the invoices and billing
-      // states; the APIs behind them are stubbed so the banner loads never
-      // hit HttpTestingController (its verify() would flag them).
+      { provide: BUILDER_COPY, useValue: COPY },
+      provideRouter([
+        { path: 'builder', component: BuilderDashboardComponent },
+        { path: 'builder/record-contract', component: BlankComponent },
+        { path: 'builder/invoices', component: BlankComponent },
+      ]),
       provideStore([BuilderState, BuilderBillingState, BuilderInvoicesState]),
+      { provide: BuilderLeadsApiService, useValue: leadsApi },
       {
         provide: BuilderInvoicesApiService,
-        useValue: {
-          listInvoices: () =>
-            of({ invoices: [], total: 0, page: 1, pageSize: 20 }),
-        },
+        useValue: { listInvoices: () => of({ invoices: [], total: 0, page: 1, pageSize: 20 }) },
       },
-      {
-        provide: BuilderBillingApiService,
-        useValue: { getCard: () => of({ hasCard: false }) },
-      },
+      { provide: BuilderBillingApiService, useValue: { getCard: () => of({ hasCard: false }) } },
+      { provide: BuilderCommentsApiService, useValue: { listComments: () => of({ comments: [] }) } },
     ],
   });
-  const fixture: ComponentFixture<BuilderDashboardComponent> =
-    TestBed.createComponent(BuilderDashboardComponent);
-  const httpMock = TestBed.inject(HttpTestingController);
+
   const store = TestBed.inject(Store);
-  fixture.detectChanges();
-  return { fixture, httpMock, store };
+  const snapshot = store.snapshot();
+  store.reset({
+    ...snapshot,
+    builder: {
+      ...snapshot.builder,
+      session: {
+        authenticated: true,
+        email: 'owner@builder.ca',
+        name: null,
+        builderId: 'elite-craft',
+        builderName: 'Elite Craft',
+        role: options.role ?? 'builder_admin',
+        memberships: [],
+        viewAs: null,
+        viewAsDisplayName: null,
+      },
+    },
+  });
+
+  const harness = await RouterTestingHarness.create();
+  await harness.navigateByUrl(options.url ?? '/builder');
+  harness.detectChanges();
+  await harness.fixture.whenStable();
+  harness.detectChanges();
+  const router = TestBed.inject(Router);
+  const el = harness.routeNativeElement as HTMLElement;
+  return { harness, el, router, store, leadsApi, pending };
 }
 
-function loadLeads(httpMock: HttpTestingController, body: BuilderLeadListResponse) {
-  httpMock.expectOne((r) => r.url.endsWith('/api/v1/builder/leads')).flush(body);
+async function settle(harness: RouterTestingHarness): Promise<void> {
+  harness.detectChanges();
+  await harness.fixture.whenStable();
+  harness.detectChanges();
 }
 
-describe('BuilderDashboardComponent (embed/09 redesign)', () => {
-  beforeEach(() => {
-    TestBed.resetTestingModule();
+const tableRows = (el: HTMLElement): HTMLTableRowElement[] =>
+  Array.from(el.querySelectorAll('tbody tr'));
+const rowNames = (el: HTMLElement): string[] =>
+  tableRows(el).map((r) => r.querySelector('.lead-cell__name')?.textContent?.trim() ?? '');
+
+afterEach(() => {
+  document.querySelectorAll('.cdk-overlay-container').forEach((n) => n.remove());
+});
+
+describe('BuilderDashboardComponent — Leads home (#527)', () => {
+  it('loads the pipeline and the needs-you feed on init', async () => {
+    const { leadsApi } = await setup();
+    expect(leadsApi.listLeads).toHaveBeenCalledTimes(1);
+    expect(leadsApi.needsYou).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the summary totals with counts per status', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const totals = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-pipeline__total'),
-    ) as HTMLElement[];
-    // Total + the five pipeline statuses.
-    expect(totals).toHaveLength(6);
-    const counts = totals.map(
-      (t) => t.querySelector('.builder-pipeline__total-count')?.textContent?.trim(),
-    );
-    expect(counts[0]).toBe('1'); // total
-    expect(counts[1]).toBe('1'); // new
-    expect(counts[2]).toBe('0'); // contacted
-    const labels = totals.map(
-      (t) => t.querySelector('.builder-pipeline__total-label')?.textContent?.trim(),
-    );
-    expect(labels[0]).toBe('Total leads');
-    expect(labels[1]).toBe('New');
-    httpMock.verify();
+  it('renders the due-invoice banners above the page heading', async () => {
+    const { el } = await setup();
+    const banners = el.querySelector('app-due-invoice-banners')!;
+    const heading = el.querySelector('#builder-dashboard-heading')!;
+    expect(heading.textContent?.trim()).toBe(COPY.leadsHome.heading);
+    expect(banners.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('renders the due-invoice banners region above the pipeline heading', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, EMPTY_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
+  describe('Needs you', () => {
+    it('renders the three server groups first, each with its cards and count', async () => {
+      const { el } = await setup();
+      const needs = el.querySelector('[data-testid="needs-you"]')!;
+      const pipeline = el.querySelector('[data-testid="pipeline"]')!;
+      expect(needs.compareDocumentPosition(pipeline) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(needs.querySelector('h2')?.textContent).toContain('3');
 
-    const banners = fixture.nativeElement.querySelector(
-      'app-due-invoice-banners',
-    ) as HTMLElement;
-    const heading = fixture.nativeElement.querySelector(
-      '#builder-dashboard-heading',
-    ) as HTMLElement;
-    expect(banners).toBeTruthy();
-    expect(heading).toBeTruthy();
-    // Banners sit above the page heading in document order.
-    expect(
-      banners.compareDocumentPosition(heading) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    httpMock.verify();
-  });
+      const groups = Array.from(needs.querySelectorAll('.needs-group')) as HTMLElement[];
+      expect(groups.map((g) => g.dataset['group'])).toEqual(['uncontacted', 'stale', 'wonWithoutContract']);
+      expect(groups[1].querySelector('h3')?.textContent).toContain('No update in 7+ days');
+      expect(groups[0].querySelector('.needs-card__name')?.textContent?.trim()).toBe('Jane Homeowner');
+    });
 
-  it('renders lead rows with name, address, contact, timeline, score, badge and dates', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
+    it('shows a heat pill, status chip, details and age on each card', async () => {
+      const { el } = await setup();
+      const card = el.querySelector('[data-group="uncontacted"] [data-testid="needs-card"]')!;
+      const chips = Array.from(card.querySelectorAll('ui-status-chip')).map((c) => c.textContent?.trim());
+      expect(chips).toEqual(['Hot · 92', 'New']);
+      expect(card.querySelector('.needs-card__meta')?.textContent).toContain('Timeline 0–3 months');
+      expect(card.querySelector('.needs-card__meta')?.textContent).toContain('3415 19 St SW');
+      const age = card.querySelector('.needs-card__age')!;
+      expect(age.textContent).toContain('Arrived');
+      expect(age.querySelector('time')?.getAttribute('datetime')).toBe(JANE.statusUpdatedAt);
+    });
 
-    const card = fixture.nativeElement.querySelector('.builder-lead-card') as HTMLElement;
-    expect(card).toBeTruthy();
-    const text = card.textContent as string;
-    expect(text).toContain('Jane Homeowner');
-    expect(text).toContain('jane@example.com');
-    expect(text).toContain('123 Main St SW');
-    expect(text).toContain('403-555-0101');
-    expect(text).toContain('3–6 months');
-    expect(text).toContain('82');
-    expect(text).toContain('new-build');
-    expect(text).toContain('2026-09-20'); // statusUpdatedAt, en-CA
-    expect(text).toContain('2026-09-19'); // createdAt, en-CA
-
-    const badge = card.querySelector('.builder-lead-card__badge--new') as HTMLElement;
-    expect(badge).toBeTruthy();
-    expect(badge.textContent?.trim()).toBe('New');
-
-    const avatar = card.querySelector('.builder-lead-card__avatar') as HTMLElement;
-    expect(avatar.textContent?.trim()).toBe('JH');
-    httpMock.verify();
-  });
-
-  describe('tappable contact links (#475)', () => {
-    async function renderLead(overrides: Partial<BuilderLeadListResponse['leads'][number]>) {
-      const { fixture, httpMock } = await setup();
-      loadLeads(httpMock, {
-        ...LEADS_RESPONSE,
-        leads: [{ ...LEADS_RESPONSE.leads[0], ...overrides }],
-      });
-      fixture.detectChanges();
-      await fixture.whenStable();
-      return { card: fixture.nativeElement.querySelector('.builder-lead-card') as HTMLElement, httpMock };
-    }
-
-    it('links the phone with tel: (digits only) and the email with mailto:', async () => {
-      const { card, httpMock } = await renderLead({});
-      const phone = card.querySelector('[data-testid="lead-phone-link"]') as HTMLAnchorElement;
-      const email = card.querySelector('[data-testid="lead-email-link"]') as HTMLAnchorElement;
-      expect(phone.getAttribute('href')).toBe('tel:4035550101');
-      expect(phone.textContent?.trim()).toBe('403-555-0101');
-      expect(phone.classList).toContain('builder-lead-card__link');
+    it('Call / Email are tel: / mailto: links with accessible names (AC2)', async () => {
+      const { el } = await setup();
+      const jane = el.querySelector('[data-group="uncontacted"] [data-testid="needs-card"]')!;
+      const call = jane.querySelector('[data-testid="needs-call"]') as HTMLAnchorElement;
+      const email = jane.querySelector('[data-testid="needs-email"]') as HTMLAnchorElement;
+      expect(call.getAttribute('href')).toBe('tel:4035550101');
+      expect(call.getAttribute('aria-label')).toBe('Call Jane Homeowner');
+      expect(call.classList).toContain('contact-link');
       expect(email.getAttribute('href')).toBe('mailto:jane@example.com');
-      expect(email.textContent).toContain('jane@example.com');
-      expect(email.classList).toContain('builder-lead-card__link');
-      httpMock.verify();
+      expect(email.getAttribute('aria-label')).toBe('Email Jane Homeowner');
+      // No phone → no Call link, Email still there.
+      const bob = el.querySelector('[data-group="stale"] [data-testid="needs-card"]')!;
+      expect(bob.querySelector('[data-testid="needs-call"]')).toBeNull();
+      expect(bob.querySelector('[data-testid="needs-email"]')).not.toBeNull();
     });
 
-    it('keeps a leading + for international numbers and strips formatting', async () => {
-      const { card, httpMock } = await renderLead({ phone: ' +1 (403) 555-0199 ' });
-      const phone = card.querySelector('[data-testid="lead-phone-link"]') as HTMLAnchorElement;
-      expect(phone.getAttribute('href')).toBe('tel:+14035550199');
-      httpMock.verify();
+    it('offers Record contract on won-without-contract cards for admins', async () => {
+      const { el } = await setup();
+      const won = el.querySelector('[data-group="wonWithoutContract"] [data-testid="needs-card"]')!;
+      const record = won.querySelector('[data-testid="needs-record"]') as HTMLAnchorElement;
+      expect(record.textContent?.trim()).toBe(COPY.leadsHome.recordContractCta);
+      expect(record.getAttribute('href')).toBe('/builder/record-contract?lead=lead-c');
+      expect(el.querySelectorAll('[data-testid="needs-record"]')).toHaveLength(1);
     });
 
-    it('trims whitespace from the mailto address', async () => {
-      const { card, httpMock } = await renderLead({ email: ' jane@example.com ' });
-      const email = card.querySelector('[data-testid="lead-email-link"]') as HTMLAnchorElement;
-      expect(email.getAttribute('href')).toBe('mailto:jane@example.com');
-      httpMock.verify();
+    it('tells members an admin records the contract instead', async () => {
+      const { el } = await setup({ role: 'builder_member' });
+      const won = el.querySelector('[data-group="wonWithoutContract"] [data-testid="needs-card"]')!;
+      expect(won.querySelector('[data-testid="needs-record"]')).toBeNull();
+      expect(won.textContent).toContain(COPY.leadsHome.recordContractMemberNote);
     });
 
-    it('renders no phone link when the lead has no phone', async () => {
-      const { card, httpMock } = await renderLead({ phone: null });
-      expect(card.querySelector('[data-testid="lead-phone-link"]')).toBeNull();
-      expect(card.querySelector('[data-testid="lead-email-link"]')).toBeTruthy();
-      httpMock.verify();
+    it('shows the all-clear state when nothing needs the builder', async () => {
+      const { el } = await setup({ feed: EMPTY_FEED });
+      const needs = el.querySelector('[data-testid="needs-you"]')!;
+      expect(needs.querySelector('ui-empty-state')?.textContent).toContain(COPY.leadsHome.allClearHeading);
+      expect(needs.querySelectorAll('[data-testid="needs-card"]')).toHaveLength(0);
+    });
+
+    it('keeps the pipeline usable when the feed fails', async () => {
+      const { el } = await setup({ feed: 'error' });
+      expect(el.querySelector('[data-testid="needs-you"]')?.textContent).toContain(COPY.leadsHome.needsYouError);
+      expect(rowNames(el)).toHaveLength(3);
+    });
+
+    it('a card name opens the lead quick view', async () => {
+      const { el, harness, router } = await setup();
+      (el.querySelector('.needs-card__name') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(router.url).toContain('open=lead-a');
+      expect(document.querySelector('app-builder-lead-panel')).not.toBeNull();
     });
   });
 
-  it('stages a status change without saving; Apply dispatches the PATCH', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const select = fixture.nativeElement.querySelector(
-      '.builder-lead-card__status select',
-    ) as HTMLSelectElement;
-    const apply = fixture.nativeElement.querySelector(
-      '.builder-lead-card__apply',
-    ) as HTMLButtonElement;
-    expect(select).toBeTruthy();
-    expect(select.value).toBe('new');
-    // No staged change yet: Apply is disabled.
-    expect(apply.disabled).toBe(true);
-
-    select.value = 'won';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-
-    // Selection alone saves nothing: no PATCH, badge still New.
-    httpMock.expectNone((r) =>
-      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
-    );
-    let badge = fixture.nativeElement.querySelector(
-      '.builder-lead-card__badge--new',
-    ) as HTMLElement;
-    expect(badge?.textContent?.trim()).toBe('New');
-    expect(apply.disabled).toBe(false);
-
-    apply.click();
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
-    );
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toEqual({ status: 'won' });
-    req.flush({ ok: true });
-    // The state re-reads the pipeline so #530's needsRecording stays server-derived.
-    loadLeads(httpMock, {
-      ...LEADS_RESPONSE,
-      leads: [{ ...LEADS_RESPONSE.leads[0], status: 'won', needsRecording: true }],
+  describe('Pipeline', () => {
+    it('renders the segmented status filter with counts', async () => {
+      const { el } = await setup();
+      const segments = Array.from(el.querySelectorAll('[data-testid="status-segment"]')) as HTMLElement[];
+      expect(segments.map((s) => s.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        'All 3',
+        'New 1',
+        'Contacted 1',
+        'Quoted 0',
+        'Won 1',
+        'Lost 0',
+      ]);
+      expect(segments[0].getAttribute('aria-pressed')).toBe('true');
     });
-    fixture.detectChanges();
-    await fixture.whenStable();
 
-    // The confirmed transition applies locally: badge flips to Won and the
-    // record-contract CTA appears, carrying the lead id to the record page.
-    badge = fixture.nativeElement.querySelector(
-      '.builder-lead-card__badge--won',
-    ) as HTMLElement;
-    expect(badge?.textContent?.trim()).toBe('Won');
-    const hint = fixture.nativeElement.querySelector(
-      '.builder-lead-card__won',
-    ) as HTMLElement;
-    expect(hint?.textContent).toContain('Signed a contract with this lead?');
-    expect(hint?.textContent).toContain('Record the signed contract');
-    const link = hint.querySelector('a');
-    expect(link).toBeTruthy();
-    expect(link?.getAttribute('href')).toContain('/builder/record-contract');
-    expect(link?.getAttribute('href')).toContain(LEAD_ID);
-    httpMock.verify();
-  });
+    it('defaults to most recent activity first', async () => {
+      const { el } = await setup();
+      expect(rowNames(el)).toEqual(['Jane Homeowner', 'Moe Chan', 'Bob Buyer']);
+    });
 
-  it('reverts the staged select to the store value when the PATCH fails', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
+    it('a status segment filters rows and writes ?status= to the URL (AC3)', async () => {
+      const { el, harness, router } = await setup();
+      (el.querySelector('[data-status="won"]') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(router.url).toContain('status=won');
+      expect(rowNames(el)).toEqual(['Moe Chan']);
+      expect(el.querySelector('[data-status="won"]')?.getAttribute('aria-pressed')).toBe('true');
 
-    const select = fixture.nativeElement.querySelector(
-      '.builder-lead-card__status select',
-    ) as HTMLSelectElement;
-    const apply = fixture.nativeElement.querySelector(
-      '.builder-lead-card__apply',
-    ) as HTMLButtonElement;
-    select.value = 'won';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    apply.click();
+      (el.querySelector('[data-status="all"]') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(router.url).not.toContain('status=');
+      expect(rowNames(el)).toHaveLength(3);
+    });
 
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
-    );
-    req.flush(
-      { code: 'LEAD_STATUS_FAILED', message: 'Update failed.', retryable: false },
-      { status: 400, statusText: 'Bad Request' },
-    );
-    fixture.detectChanges();
-    await fixture.whenStable();
+    it('restores status + search from the URL on load (AC3)', async () => {
+      const { el } = await setup({ url: '/builder?status=contacted&q=elbow' });
+      expect(rowNames(el)).toEqual(['Bob Buyer']);
+      expect(el.querySelector('[data-status="contacted"]')?.getAttribute('aria-pressed')).toBe('true');
+      expect((el.querySelector('ui-filter-bar input') as HTMLInputElement).value).toBe('elbow');
+    });
 
-    // Badge never moved; the staged pick is discarded so the select
-    // renders the store value — the two can never disagree.
-    const badge = fixture.nativeElement.querySelector(
-      '.builder-lead-card__badge--new',
-    ) as HTMLElement;
-    expect(badge?.textContent?.trim()).toBe('New');
-    expect(select.value).toBe('new');
-    httpMock.verify();
-  });
+    it('ignores an unknown ?status= value', async () => {
+      const { el } = await setup({ url: '/builder?status=bogus' });
+      expect(rowNames(el)).toHaveLength(3);
+      expect(el.querySelector('[data-status="all"]')?.getAttribute('aria-pressed')).toBe('true');
+    });
 
-  it('shows the recorded state with an invoice link for a recorded won lead', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
+    it('shows no-results with Clear filters when nothing matches', async () => {
+      const { el, harness, router } = await setup({ url: '/builder?q=nobody' });
+      const empty = el.querySelector('[data-testid="pipeline"] ui-empty-state')!;
+      expect(empty.textContent).toContain(COPY.leadsHome.noResultsHeading);
+      (empty.querySelector('button') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(router.url).not.toContain('q=');
+      expect(rowNames(el)).toHaveLength(3);
+    });
 
-    const card = fixture.nativeElement.querySelector(
-      '.builder-lead-card',
-    ) as HTMLElement;
-    const text = card.textContent as string;
-    expect(text).toContain('Contract recorded');
-    // The lead card shows the invoice number…
-    expect(text).toContain('View invoice INV-0042');
-    expect(text).not.toContain('Record the signed contract');
-    // …and deep-links to the invoice detail (?invoice=<id>).
-    const link = card.querySelector(
-      '.builder-lead-card__won--recorded a',
-    ) as HTMLAnchorElement;
-    expect(link).toBeTruthy();
-    expect(link.getAttribute('href')).toBe('/builder/invoices?invoice=inv-1');
-    httpMock.verify();
-  });
+    it('highlights and labels stale rows from the server feed', async () => {
+      const { el } = await setup();
+      const rows = tableRows(el);
+      const bob = rows.find((r) => r.textContent?.includes('Bob Buyer'))!;
+      const jane = rows.find((r) => r.textContent?.includes('Jane Homeowner'))!;
+      expect(bob.classList).toContain('ui-dt__row--flagged');
+      expect(bob.querySelector('[data-testid="stale-tag"]')?.textContent?.trim()).toBe('Stale');
+      expect(jane.classList).not.toContain('ui-dt__row--flagged');
+      expect(jane.querySelector('[data-testid="stale-tag"]')).toBeNull();
+    });
 
-  it('locks the status control for a recorded lead: no select, no Apply', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, RECORDED_LEAD_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
+    it('rows carry heat pills, humanised details and tel:/mailto: actions', async () => {
+      const { el } = await setup();
+      const jane = tableRows(el)[0];
+      expect(jane.querySelector('.lead-cell ui-status-chip')?.textContent?.trim()).toBe('Hot · 92');
+      expect(jane.textContent).toContain('Timeline 0–3 months · New build · 3415 19 St SW');
+      expect(jane.querySelector('[data-testid="row-call"]')?.getAttribute('href')).toBe('tel:4035550101');
+      expect(jane.querySelector('[data-testid="row-email"]')?.getAttribute('href')).toBe('mailto:jane@example.com');
+    });
 
-    const card = fixture.nativeElement.querySelector(
-      '.builder-lead-card',
-    ) as HTMLElement;
-    expect(card.querySelector('.builder-lead-card__status')).toBeNull();
-    expect(card.querySelector('.builder-lead-card__apply')).toBeNull();
-    expect(card.textContent).toContain('Status locked — contract recorded');
-    // The badge is read-only: Won, with no way to flip it back.
-    const badge = card.querySelector(
-      '.builder-lead-card__badge--won',
-    ) as HTMLElement;
-    expect(badge?.textContent?.trim()).toBe('Won');
-    httpMock.verify();
-  });
+    it('clicking a row opens the quick view via ?open=; closing clears it', async () => {
+      const { el, harness, router } = await setup();
+      tableRows(el)[0].click();
+      await settle(harness);
+      expect(router.url).toContain('open=lead-a');
+      expect(document.querySelector('app-builder-lead-panel')).not.toBeNull();
+      expect(tableRows(el)[0].classList).toContain('ui-dt__row--open');
 
-  describe('status lock requires won + invoice (#474)', () => {
-    afterEach(() => vi.restoreAllMocks());
+      (document.querySelector('.ui-modal__close') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(router.url).not.toContain('open=');
+    });
 
-    for (const status of ['new', 'contacted', 'quoted', 'lost'] as const) {
-      it(`keeps the status control for a ${status} lead that has an invoice`, async () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        const { fixture, httpMock } = await setup();
-        loadLeads(httpMock, invoicedLeadWithStatus(status));
-        fixture.detectChanges();
-        await fixture.whenStable();
+    it('opens the quick view from a deep link and drops an unknown ?open= id', async () => {
+      const first = await setup({ url: '/builder?open=lead-b' });
+      expect(document.querySelector('app-builder-lead-panel')?.textContent).toContain('Bob Buyer');
+      document.querySelectorAll('.cdk-overlay-container').forEach((n) => n.remove());
 
-        const card = fixture.nativeElement.querySelector(
-          '.builder-lead-card',
-        ) as HTMLElement;
-        expect(card.textContent).not.toContain('Status locked — contract recorded');
-        expect(card.querySelector('.builder-lead-card__locked')).toBeNull();
-        expect(card.querySelector('.builder-lead-card__status select')).toBeTruthy();
-        expect(card.querySelector('.builder-lead-card__apply')).toBeTruthy();
-        // The inconsistency is flagged once for this lead.
-        const flagged = warn.mock.calls.filter((args) =>
-          String(args[0]).includes('non-won lead has invoice'),
-        );
-        expect(flagged).toHaveLength(1);
-        expect(flagged[0][1]).toEqual({ leadId: LEAD_ID, status });
-        httpMock.verify();
+      const second = await setup({ url: '/builder?open=nope' });
+      await settle(second.harness);
+      expect(second.router.url).not.toContain('open=');
+      expect(first).toBeTruthy();
+    });
+
+    it('shows the loading skeleton while the pipeline loads', async () => {
+      const { el } = await setup({ list: 'pending' });
+      expect(el.querySelector('[data-testid="pipeline"] ui-skeleton')).not.toBeNull();
+    });
+
+    it('shows the zero-data state when there are no leads', async () => {
+      const { el } = await setup({
+        list: { leads: [], summary: { ...LIST.summary, total: 0, new: 0, contacted: 0, won: 0, needsRecording: 0 } },
+        feed: EMPTY_FEED,
       });
-    }
-
-    it('lets Apply dispatch the PATCH for a non-won lead with an invoice', async () => {
-      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const { fixture, httpMock } = await setup();
-      loadLeads(httpMock, invoicedLeadWithStatus('quoted'));
-      fixture.detectChanges();
-      await fixture.whenStable();
-
-      const select = fixture.nativeElement.querySelector(
-        '.builder-lead-card__status select',
-      ) as HTMLSelectElement;
-      select.value = 'won';
-      select.dispatchEvent(new Event('change'));
-      fixture.detectChanges();
-      (
-        fixture.nativeElement.querySelector(
-          '.builder-lead-card__apply',
-        ) as HTMLButtonElement
-      ).click();
-      const req = httpMock.expectOne((r) =>
-        r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}`),
-      );
-      expect(req.request.method).toBe('PATCH');
-      expect(req.request.body).toEqual({ status: 'won' });
-      req.flush({ ok: true });
-      loadLeads(httpMock, invoicedLeadWithStatus('quoted'));
-      httpMock.verify();
+      const empty = el.querySelector('[data-testid="pipeline"] ui-empty-state')!;
+      expect(empty.textContent).toContain(COPY.leadsEmptyHeading);
     });
 
-    it('does not flag a recorded won lead or a won lead without an invoice', async () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const { fixture, httpMock } = await setup();
-      loadLeads(httpMock, {
-        leads: [
-          RECORDED_LEAD_RESPONSE.leads[0],
-          { ...WON_NO_INVOICE_RESPONSE.leads[0], id: '22222222-2222-4222-8222-222222222222' },
-        ],
-        summary: { total: 2, new: 0, contacted: 0, quoted: 0, won: 2, lost: 0, needsRecording: 0 },
-      });
-      fixture.detectChanges();
-      await fixture.whenStable();
-
-      expect(
-        warn.mock.calls.some((args) =>
-          String(args[0]).includes('non-won lead has invoice'),
-        ),
-      ).toBe(false);
-      httpMock.verify();
+    it('shows the error state; Retry reloads leads and the feed', async () => {
+      const { el, harness, leadsApi } = await setup({ list: 'error' });
+      const error = el.querySelector('[data-testid="pipeline"] ui-error-state')!;
+      expect(error.textContent).toContain(COPY.leadsErrorHeading);
+      (error.querySelector('button') as HTMLButtonElement).click();
+      await settle(harness);
+      expect(leadsApi.listLeads).toHaveBeenCalledTimes(2);
+      expect(leadsApi.needsYou).toHaveBeenCalledTimes(2);
     });
   });
 
-  it('syncs the status select with the stored status for a won lead without an invoice', async () => {
-    // Regression: [value] on the select never took effect inside the @for
-    // (the binding runs before the options exist on first render), so a
-    // Won lead showed "New" selected. The selection now lives on the
-    // options via [selected], which is order-safe.
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, WON_NO_INVOICE_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const card = fixture.nativeElement.querySelector(
-      '.builder-lead-card',
-    ) as HTMLElement;
-    const badge = card.querySelector(
-      '.builder-lead-card__badge--won',
-    ) as HTMLElement;
-    expect(badge?.textContent?.trim()).toBe('Won');
-
-    const select = card.querySelector(
-      '.builder-lead-card__status select',
-    ) as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.value).toBe('won');
-    const selected = select.querySelector(
-      'option:checked',
-    ) as HTMLOptionElement;
-    expect(selected?.textContent?.trim()).toBe('Won');
-
-    // No staged change yet: Apply is disabled.
-    const apply = card.querySelector(
-      '.builder-lead-card__apply',
-    ) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
-    httpMock.verify();
-  });
-
-  it('clicking a summary total filters the list to that status', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const totals = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-pipeline__total'),
-    ) as HTMLButtonElement[];
-    // Jane is 'new'; click the "Won" total (index 4).
-    totals[4].click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    let text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('No leads with this status');
-    expect(text).not.toContain('Jane Homeowner');
-
-    // Clicking the same total again clears the filter.
-    totals[4].click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Jane Homeowner');
-    httpMock.verify();
-  });
-
-  it('filters the list via the status select and shows the filter-empty copy', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const select = fixture.nativeElement.querySelector(
-      '#builder-status-filter',
-    ) as HTMLSelectElement;
-    expect(select).toBeTruthy();
-
-    select.value = 'won';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    let text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('No leads with this status');
-    expect(text).toContain('Clear filter');
-    expect(text).not.toContain('Jane Homeowner');
-
-    // Clear filter restores the list.
-    const clear = fixture.nativeElement.querySelector(
-      '.builder-pipeline__empty button',
-    ) as HTMLButtonElement;
-    clear.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Jane Homeowner');
-    httpMock.verify();
-  });
-
-  it('renders loading skeletons while the leads load', async () => {
-    const { fixture, httpMock } = await setup();
-    // The initial dispatch is still in flight: skeletons, not the list.
-    const skeletons = fixture.nativeElement.querySelectorAll(
-      '.builder-pipeline__skeleton',
-    );
-    expect(skeletons.length).toBeGreaterThan(0);
-    const status = fixture.nativeElement.querySelector(
-      '.builder-pipeline__loading[role="status"]',
-    );
-    expect(status).toBeTruthy();
-    expect(status.textContent).toContain('Loading your leads…');
-
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(
-      fixture.nativeElement.querySelectorAll('.builder-pipeline__skeleton').length,
-    ).toBe(0);
-    httpMock.verify();
-  });
-
-  it('renders the empty-state copy with guidance when there are no leads', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, EMPTY_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const empty = fixture.nativeElement.querySelector(
-      '.builder-pipeline__empty',
-    ) as HTMLElement;
-    expect(empty).toBeTruthy();
-    expect(empty.textContent).toContain('No leads yet');
-    expect(empty.textContent).toContain(
-      'Matched homeowners will appear here as soon as they submit an estimate request.',
-    );
-    expect(
-      fixture.nativeElement.querySelectorAll('.builder-lead-card').length,
-    ).toBe(0);
-    httpMock.verify();
-  });
-
-  it('renders the error state with a Retry button that redispatches the load', async () => {
-    const { fixture, httpMock } = await setup();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/builder/leads'))
-      .flush({ message: 'down' }, { status: 500, statusText: 'Server Error' });
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const error = fixture.nativeElement.querySelector(
-      '.builder-pipeline__error',
-    ) as HTMLElement;
-    expect(error).toBeTruthy();
-    expect(error.getAttribute('role')).toBe('alert');
-    expect(error.textContent).toContain("Couldn't load your leads");
-    expect(error.textContent).toContain('Could not load your leads. Please try again.');
-
-    const retry = error.querySelector('button') as HTMLButtonElement;
-    expect(retry.textContent?.trim()).toBe('Retry');
-    retry.click();
-
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    expect(
-      fixture.nativeElement.querySelectorAll('.builder-lead-card').length,
-    ).toBe(1);
-    expect(fixture.nativeElement.querySelector('.builder-pipeline__error')).toBeNull();
-    httpMock.verify();
-  });
-
-  it('renders the honest 403 copy when a status update is forbidden', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const select = fixture.nativeElement.querySelector(
-      '.builder-lead-card__status select',
-    ) as HTMLSelectElement;
-    const apply = fixture.nativeElement.querySelector(
-      '.builder-lead-card__apply',
-    ) as HTMLButtonElement;
-    select.value = 'lost';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    apply.click();
-
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith('/api/v1/builder/leads/11111111-1111-4111-8111-111111111111'),
-    );
-    req.flush({ code: 'FORBIDDEN' }, { status: 403, statusText: 'Forbidden' });
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const banner = fixture.nativeElement.querySelector(
-      '.builder-pipeline__banner',
-    ) as HTMLElement;
-    expect(banner).toBeTruthy();
-    expect(banner.textContent).toContain(
-      'That lead belongs to another builder — its status was not changed.',
-    );
-    httpMock.verify();
-  });
-
-  it('shows the notes section collapsed by default with a live count badge', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const section = fixture.nativeElement.querySelector(
-      '.builder-lead-card__notes-section',
-    ) as HTMLElement;
-    expect(section).toBeTruthy();
-    expect(section.getAttribute('aria-label')).toContain('Notes');
-
-    const header = section.querySelector(
-      '.builder-lead-card__notes-header',
-    ) as HTMLButtonElement;
-    expect(header).toBeTruthy();
-    expect(header.getAttribute('aria-expanded')).toBe('false');
-    expect(
-      header.querySelector('.builder-lead-card__notes-title')?.textContent?.trim(),
-    ).toBe('Notes');
-    expect(
-      header.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
-    ).toBe('2');
-
-    // Collapsed: the thread is not mounted yet.
-    expect(section.querySelector('app-builder-lead-comments')).toBeNull();
-    httpMock.verify();
-  });
-
-  it('renders the latest-note preview when collapsed', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const preview = fixture.nativeElement.querySelector(
-      '.builder-lead-card__notes-preview',
-    ) as HTMLElement;
-    expect(preview).toBeTruthy();
-    expect(preview.textContent).toContain('A Builder');
-    expect(preview.textContent).toContain('Called — no answer. Left a voicemail.');
-    httpMock.verify();
-  });
-
-  it('shows the empty-state CTA for a lead with no notes; clicking expands the thread', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, NO_NOTES_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const section = fixture.nativeElement.querySelector(
-      '.builder-lead-card__notes-section',
-    ) as HTMLElement;
-    // The count pill reads 0 and the empty state replaces the preview.
-    expect(
-      section.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
-    ).toBe('0');
-    expect(section.querySelector('.builder-lead-card__notes-preview')).toBeNull();
-
-    const cta = section.querySelector(
-      '.builder-lead-card__notes-cta',
-    ) as HTMLButtonElement;
-    expect(cta).toBeTruthy();
-    expect(cta.textContent?.trim()).toBe('Add the first note');
-
-    cta.click();
-    fixture.detectChanges();
-
-    const header = section.querySelector(
-      '.builder-lead-card__notes-header',
-    ) as HTMLButtonElement;
-    expect(header.getAttribute('aria-expanded')).toBe('true');
-
-    // The expanded thread loads the comments for the lead.
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}/comments`),
-    );
-    req.flush({ comments: [] });
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    expect(section.querySelector('app-builder-lead-comments')).toBeTruthy();
-    httpMock.verify();
-  });
-
-  it('updates the badge and preview live when the thread publishes comments', async () => {
-    const { fixture, httpMock } = await setup();
-    loadLeads(httpMock, LEADS_RESPONSE);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    const section = fixture.nativeElement.querySelector(
-      '.builder-lead-card__notes-section',
-    ) as HTMLElement;
-    const header = section.querySelector(
-      '.builder-lead-card__notes-header',
-    ) as HTMLButtonElement;
-
-    // Expand; the thread publishes its loaded comments (now 3, one new).
-    header.click();
-    fixture.detectChanges();
-    const req = httpMock.expectOne((r) =>
-      r.url.endsWith(`/api/v1/builder/leads/${LEAD_ID}/comments`),
-    );
-    const now = new Date().toISOString();
-    req.flush({
-      comments: [
-        threadComment({ id: 'c1', body: 'Older note', createdAt: '2026-09-27T10:00:00.000Z' }),
-        threadComment({ id: 'c2', body: 'Called — no answer. Left a voicemail.', createdAt: '2026-09-28T10:00:00.000Z' }),
-        threadComment({ id: 'c3', body: 'They called back — quoting next week.', createdAt: now }),
-      ],
+  it('flags a non-won lead carrying an invoice in the console once (#474)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await setup({
+      list: { ...LIST, leads: [lead({ hasInvoice: true, status: 'contacted' }), MOE] },
     });
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    // The badge updates while still expanded; the preview updates on collapse.
-    expect(
-      section.querySelector('.builder-lead-card__notes-count')?.textContent?.trim(),
-    ).toBe('3');
-
-    header.click();
-    fixture.detectChanges();
-
-    const preview = section.querySelector(
-      '.builder-lead-card__notes-preview',
-    ) as HTMLElement;
-    expect(preview).toBeTruthy();
-    expect(preview.textContent).toContain('They called back — quoting next week.');
-    httpMock.verify();
+    const calls = warn.mock.calls.filter((c) => String(c[0]).includes('non-won lead has invoice'));
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual({ leadId: 'lead-a', status: 'contacted' });
+    warn.mockRestore();
   });
 });
