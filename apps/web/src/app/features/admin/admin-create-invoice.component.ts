@@ -17,6 +17,10 @@ import {
   Validators,
 } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { EntityComboboxComponent, EntityLinkComponent, type EntityOption } from '@app/shared/ui';
+import { ConfigService } from '../../core/config/config.service';
 import { Store } from '@ngxs/store';
 import type {
   Builder,
@@ -31,6 +35,9 @@ import {
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { BillingHealthState } from './billing-health.state';
+import { openAdminEntity } from './admin-entity-routes';
+import { ClearAdminSearch, SearchAdmin } from './admin-search.actions';
+import { AdminSearchState } from './admin-search.state';
 import {
   CreateManualInvoice,
   DismissCreateInvoiceFeedback,
@@ -73,13 +80,32 @@ export function toIsoWithOffset(date: Date): string {
 @Component({
   selector: 'app-admin-create-invoice',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, DatePipe, EntityComboboxComponent, EntityLinkComponent],
   templateUrl: './admin-create-invoice.component.html',
   styleUrl: './admin-create-invoice.component.scss',
 })
 export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly config = inject(ConfigService);
+
+  protected readonly entityCopy = this.config.get('copy').admin.entities;
+
+  /**
+   * Lead picker (#538): a type-ahead over the admin search API replaces
+   * the old "paste the lead's UUID" field. The form value stays the id.
+   */
+  private readonly leadSearch = this.store.selectSignal(AdminSearchState.leadPicker);
+  readonly leadOptions = computed<EntityOption[]>(() =>
+    this.leadSearch()
+      .hits.filter((hit) => hit.kind === 'lead')
+      .map((hit) => ({ id: hit.id, label: hit.label, meta: hit.sublabel ?? undefined })),
+  );
+  readonly leadSearchLoading = computed(() => this.leadSearch().status === 'loading');
+  /** The lead picked in the combobox — its label shows on the review step. */
+  readonly pickedLead = signal<EntityOption | null>(null);
+  private readonly leadQuery = new Subject<string>();
 
   @Output() readonly closed = new EventEmitter<void>();
 
@@ -152,10 +178,17 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
     if (this.listStatus() === 'idle') {
       this.store.dispatch(new LoadBuilders());
     }
+    this.leadQuery
+      .pipe(
+        debounceTime(this.config.get('timings').debounceMs),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((query) => this.store.dispatch(new SearchAdmin('leadPicker', query)));
   }
 
   ngOnDestroy(): void {
-    this.store.dispatch(new DismissCreateInvoiceFeedback());
+    this.store.dispatch([new DismissCreateInvoiceFeedback(), new ClearAdminSearch('leadPicker')]);
   }
 
   builderLabel(builder: Builder): string {
@@ -177,6 +210,15 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
 
   backToForm(): void {
     this.reviewing.set(false);
+  }
+
+  searchLeads(query: string): void {
+    this.leadQuery.next(query.trim());
+  }
+
+  openInvoice(id: string): void {
+    this.close();
+    openAdminEntity(this.router, 'invoice', id);
   }
 
   /** The deliberate second click: dispatch the create-invoice action. */

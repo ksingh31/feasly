@@ -336,11 +336,22 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     expect(textOf(fixture)).toContain('No lead yet — gate not completed.');
   });
 
+  it('keeps raw ids inside the collapsed Technical IDs section (#538)', async () => {
+    const { fixture } = await setup({ id: 'estimate-1' });
+    const el = fixture.nativeElement as HTMLElement;
+    const ids = el.querySelector('[data-testid="estimate-technical-ids"]') as HTMLElement;
+    expect(ids.querySelector('details')?.open).toBe(false);
+    expect(ids.textContent).toContain('estimate-1');
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelector('[data-testid="estimate-technical-ids"]')?.remove();
+    expect(clone.textContent).not.toContain('estimate-1');
+  });
+
   it('uses only kit controls — no unstyled native buttons or inputs', async () => {
     const { fixture } = await setup({ id: 'estimate-1' });
     const el = fixture.nativeElement as HTMLElement;
     const buttons = Array.from(el.querySelectorAll('button')).filter(
-      (b) => !b.closest('ui-text-field, ui-error-state, ui-empty-state'),
+      (b) => !b.closest('ui-text-field, ui-error-state, ui-empty-state, ui-technical-ids'),
     );
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) expect(b.classList).toContain('ui-button');

@@ -118,6 +118,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // Per-deploy: the served app-config.json sets it (empty hides the chip).
     environmentLabel: '',
     leads: { quotingStaleDays: 7 },
+    searchMaxQueryLength: 100,
     /**
      * Microsoft Entra External ID (auth/02 pivot). Placeholders — the
      * backend team provides the real tenant values (ENTRA_TENANT_SUBDOMAIN,
@@ -1242,7 +1243,21 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         breadcrumbLabel: 'Breadcrumb',
         searchLabel: 'Search',
         searchShortcut: '⌘K',
-        searchComingSoon: 'Command search is coming soon.',
+        searchKeyShortcuts: 'Meta+K Control+K /',
+        palette: {
+          title: 'Search the admin console',
+          placeholder: 'Search leads, invoices, builders, users…',
+          hint: 'Type a name, email, address, invoice number or builder slug.',
+          loading: 'Searching…',
+          noResults: 'No matches.',
+          error: 'Search failed.',
+          retry: 'Try again',
+          close: 'Close search',
+          escKey: 'Esc',
+          resultsLabel: 'Search results',
+          navHint: '↑↓ to move · Enter to open · Esc to close',
+          kinds: { lead: 'Leads', invoice: 'Invoices', builder: 'Builders', user: 'Users' },
+        },
         environmentLabel: 'Environment',
         userMenuLabel: 'Account',
         signOut: 'Sign out',
@@ -1385,6 +1400,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           noActivity: 'No status changes yet.',
           honeypotBadge: 'Honeypot-flagged',
         },
+      },
+      entities: {
+        technicalIds: 'Technical IDs',
+        copyId: 'Copy ID',
+        idCopied: 'ID copied',
+        viewLead: 'View lead',
+        viewInvoice: 'View invoice',
+        rawPayload: 'Raw payload',
       },
       apiKeys: {
         title: 'API keys',

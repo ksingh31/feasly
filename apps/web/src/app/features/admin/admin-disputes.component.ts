@@ -14,6 +14,8 @@ import {
   type UiDrawerRef,
   UiDrawerService,
 } from '@app/shared/ui';
+import { ConfigService } from '../../core/config/config.service';
+import { openAdminEntity } from './admin-entity-routes';
 import { type DisputeSlaChip, disputeSlaChip } from './admin-disputes-view';
 import { ClearSelectedAdminDispute, LoadAdminDisputes, SelectAdminDispute } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
@@ -21,8 +23,6 @@ import { AdminDisputeDrawerComponent, type AdminDisputeDrawerData } from './admi
 
 /** Query param holding the open dispute (portal-ui-kit §3: `?open=<id>`). */
 const OPEN_PARAM = 'open';
-/** Admin invoice detail route prefix (the Invoice EntityLink target). */
-const INVOICE_ROUTE = ['/admin', 'billing', 'invoices'] as const;
 
 /**
  * Admin Disputes (#545, admin review S12) — Karan's queue for builder
@@ -61,6 +61,9 @@ export class AdminDisputesComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly drawers = inject(UiDrawerService);
 
+  /** EntityLink copy (#538): the invoice cell never shows a raw UUID. */
+  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
+
   protected readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
   protected readonly listStatus = this.store.selectSignal(AdminDisputesState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminDisputesState.listError);
@@ -75,8 +78,8 @@ export class AdminDisputesComponent implements OnInit {
 
   protected readonly columns: readonly DataTableColumn<DisputeListItem>[] = [
     { key: 'openedAt', header: 'Opened', kind: 'date', cardRole: 'meta' },
-    { key: 'invoice', header: 'Invoice', kind: 'id', cardRole: 'title', value: (d) => d.invoiceId },
-    { key: 'builder', header: 'Builder', cardRole: 'meta', value: (d) => d.tenantKey },
+    { key: 'invoice', header: 'Invoice', cardRole: 'meta', value: () => this.entityCopy.viewInvoice },
+    { key: 'builder', header: 'Builder', cardRole: 'title', value: (d) => d.tenantKey },
     { key: 'amount', header: 'Amount', kind: 'money', cardRole: 'meta', value: (d) => d.commissionCents },
     { key: 'reason', header: 'Reason', kind: 'text', cardRole: 'hidden' },
     { key: 'sla', header: 'SLA', cardRole: 'chip', value: (d) => disputeSlaChip(d).label },
@@ -122,7 +125,7 @@ export class AdminDisputesComponent implements OnInit {
   }
 
   protected openInvoice(invoiceId: string): void {
-    void this.router.navigate([...INVOICE_ROUTE, invoiceId]);
+    openAdminEntity(this.router, 'invoice', invoiceId);
   }
 
   private openDrawer(id: string): void {

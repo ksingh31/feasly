@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideLocationMocks } from '@angular/common/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AdminUser, Builder } from '@feasly/contracts';
@@ -622,6 +622,29 @@ describe('AdminUsersComponent', () => {
       expect(page.textContent).toContain('Teammate');
       expect(page.querySelector('.users-page__primary')).toBeNull();
       expect(page.querySelectorAll('tbody button').length).toBe(0);
+    });
+  });
+
+  /** #538: ⌘K hits and EntityLinks open a user's drawer via `?open=<id>`. */
+  describe('?open=<id> deep link', () => {
+    it('opens that user\'s edit drawer once the list loads', async () => {
+      await setup();
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl(`/admin/users?open=${INVITED.id}`);
+      flushInit([PROTECTED, INVITED], [BUILDER_A]);
+      await until(() => drawer() !== null, 'drawer opens from ?open');
+      expect(drawer()!.closest('.ui-drawer-pane')!.querySelector('.ui-drawer__title')!.textContent!.trim()).toBe(
+        'Edit Teammate',
+      );
+    });
+
+    it('drops an ?open naming an unknown user', async () => {
+      await setup();
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl('/admin/users?open=nope');
+      flushInit([PROTECTED], [BUILDER_A]);
+      await until(() => !router.url.includes('open='), 'unknown id dropped');
+      expect(drawer()).toBeNull();
     });
   });
 });
