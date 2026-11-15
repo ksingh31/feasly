@@ -66,6 +66,11 @@ describe('http route bindings', () => {
     expect(route).toBe('v1/admin/leads/{id:guid}');
   });
 
+  it('constrains the builder lead status {id} route to GUIDs so it cannot capture needs-you', () => {
+    expect(routeFor('builder-leads-needs-you')).toBe('v1/builder/leads/needs-you');
+    expect(routeFor('builder-leads-status')).toBe('v1/builder/leads/{id:guid}');
+  });
+
   it('has no unconstrained parameter route with a literal sibling at the same depth', () => {
     const routes = httpRoutes();
     const conflicts: string[] = [];
