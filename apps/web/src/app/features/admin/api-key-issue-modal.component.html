@@ -1,0 +1,55 @@
+<ui-modal [heading]="copy.issueTitle" asForm (submitted)="submit()">
+  <div class="issue-modal" [formGroup]="form" data-testid="issue-modal">
+    @if (issueFailed()) {
+      <p class="issue-modal__alert" role="alert">{{ copy.issueError }}</p>
+    }
+    <ui-text-field
+      [label]="copy.nameLabel"
+      required
+      formControlName="name"
+      [placeholder]="copy.namePlaceholder"
+      [error]="error('name')"
+    />
+    <ui-entity-combobox
+      [label]="copy.builderLabel"
+      formControlName="tenantId"
+      data-testid="builder-combobox"
+      [options]="builderOptions()"
+      [placeholder]="copy.builderPlaceholder"
+      [hint]="copy.builderHint"
+      [emptyLabel]="copy.builderEmpty"
+    />
+    <fieldset class="issue-modal__scopes" [attr.aria-describedby]="error('scopes') ? 'issue-scopes-error' : null">
+      <legend>{{ copy.scopesLabel }}</legend>
+      <div class="issue-modal__scope-grid">
+        @for (scope of scopes; track scope) {
+          <label class="issue-modal__check">
+            <input type="checkbox" [checked]="hasScope(scope)" (change)="toggleScope(scope)" />
+            <code>{{ scope }}</code>
+          </label>
+        }
+      </div>
+      @if (error('scopes'); as msg) {
+        <p class="issue-modal__error" id="issue-scopes-error">{{ msg }}</p>
+      }
+    </fieldset>
+    <ui-text-field
+      [label]="copy.rateLimitLabel"
+      formControlName="rateLimit"
+      inputmode="numeric"
+      [hint]="copy.rateLimitHint"
+      [error]="error('rateLimit')"
+    />
+    <label class="issue-modal__check issue-modal__check--block">
+      <input type="checkbox" [checked]="form.controls.sandbox.value" (change)="toggleSandbox($event)" />
+      <span>
+        <span class="issue-modal__check-label">{{ copy.sandboxLabel }}</span>
+        <span class="issue-modal__hint">{{ copy.sandboxHint }}</span>
+      </span>
+    </label>
+  </div>
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">{{ copy.cancelButton }}</button>
+    <button type="submit" ui-button data-testid="issue-submit" [loading]="mutating()">{{ copy.createButton }}</button>
+  </ng-container>
+</ui-modal>
