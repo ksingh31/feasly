@@ -17,14 +17,14 @@
   align-items: center;
   padding: 1rem 1.25rem;
   background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   cursor: pointer;
   text-align: left;
 }
 
 .builder-org-picker__org:hover:not(:disabled) {
-  border-color: var(--color-primary, #1a1a1a);
+  border-color: var(--text);
 }
 
 .builder-org-picker__org:disabled {
@@ -41,5 +41,5 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-text-muted, #6b6257);
+  color: var(--muted);
 }

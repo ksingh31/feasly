@@ -17,12 +17,12 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-muted, #6b6459);
+  color: var(--muted);
 }
 
 .admin-error__body {
   margin: 0;
-  color: var(--color-text-muted, #6b6459);
+  color: var(--muted);
 }
 
 .admin-error__actions {
