@@ -155,6 +155,13 @@ export interface BuilderLeadListItem {
    * the collapsed notes preview — one field set, no full thread fetch.
    */
   readonly latestComment: BuilderLeadCommentPreview | null;
+  /**
+   * Issue #530: true when the lead is won but no signed contract is
+   * recorded yet (status 'won' and no commission invoice). Drives the
+   * admin "Needs recording" item. Derived server-side — the portal never
+   * recomputes it.
+   */
+  readonly needsRecording: boolean;
 }
 
 /**
@@ -180,11 +187,32 @@ export interface BuilderLeadListResponse {
     readonly quoted: number;
     readonly won: number;
     readonly lost: number;
+    /** Issue #530: won leads with no recorded contract (needsRecording). */
+    readonly needsRecording: number;
   };
 }
 
 export interface BuilderLeadStatusUpdateBody {
   readonly status: BuilderLeadStatus;
+}
+
+/**
+ * Issue #530 — `POST /api/v1/builder/leads/{id}/mark-won` response.
+ *
+ * Any org member (builder_member or builder_admin) can mark a lead won.
+ * Recording the signed contract (which creates the commission invoice)
+ * stays admin-only (`builder:billing`); marking won flags the lead as
+ * "Needs recording" and emails the org's admins.
+ */
+export interface BuilderLeadMarkWonResponse {
+  readonly ok: true;
+  readonly status: 'won';
+  /** Always true — a lead with a recorded contract is rejected with 409. */
+  readonly needsRecording: true;
+  /** False when the lead was already won (idempotent, no re-notify). */
+  readonly changed: boolean;
+  /** How many admin notification emails were sent (best-effort). */
+  readonly adminsNotified: number;
 }
 
 /**

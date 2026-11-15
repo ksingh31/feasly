@@ -8,6 +8,12 @@
  *
  * - `GET /api/v1/builder/leads` — tenant-scoped lead list + summary.
  * - `PATCH /api/v1/builder/leads/{id}` — pipeline status transition.
+ *   Contract details in the body (which create the commission invoice)
+ *   additionally require `builder:billing` — recording a contract is
+ *   admin-only, whichever endpoint it arrives on (issue #530).
+ * - `POST /api/v1/builder/leads/{id}/mark-won` — issue #530: any org
+ *   member marks a lead won without recording the contract; org admins
+ *   are notified to record it.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -15,9 +21,13 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import { z } from 'zod';
-import type { BuilderLeadListResponse } from '@feasly/contracts';
+import type {
+  BuilderLeadListResponse,
+  BuilderLeadMarkWonResponse,
+} from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderGuard } from '../middleware/builder-guard';
+import type { PermissionGuard } from '../middleware/permission-guard';
 import type {
   BuilderLeadsService,
   WonBillingResult,
@@ -26,7 +36,14 @@ import type {
 export interface BuilderLeadsRouteDeps {
   readonly builderLeads: BuilderLeadsService;
   readonly builderGuard: BuilderGuard;
+  /**
+   * Issue #530: gates contract details on PATCH behind `builder:billing`
+   * (members hold `builder:leads:manage` but must not record contracts).
+   */
+  readonly permissionGuard: Pick<PermissionGuard, 'requirePermission'>;
 }
+
+const STATUS_ROUTE = '/api/v1/builder/leads/{id}';
 
 export interface BuilderLeadsRoute {
   /** GET /api/v1/builder/leads */
@@ -39,6 +56,23 @@ export interface BuilderLeadsRoute {
     id: unknown,
     body: unknown,
   ): Promise<{ readonly ok: true } & Partial<WonBillingResult>>;
+  /** POST /api/v1/builder/leads/{id}/mark-won */
+  markWon(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<BuilderLeadMarkWonResponse>;
+}
+
+/** True when a PATCH body carries either contract-detail field. */
+function hasContractDetails(body: unknown): boolean {
+  if (typeof body !== 'object' || body === null) {
+    return false;
+  }
+  const record = body as Record<string, unknown>;
+  return (
+    record['contractValueCents'] !== undefined ||
+    record['contractSignedAt'] !== undefined
+  );
 }
 
 const leadIdParamSchema = z.string().trim().uuid();
@@ -70,7 +104,7 @@ async function requireBuilderSession(
 export function createBuilderLeadsRoute(
   deps: BuilderLeadsRouteDeps,
 ): BuilderLeadsRoute {
-  const { builderLeads, builderGuard } = deps;
+  const { builderLeads, builderGuard, permissionGuard } = deps;
 
   return {
     async list(headers): Promise<BuilderLeadListResponse> {
@@ -81,12 +115,27 @@ export function createBuilderLeadsRoute(
     async updateStatus(headers, id, body): Promise<{ readonly ok: true }> {
       const session = await requireBuilderSession(builderGuard, headers);
       const leadId = parseLeadId(id);
+      if (hasContractDetails(body)) {
+        // Recording a contract creates a commission invoice — same gate
+        // as POST /api/v1/billing/report-contract (403 + audit for members).
+        await permissionGuard.requirePermission(
+          'builder:billing',
+          headers,
+          STATUS_ROUTE,
+        );
+      }
       return builderLeads.updateStatus(
         leadId,
         body,
         session.tenantKey,
         session.email,
       );
+    },
+
+    async markWon(headers, id): Promise<BuilderLeadMarkWonResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      const leadId = parseLeadId(id);
+      return builderLeads.markWon(leadId, session.tenantKey, session.email);
     },
   };
 }

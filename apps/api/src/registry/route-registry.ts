@@ -675,7 +675,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'billing/01 charge path: with contractValueCents + contractSignedAt ' +
       'it creates the draft commission invoice (auto-submitted into ' +
       'review); without them the invoice waits for ' +
-      'POST /api/v1/billing/report-contract.',
+      'POST /api/v1/billing/report-contract. Contract details additionally ' +
+      'require builder:billing (403 for builder members).',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/leads/{id}/mark-won',
+    auth: 'builder-session',
+    permissions: ['builder:leads:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Mark a builder lead won without recording the contract (any org ' +
+      'member). The lead shows as "Needs recording" and the org\'s admins ' +
+      'are emailed to record the signed contract. 409 when a contract is ' +
+      'already recorded; idempotent for already-won leads.',
   },
   // ── billing/05 lead comments ────────────────────────────────────────
   {

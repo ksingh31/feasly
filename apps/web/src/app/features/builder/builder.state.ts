@@ -93,6 +93,7 @@ export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
   quoted: 0,
   won: 0,
   lost: 0,
+  needsRecording: 0,
 };
 
 const defaults: BuilderStateModel = {
@@ -464,11 +465,22 @@ export class BuilderState {
     const state = ctx.getState();
     const now = new Date().toISOString();
     const leads = state.leads.map((lead) =>
-      lead.id === leadId ? { ...lead, status, statusUpdatedAt: now } : lead,
+      lead.id === leadId
+        ? {
+            ...lead,
+            status,
+            statusUpdatedAt: now,
+            // Mirrors the server's #530 flag until the next load refreshes it.
+            needsRecording: status === 'won' && !lead.hasInvoice,
+          }
+        : lead,
     );
     const summary = { ...EMPTY_SUMMARY };
     for (const lead of leads) {
       summary[lead.status] += 1;
+      if (lead.needsRecording) {
+        summary.needsRecording += 1;
+      }
     }
     summary.total = leads.length;
     ctx.patchState({ leads, summary, updatingLeadId: null, updateError: null });
