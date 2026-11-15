@@ -1,0 +1,33 @@
+@if (actions().length > 0) {
+  <button
+    type="button"
+    class="row-actions__trigger"
+    [cdkMenuTriggerFor]="menu"
+    [attr.aria-label]="label()"
+    [disabled]="disabled()"
+  >
+    <span aria-hidden="true">⋮</span>
+  </button>
+
+  <ng-template #menu>
+    <div class="row-actions__menu" cdkMenu [attr.aria-label]="label()">
+      @for (action of actions(); track action.id) {
+        <button
+          type="button"
+          class="row-actions__item"
+          [class.row-actions__item--danger]="action.tone === 'danger'"
+          cdkMenuItem
+          [cdkMenuItemDisabled]="action.disabled ?? false"
+          [attr.aria-describedby]="hintId(action)"
+          [attr.data-action]="action.id"
+          (cdkMenuItemTriggered)="choose(action)"
+        >
+          <span class="row-actions__label">{{ action.label }}</span>
+          @if (action.hint) {
+            <span class="row-actions__hint" [id]="hintId(action)">{{ action.hint }}</span>
+          }
+        </button>
+      }
+    </div>
+  </ng-template>
+}

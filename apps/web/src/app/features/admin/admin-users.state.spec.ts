@@ -6,8 +6,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { AdminUser } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import {
-  CloseDeactivateAdminUser,
-  CloseDeleteAdminUser,
   CloseEditAdminUser,
   CloseInviteAdminUser,
   DeactivateAdminUser,
@@ -15,8 +13,6 @@ import {
   DismissAdminUsersNotice,
   InviteAdminUser,
   LoadAdminUsers,
-  OpenDeactivateAdminUser,
-  OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
   ReactivateAdminUser,
@@ -193,36 +189,19 @@ describe('AdminUsersState', () => {
     expect(store.selectSnapshot(AdminUsersState.users)[0]?.status).toBe('active');
   });
 
-  it('#473: opens/closes the deactivate confirmation and closes it when the request settles', async () => {
+  it('a failed deactivate is tagged to its row (auth/07)', async () => {
     const load = store.dispatch(new LoadAdminUsers());
     httpMock.expectOne(LIST_URL).flush({ users: [USER_A], total: 1, limit: 50, offset: 0 });
     await load.toPromise();
 
-    // Opening/cancelling never calls the API.
-    await store.dispatch(new OpenDeactivateAdminUser(USER_A.id)).toPromise();
-    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBe(USER_A.id);
-    await store.dispatch(new CloseDeactivateAdminUser()).toPromise();
-    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
-    httpMock.expectNone(() => true);
-
-    // Success closes the confirmation.
-    store.dispatch(new OpenDeactivateAdminUser(USER_A.id));
-    let done = store.dispatch(new DeactivateAdminUser(USER_A.id));
-    httpMock
-      .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_A.id}`) && r.method === 'PATCH')
-      .flush({ ...USER_A, status: 'disabled' });
-    await done.toPromise();
-    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
-
-    // Failure closes it too; the error is tagged to the row.
-    store.dispatch(new OpenDeactivateAdminUser(USER_A.id));
-    done = store.dispatch(new DeactivateAdminUser(USER_A.id));
+    const done = store.dispatch(new DeactivateAdminUser(USER_A.id));
     httpMock
       .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_A.id}`) && r.method === 'PATCH')
       .flush({ message: 'Nope.' }, { status: 409, statusText: 'Conflict' });
     await done.toPromise().catch(() => undefined);
-    expect(store.selectSnapshot(AdminUsersState.deactivatingId)).toBeNull();
     expect(store.selectSnapshot(AdminUsersState.updateErrorUserId)).toBe(USER_A.id);
+    expect(store.selectSnapshot(AdminUsersState.updateError)).toBe('Nope.');
+    expect(store.selectSnapshot(AdminUsersState.updating)).toBe(false);
   });
 
   it('deletes a pending user and removes the row', async () => {
@@ -235,9 +214,6 @@ describe('AdminUsersState', () => {
     });
     await load.toPromise();
 
-    store.dispatch(new OpenDeleteAdminUser(USER_B.id));
-    expect(store.selectSnapshot(AdminUsersState.deletingId)).toBe(USER_B.id);
-
     const done = store.dispatch(new DeleteAdminUser(USER_B.id));
     httpMock
       .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_B.id}`) && r.method === 'DELETE')
@@ -245,16 +221,27 @@ describe('AdminUsersState', () => {
     await done.toPromise();
 
     expect(store.selectSnapshot(AdminUsersState.users)).toEqual([USER_A]);
-    expect(store.selectSnapshot(AdminUsersState.deletingId)).toBeNull();
+    expect(store.selectSnapshot(AdminUsersState.deleting)).toBe(false);
     expect(store.selectSnapshot(AdminUsersState.notice)).toMatchObject({
       kind: 'success',
     });
   });
 
-  it('closes the delete dialog without deleting', () => {
-    store.dispatch(new OpenDeleteAdminUser(USER_B.id));
-    store.dispatch(new CloseDeleteAdminUser());
-    expect(store.selectSnapshot(AdminUsersState.deletingId)).toBeNull();
+  it('a failed delete keeps the row and tags the error to it', async () => {
+    const load = store.dispatch(new LoadAdminUsers());
+    httpMock.expectOne(LIST_URL).flush({ users: [USER_B], total: 1, limit: 50, offset: 0 });
+    await load.toPromise();
+
+    const done = store.dispatch(new DeleteAdminUser(USER_B.id));
+    httpMock
+      .expectOne((r) => r.url.endsWith(`/api/v1/admin/users/${USER_B.id}`) && r.method === 'DELETE')
+      .flush({ message: 'They already signed in.' }, { status: 409, statusText: 'Conflict' });
+    await done.toPromise().catch(() => undefined);
+
+    expect(store.selectSnapshot(AdminUsersState.users)).toEqual([USER_B]);
+    expect(store.selectSnapshot(AdminUsersState.deleting)).toBe(false);
+    expect(store.selectSnapshot(AdminUsersState.updateErrorUserId)).toBe(USER_B.id);
+    expect(store.selectSnapshot(AdminUsersState.updateError)).toBe('They already signed in.');
   });
 
   it('resends an invite and posts a notice', async () => {

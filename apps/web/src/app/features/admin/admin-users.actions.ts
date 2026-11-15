@@ -47,20 +47,9 @@ export class UpdateAdminUser {
 }
 
 /**
- * Open the deactivate confirmation for a user (#473) — deactivation signs
- * them out everywhere, so it is never a one-click action.
+ * Deactivate a user (their sessions are revoked immediately). The page
+ * confirms through the shared ConfirmDialog before dispatching (#473, #542).
  */
-export class OpenDeactivateAdminUser {
-  static readonly type = '[AdminUsers] Open deactivate';
-  constructor(readonly id: string) {}
-}
-
-/** Close the deactivate confirmation without changing the user. */
-export class CloseDeactivateAdminUser {
-  static readonly type = '[AdminUsers] Close deactivate';
-}
-
-/** Convenience wrapper: deactivate a user (their sessions are revoked immediately). */
 export class DeactivateAdminUser {
   static readonly type = '[AdminUsers] Deactivate';
   constructor(readonly id: string) {}
@@ -72,18 +61,10 @@ export class ReactivateAdminUser {
   constructor(readonly id: string) {}
 }
 
-/** Open the delete confirmation (delete is only allowed pre-acceptance). */
-export class OpenDeleteAdminUser {
-  static readonly type = '[AdminUsers] Open delete';
-  constructor(readonly id: string) {}
-}
-
-/** Close the delete confirmation. */
-export class CloseDeleteAdminUser {
-  static readonly type = '[AdminUsers] Close delete';
-}
-
-/** Hard-delete a never-accepted user. Audit-logged server-side. */
+/**
+ * Hard-delete a never-accepted user. Audit-logged server-side. The page
+ * confirms through the shared type-to-confirm ConfirmDialog first (#542).
+ */
 export class DeleteAdminUser {
   static readonly type = '[AdminUsers] Delete';
   constructor(readonly id: string) {}

@@ -1,0 +1,114 @@
+// RowActions — portal UI kit §3. Tokens only (colours live in styles.scss).
+// The menu renders in a CDK overlay, but it is created from this
+// component's template, so emulated encapsulation still applies.
+
+:host {
+  display: inline-flex;
+}
+
+.row-actions__trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row-actions__trigger:hover:not(:disabled),
+.row-actions__trigger[aria-expanded='true'] {
+  border-color: var(--border);
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+.row-actions__trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.row-actions__trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Phones / touch: ≥44px hit area without changing the visual size. */
+@media (max-width: 767px), (pointer: coarse) {
+  .row-actions__trigger::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.row-actions__menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow-overlay);
+}
+
+.row-actions__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: var(--type-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-actions__item:hover:not([aria-disabled='true']),
+.row-actions__item:focus-visible {
+  outline: none;
+  background: var(--accent-bg);
+}
+
+.row-actions__item--danger {
+  color: var(--danger);
+}
+
+.row-actions__item[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.row-actions__label {
+  font-weight: 600;
+}
+
+.row-actions__hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .row-actions__item {
+    min-height: 44px;
+  }
+}
