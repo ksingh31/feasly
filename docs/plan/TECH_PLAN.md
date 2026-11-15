@@ -1261,7 +1261,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | Method | Path | Auth | Permissions | Rate limit | Status | Summary |
 |---|---|---|---|---|---|---|
 | GET | `/api/health` | none | — | 100/min per IP | live | Liveness + dependency checks (2s DB timeout). |
-| POST | `/api/v1/estimate` | none | — | 20/hr per IP · 20/hr per tenant (embed) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
+| POST | `/api/v1/estimate` | none | — | 20/hr per IP · 600/hr per tenant (embed; #737, 10× launch target) | live | Run a cost estimate (deterministic engine). Public for the web funnel; agent/MCP callers send an API key. |
 | POST | `/api/v1/estimates/preview` | none | — | 20/hr per IP | live | Pre-gate estimate preview (same deterministic engine as /estimate; real figures — UI renders them blurred pre-gate — rows empty). |
 | POST | `/api/v1/leads` | none | — | 10/min per IP (dedicated lead limiter) | live | Submit a lead (email required, phone optional). Sends the magic-link email. 90-day dedupe window returns the existing lead. |
 | GET | `/api/v1/magic-link/verify` | magic-token | — | 100/min per IP | live | Verify a magic-link token (?token=). Resolves to the newest estimate for the email + property. Token IS the credential. |

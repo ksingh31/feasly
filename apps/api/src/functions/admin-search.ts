@@ -73,7 +73,7 @@ export async function adminSearchHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.adminSearchPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     async () => {
       await middleware.enforceRoutePermissions(
         app.permissionGuard,

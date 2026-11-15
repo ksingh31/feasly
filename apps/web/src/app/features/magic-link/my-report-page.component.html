@@ -1,0 +1,40 @@
+<app-site-nav />
+<main class="magic-link" id="main-content" tabindex="-1">
+  <div class="card" aria-live="polite">
+    @if (status() === 'sent') {
+      <h1>{{ copy.sentHeading }}</h1>
+      <p class="body" role="status">{{ copy.sentBody }}</p>
+      <a class="text-button" routerLink="/">{{ copy.homeCta }}</a>
+    } @else {
+      <h1>{{ copy.heading }}</h1>
+      <p class="body">{{ copy.body }}</p>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label class="field">
+          <span>{{ copy.emailLabel }}</span>
+          <input
+            type="email"
+            formControlName="email"
+            [placeholder]="copy.emailPlaceholder"
+            autocomplete="email"
+            inputmode="email"
+            [attr.aria-invalid]="emailInvalid"
+          />
+        </label>
+        @if (emailInvalid) {
+          <p class="field-error" role="alert">{{ copy.emailError }}</p>
+        }
+        @if (status() === 'rate-limited') {
+          <p class="field-error" role="alert">{{ copy.rateLimitedBody }}</p>
+        }
+        @if (status() === 'error') {
+          <p class="field-error" role="alert">{{ copy.errorBody }}</p>
+        }
+        <button type="submit" class="cta" [disabled]="status() === 'sending'">
+          {{ status() === 'sending' ? copy.sendingLabel : copy.cta }}
+        </button>
+      </form>
+      <a class="text-button" routerLink="/">{{ copy.homeCta }}</a>
+    }
+  </div>
+</main>
+<app-site-footer />

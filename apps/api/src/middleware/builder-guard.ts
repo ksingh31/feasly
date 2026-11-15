@@ -16,6 +16,7 @@
  */
 import { ErrorCodes, HttpError } from './errors';
 import {
+  BUILDER_SESSION_COOKIE,
   extractSessionToken,
   parseCookieValue,
   type HeaderRecord,
@@ -48,7 +49,7 @@ export interface SessionBuilderGuardDeps {
 }
 
 /** The httpOnly session cookie name — must match the verify endpoint. */
-export const BUILDER_SESSION_COOKIE = 'feasly_builder_session';
+export { BUILDER_SESSION_COOKIE };
 
 /**
  * Extract the session token from the `Cookie` header. Returns null when

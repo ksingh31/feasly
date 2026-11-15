@@ -60,7 +60,7 @@ export async function callbacksHandler(
   // The body is never logged — it carries the report token (Bearer <redacted>)
   // plus callback PII (name/phone).
   const result = await app.leadPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.callbackRoute.handle(req.body),
   );
 

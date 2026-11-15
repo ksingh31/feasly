@@ -8,7 +8,7 @@ param workspaceName string
 @description('Azure region')
 param location string = 'canadacentral'
 
-@description('Log Analytics daily ingestion cap in GB (#733). Owner decision 2026-11-15: 0.1 GB/day. When reached, ingestion pauses until the next UTC day (the app keeps serving — only telemetry stops) and the `<prefix>-law-daily-cap` alert fires. Fractional values are allowed (minimum 0.023).')
+@description('Log Analytics daily ingestion cap in GB (#733). Owner decision 2026-11-15: 0.1 GB/day. When reached, ingestion pauses until the next UTC day (the app keeps serving — only telemetry stops); the nightly ops review detects it (no paid alert rule). Fractional values are allowed (minimum 0.023).')
 param dailyQuotaGb string = '0.1'
 
 resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {

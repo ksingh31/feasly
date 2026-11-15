@@ -116,7 +116,7 @@ approval). Each prod deploy needs Karan's approval — no standing auto-promote.
   secrets; it must also hold **Contributor** on the resource group (runbook).
 - **Cost guardrails (#733):** Function App `maximumInstanceCount` = 10
   (`functionMaximumInstanceCount`), Log Analytics daily cap 0.1 GB
-  (`logAnalyticsDailyQuotaGb`) with the `<prefix>-law-daily-cap` alert, and
+  (`logAnalyticsDailyQuotaGb`, no paid alert rule; the nightly ops review checks it), and
   `modules/subscription-budget.bicep` (50/80/100 % actual + 100 % forecast on
   `feasly-monthly-cap`). The budget module is applied once by a subscription
   Owner, not by CD (#637). Expected bill, verification and kill-switch order:
