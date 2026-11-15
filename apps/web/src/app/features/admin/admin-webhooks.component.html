@@ -1,0 +1,93 @@
+<div class="webhooks-page">
+  <ui-page-header heading="Webhooks" description="Stripe webhook delivery over the trailing 24 hours. Read-only.">
+    <div uiPageHeaderActions class="webhooks-page__header-actions">
+      @if (flag(); as f) {
+        <ui-status-chip domain="opsFlag" [status]="f" [dot]="true" />
+      }
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        data-testid="refresh-webhooks"
+        [loading]="loadStatus() === 'loading'"
+        (click)="refresh()"
+      >
+        Refresh
+      </button>
+    </div>
+  </ui-page-header>
+
+  @if (loadStatus() === 'loading' && !health()) {
+    <ui-skeleton variant="block" label="Loading webhook health" />
+  } @else if (loadStatus() === 'error' && !health()) {
+    <ui-error-state heading="Couldn't load webhook health" [message]="error()" retryLabel="Retry" (retry)="refresh()" />
+  }
+
+  @if (health(); as h) {
+    @if (!h.stripe.configured) {
+      <div class="webhooks-page__alert webhooks-page__alert--info" role="status">
+        <p>Stripe isn't configured, so billing is dormant and no webhooks arrive.</p>
+      </div>
+    }
+
+    @if (webhooks(); as w) {
+      @if (w.modelMismatch24h > 0) {
+        <div class="webhooks-page__alert webhooks-page__alert--danger" role="alert">
+          <p>
+            <strong>{{ w.modelMismatch24h | kitCount }} model mismatch{{ w.modelMismatch24h === 1 ? '' : 'es' }}</strong>
+            in the last 24 hours — events for the inactive billing model were logged and skipped.
+          </p>
+        </div>
+      }
+      @if (w.unhandled24h > 0) {
+        <div class="webhooks-page__alert webhooks-page__alert--warning" role="alert">
+          <p>
+            <strong>{{ w.unhandled24h | kitCount }} unhandled event{{ w.unhandled24h === 1 ? '' : 's' }}</strong>
+            in the last 24 hours — logged without a handler. Check the event types below.
+          </p>
+        </div>
+      }
+
+      <ui-kpi-grid>
+        <ui-kpi-tile
+          label="Events received"
+          [value]="w.received24h | kitCount"
+          [sub]="w.lastReceivedAt ? 'Last ' + (w.lastReceivedAt | kitRelative: now()) : 'None in the last 24h'"
+        />
+        <ui-kpi-tile
+          label="Unhandled events"
+          [value]="w.unhandled24h | kitCount"
+          [tone]="w.unhandled24h > 0 ? 'warning' : undefined"
+        />
+        <ui-kpi-tile
+          label="Model mismatches"
+          [value]="w.modelMismatch24h | kitCount"
+          [tone]="w.modelMismatch24h > 0 ? 'danger' : undefined"
+        />
+      </ui-kpi-grid>
+
+      <section class="webhooks-page__card" aria-labelledby="webhooks-types-heading">
+        <h2 id="webhooks-types-heading" class="webhooks-page__card-title">Event types · trailing 24h</h2>
+        <ui-data-table
+          label="Webhook events by type, trailing 24 hours"
+          [rows]="typeRows()"
+          [columns]="columns"
+          [rowId]="rowId"
+          emptyHeading="No webhook events in the last 24 hours"
+          compact
+        >
+          <ng-template uiCell="type" let-row>
+            <code class="webhooks-page__type">{{ row.type }}</code>
+          </ng-template>
+        </ui-data-table>
+      </section>
+    }
+
+    <p class="webhooks-page__generated">
+      Generated {{ h.generatedAt | kitDateTime }}
+      @if (h.webhooks.lastReceivedAt) {
+        · Last event {{ h.webhooks.lastReceivedAt | kitDateTime }}
+      }
+    </p>
+  }
+</div>

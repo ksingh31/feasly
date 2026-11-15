@@ -75,8 +75,9 @@
                       <a
                         class="contact-link contact-link--primary"
                         data-testid="needs-record"
-                        [routerLink]="['/builder/record-contract']"
-                        [queryParams]="{ lead: item.id }"
+                        [routerLink]="[]"
+                        [queryParams]="{ open: item.id }"
+                        queryParamsHandling="merge"
                         >{{ home.recordContractCta }}</a
                       >
                     } @else {

@@ -21,6 +21,10 @@ import { BuilderState } from './builder.state';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import { BuilderCommentsApiService } from './builder-comments-api.service';
 import { LoadBuilderLeads } from './builder.actions';
+import { BuilderBillingState } from './builder-billing.state';
+import { BuilderReportContractState } from './builder-report-contract.state';
+import { BuilderBillingApiService } from './builder-billing-api.service';
+import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 
 const COPY = DEFAULT_BUILDER_COPY;
 const T = COPY.leadDrawer;
@@ -98,6 +102,24 @@ function configure(options: SetupOptions = {}) {
   const toasts = {
     show: vi.fn((_options: UiToastOptions) => ({ id: 1, dismissed: of('manual' as const), dismiss: vi.fn() })),
   };
+  const billingApi = {
+    getOverview: vi.fn(() =>
+      of({
+        planType: 'commission' as const,
+        commissionRatePercent: 1,
+        currency: 'CAD',
+        outstandingCents: 0,
+        outstandingCount: 0,
+        nextCharge: null,
+        failedCount: 0,
+        failedInvoices: [],
+        disputedCount: 0,
+        card: { hasCard: true, brand: 'visa', last4: '4242' },
+      }),
+    ),
+    getDefaultPaymentMethod: vi.fn(() => of({ defaultMethod: 'card' as const })),
+    reportContract: vi.fn(),
+  };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -105,7 +127,9 @@ function configure(options: SetupOptions = {}) {
       { provide: DIALOG_DATA, useValue: { leadId: current.id } },
       provideRouter([{ path: '**', children: [] }]),
       provideLocationMocks(),
-      provideStore([BuilderState]),
+      provideStore([BuilderState, BuilderBillingState, BuilderReportContractState]),
+      { provide: BuilderBillingApiService, useValue: billingApi },
+      { provide: BuilderInvoicesApiService, useValue: { getInvoice: vi.fn() } },
       { provide: BuilderLeadsApiService, useValue: leadsApi },
       { provide: BuilderCommentsApiService, useValue: commentsApi },
       { provide: UiToastService, useValue: toasts },
@@ -238,19 +262,19 @@ describe('BuilderLeadDrawerComponent (#528)', () => {
     expect(el.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('Won without a contract: record-contract panel with the CTA for admins', async () => {
+  it('Won without a contract: admins record it inline in the drawer (#529)', async () => {
     const { el } = await setup({ lead: { status: 'won', needsRecording: true } });
     const panel = el.querySelector('[data-testid="drawer-won-panel"]')!;
     expect(panel.textContent).toContain(T.wonPanelHeading);
-    expect(panel.querySelector('[data-testid="drawer-record"]')?.getAttribute('href')).toBe(
-      '/builder/record-contract?lead=lead-a',
-    );
+    expect(panel.querySelector('app-builder-record-contract-panel [data-testid="record-value"]')).not.toBeNull();
+    expect(panel.querySelector('a[href*="record-contract"]')).toBeNull();
+    await until(() => panel.textContent!.includes('Your commission (1%)'), 'configured rate preview');
   });
 
   it('Won without a contract, member: the admin note instead of the CTA', async () => {
     const { el } = await setup({ lead: { status: 'won', needsRecording: true }, role: 'builder_member' });
     const panel = el.querySelector('[data-testid="drawer-won-panel"]')!;
-    expect(panel.querySelector('[data-testid="drawer-record"]')).toBeNull();
+    expect(panel.querySelector('app-builder-record-contract-panel')).toBeNull();
     expect(panel.textContent).toContain(COPY.leadsHome.recordContractMemberNote);
   });
 

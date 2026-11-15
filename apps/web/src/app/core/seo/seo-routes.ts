@@ -177,6 +177,7 @@ const ROUTES: SeoRouteConfig[] = [
   },
   { pattern: 'admin/api-keys', titleKey: 'adminApiKeysTitle', descriptionKey: 'adminApiKeys', noindex: true },
   { pattern: 'admin/funnels', titleKey: 'adminFunnelsTitle', descriptionKey: 'adminFunnels', noindex: true },
+  { pattern: 'admin/webhooks', titleKey: 'adminWebhooksTitle', descriptionKey: 'adminWebhooks', noindex: true },
   { pattern: 'admin/login', titleKey: 'adminLoginTitle', descriptionKey: 'adminLogin', noindex: true },
   {
     pattern: 'admin/auth/callback',

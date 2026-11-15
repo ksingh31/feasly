@@ -41,6 +41,12 @@ export type ApiKeyStatusKey = 'active' | 'revoked';
 export type DisputeSlaKey = 'on_track' | 'due_today' | 'overdue';
 /** Lead-score heat pill (builder review: Hot ≥85, Warm 65–84, Cool <65). */
 export type LeadHeatKey = 'hot' | 'warm' | 'cool';
+/** Calibration import lifecycle (`CalibrationImportHistoryItem.status`). */
+export type CalibrationImportKey = 'frozen' | 'draft' | 'superseded';
+/** Ops worker health (Sheets sync); `not_started` = the worker never ran. */
+export type SyncHealthKey = 'healthy' | 'lagging' | 'failing' | 'not_started';
+/** Ops attention flag: webhooks, calibration facts. Callers pass `label`. */
+export type OpsFlagKey = 'ok' | 'attention' | 'problem';
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -96,6 +102,25 @@ const LEAD_HEAT: Dictionary<LeadHeatKey> = {
 };
 
 /** Every domain the dictionary covers, keyed by domain name. */
+const CALIBRATION_IMPORT: Dictionary<CalibrationImportKey> = {
+  frozen: { label: 'Frozen', tone: 'success' },
+  draft: { label: 'Draft', tone: 'warning' },
+  superseded: { label: 'Superseded', tone: 'neutral' },
+};
+
+const SYNC_HEALTH: Dictionary<SyncHealthKey> = {
+  healthy: { label: 'Healthy', tone: 'success' },
+  lagging: { label: 'Lagging', tone: 'warning' },
+  failing: { label: 'Failing', tone: 'danger' },
+  not_started: { label: 'Not started', tone: 'neutral' },
+};
+
+const OPS_FLAG: Dictionary<OpsFlagKey> = {
+  ok: { label: 'All clear', tone: 'success' },
+  attention: { label: 'Needs attention', tone: 'warning' },
+  problem: { label: 'Problem', tone: 'danger' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -104,6 +129,9 @@ export const STATUS_DICTIONARY = {
   apiKey: API_KEY,
   disputeSla: DISPUTE_SLA,
   leadHeat: LEAD_HEAT,
+  calibrationImport: CALIBRATION_IMPORT,
+  syncHealth: SYNC_HEALTH,
+  opsFlag: OPS_FLAG,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

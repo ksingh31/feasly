@@ -42,6 +42,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   billing: {
     stripePublishableKey: '',
     questionInvoiceHref: '',
+    chargeDelayDays: 7,
   },
   propertyData: {
     source: 'live',
@@ -777,6 +778,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminApiKeys: 'Feasly admin API key management.',
       adminFunnelsTitle: 'Funnels — Feasly Admin',
       adminFunnels: 'Feasly admin funnel analytics.',
+      adminWebhooksTitle: 'Webhooks — Feasly Admin',
+      adminWebhooks: 'Feasly admin Stripe webhook health.',
       adminLoginTitle: 'Admin sign in — Feasly',
       adminLogin: 'Feasly admin sign in.',
       adminCallbackTitle: 'Completing sign in — Feasly',
@@ -1231,6 +1234,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           calibration: 'Calibration',
           sheets: 'Sheets sync',
           funnels: 'Funnels',
+          webhooks: 'Webhooks',
         },
         badgeSuffix: 'open',
         openMenu: 'Open menu',
@@ -1488,6 +1492,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         entryStep: 'Entry step',
         conversionPrefix: 'Converted from previous step:',
         noConversion: '—',
+        presetsLabel: 'Date range',
+        presets: [
+          { label: '7 days', days: 7 },
+          { label: '30 days', days: 30 },
+          { label: '90 days', days: 90 },
+        ],
+        presetAll: 'All time',
+        overallConversion: 'Overall conversion',
+        overallConversionSub: '{from} → {to}',
+        dropOff: '{count} dropped off',
+        stepsLabel: 'Funnel steps',
       },
       auth: {
         loginExpired: 'Your admin session expired. Sign in again.',
