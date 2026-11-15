@@ -50,18 +50,10 @@ describe('#733 Log Analytics daily cap', () => {
     expect(main).toMatch(/dailyQuotaGb: logAnalyticsDailyQuotaGb/);
   });
 
-  it('an alert pages ops when the cap is reached, counting raw rows', () => {
+  it('adds no paid scheduled-query alert for the daily cap (free-tier rule)', () => {
     const alerts = bicep('modules/alerts.bicep');
-    const m = alerts.match(/resource dailyCapAlert [^\n]*\n([\s\S]*?)\n\}/);
-    expect(m, 'dailyCapAlert resource present').toBeTruthy();
-    const body = m![1];
-    expect(body).toContain("name: '${namePrefix}-law-daily-cap'");
-    expect(body).toMatch(/_LogOperation \| .*Category =~ "Ingestion" \| where Detail contains "OverQuota"'/);
-    // Count aggregation counts result rows; `summarize count()` always
-    // yields one row and would make the rule fire on every evaluation.
-    expect(body).not.toContain('summarize');
-    expect(body).toMatch(/operator: 'GreaterThan'\s*threshold: 0/);
-    expect(body).toContain('actionGroup.id');
+    expect(alerts).not.toMatch(/resource dailyCapAlert /);
+    expect(alerts).not.toContain('-law-daily-cap');
   });
 });
 

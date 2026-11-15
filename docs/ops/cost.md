@@ -11,7 +11,7 @@ spend. The hard limits are the guardrails below.
 |---|---|---|---|
 | Function App max instances (Flex Consumption) | **10** (was 100) | `modules/function-app.bicep` `maximumInstanceCount`, from `main.bicep` `functionMaximumInstanceCount` | 2026-11-15 |
 | Log Analytics daily ingestion cap | **0.1 GB/day** (was unlimited) | `modules/monitoring.bicep` `workspaceCapping.dailyQuotaGb`, from `main.bicep` `logAnalyticsDailyQuotaGb` | 2026-11-15 |
-| Daily-cap reached alert | any `OverQuota` event → ops email | `modules/alerts.bicep` `<prefix>-law-daily-cap` | — |
+| Daily-cap reached | nightly ops review queries `_LogOperation` for `OverQuota` (no paid alert rule) | `agent-ops.yml` review | 2026-11-15 |
 | Trace volume | see "Log volume" below | `apps/api/host.json` | — |
 | LLM / email daily ceilings | owned by #750 | — | pending (#750) |
 
@@ -20,9 +20,9 @@ What happens when a limit is hit:
 - **Instance cap:** the Function App stops adding instances; under a spike, extra
   requests queue or get HTTP 429/503 from the platform. The app stays up.
 - **Log Analytics cap:** ingestion pauses until 00:00 UTC. **The API keeps serving**;
-  only telemetry stops (so the other log alerts go quiet until reset). The
-  `law-daily-cap` alert fires; operational records (`_LogOperation`) are exempt
-  from the cap, which is how the alert still sees it.
+  only telemetry stops (so the other log alerts go quiet until reset). There is
+  no paid alert rule for this; the nightly ops review queries `_LogOperation`
+  (exempt from the cap) for `OverQuota` and files an `ops` issue.
 
 ## Log volume (host.json)
 
@@ -119,8 +119,8 @@ az resource show -g rg-feasly-dev --resource-type Microsoft.Web/sites \
   -n <feasly-dev-api-…> --query properties.functionAppConfig.scaleAndConcurrency
 az monitor log-analytics workspace show -g rg-feasly-dev -n feasly-dev-law \
   --query workspaceCapping
-az monitor scheduled-query show -g rg-feasly-dev -n feasly-dev-law-daily-cap \
-  --query "{enabled:enabled, query:criteria.allOf[0].query}"
+az monitor log-analytics query -w <workspace-id> \
+  --analytics-query '_LogOperation | where TimeGenerated > ago(1d) | where Category =~ "Ingestion" | where Detail contains "OverQuota"'
 ```
 
 ## Monthly review
