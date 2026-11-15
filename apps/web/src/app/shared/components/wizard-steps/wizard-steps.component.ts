@@ -3,9 +3,9 @@ import { ConfigService } from '../../../core/config';
 import type { WizardStep } from '../../../features/wizard';
 
 /**
- * Wizard step indicator (shared): 1 Address → 2 Scope → 3 Details.
- * Labels come from config copy (no-hardcode rule). Scaffolding for the
- * wizard shell — WEB-005/WEB-006 flesh out the steps.
+ * Wizard step indicator (shared): 1 Address → 2 Your home → 3 Estimate.
+ * Three honest steps matching the screens (#507): landing = Address, scope /
+ * reno-scope = Your home, preview + gate = Estimate. Labels from config copy.
  */
 @Component({
   selector: 'app-wizard-steps',
@@ -19,6 +19,6 @@ export class WizardStepsComponent {
   protected readonly steps = [
     { n: 1, label: this.copy.stepAddress },
     { n: 2, label: this.copy.stepScope },
-    { n: 3, label: this.copy.stepDetails },
+    { n: 3, label: this.copy.stepEstimate },
   ];
 }

@@ -65,8 +65,8 @@
     },
     "wizard": {
       "stepAddress": "Address",
-      "stepScope": "Scope",
-      "stepDetails": "Details",
+      "stepScope": "Your home",
+      "stepEstimate": "Estimate",
       "scopeHeading": "Configure your build scope",
       "scopeSqftLabel": "Living area",
       "scopeSqftHint": "Approximate above-grade living area. Most Calgary new home builds land between 1,800 and 3,500 sq ft — a rough number is fine.",
@@ -110,14 +110,7 @@
       "renoSelectedNote": "You will describe your renovation — type, area, and finishes — on the next step.",
       "renoScopePendingTitle": "Renovation scope",
       "renoScopePendingBody": "Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.",
-      "renoScopeBackLabel": "← Back to project type",
-      "detailsLivingArea": "Living area",
-      "detailsFinishTier": "Finish tier",
-      "detailsGarage": "Garage",
-      "detailsBasement": "Basement",
-      "detailsPreviewCta": "See My Preview →",
-      "detailsEmpty": "No address selected yet.",
-      "detailsEmptyCta": "Find your address to start →"
+      "renoScopeBackLabel": "← Back to project type"
     },
     "gate": {
       "heading": "Where should we send your estimate?",
@@ -191,8 +184,6 @@
       "scope": "Set your build size and finish tier for a Calgary new home build estimate — step 2 of 3.",
       "renoScopeTitle": "Feasly — Describe your renovation",
       "renoScope": "Describe your Calgary renovation — type, area, and finishes — step 2 of 3.",
-      "detailsTitle": "Feasly — Configure your build details",
-      "details": "Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.",
       "gateTitle": "Feasly — Get your free estimate report",
       "gate": "Enter your details to see your personalized Calgary new home build estimate report.",
       "analyzingTitle": "Feasly — Building your estimate",
