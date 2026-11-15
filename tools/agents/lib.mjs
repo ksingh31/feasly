@@ -223,6 +223,35 @@ export function shouldReleaseBacklog({ openBugs, backlogCount }) {
   return { release: backlogCount > 0 && blocking.length === 0, blockingBugs: blocking };
 }
 
+/** Checks that test code (a red one never gets re-run by the merger). */
+export const CODE_CHECKS = new Set(['build', 'lighthouse', 'dependency-audit', 'secrets-scan']);
+
+/**
+ * Merger decision for one PR (owner rule 2026-11-13: merge only when EVERY check is green).
+ * @param {{author:string, isDraft:boolean, labels:string[], verdict:string, mergeState:string,
+ *          checks:{name:string,bucket:string}[]}} pr
+ * @returns {{action:'skip'|'wait'|'rerun'|'update'|'merge', reason:string}}
+ */
+export function decideMerge(pr) {
+  if (pr.isDraft) return { action: 'skip', reason: 'draft' };
+  if (pr.labels.includes(LABELS.needsKaran)) return { action: 'skip', reason: 'needs:karan' };
+  const checks = pr.checks.filter((c) => c.bucket !== 'skipping');
+  if (checks.length === 0) return { action: 'wait', reason: 'no checks yet' };
+  if (checks.some((c) => c.bucket === 'pending')) return { action: 'wait', reason: 'checks running' };
+  const codeRed = checks.filter((c) => c.bucket === 'fail' && CODE_CHECKS.has(c.name)).map((c) => c.name);
+  if (codeRed.length) return { action: 'skip', reason: `code check red (${codeRed.join(', ')}) — CI triage/fix agent` };
+  const envRed = checks.filter((c) => c.bucket === 'fail' || c.bucket === 'cancel').map((c) => c.name);
+  if (envRed.length) return { action: 'rerun', reason: `environment checks red (${envRed.join(', ')})` };
+  const approved =
+    pr.author === 'ksingh31' || pr.verdict === 'APPROVE' || pr.labels.includes('agent:approved');
+  if (!approved) return { action: 'skip', reason: pr.verdict ? `verdict ${pr.verdict}` : 'awaiting review' };
+  if (pr.mergeState === 'BEHIND') return { action: 'update', reason: 'green but behind main' };
+  if (pr.mergeState === 'CLEAN' || pr.mergeState === 'HAS_HOOKS' || pr.mergeState === 'UNSTABLE') {
+    return { action: 'merge', reason: 'every check green and approved' };
+  }
+  return { action: 'skip', reason: `merge state ${pr.mergeState}` };
+}
+
 export function sensitiveFiles(paths) {
   return paths.filter((p) => SENSITIVE_PATHS.some((re) => re.test(p)));
 }

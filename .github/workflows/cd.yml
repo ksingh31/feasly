@@ -25,7 +25,7 @@ on:
         description: "Environment to deploy"
         required: true
         type: choice
-        options: [staging, prod]
+        options: [dev, staging, prod]
 
 # Avoid overlapping deploys: one CD run at a time, never cancel an in-flight
 # deploy (a cancelled half-deploy is worse than a queued one).
@@ -111,7 +111,8 @@ jobs:
   # ---------------------------------------------------------------------------
   deploy-dev:
     name: deploy-dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # push to main, or dispatched by Agent · Merge after a GITHUB_TOKEN merge (which fires no push event)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'dev'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

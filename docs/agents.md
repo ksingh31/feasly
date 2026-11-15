@@ -32,6 +32,7 @@ Ops (04:00 Calgary): read-only Azure health, timers, cost, Bicep drift → ops i
 | `agent-fix.yml` | review REQUEST_CHANGES, CI red > 12h | dev role · Opus | commits on the PR branch |
 | `agent-qa.yml` | CD success on main | qa-tester · Sonnet + Playwright MCP | `qa:passed` / reopen + `qa:failed`, new bugs |
 | `agent-architect.yml` | 13:00 + 01:00 UTC | watchdog script + architect · Fable | requeues, splits, digest issue |
+| `agent-merge.yml` | every 10 min + when CI/Lighthouse/CD/Review finish | script | merges approved PRs only when **every** check is green; updates one stale branch per run; re-runs red env checks (≤3); then dispatches CI + dev deploy on main |
 | `agent-ci-triage.yml` | any failed CI / Lighthouse run | script | stale PR → update/`@dependabot rebase`; agent/Dependabot PR → fix round; main → "main is red" issue |
 | `agent-ops.yml` | 11:00 UTC | devops + sre · Opus, Azure OIDC read-only | `ops` issues, digest comment |
 

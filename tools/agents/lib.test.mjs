@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
+  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, decideMerge, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -132,6 +132,21 @@ test('backlog waits until every non-parked bug is closed', () => {
     { release: false, blockingBugs: [1] });
   assert.equal(shouldReleaseBacklog({ openBugs: [issue(2, ['bug', 'needs:karan'])], backlogCount: 5 }).release, true);
   assert.equal(shouldReleaseBacklog({ openBugs: [], backlogCount: 0 }).release, false);
+});
+
+test('merger: only every-check-green + approved merges', () => {
+  const base = { author: 'claude[bot]', isDraft: false, labels: ['agent:pr'], verdict: 'APPROVE', mergeState: 'CLEAN',
+    checks: [{ name: 'build', bucket: 'pass' }, { name: 'preview (SWA)', bucket: 'pass' }, { name: 'deploy-dev', bucket: 'skipping' }] };
+  assert.equal(decideMerge(base).action, 'merge');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'pending' }] }).action, 'wait');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'fail' }] }).action, 'skip');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'pass' }, { name: 'preview (SWA)', bucket: 'fail' }] }).action, 'rerun');
+  assert.equal(decideMerge({ ...base, verdict: 'REQUEST_CHANGES' }).action, 'skip');
+  assert.equal(decideMerge({ ...base, verdict: '' }).action, 'skip');
+  assert.equal(decideMerge({ ...base, author: 'ksingh31', verdict: '' }).action, 'merge');
+  assert.equal(decideMerge({ ...base, mergeState: 'BEHIND' }).action, 'update');
+  assert.equal(decideMerge({ ...base, labels: ['agent:pr', 'needs:karan'] }).action, 'skip');
+  assert.equal(decideMerge({ ...base, mergeState: 'DIRTY' }).action, 'skip');
 });
 
 test('sensitive paths hold auto-merge', () => {
