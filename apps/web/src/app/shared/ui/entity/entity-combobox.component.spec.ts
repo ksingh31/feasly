@@ -209,6 +209,21 @@ describe('EntityComboboxComponent', () => {
     expect(host.control.value).toBe('b-222');
   });
 
+  it('server search: options swapped after typing, Enter picks the first new option', () => {
+    const host = setup();
+    host.filterLocally.set(false);
+    host.options.set([]);
+    fixture.detectChanges();
+    type('cra');
+    expect(input().hasAttribute('aria-activedescendant')).toBe(false);
+
+    host.options.set([OPTIONS[2], OPTIONS[0]]);
+    fixture.detectChanges();
+    expect(activeLabel()).toBe('Crafted Infill Co.');
+    key('Enter');
+    expect(host.control.value).toBe('b-333');
+  });
+
   it('never shows a raw id for an unknown value', () => {
     const host = setup();
     host.control.setValue('b-999');

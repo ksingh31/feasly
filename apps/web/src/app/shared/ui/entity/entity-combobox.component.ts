@@ -4,8 +4,10 @@ import {
   computed,
   forwardRef,
   input,
+  linkedSignal,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { type EntityOption, filterEntityOptions } from './entity-option';
@@ -62,7 +64,6 @@ export class EntityComboboxComponent implements ControlValueAccessor {
   protected readonly errorId = `${this.uid}-error`;
 
   protected readonly open = signal(false);
-  protected readonly activeIndex = signal(-1);
   protected readonly disabled = signal(false);
   private readonly value = signal<string | null>(null);
   /** Last picked option, so the label survives the host swapping `options`. */
@@ -102,6 +103,17 @@ export class EntityComboboxComponent implements ControlValueAccessor {
     return this.filterLocally() && this.editing()
       ? filterEntityOptions(this.options(), this.query())
       : [...this.options()];
+  });
+
+  /**
+   * Active option. Re-derived whenever the visible options change (typing, or
+   * the host swapping `options` / `loading` after a server search), so it never
+   * points at a stale row: first option when the list is open, else none.
+   * Keyboard navigation and openList() still set it directly.
+   */
+  protected readonly activeIndex = linkedSignal<readonly EntityOption[], number>({
+    source: this.shown,
+    computation: (shown) => (untracked(this.open) && shown.length > 0 ? 0 : -1),
   });
 
   protected readonly activeId = computed(() => {
