@@ -5,7 +5,8 @@
  * reopened, status reset, history row, audit rows for both tenants),
  * unassign (A→null), every blocking invoice status (409 LEAD_HAS_INVOICE
  * naming the invoice, nothing moved), a void invoice not blocking, a
- * recorded contract without an invoice blocking, no-op reassignment, 404s,
+ * recorded contract without an invoice blocking, a contract reported for
+ * the old builder racing the move (409, nothing moved), no-op reassignment, 404s,
  * and the "Reassigned by Feasly" list for the old builder.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -26,6 +27,7 @@ import {
   createLeadAssignmentService,
   type LeadAssignmentService,
 } from '../src/services/lead-assignment.service';
+import { createAttributionService } from '../src/services/billing/attribution.service';
 import { createTestDb, type TestDb } from './pglite-db';
 
 const NOW = new Date('2026-11-15T12:00:00.000Z');
@@ -286,6 +288,109 @@ describe('lead assignment (#721)', () => {
       code: ErrorCodes.CONFLICT,
     });
     expect((await leadRow(leadId)).builderId).toBe(builderA.id);
+  });
+
+  it('a contract reported for A after the move loses with 409 (attribution closed under lock)', async () => {
+    const leadId = await seedLead({ builder: builderA, status: 'won' });
+    const intro = await introduce(leadId, builderA.tenantKey);
+    await service.assignLead(leadId, builderB.id, ADMIN);
+    const attribution = createAttributionService({
+      db: testDb.db,
+      billing: {
+        model: 'commission',
+        commissionRate: 0.01,
+        attributionWindowDays: 365,
+        reportingSlaDays: 14,
+        flatPlanName: 'Builder Standard',
+        flatMonthlyCents: 30_000,
+        flatCurrency: 'CAD',
+        stripeSecretKey: undefined,
+        stripeWebhookSecret: undefined,
+        stripeFlatPriceId: undefined,
+        isProduction: false,
+      },
+      now: () => new Date(NOW),
+    });
+    await expect(
+      attribution.reportContract({
+        attributionId: intro,
+        contractValueCents: 50_000_000,
+        contractSignedAt: new Date('2026-11-01T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
+    const rows = await attributionsFor(leadId);
+    expect(rows.find((a) => a.id === intro)?.status).toBe('reassigned');
+    expect(rows.filter((a) => a.status === 'attributed')).toHaveLength(0);
+  });
+
+  it('rolls back with 409 when A\'s contract lands between the check and the close', async () => {
+    const leadId = await seedLead({ builder: builderA, status: 'won' });
+    const intro = await introduce(leadId, builderA.tenantKey);
+    // Interleave a contract report for A right before the close UPDATE runs,
+    // inside the same transaction (PGlite has one session), to exercise the
+    // .returning() backstop.
+    let injected = false;
+    const racingDb = new Proxy(testDb.db, {
+      get(target, prop, receiver) {
+        if (prop !== 'transaction') return Reflect.get(target, prop, receiver);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (cb: (tx: any) => Promise<unknown>) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          target.transaction(async (tx: any) => {
+            const wrapped = new Proxy(tx, {
+              get(t, p, r) {
+                if (p !== 'update') return Reflect.get(t, p, r);
+                return (table: unknown) => {
+                  if (table !== attributionEvents || injected) return t.update(table);
+                  injected = true;
+                  return {
+                    set: (values: unknown) => ({
+                      where: (cond: unknown) => ({
+                        returning: async (cols: unknown) => {
+                          await t
+                            .update(attributionEvents)
+                            .set({
+                              status: 'attributed',
+                              contractValueCents: 50_000_000,
+                              contractSignedAt: new Date('2026-11-01T00:00:00.000Z'),
+                            })
+                            .where(eq(attributionEvents.id, intro));
+                          return t.update(table).set(values).where(cond).returning(cols);
+                        },
+                      }),
+                    }),
+                  };
+                };
+              },
+            });
+            return cb(wrapped);
+          });
+      },
+    });
+    const racing = createLeadAssignmentService({
+      db: racingDb,
+      audit,
+      now: () => new Date(NOW),
+    });
+    await expect(racing.assignLead(leadId, builderB.id, ADMIN)).rejects.toMatchObject({
+      status: 409,
+      code: ErrorCodes.CONFLICT,
+    });
+    expect(injected).toBe(true);
+    // Whole transaction rolled back: lead still A's, A's introduction intact,
+    // no introduction for B, no move recorded, no audit rows.
+    const lead = await leadRow(leadId);
+    expect(lead.builderId).toBe(builderA.id);
+    expect(lead.status).toBe('won');
+    const rows = await attributionsFor(leadId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: intro, status: 'introduced' });
+    const moves = await testDb.db
+      .select()
+      .from(leadReassignments)
+      .where(eq(leadReassignments.leadId, leadId));
+    expect(moves).toHaveLength(0);
+    expect(auditEntries).toHaveLength(0);
   });
 
   it('assigning to the current builder is a no-op', async () => {

@@ -184,6 +184,28 @@ export function createLeadAssignmentService(
           );
         }
 
+        // Lock the old builder's attribution rows too, before reading any
+        // billing state. reportContract only does a conditional UPDATE on
+        // the attribution row (it never touches the lead), so the lead lock
+        // alone doesn't serialize it: a contract reported between our check
+        // and the close below would leave A attributed while the lead moves
+        // to B — billable to both. With these rows locked, a concurrent
+        // report waits, re-checks status='introduced', sees 'reassigned' and
+        // 409s; a report that committed first is seen by the check.
+        const fromAttributions: { id: string; status: string }[] =
+          fromTenantKey === null
+            ? []
+            : await tx
+                .select({ id: attributionEvents.id, status: attributionEvents.status })
+                .from(attributionEvents)
+                .where(
+                  and(
+                    eq(attributionEvents.leadId, leadId),
+                    eq(attributionEvents.tenantKey, fromTenantKey),
+                  ),
+                )
+                .for('update');
+
         const invoices: {
           id: string;
           invoiceNumber: string;
@@ -213,16 +235,7 @@ export function createLeadAssignmentService(
           // A recorded contract always gets an invoice; one without (even a
           // void one) means billing is mid-flight, so refuse the move.
           const invoiced = new Set(invoices.map((invoice) => invoice.attributionId));
-          const attributed: { id: string }[] = await tx
-            .select({ id: attributionEvents.id })
-            .from(attributionEvents)
-            .where(
-              and(
-                eq(attributionEvents.leadId, leadId),
-                eq(attributionEvents.tenantKey, fromTenantKey),
-                eq(attributionEvents.status, 'attributed'),
-              ),
-            );
+          const attributed = fromAttributions.filter((row) => row.status === 'attributed');
           if (attributed.some((row) => !invoiced.has(row.id))) {
             throw new HttpError(
               409,
@@ -234,7 +247,8 @@ export function createLeadAssignmentService(
           }
 
           // Close the old builder's open introduction: nothing billable.
-          await tx
+          const open = fromAttributions.filter((row) => row.status === 'introduced');
+          const closed: { id: string }[] = await tx
             .update(attributionEvents)
             .set({ status: 'reassigned', updatedAt: at })
             .where(
@@ -243,7 +257,21 @@ export function createLeadAssignmentService(
                 eq(attributionEvents.tenantKey, fromTenantKey),
                 eq(attributionEvents.status, 'introduced'),
               ),
+            )
+            .returning({ id: attributionEvents.id });
+          // Backstop: every introduction we saw open must be the one we
+          // closed. A mismatch means the attribution changed under us (e.g.
+          // a contract was reported) — roll back rather than move a lead
+          // whose old builder may still be billable.
+          const closedIds = new Set(closed.map((row) => row.id));
+          if (closed.length !== open.length || open.some((row) => !closedIds.has(row.id))) {
+            throw new HttpError(
+              409,
+              ErrorCodes.CONFLICT,
+              'The current builder\'s introduction changed while reassigning. Reload and try again.',
+              false,
             );
+          }
         }
 
         await tx
