@@ -17,20 +17,34 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import type { LeadResponse } from '@feasly/contracts';
-import type { LeadService } from '../services/lead.service';
+import type { ApiKeyLeadCaller, LeadService } from '../services/lead.service';
 
 export interface LeadRouteDeps {
   readonly leads: LeadService;
 }
 
 export interface LeadRoute {
-  /** Captures one lead from an untrusted request body. */
-  handle(requestBody: unknown): Promise<LeadResponse>;
+  /**
+   * Captures one lead from an untrusted request body. `apiKey` is the
+   * authenticated Bearer key when present (#738: consent attestation
+   * required, lead quarantined for review per policy).
+   */
+  handle(
+    requestBody: unknown,
+    apiKey?: { readonly keyId: string; readonly sandbox: boolean },
+  ): Promise<LeadResponse>;
 }
 
 export function createLeadRoute(deps: LeadRouteDeps): LeadRoute {
   return {
-    handle: (requestBody: unknown): Promise<LeadResponse> =>
-      deps.leads.submitLead(requestBody),
+    handle: (requestBody, apiKey): Promise<LeadResponse> => {
+      if (!apiKey) return deps.leads.submitLead(requestBody);
+      const caller: ApiKeyLeadCaller = {
+        keyId: apiKey.keyId,
+        sandbox: apiKey.sandbox,
+        surface: 'rest',
+      };
+      return deps.leads.submitLead(requestBody, caller);
+    },
   };
 }

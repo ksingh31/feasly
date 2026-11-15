@@ -71,3 +71,20 @@ byte-match the required consent checkbox in the waitlist UI once approved.)_
 ```text
 I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.
 ```
+
+### API lead consent attestation
+
+_(lawyer: the wording an API or MCP caller attests to when it submits a lead
+on a person's behalf, issue #738; part of the API terms of use.)_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15: a lead sent
+> through the agent API (REST `POST /api/v1/leads` with a Bearer key, or the
+> MCP `submit_lead` tool) must carry `consent: true` and `consentVersion`
+> equal to `API_LEAD_CONSENT_VERSION` in `apps/api/src/lib/legal-copy.ts`.
+> Anything else is rejected with 400 and nothing is stored. The lead row
+> records the version, the attesting API key and the time. Bump the version
+> when this wording changes; callers then have to re-attest.
+
+```text
+I confirm that the person named in this lead asked to be contacted about their estimate, agreed that Feasly and builders associated with Feasly may contact them about it, and was told they can opt out anytime.
+```

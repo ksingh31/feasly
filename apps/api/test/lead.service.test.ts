@@ -25,7 +25,8 @@ import type {
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
 import type { EmailDelivery } from '../src/services/email/email.service';
-import { HttpError } from '../src/middleware/errors';
+import { ErrorCodes, HttpError } from '../src/middleware/errors';
+import { API_LEAD_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -1034,5 +1035,143 @@ describe('consumer/02 duplicate-estimate semantics', () => {
     expect(store.updated).toHaveLength(0);
     expect(result.leadId).toBe(store.inserted[0]!.id);
     expect(result.magicLinkSent).toBe(true);
+  });
+});
+
+describe('lead service: API-key callers (#738)', () => {
+  const CALLER = { keyId: 'key-live-1', sandbox: false, surface: 'rest' as const };
+  const ATTESTED = {
+    ...VALID_BODY,
+    consent: true,
+    consentVersion: API_LEAD_CONSENT_VERSION,
+  };
+
+  it('AC5: rejects a lead without a consent attestation and stores nothing', async () => {
+    for (const body of [
+      VALID_BODY,
+      { ...VALID_BODY, consent: false, consentVersion: API_LEAD_CONSENT_VERSION },
+      { ...VALID_BODY, consent: true },
+      { ...VALID_BODY, consent: 'yes', consentVersion: API_LEAD_CONSENT_VERSION },
+    ]) {
+      const store = fakeLeadStore();
+      const email = fakeEmailService();
+      const service = createLeadService({ ...DEPS, store, email });
+      const error = await service.submitLead(body, CALLER).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(HttpError);
+      expect((error as HttpError).status).toBe(400);
+      expect((error as HttpError).code).toBe(ErrorCodes.CONSENT_REQUIRED);
+      // PII: never echoes the submitted email.
+      expect((error as HttpError).message).not.toContain('sam@example.com');
+      expect(store.inserted).toHaveLength(0);
+      expect(email.magicLinkSends).toHaveLength(0);
+    }
+  });
+
+  it('AC5: rejects a stale consentVersion and names the current one', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      apiLeads: { leadConsentVersion: 'api-lead-2027-01-01', quarantineLeads: true },
+    });
+    await expect(
+      service.submitLead({ ...ATTESTED, consentVersion: API_LEAD_CONSENT_VERSION }, CALLER),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.CONSENT_REQUIRED,
+      message: expect.stringContaining('api-lead-2027-01-01'),
+    });
+    expect(store.inserted).toHaveLength(0);
+  });
+
+  it('AC5: an accepted lead stores who attested, which wording, and when', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0]!.consentAttestation).toEqual({
+      version: API_LEAD_CONSENT_VERSION,
+      apiKeyId: 'key-live-1',
+      attestedAt: NOW,
+    });
+    expect(store.inserted[0]!.source).toBe('api');
+    expect(store.inserted[0]!.sandbox).toBe(false);
+  });
+
+  it('records source mcp for the MCP surface', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead(ATTESTED, { ...CALLER, surface: 'mcp' });
+    expect(store.inserted[0]!.source).toBe('mcp');
+  });
+
+  it('quarantines API-key leads for review: no email, no token (default policy)', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    const result = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(0);
+    expect(result).toEqual({ leadId: store.inserted[0]!.id, magicLinkSent: false, expiresInDays: 1 });
+  });
+
+  it('with quarantine off, a live-key lead is captured and emailed normally', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    const result = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(false);
+    expect(result.magicLinkSent).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('sandbox-key leads are sandbox rows and are never emailed', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    const result = await service.submitLead(ATTESTED, { ...CALLER, sandbox: true });
+    expect(store.inserted[0]!.sandbox).toBe(true);
+    expect(result.magicLinkSent).toBe(false);
+    expect(result.reportToken).toBeUndefined();
+    expect(email.magicLinkSends).toHaveLength(0);
+  });
+
+  it('a repeat for an existing lead never updates it, emails, or returns its token', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const email = fakeEmailService();
+    const magicLinks = fakeMagicLinkStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      magicLinks,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    const result = await service.submitLead({ ...ATTESTED, name: 'Someone Else' }, CALLER);
+    expect(result).toEqual({ leadId: 'existing-lead-id', magicLinkSent: false, expiresInDays: 1 });
+    expect(store.updated).toHaveLength(0);
+    expect(store.inserted).toHaveLength(0);
+    expect(email.magicLinkSends).toHaveLength(0);
+    expect(magicLinks.issued).toHaveLength(0);
+  });
+
+  it('web/embed submissions (no caller) need no attestation and store none', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.magicLinkSent).toBe(true);
+    expect(store.inserted[0]!.quarantined).toBe(false);
+    expect(store.inserted[0]!.consentAttestation).toBeUndefined();
   });
 });

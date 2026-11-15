@@ -202,6 +202,18 @@ export const LeadRequestSchema = z
       .string()
       .optional()
       .describe('Honeypot anti-spam field — leave empty'),
+    consent: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Required with an API key: true attests the person asked to be contacted about their estimate',
+      ),
+    consentVersion: z
+      .string()
+      .optional()
+      .describe(
+        'Required with an API key: the current attestation wording version (docs/api/developers.md)',
+      ),
   })
   .openapi('LeadRequest');
 

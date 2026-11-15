@@ -84,14 +84,35 @@ export const EstimateProjectInputSchema = z.object(EstimateProjectShape);
 export type EstimateProjectInput = z.infer<typeof EstimateProjectInputSchema>;
 
 /**
- * submit_lead: same shape as POST /api/v1/leads, plus optional
- * idempotency key. Dedupe matches REST: 90-day window on email + address.
+ * submit_lead: same shape as POST /api/v1/leads (name + timeline are
+ * required there too), plus the caller's consent attestation (#738) and an
+ * optional idempotency key. Dedupe matches REST: 90-day window on
+ * email + address.
  */
 const SubmitLeadShape = {
   estimateId: z.string().uuid().describe('Estimate ID from estimate_project.'),
   email: z.string().email().describe('Lead email address.'),
-  name: z.string().trim().min(1).max(200).optional().describe('Lead name.'),
-  phone: z.string().trim().max(50).optional().describe('Lead phone (optional).'),
+  name: z.string().trim().min(1).max(120).describe('Lead name.'),
+  phone: z.string().trim().min(1).max(40).optional().describe('Lead phone (optional).'),
+  timeline: z
+    .enum(['0-3mo', '3-6mo', '6-12mo', '12+mo', 'exploring'])
+    .describe('When the person plans to build.'),
+  marketingConsent: z
+    .boolean()
+    .default(false)
+    .describe('True only if the person also agreed to marketing email.'),
+  consent: z
+    .literal(true)
+    .describe(
+      'Required attestation: true confirms the person asked to be contacted about their estimate' +
+        ' and agreed that Feasly and builders associated with Feasly may contact them.',
+    ),
+  consentVersion: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .describe('Version tag of the attestation wording you agreed to (see the developer docs).'),
   idempotencyKey: z
     .string()
     .trim()
@@ -137,8 +158,11 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: 'submit_lead',
     description:
-      'Capture a lead for a generated estimate. Triggers the magic-link' +
-      ' verification flow. Idempotent within a 90-day window on email + address.' +
+      'Capture a lead for a generated estimate, on behalf of a person who asked' +
+      ' to be contacted. You must attest their consent (consent: true plus the' +
+      ' current consentVersion); the attestation is stored with your key.' +
+      ' New API leads are held for review by the Feasly team before anyone is' +
+      ' emailed. Idempotent within a 90-day window on email + address.' +
       DETERMINISTIC_DISCLAIMER,
     inputShape: SubmitLeadShape,
   },
@@ -199,7 +223,15 @@ export async function executeTool(
       // the service's 90-day dedupe provides the idempotency guarantee.
       // The key is accepted for API consistency and future use.
       const { idempotencyKey: _key, ...leadBody } = input;
-      return deps.leads.submitLead(leadBody);
+      // #738: over HTTP the key is the attesting caller (stored with the
+      // lead); stdio local tooling has no key.
+      return auth
+        ? deps.leads.submitLead(leadBody, {
+            keyId: auth.keyId,
+            sandbox: auth.sandbox,
+            surface: 'mcp',
+          })
+        : deps.leads.submitLead(leadBody);
     }
     default:
       throw new Error(`Unknown tool: ${toolName}.`);

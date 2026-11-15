@@ -222,7 +222,7 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live |
 | POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned |
-| POST | `/api/mcp/v1` | api-key | 100/min per key | live |
+| POST | `/api/mcp/v1` | api-key | 100/min per key · 100/day + 2,000/month per key (config, #738) | live |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live |
 | POST | `/api/v1/billing/report-contract` | builder-session | 100/min per session | live |
 | POST | `/api/v1/billing/setup-intent` | builder-session | 100/min per session | live |

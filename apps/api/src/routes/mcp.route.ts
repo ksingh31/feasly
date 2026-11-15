@@ -45,6 +45,11 @@ export interface McpRoute {
   handle(
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
+    /**
+     * Key already authenticated by the per-key limiter (#738). When
+     * absent the route authenticates the Bearer header itself.
+     */
+    preAuthenticated?: ApiKeyAuthContext,
   ): Promise<{
     readonly status: number;
     readonly headers: Record<string, string>;
@@ -54,11 +59,11 @@ export interface McpRoute {
 
 export function createMcpRoute(deps: McpRouteDeps): McpRoute {
   return {
-    handle: async (headers, body) => {
+    handle: async (headers, body, preAuthenticated) => {
       // 1. Authenticate the API key (401 on failure).
       let auth: ApiKeyAuthContext;
       try {
-        auth = await authenticateApiKey(headers, deps.apiKeys);
+        auth = preAuthenticated ?? (await authenticateApiKey(headers, deps.apiKeys));
       } catch (error) {
         // authenticateApiKey throws HttpError(401) — convert to a plain
         // 401 response (the MCP client expects HTTP status, not RFC 7807).

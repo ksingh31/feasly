@@ -12,18 +12,27 @@
  *
  * 429s carry code=RATE_LIMITED plus X-RateLimit-Limit / -Remaining /
  * -Reset headers. Rejected requests write no usage rows.
+ *
+ * #738: after the per-minute window, the key's daily and monthly quotas
+ * (UTC calendar periods, `config.apiAccess`) are checked against the same
+ * table. Over quota → 429 code=QUOTA_EXCEEDED with Retry-After to the
+ * period reset and X-Quota-Period / -Limit / -Remaining / -Reset headers.
+ * Like the per-minute limit, check-then-record is not atomic: concurrent
+ * calls at the edge can overshoot by at most the number in flight.
  */
 import {
   authenticateApiKey,
   type ApiKeyAuthContext,
 } from './api-key-auth';
-import { rateLimitedProblem, type ProblemDetails } from './errors';
+import { quotaExceededProblem, rateLimitedProblem, type ProblemDetails } from './errors';
 import type { ApiKeyService } from '../services/api-key.service';
-import type { UsageService } from '../services/usage.service';
+import type { QuotaLimits, UsageService } from '../services/usage.service';
 
 export interface ApiKeyRateLimitDeps {
   readonly apiKeys: ApiKeyService;
   readonly usage: UsageService;
+  /** Per-key daily/monthly ceilings (#738) — `config.apiAccess`. */
+  readonly quota: QuotaLimits;
   /**
    * Log sink for rate-limit denials. Defaults to console.warn; the
    * Functions adapters inject the context logger.
@@ -54,7 +63,7 @@ export interface ApiKeyRateLimitOptions {
  * skip the write.
  */
 export function createApiKeyRateLimitMiddleware(deps: ApiKeyRateLimitDeps) {
-  const { apiKeys, usage, logger = (msg) => console.warn(msg) } = deps;
+  const { apiKeys, usage, quota, logger = (msg) => console.warn(msg) } = deps;
 
   return async function withApiKeyRateLimit<T>(
     headers: Record<string, string | string[] | undefined>,
@@ -89,6 +98,25 @@ export function createApiKeyRateLimitMiddleware(deps: ApiKeyRateLimitDeps) {
         remaining: verdict.remaining,
         resetEpoch: verdict.resetEpoch,
       });
+    }
+
+    // #738: daily / monthly quota on the same usage table.
+    const quotaVerdict = await usage.checkQuota(auth.keyId, quota);
+    if (!quotaVerdict.allowed) {
+      logger(
+        `per-key quota exceeded keyId=${auth.keyId} period=${quotaVerdict.period} endpoint=${options.endpoint}`,
+        correlationId,
+      );
+      return quotaExceededProblem(
+        correlationId,
+        Math.max(0, quotaVerdict.resetEpoch * 1000 - Date.now()),
+        {
+          period: quotaVerdict.period,
+          limit: quotaVerdict.limit,
+          remaining: 0,
+          resetEpoch: quotaVerdict.resetEpoch,
+        },
+      );
     }
 
     const result = await handler(auth);

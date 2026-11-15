@@ -21,9 +21,19 @@ export interface McpEstimateService {
   estimate(requestBody: unknown): Promise<unknown>;
 }
 
+/**
+ * The API key submitting a lead over MCP (#738). The service requires and
+ * stores its consent attestation and applies the review policy.
+ */
+export interface McpLeadCaller {
+  readonly keyId: string;
+  readonly sandbox: boolean;
+  readonly surface: 'mcp';
+}
+
 /** Subset of LeadService used by the submit_lead tool. */
 export interface McpLeadService {
-  submitLead(requestBody: unknown): Promise<unknown>;
+  submitLead(requestBody: unknown, caller?: McpLeadCaller): Promise<unknown>;
 }
 
 export interface McpServerDeps {

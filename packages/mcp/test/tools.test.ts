@@ -143,18 +143,40 @@ describe('executeTool', () => {
     ).rejects.toThrow(/Unknown tool/);
   });
 
-  it('submit_lead strips the idempotency key before calling the service', async () => {
-    const input = {
-      estimateId: '123e4567-e89b-12d3-a456-426614174000',
-      email: 'test@example.com',
-      idempotencyKey: 'key-123',
-    };
-    await executeTool(deps, auth, 'submit_lead', input);
-    // The service receives the body without the idempotency key.
-    expect(deps.leads.submitLead).toHaveBeenCalledWith({
-      estimateId: input.estimateId,
-      email: input.email,
-    });
+  const LEAD_INPUT = {
+    estimateId: '123e4567-e89b-12d3-a456-426614174000',
+    email: 'test@example.com',
+    name: 'Test Person',
+    timeline: 'exploring',
+    consent: true,
+    consentVersion: 'api-lead-test',
+  };
+
+  it('submit_lead strips the idempotency key and passes the key as the attesting caller (#738)', async () => {
+    await executeTool(deps, auth, 'submit_lead', { ...LEAD_INPUT, idempotencyKey: 'key-123' });
+    // The service receives the body without the idempotency key, plus the
+    // calling key so it can store the consent attestation.
+    expect(deps.leads.submitLead).toHaveBeenLastCalledWith(
+      { ...LEAD_INPUT, marketingConsent: false },
+      { keyId: 'k1', sandbox: false, surface: 'mcp' },
+    );
+  });
+
+  it('submit_lead over stdio (no auth) passes no caller', async () => {
+    await executeTool(deps, undefined, 'submit_lead', LEAD_INPUT);
+    expect(deps.leads.submitLead).toHaveBeenLastCalledWith({ ...LEAD_INPUT, marketingConsent: false });
+  });
+
+  it('submit_lead without a consent attestation never reaches the service (#738)', async () => {
+    const calls = vi.mocked(deps.leads.submitLead).mock.calls.length;
+    const { consent: _c, ...noConsent } = LEAD_INPUT;
+    await expect(executeTool(deps, auth, 'submit_lead', noConsent)).rejects.toThrow();
+    await expect(
+      executeTool(deps, auth, 'submit_lead', { ...LEAD_INPUT, consent: false }),
+    ).rejects.toThrow();
+    const { consentVersion: _v, ...noVersion } = LEAD_INPUT;
+    await expect(executeTool(deps, auth, 'submit_lead', noVersion)).rejects.toThrow();
+    expect(vi.mocked(deps.leads.submitLead).mock.calls.length).toBe(calls);
   });
 });
 
@@ -163,6 +185,22 @@ describe('input schemas', () => {
     // Empty object passes schema (both optional) — the handler enforces
     // that at least one is present.
     expect(() => GetPropertyInputSchema.parse({})).not.toThrow();
+  });
+
+  it('submit_lead requires name, timeline and the consent attestation (#738)', () => {
+    const base = {
+      estimateId: '123e4567-e89b-12d3-a456-426614174000',
+      email: 'test@example.com',
+      name: 'Test Person',
+      timeline: 'exploring',
+      consent: true,
+      consentVersion: 'api-lead-test',
+    };
+    expect(() => SubmitLeadInputSchema.parse(base)).not.toThrow();
+    for (const field of ['name', 'timeline', 'consent', 'consentVersion'] as const) {
+      const { [field]: _omit, ...rest } = base;
+      expect(() => SubmitLeadInputSchema.parse(rest)).toThrow();
+    }
   });
 
   it('submit_lead requires a valid estimateId and email', () => {

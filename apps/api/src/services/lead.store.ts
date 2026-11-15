@@ -80,6 +80,16 @@ export interface NewLead {
   readonly quarantined?: boolean;
   /** Set when captured via a sandbox API key (api-mcp/01). */
   readonly sandbox?: boolean;
+  /**
+   * #738: consent attestation for a lead submitted with an API key —
+   * the attested wording version, the attesting key id and the time.
+   * Absent for web/embed leads.
+   */
+  readonly consentAttestation?: {
+    readonly version: string;
+    readonly apiKeyId: string;
+    readonly attestedAt: Date;
+  };
 }
 
 export interface LeadStore {
@@ -400,6 +410,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           source: lead.source,
           quarantined: lead.quarantined ?? false,
           sandbox: lead.sandbox ?? false,
+          consentVersion: lead.consentAttestation?.version ?? null,
+          consentAttestedByApiKeyId: lead.consentAttestation?.apiKeyId ?? null,
+          consentAttestedAt: lead.consentAttestation?.attestedAt ?? null,
         })
         .returning();
       const row = rows[0];

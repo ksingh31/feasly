@@ -1108,6 +1108,11 @@ export function createComposition(
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     builderConfigs: builderConfigService,
     builders: builderService,
+    // #738: API-key leads need a consent attestation; quarantined for review.
+    apiLeads: {
+      leadConsentVersion: config.apiAccess.leadConsentVersion,
+      quarantineLeads: config.apiAccess.quarantineLeads,
+    },
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -1801,6 +1806,11 @@ export function createComposition(
   const withApiKeyRateLimit = createApiKeyRateLimitMiddleware({
     apiKeys: apiKeyService,
     usage: usageService,
+    // #738: per-key daily/monthly quotas (invite-only free beta).
+    quota: {
+      daily: config.apiAccess.dailyQuota,
+      monthly: config.apiAccess.monthlyQuota,
+    },
   });
   // billing/01 foundation — the lead→builder introduction lifecycle the
   // commission engine bills against. Wired here now so the commission

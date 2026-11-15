@@ -178,6 +178,15 @@ export const leads = pgTable(
      */
     sandbox: boolean('sandbox').notNull().default(false),
     /**
+     * #738: agent-API consent attestation. Set only for leads submitted
+     * with an API key: the attested wording version, the attesting key
+     * (no FK — the audit trail outlives key deletion) and when. NULL for
+     * web/embed leads, whose consent is the gate checkbox (`consent_ts`).
+     */
+    consentVersion: text('consent_version'),
+    consentAttestedByApiKeyId: uuid('consent_attested_by_api_key_id'),
+    consentAttestedAt: timestamp('consent_attested_at', { withTimezone: true }),
+    /**
      * admin/04: Sheets sync watermark. NULL = never synced; otherwise the
      * timestamp of the last successful upsert to the Google Sheet.
      * The sync worker is the ONLY writer of this column (test asserts via DB diff).

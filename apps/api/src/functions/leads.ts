@@ -82,7 +82,13 @@ export async function leadsHandler(
         headers,
         correlationId,
         { endpoint: '/api/v1/leads' },
-        () => app.leadRoute.handle(req.body),
+        // #738: a Bearer key makes this an agent submission — the route
+        // passes the key on so the consent attestation is enforced.
+        (auth) =>
+          app.leadRoute.handle(
+            req.body,
+            auth ? { keyId: auth.keyId, sandbox: auth.sandbox } : undefined,
+          ),
       ),
   );
 

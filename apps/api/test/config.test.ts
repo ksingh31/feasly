@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels } from '../src/config';
-import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
+import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -220,6 +220,28 @@ describe('loadConfig', () => {
       waitlist: {
         consentVersion: WAITLIST_CONSENT_VERSION,
       },
+      apiAccess: {
+        dailyQuota: 100,
+        monthlyQuota: 2_000,
+        leadConsentVersion: API_LEAD_CONSENT_VERSION,
+        quarantineLeads: true,
+      },
+    });
+  });
+
+  it('reads the agent API quotas, consent version and quarantine flag (#738)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      API_KEY_DAILY_QUOTA: '5',
+      API_KEY_MONTHLY_QUOTA: '50',
+      API_LEAD_CONSENT_VERSION: ' api-lead-2027-01-01 ',
+      API_KEY_LEADS_QUARANTINE: 'false',
+    });
+    expect(config.apiAccess).toEqual({
+      dailyQuota: 5,
+      monthlyQuota: 50,
+      leadConsentVersion: 'api-lead-2027-01-01',
+      quarantineLeads: false,
     });
   });
 

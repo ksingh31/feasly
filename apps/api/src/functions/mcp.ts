@@ -86,13 +86,23 @@ export async function mcpHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   // Run through the rate limiter (public endpoint, abuse resistance).
-  // The MCP route handles auth (Bearer API key) internally.
+  // #738: a Bearer key also passes the per-key limiter — per-minute
+  // window plus the daily/monthly quota — and every accepted call is
+  // metered in api_usage like the REST endpoints. The authenticated key is
+  // handed to the route so it isn't looked up twice; without a Bearer
+  // header the route answers its own JSON-RPC 401.
   const result = await app.requestPipeline.run(
     {
       headers,
       clientIp: clientIpFrom(req),
     },
-    () => app.mcpRoute.handle(headers, req.body),
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        { endpoint: '/api/mcp/v1' },
+        (auth) => app.mcpRoute.handle(headers, req.body, auth ?? undefined),
+      ),
   );
 
   if (middleware.isProblemDetails(result)) {
