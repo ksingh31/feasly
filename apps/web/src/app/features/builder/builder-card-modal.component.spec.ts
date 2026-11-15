@@ -61,18 +61,18 @@ interface FakeElement {
   mount: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
   on: (event: string, cb: (e: { complete: boolean; error?: unknown }) => void) => void;
-  emitChange: (complete: boolean) => void;
+  emitChange: (complete: boolean, error?: { message: string }) => void;
 }
 
 function fakeStripe() {
-  let onChange: ((e: { complete: boolean }) => void) | null = null;
+  let onChange: ((e: { complete: boolean; error?: { message: string } }) => void) | null = null;
   const element: FakeElement = {
     mount: vi.fn(),
     destroy: vi.fn(),
     on: (_event, cb) => {
       onChange = cb;
     },
-    emitChange: (complete) => onChange?.({ complete }),
+    emitChange: (complete, error) => onChange?.({ complete, error }),
   };
   const create = vi.fn(() => element);
   const stripe = {
@@ -182,6 +182,14 @@ describe('BuilderCardModalComponent (#534)', () => {
     expect(container.querySelector('a.card-modal__link')).toBeNull();
   });
 
+  it('without a key and an unknown card: body matches the "Update" heading', async () => {
+    const { open, container } = setup();
+    ref = open();
+    await until(() => text(container).includes(copy.cardModalUnavailableWithCard), 'update copy');
+    expect(container.querySelector('h2')?.textContent).toContain(copy.cardModalTitleUpdate);
+    expect(text(container)).not.toContain(copy.cardModalUnavailableNoCard);
+  });
+
   it('mounts a token-styled card Element with reassurance + charge-timing copy', async () => {
     document.documentElement.style.setProperty('--text', '#123456');
     const { stripe, create, element } = fakeStripe();
@@ -240,6 +248,31 @@ describe('BuilderCardModalComponent (#534)', () => {
 
     expect(container.querySelector('.card-modal__element')).not.toBeNull();
     expect(store.dispatch).not.toHaveBeenCalled();
+
+    // Editing the card after a decline clears the stale banner.
+    element.emitChange(false);
+    await until(() => !text(container).includes(copy.billingSaveFailed), 'save error cleared');
+  });
+
+  it('announces Stripe inline validation messages and clears them once valid', async () => {
+    const { stripe, element } = fakeStripe();
+    loadStripe.mockResolvedValue(stripe as never);
+    const { open, container } = setup({ key: 'pk_test_stub' });
+    ref = open(CARD);
+    await until(() => element.mount.mock.calls.length > 0, 'element mounted');
+
+    const live = container.querySelector('#card-modal-inline-error') as HTMLElement;
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(container.querySelector('.card-modal__element')?.getAttribute('aria-describedby')).toBe(
+      'card-modal-inline-error',
+    );
+
+    element.emitChange(false, { message: 'Your card number is incomplete.' });
+    await until(() => live.textContent?.includes('Your card number is incomplete.') ?? false, 'inline error');
+    expect(saveButton(container).disabled).toBe(true);
+
+    element.emitChange(true);
+    await until(() => (live.textContent ?? '').trim() === '', 'inline error cleared');
   });
 
   it('offers a retry when Stripe.js fails to load', async () => {

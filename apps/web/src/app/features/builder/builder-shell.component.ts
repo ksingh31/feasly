@@ -112,11 +112,6 @@ export class BuilderShellComponent {
     BuilderInvoicesState.actionableStatus,
   );
 
-  /**
-   * Failed-card danger strip: shown on every shell page while any of the
-   * org's invoices has a failed charge. Admin-only (billing endpoints are
-   * builder:billing). Data-driven — gone once the invoice leaves `failed`.
-   */
   /** Failed-card strip CTA: the shared card modal (#534), on any page. */
   private readonly openCardModal = injectCardModal();
 
@@ -124,6 +119,11 @@ export class BuilderShellComponent {
     this.openCardModal(this.store.selectSnapshot(BuilderBillingState.card) ?? undefined);
   }
 
+  /**
+   * Failed-card danger strip: shown on every shell page while any of the
+   * org's invoices has a failed charge. Admin-only (billing endpoints are
+   * builder:billing). Data-driven — gone once the invoice leaves `failed`.
+   */
   protected readonly hasFailedCharge = computed(
     () =>
       this.isBuilderAdmin() &&

@@ -134,6 +134,8 @@ export class BuilderCardModalComponent implements OnInit {
   protected readonly saveError = signal(false);
   /** The Element reports a complete, valid card. */
   protected readonly complete = signal(false);
+  /** Stripe's inline validation message (e.g. "Your card number is incomplete"); '' when valid. */
+  protected readonly inlineError = signal('');
 
   private readonly cardHost = viewChild<ElementRef<HTMLElement>>('cardHost');
 
@@ -151,7 +153,8 @@ export class BuilderCardModalComponent implements OnInit {
     return this.copy.cardModalCurrent.replace('{card}', label);
   });
 
-  protected readonly unavailableBody = this.card?.hasCard
+  /** Keyed off `updating` so the body never contradicts the heading. */
+  protected readonly unavailableBody = this.updating
     ? this.copy.cardModalUnavailableWithCard
     : this.copy.cardModalUnavailableNoCard;
 
@@ -207,7 +210,9 @@ export class BuilderCardModalComponent implements OnInit {
     this.element = this.stripe.elements().create('card', { style });
     this.element.on('change', (event) => {
       this.complete.set(event.complete);
-      if (event.error) this.saveError.set(false);
+      this.inlineError.set(event.error?.message ?? '');
+      // Any edit after a decline clears the stale banner.
+      this.saveError.set(false);
     });
     this.element.mount(host);
   }

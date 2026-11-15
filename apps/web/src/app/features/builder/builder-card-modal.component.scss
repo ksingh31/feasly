@@ -55,6 +55,16 @@
   color: var(--accent-text);
 }
 
+.card-modal__inline-error {
+  margin: var(--space-2) 0 0;
+  font: var(--type-body-sm);
+  color: var(--status-danger-fg);
+
+  &:empty {
+    margin: 0;
+  }
+}
+
 .card-modal__alert {
   display: flex;
   flex-wrap: wrap;

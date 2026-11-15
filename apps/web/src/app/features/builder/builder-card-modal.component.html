@@ -23,7 +23,14 @@
     }
     @default {
       <p id="card-modal-label" class="card-modal__label">{{ copy.billingFormHeading }}</p>
-      <div #cardHost class="card-modal__element" role="group" aria-labelledby="card-modal-label"></div>
+      <div
+        #cardHost
+        class="card-modal__element"
+        role="group"
+        aria-labelledby="card-modal-label"
+        aria-describedby="card-modal-inline-error"
+      ></div>
+      <p id="card-modal-inline-error" class="card-modal__inline-error" aria-live="polite">{{ inlineError() }}</p>
       @if (saveError()) {
         <p class="card-modal__alert" role="alert">{{ copy.billingSaveFailed }}</p>
       }
