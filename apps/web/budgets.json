@@ -1,5 +1,5 @@
 {
-  "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json). 2026-10-02: raised 215→220kB for PR #419 (40 community SEO pages + property profiles per-slug architecture). 2026-10-04: raised 220→221kB for PR #448 (guide-variant coverage-redirect card: +~0.2kB gzipped, well under the 5kB buy-back threshold).",
+  "$comment": "SEO-08: Feasly performance budgets. Single source of truth for the Lighthouse CI gate (.github/workflows/lighthouse.yml), the local budget check (apps/web/tools/check-perf-budgets.mjs), and the Angular build budgets (apps/web/angular.json). 2026-10-02: raised 215→220kB for PR #419 (40 community SEO pages + property profiles per-slug architecture). 2026-10-04: raised 220→221kB for PR #448 (guide-variant coverage-redirect card: +~0.2kB gzipped, well under the 5kB buy-back threshold). 2026-11-15 (#612): kept at 221kB — trimmed ~29kB gzipped from every page by lazy-loading the post-landing funnel pages and importing root states/guards directly instead of through component-exporting feature barrels (community pages 222.6→193.2kB gzipped scripts).",
   "assets": {
     "imageWeightPerPageKb": 500,
     "jsInitialGzipKb": 221
