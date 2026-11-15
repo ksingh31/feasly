@@ -14,6 +14,16 @@ real backend. Changing them has a cost, so:
 
 ## Unreleased — 2026-11-15 (additive)
 
+Zoning rules catalogue (issue #687):
+
+- **Added** `zoning.ts`: `BuildingForm` (+ `BUILDING_FORMS`),
+  `ZoningDistrictCategory`, `ZoningCoverage`, `FormPermission`; source
+  shapes `ZoningRulesVersion` / `ZoningDistrictSource` / `ZoningFormSource` /
+  `ZoningRuleSource` (each value carries a bylaw `section` and `verified`);
+  public verified-only shapes `ZoningDistrict` / `ZoningForm` / `ZoningRule` /
+  `ZoningKeyRules` and `ZoningDistrictsResponse` for
+  `GET /api/v1/zoning/districts`.
+
 Current land-use district (issue #686):
 
 - **Added** optional `PropertyRecord.landUse` (`PropertyLandUse`: `district`,

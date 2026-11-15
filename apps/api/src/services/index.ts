@@ -27,3 +27,4 @@ export * from './property.service';
 export * from './land-use.service';
 export * from './usage.service';
 export * from './usage.store';
+export * from './zoning.service';

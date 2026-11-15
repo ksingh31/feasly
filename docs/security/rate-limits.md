@@ -146,6 +146,7 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | 10/min per IP | live |
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live |
 | GET | `/api/v1/city-data/freshness` | none | 100/min per IP | live |
+| GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned |
 | POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live |
