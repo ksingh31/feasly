@@ -1683,6 +1683,7 @@ export function createComposition(
   });
   const waitlistService: WaitlistService = createWaitlistService({
     waitlist: waitlistStore,
+    consentVersion: config.waitlist.consentVersion,
   });
   const waitlistRoute: WaitlistRoute = createWaitlistRoute({
     waitlist: waitlistService,

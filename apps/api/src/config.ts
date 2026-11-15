@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
+import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -140,6 +141,10 @@ const EnvSchema = z.object({
   // EMB-06 AC3: per-code resend cooldown (60 seconds per story) so the
   // "session expired" re-issue button can't be hammered into a code fountain.
   EMBED_RELAY_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
+  // #740 (owner consent decision 2026-11-15): version tag of the CASL waitlist
+  // consent wording stored in waitlist_signups.consent_version. Defaults to the
+  // tag in lib/legal-copy.ts; override per environment without a code change.
+  WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -682,6 +687,12 @@ export interface CityDataFreshnessConfig {
   readonly cacheTtlMs: number;
 }
 
+/** Waitlist signups (#520, #740). */
+export interface WaitlistConfig {
+  /** Consent-wording version stored with every signup (`consent_version`). */
+  readonly consentVersion: string;
+}
+
 /**
  * Embed platform config (embed/02, embed/06).
  */
@@ -910,6 +921,7 @@ export interface ApiConfig {
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
+  readonly waitlist: WaitlistConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -1305,6 +1317,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,
       sessionTtlSeconds: e.EMBED_SESSION_TTL_SECONDS,
       relayResendCooldownSeconds: e.EMBED_RELAY_RESEND_COOLDOWN_SECONDS,
+    },
+    waitlist: {
+      consentVersion: e.WAITLIST_CONSENT_VERSION,
     },
   };
 }

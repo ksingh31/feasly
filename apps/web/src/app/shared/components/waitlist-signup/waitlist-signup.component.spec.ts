@@ -128,26 +128,66 @@ describe('WaitlistSignupComponent', () => {
     expect(consentBox().labels?.[0]).toBe(label);
   });
 
-  it('CASL: submitting without consent shows an inline error and makes no API call', () => {
-    typeEmail('noconsent@example.com');
-    submit();
-    expect(joinWaitlist).not.toHaveBeenCalled();
-    const err = root().querySelector<HTMLElement>('[id^="wl-consent-error-"]');
-    expect(err?.textContent).toContain('tick the box');
-    expect(consentBox().getAttribute('aria-invalid')).toBe('true');
-    expect(consentBox().getAttribute('aria-describedby')).toBe(err?.id);
-    // Ticking it lets the same signup through, with consent on the wire.
-    tickConsent();
-    submit();
-    expect(joinWaitlist).toHaveBeenCalledWith({
-      email: 'noconsent@example.com',
-      topic: 'toronto',
-      consent: true,
+  function pressEnterInEmail(): void {
+    emailInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+  }
+
+  // #740: both captures (renovation on the scope step, city under the
+  // out-of-coverage message) keep submit disabled until consent is ticked.
+  describe.each<WaitlistVariant>(['renovation', 'city'])('%s capture: consent gates submit (#740)', (variant) => {
+    const topic = variant === 'renovation' ? 'renovation' : 'toronto';
+
+    beforeEach(() => {
+      fixture.componentInstance.variant.set(variant);
+      fixture.detectChanges();
+    });
+
+    it('submit is disabled until the consent box is ticked, and re-disabled when unticked', () => {
+      typeEmail('gate@example.com');
+      expect(submitButton().disabled).toBe(true);
+      submit();
+      expect(joinWaitlist).not.toHaveBeenCalled();
+      tickConsent();
+      expect(submitButton().disabled).toBe(false);
+      tickConsent();
+      expect(submitButton().disabled).toBe(true);
+    });
+
+    it('Enter in the email field does nothing until consent is ticked, then submits', () => {
+      typeEmail('enter-gate@example.com');
+      pressEnterInEmail();
+      expect(joinWaitlist).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.outerSubmits).toBe(0);
+      tickConsent();
+      pressEnterInEmail();
+      expect(joinWaitlist).toHaveBeenCalledTimes(1);
+      expect(joinWaitlist).toHaveBeenCalledWith({ email: 'enter-gate@example.com', topic, consent: true });
+      expect(fixture.componentInstance.outerSubmits).toBe(0);
+    });
+
+    it('the disabled button explains why to screen readers; the hint goes once consent is ticked', () => {
+      const hintId = submitButton().getAttribute('aria-describedby');
+      expect(hintId).toMatch(/^wl-consent-hint-/);
+      const hint = root().querySelector<HTMLElement>(`#${hintId}`)!;
+      expect(hint.textContent).toContain('tick the box');
+      expect(hint.classList).toContain('sr-only');
+      expect(root().querySelector('.wl-error')).toBeNull();
+      tickConsent();
+      expect(submitButton().hasAttribute('aria-describedby')).toBe(false);
+      expect(root().querySelector(`#${hintId}`)).toBeNull();
+    });
+
+    it('the consent label is tied to its checkbox (for/id and wrapping)', () => {
+      const label = root().querySelector<HTMLLabelElement>('.wl-consent')!;
+      expect(label.htmlFor).toBe(consentBox().id);
+      expect(consentBox().labels?.[0]).toBe(label);
     });
   });
 
   it('invalid email: inline error, aria-invalid, no API call', () => {
     typeEmail('not-an-email');
+    tickConsent();
     submit();
     expect(joinWaitlist).not.toHaveBeenCalled();
     expect(root().querySelector('.wl-error')?.textContent).toContain('valid email');
