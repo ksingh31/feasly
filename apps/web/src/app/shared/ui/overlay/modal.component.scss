@@ -122,7 +122,11 @@
   line-height: 1;
   cursor: pointer;
 }
-.ui-modal__close:hover {
+.ui-modal__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.ui-modal__close:hover:not(:disabled) {
   background: var(--cream-2);
   color: var(--text);
 }
