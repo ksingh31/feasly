@@ -111,7 +111,7 @@ export async function dispatchAdminAuth(
 
   const pipeline = opts?.pipeline ? opts.pipeline(app) : app.requestPipeline;
   const result = await pipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     async () => {
       // auth/04: registry permissions are REAL authorization — enforced
       // here, centrally, before the route runs.

@@ -27,7 +27,7 @@ describe('loadConfig', () => {
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
-        tenantRateLimit: { windowMs: 3_600_000, maxRequests: 20 },
+        tenantRateLimit: { windowMs: 3_600_000, maxRequests: 600 },
       },
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
@@ -480,16 +480,18 @@ describe('loadConfig', () => {
     expect(config.auth.magicLinkTtlSeconds).toBe(600);
   });
 
-  it('estimates rate limits default to the frozen registry values (TECH_PLAN.md §13.3: 20/hr/IP)', () => {
+  it('estimates rate limits default to the registry values (TECH_PLAN.md §13.3: 20/hr/IP, 600/hr/tenant)', () => {
     const config = loadConfig(VALID_ENV);
     expect(config.estimate.rateLimit).toEqual({
       windowMs: 3_600_000,
       maxRequests: 20,
     });
+    // #737: the per-tenant cap must cover the 10x launch target (500/hr).
     expect(config.estimate.tenantRateLimit).toEqual({
       windowMs: 3_600_000,
-      maxRequests: 20,
+      maxRequests: 600,
     });
+    expect(config.estimate.tenantRateLimit.maxRequests).toBeGreaterThanOrEqual(500);
   });
 
   it('estimates rate limits are env-overridable', () => {

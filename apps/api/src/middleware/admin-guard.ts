@@ -16,6 +16,7 @@
 import { createHash } from 'node:crypto';
 import { ErrorCodes, HttpError } from './errors';
 import {
+  ADMIN_SESSION_COOKIE,
   extractSessionToken,
   parseCookieValue,
   type HeaderRecord,
@@ -25,6 +26,7 @@ import {
   createRequestPipeline,
   type LogEntry,
   type RequestPipeline,
+  type RequestPipelineDeps,
 } from './pipeline';
 import type { RateLimiter } from './rate-limit';
 
@@ -50,7 +52,7 @@ export interface SessionAdminGuardDeps {
 }
 
 /** The httpOnly session cookie name — must match the verify endpoint. */
-export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
+export { ADMIN_SESSION_COOKIE };
 
 /**
  * Extract the session token from the `Cookie` header. Returns null when
@@ -90,8 +92,10 @@ export function createAdminSearchPipeline(deps: {
   readonly ipLimiter: RateLimiter;
   readonly sessionLimiter: RateLimiter;
   readonly logger?: (entry: LogEntry) => void;
+  readonly csrf?: RequestPipelineDeps['csrf'];
 }): RequestPipeline {
   return createRequestPipeline({
+    csrf: deps.csrf,
     rateLimiter: deps.ipLimiter,
     extraLimiters: [
       {

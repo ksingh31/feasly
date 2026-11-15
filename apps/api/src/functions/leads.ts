@@ -71,6 +71,7 @@ export async function leadsHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
