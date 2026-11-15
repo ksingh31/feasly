@@ -24,6 +24,8 @@ import type { EmbedBillingHookService } from '../src/services/billing/embed-bill
 import type { CommissionService } from '../src/services/billing/commission.service';
 import type { LeadStore } from '../src/services/lead.store';
 import type { BuilderService } from '../src/services/builder.service';
+import { ACCEPTED_AGREEMENTS, blockedAgreements } from './helpers/agreement-gate.fake';
+import type { AgreementGate } from '../src/services/builder-agreement.service';
 
 const ELITE_BUILDER_ID = 'builder-elite-id';
 const OTHER_BUILDER_ID = 'builder-other-id';
@@ -33,7 +35,7 @@ const OTHER_BUILDER_ID = 'builder-other-id';
  * assigned to Elite via builder_id but has tenant_key NULL — the exact
  * divergence that used to 403 a builder-visible lead.
  */
-function makeDeps() {
+function makeDeps(agreements: AgreementGate = ACCEPTED_AGREEMENTS) {
   const leads = new Map([
     [
       'lead-1',
@@ -100,10 +102,12 @@ function makeDeps() {
       return invoice;
     }),
     disputeInvoice: vi.fn(async () => ({ ...invoice, status: 'disputed' })),
+    setDefaultPaymentMethod: vi.fn(async (_t: string, m: string) => m),
     resolveDispute: vi.fn(async () => ({ ...invoice, status: 'in_review' })),
   } as unknown as CommissionService;
 
   const deps: BillingServiceDeps = {
+    agreements,
     leadStore,
     billingHook,
     commission,
@@ -119,6 +123,40 @@ function makeDeps() {
 }
 
 describe('billing service facade', () => {
+  describe('platform agreement gate (#722)', () => {
+    it('reportContract 409s AGREEMENT_REQUIRED without a current acceptance — nothing billed', async () => {
+      const { service, billingHook } = makeDeps(blockedAgreements());
+      await expect(
+        service.reportContract({
+          tenantKey: 'elite-craft',
+          leadId: 'lead-1',
+          contractValueCents: 50_000_000,
+          contractSignedAt: new Date('2026-09-20T10:00:00.000Z'),
+        }),
+      ).rejects.toMatchObject({ status: 409, code: 'AGREEMENT_REQUIRED' });
+      expect(billingHook.recordBillableEvent).not.toHaveBeenCalled();
+    });
+
+    it('reportContract proceeds once the org accepted the current version', async () => {
+      const { service, billingHook } = makeDeps(blockedAgreements(['elite-craft']));
+      await service.reportContract({
+        tenantKey: 'elite-craft',
+        leadId: 'lead-1',
+        contractValueCents: 50_000_000,
+        contractSignedAt: new Date('2026-09-20T10:00:00.000Z'),
+      });
+      expect(billingHook.recordBillableEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('setDefaultPaymentMethod 409s AGREEMENT_REQUIRED without a current acceptance', async () => {
+      const { service, commission } = makeDeps(blockedAgreements());
+      await expect(
+        service.setDefaultPaymentMethod('elite-craft', 'cheque'),
+      ).rejects.toMatchObject({ status: 409, code: 'AGREEMENT_REQUIRED' });
+      expect(commission.setDefaultPaymentMethod).not.toHaveBeenCalled();
+    });
+  });
+
   it('reportContract succeeds for a builder-scoped lead with NULL tenant_key', async () => {
     // Regression (Karan, 2026-09-29): lead-1 is assigned to Elite via
     // builder_id but carries tenant_key NULL — it shows in the builder's

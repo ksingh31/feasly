@@ -58,6 +58,7 @@ import {
   tenants,
 } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const COMMISSION_BILLING: BillingConfig = {
   model: 'commission',
@@ -603,6 +604,7 @@ describe('dispute service', () => {
     const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
 
     const billing = createBillingService({
+      agreements: ACCEPTED_AGREEMENTS,
       // disputeInvoice never touches the lead store or the builder
       // resolution; the casts keep this focused test from stubbing the
       // whole LeadStore / BuilderService surfaces.

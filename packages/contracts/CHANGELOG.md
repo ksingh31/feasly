@@ -14,6 +14,19 @@ real backend. Changing them has a cost, so:
 
 ## Unreleased — 2026-11-15 (additive)
 
+Platform agreement + builder onboarding (issue #722):
+
+- **Added** `agreement.ts`: `AgreementStatus` (`version`, `current`,
+  `acceptedAt`, `acceptedBy`, `canAccept`, `document`), `AgreementDocument`
+  (+ `AgreementDocumentSection`, `AgreementDocumentStatus`),
+  `AgreementAcceptedBy`, `AcceptAgreementRequest` (`version`),
+  `AcceptAgreementResponse`, `BuilderOnboardingStatus` (checklist flags +
+  `isAdmin` + `agreement`), `AdminBuilderAgreementSummary`, and the
+  `AgreementErrorCodes` constant (`AGREEMENT_REQUIRED`,
+  `AGREEMENT_ADMIN_REQUIRED`, `AGREEMENT_VERSION_MISMATCH`).
+- **Added** `AdminBuilderDetail` (`Builder` + `agreement`) — the response of
+  `GET /api/v1/admin/builders/{id}`. Additive: every `Builder` field is kept.
+
 Current land-use district (issue #686):
 
 - **Added** optional `PropertyRecord.landUse` (`PropertyLandUse`: `district`,

@@ -1,0 +1,81 @@
+<ui-page-layout>
+  <ui-page-header headingId="builder-agreement-heading" [heading]="t.heading" [description]="t.description" />
+
+  @if (status() === 'error' && !agreement()) {
+    <ui-error-state [heading]="t.loadError" [retryLabel]="copy.retryLabel" (retry)="retry()" />
+  } @else if (agreement(); as a) {
+    <section class="agreement" aria-labelledby="builder-agreement-title" data-testid="agreement">
+      <div class="agreement__meta">
+        <h2 id="builder-agreement-title" class="agreement__title">{{ a.document.title }}</h2>
+        <p class="agreement__version">{{ versionLabel() }}</p>
+      </div>
+
+      @if (isDraft()) {
+        <p class="agreement__notice agreement__notice--draft" role="note" data-testid="agreement-draft">
+          {{ t.draftNotice }}
+        </p>
+      }
+      @if (acceptedLine(); as accepted) {
+        <p class="agreement__notice agreement__notice--done" data-testid="agreement-accepted">{{ accepted }}</p>
+      }
+
+      <div
+        #doc
+        class="agreement__doc"
+        role="region"
+        tabindex="0"
+        data-testid="agreement-doc"
+        [attr.aria-label]="t.documentLabel"
+        (scroll)="measure()"
+      >
+        @for (section of a.document.sections; track $index) {
+          <h3 class="agreement__section">{{ section.heading }}</h3>
+          @for (paragraph of section.paragraphs; track $index) {
+            <p>{{ paragraph }}</p>
+          }
+        }
+      </div>
+
+      @if (!a.current) {
+        @if (a.canAccept) {
+          @if (!reachedEnd()) {
+            <p id="builder-agreement-scroll-hint" class="agreement__hint" data-testid="agreement-scroll-hint">
+              {{ t.scrollHint }}
+            </p>
+          }
+          <p class="sr-only" role="status">{{ reachedEnd() ? t.scrollDone : '' }}</p>
+        } @else {
+          <p class="agreement__notice" role="note" data-testid="agreement-member">{{ t.memberNotice }}</p>
+        }
+      }
+
+      @if (acceptErrorText(); as err) {
+        <p class="agreement__error" role="alert" data-testid="agreement-error">{{ err }}</p>
+      }
+
+      <div class="agreement__actions">
+        @if (!a.current && a.canAccept) {
+          <button
+            ui-button
+            type="button"
+            data-testid="agreement-accept"
+            [disabled]="!reachedEnd()"
+            [loading]="accepting()"
+            [attr.aria-describedby]="reachedEnd() ? null : 'builder-agreement-scroll-hint'"
+            (click)="accept()"
+          >{{ accepting() ? t.accepting : t.acceptLabel }}</button>
+        }
+        @if (a.current) {
+          <button ui-button type="button" data-testid="agreement-continue" (click)="continue()">
+            {{ t.continueLabel }}
+          </button>
+        }
+        <button ui-button variant="secondary" type="button" data-testid="agreement-download" (click)="download()">
+          {{ t.downloadLabel }}
+        </button>
+      </div>
+    </section>
+  } @else {
+    <ui-skeleton variant="rows" [count]="3" [label]="t.loading" />
+  }
+</ui-page-layout>

@@ -17,6 +17,7 @@ import type { BillingConfig } from '../../config';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import type { BillingAuditService } from './billing-audit.service';
 import type { CardSummary, StripeService } from './stripe.service';
+import type { AgreementGate } from '../builder-agreement.service';
 
 export interface CommissionCardStatus {
   readonly hasCard: boolean;
@@ -52,6 +53,13 @@ export interface CommissionCardServiceDeps {
   readonly billing: BillingConfig;
   readonly audit: BillingAuditService;
   readonly stripe: StripeService;
+  /**
+   * #722: platform-agreement gate — saving a card (customer ensure +
+   * SetupIntent) needs the org's acceptance of the current agreement
+   * version (409 AGREEMENT_REQUIRED otherwise). Card-status reads are not
+   * gated.
+   */
+  readonly agreements: Pick<AgreementGate, 'requireCurrentForTenant'>;
   /** Defaults to () => new Date(); tests inject a fixed clock. */
   readonly now?: () => Date;
 }
@@ -59,7 +67,7 @@ export interface CommissionCardServiceDeps {
 export function createCommissionCardService(
   deps: CommissionCardServiceDeps,
 ): CommissionCardService {
-  const { billing, audit, stripe } = deps;
+  const { billing, audit, stripe, agreements } = deps;
 
   function requireCommissionModel(): void {
     if (billing.model !== 'commission') {
@@ -74,6 +82,7 @@ export function createCommissionCardService(
   return {
     async ensureCustomer(tenantKey: string, email?: string): Promise<string> {
       requireCommissionModel();
+      await agreements.requireCurrentForTenant(tenantKey);
       if (!stripe.isConfigured) {
         throw new HttpError(
           422,
@@ -106,6 +115,7 @@ export function createCommissionCardService(
       clientSecret: string;
     }> {
       requireCommissionModel();
+      await agreements.requireCurrentForTenant(tenantKey);
       if (!stripe.isConfigured) {
         throw new HttpError(
           422,

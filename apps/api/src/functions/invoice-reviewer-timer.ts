@@ -73,6 +73,7 @@ export async function runInvoiceReviewerTimer(
     reconciledPaid,
     reconciledFailed,
     stillPending,
+    agreementBlocked,
     errors,
   } = result;
   // Aggregates only — never invoice ids, tenant keys, or amounts.
@@ -80,6 +81,13 @@ export async function runInvoiceReviewerTimer(
     `invoice-reviewer-timer: cycle complete (finalized=${finalized} failed=${failed} skipped=${skipped} ` +
       `reconciledPaid=${reconciledPaid} reconciledFailed=${reconciledFailed} stillPending=${stillPending})`,
   );
+  // #722: due invoices left in review because the builder org has not
+  // accepted the current platform agreement (count only — no tenant keys).
+  if (agreementBlocked > 0) {
+    context.log(
+      `invoice-reviewer-timer: finalise skipped, no current agreement acceptance (agreementBlocked=${agreementBlocked})`,
+    );
+  }
   for (const error of errors) {
     context.log(
       `invoice-reviewer-timer: invoice failed: ${sanitizeErrorMessage(error.message)}`,

@@ -165,6 +165,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "GET /api/v1/builder/agreement": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
   "GET /api/v1/builder/auth/me": [
     "super_admin",
     "admin",
@@ -213,6 +219,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
   ],
   "GET /api/v1/builder/leads/{leadId}/comments": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
+  "GET /api/v1/builder/onboarding": [
     "super_admin",
     "admin",
     "builder_admin",
@@ -491,10 +503,8 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
   "POST /api/v1/builder/agreement/accept": [
     "super_admin",
     "admin",
-    "viewer",
     "builder_admin",
     "builder_member",
-    "none",
   ],
   "POST /api/v1/builder/auth/active-org": [
     "super_admin",

@@ -19,6 +19,8 @@ import type { BuilderService } from '../src/services/builder.service';
 import type { LeadStore } from '../src/services/lead.store';
 import type { AdminAuditStore } from '../src/services/admin-audit.store';
 import type { UserStore } from '../src/services/user.service';
+import { ACCEPTED_AGREEMENTS, blockedAgreements } from './helpers/agreement-gate.fake';
+import type { AgreementGate } from '../src/services/builder-agreement.service';
 
 const ELITE_BUILDER_ID = 'builder-elite';
 const OTHER_BUILDER_ID = 'builder-other';
@@ -215,7 +217,7 @@ function makeDeps() {
     log: vi.fn(async () => {}),
   } as unknown as AdminAuditStore;
 
-  const service = createBuilderLeadsService({ leadStore, audit, builders });
+  const service = createBuilderLeadsService({ agreements: ACCEPTED_AGREEMENTS, leadStore, audit, builders });
 
   return { service, leadStore, builders, audit, statusHistory, leads };
 }
@@ -403,10 +405,13 @@ describe('builder-leads service (embed/09)', () => {
 });
 
 describe('builder-leads won → billing charge path (billing/01)', () => {
-  function makeBillingDeps(billingResult?: {
-    readonly billed: boolean;
-    readonly reason?: string;
-  }) {
+  function makeBillingDeps(
+    billingResult?: {
+      readonly billed: boolean;
+      readonly reason?: string;
+    },
+    agreements: AgreementGate = ACCEPTED_AGREEMENTS,
+  ) {
     const base = makeDeps();
     const recordBillableEvent = vi.fn(async () => ({
       billed: false,
@@ -415,6 +420,7 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
     }));
     const billingHook = { recordBillableEvent };
     const service = createBuilderLeadsService({
+      agreements,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -422,6 +428,39 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
     });
     return { ...base, service, recordBillableEvent };
   }
+
+  it('won WITH contract details 409s AGREEMENT_REQUIRED without a current acceptance (#722) — no billing, no status change', async () => {
+    const { service, recordBillableEvent, leads } = makeBillingDeps(
+      { billed: true },
+      blockedAgreements(),
+    );
+    await expect(
+      service.updateStatus(
+        'lead-1',
+        {
+          status: 'won',
+          contractValueCents: 50_000_000,
+          contractSignedAt: '2026-09-20T10:00:00.000Z',
+        },
+        'elite-craft',
+        'builder@example.com',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'AGREEMENT_REQUIRED' });
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+    expect(leads.get('lead-1')?.status).not.toBe('won');
+  });
+
+  it('won WITHOUT contract details is not gated by the agreement (#722)', async () => {
+    const { service, leads } = makeBillingDeps(undefined, blockedAgreements());
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'won' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(leads.get('lead-1')?.status).toBe('won');
+  });
 
   it('won with contract details runs the billing hook and returns its result', async () => {
     const { service, recordBillableEvent, leads } = makeBillingDeps({
@@ -579,6 +618,7 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
       }),
     };
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -628,6 +668,7 @@ describe('builder-leads invoice summaries (record-contract flow redesign)', () =
   ) {
     const base = makeDeps();
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -703,6 +744,7 @@ describe('builder-leads status lock (2026-09-29)', () => {
       },
     ];
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -789,6 +831,7 @@ describe('builder-leads comment summaries (notes section redesign)', () => {
       readonly includeAdminOnly: boolean;
     }> = [];
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -879,6 +922,7 @@ describe('builder-leads markWon → needs recording (#530)', () => {
     const recorded = new Set(opts?.recordedLeadIds ?? []);
     const hookCalls: Array<{ readonly detail: Record<string, unknown> }> = [];
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -1097,6 +1141,7 @@ describe('builder-leads markWon → needs recording (#530)', () => {
     const base = makeDeps();
     base.leads.set('lead-1', makeLead({ id: 'lead-1', status: 'won' }));
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
@@ -1167,6 +1212,7 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
     });
     const invoiced = opts.invoicedLeadIds ?? [];
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,

@@ -9,7 +9,13 @@ import { TestBed } from '@angular/core/testing';
 import { Store, provideStore } from '@ngxs/store';
 import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import type { Builder, BuilderCreateBody, BuilderUpdateBody } from '@feasly/contracts';
+import type {
+  AdminBuilderAgreementSummary,
+  AdminBuilderDetail,
+  Builder,
+  BuilderCreateBody,
+  BuilderUpdateBody,
+} from '@feasly/contracts';
 import { UiDrawerRef, UiToastService } from '@app/shared/ui';
 import { AdminBuilderDrawerComponent } from './admin-builder-drawer.component';
 import { AdminBuildersApiService } from './admin-builders-api.service';
@@ -34,7 +40,17 @@ const BUILDER: Builder = {
   updatedAt: '2026-09-27T00:00:00.000Z',
 };
 
+const AGREEMENT: AdminBuilderAgreementSummary = {
+  currentVersion: 'v2',
+  current: false,
+  acceptedVersion: 'v1',
+  acceptedAt: '2026-10-01T18:00:00.000Z',
+  acceptedBy: { userId: 'u1', name: 'Dana Admin', email: 'dana@elite.example' },
+};
+
 interface Options {
+  readonly agreement?: AdminBuilderAgreementSummary;
+  readonly agreementFails?: boolean;
   readonly builderId?: string | null;
   readonly saveFails?: boolean;
   readonly save?: Subject<Builder>;
@@ -43,6 +59,11 @@ interface Options {
 async function setup(options: Options = {}) {
   const api = {
     listBuilders: vi.fn(() => of({ builders: [BUILDER] })),
+    getBuilder: vi.fn(() =>
+      options.agreementFails
+        ? throwError(() => ({ message: 'Could not load.' }))
+        : of({ ...BUILDER, agreement: options.agreement ?? AGREEMENT } satisfies AdminBuilderDetail),
+    ),
     createBuilder: vi.fn((body: BuilderCreateBody) =>
       options.saveFails
         ? throwError(() => ({ message: 'That sign-in key is taken.' }))
@@ -115,7 +136,7 @@ function submit(el: HTMLElement): void {
 const text = (el: HTMLElement) => el.textContent?.replace(/\s+/g, ' ') ?? '';
 
 describe('AdminBuilderDrawerComponent (#541)', () => {
-  it('renders the builder heading, status chip, slug and the five sections', async () => {
+  it('renders the builder heading, status chip, slug and the sections', async () => {
     const { el } = await setup();
     expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('Elite Craft Builders');
     expect(el.querySelector('.ui-drawer__sub ui-status-chip')?.textContent?.trim()).toBe('Active');
@@ -123,7 +144,55 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
     const headings = Array.from(el.querySelectorAll('.builder-drawer__heading')).map((h) =>
       h.textContent?.replace(/\s+/g, ' ').trim(),
     );
-    expect(headings).toEqual(['Identity', 'Contact', 'Branding', 'Commercial', 'Embed origins (2)']);
+    expect(headings).toEqual([
+      'Identity',
+      'Contact',
+      'Branding',
+      'Commercial',
+      'Platform agreement',
+      'Embed origins (2)',
+    ]);
+  });
+
+  describe('platform agreement (#722)', () => {
+    const q = (el: HTMLElement, id: string) =>
+      el.querySelector(`[data-testid="${id}"]`)?.textContent?.replace(/\s+/g, ' ').trim();
+
+    it('shows the current version, an out-of-date acceptance, its date and who accepted', async () => {
+      const { el, api } = await setup();
+      expect(api.getBuilder).toHaveBeenCalledWith('b1');
+      expect(q(el, 'agreement-current-version')).toBe('v2');
+      expect(q(el, 'agreement-accepted-version')).toContain('v1');
+      expect(q(el, 'agreement-state')).toBe('Out of date');
+      expect(q(el, 'agreement-accepted-at')).toMatch(/2026/);
+      expect(q(el, 'agreement-accepted-by')).toBe('Dana Admin (dana@elite.example)');
+    });
+
+    it('marks a current acceptance', async () => {
+      const { el } = await setup({ agreement: { ...AGREEMENT, current: true, acceptedVersion: 'v2' } });
+      expect(q(el, 'agreement-state')).toBe('Current');
+    });
+
+    it('says when the builder never accepted', async () => {
+      const { el } = await setup({
+        agreement: { ...AGREEMENT, acceptedVersion: null, acceptedAt: null, acceptedBy: null },
+      });
+      expect(q(el, 'agreement-state')).toBe('Not accepted');
+      expect(q(el, 'agreement-accepted-at')).toBe('—');
+      expect(q(el, 'agreement-accepted-by')).toBe('—');
+    });
+
+    it('reports a failed load without blocking the form', async () => {
+      const { el } = await setup({ agreementFails: true });
+      expect(text(el)).toContain('Couldn\'t load the agreement status.');
+      expect(control(el, 'businessName').value).toBe('Elite Craft Builders');
+    });
+
+    it('is not shown when adding a builder', async () => {
+      const { el, api } = await setup({ builderId: null });
+      expect(el.querySelector('[data-testid="builder-agreement"]')).toBeNull();
+      expect(api.getBuilder).not.toHaveBeenCalled();
+    });
   });
 
   it('prefills the form and locks the sign-in key on edit', async () => {

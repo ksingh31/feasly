@@ -1,11 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, map, timeout } from 'rxjs';
+import { catchError, map, tap, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type { CommissionInvoice } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError, toBlobApiError } from '../../core/api/api-error';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
+import { BuilderAgreementGate } from './builder-agreement-gate';
 
 /**
  * Commission invoice with the billing/12 payment-method fields. The
@@ -49,6 +50,7 @@ export interface InvoiceListResponse {
 export class BuilderInvoicesApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
+  private readonly agreementGate = inject(BuilderAgreementGate);
 
   private get billingBase(): string {
     const v1 = `${this.config.get('api').baseUrl}/api/v1`;
@@ -57,7 +59,13 @@ export class BuilderInvoicesApiService {
 
   private call<T>(request: Observable<T>): Observable<T> {
     const timeoutMs = this.config.get('api').timeoutMs;
-    return request.pipe(timeout(timeoutMs), catchError(toApiError));
+    return request.pipe(
+      timeout(timeoutMs),
+      catchError(toApiError),
+      // #722: the payment-method change is a money action — a 409
+      // AGREEMENT_REQUIRED sends the builder to the agreement first.
+      tap({ error: (err: unknown) => this.agreementGate.handle(err) }),
+    );
   }
 
   /**

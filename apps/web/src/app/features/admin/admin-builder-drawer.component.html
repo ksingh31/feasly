@@ -152,6 +152,51 @@
       </div>
     </section>
 
+    @if (isEdit) {
+      <section
+        class="builder-drawer__section"
+        aria-labelledby="builder-drawer-agreement"
+        data-testid="builder-agreement"
+      >
+        <h3 class="builder-drawer__heading" id="builder-drawer-agreement">Platform agreement</h3>
+        @if (agreement(); as ag) {
+          <dl class="builder-drawer__facts">
+            <div>
+              <dt>Current version</dt>
+              <dd data-testid="agreement-current-version">{{ ag.currentVersion }}</dd>
+            </div>
+            <div>
+              <dt>Accepted version</dt>
+              <dd data-testid="agreement-accepted-version">
+                @if (ag.acceptedVersion) {
+                  {{ ag.acceptedVersion }}
+                  <span
+                    class="builder-drawer__agreement-state"
+                    data-testid="agreement-state"
+                    [class.builder-drawer__agreement-state--stale]="!ag.current"
+                  >{{ ag.current ? 'Current' : 'Out of date' }}</span>
+                } @else {
+                  <span data-testid="agreement-state">Not accepted</span>
+                }
+              </dd>
+            </div>
+            <div>
+              <dt>Accepted on</dt>
+              <dd data-testid="agreement-accepted-at">{{ agreementAcceptedAt() ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>Accepted by</dt>
+              <dd data-testid="agreement-accepted-by">{{ agreementAcceptedBy() ?? '—' }}</dd>
+            </div>
+          </dl>
+        } @else if (agreementStatus() === 'error') {
+          <p class="builder-drawer__muted" role="status">Couldn't load the agreement status.</p>
+        } @else {
+          <p class="builder-drawer__muted" role="status">Loading the agreement status…</p>
+        }
+      </section>
+    }
+
     <section class="builder-drawer__section" aria-labelledby="builder-drawer-origins">
       <h3 class="builder-drawer__heading" id="builder-drawer-origins">
         Embed origins

@@ -17,6 +17,7 @@
 import type { Page, Route } from '@playwright/test';
 import type {
   AdminAuthMeResponse,
+  AdminBuilderDetail,
   AdminCalibrationResponse,
   AdminEstimateDetail,
   AdminLeadDetail,
@@ -578,7 +579,19 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
       const builderMatch = /^\/api\/v1\/admin\/builders\/([^/]+)$/.exec(path);
       if (builderMatch) {
         const found = ADMIN_BUILDERS.builders.find((b) => b.id === builderMatch[1]);
-        return found ? json(route, found) : notFound(route);
+        // #722: the drawer reads the platform-agreement block off the detail.
+        return found
+          ? json(route, {
+              ...found,
+              agreement: {
+                currentVersion: '2026-11-draft-1',
+                current: false,
+                acceptedVersion: '2026-10-draft-0',
+                acceptedAt: daysAgo(30),
+                acceptedBy: { userId: 'u-2', name: 'Alexandra Montgomery-Whitfield', email: 'alexandra.montgomery-whitfield@elitecraftbuilders.example' },
+              },
+            } satisfies AdminBuilderDetail)
+          : notFound(route);
       }
       const disputeMatch = /^\/api\/v1\/admin\/disputes\/([^/]+)$/.exec(path);
       if (disputeMatch) {

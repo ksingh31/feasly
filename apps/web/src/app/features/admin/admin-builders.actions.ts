@@ -56,3 +56,12 @@ export class DismissAssignBuilderError {
 export class DismissAssignBuilderSuccess {
   static readonly type = '[AdminBuilders] Dismiss assign success';
 }
+
+/**
+ * Load one builder's detail for the drawer's platform-agreement block
+ * (#722: GET /admin/builders/{id} → `agreement`).
+ */
+export class LoadAdminBuilderAgreement {
+  static readonly type = '[AdminBuilders] Load builder agreement';
+  constructor(readonly id: string) {}
+}

@@ -617,4 +617,69 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'Adding a card online isn’t switched on for your account. Contact us and we’ll set up billing with you.',
   cardModalContact: 'Contact Feasly',
   cardModalClose: 'Close',
+  agreement: {
+    seoTitle: 'Platform agreement — Feasly Builder',
+    heading: 'Platform agreement',
+    description:
+      'The commercial terms for using Feasly: the commission, the attribution window and when to record a signed contract.',
+    versionLabel: 'Version {version}',
+    draftNotice:
+      'Draft — this text is still being reviewed by counsel and may change. A new version will ask you to accept again.',
+    documentLabel: 'Agreement text',
+    loading: 'Loading the agreement…',
+    loadError: 'We couldn’t load the agreement. Please try again.',
+    scrollHint: 'Scroll to the end of the agreement to accept it.',
+    scrollDone: 'You’ve reached the end of the agreement. You can accept it now.',
+    acceptLabel: 'I accept the agreement',
+    accepting: 'Accepting…',
+    memberNotice: 'Ask your admin to accept the agreement.',
+    acceptedNotice: 'Accepted on {date} by {name}.',
+    acceptedByUnknown: 'a former team member',
+    acceptFailed: 'We couldn’t record your acceptance. Please try again.',
+    versionChanged:
+      'A newer version of the agreement is out. Please read it and accept again.',
+    adminRequired: 'Only an admin of your organization can accept the agreement.',
+    downloadLabel: 'Download a copy',
+    downloadFileName: 'feasly-platform-agreement-{version}.txt',
+    downloadDraftLine: 'Status: draft, pending counsel review',
+    continueLabel: 'Continue',
+    requiredNotice:
+      'Before you record a contract, your organization needs to accept the platform agreement.',
+    reviewLink: 'Review the agreement',
+  },
+  onboarding: {
+    heading: 'Get set up',
+    progress: '{done} of {total} done',
+    doneLabel: 'Done',
+    todoLabel: 'To do',
+    dismissLabel: 'Hide “{step}”',
+    adminOnlyNote: 'An admin of your organization finishes the steps marked to do.',
+    steps: {
+      agreement: {
+        title: 'Accept the platform agreement',
+        body: 'Read the commercial terms and accept them before any billing.',
+        linkLabel: 'Open the agreement',
+      },
+      profile: {
+        title: 'Complete your business details',
+        body: 'Feasly needs your business name, display name, contact email and phone. Contact us to update them.',
+        linkLabel: '',
+      },
+      payment: {
+        title: 'Add a payment method',
+        body: 'Add a card, or choose how you’ll pay commission invoices.',
+        linkLabel: 'Set up billing',
+      },
+      embed: {
+        title: 'Install the estimator on your website',
+        body: 'This step completes when your website loads the Feasly estimator or sends its first lead.',
+        linkLabel: '',
+      },
+      team: {
+        title: 'Invite your team',
+        body: 'Invite the people who follow up on leads.',
+        linkLabel: 'Invite teammates',
+      },
+    },
+  },
 };

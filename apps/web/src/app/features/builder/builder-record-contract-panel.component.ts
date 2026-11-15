@@ -34,6 +34,9 @@ import { LoadBillingOverview, LoadDefaultPaymentMethod } from './builder-billing
 import { BuilderBillingState } from './builder-billing.state';
 import { ClearReportContractState, SubmitReportContract } from './builder-report-contract.actions';
 import { BuilderReportContractState } from './builder-report-contract.state';
+import { BuilderOnboardingState } from './builder-onboarding.state';
+import { LoadBuilderAgreement } from './builder-onboarding.actions';
+import { AGREEMENT_PATH, AGREEMENT_RETURN_PARAM } from './builder-agreement-gate';
 import { isBuilderPaymentMethod, paymentMethodLabel } from './builder-payment-methods';
 import { fill } from './builder-leads-view';
 
@@ -89,6 +92,17 @@ export class BuilderRecordContractPanelComponent {
   protected readonly submitError = this.store.selectSignal(BuilderReportContractState.error);
   protected readonly result = this.store.selectSignal(BuilderReportContractState.result);
   protected readonly invoice = this.store.selectSignal(BuilderReportContractState.invoice);
+  /**
+   * #722: no current platform-agreement acceptance → show the agreement
+   * prompt instead of the form (the server refuses the call anyway).
+   */
+  private readonly agreementCurrent = this.store.selectSignal(BuilderOnboardingState.agreementCurrent);
+  protected readonly agreementRequired = computed(() => this.agreementCurrent() === false);
+  protected readonly agreementPath = AGREEMENT_PATH;
+  protected readonly agreementQuery = computed(() => {
+    const leadId = encodeURIComponent(this.lead().id);
+    return { [AGREEMENT_RETURN_PARAM]: `/builder?open=${leadId}` };
+  });
   /** Scopes the shared submit state to a submit made from this panel. */
   private readonly submittedHere = signal(false);
 
@@ -163,6 +177,9 @@ export class BuilderRecordContractPanelComponent {
 
   constructor() {
     this.loadBilling();
+    if (this.store.selectSnapshot(BuilderOnboardingState.agreementStatus) === 'idle') {
+      this.store.dispatch(new LoadBuilderAgreement());
+    }
     this.destroyRef.onDestroy(() => this.store.dispatch(new ClearReportContractState()));
   }
 

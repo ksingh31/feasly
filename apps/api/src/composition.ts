@@ -551,6 +551,25 @@ import {
   createBuilderBillingOverviewRoute,
   type BuilderBillingOverviewRoute,
 } from './routes/builder/billing-overview.route';
+// #722: platform agreement (clickwrap) + builder onboarding checklist.
+import {
+  createDrizzleBuilderAgreementStore,
+  createDrizzleBuilderOnboardingStore,
+  type BuilderAgreementStore,
+  type BuilderOnboardingStore,
+} from './services/builder-agreement.store';
+import {
+  createBuilderAgreementService,
+  type BuilderAgreementService,
+} from './services/builder-agreement.service';
+import {
+  createBuilderOnboardingService,
+  type BuilderOnboardingService,
+} from './services/builder-onboarding.service';
+import {
+  createBuilderAgreementRoute,
+  type BuilderAgreementRoute,
+} from './routes/builder/agreement.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -773,6 +792,12 @@ export interface AppComposition {
   readonly billingOverviewService: BillingOverviewService;
   /** #531: thin route for GET /api/v1/builder/billing/overview. */
   readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
+  /** #722: platform agreement acceptances (append-only) + money-action gate. */
+  readonly builderAgreementService: BuilderAgreementService;
+  /** #722: first-run onboarding checklist. */
+  readonly builderOnboardingService: BuilderOnboardingService;
+  /** #722: thin route for /api/v1/builder/agreement[/accept] + /onboarding. */
+  readonly builderAgreementRoute: BuilderAgreementRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -845,6 +870,9 @@ export interface CompositionOptions {
   readonly partnerShareStore?: PartnerShareStore;
   /** #520: test seam for the waitlist store. */
   readonly waitlistStore?: WaitlistStore;
+  /** #722: test seams for the agreement + onboarding stores. */
+  readonly builderAgreementStore?: BuilderAgreementStore;
+  readonly builderOnboardingStore?: BuilderOnboardingStore;
   /**
    * Test seam: substitute the Google Sheets client (fake in unit tests).
    * Production wiring uses the real Google Sheets API client.
@@ -1097,6 +1125,17 @@ export function createComposition(
     db: db.db,
     audit: adminAuditStore,
   });
+  // #722: platform agreement — created right after the builders service so
+  // every money path (billing, card setup, lead won, invoice reviewer) and
+  // the admin builder drawer can use the same gate.
+  const builderAgreementStore: BuilderAgreementStore =
+    options.builderAgreementStore ??
+    createDrizzleBuilderAgreementStore({ db: db.db });
+  const builderAgreementService: BuilderAgreementService =
+    createBuilderAgreementService({
+      store: builderAgreementStore,
+      currentVersion: config.agreement.version,
+    });
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
@@ -1522,6 +1561,7 @@ export function createComposition(
   // admin-gated inside, like every other admin route.
   const adminBuildersRoute: AdminBuildersRoute = createAdminBuildersRoute({
     builders: builderService,
+    agreements: builderAgreementService,
     adminGuard,
   });
   // admin/03 — read-only estimate lookup. Reuses the session guard; no
@@ -1854,6 +1894,7 @@ export function createComposition(
     billingHook: embedBillingHookService,
     commission: commissionService,
     builders: builderService,
+    agreements: builderAgreementService,
     disputes: disputeService,
   });
   // billing/02 (BILL-02) — commission card-on-file: the setup-intent +
@@ -1863,6 +1904,7 @@ export function createComposition(
       billing: config.billing,
       audit: billingAuditService,
       stripe: stripeService,
+      agreements: builderAgreementService,
     });
   // #661 — builder invoice PDF/receipt download.
   const invoicePdfService: InvoicePdfService = createInvoicePdfService({
@@ -1903,6 +1945,26 @@ export function createComposition(
       overview: billingOverviewService,
       builderGuard,
     });
+  // #722: onboarding checklist — every flag from real state.
+  const builderOnboardingStore: BuilderOnboardingStore =
+    options.builderOnboardingStore ??
+    createDrizzleBuilderOnboardingStore({ db: db.db });
+  const builderOnboardingService: BuilderOnboardingService =
+    createBuilderOnboardingService({
+      agreements: builderAgreementService,
+      store: builderOnboardingStore,
+      builders: builderService,
+      billing: config.billing,
+      commissionCard: commissionCardService,
+      commission: commissionService,
+      log: (message) => console.warn(message),
+    });
+  const builderAgreementRoute: BuilderAgreementRoute =
+    createBuilderAgreementRoute({
+      agreements: builderAgreementService,
+      onboarding: builderOnboardingService,
+      permissionGuard,
+    });
   // billing/05 lead comments store — created here (ahead of the leads
   // service) so the lead list can carry per-lead notes counts/previews.
   const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
@@ -1910,6 +1972,7 @@ export function createComposition(
     leadStore,
     audit: adminAuditStore,
     builders: builderService,
+    agreements: builderAgreementService,
     billingHook: embedBillingHookService,
     invoiceSummaries: invoiceSummaryStore,
     commentSummaries: commentStore,
@@ -1970,6 +2033,7 @@ export function createComposition(
       commission: commissionService,
       audit: billingAuditService,
       stripe: stripeService,
+      agreements: builderAgreementService,
     });
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
@@ -2142,6 +2206,9 @@ export function createComposition(
     billingRoute,
     billingOverviewService,
     builderBillingOverviewRoute,
+    builderAgreementService,
+    builderOnboardingService,
+    builderAgreementRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,

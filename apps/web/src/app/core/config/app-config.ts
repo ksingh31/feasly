@@ -486,6 +486,82 @@ export interface BuilderCopy {
   cardModalContact: string;
   /** Close button label / × aria-label. */
   cardModalClose: string;
+  /** Platform agreement screen (#722). */
+  agreement: BuilderAgreementCopy;
+  /** First-run onboarding checklist on the Leads home (#722). */
+  onboarding: BuilderOnboardingCopy;
+}
+
+/** Platform agreement (clickwrap) screen copy (#722). */
+export interface BuilderAgreementCopy {
+  /** Browser tab title (the page is noindexed). */
+  seoTitle: string;
+  heading: string;
+  description: string;
+  /** "Version {version}". */
+  versionLabel: string;
+  /** Visible notice while the served text is `draft-pending-lawyer`. */
+  draftNotice: string;
+  /** Accessible name of the scrollable agreement text region. */
+  documentLabel: string;
+  loading: string;
+  loadError: string;
+  /** Why Accept is disabled (aria-describedby on the button). */
+  scrollHint: string;
+  /** Announced (polite) once the reader reaches the end. */
+  scrollDone: string;
+  acceptLabel: string;
+  accepting: string;
+  /** Member view: only an org admin may accept. */
+  memberNotice: string;
+  /** "Accepted on {date} by {name}." */
+  acceptedNotice: string;
+  /** Fallback accepted-by name when the user row was deleted. */
+  acceptedByUnknown: string;
+  acceptFailed: string;
+  /** 409 AGREEMENT_VERSION_MISMATCH: a newer version loaded. */
+  versionChanged: string;
+  /** 403 AGREEMENT_ADMIN_REQUIRED. */
+  adminRequired: string;
+  downloadLabel: string;
+  /** Download file name; `{version}` is interpolated. */
+  downloadFileName: string;
+  /** Status line inside the downloaded text for a draft. */
+  downloadDraftLine: string;
+  continueLabel: string;
+  /** Shown on money actions (record contract) before acceptance. */
+  requiredNotice: string;
+  /** Link label from a money action to the agreement screen. */
+  reviewLink: string;
+}
+
+/** One onboarding checklist step's copy. */
+export interface BuilderOnboardingStepCopy {
+  title: string;
+  /** Shown while the step is still to do. */
+  body: string;
+  /** Link label to the page that completes the step (when one exists). */
+  linkLabel: string;
+}
+
+/** First-run onboarding checklist copy (#722). */
+export interface BuilderOnboardingCopy {
+  heading: string;
+  /** "{done} of {total} done". */
+  progress: string;
+  doneLabel: string;
+  todoLabel: string;
+  /** Dismiss a completed step; `{step}` is the step title. */
+  dismissLabel: string;
+  /** Members: steps that only an admin can finish. */
+  adminOnlyNote: string;
+  steps: {
+    agreement: BuilderOnboardingStepCopy;
+    profile: BuilderOnboardingStepCopy;
+    payment: BuilderOnboardingStepCopy;
+    embed: BuilderOnboardingStepCopy;
+    team: BuilderOnboardingStepCopy;
+  };
 }
 
 /** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */

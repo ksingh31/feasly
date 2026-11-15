@@ -1,4 +1,17 @@
-@if (succeeded()) {
+@if (agreementRequired() && !succeeded()) {
+  <div class="record-panel__agreement" role="note" data-testid="record-agreement-required">
+    <p class="record-panel__body">{{ copy.agreement.requiredNotice }}</p>
+    <a
+      ui-button
+      variant="secondary"
+      class="record-panel__cta"
+      data-testid="record-agreement-link"
+      [routerLink]="agreementPath"
+      [queryParams]="agreementQuery()"
+      >{{ copy.agreement.reviewLink }}</a
+    >
+  </div>
+} @else if (succeeded()) {
   <div class="record-panel__success" role="status" data-testid="record-success">
     <p class="record-panel__success-title">{{ t.successHeading }}</p>
     @if (outcomeNote(); as note) {

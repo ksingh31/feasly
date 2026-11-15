@@ -381,6 +381,19 @@ const targets = [
     entry: 'src/functions/builder-billing-overview.ts',
     out: 'builder-billing-overview/index.js',
   },
+  // #722 — platform agreement (clickwrap) + onboarding checklist.
+  {
+    entry: 'src/functions/builder-agreement.ts',
+    out: 'builder-agreement/index.js',
+  },
+  {
+    entry: 'src/functions/builder-agreement-accept.ts',
+    out: 'builder-agreement-accept/index.js',
+  },
+  {
+    entry: 'src/functions/builder-onboarding.ts',
+    out: 'builder-onboarding/index.js',
+  },
   // billing/12 — builder default payment method (GET + PUT).
   {
     entry: 'src/functions/billing-payment-method.ts',

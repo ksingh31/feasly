@@ -14,7 +14,9 @@
  */
 import type { Page, Route } from '@playwright/test';
 import type {
+  AgreementStatus,
   BuilderAuthMeResponse,
+  BuilderOnboardingStatus,
   BuilderBillingOverviewResponse,
   BuilderLeadListItem,
   BuilderLeadListResponse,
@@ -258,6 +260,48 @@ export const COMMENTS: CommentListResponse = {
   ],
 };
 
+/** #722: accepted, draft text long enough to scroll on a phone. */
+export const AGREEMENT: AgreementStatus = {
+  version: '2026-11-draft-1',
+  current: true,
+  acceptedAt: daysAgo(4),
+  acceptedBy: { userId: 'u1', name: 'Alexandra Montgomery-Whitfield', email: ME.email },
+  canAccept: true,
+  document: {
+    version: '2026-11-draft-1',
+    title: 'Feasly Platform Agreement for Builders',
+    status: 'draft-pending-lawyer',
+    sections: [
+      {
+        heading: '1. Commission',
+        paragraphs: [
+          'You pay Feasly a commission on the signed construction contract value of an attributed lead, excluding land, at the rate set for your organization.',
+        ],
+      },
+      {
+        heading: '2. Attribution window',
+        paragraphs: ['A lead is attributed to Feasly for 12 months from when it was first sent to you.'],
+      },
+      {
+        heading: '3. Reporting signed contracts',
+        paragraphs: ['Record every signed contract with an attributed lead within 14 days of signing.'],
+      },
+    ],
+  },
+};
+
+/** Agreement done, other steps mixed — the checklist renders on the Leads home. */
+export const ONBOARDING: BuilderOnboardingStatus = {
+  agreementAccepted: true,
+  profileComplete: true,
+  paymentMethodSet: true,
+  embedVerified: false,
+  teamInvited: true,
+  complete: false,
+  isAdmin: true,
+  agreement: AGREEMENT,
+};
+
 /** Requests the fixtures did not answer — the spec asserts this stays empty. */
 export interface ApiMockHandle {
   readonly unhandled: string[];
@@ -296,6 +340,10 @@ export async function mockBuilderApi(page: Page, opts: { signedIn: boolean }): P
           return json(route, OVERVIEW);
         case '/api/v1/builder/users':
           return json(route, TEAM);
+        case '/api/v1/builder/agreement':
+          return json(route, AGREEMENT);
+        case '/api/v1/builder/onboarding':
+          return json(route, ONBOARDING);
         case '/api/v1/billing/card':
           return json(route, CARD);
         case '/api/v1/billing/commission-rate':

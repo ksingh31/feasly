@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  AdminBuilderDetail,
   Builder,
   BuilderCreateBody,
   BuilderListResponse,
@@ -65,9 +66,9 @@ export class AdminBuildersApiService {
   }
 
   /** A single builder row. */
-  getBuilder(id: string): Observable<Builder> {
+  getBuilder(id: string): Observable<AdminBuilderDetail> {
     return this.call(
-      this.http.get<Builder>(this.builderUrl(id), {
+      this.http.get<AdminBuilderDetail>(this.builderUrl(id), {
         withCredentials: true,
       }),
     );

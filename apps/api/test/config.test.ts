@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels } from '../src/config';
-import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
+import {
+  PLATFORM_AGREEMENT_VERSION,
+  WAITLIST_CONSENT_VERSION,
+} from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -229,7 +232,16 @@ describe('loadConfig', () => {
       waitlist: {
         consentVersion: WAITLIST_CONSENT_VERSION,
       },
+      agreement: {
+        version: PLATFORM_AGREEMENT_VERSION,
+      },
     });
+  });
+
+  it('reads the platform agreement version from PLATFORM_AGREEMENT_VERSION (#722)', () => {
+    expect(loadConfig(VALID_ENV).agreement.version).toBe('2026-11-draft-1');
+    const config = loadConfig({ ...VALID_ENV, PLATFORM_AGREEMENT_VERSION: ' 2027-01-v2 ' });
+    expect(config.agreement.version).toBe('2027-01-v2');
   });
 
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {

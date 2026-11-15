@@ -18,7 +18,10 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
-import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import {
+  PLATFORM_AGREEMENT_VERSION,
+  WAITLIST_CONSENT_VERSION,
+} from './lib/legal-copy';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -158,6 +161,11 @@ const EnvSchema = z.object({
   // consent wording stored in waitlist_signups.consent_version. Defaults to the
   // tag in lib/legal-copy.ts; override per environment without a code change.
   WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
+  // #722: CURRENT platform agreement version. A builder org needs an
+  // acceptance of exactly this version before any money action; bumping it
+  // forces re-acceptance (older rows are kept, they just stop counting).
+  // Defaults to the tag in lib/legal-copy.ts, next to the agreement text.
+  PLATFORM_AGREEMENT_VERSION: z.string().trim().min(1).max(100).default(PLATFORM_AGREEMENT_VERSION),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -772,6 +780,15 @@ export interface WaitlistConfig {
   readonly consentVersion: string;
 }
 
+/** Platform agreement (clickwrap) config (#722). */
+export interface AgreementConfig {
+  /**
+   * The CURRENT agreement version. Only an acceptance of this exact version
+   * counts; bumping it forces every builder org to accept again.
+   */
+  readonly version: string;
+}
+
 /**
  * Embed platform config (embed/02, embed/06).
  */
@@ -1040,6 +1057,7 @@ export interface ApiConfig {
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
+  readonly agreement: AgreementConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -1498,6 +1516,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     waitlist: {
       consentVersion: e.WAITLIST_CONSENT_VERSION,
+    },
+    agreement: {
+      version: e.PLATFORM_AGREEMENT_VERSION,
     },
   };
 }

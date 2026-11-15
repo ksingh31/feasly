@@ -1,0 +1,51 @@
+@if (visible()) {
+  <section class="checklist" aria-labelledby="onboarding-checklist-heading" data-testid="onboarding-checklist">
+    <div class="checklist__head">
+      <h2 id="onboarding-checklist-heading" class="checklist__heading">{{ t.heading }}</h2>
+      <p class="checklist__progress" data-testid="onboarding-progress">{{ progress() }}</p>
+    </div>
+    <ol class="checklist__steps" role="list">
+      @for (step of steps(); track step.id) {
+        <li class="checklist__step" [class.checklist__step--done]="step.done" [attr.data-step]="step.id">
+          <span class="checklist__mark" aria-hidden="true">
+            @if (step.done) {
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 7.5l2.5 2.5L11 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            }
+          </span>
+          <div class="checklist__text">
+            <p class="checklist__title">
+              {{ step.title }}
+              <span class="sr-only">— {{ step.done ? t.doneLabel : t.todoLabel }}</span>
+            </p>
+            @if (!step.done) {
+              <p class="checklist__body">{{ step.body }}</p>
+              @if (step.link; as link) {
+                <a class="checklist__link" [routerLink]="link.path" [attr.data-testid]="'onboarding-link-' + step.id">{{
+                  link.label
+                }}</a>
+              }
+            }
+          </div>
+          @if (step.done) {
+            <button
+              type="button"
+              class="checklist__dismiss"
+              [attr.aria-label]="step.dismissLabel"
+              [attr.data-testid]="'onboarding-dismiss-' + step.id"
+              (click)="dismiss(step)"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </button>
+          }
+        </li>
+      }
+    </ol>
+    @if (showAdminNote()) {
+      <p class="checklist__note" data-testid="onboarding-admin-note">{{ t.adminOnlyNote }}</p>
+    }
+  </section>
+}

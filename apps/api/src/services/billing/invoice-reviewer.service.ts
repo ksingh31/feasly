@@ -19,6 +19,11 @@
  * (`processing`, `requires_action`, …) stays pending. Settlement audit rows
  * carry `source: 'reconciliation'`. Read-only against Stripe.
  *
+ * Agreement gate (#722): an invoice whose builder org has no acceptance of
+ * the current platform agreement is NOT finalised — it stays in review, is
+ * counted in `agreementBlocked`, and an `invoice.finalize_blocked_agreement`
+ * audit row records the skip. The next cycle after acceptance charges it.
+ *
  * Never lets one bad invoice kill the batch: per-invoice errors are
  * collected and returned (the timer logs aggregates, never PII).
  */
@@ -26,6 +31,7 @@ import type { BillingConfig } from '../../config';
 import type { CommissionService } from './commission.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
+import type { AgreementGate } from '../builder-agreement.service';
 
 /** Default hours before a 'finalized' invoice is reconciled (#711). */
 const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
@@ -41,6 +47,8 @@ export interface InvoiceReviewerResult {
   readonly finalized: number;
   readonly skipped: number;
   readonly failed: number;
+  /** #722: due invoices not finalised — no current agreement acceptance. */
+  readonly agreementBlocked: number;
   /** #711: stuck 'finalized' invoices settled paid from Stripe. */
   readonly reconciledPaid: number;
   /** #711: stuck 'finalized' invoices settled failed from Stripe. */
@@ -61,12 +69,14 @@ export interface InvoiceReviewerServiceDeps {
   readonly audit: BillingAuditService;
   /** Read-only PaymentIntent lookup for reconciliation (#711). */
   readonly stripe: Pick<StripeService, 'retrievePaymentIntent'>;
+  /** #722: finalising needs the org's acceptance of the current agreement. */
+  readonly agreements: Pick<AgreementGate, 'isCurrentForTenant'>;
 }
 
 export function createInvoiceReviewerService(
   deps: InvoiceReviewerServiceDeps,
 ): InvoiceReviewerService {
-  const { billing, commission, audit, stripe } = deps;
+  const { billing, commission, audit, stripe, agreements } = deps;
 
   interface ReconcileResult {
     reconciledPaid: number;
@@ -135,6 +145,7 @@ export function createInvoiceReviewerService(
           finalized: 0,
           skipped: 0,
           failed: 0,
+          agreementBlocked: 0,
           reconciledPaid: 0,
           reconciledFailed: 0,
           stillPending: 0,
@@ -147,11 +158,30 @@ export function createInvoiceReviewerService(
       const skipped = await commission.countSkippedManualReviews(reviewNow);
       let finalized = 0;
       let failed = 0;
+      let agreementBlocked = 0;
       const errors: Array<{ invoiceId: string; message: string }> = [];
       const justFinalized = new Set<string>();
 
+      // #722: one gate lookup per tenant per cycle.
+      const agreementByTenant = new Map<string, boolean>();
       for (const invoice of due) {
         try {
+          let accepted = agreementByTenant.get(invoice.tenantKey);
+          if (accepted === undefined) {
+            accepted = await agreements.isCurrentForTenant(invoice.tenantKey);
+            agreementByTenant.set(invoice.tenantKey, accepted);
+          }
+          if (!accepted) {
+            agreementBlocked += 1;
+            await audit.append({
+              tenantKey: invoice.tenantKey,
+              eventType: 'invoice.finalize_blocked_agreement',
+              entityType: 'commission_invoice',
+              entityId: invoice.id,
+              payload: { reason: 'AGREEMENT_REQUIRED' },
+            });
+            continue;
+          }
           await commission.finalizeInvoice(invoice.id);
           justFinalized.add(invoice.id);
           finalized += 1;
@@ -179,6 +209,7 @@ export function createInvoiceReviewerService(
           finalized,
           skipped,
           failed,
+          agreementBlocked,
           due: due.length,
           reconciledPaid,
           reconciledFailed,
@@ -190,6 +221,7 @@ export function createInvoiceReviewerService(
         finalized,
         skipped,
         failed,
+        agreementBlocked,
         reconciledPaid,
         reconciledFailed,
         stillPending,

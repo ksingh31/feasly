@@ -30,6 +30,7 @@ import { estimates, leads } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 // @ts-expect-error: plain .mjs module without type declarations
 import { REPAIR_SQL } from '../tools/repair-sql.mjs';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const BILLING: BillingConfig = {
   model: 'commission',
@@ -183,6 +184,7 @@ describe('admin-created builder is fully provisioned (#710)', () => {
     const client = fakeStripeClient();
     const stripe = createStripeService({ db: testDb.db, billing: BILLING, client });
     const card = createCommissionCardService({
+      agreements: ACCEPTED_AGREEMENTS,
       billing: BILLING,
       audit: createBillingAuditService({ db: testDb.db }),
       stripe,

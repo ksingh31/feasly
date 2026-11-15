@@ -11,6 +11,7 @@
  * sees the opaque magic-link token from the email URL before that.
  */
 import type { BuilderPaymentMethod, CommissionInvoiceStatus } from './billing';
+import type { AdminBuilderAgreementSummary } from './agreement';
 
 export interface BuilderAuthRequestBody {
   readonly email: string;
@@ -299,6 +300,14 @@ export interface Builder {
   readonly commissionRatePercent: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/**
+ * GET /api/v1/admin/builders/{id} — the builder row plus the admin drawer's
+ * platform-agreement block (#722).
+ */
+export interface AdminBuilderDetail extends Builder {
+  readonly agreement: AdminBuilderAgreementSummary;
 }
 
 export interface BuilderListResponse {

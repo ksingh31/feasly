@@ -36,6 +36,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { initials } from '../../shared/utils/initials';
 import { BUILDER_COPY } from './builder-copy';
 import { DueInvoiceBannersComponent } from './due-invoice-banners.component';
+import { BuilderOnboardingChecklistComponent } from './builder-onboarding-checklist.component';
 import { BuilderState } from './builder.state';
 import { LoadBuilderLeads, LoadBuilderNeedsYou } from './builder.actions';
 import { LoadBillingCard } from './builder-billing.actions';
@@ -100,6 +101,7 @@ const STATUS_PARAM = 'status';
   imports: [
     RouterLink,
     DueInvoiceBannersComponent,
+    BuilderOnboardingChecklistComponent,
     PageHeaderComponent,
     DataTableComponent,
     UiCellDirective,

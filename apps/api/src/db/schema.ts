@@ -1651,3 +1651,54 @@ export const rateLimitCounters = pgTable(
   },
   (t) => [index('rate_limit_counters_expires_at_idx').on(t.expiresAt)],
 );
+
+/**
+ * Platform agreement acceptances (#722) — APPEND-ONLY legal record.
+ *
+ * One row per clickwrap acceptance by a builder org admin: the agreement
+ * version, when, who (user id + an email snapshot so the record survives a
+ * user deletion), and the request's client IP (#729 platform-appended hop)
+ * and user agent. The repository layer only inserts and reads — never
+ * updates or deletes. "Current acceptance" = a row whose version equals the
+ * configured `PLATFORM_AGREEMENT_VERSION`; bumping the version keeps the
+ * old rows, they just stop counting.
+ *
+ * `builder_id` has no ON DELETE action (restrict): builders are
+ * deactivated, never deleted, and the legal record must not vanish with
+ * them.
+ */
+export const builderAgreementAcceptances = pgTable(
+  'builder_agreement_acceptances',
+  {
+    /** App-generated UUID (node:crypto) — no pgcrypto dependency. */
+    id: uuid('id').primaryKey(),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id),
+    /** The agreement version accepted (e.g. '2026-11-draft-1'). */
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** The accepting user — null if they were since hard-deleted. */
+    acceptedByUserId: uuid('accepted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    /** Email of the accepting user at acceptance time (snapshot). */
+    acceptedByEmail: text('accepted_by_email'),
+    /** Client IP (right-most X-Forwarded-For hop); null when unknown. */
+    ip: text('ip'),
+    /** Request User-Agent, truncated by the service; null when absent. */
+    userAgent: text('user_agent'),
+  },
+  (t) => [
+    index('builder_agreement_acceptances_builder_version_idx').on(
+      t.builderId,
+      t.version,
+    ),
+    index('builder_agreement_acceptances_builder_accepted_idx').on(
+      t.builderId,
+      t.acceptedAt,
+    ),
+  ],
+);

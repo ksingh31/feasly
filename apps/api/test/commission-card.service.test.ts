@@ -17,6 +17,8 @@ import type {
   StripeService,
 } from '../src/services/billing/stripe.service';
 import type { BillingConfig } from '../src/config';
+import { ACCEPTED_AGREEMENTS, blockedAgreements } from './helpers/agreement-gate.fake';
+import type { AgreementGate } from '../src/services/builder-agreement.service';
 
 interface FakeStripeState {
   customers: Map<string, string>;
@@ -64,6 +66,7 @@ function makeDeps(opts?: {
   readonly configured?: boolean;
   readonly customers?: Map<string, string>;
   readonly cards?: Map<string, CardSummary[]>;
+  readonly agreements?: AgreementGate;
 }): { service: ReturnType<typeof createCommissionCardService>; state: FakeStripeState; audit: BillingAuditService; stripe: StripeService } {
   const state: FakeStripeState = {
     customers: opts?.customers ?? new Map(),
@@ -78,6 +81,7 @@ function makeDeps(opts?: {
   } as BillingConfig;
   const stripe = fakeStripe(state);
   const deps: CommissionCardServiceDeps = {
+    agreements: opts?.agreements ?? ACCEPTED_AGREEMENTS,
     billing,
     audit,
     stripe,
@@ -86,6 +90,25 @@ function makeDeps(opts?: {
 }
 
 describe('commission card-on-file (BILL-02)', () => {
+  it('card setup 409s AGREEMENT_REQUIRED without a current agreement acceptance (#722)', async () => {
+    const { service, stripe } = makeDeps({
+      agreements: blockedAgreements(),
+      customers: new Map([['elite-craft', 'cus_elite-craft']]),
+    });
+    await expect(service.ensureCustomer('elite-craft')).rejects.toMatchObject({
+      status: 409,
+      code: 'AGREEMENT_REQUIRED',
+    });
+    await expect(service.createSetupIntent('elite-craft')).rejects.toMatchObject({
+      status: 409,
+      code: 'AGREEMENT_REQUIRED',
+    });
+    expect(stripe.createCustomer).not.toHaveBeenCalled();
+    expect(stripe.createSetupIntent).not.toHaveBeenCalled();
+    // Reading card status is not a money action — never gated.
+    await expect(service.getCard('elite-craft')).resolves.toEqual({ hasCard: false });
+  });
+
   it('ensureCustomer creates and persists a Stripe customer, idempotently', async () => {
     const { service, state, audit, stripe } = makeDeps();
     const first = await service.ensureCustomer('elite-craft', 'b@x.com');

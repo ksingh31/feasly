@@ -18,6 +18,7 @@
  */
 import { z } from 'zod';
 import type {
+  AdminBuilderDetail,
   Builder,
   BuilderCreateBody,
   BuilderListResponse,
@@ -26,9 +27,12 @@ import type {
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BuilderService } from '../services/builder.service';
+import type { BuilderAgreementService } from '../services/builder-agreement.service';
 
 export interface AdminBuildersRouteDeps {
   readonly builders: BuilderService;
+  /** #722: the drawer's platform-agreement block (version, acceptedAt, by). */
+  readonly agreements: Pick<BuilderAgreementService, 'getAdminSummary'>;
   readonly adminGuard: AdminGuard;
 }
 
@@ -42,11 +46,11 @@ export interface AdminBuildersRoute {
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
   ): Promise<Builder>;
-  /** GET /api/v1/admin/builders/{id} */
+  /** GET /api/v1/admin/builders/{id} — builder + agreement block (#722) */
   get(
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
-  ): Promise<Builder>;
+  ): Promise<AdminBuilderDetail>;
   /** PATCH /api/v1/admin/builders/{id} */
   update(
     headers: Record<string, string | string[] | undefined>,
@@ -164,7 +168,7 @@ async function requireAdminEmail(
 export function createAdminBuildersRoute(
   deps: AdminBuildersRouteDeps,
 ): AdminBuildersRoute {
-  const { builders, adminGuard } = deps;
+  const { builders, agreements, adminGuard } = deps;
 
   const toCreateBody = (data: z.infer<typeof builderCreateSchema>): BuilderCreateBody => ({
     tenantKey: data.tenantKey,
@@ -227,9 +231,13 @@ export function createAdminBuildersRoute(
       return builders.createBuilder(toCreateBody(data), adminEmail);
     },
 
-    async get(headers, id): Promise<Builder> {
+    async get(headers, id): Promise<AdminBuilderDetail> {
       await requireAdminEmail(adminGuard, headers);
-      return builders.getBuilder(parseBuilderId(id));
+      const builder = await builders.getBuilder(parseBuilderId(id));
+      return {
+        ...builder,
+        agreement: await agreements.getAdminSummary(builder.id),
+      };
     },
 
     async update(headers, id, body): Promise<Builder> {

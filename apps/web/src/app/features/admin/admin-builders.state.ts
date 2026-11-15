@@ -1,8 +1,13 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
-import { tap } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
-import type { Builder, BuilderListResponse } from '@feasly/contracts';
+import type {
+  AdminBuilderAgreementSummary,
+  Builder,
+  BuilderListResponse,
+} from '@feasly/contracts';
 import { AdminBuildersApiService } from './admin-builders-api.service';
 import {
   AssignLeadBuilder,
@@ -12,6 +17,7 @@ import {
   DismissBuildersError,
   DismissBuildersSaved,
   DismissBuildersSaveError,
+  LoadAdminBuilderAgreement,
   LoadBuilders,
   UpdateBuilder,
 } from './admin-builders.actions';
@@ -36,6 +42,10 @@ export interface AdminBuildersStateModel {
   assignError: string | null;
   /** True after an assign until dismissed (drives the inline confirmation). */
   assignSuccess: boolean;
+  /** #722: the drawer's builder id + its platform-agreement summary. */
+  agreementBuilderId: string | null;
+  agreement: AdminBuilderAgreementSummary | null;
+  agreementStatus: AdminBuildersStatus | 'ready';
 }
 
 const defaults: AdminBuildersStateModel = {
@@ -48,6 +58,9 @@ const defaults: AdminBuildersStateModel = {
   assigning: false,
   assignError: null,
   assignSuccess: false,
+  agreementBuilderId: null,
+  agreement: null,
+  agreementStatus: 'idle',
 };
 
 /**
@@ -115,7 +128,39 @@ export class AdminBuildersState {
     return state.assignSuccess;
   }
 
+  /** #722: agreement summary for the builder open in the drawer. */
+  @Selector()
+  static agreement(state: AdminBuildersStateModel): AdminBuilderAgreementSummary | null {
+    return state.agreement;
+  }
+
+  @Selector()
+  static agreementStatus(state: AdminBuildersStateModel): AdminBuildersStatus | 'ready' {
+    return state.agreementStatus;
+  }
+
   // ------------------------------------------------------------------ actions
+
+  @Action(LoadAdminBuilderAgreement)
+  loadAgreement(
+    ctx: StateContext<AdminBuildersStateModel>,
+    action: LoadAdminBuilderAgreement,
+  ): Observable<unknown> {
+    ctx.patchState({ agreementBuilderId: action.id, agreement: null, agreementStatus: 'loading' });
+    return this.api.getBuilder(action.id).pipe(
+      tap((detail) => {
+        // A newer drawer may have opened meanwhile — ignore stale replies.
+        if (ctx.getState().agreementBuilderId !== action.id) return;
+        ctx.patchState({ agreement: detail.agreement ?? null, agreementStatus: 'ready' });
+      }),
+      catchError(() => {
+        if (ctx.getState().agreementBuilderId === action.id) {
+          ctx.patchState({ agreementStatus: 'error' });
+        }
+        return of(null);
+      }),
+    );
+  }
 
   @Action(LoadBuilders)
   load(ctx: StateContext<AdminBuildersStateModel>): Observable<BuilderListResponse> {
