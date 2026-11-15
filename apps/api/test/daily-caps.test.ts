@@ -47,6 +47,8 @@ describe('createDailyCap', () => {
     const verdicts = [];
     for (let i = 0; i < 6; i++) verdicts.push((await cap.take()).allowed);
     expect(verdicts).toEqual([true, true, true, false, false, false]);
+    // The alert is fire-and-forget — let it settle before asserting.
+    await vi.waitFor(() => expect(onThreshold).toHaveBeenCalled());
     // Default threshold = first refused unit, fired exactly once.
     expect(onThreshold).toHaveBeenCalledTimes(1);
     expect(onThreshold).toHaveBeenCalledWith(4);
@@ -67,6 +69,7 @@ describe('createDailyCap', () => {
       clock: () => DAY0,
     });
     for (let i = 0; i < 10; i++) expect((await cap.take()).allowed).toBe(true);
+    await vi.waitFor(() => expect(onThreshold).toHaveBeenCalled());
     expect(onThreshold).toHaveBeenCalledTimes(1);
     expect(onThreshold).toHaveBeenCalledWith(8);
   });

@@ -9,7 +9,8 @@
  * - `take()` records one unit and says whether it fits today's budget. The
  *   count keeps rising past the cap (refused units are counted too), which
  *   is harmless: the row restarts at 1 on the next UTC day.
- * - `onThreshold` runs exactly once per day: on the take that lands on the
+ * - `onThreshold` runs exactly once per day (fire-and-forget, never awaited
+ *   by the request): on the take that lands on the
  *   threshold count (concurrent takes get distinct counts from the atomic
  *   upsert). Its errors are swallowed — an alert must never block the work.
  * - Store errors propagate. Callers fail closed (static guide / queue).
@@ -69,13 +70,16 @@ export function createDailyCap(deps: DailyCapDeps): DailyCap {
         expiresAt: new Date(windowStartMs + DAY_MS),
       });
       if (count === alertAt && deps.onThreshold) {
-        try {
-          await deps.onThreshold(count);
-        } catch (error) {
-          console.warn(
-            `daily cap '${scope}': threshold alert failed (${String(error)})`,
-          );
-        }
+        // Fire-and-forget: the request that lands on the threshold must not
+        // wait on (or fail because of) the ops-alert send.
+        const hook = deps.onThreshold;
+        void Promise.resolve()
+          .then(() => hook(count))
+          .catch((error: unknown) => {
+            console.warn(
+              `daily cap '${scope}': threshold alert failed (${String(error)})`,
+            );
+          });
       }
       return { allowed: count <= limit, count };
     },
