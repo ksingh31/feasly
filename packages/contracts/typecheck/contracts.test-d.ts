@@ -81,6 +81,9 @@ declare const property: PropertyRecord;
 assertType<string>(property.addressKey);
 assertType<number | null>(property.yearBuilt);
 assertType<boolean>(property.stale);
+// #686: current land-use district is optional (additive).
+assertType<'land-use-districts' | 'assessment-roll' | undefined>(property.landUse?.source);
+assertType<string | undefined>(property.landUse?.dcBylaw);
 
 declare const suggestion: AutocompleteSuggestion;
 assertType<string>(suggestion.addressKey);

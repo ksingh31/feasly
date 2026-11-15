@@ -14,6 +14,7 @@ import {
   GoToStep,
   ResetWizard,
   SelectProperty,
+  SetEntrySource,
   StorePreviewEstimate,
   UpdateComparison,
   ClearComparison,
@@ -80,6 +81,13 @@ export interface WizardStateModel {
   previewKey?: string | null;
   /** Embed tenant the cached preview was attributed to (#489). */
   previewTenantKey?: string | null;
+  /**
+   * Allowlisted deep-link source this funnel started from (#692), e.g.
+   * 'community-lots'. Null = typed on the landing page or unknown source.
+   * Optional: absent in state persisted by older versions (treated as null).
+   * Campaign source on the lead itself is #702; it reads this value.
+   */
+  entrySource?: string | null;
 }
 
 /**
@@ -113,6 +121,7 @@ export interface WizardStateModel {
     preview: null,
     previewKey: null,
     previewTenantKey: null,
+    entrySource: null,
   },
 })
 @Injectable()
@@ -212,6 +221,12 @@ export class WizardState implements NgxsOnInit {
     };
   }
 
+  /** Allowlisted deep-link source of the current funnel (#692). */
+  @Selector()
+  static entrySource(state: WizardStateModel): string | null {
+    return state.entrySource ?? null;
+  }
+
   @Action(SelectProperty)
   selectProperty(ctx: StateContext<WizardStateModel>, action: SelectProperty): void {
     ctx.patchState({ property: action.property });
@@ -263,6 +278,11 @@ export class WizardState implements NgxsOnInit {
     });
   }
 
+  @Action(SetEntrySource)
+  setEntrySource(ctx: StateContext<WizardStateModel>, action: SetEntrySource): void {
+    ctx.patchState({ entrySource: action.source });
+  }
+
   @Action(StorePreviewEstimate)
   storePreviewEstimate(ctx: StateContext<WizardStateModel>, action: StorePreviewEstimate): void {
     ctx.patchState({
@@ -299,6 +319,7 @@ export class WizardState implements NgxsOnInit {
       preview: null,
       previewKey: null,
       previewTenantKey: null,
+      entrySource: null,
     });
   }
 }

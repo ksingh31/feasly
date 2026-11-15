@@ -13,6 +13,7 @@ const INNER = {
   sendPartnerShare: vi.fn(),
   sendCallbackConfirmation: vi.fn(),
   sendNudge: vi.fn(),
+  sendFollowUp: vi.fn(),
   sendOpsAlert: vi.fn(),
 } as unknown as EmailService;
 

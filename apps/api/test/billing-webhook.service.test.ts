@@ -134,6 +134,7 @@ function fakeEmail(): EmailService {
     sendPartnerShare: noop,
     sendCallbackConfirmation: noop,
     sendNudge: noop,
+    sendFollowUp: noop,
     sendOpsAlert: async (input: { title: string }) => {
       opsAlerts.push(input.title);
       return { sent: true, provider: 'log' as const };

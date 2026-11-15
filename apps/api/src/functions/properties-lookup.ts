@@ -76,7 +76,7 @@ export async function propertiesLookupHandler(
         headers,
         correlationId,
         { endpoint: '/api/v1/properties/lookup' },
-        () => app.propertyRoute.lookup(addressKey),
+        () => app.propertyRoute.lookup(addressKey, correlationId),
       ),
   );
 
