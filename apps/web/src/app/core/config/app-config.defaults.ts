@@ -167,7 +167,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           n: '03',
-          title: 'Unlock your full report',
+          title: 'Get your full report',
           body: 'A range-based estimate with an AI summary, risk factors, and a downloadable PDF.',
         },
       ],
@@ -401,9 +401,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // Locked-slot note (QA 2026-10-04): there is no email-verification
       // step — unlock is a lead-gate submit, and the report unlocks
       // immediately (magic link = return access only). Matches the
-      // report's framing ("Locked — unlock to reveal the figures").
-      lockedNote: 'Locked — unlock to reveal the figures.',
-      unlockCta: 'Unlock my free report →',
+      // report's framing ("Revealed when you get your free report").
+      // "Unlock" is reserved for the single preview CTA (copy.report.unlockCta,
+      // issue #506) — enforced by tools/check-banned-phrases.mjs.
+      lockedNote: 'Revealed when you get your free report.',
+      unlockCta: 'Show my free comparison →',
       editLabel: '← Edit communities',
       chartTitle: 'Total cost comparison',
       chartAxisNote: 'Bars show the likely total range per community.',
@@ -436,7 +438,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     report: {
       heading: 'Your build estimate',
-      subPreGate: 'Your free preview is ready — unlock it to see the full numbers.',
+      subPreGate: 'Your free preview is ready — get your free report to see the full numbers.',
       subPostGate: 'Your personalized build estimate for this Calgary property.',
       totalLabel: 'Total investment',
       planningRangeLabel: 'Likely planning range',
@@ -459,7 +461,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Deterministic math — our AI writes the summary only; it never invents prices.',
         'A planning range, not a single number — because your finish choices move the number.',
       ],
-      lockedNote: 'Locked — unlock to reveal the figures.',
+      lockedNote: 'Revealed when you get your free report.',
       unlockCta: 'Unlock my free report →',
       // Post-gate confirmation line (Karan directive 2026-09-27): the
       // magic-link email is return-access for other devices now, not the
@@ -481,7 +483,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       leadLinkNoteInvalidRecipient:
         "We couldn't send to that email address — please check it for typos and try again.",
       breakdownTitle: 'Where the build budget goes',
-      breakdownLocked: 'The breakdown unlocks with your full report.',
+      breakdownLocked: 'The breakdown is revealed in your full report.',
       finishLevelLabel: 'Selected finish level',
       tierDescriptors: {
         standard:
@@ -504,19 +506,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       ],
       tierTitle: 'What if you change the finish tier?',
       tierToggleHint: 'Pick a finish level — every figure on this page updates to match.',
-      tierLockedNote: 'Unlock your report to see the full cost breakdown and next steps.',
+      tierLockedNote: 'Your full report adds the cost breakdown and next steps.',
       adjustTitle: 'Adjust the size',
       decreaseLabel: 'Decrease square footage',
       increaseLabel: 'Increase square footage',
       adjustHint: 'Tap to change the living area — every figure on this page updates automatically.',
       adjustUnit: 'sq ft',
       adjustCta: 'Re-run estimate',
-      adjustLockedNote: 'Unlock your report to adjust the size.',
+      adjustLockedNote: 'Get your full report to adjust the size.',
       /** RENO: the size stepper becomes an affected-area stepper on reno reports. */
       adjustTitleReno: 'Adjust the affected area',
       adjustHintReno:
         'Tap to change the renovation area — every figure on this page updates automatically.',
-      adjustLockedNoteReno: 'Unlock your report to adjust the affected area.',
+      adjustLockedNoteReno: 'Get your full report to adjust the affected area.',
       renoScopeLabel: 'Renovation scope',
       updatingLabel: 'Updating your estimate…',
       updatedLabel: 'Updated {date}',
@@ -524,7 +526,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       narrativeTitle: 'AI summary',
       narrativeComingSoon:
         'An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.',
-      aiSummaryLocked: 'Unlock your report to read the AI neighbourhood guide.',
+      aiSummaryLocked: 'Get your full report to read the AI neighbourhood guide.',
       aiSummaryUnavailable:
         'The AI neighbourhood guide is not available for this report right now — the figures above are the complete estimate.',
       /** Shown when every narrative model failed: the static Calgary guide, honestly labeled. */
@@ -644,7 +646,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       privacyNote:
         'We use your details to deliver your estimate and may share them with builders associated with us — never sold. See our',
       privacyLinkLabel: 'Privacy Policy',
-      submitLabel: 'Unlock my free report →',
+      submitLabel: 'Show my report →',
       submittingLabel: 'Sending…',
       submitError: 'We couldn’t save your details. Please check your connection and try again.',
       retryLabel: 'Try again',
@@ -687,14 +689,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
-        'Your blurred build-cost and total preview for your Calgary new home build estimate — unlock the full report.',
+        'Your blurred build-cost and total preview for your Calgary new home build estimate — get the full report.',
       reportTitle: 'Feasly — Your build estimate report',
       report: 'Your range-based Calgary new home build estimate: cost breakdown, tier scenarios, and next steps.',
       sampleReportTitle: 'Feasly — Sample build estimate report (SAMPLE)',
       sampleReport:
         'SAMPLE — a fictional, watermarked example of a Feasly build estimate report. Illustrative figures only, not a real estimate.',
-      gateTitle: 'Feasly — Unlock your free estimate report',
-      gate: 'Enter your details to unlock your personalized Calgary new home build estimate report.',
+      gateTitle: 'Feasly — Get your free estimate report',
+      gate: 'Enter your details to see your personalized Calgary new home build estimate report.',
       analyzingTitle: 'Feasly — Building your estimate',
       analyzing: 'We’re preparing your personalized Calgary new home build cost estimate right now.',
       renoComingSoonTitle: 'Feasly — Renovations are coming soon',
@@ -709,7 +711,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       terms: 'The terms that apply when you use Feasly to generate a build estimate.',
       howItWorksTitle: 'Feasly — How it works',
       howItWorks:
-        'How Feasly builds your Calgary new home build estimate in 4 steps: address, scope, preview, unlock. Same fixed formula, real City data.',
+        'How Feasly builds your Calgary new home build estimate in 4 steps: address, scope, preview, report. Same fixed formula, real City data.',
       faqTitle: 'Feasly — Frequently asked questions',
       faq: 'How much does it cost to build a house in Calgary? Are renovation estimates available? Answers about Calgary build costs, finish tiers, data, and privacy.',
       pillarGuideTitle: 'Feasly — How much does it cost to build a house in Calgary?',
@@ -731,7 +733,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       unsubscribeTitle: 'Feasly — Email preferences',
       unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
       magicLinkTitle: 'Feasly — Opening your estimate',
-      magicLink: 'Opening your secure Feasly estimate link — verifying and unlocking your Calgary build estimate.',
+      magicLink: 'Opening your secure Feasly estimate link — verifying and opening your Calgary build estimate.',
       // Admin console (admin/07): per-section titles for client-side nav.
       // All noindexed via the seo-routes table — never in search results.
       adminHomeTitle: 'Admin — Feasly',
@@ -788,8 +790,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             n: '04',
-            title: 'Unlock your full report',
-            body: 'Enter your email and your full report unlocks immediately: total investment, cost breakdown, and next steps. We also email you a link to reopen it anytime — valid for 7 days.',
+            title: 'Get your full report',
+            body: 'Enter your email and your full report opens immediately: total investment, cost breakdown, and next steps. We also email you a link to reopen it anytime — valid for 7 days.',
           },
         ],
         mathNoteTitle: 'Real math, not guesses',
@@ -829,7 +831,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Is Feasly free?',
-            a: 'There is no charge to generate an estimate or unlock your full report.',
+            a: 'There is no charge to generate an estimate or get your full report.',
           },
           {
             q: 'What data do you use for my estimate?',
@@ -853,7 +855,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'How does the magic link work?',
-            a: 'Your report unlocks the moment you enter your email — no password to remember. We also email you a magic link so you can reopen it on another device anytime. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one.',
+            a: 'Your report opens the moment you enter your email — no password to remember. We also email you a magic link so you can reopen it on another device anytime. The link expires after 7 days; if it lapses, just run the estimate again and we’ll send a fresh one.',
           },
         ],
       },

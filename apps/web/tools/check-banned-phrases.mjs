@@ -18,6 +18,9 @@
  *      API (EstimateResponse.disclaimer) · MCP (tool descriptions —
  *    skipped until api-mcp/06 lands; the check notes the skip).
  *
+ * 3. SINGLE "UNLOCK" (issue #506) — "Unlock" appears in user-facing copy
+ *    exactly once: the preview CTA (copy.report.unlockCta).
+ *
  * Proven to bite by apps/web/tools/check-banned-phrases.spec.ts (vitest).
  *
  * Usage: node apps/web/tools/check-banned-phrases.mjs (paths resolve from
@@ -82,6 +85,96 @@ export function scanUnit(unit, rel) {
     }
   }
   return hits;
+}
+
+// ── Single "Unlock" (issue #506, epic FE-3 / README DoD) ────────────────
+// "Unlock" (any form: unlock, unlocks, unlocked, unlocking — case-insensitive)
+// may appear in user-facing copy exactly once: the preview CTA,
+// copy.report.unlockCta. Everything else says "Get your full report",
+// "Show my report", "Revealed when you get your free report", etc.
+export const UNLOCK_RE = /\bunlock/gi;
+/** The single copy key allowed to carry "Unlock". */
+export const UNLOCK_KEY = 'copy.report.unlockCta';
+
+/**
+ * Reduce an Angular template to its visible text: drop comments, tags
+ * (attributes, bindings, class names like `cta unlock`), interpolations
+ * (`{{ copy.unlockCta }}`) and control-flow headers (`@if (unlocked())`).
+ */
+export function templateText(html) {
+  return stripHtmlComments(html)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+    .replace(/@\w+(?:\s+if)?\s*(\((?:[^()]|\([^()]*\))*\))?\s*\{?/g, ' ')
+    .replace(/[{}]/g, ' ');
+}
+
+/** Every string value in a JSON tree, with its dotted path. */
+export function jsonStrings(node, path = '', out = []) {
+  if (typeof node === 'string') out.push({ path, text: node });
+  else if (Array.isArray(node)) node.forEach((v, i) => jsonStrings(v, `${path}[${i}]`, out));
+  else if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) jsonStrings(v, path ? `${path}.${k}` : k, out);
+  }
+  return out;
+}
+
+/**
+ * Count "Unlock" in user-facing copy. Rules:
+ *  - app-config.defaults.ts: exactly ONE string literal carries it, and that
+ *    literal must be the value of `unlockCta` inside the `report` block.
+ *  - public/assets/config/app-config.json (runtime override of the same
+ *    copy): only `copy.report.unlockCta` may carry it.
+ *  - Templates and every other copy source: zero.
+ * Returns failure strings (empty = clean).
+ */
+export function checkSingleUnlock(root = ROOT) {
+  const failures = [];
+  const webSrc = join(root, 'apps', 'web', 'src');
+  const defaultsPath = join(webSrc, 'app', 'core', 'config', 'app-config.defaults.ts');
+
+  for (const { path, kind } of copySources(root)) {
+    let text;
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      continue;
+    }
+    const rel = relative(root, path);
+    if (path === defaultsPath) {
+      const hits = extractStringLiterals(text).filter((u) => new RegExp(UNLOCK_RE.source, 'i').test(u));
+      if (hits.length !== 1) {
+        failures.push(
+          `${rel}: "Unlock" must appear in exactly one copy string (${UNLOCK_KEY}); found ${hits.length}: ${hits.map((h) => JSON.stringify(h)).join(', ')}`,
+        );
+      }
+      const reportBlock = text.match(/\n {4}report: \{([\s\S]*?)\n {4}\},/);
+      const cta = reportBlock?.[1].match(/\n {6}unlockCta:\s*'([^']*)'/);
+      if (!cta || !new RegExp(UNLOCK_RE.source, 'i').test(cta[1])) {
+        failures.push(`${rel}: the one "Unlock" must be the preview CTA (${UNLOCK_KEY})`);
+      }
+      continue;
+    }
+    const units = kind === 'html' ? [templateText(text)] : extractStringLiterals(text);
+    for (const unit of units) {
+      if (new RegExp(UNLOCK_RE.source, 'i').test(unit)) {
+        const i = unit.search(new RegExp(UNLOCK_RE.source, 'i'));
+        const snippet = unit.slice(Math.max(0, i - 30), i + 40).replace(/\s+/g, ' ').trim();
+        failures.push(`${rel}: "Unlock" outside the preview CTA (${UNLOCK_KEY}): …${snippet}…`);
+      }
+    }
+  }
+
+  const jsonPath = join(root, 'apps', 'web', 'public', 'assets', 'config', 'app-config.json');
+  if (existsSync(jsonPath)) {
+    const rel = relative(root, jsonPath);
+    for (const { path, text } of jsonStrings(JSON.parse(readFileSync(jsonPath, 'utf8')))) {
+      if (path !== UNLOCK_KEY && new RegExp(UNLOCK_RE.source, 'i').test(text)) {
+        failures.push(`${rel}: "Unlock" outside the preview CTA at ${path}: ${JSON.stringify(text)}`);
+      }
+    }
+  }
+  return failures;
 }
 
 function walk(dir, out = []) {
@@ -196,6 +289,9 @@ export function checkBannedPhrases(root = ROOT) {
       }
     }
   }
+
+  // ── Single "Unlock" ──
+  failures.push(...checkSingleUnlock(root));
 
   return { failures, notes };
 }

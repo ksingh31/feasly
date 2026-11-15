@@ -175,7 +175,7 @@ describe('CompareResultsComponent', () => {
     for (const note of lockedNotes) {
       // QA 2026-10-04: no email-verification step exists — the note matches
       // the report's unlock framing.
-      expect(note.textContent).toContain('Locked — unlock to reveal the figures.');
+      expect(note.textContent).toContain('Revealed when you get your free report.');
     }
     // Locked slots are aria-hidden, hold real digit text, and are blurred.
     const lockedValues = el.querySelectorAll('.locked-slot__value');
@@ -211,7 +211,7 @@ describe('CompareResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     const unlock = el.querySelector('[data-testid="unlock-cta"]') as HTMLButtonElement;
     expect(unlock).toBeTruthy();
-    expect(unlock.textContent).toContain('Unlock my free report →');
+    expect(unlock.textContent).toContain('Show my free comparison →');
   });
 
   it('post-gate: all figures unblurred with the same badge, no locked notes', async () => {
