@@ -28,6 +28,10 @@ import { UiFieldShellComponent } from './field-shell.component';
  * after the same digit as separators are inserted/removed. Input the
  * parser can't represent (too many digits) is rejected, keeping the last
  * good value. Formatting only — no money math happens here.
+ *
+ * Whole dollars only: a seeded value with a cents part (e.g. 125099) is
+ * shown truncated ("1,250") and the next edit emits whole-dollar cents,
+ * dropping the 99¢. Seed it with whole-dollar amounts.
  */
 @Component({
   selector: 'ui-money-field',
@@ -52,6 +56,7 @@ export class UiMoneyFieldComponent extends UiFieldBase<number | null> {
   private readonly inputEl = viewChild.required<ElementRef<HTMLInputElement>>('control');
 
   writeValue(value: number | null): void {
+    // Whole dollars only — see class docblock for non-whole seeds.
     this.value.set(value ?? null);
   }
 

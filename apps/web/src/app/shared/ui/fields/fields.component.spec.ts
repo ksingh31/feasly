@@ -139,6 +139,34 @@ describe('UiSelectComponent', () => {
   });
 });
 
+describe('UiSelectComponent without a placeholder', () => {
+  @Component({
+    standalone: true,
+    imports: [UiSelectComponent],
+    template: `<ui-select label="Status" [options]="options" [(value)]="status" />`,
+  })
+  class Host {
+    readonly options: UiSelectOption[] = [
+      { value: 'new', label: 'New' },
+      { value: 'won', label: 'Won' },
+    ];
+    readonly status = signal<string | null>(null);
+  }
+
+  it('shows blank (not the first option) while the value is null', () => {
+    TestBed.configureTestingModule({ imports: [Host] });
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect(select.value).toBe('');
+    expect(select.selectedOptions[0]!.hidden).toBe(true);
+
+    fixture.componentInstance.status.set('won');
+    fixture.detectChanges();
+    expect(select.value).toBe('won');
+  });
+});
+
 describe('UiMoneyFieldComponent', () => {
   @Component({
     standalone: true,

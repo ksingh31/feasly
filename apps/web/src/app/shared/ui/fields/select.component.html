@@ -19,6 +19,9 @@
   >
     @if (placeholder() !== null) {
       <option value="" [selected]="value() === null">{{ placeholder() }}</option>
+    } @else if (!hasSelection()) {
+      <!-- No placeholder and no matching value: show blank, not option 1. -->
+      <option value="" disabled hidden selected></option>
     }
     @for (opt of options(); track opt.value) {
       <option [value]="opt.value" [disabled]="!!opt.disabled" [selected]="opt.value === value()">
