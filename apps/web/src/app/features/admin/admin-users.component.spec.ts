@@ -297,6 +297,38 @@ describe('AdminUsersComponent', () => {
     expect(req.request.body).toMatchObject({ role: 'builder_member', builderId: BUILDER_B.id });
   });
 
+  it('switching back to a staff role clears the org requirement so Send works', async () => {
+    flushInit([], [BUILDER_A, BUILDER_B]);
+    store.dispatch(new OpenInviteAdminUser());
+    fixture.detectChanges();
+    await until(() => inviteModal() !== null, 'invite modal opens');
+
+    const fill = (type: string, value: string) => {
+      const input = inviteModal()!.querySelector(`input[type="${type}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    fill('email', 'ops@example.com');
+    fill('text', 'Ops Person');
+    const role = inviteModal()!.querySelector('select') as HTMLSelectElement;
+    role.value = 'builder_member';
+    role.dispatchEvent(new Event('change'));
+    await until(() => inviteModal()!.querySelectorAll('select').length === 2, 'organization select appears');
+
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    TestBed.tick();
+    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    await until(() => (inviteModal()!.textContent ?? '').includes('Choose the builder organization.'), 'org error');
+
+    role.value = 'viewer';
+    role.dispatchEvent(new Event('change'));
+    await until(() => inviteModal()!.querySelectorAll('select').length === 1, 'organization select hides');
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    expect(req.request.body).toMatchObject({ role: 'viewer' });
+    expect(req.request.body.builderId).toBeUndefined();
+  });
+
   it('keeps the modal open with the error inline when the invite fails', async () => {
     flushInit([]);
     store.dispatch(new OpenInviteAdminUser());

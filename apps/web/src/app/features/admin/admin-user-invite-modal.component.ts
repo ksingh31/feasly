@@ -79,6 +79,20 @@ export class AdminUserInviteModalComponent {
     (BUILDER_ROLES as readonly (string | null)[]).includes(this.role()),
   );
 
+  constructor() {
+    // Builder roles require an org; staff roles don't. Toggle the validator
+    // on role change so an error set under a builder role can't stick after
+    // switching back to a staff role (which left Send silently inert).
+    const builderId = this.form.controls.builderId;
+    this.form.controls.role.valueChanges
+      .pipe(startWith(this.form.controls.role.value), takeUntilDestroyed(this.destroyRef))
+      .subscribe((role) => {
+        const needsOrg = (BUILDER_ROLES as readonly (string | null)[]).includes(role);
+        builderId.setValidators(needsOrg ? [Validators.required] : []);
+        builderId.updateValueAndValidity({ emitEvent: false });
+      });
+  }
+
   protected error(name: 'email' | 'name' | 'builderId'): string | null {
     const control = this.form.controls[name];
     if (!control.touched || control.valid) return null;
@@ -101,10 +115,6 @@ export class AdminUserInviteModalComponent {
     if (this.form.invalid || this.inviting()) return;
     const { email, name, role, builderId } = this.form.getRawValue();
     const builder = this.roleIsBuilder();
-    if (builder && !builderId) {
-      this.form.controls.builderId.setErrors({ required: true });
-      return;
-    }
     this.store
       .dispatch(
         new InviteAdminUser({
