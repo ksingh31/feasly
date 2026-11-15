@@ -58,7 +58,7 @@ export async function waitlistHandler(
 
   // The body is never logged — it carries the signup email.
   const result = await app.leadPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.waitlistRoute.handle(req.body),
   );
 

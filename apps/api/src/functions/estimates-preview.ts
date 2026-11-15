@@ -71,6 +71,7 @@ export async function estimatesPreviewHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },

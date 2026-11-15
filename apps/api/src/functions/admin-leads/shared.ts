@@ -84,7 +84,7 @@ export async function dispatchAdminLeads(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     async () => {
       // auth/04: registry permissions are REAL authorization — enforced
       // here, centrally, before the route runs.

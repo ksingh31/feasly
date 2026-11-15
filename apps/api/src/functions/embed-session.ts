@@ -72,7 +72,7 @@ export async function embedSessionHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.embedSessionRoute.handle(req.body, clientIpFrom(req)),
   );
 
