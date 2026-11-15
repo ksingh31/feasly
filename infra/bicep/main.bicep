@@ -66,6 +66,9 @@ param postgresSkuName string = 'Standard_B1ms'
 @maxValue(35)
 param postgresBackupRetentionDays int = 7
 
+@description('Grant the deploying identity (CI OIDC = nightly ops identity) read-only Cost Management Reader on the subscription so it can read the feasly-monthly-cap budget (#574). Needs roleAssignments/write at subscription scope; set false to skip.')
+param grantDeployerCostReader bool = true
+
 @description('Principal type of the deployer identity (CI uses the OIDC managed identity)')
 // --- Naming ---
 // Globally-unique resource types (SWA, Function App, Postgres, Key Vault, Storage)
@@ -534,6 +537,20 @@ resource funcAppPostgresReader 'Microsoft.Authorization/roleAssignments@2022-04-
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', readerRoleId)
     principalId: functionApp.outputs.principalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// Deployer (CI OIDC identity — the same identity the nightly ops review logs
+// in as) gets read-only Cost Management Reader at SUBSCRIPTION scope so
+// `az consumption budget list` can read the subscription-scoped
+// `feasly-monthly-cap` budget (#574). A module is required because a
+// resource-group-scoped template cannot declare subscription-scope resources
+// directly. No cost; read-only.
+module deployerCostReader 'modules/subscription-cost-reader.bicep' = if (grantDeployerCostReader) {
+  name: 'feasly-${envShort}-deployer-cost-reader'
+  scope: subscription()
+  params: {
+    principalId: deployer().objectId
   }
 }
 

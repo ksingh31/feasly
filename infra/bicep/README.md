@@ -50,6 +50,7 @@ infra/bicep/
     monitoring.bicep            # Log Analytics + workspace-based App Insights
     storage.bicep               # StorageV2, `tenant-assets` + `deployment` containers,
                                 # lifecycle rule: dispute-evidence -> archive @90d, delete @7yr
+    subscription-cost-reader.bicep  # SUBSCRIPTION scope: Cost Management Reader for the deployer/ops identity (#574)
     dns.bicep                   # AUTHOR ONLY — not wired into main.bicep (no domain owned yet, FND-014)
 ```
 
@@ -113,3 +114,14 @@ approval). Each prod deploy needs Karan's approval — no standing auto-promote.
   `docs/oidc-setup.md`. The deployer identity receives "Key Vault Secrets
   Officer" on the vault (in-template role assignment) so CI can write/read
   secrets; it must also hold **Contributor** on the resource group (runbook).
+- **Cost read access (#574):** `modules/subscription-cost-reader.bicep` is
+  deployed with `scope: subscription()` and grants the deployer identity the
+  built-in, read-only **Cost Management Reader** role on the subscription, so
+  the nightly ops review (same OIDC identity) can run
+  `az consumption budget list` against the subscription-scoped
+  `feasly-monthly-cap` budget. No cost. The deployer needs
+  `Microsoft.Authorization/roleAssignments/write` at subscription scope
+  (Owner / User Access Administrator) for this one assignment; if it ever
+  lacks it, what-if/deploy fails on `deployerCostReader` — set
+  `grantDeployerCostReader = false` in the `.bicepparam` to unblock and grant
+  the role manually instead.
