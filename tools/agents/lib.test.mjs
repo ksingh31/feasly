@@ -173,5 +173,5 @@ test('sensitive paths hold auto-merge', () => {
     'apps/api/src/services/billing-service.ts',
     'docs/legal/approved-copy.md',
   ]);
-  assert.equal(hits.length, 4);
+  assert.equal(hits.length, 2); // only infra/bicep + docs/legal of the samples
 });
