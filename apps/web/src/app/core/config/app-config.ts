@@ -968,6 +968,8 @@ export interface AppConfig {
       updatingLabel: string;
       /** "Updated {date}" — shown when an old magic link resolved to a newer snapshot (consumer/02). */
       updatedLabel: string;
+      /** Print-only header date line (#509): "Prepared {date}". */
+      printPreparedLabel: string;
       /** "$X per sq ft" context line under the build cost. */
       perSqftUnit: string;
       narrativeTitle: string;

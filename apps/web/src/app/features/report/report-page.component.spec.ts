@@ -1206,6 +1206,108 @@ describe('ReportPageComponent', () => {
     });
   });
 
+  describe('print stylesheet (#509, consumer review B18)', () => {
+    /**
+     * Resolves the `display` an element gets under `@media print` from the
+     * component's injected stylesheets (later rules win; `!important` beats
+     * normal). Null when no print rule sets display for it.
+     */
+    function printDisplay(el: Element): string | null {
+      let value: string | null = null;
+      let important = false;
+      const visit = (rules: CSSRuleList, inPrint: boolean): void => {
+        for (const rule of Array.from(rules)) {
+          if (rule instanceof CSSMediaRule) {
+            visit(rule.cssRules, inPrint || /\bprint\b/.test(rule.media.mediaText));
+          } else if (inPrint && rule instanceof CSSStyleRule) {
+            let matches = false;
+            try {
+              matches = el.matches(rule.selectorText);
+            } catch {
+              // Pseudo-elements (::details-content, ::marker) never match an element.
+            }
+            const display = rule.style.getPropertyValue('display');
+            if (!matches || !display) continue;
+            const isImportant = rule.style.getPropertyPriority('display') === 'important';
+            if (isImportant || !important) {
+              value = display;
+              important = important || isImportant;
+            }
+          }
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          visit(sheet.cssRules, false);
+        } catch {
+          // Cross-origin sheets are unreadable; component styles are inline.
+        }
+      }
+      return value;
+    }
+
+    const q = (selector: string): HTMLElement | null => fixture.nativeElement.querySelector(selector);
+
+    it('prints the disclaimer pre-gate, and keeps it off screen', () => {
+      const disclaimer = q('.print-disclaimer');
+      expect(disclaimer?.textContent?.trim()).toBe(DEFAULT_APP_CONFIG.copy.narrativeDisclaimer);
+      expect(getComputedStyle(disclaimer!).display).toBe('none');
+      expect(printDisplay(disclaimer!)).toBe('block');
+    });
+
+    it('prints a brand header with the site name and a prepared date', () => {
+      const brand = q('.print-brand');
+      expect(brand).not.toBeNull();
+      expect(brand!.querySelector('app-brand-mark')).not.toBeNull();
+      expect(brand!.querySelector('.print-wordmark')?.textContent?.trim()).toBe(
+        DEFAULT_APP_CONFIG.site.name,
+      );
+      expect(brand!.querySelector('.print-date')?.textContent).toMatch(/^Prepared \w+ \d{1,2}, \d{4}$/);
+      expect(getComputedStyle(brand!).display).toBe('none');
+      expect(printDisplay(brand!)).toBe('flex');
+      // The address header prints right under the H1.
+      expect(q('.report-address')?.textContent).toContain(fakeProperty.address);
+    });
+
+    it('hides the pre-gate Unlock CTA and the disabled stepper on paper', () => {
+      expect(printDisplay(q('a.unlock')!)).toBe('none');
+      expect(printDisplay(q('.adjust-panel')!)).toBe('none');
+    });
+
+    describe('post-gate', () => {
+      beforeEach(async () => {
+        await unlock();
+      });
+
+      it('still prints the disclaimer, dated from the snapshot', () => {
+        const snapshot = store.selectSnapshot(ReportState.snapshot)!;
+        store.reset({
+          ...store.snapshot(),
+          report: { ...store.snapshot().report, snapshot: { ...snapshot, preparedAt: '2026-10-05T18:00:00.000Z' } },
+        });
+        fixture.detectChanges();
+        expect(printDisplay(q('.print-disclaimer')!)).toBe('block');
+        expect(q('.print-date')?.textContent?.trim()).toBe('Prepared October 5, 2026');
+      });
+
+      it('hides every interactive leftover: adjust, talk, actions, site chrome', () => {
+        for (const selector of ['.adjust-panel', '.talk', '.actions', 'app-site-nav', 'app-site-footer']) {
+          const el = fixture.nativeElement.querySelector(selector) ?? document.querySelector(selector);
+          expect(el, selector).not.toBeNull();
+          expect(printDisplay(el), selector).toBe('none');
+        }
+      });
+
+      it('keeps the figures and breakdown on paper', () => {
+        for (const selector of ['.hero-total', '.build-highlight', '.bucket-legend']) {
+          const el = q(selector);
+          expect(el, selector).not.toBeNull();
+          expect(printDisplay(el!), selector).not.toBe('none');
+        }
+      });
+    });
+  });
+
   describe('updated header (consumer/02)', () => {
     beforeEach(async () => {
       await unlock();
@@ -1377,6 +1479,12 @@ describe('ReportPageComponent', () => {
         expect(t).not.toContain('construction loan');
         expect(t).not.toContain('finishes are never compromised');
         expect(t).not.toContain('explicit choices you make in your finish tier');
+        // #509: the verbatim deterministic note is the printed disclaimer
+        // here — on screen and on paper, never duplicated by the print copy.
+        const note = fixture.nativeElement.querySelector('.deterministic-note') as HTMLElement;
+        expect(note?.textContent?.trim()).toBe(DEFAULT_APP_CONFIG.copy.report.renoDeterministicNote);
+        expect(getComputedStyle(note).display).not.toBe('none');
+        expect(fixture.nativeElement.querySelector('.print-disclaimer')).toBeNull();
       });
     });
   });
