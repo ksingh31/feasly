@@ -35,7 +35,7 @@ time (ranges only — per_sqft and margins never touch the content); 5-question 
 CTA "Get your address-specific estimate →". `/communities/` index: card grid of all
 communities (name, avg assessed, "from $X" teaser), each linking to its page; every
 community page links back to the index + 3 nearby. Count from config
-(`COMMUNITY_PAGE_LIMIT`, default 40). Deny-list scan: no per_sqft/margins in output.
+(`apps/web/scripts/config/community-selection.json` since #690 — rule + include + exclude per city; see `apps/web/SEO.md`). Deny-list scan: no per_sqft/margins in output.
 **Acceptance criteria:**
 - All N pages prerender (assert N HTML files); each `<title>` unique and matching
   `"Cost to Build a Home in {Name}, Calgary | Feasly"`.

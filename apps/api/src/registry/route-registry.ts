@@ -320,6 +320,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/zoning/districts',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Zoning rules catalogue for the configured city (#687): district → ' +
+      'typical building forms + key rules (height, coverage, density) with ' +
+      'bylaw sections; verified values only. Cache-Control public.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,

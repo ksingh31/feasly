@@ -171,6 +171,25 @@ describe('BillingOverviewService.getOverview', () => {
     });
   });
 
+  it('GST (#714): outstanding and the next charge use the total incl. tax', async () => {
+    const { service } = makeService({
+      invoices: [
+        inv({
+          id: 'taxed',
+          status: 'in_review',
+          commissionCents: 1_875_000,
+          taxCents: 93_750,
+          totalCents: 1_968_750,
+          reviewDueAt: new Date('2026-11-20T00:00:00.000Z'),
+        }),
+        inv({ id: 'legacy', status: 'failed', commissionCents: 500 }),
+      ],
+    });
+    const result = await service.getOverview(TENANT);
+    expect(result.outstandingCents).toBe(1_968_750 + 500);
+    expect(result.nextCharge?.amountCents).toBe(1_968_750);
+  });
+
   it('breaks a due-date tie on invoice number (deterministic)', async () => {
     const due = new Date('2026-11-20T00:00:00.000Z');
     const { service } = makeService({

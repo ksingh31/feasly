@@ -26,7 +26,10 @@ import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
 import { estimates, leads, tenants, builders, billingEvents, commissionInvoices } from '../src/db/schema';
 import { ErrorCodes } from '../src/middleware/errors';
+import type { CommissionInvoice } from '@feasly/contracts';
 import { createTestDb, type TestDb } from './pglite-db';
+// @ts-expect-error: plain .mjs module without type declarations
+import { REPAIR_SQL } from '../tools/repair-sql.mjs';
 
 const BILLING = {
   model: 'commission' as const,
@@ -187,6 +190,7 @@ async function seedAttribution(
   testDb: TestDb,
   attribution: AttributionService,
   tenantKey = 'test-builder',
+  contractValueCents = 50_000_000,
 ): Promise<string> {
   const estimateId = randomUUID();
   await testDb.db.insert(estimates).values({
@@ -216,7 +220,7 @@ async function seedAttribution(
   // Report a $500,000 signed contract (within window + SLA).
   const reported = await attribution.reportContract({
     attributionId: intro.id,
-    contractValueCents: 50_000_000,
+    contractValueCents,
     contractSignedAt: new Date('2026-06-01T10:00:00.000Z'),
     reportedAt: new Date('2026-06-05T10:00:00.000Z'),
   });
@@ -2118,5 +2122,255 @@ describe('builder payment methods (billing/12)', () => {
     expect(rearmed.paymentMethod).toBe('card');
     const due = await commission.findDueReviews(pastDue);
     expect(due.find((i) => i.id === inReview.id)).toBeDefined();
+  });
+});
+
+describe('GST on commission invoices (#714)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  const TAX = {
+    enabled: true,
+    ratePercent: 5,
+    label: 'GST',
+    inclusive: false,
+    supplierLegalName: 'Example Holdings Ltd.',
+    supplierAddress: '100 Example St SW, Calgary AB',
+    registrationNumber: '123456789RT0001',
+  };
+
+  function servicesWithTax(tax: typeof TAX | undefined) {
+    const stripe = fakeStripe();
+    const email = fakeEmail();
+    const billing = tax ? { ...BILLING, tax } : BILLING;
+    const attribution = createAttributionService({
+      db: testDb.db,
+      billing,
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+    });
+    const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
+    const commission = createCommissionService({
+      db: testDb.db,
+      billing,
+      attribution,
+      audit,
+      stripe,
+      email,
+      opsInbox: 'ops@example.com',
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+    });
+    return { commission, attribution, stripe, email };
+  }
+
+  async function seedBuilder(tenantKey: string, ratePercent: number): Promise<void> {
+    await testDb.db.insert(tenants).values({
+      tenantKey,
+      businessName: `${tenantKey} Ltd.`,
+      displayName: tenantKey,
+      accentColor: '#B08D57',
+      allowedOrigins: ['https://example.com'],
+      stripeCustomerId: 'cus_test_123',
+    });
+    await testDb.db.insert(builders).values({
+      id: randomUUID(),
+      tenantKey,
+      businessName: `${tenantKey} Ltd.`,
+      displayName: tenantKey,
+      commissionRatePercent: ratePercent,
+      email: `billing@${tenantKey}.example`,
+    });
+  }
+
+  const chargeAmounts = (stripe: { calls: unknown[] }) =>
+    stripe.calls
+      .filter((c) => (c as { op: string }).op === 'createOffSessionPaymentIntent')
+      .map((c) => (c as { input: { amountCents: number } }).input.amountCents);
+
+  it('AC1: $1,250,000 at 1.5% + 5% GST → $18,750 + $937.50 = $19,687.50, Stripe charged 1,968,750', async () => {
+    const { commission, attribution, stripe, email } = servicesWithTax(TAX);
+    await seedBuilder('gst-ac1', 1.5);
+    const attributionId = await seedAttribution(testDb, attribution, 'gst-ac1', 125_000_000);
+
+    const draft = await commission.createDraftInvoice(attributionId);
+    expect(draft).toMatchObject({
+      commissionCents: 1_875_000,
+      subtotalCents: 1_875_000,
+      taxRatePercent: 5,
+      taxInclusive: false,
+      taxCents: 93_750,
+      totalCents: 1_968_750,
+      taxLabel: 'GST',
+    });
+
+    // Contract conformance: the record's tax fields satisfy the public
+    // CommissionInvoice DTO (compile-time) and are always populated.
+    const dto: Pick<
+      CommissionInvoice,
+      'subtotalCents' | 'taxRatePercent' | 'taxInclusive' | 'taxCents' | 'totalCents' | 'taxLabel'
+    > = draft;
+    expect(Object.values(dto).every((v) => v !== undefined)).toBe(true);
+
+    const inReview = await commission.submitForReview(draft.id);
+    const ready = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionInvoiceReady',
+    ) as { input: { tax?: { taxCents: number; totalCents: number; registrationNumber: string } } };
+    expect(ready.input.tax).toMatchObject({
+      taxCents: 93_750,
+      totalCents: 1_968_750,
+      registrationNumber: '123456789RT0001',
+    });
+
+    await commission.finalizeInvoice(inReview.id);
+    expect(chargeAmounts(stripe)).toEqual([1_968_750]);
+  });
+
+  it('AC2: tax disabled → figures and charge match the pre-tax output exactly', async () => {
+    for (const [key, tax] of [
+      ['gst-off-absent', undefined],
+      ['gst-off-flag', { ...TAX, enabled: false }],
+    ] as const) {
+      const { commission, attribution, stripe, email } = servicesWithTax(tax);
+      await seedBuilder(key, 1.5);
+      const attributionId = await seedAttribution(testDb, attribution, key, 125_000_000);
+      const draft = await commission.createDraftInvoice(attributionId);
+      expect(draft).toMatchObject({
+        commissionCents: 1_875_000,
+        taxRatePercent: 0,
+        taxCents: 0,
+        totalCents: 1_875_000,
+        taxLabel: null,
+      });
+      await commission.submitForReview(draft.id);
+      const ready = email.sent.find(
+        (s) => (s as { op: string }).op === 'sendCommissionInvoiceReady',
+      ) as { input: Record<string, unknown> };
+      expect(ready.input).not.toHaveProperty('tax');
+      await commission.finalizeInvoice(draft.id);
+      expect(chargeAmounts(stripe)).toEqual([1_875_000]);
+    }
+  });
+
+  it('AC3: the rate is snapshotted — a later BILLING_TAX_RATE change does not alter existing invoices', async () => {
+    const at5 = servicesWithTax(TAX);
+    await seedBuilder('gst-snapshot', 1.5);
+    const attributionId = await seedAttribution(testDb, at5.attribution, 'gst-snapshot', 125_000_000);
+    const invoice = await at5.commission.createDraftInvoice(attributionId);
+
+    // Config moves to 13% (e.g. an HST change) after the invoice exists.
+    const at13 = servicesWithTax({ ...TAX, ratePercent: 13 });
+    const reread = await at13.commission.getById(invoice.id);
+    expect(reread).toMatchObject({ taxRatePercent: 5, taxCents: 93_750, totalCents: 1_968_750 });
+
+    await at13.commission.submitForReview(invoice.id);
+    await at13.commission.finalizeInvoice(invoice.id);
+    expect(chargeAmounts(at13.stripe)).toEqual([1_968_750]);
+  });
+
+  it('AC4: a rate change on an unpaid invoice recalculates tax and total at the snapshotted rate', async () => {
+    const { commission, attribution } = servicesWithTax(TAX);
+    await seedBuilder('gst-rate-change', 1.5);
+    const attributionId = await seedAttribution(testDb, attribution, 'gst-rate-change', 125_000_000);
+    const draft = await commission.createDraftInvoice(attributionId);
+
+    // Even if config changed meanwhile, the snapshot (5%) applies.
+    const later = servicesWithTax({ ...TAX, ratePercent: 13 });
+    const repriced = await later.commission.setCommissionRate(draft.id, 1, null);
+    expect(repriced).toMatchObject({
+      commissionCents: 1_250_000,
+      taxRatePercent: 5,
+      taxCents: 62_500,
+      totalCents: 1_312_500,
+    });
+    const audit = await testDb.db.query.billingEvents.findFirst({
+      where: and(
+        eq(billingEvents.entityId, draft.id),
+        eq(billingEvents.eventType, 'invoice.commission_rate_changed'),
+      ),
+    });
+    expect(audit?.payload).toMatchObject({
+      oldTaxCents: 93_750,
+      newTaxCents: 62_500,
+      oldTotalCents: 1_968_750,
+      newTotalCents: 1_312_500,
+    });
+  });
+
+  it('tax-inclusive mode: the commission includes GST', async () => {
+    const { commission, attribution, stripe } = servicesWithTax({ ...TAX, inclusive: true });
+    await seedBuilder('gst-inclusive', 1.5);
+    const attributionId = await seedAttribution(testDb, attribution, 'gst-inclusive', 125_000_000);
+    const draft = await commission.createDraftInvoice(attributionId);
+    // 1,875,000 × 5/105 = 89,285.71 → 89,286
+    expect(draft).toMatchObject({
+      commissionCents: 1_785_714,
+      taxCents: 89_286,
+      totalCents: 1_875_000,
+      taxInclusive: true,
+    });
+    await commission.submitForReview(draft.id);
+    await commission.finalizeInvoice(draft.id);
+    expect(chargeAmounts(stripe)).toEqual([1_875_000]);
+  });
+
+  it('retries charge the total; the receipt email carries the tax breakdown', async () => {
+    const { commission, attribution, stripe, email } = servicesWithTax(TAX);
+    await seedBuilder('gst-retry', 1.5);
+    const attributionId = await seedAttribution(testDb, attribution, 'gst-retry', 125_000_000);
+    const draft = await commission.createDraftInvoice(attributionId);
+    await commission.submitForReview(draft.id);
+    const finalized = await commission.finalizeInvoice(draft.id);
+    await commission.markFailedByPaymentIntent(finalized.stripePaymentIntentId!);
+    const retried = await commission.retryCharge(draft.id);
+    expect(chargeAmounts(stripe)).toEqual([1_968_750, 1_968_750]);
+
+    email.sent.length = 0;
+    await commission.markPaidByPaymentIntent(retried.stripePaymentIntentId!);
+    const receipt = email.sent.find(
+      (s) => (s as { op: string }).op === 'sendCommissionPaymentReceived',
+    ) as { input: { tax?: { totalCents: number } } };
+    expect(receipt.input.tax?.totalCents).toBe(1_968_750);
+  });
+
+  it('legacy rows (pre-0051) read as zero tax with total = commission', async () => {
+    const { commission, attribution } = servicesWithTax(TAX);
+    await seedBuilder('gst-legacy', 1);
+    const attributionId = await seedAttribution(testDb, attribution, 'gst-legacy');
+    const record = await attribution.getById(attributionId);
+    const id = randomUUID();
+    await testDb.db.insert(commissionInvoices).values({
+      id,
+      tenantKey: 'gst-legacy',
+      attributionId,
+      leadId: record.leadId,
+      contractValueCents: 50_000_000,
+      commissionCents: 500_000,
+      invoiceNumber: 'INV-TEST-LEGACY-714',
+    });
+    const legacy = await commission.getById(id);
+    expect(legacy).toMatchObject({
+      taxRatePercent: 0,
+      taxCents: 0,
+      totalCents: 500_000,
+      taxLabel: null,
+    });
+    // Schema repair backfills total_cents for rows the 0051 migration
+    // missed (expand step), without touching other figures.
+    const before = await testDb.rows<{ total_cents: number | null }>(
+      `SELECT total_cents FROM commission_invoices WHERE id = '${id}'`,
+    );
+    expect(before[0]?.total_cents).toBeNull();
+    await testDb.exec(REPAIR_SQL as string);
+    const after = await testDb.rows<{ total_cents: number; tax_cents: number; tax_rate_percent: number }>(
+      `SELECT total_cents, tax_cents, tax_rate_percent FROM commission_invoices WHERE id = '${id}'`,
+    );
+    expect(after[0]).toMatchObject({ total_cents: 500_000, tax_cents: 0, tax_rate_percent: 0 });
   });
 });

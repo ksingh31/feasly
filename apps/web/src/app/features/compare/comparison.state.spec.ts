@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
-import aggregates from '../../../content/data/community-aggregates.json';
+import aggregates from '../../../content/data/community-index.json';
 import { API_SERVICE } from '../../core/api/api.service';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';

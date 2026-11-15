@@ -376,6 +376,8 @@ import {
   createCityDataFreshnessService,
   type CityDataFreshnessService,
 } from './services/city-data-freshness.service';
+import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
+import { createZoningService, type ZoningService } from './services/zoning.service';
 import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
@@ -734,6 +736,9 @@ export interface AppComposition {
   /** City-data freshness for the landing trust strip (trust-strip/01): fetch-only, no db. */
   readonly cityDataFreshnessService: CityDataFreshnessService;
   readonly cityDataFreshnessRoute: CityDataFreshnessRoute;
+  /** #687: zoning rules catalogue (pure data; no I/O). */
+  readonly zoningService: ZoningService;
+  readonly zoningRoute: ZoningRoute;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
@@ -1637,6 +1642,10 @@ export function createComposition(
     createCityDataFreshnessService(config.cityDataFreshness);
   const cityDataFreshnessRoute: CityDataFreshnessRoute =
     createCityDataFreshnessRoute({ freshness: cityDataFreshnessService });
+  // Zoning rules catalogue (#687): the configured city's district → forms +
+  // key rules table from @feasly/zoning. Pure data, verified values only.
+  const zoningService: ZoningService = createZoningService({ config: config.zoning });
+  const zoningRoute: ZoningRoute = createZoningRoute({ zoning: zoningService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
@@ -1880,6 +1889,8 @@ export function createComposition(
     billing: billingService,
     commissionCard: commissionCardService,
     builders: builderService,
+    // #714: supplier GST details on taxed invoices.
+    ...(config.billing.tax ? { tax: config.billing.tax } : {}),
   });
   const billingRoute: BillingRoute = createBillingRoute({
     billing: billingService,
@@ -2128,6 +2139,8 @@ export function createComposition(
     communityStatsRoute,
     cityDataFreshnessService,
     cityDataFreshnessRoute,
+    zoningService,
+    zoningRoute,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
     adminAuditStore,

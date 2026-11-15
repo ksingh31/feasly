@@ -236,6 +236,8 @@ export function createAdminBillingRoute(
         commissionRatePercent: invoice.commissionRateOverride ?? 0,
         contractValueCents: invoice.contractValueCents,
         commissionCents: invoice.commissionCents,
+        taxCents: invoice.taxCents,
+        totalCents: invoice.totalCents,
         currency: invoice.currency,
       };
     },
@@ -314,6 +316,8 @@ export function createAdminBillingRoute(
         leadId: invoice.leadId,
         contractValueCents: invoice.contractValueCents,
         commissionCents: invoice.commissionCents,
+        taxCents: invoice.taxCents,
+        totalCents: invoice.totalCents,
         currency: invoice.currency,
         reviewDueAt: invoice.reviewDueAt?.toISOString() ?? null,
       };

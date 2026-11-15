@@ -370,6 +370,13 @@ if (!existsSync(ogPath)) {
     }
     notes.push(`sitemap URLs matched to canonicals: ${locs.length}`);
   }
+  // #690: Static Web Apps rejects a config over 20 KB; every community page
+  // adds an exact 301 rule, so the deployed (minified) file is budgeted.
+  if (existsSync(swaPath)) {
+    const bytes = statSync(swaPath).size;
+    if (bytes > 20 * 1024) failures.push(`staticwebapp.config.json is ${bytes} bytes — over the 20 KB Static Web Apps limit`);
+    notes.push(`staticwebapp.config.json: ${bytes} bytes (limit 20480)`);
+  }
 
   // --- Non-production noindex (#707): a build without SITE_URL (empty
   // site.url in the shipped config) must carry X-Robots-Tag + Disallow: /;

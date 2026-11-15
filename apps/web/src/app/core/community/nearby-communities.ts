@@ -1,11 +1,12 @@
 /**
  * Nearby-community resolution (SEO-05): each community page links to 3
- * "nearby" communities. Nearby = same City quadrant (best-effort static
- * map); falls back to the 3 highest-record-count communities when the
- * quadrant has fewer than 3 others.
+ * "nearby" communities. Nearby = same City sector (from the community
+ * boundaries dataset, carried on each aggregate since #690), then same
+ * quadrant (best-effort static map for the original 40 pages); falls back
+ * to the highest-record-count communities when fewer than 3 match.
  *
- * The map is static and typed — no API round-trip for a build-time link
- * list. Slugs must match `community-aggregates.json`.
+ * No API round-trip for a build-time link list. Slugs must match
+ * `community-aggregates.json`.
  */
 
 export type Quadrant = 'NW' | 'NE' | 'SW' | 'SE' | 'Central';
@@ -63,13 +64,16 @@ export interface NearbyInput {
   readonly slug: string;
   /** Assessment record count — drives the fallback ordering. */
   readonly count: number;
+  /** City sector (e.g. "CENTRE", "NORTHWEST"); absent on older data. */
+  readonly sector?: string;
 }
 
 /**
  * Returns up to `n` nearby community slugs for `slug` (default 3).
- * Prefers same-quadrant communities (in input order); fills any shortfall
- * with the highest-record-count communities, excluding `slug` itself.
- * Unknown slugs fall back entirely to the record-count ordering.
+ * Prefers same-sector communities, then same-quadrant ones (each in input
+ * order); fills any shortfall with the highest-record-count communities,
+ * excluding `slug` itself. Unknown slugs fall back entirely to the
+ * record-count ordering.
  */
 export function nearbyCommunities(
   slug: string,
@@ -77,13 +81,21 @@ export function nearbyCommunities(
   n = 3,
 ): readonly string[] {
   const quadrant = QUADRANT_BY_SLUG[slug];
+  const sector = all.find((c) => c.slug === slug)?.sector;
   const others = all.filter((c) => c.slug !== slug);
   const result: string[] = [];
+
+  if (sector) {
+    for (const c of others) {
+      if (result.length >= n) break;
+      if (c.sector === sector) result.push(c.slug);
+    }
+  }
 
   if (quadrant) {
     for (const c of others) {
       if (result.length >= n) break;
-      if (QUADRANT_BY_SLUG[c.slug] === quadrant) {
+      if (QUADRANT_BY_SLUG[c.slug] === quadrant && !result.includes(c.slug)) {
         result.push(c.slug);
       }
     }

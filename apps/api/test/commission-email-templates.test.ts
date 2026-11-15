@@ -90,3 +90,71 @@ describe('commission-payment-failed template (BILL-04)', () => {
     expect(rendered.text).toContain('7 days');
   });
 });
+
+describe('commission emails — GST (#714)', () => {
+  const TAX = {
+    label: 'GST',
+    ratePercent: 5,
+    taxCents: 93_750,
+    totalCents: 1_968_750,
+    registrationNumber: '123456789RT0001',
+  };
+  const due = new Date('2026-10-01T12:00:00.000Z');
+  const readyInput = {
+    invoiceRef: 'INV-0042',
+    commissionCents: 1_875_000,
+    contractValueCents: 125_000_000,
+    currency: 'CAD',
+    commissionRatePercent: 1.5,
+    reviewDueAt: due,
+  };
+
+  it('invoice-ready shows the commission, GST line, total and registration number', () => {
+    const r = renderCommissionInvoiceReadyEmail(CTX, { ...readyInput, tax: TAX });
+    expect(r.html).toContain('$18,750.00');
+    expect(r.html).toContain('GST (5%)');
+    expect(r.html).toContain('$937.50 CAD');
+    expect(r.html).toContain('$19,687.50 CAD');
+    expect(r.html).toContain('123456789RT0001');
+    expect(r.text).toContain('GST (5%): $937.50 CAD');
+    expect(r.text).toContain('Total: $19,687.50 CAD');
+    expect(r.text).toContain('GST registration: 123456789RT0001');
+  });
+
+  it('payment-received charges the total and shows the breakdown', () => {
+    const r = renderCommissionPaymentReceivedEmail(CTX, {
+      invoiceRef: 'INV-0042',
+      commissionCents: 1_875_000,
+      currency: 'CAD',
+      paidAt: due,
+      tax: TAX,
+    });
+    expect(r.text).toContain('Amount charged: $19,687.50 CAD');
+    expect(r.text).toContain('Commission: $18,750.00 CAD');
+    expect(r.text).toContain('GST (5%): $937.50 CAD');
+  });
+
+  it('payment-failed names the declined total', () => {
+    const r = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-0042',
+      commissionCents: 1_875_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      tax: TAX,
+    });
+    expect(r.text).toContain('$19,687.50 CAD');
+  });
+
+  it('AC2: without tax every email is identical to the pre-tax output', () => {
+    const ready = renderCommissionInvoiceReadyEmail(CTX, readyInput);
+    expect(ready.html).not.toContain('GST');
+    expect(ready.text).not.toContain('Total');
+    const paid = renderCommissionPaymentReceivedEmail(CTX, {
+      invoiceRef: 'INV-0042',
+      commissionCents: 1_875_000,
+      currency: 'CAD',
+      paidAt: due,
+    });
+    expect(paid.text).toContain('Amount charged: $18,750.00 CAD\nDate:');
+  });
+});

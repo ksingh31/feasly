@@ -38,6 +38,40 @@ unit tests. The gate (`/preview`, `/check-email`, `/analyzing`), `/r/*`,
 `/embed/*`, and `/admin/*` routes don't exist yet; they join the noindex
 table (not the prerender list) when their stories land.
 
+## Community pages (#690)
+
+**Which communities get a page is config**, per city:
+`apps/web/scripts/config/community-selection.json`. A community gets a page
+when its boundary class + community structure match the rule (Calgary:
+`Residential` and `INNER CITY` / `1950s` / `1960s/1970s` in the City's
+Community District Boundaries, `surr-xmvs`), **or** it is on the include list,
+**or** it is in the optional top-N by residential record count — minus the
+exclude list, and only with at least `minRecords` (100) residential records.
+The include list holds the 40 pages that existed before #690, so no indexed
+URL disappears. Edit the JSON, not the scripts; a config edit regenerates the
+data on the next build (the aggregates file records a hash of the selection).
+
+**Averages.** Build-guide figures use single-detached and semi-detached homes
+only (`sub_property_use` R110/R111/R120/R121 on the latest roll). A community
+with fewer than `guide.minRecords` (50) such homes falls back to all
+residential dwellings and always gets the profile page, never a guide.
+Profile pages show the all-residential average (condos included; condo
+common elements, parking and storage excluded).
+
+**Page count (2026-11-15): 144** community pages (113 established/inner-city,
+31 newer; 21 of them profile pages), 155 prerendered routes in total, 153
+sitemap URLs. Full production build ~15 s locally (prerender included). The
+index groups cards as "Established and inner-city communities" first, then
+"Newer communities".
+
+**Static Web Apps config size.** Each community needs an exact 301 rule in
+`public/staticwebapp.config.json` (see the trailing-slash policy below), and
+Static Web Apps rejects a config file over 20 KB. The checked-in file is
+pretty-printed (~22 KB); the postbuild (`scripts/build-seo-artifacts.ts`)
+writes the deployed copy minified (~17 KB) and fails the build above 20 KB,
+and `tools/check-prerender-seo.mjs` checks the built file too. Roughly 30
+more communities fit before the per-slug redirects need a different design.
+
 ## Noindex list
 
 These routes render `<meta name="robots" content="noindex,nofollow">`
@@ -73,8 +107,8 @@ redirect targets are static strings (no slug capture).
 
 **Per-slug exact 301s (implemented).** `staticwebapp.config.json` contains an
 exact 301 redirect for every prerendered community slug:
-`/communities/{slug}` → `/communities/{slug}/` (40 rules, generated from
-`prerender-routes.txt`). When a new community is added to the prerender list,
+`/communities/{slug}` → `/communities/{slug}/` (one rule per prerendered
+community — 144 as of #690 — matching `prerender-routes.txt`). When a new community is added to the prerender list,
 its 301 must be added to the config in the same change — the config test
 (`staticwebapp.config.spec.ts`) fails if a prerendered slug lacks a redirect.
 Until then, canonicals carry the policy and duplicate-content risk is contained.
