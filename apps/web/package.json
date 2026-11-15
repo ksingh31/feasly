@@ -35,7 +35,7 @@
     "lint": "node tools/check-no-hardcode.mjs && node tools/check-security-headers.mjs && node tools/check-reduced-motion.mjs",
     "ng": "ng",
     "prebuild": "npm run build --workspace @feasly/contracts && npm run build --workspace @feasly/cost-engine && node tools/apply-site-url.mjs && tsx scripts/build-community-data.ts && tsx scripts/build-community-mix.ts && tsx scripts/build-community-ranges.ts && tsx scripts/build-community-pages.ts && node snippet/build.mjs",
-    "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts",
+    "postbuild": "tsx scripts/build-seo-artifacts.ts && tsx scripts/build-llms-txt.ts && tsx scripts/build-404-page.ts",
     "start": "ng serve",
     "test": "ng test && npm run test:snippet && npm run test:scripts && npm run test:tools",
     "test:snippet": "vitest run snippet/",
