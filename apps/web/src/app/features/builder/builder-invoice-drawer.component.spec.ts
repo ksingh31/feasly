@@ -11,8 +11,9 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
 import { Subject, of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UiModalService, UiToastService, type UiToastOptions } from '@app/shared/ui';
+import { stubObjectUrls } from '../../shared/test-helpers/object-url.stub';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderBillingState } from './builder-billing.state';
@@ -267,18 +268,21 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
   });
 
   describe('Download PDF (#661)', () => {
+    // Undo every stub after each test — even a failing one — so the shared
+    // URL global and anchor prototype never leak into other specs (#744).
+    const cleanups: Array<() => void> = [];
+    afterEach(() => {
+      while (cleanups.length) cleanups.pop()!();
+    });
+
     function stubDownload() {
-      const createObjectURL = vi.fn(() => 'blob:invoice');
-      const revokeObjectURL = vi.fn();
-      // defineProperty, not assign: another spec may have left these
-      // non-writable (still configurable) on the shared URL global.
-      Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
-      Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
+      const urls = stubObjectUrls('blob:invoice');
+      const clicked: string[] = [];
       const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
         clicked.push(this.download);
       });
-      const clicked: string[] = [];
-      return { createObjectURL, revokeObjectURL, click, clicked };
+      cleanups.push(urls.restore, () => click.mockRestore());
+      return { createObjectURL: urls.createObjectURL, revokeObjectURL: urls.revokeObjectURL, clicked };
     }
 
     it('offers "Download PDF" for every invoice, named for the invoice', async () => {
@@ -299,12 +303,11 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       expect(dl.createObjectURL).toHaveBeenCalledTimes(1);
       expect(dl.clicked).toEqual(['feasly-INV-0042.pdf']);
       expect(q(el, 'invoice-download-error')).toBeNull();
-      dl.click.mockRestore();
     });
 
     it('disables the button while the PDF is being prepared', async () => {
       const pending = new Subject<Blob>();
-      const dl = stubDownload();
+      stubDownload();
       const { el, api, fixture } = await setup({ pdf: pending });
       const btn = q(el, 'invoice-download-pdf') as HTMLButtonElement;
       btn.click();
@@ -319,7 +322,6 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       fixture.detectChanges();
       expect(btn.disabled).toBe(false);
       expect(btn.textContent?.trim()).toBe(T.downloadPdf);
-      dl.click.mockRestore();
     });
 
     it('shows an inline error when the download fails, and clears it on retry', async () => {
@@ -334,7 +336,6 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       fixture.detectChanges();
       expect(q(el, 'invoice-download-error')).toBeNull();
       expect(dl.clicked).toEqual(['feasly-INV-0042.pdf']);
-      dl.click.mockRestore();
     });
   });
 });
