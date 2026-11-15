@@ -9,12 +9,12 @@
 // hard limits are the Function App instance cap and the Log Analytics daily
 // cap (see docs/ops/cost.md). Budgets are free.
 //
-// Deployed from main.bicep with `scope: subscription()`, gated OFF by
-// default (`manageBudget = false`) for the same reason as
-// subscription-cost-reader.bicep (#637): the CD identity is RG-scoped and
+// NOT referenced from main.bicep and NOT deployed by CD, for the same reason
+// as subscription-cost-reader.bicep (#637): the CD identity is RG-scoped and
 // cannot write subscription-scope deployments or Microsoft.Consumption
-// budgets, so turning it on fails what-if and the whole CD deploy. A
-// subscription Owner applies it once (docs/ops/cost.md, "Budget").
+// budgets, so wiring it in would fail what-if and the whole CD deploy. A
+// subscription Owner applies it standalone with `az deployment sub create`
+// (docs/ops/cost.md, "Budget").
 targetScope = 'subscription'
 
 @description('Budget name (keep: the nightly ops review reads it by name)')
