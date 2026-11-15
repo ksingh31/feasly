@@ -8,7 +8,7 @@
   <h1 class="preview-heading">{{ copy.heading }}</h1>
 
   @if (property(); as p) {
-    <app-property-card [property]="p" />
+    <app-property-card [property]="p" [showLandNote]="!isReno()" />
     <dl class="inputs-summary">
       @if (isReno()) {
         <!-- RENO-04: reno-specific visible facts (address/community in property card above) -->

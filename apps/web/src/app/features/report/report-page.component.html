@@ -134,6 +134,7 @@
             <div class="figure-card land-card">
               <h2>{{ copy.landLabel }}</h2>
               <p class="figure-single">{{ formatCad(f.landValue.value) }}</p>
+              <p class="land-note land-house-note">{{ copy.landHouseNote }}</p>
               <p class="land-note">{{ copy.landFixedNote }}</p>
               @if (isUnitAddress()) {
                 <p class="land-note unit-note" role="note">{{ copy.unitAddressNote }}</p>
@@ -162,6 +163,10 @@
           <div class="figure-card locked">
             <h2>{{ copy.landLabel }}</h2>
             <p class="locked-value" aria-hidden="true">{{ formatCad(p.figures.land.value) }}</p>
+            @if (!isReno()) {
+              <!-- Reno keeps the house, so the teardown caveat doesn't apply. -->
+              <p class="land-note land-house-note">{{ copy.landHouseNote }}</p>
+            }
           </div>
         </div>
         <div class="stepper-card no-print">

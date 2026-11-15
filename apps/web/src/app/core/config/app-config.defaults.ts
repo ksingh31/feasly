@@ -443,7 +443,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       buildLabel: 'Build cost',
       buildCostNote: 'Construction only — excludes land.',
       buildSourceNote: 'Current construction cost data · same fixed formula',
-      landLabel: 'Land (assessed value)',
+      // Honest land label (consumer review M2, #505): the City's assessed
+      // value covers the lot AND the existing house, not bare land.
+      landLabel: 'City-assessed property value (land + existing home)',
+      landHouseNote: 'Includes the current house; teardown value may differ.',
       landFixedNote: 'City of Calgary assessment · not a market price',
       unitAddressNote:
         'This looks like a unit address — the lot size and land value shown are for the whole building, not just your unit.',

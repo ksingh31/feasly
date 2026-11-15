@@ -896,7 +896,10 @@ export interface AppConfig {
       buildCostNote: string;
       /** Source label under the build-cost figure: data-driven trust. */
       buildSourceNote: string;
+      /** Label for the City-assessed figure (land + existing home, #505). */
       landLabel: string;
+      /** One-line note under the land figure: it includes the current house. */
+      landHouseNote: string;
       /** Fixed-figure explainer: City assessment, never a range. */
       landFixedNote: string;
       /** Unit-address honesty note: lot figures are for the whole building. */
