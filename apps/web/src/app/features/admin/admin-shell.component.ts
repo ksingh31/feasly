@@ -25,6 +25,8 @@ import { AdminAuthState } from './admin-auth.state';
 import { LoadAdminDisputes } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
+import { RefreshQuarantineCount } from './admin-quarantine.actions';
+import { AdminQuarantineState } from './admin-quarantine.state';
 import {
   ADMIN_NAV,
   type AdminNavBadge,
@@ -117,9 +119,11 @@ export class AdminShellComponent {
   private readonly canReadBilling = adminCan(this.store, ADMIN_PERMISSIONS.billingRead);
   private readonly permissions = this.store.selectSignal(AdminAuthState.permissions);
   private readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
+  private readonly quarantineCount = this.store.selectSignal(AdminQuarantineState.queueCount);
 
   private readonly badgeCounts = computed<Record<AdminNavBadge, number>>(() => ({
     disputes: this.disputes()?.length ?? 0,
+    quarantine: this.quarantineCount() ?? 0,
   }));
 
   /** The sidebar as rendered: labels from config, gated items removed. */
@@ -180,6 +184,11 @@ export class AdminShellComponent {
     // Queue badges: load the open-disputes queue once permissions resolve.
     // Failures are swallowed here — the badge just stays hidden and the
     // disputes page reloads (and reports) on its own.
+    // Quarantine is part of the Leads area every admin can read.
+    this.store
+      .dispatch(new RefreshQuarantineCount())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ error: () => undefined });
     let badgesRequested = false;
     effect(() => {
       if (badgesRequested || !this.canReadBilling()) return;

@@ -1,15 +1,9 @@
 import type { AdminLeadFilters, AdminLeadStatus } from '@feasly/contracts';
 
-/** Which tab of the leads explorer is visible. */
-export type AdminLeadsTab = 'all' | 'quarantine';
-
-/** Reload the list from the first page with new filters/tab. */
+/** Reload the list from the first page with new filters. */
 export class LoadAdminLeads {
   static readonly type = '[AdminLeads] Load';
-  constructor(
-    readonly filters: AdminLeadFilters = {},
-    readonly tab: AdminLeadsTab = 'all',
-  ) {}
+  constructor(readonly filters: AdminLeadFilters = {}) {}
 }
 
 /** Fetch the next cursor page and append it. */
@@ -69,29 +63,6 @@ export class ExportAdminLeadsCsv {
 /** Dismiss the inline CSV-export error. */
 export class DismissExportError {
   static readonly type = '[AdminLeads] Dismiss export error';
-}
-
-/** Switch between the all-leads and quarantine tabs. */
-export class SetAdminLeadsTab {
-  static readonly type = '[AdminLeads] Set tab';
-  constructor(readonly tab: AdminLeadsTab) {}
-}
-
-/** Approve a quarantined lead back into the normal pipeline. */
-export class ApproveQuarantinedLead {
-  static readonly type = '[AdminLeads] Approve quarantined';
-  constructor(readonly id: string) {}
-}
-
-/** Discard a quarantined lead (kept for audit, hidden from listings). */
-export class DiscardQuarantinedLead {
-  static readonly type = '[AdminLeads] Discard quarantined';
-  constructor(readonly id: string) {}
-}
-
-/** Dismiss the inline quarantine approve/discard error. */
-export class DismissQuarantineActionError {
-  static readonly type = '[AdminLeads] Dismiss quarantine error';
 }
 
 /** Include/exclude sandbox rows (badged "Sandbox", excluded by default). */

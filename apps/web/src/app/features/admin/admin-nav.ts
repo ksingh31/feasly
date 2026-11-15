@@ -5,9 +5,6 @@
  * from ConfigService (`copy.admin.shell`), keyed by these ids. Every routed
  * admin section must appear here (admin-nav.spec.ts asserts it against
  * app.routes.ts) so no admin page is reachable only by URL.
- *
- * Quarantine from the design has no route yet; it joins its group when
- * that page ships.
  */
 import { ADMIN_PERMISSIONS } from './admin-permissions';
 
@@ -15,6 +12,7 @@ export type AdminNavGroupId = 'pipeline' | 'partners' | 'money' | 'system';
 
 export type AdminNavItemId =
   | 'leads'
+  | 'quarantine'
   | 'estimates'
   | 'builders'
   | 'users'
@@ -28,7 +26,7 @@ export type AdminNavItemId =
   | 'webhooks';
 
 /** Queue badge sources the shell knows how to count. */
-export type AdminNavBadge = 'disputes';
+export type AdminNavBadge = 'disputes' | 'quarantine';
 
 export interface AdminNavItemDef {
   readonly id: AdminNavItemId;
@@ -54,6 +52,7 @@ export const ADMIN_NAV: readonly AdminNavGroupDef[] = [
     id: 'pipeline',
     items: [
       { id: 'leads', path: '/admin/leads' },
+      { id: 'quarantine', path: '/admin/quarantine', badge: 'quarantine' },
       { id: 'estimates', path: '/admin/estimates' },
     ],
   },

@@ -1,16 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   Injector,
   computed,
   effect,
   inject,
   untracked,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
-import { filter } from 'rxjs';
 import type { AdminLeadListItem, AdminLeadStatus } from '@feasly/contracts';
 import { ConfigService } from '@app/core/config/config.service';
 import {
@@ -22,9 +19,7 @@ import {
   PageHeaderComponent,
   UiButtonComponent,
   UiCellDirective,
-  UiConfirmService,
   UiDrawerService,
-  UiRowActionsDirective,
   enumLabel,
   injectDrawerParam,
   injectTableQuery,
@@ -32,21 +27,15 @@ import {
 } from '@app/shared/ui';
 import { AdminLeadDrawerComponent, type AdminLeadDrawerData } from './admin-lead-drawer.component';
 import {
-  ApproveQuarantinedLead,
-  DiscardQuarantinedLead,
   DismissExportError,
-  DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
-  SetAdminLeadsTab,
   ToggleAdminLeadsSandbox,
-  type AdminLeadsTab,
 } from './admin-leads.actions';
 import { AdminLeadsState } from './admin-leads.state';
 import { LoadBuilders } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
-import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import {
   ADMIN_LEADS_VIEWS,
   ASSIGNED_PARAM,
@@ -79,7 +68,8 @@ const VIEW_COPY_KEY: Readonly<Record<AdminLeadsView, 'all' | 'new' | 'unassigned
  * - Kit DataTable (48px rows; card list below 768px) with labelled columns.
  *   The list API is cursor-paged, so "Load more" appends below the table.
  * - A row opens the lead drawer (`?open=<id>`; deep links and Back work).
- * - Tabs (all / quarantine), sandbox toggle and CSV export carry over.
+ * - Sandbox toggle and CSV export carry over. Quarantine has its own
+ *   route (/admin/quarantine, #540).
  *
  * All state lives in AdminLeadsState; this component maps URL → actions.
  */
@@ -91,7 +81,6 @@ const VIEW_COPY_KEY: Readonly<Record<AdminLeadsView, 'all' | 'new' | 'unassigned
     FilterBarComponent,
     DataTableComponent,
     UiCellDirective,
-    UiRowActionsDirective,
     UiButtonComponent,
     KitCountPipe,
   ],
@@ -103,9 +92,7 @@ export class AdminLeadsComponent {
   private readonly store = inject(Store);
   private readonly config = inject(ConfigService);
   private readonly drawers = inject(UiDrawerService);
-  private readonly confirms = inject(UiConfirmService);
   private readonly injector = inject(Injector);
-  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly copy = this.config.get('copy').admin.leads;
   protected readonly debounceMs = this.config.get('timings').filterDebounceMs;
@@ -115,19 +102,12 @@ export class AdminLeadsComponent {
   protected readonly totalCount = this.store.selectSignal(AdminLeadsState.totalCount);
   protected readonly statusCounts = this.store.selectSignal(AdminLeadsState.statusCounts);
   protected readonly hasMore = this.store.selectSignal(AdminLeadsState.hasMore);
-  protected readonly tab = this.store.selectSignal(AdminLeadsState.tab);
   protected readonly includeSandbox = this.store.selectSignal(AdminLeadsState.includeSandbox);
   protected readonly listStatus = this.store.selectSignal(AdminLeadsState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminLeadsState.listError);
   protected readonly exporting = this.store.selectSignal(AdminLeadsState.exporting);
   protected readonly exportError = this.store.selectSignal(AdminLeadsState.exportError);
-  protected readonly quarantineActionId = this.store.selectSignal(AdminLeadsState.quarantineActionId);
-  protected readonly quarantineActionKind = this.store.selectSignal(AdminLeadsState.quarantineActionKind);
-  protected readonly quarantineActionError = this.store.selectSignal(AdminLeadsState.quarantineActionError);
   private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
-
-  /** Quarantine approve/discard are `leads:manage` writes. */
-  protected readonly canManageLeads = adminCan(this.store, ADMIN_PERMISSIONS.leadsManage);
 
   /** Search, saved view and filters — all in the URL. */
   protected readonly list = injectTableQuery({ filterKeys: LEADS_FILTER_KEYS });
@@ -221,7 +201,7 @@ export class AdminLeadsComponent {
 
   private load(): void {
     const filters = leadsFilters(this.list.search(), this.list.filters(), new Date(), this.staleDays);
-    this.store.dispatch(new LoadAdminLeads(filters, this.tab()));
+    this.store.dispatch(new LoadAdminLeads(filters));
   }
 
   protected selectView(view: AdminLeadsView): void {
@@ -246,10 +226,6 @@ export class AdminLeadsComponent {
     });
   }
 
-  protected setTab(tab: AdminLeadsTab): void {
-    this.store.dispatch(new SetAdminLeadsTab(tab));
-  }
-
   protected toggleSandbox(include: boolean): void {
     this.store.dispatch(new ToggleAdminLeadsSandbox(include));
   }
@@ -268,31 +244,6 @@ export class AdminLeadsComponent {
 
   protected dismissExportError(): void {
     this.store.dispatch(new DismissExportError());
-  }
-
-  protected approveLead(lead: AdminLeadListItem): void {
-    this.store.dispatch(new ApproveQuarantinedLead(lead.id));
-  }
-
-  /** Discard hides the lead from every list — confirm first. */
-  protected discardLead(lead: AdminLeadListItem): void {
-    this.confirms
-      .confirm({
-        title: fill(this.copy.discardConfirmTitle, { name: lead.name }),
-        body: this.copy.discardConfirmBody,
-        verb: this.copy.discard,
-        tone: 'danger',
-      })
-      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.store.dispatch(new DiscardQuarantinedLead(lead.id)));
-  }
-
-  protected dismissQuarantineError(): void {
-    this.store.dispatch(new DismissQuarantineActionError());
-  }
-
-  protected quarantineBusy(id: string): boolean {
-    return this.quarantineActionId() === id;
   }
 
   protected statusLabel(status: AdminLeadStatus): string {

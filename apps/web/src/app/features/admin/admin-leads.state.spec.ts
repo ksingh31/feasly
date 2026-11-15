@@ -6,18 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
-  ApproveQuarantinedLead,
-  DiscardQuarantinedLead,
   DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
   DismissAdminLeadStatusSuccess,
   DismissExportError,
-  DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
   SelectAdminLead,
-  SetAdminLeadsTab,
   ToggleAdminLeadsSandbox,
   UpdateAdminLeadStatus,
 } from './admin-leads.actions';
@@ -163,17 +159,6 @@ describe('AdminLeadsState', () => {
 
     store.dispatch(new LoadMoreAdminLeads());
     httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/leads'));
-  });
-
-  it('forces includeQuarantined on the quarantine tab', async () => {
-    const done = store.dispatch(new SetAdminLeadsTab('quarantine'));
-    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/leads'));
-    expect(req.request.params.get('includeQuarantined')).toBe('true');
-    // The tab lists ONLY honeypot-flagged rows — never the full lead list.
-    expect(req.request.params.get('quarantinedOnly')).toBe('true');
-    req.flush(listResponse([], null, 0));
-    await done.toPromise();
-    expect(store.selectSnapshot(AdminLeadsState.tab)).toBe('quarantine');
   });
 
   it('passes includeSandbox only when toggled on', async () => {
@@ -515,97 +500,5 @@ describe('AdminLeadsState', () => {
       .error(new ProgressEvent('error'), { status: 500 });
     await retry.toPromise();
     expect(store.selectSnapshot(AdminLeadsState.exportError)).toBeTruthy();
-  });
-
-  describe('quarantine approve/discard (QA admin-console finding 6)', () => {
-    const QUARANTINED = { ...LEAD_A, id: 'q1', quarantined: true };
-
-    async function seedQuarantineList(): Promise<void> {
-      const done = store.dispatch(new LoadAdminLeads());
-      httpMock
-        .expectOne((r) => r.url.endsWith('/api/v1/admin/leads'))
-        .flush(listResponse([QUARANTINED], null, 1));
-      await done.toPromise();
-    }
-
-    it('approve posts to the backend and removes the lead from the list', async () => {
-      await seedQuarantineList();
-
-      const done = store.dispatch(new ApproveQuarantinedLead('q1'));
-      expect(store.selectSnapshot(AdminLeadsState.quarantineActionId)).toBe('q1');
-      httpMock
-        .expectOne(
-          (r) =>
-            r.url.endsWith('/api/v1/admin/leads/q1/quarantine/approve') &&
-            r.method === 'POST',
-        )
-        .flush({ ok: true });
-      await done.toPromise();
-
-      expect(store.selectSnapshot(AdminLeadsState.quarantineActionId)).toBeNull();
-      expect(store.selectSnapshot(AdminLeadsState.leads)).toEqual([]);
-      expect(store.selectSnapshot(AdminLeadsState.totalCount)).toBe(0);
-    });
-
-    it('discard posts to the backend and removes the lead from the list', async () => {
-      await seedQuarantineList();
-
-      const done = store.dispatch(new DiscardQuarantinedLead('q1'));
-      expect(store.selectSnapshot(AdminLeadsState.quarantineActionKind)).toBe(
-        'discard',
-      );
-      httpMock
-        .expectOne(
-          (r) =>
-            r.url.endsWith('/api/v1/admin/leads/q1/quarantine/discard') &&
-            r.method === 'POST',
-        )
-        .flush({ ok: true });
-      await done.toPromise();
-
-      expect(store.selectSnapshot(AdminLeadsState.quarantineActionId)).toBeNull();
-      expect(store.selectSnapshot(AdminLeadsState.leads)).toEqual([]);
-    });
-
-    it('stores an inline error and keeps the lead when the action fails', async () => {
-      await seedQuarantineList();
-
-      const done = store.dispatch(new ApproveQuarantinedLead('q1'));
-      httpMock
-        .expectOne((r) =>
-          r.url.endsWith('/api/v1/admin/leads/q1/quarantine/approve'),
-        )
-        .flush('Forbidden', { status: 403, statusText: 'Forbidden' });
-      await done.toPromise();
-
-      expect(
-        store.selectSnapshot(AdminLeadsState.quarantineActionError),
-      ).toBeTruthy();
-      // The lead stays so the action can be retried.
-      expect(store.selectSnapshot(AdminLeadsState.leads).length).toBe(1);
-
-      store.dispatch(new DismissQuarantineActionError());
-      expect(
-        store.selectSnapshot(AdminLeadsState.quarantineActionError),
-      ).toBeNull();
-    });
-
-    it('ignores a second action while one is in flight', async () => {
-      await seedQuarantineList();
-
-      const first = store.dispatch(new ApproveQuarantinedLead('q1'));
-      // Second action while the first is in flight: no second request.
-      store.dispatch(new DiscardQuarantinedLead('q1'));
-      httpMock.expectNone((r) =>
-        r.url.endsWith('/api/v1/admin/leads/q1/quarantine/discard'),
-      );
-      httpMock
-        .expectOne((r) =>
-          r.url.endsWith('/api/v1/admin/leads/q1/quarantine/approve'),
-        )
-        .flush({ ok: true });
-      await first.toPromise();
-      expect(store.selectSnapshot(AdminLeadsState.leads)).toEqual([]);
-    });
   });
 });
