@@ -40,11 +40,9 @@
       @if (unlocked() && figures(); as f) {
         <div class="figure-card hero-total">
           <h2>{{ copy.totalLabel }}</h2>
-          <p class="hero-value">{{ formatCad(f.total.base) }}</p>
-          <p class="planning-range">
-            {{ copy.planningRangeLabel }}
-            <strong>{{ formatCad(f.total.low) }}–{{ formatCad(f.total.high) }}</strong>
-          </p>
+          <!-- #504: range-first — the range is the hero, the base secondary. -->
+          <p class="hero-value">{{ formatRange(f.total) }}</p>
+          <p class="most-likely">{{ copy.mostLikelyLabel }} {{ formatCompact(f.total.base) }}</p>
           @if (version(); as v) {
             <p class="version">{{ copy.versionLabel }} {{ v }}</p>
           }
@@ -112,7 +110,8 @@
         <div class="hero-sub">
           <div class="figure-card build-highlight">
             <h2>{{ copy.buildLabel }}</h2>
-            <p class="figure-single">{{ formatCad(f.build.base) }}</p>
+            <p class="figure-single">{{ formatRange(f.build) }}</p>
+            <p class="most-likely">{{ copy.mostLikelyLabel }} {{ formatCompact(f.build.base) }}</p>
             <p class="build-note">{{ copy.buildCostNote }}</p>
             <p class="build-note" role="note">{{ copy.buildSourceNote }}</p>
             @if (perSqft(); as psqft) {
@@ -152,13 +151,16 @@
              lead gate unlocks. -->
         <div class="figure-card hero-total locked">
           <h2>{{ copy.totalLabel }}</h2>
-          <p class="locked-value" aria-hidden="true">{{ previewRange(p.figures.total) }}</p>
+          <p class="locked-value" aria-hidden="true">{{ formatRange(p.figures.total) }}</p>
+          <p class="most-likely locked-value" aria-hidden="true">
+            {{ copy.mostLikelyLabel }} {{ formatCompact(p.figures.total.base) }}
+          </p>
           <p class="locked-note">{{ copy.lockedNote }}</p>
         </div>
         <div class="hero-sub">
           <div class="figure-card locked">
             <h2>{{ copy.buildLabel }}</h2>
-            <p class="locked-value" aria-hidden="true">{{ previewRange(p.figures.build) }}</p>
+            <p class="locked-value" aria-hidden="true">{{ formatRange(p.figures.build) }}</p>
           </div>
           <div class="figure-card locked">
             <h2>{{ copy.landLabel }}</h2>
@@ -211,7 +213,7 @@
             <li>
               <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
               <span class="bucket-label">{{ b.label }}</span>
-              <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
+              <span class="bucket-amount">{{ formatRounded(b.range.base) }}</span>
             </li>
           }
         </ul>

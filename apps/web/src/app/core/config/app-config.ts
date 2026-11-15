@@ -879,9 +879,9 @@ export interface AppConfig {
       freshnessMock: string;
     };
     /**
-     * Estimate report page copy. The hero shows ONE prominent total (the
-     * engine's deterministic base) with a "Likely planning range" for
-     * context — never Low/Base/High labels on the report itself. Nothing
+     * Estimate report page copy. The hero is range-first (#504): the total
+     * range is the headline and the engine's deterministic base sits under
+     * it as "Most likely ≈" — never Low/Base/High labels on the report. Nothing
      * here may carry ±, %, or accuracy claims (copy-linted).
      */
     report: {
@@ -889,8 +889,13 @@ export interface AppConfig {
       subPreGate: string;
       subPostGate: string;
       totalLabel: string;
-      /** "Likely planning range" — the supporting range under the hero total. */
-      planningRangeLabel: string;
+      /**
+       * "Most likely ≈" — prefixes the secondary base figure under a
+       * range-first headline (#504: the range is the hero, never the point).
+       */
+      mostLikelyLabel: string;
+      /** PDF variant of `mostLikelyLabel` — the embedded PDF fonts have no "≈" glyph. */
+      mostLikelyPdfLabel: string;
       buildLabel: string;
       /** Clarifier under the highlighted build-cost figure. */
       buildCostNote: string;

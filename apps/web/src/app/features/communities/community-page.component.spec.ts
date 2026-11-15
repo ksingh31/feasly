@@ -257,7 +257,7 @@ describe('CommunityPageComponent', () => {
     // Mahogany's average from the aggregates fixture data — the description
     // must carry the real figure so all 40 community pages are unique.
     expect(description).toContain('Mahogany');
-    expect(description).toContain('$719,666');
+    expect(description).toContain('$720,000');
   });
 
   it('shows the real average assessed value with the fixed-value label', async () => {
@@ -265,7 +265,7 @@ describe('CommunityPageComponent', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('Average City-assessed value (not market value)');
     // Mahogany's average from the aggregates fixture data.
-    expect(html).toContain('$719,666');
+    expect(html).toContain('$720,000');
   });
 
   it('renders all three tier ranges', async () => {
@@ -381,9 +381,9 @@ describe('CommunityPageComponent', () => {
       expect(card.textContent).toContain('13310 14 ST NW, Calgary, AB');
       expect(card.textContent).toContain("This address's assessed value");
       expect(card.textContent).toContain('$76,500');
-      // …against the community average (Mahogany mock: $719,666).
+      // …against the community average (Mahogany mock: $720,000).
       expect(card.textContent).toContain('Mahogany average');
-      expect(card.textContent).toContain('$719,666');
+      expect(card.textContent).toContain('$720,000');
       // Honest note carries the roll year.
       expect(card.textContent).toContain('City of Calgary 2026 assessment roll');
       expect(card.textContent).toContain('not market value');
@@ -397,7 +397,7 @@ describe('CommunityPageComponent', () => {
       expect(bars?.getAttribute('role')).toBe('img');
       const label = bars?.getAttribute('aria-label') ?? '';
       expect(label).toContain('$76,500');
-      expect(label).toContain('Mahogany average of $719,666');
+      expect(label).toContain('Mahogany average of $720,000');
       const barEls = card.querySelectorAll('.bar');
       expect(barEls.length).toBe(2);
       // Property 76500 vs average 719666 → property ≈ 10.6%, average 100%.
@@ -426,7 +426,7 @@ describe('CommunityPageComponent', () => {
       const html = fixture.nativeElement.innerHTML as string;
       expect(html).toContain('Community property profile');
       // Simplified profile: shows assessed values, not dwelling-mix prose.
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
       // Live-bug regression: the lede template holds {name} twice — both
       // must be interpolated, never rendered literally.
       expect(html).not.toContain('{name}');
@@ -445,7 +445,7 @@ describe('CommunityPageComponent', () => {
       const meta = TestBed.inject(Meta);
       const description = meta.getTag('name="description"')?.content ?? '';
       expect(description).toContain('Beltline');
-      expect(description).toContain('$609,901');
+      expect(description).toContain('$610,000');
     });
 
     it('renders assessed values without dwelling-mix bar or build prices', async () => {
@@ -456,13 +456,13 @@ describe('CommunityPageComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('.tier-card').length).toBe(0);
       expect(html).not.toContain('Total investment');
       // Shows the community average assessed value.
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
     });
 
     it('shows the real assessed value and dwelling stats', async () => {
       await setup('beltline');
       const html = fixture.nativeElement.innerHTML as string;
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
       expect(html).toContain('Homes assessed');
       expect(html).toContain('Most common home type');
       expect(html).toContain('Apartments, condos &amp; townhouses');
