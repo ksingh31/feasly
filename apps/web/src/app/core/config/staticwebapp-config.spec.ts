@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -31,6 +31,7 @@ interface SwaRoute {
 }
 
 interface SwaConfig {
+  globalHeaders?: Record<string, string>;
   navigationFallback?: unknown;
   trailingSlash?: string;
   routes?: SwaRoute[];
@@ -132,6 +133,82 @@ describe('staticwebapp.config.json routing', () => {
     expect(rule?.route).toBe('/embed/*');
     expect(rule?.rewrite).toBe('/index.html');
     expect(rule?.headers?.['Content-Security-Policy']).toContain('frame-ancestors');
+  });
+
+  describe('per-tenant embed framing (#516)', () => {
+    const buildersDir = join(publicDir, '..', '..', '..', 'config', 'builders');
+
+    const tenantOrigins = (): string[] =>
+      readdirSync(buildersDir)
+        .filter((f) => f.endsWith('.json'))
+        .flatMap(
+          (f) =>
+            (JSON.parse(readFileSync(join(buildersDir, f), 'utf8')) as { allowed_origins: string[] })
+              .allowed_origins,
+        );
+
+    const elite = JSON.parse(
+      readFileSync(join(buildersDir, 'elite-craft-builders.json'), 'utf8'),
+    ) as { allowed_origins: string[] };
+
+    /** SWA matches routes on the path only — the query string is ignored. */
+    const frameAncestors = (url: string): string[] => {
+      const path = url.split('?')[0];
+      const rule = matchRule(path);
+      const csp =
+        rule?.headers?.['Content-Security-Policy'] ??
+        readConfig().globalHeaders?.['Content-Security-Policy'] ??
+        '';
+      const directive = csp
+        .split(';')
+        .map((d) => d.trim().split(/\s+/))
+        .find(([name]) => name === 'frame-ancestors');
+      return directive?.slice(1) ?? [];
+    };
+
+    for (const url of ['/embed?key=elite-craft-builders', '/embed', '/embed/elite-craft-builders']) {
+      it(`${url} can be framed by the Elite Craft origin`, () => {
+        expect(elite.allowed_origins.length).toBeGreaterThan(0);
+        for (const origin of elite.allowed_origins) {
+          expect(frameAncestors(url)).toContain(origin);
+        }
+      });
+
+      it(`${url} frame-ancestors is exactly 'self' + tenant origins — nothing else`, () => {
+        const expected = ["'self'", ...[...new Set(tenantOrigins())].sort()];
+        expect(frameAncestors(url)).toEqual(expected);
+        expect(frameAncestors(url)).not.toContain('https://evil.example.com');
+        expect(frameAncestors(url).some((s) => s.includes('*') || s.startsWith('http:'))).toBe(
+          false,
+        );
+      });
+    }
+
+    it('serves /embed?key=… the SPA shell with the embed CSP, not the global one', () => {
+      const rule = matchRule('/embed');
+      expect(rule?.rewrite).toBe('/index.html');
+      expect(rule?.headers?.['Content-Security-Policy']).toBeDefined();
+    });
+
+    it('keeps every non-embed page unframeable', () => {
+      for (const url of ['/', '/estimate/address', '/builder', '/admin/leads', '/r/abc']) {
+        expect(frameAncestors(url), url).toEqual(["'none'"]);
+      }
+    });
+
+    it('embed CSP only differs from the global CSP in frame-ancestors', () => {
+      const strip = (csp: string) =>
+        csp
+          .split(';')
+          .map((d) => d.trim())
+          .filter((d) => d && !d.startsWith('frame-ancestors'));
+      const global = readConfig().globalHeaders?.['Content-Security-Policy'] ?? '';
+      for (const path of ['/embed', '/embed/x']) {
+        expect(strip(matchRule(path)?.headers?.['Content-Security-Policy'] ?? '')).toEqual(
+          strip(global),
+        );
+      }
+    });
   });
 
   it('serves the builder embed loader as a static script, not the SPA shell (#490)', () => {
