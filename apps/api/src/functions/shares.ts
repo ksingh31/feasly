@@ -59,7 +59,7 @@ export async function sharesHandler(
   // The body is never logged — it carries the report token (Bearer <redacted>)
   // plus the partner's email address.
   const result = await app.leadPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.shareRoute.handle(req.body),
   );
 

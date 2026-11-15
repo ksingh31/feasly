@@ -173,7 +173,7 @@ the adapter edge before the pipeline runs (no rate-limit use, no DB work).
 | `/report/*`, magic-link landing | Lead (token holder) | Token in URL → API `magic-token` routes | Token never logged |
 | `/builder/*` | Builder users | Builder session (Entra / magic link) → API `builder-session` routes | UI guards are UX only. The API enforces access. |
 | `/admin/*` | Staff | Admin session (Entra) → API `admin` routes | UI guards are UX only. The API enforces access. |
-| `/embed/*` | Builder tenants' sites (iframe) | Public | CSP `frame-ancestors 'self' https://demo.example.com https://elitecraftbuilders.com`. Finding F-3: `demo.example.com` is a reserved, unregistrable domain (no takeover risk), but it should be removed before launch. |
+| `/embed/*` | Builder tenants' sites (iframe) | Public | CSP `frame-ancestors` is `'self'` + the per-tenant allowlist generated from `config/builders/*.json` by `apps/web/tools/sync-embed-csp.mjs` (lint fails if out of sync). IANA-reserved placeholder origins such as `demo.example.com` are skipped (F-3, fixed in #796). |
 | `/assets/*`, `/robots.txt`, `/sitemap.xml`, `/llms.txt` | Public / crawlers | None | Never rewritten to the SPA |
 | `/api/*` | API clients | Proxied to the Function App | SWA `globalHeaders` apply |
 
@@ -185,11 +185,11 @@ Headers are enforced by `apps/web/tools/check-security-headers.mjs`, which runs 
 |---|---|---|---|
 | F-1 | Medium | View-as actions on routes gated only by `permissionsAnyOf` (admin user management: list/get/invite/update/resend) were not written to the audit log. | **Fixed in #731**: `enforceRoutePermissions` now always runs the view-as audit for session-protected routes. Covered by a regression test. |
 | F-2 | Info | Planned anonymous routes (`POST /api/v1/builder/agreement/accept`, `POST /api/v1/chat/ask`, `POST /api/v1/embed/session`) are **not live**. Each audit note lists the control it needs before it goes live. | Gate on go-live of each route |
-| F-3 | Low | `/embed` `frame-ancestors` lists `https://demo.example.com`. | #796 |
+| F-3 | Low | `/embed` `frame-ancestors` listed `https://demo.example.com`. | **Fixed** (#796, PR #809): reserved placeholder origins are skipped when the CSP is generated. |
 | F-4 | Info | The repo is public (owner decision 2026-11-15: stays public). The docs reveal resource names and tenant IDs. These aren't secrets, but they map the system for an attacker. | Personal-detail scrub tracked in #758 |
 | F-5 | Low | SWA CSP `script-src` includes `'unsafe-eval'`. | #797 |
-| F-6 | Medium | Cookie-authenticated, state-changing requests have no Origin/CSRF check. Session cookies are `SameSite=None`. Bearer-header auth, which the SPA uses first, is not affected. | #794 |
-| F-7 | Low | Authenticated JSON responses outside billing and admin search don't send `Cache-Control: no-store`. | #795 |
+| F-6 | Medium | Cookie-authenticated, state-changing requests had no Origin/CSRF check. Session cookies are `SameSite=None`. Bearer-header auth, which the SPA uses first, is not affected. | **Fixed** (#794, PR #813): cookie-authenticated state-changing requests from non-allowlisted origins are rejected. |
+| F-7 | Low | Authenticated JSON responses outside billing and admin search didn't send `Cache-Control: no-store`. | **Fixed** (#795, PR #810): API responses send `no-store` by default. |
 
 No High finding is open.
 

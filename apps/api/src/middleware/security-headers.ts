@@ -10,6 +10,11 @@
  * - `X-Frame-Options: DENY` — API responses are JSON, never framed.
  * - `Referrer-Policy: strict-origin-when-cross-origin` — least referrer
  *   leakage on any cross-origin navigation from API-driven flows.
+ * - `Cache-Control: no-store` — default for every response (#795, ASVS
+ *   8.2.1). Session, magic-token and API-key responses carry PII, so no
+ *   browser or shared cache may keep them. Deliberately public, cacheable
+ *   responses (`/openapi.json`, the zoning catalogue) override it by setting
+ *   their own `Cache-Control` AFTER spreading these headers.
  *
  * HSTS is intentionally NOT set here: Azure terminates TLS at the edge
  * and already emits it; duplicating it risks conflicting values.
@@ -18,6 +23,7 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Cache-Control': 'no-store',
 };
 
 /**

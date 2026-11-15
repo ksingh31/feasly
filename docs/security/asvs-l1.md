@@ -12,7 +12,7 @@
   **single-use / expiring magic tokens** only, never a password. So most of V2
   (passwords) is delegated to Entra and marked N/A here.
 
-**No High finding is open.** Open items: F-3, F-5, F-6, F-7 (see the bottom of this file).
+**No High finding is open.** Open item: F-5. F-3, F-6 and F-7 are fixed (see the bottom of this file).
 
 ## V1 Architecture
 
@@ -46,7 +46,7 @@ provided anyway: [threat-model.md](threat-model.md).
 | 3.3.2 | Periodic re-authentication | Pass | Admin session TTL 7 days (`ADMIN_SESSION_TTL_SECONDS`). Builder session TTL is in config. |
 | 3.4.1 | Cookie `Secure` | Pass | `admin-auth.route.ts`, `builder-auth.route.ts` |
 | 3.4.2 | Cookie `HttpOnly` | Pass | Same files |
-| 3.4.3 | Cookie `SameSite` | Partial | `SameSite=None` is required for the cross-origin SPA. CSRF is not mitigated by an Origin check on cookie-authenticated requests. **F-6** |
+| 3.4.3 | Cookie `SameSite` | Pass | `SameSite=None` is required for the cross-origin SPA. Cookie-authenticated state-changing requests must carry an allowlisted Origin/Referer (`middleware/csrf.ts`, **F-6** fixed in #794). |
 | 3.4.4 | `__Host-` prefix | N/A (accepted) | Cross-origin cookie on the API host. Revisit when the API moves same-origin. |
 | 3.4.5 | Cookie path scoped | Pass | `Path=/` on a dedicated API host. No other apps share the origin. |
 | 3.7.1 | Re-auth / secondary check before sensitive changes | Pass | Money and user-management actions need specific permissions and are written to the audit log. Admins and builder_admins can't be borrowed via view-as. |
@@ -60,7 +60,7 @@ provided anyway: [threat-model.md](threat-model.md).
 | 4.1.3 | Least privilege | Pass | Role → permission map (`auth/permissions.ts`). The conformance test checks the role × route matrix. |
 | 4.1.5 | Fails securely | Pass | Unknown view-as target → empty permissions. Unknown route → 500. Missing builder context → 403. |
 | 4.2.1 | IDOR protection | Pass | `test/tenant-isolation.test.ts` gates every parameterised builder/magic-token route |
-| 4.2.2 | Anti-CSRF | Partial | **F-6**. Bearer-header auth (primary in the SPA) is not CSRF-able. Cookie auth on body-less POSTs is the gap. |
+| 4.2.2 | Anti-CSRF | Pass | Bearer-header auth (primary in the SPA) is not CSRF-able. Cookie-authenticated non-GET/HEAD/OPTIONS requests from non-allowlisted origins get 403 + a `csrf.denied` audit row (**F-6**, fixed in #794). |
 | 4.3.1 | Admin interfaces use MFA | Pass | Entra External ID (staff) with MFA |
 | 4.3.2 | Directory browsing / metadata disabled | Pass | Functions host serves no listings. SWA serves only built assets. No `.git` deployed. |
 
@@ -114,7 +114,7 @@ provided anyway: [threat-model.md](threat-model.md).
 
 | ID | Requirement | Result | Evidence |
 |---|---|---|---|
-| 8.2.1 | Anti-caching headers on sensitive responses | Partial | `Cache-Control: no-store` is set on billing and admin-search responses only. Other authenticated JSON responses (builder leads, admin users, reports) don't send it. **F-7** |
+| 8.2.1 | Anti-caching headers on sensitive responses | Pass | API responses send `Cache-Control: no-store` by default (**F-7**, fixed in #795). |
 | 8.2.2 | No sensitive data in browser storage | Pass (accepted) | `apps/web/src/app/app.config.ts` `beforeSerialize` strips the report token, relay code, and the builder lead list (homeowner PII). `LeadState` keeps the homeowner's *own* gate details on their own device so the report survives a reload. Accepted. |
 | 8.2.3 | Client data cleared after session end | Pass | Logout clears the stored Bearer and state |
 | 8.3.1 | Sensitive data in body/headers, not query string | Partial | Magic tokens ride in URL paths by design (email links). Accepted: each is scoped to one lead's own data, and links are `Referrer-Policy: strict-origin-when-cross-origin`. |
@@ -136,7 +136,7 @@ provided anyway: [threat-model.md](threat-model.md).
 |---|---|---|---|
 | 10.3.1 | Auto-update integrity | N/A | No in-app auto-update |
 | 10.3.2 | Integrity of third-party assets | Pass | No third-party scripts. Fonts only (CSP `font-src`/`style-src` Google Fonts). |
-| 10.3.3 | Subdomain takeover | Pass | No dangling CNAMEs found. `frame-ancestors` lists `demo.example.com` (IANA-reserved, unregistrable). Removal tracked as **F-3**. |
+| 10.3.3 | Subdomain takeover | Pass | No dangling CNAMEs found. Reserved placeholder origins such as `demo.example.com` are no longer emitted in `frame-ancestors` (**F-3**, fixed in #796). |
 
 ## V11 Business logic
 
@@ -168,7 +168,7 @@ provided anyway: [threat-model.md](threat-model.md).
 | 13.1.3 | No secrets/API keys in URLs | Pass | API keys use the `Authorization` header only (`api-key-auth.test.ts`) |
 | 13.2.1 | Only intended HTTP methods enabled | Pass | Methods are bound per `function.json` and checked against the registry (`http-route-bindings.test.ts`) |
 | 13.2.2 | JSON schema validation | Pass | zod on every body |
-| 13.2.3 | CSRF protection on cookie-based REST | Partial | **F-6** (as 4.2.2) |
+| 13.2.3 | CSRF protection on cookie-based REST | Pass | As 4.2.2 (**F-6** fixed in #794). |
 | 13.3.1 | XSD validation | N/A | No SOAP/XML |
 
 ## V14 Configuration
@@ -195,9 +195,7 @@ provided anyway: [threat-model.md](threat-model.md).
 
 | # | Severity | Finding | Issue |
 |---|---|---|---|
-| F-3 | Low | `/embed` CSP `frame-ancestors` lists `https://demo.example.com` | #796 |
 | F-5 | Low | SWA CSP `script-src 'unsafe-eval'` | #797 |
-| F-7 | Low | Authenticated API JSON responses (outside billing and admin search) don't send `Cache-Control: no-store` | #795 |
-| F-6 | Medium | Cookie-authenticated, state-changing requests have no Origin/CSRF check (`SameSite=None` session cookies). Bearer auth is unaffected. | #794 |
 
-F-1 (view-as audit gap on `permissionsAnyOf` routes) was **fixed in #731**.
+F-1 (view-as audit gap on `permissionsAnyOf` routes) was **fixed in #731**. F-3 (#796, PR #809),
+F-6 (#794, PR #813) and F-7 (#795, PR #810) were fixed on main before go-live.

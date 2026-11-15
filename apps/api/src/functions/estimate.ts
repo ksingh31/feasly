@@ -94,6 +94,7 @@ export async function estimateHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
