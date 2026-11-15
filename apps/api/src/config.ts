@@ -310,6 +310,12 @@ const EnvSchema = z.object({
   LAND_USE_CACHE_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   // Hard cap on what the district lookup can add to a property lookup (p95).
   LAND_USE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
+  // --- Zoning rules catalogue (#687) ---
+  // Which city's catalogue GET /api/v1/zoning/districts serves (a key in
+  // @feasly/zoning ZONING_CATALOGUES). Adding a city = data file + this value.
+  ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
+  // Cache-Control max-age for the catalogue (static per deploy; 1h default).
+  ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -713,6 +719,17 @@ export interface LandUseConfig {
 }
 
 /**
+ * Zoning rules catalogue config (#687). The catalogue itself is data in
+ * `@feasly/zoning`; config only picks the city and the HTTP cache lifetime.
+ */
+export interface ZoningConfig {
+  /** City key of the served catalogue, e.g. 'calgary'. */
+  readonly city: string;
+  /** Cache-Control max-age (seconds) on the public catalogue response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * City-data freshness config (trust-strip/01).
  *
  * The landing trust strip reads "Refreshed <Month Year>" from the
@@ -967,6 +984,7 @@ export interface ApiConfig {
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
+  readonly zoning: ZoningConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
@@ -1329,6 +1347,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       datasetId: e.LAND_USE_DATASET_ID,
       cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
       httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
+    },
+    zoning: {
+      city: e.ZONING_CITY,
+      cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
     },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,

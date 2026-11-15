@@ -426,6 +426,123 @@ export const CityDataFreshnessResponseSchema = z
   })
   .openapi('CityDataFreshnessResponse');
 
+// ── Zoning rules catalogue (#687) ───────────────────────────────────────
+
+const BUILDING_FORM_VALUES = [
+  'single-detached',
+  'semi-detached',
+  'duplex',
+  'rowhouse',
+  'townhouse',
+  'secondary-suite',
+  'backyard-suite',
+  'multi-residential',
+] as const;
+
+export const BuildingFormSchema = z
+  .enum(BUILDING_FORM_VALUES)
+  .describe('Building form from the fixed vocabulary.')
+  .openapi('BuildingForm');
+
+const ZoningCategorySchema = z.enum([
+  'low-density',
+  'grade-oriented',
+  'multi-residential',
+  'mixed-use',
+  'direct-control',
+  'non-residential',
+]);
+const ZoningCoverageSchema = z
+  .enum(['covered', 'site-specific', 'not-covered'])
+  .describe(
+    'covered: forms/rules listed; site-specific: Direct Control (see the DC bylaw); ' +
+      'not-covered: a known district Feasly does not describe.',
+  );
+const FormPermissionSchema = z.enum(['permitted', 'discretionary']);
+const BylawSectionSchema = z.string().min(1).describe('Bylaw section reference, e.g. "s. 385(1)(b)".');
+
+const zoningRuleShape = {
+  value: z.number().nonnegative(),
+  section: BylawSectionSchema,
+  note: z.string().min(1).optional(),
+};
+
+/** Public (verified-only) rule: no `verified` flag on the wire. */
+const ZoningRuleSchema = z.object(zoningRuleShape).strict();
+/** Source rule: every value carries `verified`. */
+const ZoningRuleSourceSchema = z.object({ ...zoningRuleShape, verified: z.boolean() }).strict();
+
+const zoningFormShape = {
+  form: BuildingFormSchema,
+  permission: FormPermissionSchema,
+  section: BylawSectionSchema,
+  note: z.string().min(1).optional(),
+};
+
+function keyRules<T extends z.ZodTypeAny>(rule: T) {
+  return z
+    .object({
+      maxHeightM: rule.optional().describe('Maximum building height, metres.'),
+      maxLotCoveragePct: rule.optional().describe('Maximum parcel coverage, per cent of parcel area.'),
+      maxDensityUnitsPerHa: rule.optional().describe('Maximum density, units per hectare.'),
+      maxUnitsOnLot: rule.optional().describe('Fixed maximum number of units on a lot.'),
+    })
+    .strict();
+}
+
+const zoningDistrictShape = {
+  code: z.string().min(1),
+  name: z.string().min(1),
+  category: ZoningCategorySchema,
+  coverage: ZoningCoverageSchema,
+  note: z.string().min(1).optional(),
+};
+
+export const ZoningDistrictSchema = z
+  .object({
+    ...zoningDistrictShape,
+    aliases: z.array(z.string().min(1)),
+    forms: z.array(z.object(zoningFormShape).strict()),
+    rules: keyRules(ZoningRuleSchema).describe(
+      'Verified key rules only; an absent rule means "see the City\'s bylaw".',
+    ),
+  })
+  .strict()
+  .openapi('ZoningDistrict');
+
+const zoningVersionShape = {
+  city: z.string().min(1).regex(/^[a-z][a-z0-9-]*$/),
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('ISO date the rules took effect.'),
+  bylaw: z.string().min(1),
+  bylawVersion: z.string().min(1).describe('Which text of the bylaw the sections were read from.'),
+  sourceUrl: z.string().url().describe("The City's bylaw page — where to confirm the rules."),
+};
+
+export const ZoningDistrictsResponseSchema = z
+  .object({ ...zoningVersionShape, districts: z.array(ZoningDistrictSchema) })
+  .strict()
+  .openapi('ZoningDistrictsResponse');
+
+/**
+ * Source catalogue (`ZoningRulesVersion`): what a data file in
+ * @feasly/zoning must satisfy. Not served; validated in tests.
+ */
+export const ZoningRulesVersionSchema = z
+  .object({
+    ...zoningVersionShape,
+    districts: z.array(
+      z
+        .object({
+          ...zoningDistrictShape,
+          aliases: z.array(z.string().min(1)).optional(),
+          forms: z.array(z.object({ ...zoningFormShape, verified: z.boolean() }).strict()),
+          rules: keyRules(ZoningRuleSourceSchema),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z
