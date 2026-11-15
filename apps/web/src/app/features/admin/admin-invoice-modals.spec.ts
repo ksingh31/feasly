@@ -105,6 +105,19 @@ describe('AdminInvoiceRateModalComponent', () => {
     expect(ref.close).toHaveBeenCalledWith(true);
   });
 
+  it('hides the arrow and "after" side until a valid rate is typed (#675)', async () => {
+    const { q, type } = await setup(AdminInvoiceRateModalComponent);
+    const compare = () => q('rate-before-after');
+    expect(compare().textContent).not.toContain('→');
+    expect(compare().textContent).not.toContain('—');
+    expect(compare().querySelector('.invoice-modal__after')).toBeNull();
+    await type('input', '12');
+    expect(compare().querySelector('.invoice-modal__after')).toBeNull();
+    await type('input', '2');
+    expect(compare().querySelectorAll('.invoice-modal__after')).toHaveLength(2);
+    expect(q('rate-after').textContent).toContain('2%');
+  });
+
   it('rejects an out-of-range rate', async () => {
     const { q, el, type } = await setup(AdminInvoiceRateModalComponent);
     await type('input', '12');
