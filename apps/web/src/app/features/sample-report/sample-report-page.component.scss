@@ -160,6 +160,6 @@ button.cta.pdf {
   .stepper-card {
     break-inside: avoid;
     /* Token-derived light grey (≈ the old #ccc) so the card edge survives print. */
-    border-color: color-mix(in srgb, var(--text) 20%, white);
+    border-color: color-mix(in srgb, var(--text) 20%, var(--card));
   }
 }
