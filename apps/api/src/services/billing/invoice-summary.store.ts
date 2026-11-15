@@ -23,6 +23,10 @@ export interface InvoiceSummaryRecord {
   readonly invoiceNumber: string;
   readonly contractValueCents: number;
   readonly commissionCents: number;
+  /** Tax amount in integer cents (#714). Absent = 0. */
+  readonly taxCents?: number;
+  /** Commission + tax: what the builder pays (#714). Absent = commission. */
+  readonly totalCents?: number;
   /** ISO 4217 currency code of the invoice (e.g. "CAD"). */
   readonly currency: string;
   readonly status: string;
@@ -70,6 +74,8 @@ export function createInvoiceSummaryStore(
           invoiceNumber: commissionInvoices.invoiceNumber,
           contractValueCents: commissionInvoices.contractValueCents,
           commissionCents: commissionInvoices.commissionCents,
+          taxCents: commissionInvoices.taxCents,
+          totalCents: commissionInvoices.totalCents,
           currency: commissionInvoices.currency,
           status: commissionInvoices.status,
           reviewDueAt: commissionInvoices.reviewDueAt,
@@ -80,7 +86,12 @@ export function createInvoiceSummaryStore(
         // Newest first: the caller's lead→invoice lookup keeps the first
         // row per lead, which must be deterministic.
         .orderBy(desc(commissionInvoices.createdAt));
-      return rows;
+      // #714: rows the 0050 backfill has not reached fall back to
+      // commission + tax.
+      return rows.map((row) => ({
+        ...row,
+        totalCents: row.totalCents ?? row.commissionCents + row.taxCents,
+      }));
     },
 
     async hasInvoiceForLead({ leadId, tenantKey }): Promise<boolean> {

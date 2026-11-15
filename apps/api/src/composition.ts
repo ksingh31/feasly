@@ -1830,6 +1830,8 @@ export function createComposition(
     billing: billingService,
     commissionCard: commissionCardService,
     builders: builderService,
+    // #714: supplier GST details on taxed invoices.
+    ...(config.billing.tax ? { tax: config.billing.tax } : {}),
   });
   const billingRoute: BillingRoute = createBillingRoute({
     billing: billingService,

@@ -381,6 +381,44 @@ function formatEdmontonDate(date: Date): string {
   }).format(date);
 }
 
+/**
+ * #714: sales tax on a commission invoice, for builder emails. When absent
+ * the email renders exactly as it did before tax existed.
+ */
+export interface CommissionEmailTax {
+  /** e.g. "GST". */
+  readonly label: string;
+  /** Snapshotted rate in PERCENT (5 = 5%). */
+  readonly ratePercent: number;
+  readonly taxCents: number;
+  /** Subtotal + tax: the amount charged. */
+  readonly totalCents: number;
+  /** Supplier GST/HST registration number. */
+  readonly registrationNumber: string;
+}
+
+const LABEL_TD = 'padding:4px 12px 4px 0;color:#8a8378;';
+
+/** Extra HTML rows + text lines for the tax breakdown (#714). */
+function taxRows(
+  tax: CommissionEmailTax,
+  currency: string,
+): { html: string; text: string } {
+  const label = `${tax.label} (${formatPercent(tax.ratePercent)})`;
+  const amount = `$${formatMoney(tax.taxCents)} ${currency}`;
+  const total = `$${formatMoney(tax.totalCents)} ${currency}`;
+  return {
+    html:
+      `<tr><td style="${LABEL_TD}">${esc(label)}</td><td style="padding:4px 0;">${esc(amount)}</td></tr>\n` +
+      `<tr><td style="${LABEL_TD}">Total</td><td style="padding:4px 0;font-weight:600;">${esc(total)}</td></tr>\n` +
+      `<tr><td style="${LABEL_TD}">${esc(tax.label)} registration</td><td style="padding:4px 0;">${esc(tax.registrationNumber)}</td></tr>\n`,
+    text:
+      `${label}: ${amount}\n` +
+      `Total: ${total}\n` +
+      `${tax.label} registration: ${tax.registrationNumber}\n`,
+  };
+}
+
 export interface CommissionInvoiceReadyTemplateInput {
   /** Public invoice reference shown to the builder (short id). */
   readonly invoiceRef: string;
@@ -391,6 +429,7 @@ export interface CommissionInvoiceReadyTemplateInput {
   readonly commissionRatePercent: number;
   /** End of the 7-day review window — rendered in America/Edmonton. */
   readonly reviewDueAt: Date;
+  readonly tax?: CommissionEmailTax;
   /** Builder portal invoices URL is derived from ctx.appBaseUrl. */
 }
 
@@ -403,13 +442,14 @@ export function renderCommissionInvoiceReadyEmail(
   const commission = formatMoney(input.commissionCents);
   const contractValue = formatMoney(input.contractValueCents);
   const rateLabel = formatPercent(input.commissionRatePercent);
+  const tax = input.tax ? taxRows(input.tax, input.currency) : undefined;
   const subject = `Your ${ctx.brandName} commission invoice is ready for review`;
   const body = `<p>Hi there,</p>
 <p>A commission invoice for your build is now in its 7-day review window:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:12px 0;">
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Invoice</td><td style="padding:4px 0;font-weight:600;">${esc(input.invoiceRef)}</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Commission (${rateLabel})</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Contract value</td><td style="padding:4px 0;">$${contractValue} ${esc(input.currency)} (excl. land)</td></tr>
+${tax?.html ?? ''}<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Contract value</td><td style="padding:4px 0;">$${contractValue} ${esc(input.currency)} (excl. land)</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Review deadline</td><td style="padding:4px 0;font-weight:600;">${esc(dueDate)}</td></tr>
 </table>
 <p>We&apos;ll charge the card on file on <strong>${esc(dueDate)}</strong> unless the invoice is disputed before then. Open your billing page to review the invoice.</p>
@@ -419,6 +459,7 @@ ${fallbackLink(invoicesUrl)}`;
     `Hi there,\n\nA commission invoice for your build is now in its 7-day review window:\n\n` +
     `Invoice: ${input.invoiceRef}\n` +
     `Commission (${rateLabel}): $${commission} ${input.currency}\n` +
+    (tax?.text ?? '') +
     `Contract value: $${contractValue} ${input.currency} (excl. land)\n` +
     `Review deadline: ${dueDate}\n\n` +
     `We'll charge the card on file on ${dueDate} unless the invoice is disputed before then.\n\n` +
@@ -431,6 +472,7 @@ export interface CommissionPaymentReceivedTemplateInput {
   readonly commissionCents: number;
   readonly currency: string;
   readonly paidAt: Date;
+  readonly tax?: CommissionEmailTax;
 }
 
 export function renderCommissionPaymentReceivedEmail(
@@ -439,14 +481,18 @@ export function renderCommissionPaymentReceivedEmail(
 ): RenderedEmail {
   const invoicesUrl = `${ctx.appBaseUrl}/builder/billing`;
   const paidDate = formatEdmontonDate(input.paidAt);
-  const commission = formatMoney(input.commissionCents);
+  // #714: the receipt shows the amount actually charged (subtotal + tax)
+  // with the breakdown; untaxed receipts are unchanged.
+  const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  const subtotal = `$${formatMoney(input.commissionCents)} ${input.currency}`;
+  const tax = input.tax ? taxRows(input.tax, input.currency) : undefined;
   const subject = `Payment received — ${ctx.brandName} commission invoice ${input.invoiceRef}`;
   const body = `<p>Hi there,</p>
 <p>We&apos;ve received your commission payment. This is your receipt:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:12px 0;">
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Invoice</td><td style="padding:4px 0;font-weight:600;">${esc(input.invoiceRef)}</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Amount charged</td><td style="padding:4px 0;font-weight:600;">$${commission} ${esc(input.currency)}</td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Date</td><td style="padding:4px 0;">${esc(paidDate)}</td></tr>
+${tax ? `<tr><td style="${LABEL_TD}">Commission</td><td style="padding:4px 0;">${esc(subtotal)}</td></tr>\n${tax.html}` : ''}<tr><td style="padding:4px 12px 4px 0;color:#8a8378;">Date</td><td style="padding:4px 0;">${esc(paidDate)}</td></tr>
 </table>
 <p>Thanks for building with ${esc(ctx.brandName)}.</p>
 ${ctaButton(invoicesUrl, 'View invoices')}
@@ -455,6 +501,7 @@ ${fallbackLink(invoicesUrl)}`;
     `Hi there,\n\nWe've received your commission payment. This is your receipt:\n\n` +
     `Invoice: ${input.invoiceRef}\n` +
     `Amount charged: $${commission} ${input.currency}\n` +
+    (tax ? `Commission: ${subtotal}\n${tax.text}` : '') +
     `Date: ${paidDate}\n\n` +
     `Thanks for building with ${ctx.brandName}.\n\n` +
     `View invoices: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
@@ -467,6 +514,7 @@ export interface CommissionPaymentFailedTemplateInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  readonly tax?: CommissionEmailTax;
 }
 
 export function renderCommissionPaymentFailedEmail(
@@ -474,7 +522,8 @@ export function renderCommissionPaymentFailedEmail(
   input: CommissionPaymentFailedTemplateInput,
 ): RenderedEmail {
   const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
-  const commission = formatMoney(input.commissionCents);
+  // #714: the declined amount is what we tried to charge (incl. tax).
+  const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
   const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
   const body = `<p>Hi there,</p>
 <p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>

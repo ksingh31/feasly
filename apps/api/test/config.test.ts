@@ -154,6 +154,15 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        tax: {
+          enabled: false,
+          ratePercent: 5,
+          label: 'GST',
+          inclusive: false,
+          supplierLegalName: 'PLACEHOLDER_SUPPLIER_LEGAL_NAME',
+          supplierAddress: 'PLACEHOLDER_SUPPLIER_ADDRESS',
+          registrationNumber: 'PLACEHOLDER_GST_NUMBER',
+        },
       },
       sandboxPurge: {
         retentionDays: 30,
@@ -287,7 +296,48 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      tax: {
+        enabled: false,
+        ratePercent: 5,
+        label: 'GST',
+        inclusive: false,
+        supplierLegalName: 'PLACEHOLDER_SUPPLIER_LEGAL_NAME',
+        supplierAddress: 'PLACEHOLDER_SUPPLIER_ADDRESS',
+        registrationNumber: 'PLACEHOLDER_GST_NUMBER',
+      },
     });
+  });
+
+  it('reads the GST settings (#714) and defaults to tax OFF, 5%, commission plus GST', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      BILLING_TAX_ENABLED: 'true',
+      BILLING_TAX_RATE: '0.13',
+      BILLING_TAX_LABEL: 'HST',
+      BILLING_TAX_INCLUSIVE: 'true',
+      BILLING_SUPPLIER_LEGAL_NAME: 'Example Holdings Ltd.',
+      BILLING_SUPPLIER_ADDRESS: '100 Example St SW, Calgary AB',
+      BILLING_TAX_REGISTRATION_NUMBER: '123456789RT0001',
+    });
+    expect(config.billing.tax).toEqual({
+      enabled: true,
+      ratePercent: 13,
+      label: 'HST',
+      inclusive: true,
+      supplierLegalName: 'Example Holdings Ltd.',
+      supplierAddress: '100 Example St SW, Calgary AB',
+      registrationNumber: '123456789RT0001',
+    });
+    expect(loadConfig(VALID_ENV).billing.tax?.enabled).toBe(false);
+    expect(() => loadConfig({ ...VALID_ENV, BILLING_TAX_ENABLED: 'yes' })).toThrow(
+      /BILLING_TAX_ENABLED/,
+    );
+  });
+
+  it('allows placeholder supplier details with tax ON outside production (#714)', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_TAX_ENABLED: 'true' }).billing.tax?.enabled,
+    ).toBe(true);
   });
 
   it('reads BILLING_SETTLEMENT_THRESHOLD_HOURS (#711) and rejects non-positive values', () => {
@@ -488,6 +538,29 @@ describe('loadConfig', () => {
         STRIPE_SECRET_KEY: 'sk_test_123',
       }),
     ).toThrow(/production requires an sk_live_ key/);
+  });
+
+  it('production refuses tax ON while supplier details are placeholders (#714)', () => {
+    const prod = {
+      ...VALID_ENV,
+      NODE_ENV: 'production',
+      STRIPE_SECRET_KEY: 'sk_live_123',
+      STRIPE_WEBHOOK_SECRET: 'whsec_123',
+    };
+    expect(() => loadConfig({ ...prod, BILLING_TAX_ENABLED: 'true' })).toThrow(
+      /BILLING_TAX_REGISTRATION_NUMBER: required when BILLING_TAX_ENABLED=true in production/,
+    );
+    // Tax OFF in production with placeholders is fine (pre-tax behaviour).
+    expect(loadConfig(prod).billing.tax?.enabled).toBe(false);
+    expect(
+      loadConfig({
+        ...prod,
+        BILLING_TAX_ENABLED: 'true',
+        BILLING_SUPPLIER_LEGAL_NAME: 'Example Holdings Ltd.',
+        BILLING_SUPPLIER_ADDRESS: '100 Example St SW, Calgary AB',
+        BILLING_TAX_REGISTRATION_NUMBER: '123456789RT0001',
+      }).billing.tax?.enabled,
+    ).toBe(true);
   });
 
   it('leaves billing dormant when no Stripe key is configured', () => {

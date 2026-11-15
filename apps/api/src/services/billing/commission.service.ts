@@ -37,6 +37,7 @@ import {
   wholeDaysBetween,
 } from '../../lib/commission-math';
 import { isReportingOnTime } from '../../lib/billing-deadlines';
+import { computeInvoiceTax } from '../../lib/tax-math';
 import {
   readDefaultPaymentMethod,
   requireKnownPaymentMethod,
@@ -47,7 +48,7 @@ import type {
 } from './attribution.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
-import type { EmailService } from '../email/email.service';
+import type { CommissionEmailTax, EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { ManualPaymentMethod } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
@@ -72,7 +73,26 @@ export interface CommissionInvoiceRecord {
    */
   readonly leadName: string;
   readonly contractValueCents: number;
+  /**
+   * The pre-tax commission (the invoice subtotal), integer cents. In
+   * commission-plus-tax mode this is round(contractValueCents * rate).
+   */
   readonly commissionCents: number;
+  /** Alias of `commissionCents`: the pre-tax subtotal (#714). */
+  readonly subtotalCents: number;
+  /** Tax rate snapshotted at creation, in PERCENT. 0 = no tax (#714). */
+  readonly taxRatePercent: number;
+  /** True when the commission was priced tax-inclusive (#714). */
+  readonly taxInclusive: boolean;
+  /** Tax amount, integer cents. 0 when the invoice carries no tax. */
+  readonly taxCents: number;
+  /** subtotal + tax: the amount charged, integer cents (#714). */
+  readonly totalCents: number;
+  /**
+   * Tax label from config (e.g. "GST") when the invoice carries a tax
+   * rate; null on untaxed invoices.
+   */
+  readonly taxLabel: string | null;
   readonly currency: string;
   readonly stripePaymentIntentId: string | null;
   readonly status: CommissionInvoiceStatus;
@@ -441,10 +461,46 @@ function requireCardPaymentMethod(
   );
 }
 
+/**
+ * The amount charged for an invoice (#714): the snapshotted total, or
+ * commission + tax for a row the 0050 backfill has not reached yet.
+ */
+export function invoiceTotalCents(
+  row: Pick<
+    typeof commissionInvoices.$inferSelect,
+    'totalCents' | 'commissionCents' | 'taxCents'
+  >,
+): number {
+  return row.totalCents ?? row.commissionCents + row.taxCents;
+}
+
+/**
+ * Commission → stored invoice figures (#714). `grossCommissionCents` is
+ * round(contract × rate); the stored `commission_cents` is the pre-tax
+ * subtotal, which differs from it only in tax-inclusive mode.
+ */
+function invoiceAmounts(
+  grossCommissionCents: number,
+  taxRatePercent: number,
+  taxInclusive: boolean,
+): { commissionCents: number; taxCents: number; totalCents: number } {
+  const tax = computeInvoiceTax(
+    grossCommissionCents,
+    taxRatePercent,
+    taxInclusive,
+  );
+  return {
+    commissionCents: tax.subtotalCents,
+    taxCents: tax.taxCents,
+    totalCents: tax.totalCents,
+  };
+}
+
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
   leadName: string,
   defaultRate: number,
+  taxLabel: string | null,
 ): CommissionInvoiceRecord {
   return {
     id: row.id,
@@ -454,6 +510,12 @@ function toRecord(
     leadName,
     contractValueCents: row.contractValueCents,
     commissionCents: row.commissionCents,
+    subtotalCents: row.commissionCents,
+    taxRatePercent: row.taxRatePercent,
+    taxInclusive: row.taxInclusive,
+    taxCents: row.taxCents,
+    totalCents: invoiceTotalCents(row),
+    taxLabel: row.taxRatePercent > 0 ? taxLabel : null,
     currency: row.currency,
     stripePaymentIntentId: row.stripePaymentIntentId,
     status: row.status as CommissionInvoiceStatus,
@@ -568,6 +630,10 @@ export function createCommissionService(
     deps.logWarning ?? ((message: string) => console.warn(message));
   const newId = deps.newId ?? randomUUID;
   const reviewWindowDays = deps.reviewWindowDays ?? 7;
+  // #714: tax applies to NEW invoices only when enabled; the rate and mode
+  // are snapshotted on the row, so later config changes never reprice.
+  const taxConfig = billing.tax;
+  const taxLabel = taxConfig?.label ?? null;
 
   function requireCommissionModel(): void {
     if (billing.model !== 'commission') {
@@ -637,7 +703,7 @@ export function createCommissionService(
         `Invoice "${id}" changed concurrently — expected '${from}'`,
       );
     }
-    const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
+    const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
     await audit.append({
       tenantKey: record.tenantKey,
       eventType,
@@ -646,6 +712,9 @@ export function createCommissionService(
       payload: {
         status: to,
         commissionCents: record.commissionCents,
+        ...(record.taxCents > 0
+          ? { taxCents: record.taxCents, totalCents: record.totalCents }
+          : {}),
         ...eventPayload,
       },
     });
@@ -694,6 +763,25 @@ export function createCommissionService(
   }
 
   /**
+   * #714: the tax block for builder emails. Omitted entirely on untaxed
+   * invoices so their emails match the pre-tax output byte for byte.
+   */
+  function emailTax(
+    invoice: CommissionInvoiceRecord,
+  ): { tax?: CommissionEmailTax } {
+    if (invoice.taxRatePercent <= 0 || taxConfig === undefined) return {};
+    return {
+      tax: {
+        label: taxConfig.label,
+        ratePercent: invoice.taxRatePercent,
+        taxCents: invoice.taxCents,
+        totalCents: invoice.totalCents,
+        registrationNumber: taxConfig.registrationNumber,
+      },
+    };
+  }
+
+  /**
    * BILL-04: send a builder billing notification. Never throws — a failed
    * notification is audited (the invoice transition already happened; the
    * email is a notice, not the state change). No PII in the audit payload
@@ -727,6 +815,7 @@ export function createCommissionService(
         currency: invoice.currency,
         commissionRatePercent: invoice.effectiveRatePercent,
         reviewDueAt: invoice.reviewDueAt,
+        ...emailTax(invoice),
       });
     } else if (kind === 'payment_received') {
       if (!invoice.paidAt) return;
@@ -736,6 +825,7 @@ export function createCommissionService(
         commissionCents: invoice.commissionCents,
         currency: invoice.currency,
         paidAt: invoice.paidAt,
+        ...emailTax(invoice),
       });
     } else {
       delivery = await email.sendCommissionPaymentFailed({
@@ -744,6 +834,7 @@ export function createCommissionService(
         commissionCents: invoice.commissionCents,
         currency: invoice.currency,
         updateWithinDays: 7,
+        ...emailTax(invoice),
       });
     }
     await audit.append({
@@ -788,7 +879,7 @@ export function createCommissionService(
         disputeReason: row.disputeReason,
       },
     });
-    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
   }
 
   return {
@@ -829,7 +920,7 @@ export function createCommissionService(
           entityId: existing.id,
           payload: { attributionId },
         });
-        return toRecord(existing, await leadNameFor(db, existing.leadId), billing.commissionRate);
+        return toRecord(existing, await leadNameFor(db, existing.leadId), billing.commissionRate, taxLabel);
       }
 
       const reportedAt = record.updatedAt;
@@ -846,9 +937,12 @@ export function createCommissionService(
         record.tenantKey,
       );
       const ratePercent = builderRatePercent ?? billing.commissionRate * 100;
-      const commissionCents = computeCommissionCents(
-        record.contractValueCents,
-        ratePercent / 100,
+      const taxRatePercent = taxConfig?.enabled ? taxConfig.ratePercent : 0;
+      const taxInclusive = taxConfig?.enabled ? taxConfig.inclusive : false;
+      const { commissionCents, taxCents, totalCents } = invoiceAmounts(
+        computeCommissionCents(record.contractValueCents, ratePercent / 100),
+        taxRatePercent,
+        taxInclusive,
       );
 
       // billing/12: the invoice is created with the builder org's default
@@ -871,6 +965,10 @@ export function createCommissionService(
           contractValueCents: record.contractValueCents,
           commissionCents,
           commissionRatePercent: ratePercent,
+          taxRatePercent,
+          taxInclusive,
+          taxCents,
+          totalCents,
           slaBreached: !onTime,
           invoiceNumber,
           paymentMethod,
@@ -895,7 +993,7 @@ export function createCommissionService(
           });
           return [winner];
         });
-      const invoice = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+      const invoice = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
       await audit.append({
         tenantKey: invoice.tenantKey,
         eventType: 'invoice.created',
@@ -906,6 +1004,9 @@ export function createCommissionService(
           contractValueCents: record.contractValueCents,
           commissionCents,
           commissionRatePercent: ratePercent,
+          ...(taxRatePercent > 0
+            ? { taxRatePercent, taxInclusive, taxCents, totalCents }
+            : {}),
           invoiceNumber,
           paymentMethod,
           slaBreached: !onTime,
@@ -993,7 +1094,7 @@ export function createCommissionService(
       }
       const intent = await stripe.createOffSessionPaymentIntent(
         {
-          amountCents: row.commissionCents,
+          amountCents: invoiceTotalCents(row),
           currency: row.currency,
           customerId,
           description:
@@ -1054,7 +1155,7 @@ export function createCommissionService(
       const retryNumber = row.retryCount + 1;
       const intent = await stripe.createOffSessionPaymentIntent(
         {
-          amountCents: row.commissionCents,
+          amountCents: invoiceTotalCents(row),
           currency: row.currency,
           customerId,
           description:
@@ -1115,7 +1216,7 @@ export function createCommissionService(
       await alertOps(
         'Billing dispute opened — charge frozen',
         `Tenant ${invoice.tenantKey} disputed invoice ${invoice.id} ` +
-          `($${(invoice.commissionCents / 100).toFixed(2)} ${invoice.currency}). ` +
+          `($${(invoice.totalCents / 100).toFixed(2)} ${invoice.currency}). ` +
           `Reason: ${reason.trim()}. The charge clock is frozen pending review.`,
       );
       return invoice;
@@ -1182,7 +1283,7 @@ export function createCommissionService(
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         // Webhook redelivery for an already-settled invoice: no-op, no
         // duplicate audit row.
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
       }
       const invoice = await transition(
         row.id,
@@ -1326,9 +1427,16 @@ export function createCommissionService(
       );
       const newRatePercent =
         Math.round(ratePercent * 10_000) / 10_000;
-      const newCommissionCents = computeCommissionCents(
-        row.contractValueCents,
-        newRatePercent / 100,
+      // #714: tax is recalculated at the invoice's SNAPSHOTTED rate and
+      // mode, never the current config.
+      const {
+        commissionCents: newCommissionCents,
+        taxCents: newTaxCents,
+        totalCents: newTotalCents,
+      } = invoiceAmounts(
+        computeCommissionCents(row.contractValueCents, newRatePercent / 100),
+        row.taxRatePercent,
+        row.taxInclusive,
       );
       // Conditional update on the current status — a concurrent transition
       // (e.g. finalize racing this override) surfaces as 409 instead of
@@ -1338,6 +1446,8 @@ export function createCommissionService(
         .set({
           commissionRateOverride: newRatePercent,
           commissionCents: newCommissionCents,
+          taxCents: newTaxCents,
+          totalCents: newTotalCents,
           updatedAt: now(),
         })
         .where(
@@ -1354,7 +1464,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.commission_rate_changed',
@@ -1365,6 +1475,15 @@ export function createCommissionService(
           toRatePercent: newRatePercent,
           oldCommissionCents: row.commissionCents,
           newCommissionCents,
+          ...(row.taxRatePercent > 0
+            ? {
+                taxRatePercent: row.taxRatePercent,
+                oldTaxCents: row.taxCents,
+                newTaxCents,
+                oldTotalCents: invoiceTotalCents(row),
+                newTotalCents,
+              }
+            : {}),
           contractValueCents: row.contractValueCents,
           adminEmail,
         },
@@ -1391,7 +1510,7 @@ export function createCommissionService(
       const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
       if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
       }
       const invoice = await transition(
         row.id,
@@ -1413,7 +1532,7 @@ export function createCommissionService(
       await alertOps(
         'Billing charge failed — dunning started',
         `Off-session charge for invoice ${invoice.id} ` +
-          `($${(invoice.commissionCents / 100).toFixed(2)} ${invoice.currency}, ` +
+          `($${(invoice.totalCents / 100).toFixed(2)} ${invoice.currency}, ` +
           `tenant ${invoice.tenantKey}) failed. Payment intent ${paymentIntentId}. ` +
           `Update the card on file and re-attempt.`,
       );
@@ -1436,7 +1555,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
     },
 
     async findAwaitingSettlement(
@@ -1456,7 +1575,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
     },
 
     async countSkippedManualReviews(reviewNow: Date): Promise<number> {
@@ -1482,7 +1601,7 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
     },
 
     async findByLead(leadId: string): Promise<CommissionInvoiceRecord | null> {
@@ -1493,12 +1612,12 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
       const invoiceRow = await requireInvoice(invoiceId);
-      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate);
+      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate, taxLabel);
     },
 
     async getCommissionRatePercent(tenantKey: string): Promise<number> {
@@ -1591,7 +1710,7 @@ export function createCommissionService(
       const from = row.paymentMethod as BuilderPaymentMethod;
       if (from === validated) {
         // Idempotent: same method is a no-op (still returns the record).
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
       }
       // Conditional update on the current status — a concurrent
       // transition (e.g. the timer finalizing this invoice) surfaces as
@@ -1613,7 +1732,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate);
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.payment_method_changed',
@@ -1673,7 +1792,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
     },
   };
 }
