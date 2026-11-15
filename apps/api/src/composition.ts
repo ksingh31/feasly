@@ -214,6 +214,10 @@ import {
   type BuilderService,
 } from './services/builder.service';
 import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './services/lead-assignment.service';
+import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import {
@@ -1093,9 +1097,15 @@ export function createComposition(
   // insert (the lead is visible in the builder portal immediately).
   const adminAuditStore: AdminAuditStore =
     options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  // #721: lead reassignment rules (attribution close/open, invoice block).
+  const leadAssignmentService: LeadAssignmentService = createLeadAssignmentService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    leadAssignment: leadAssignmentService,
   });
   const leadService: LeadService = createLeadService({
     store: leadStore,
@@ -1512,6 +1522,7 @@ export function createComposition(
     estimateStore,
     audit: adminAuditStore,
     maxExportRows: 10000,
+    reassignments: leadAssignmentService,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -1917,6 +1928,7 @@ export function createComposition(
     email: emailService,
     fallbackAdminInbox: config.email.opsAlertEmail,
     statusChanges: leadStatusChangeStore,
+    reassignments: leadAssignmentService,
     needsYou: {
       staleAfterDays: config.lead.needsYouStaleDays,
       scanLimit: config.lead.needsYouScanLimit,

@@ -53,6 +53,7 @@ import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
+import type { LeadAssignmentService } from './lead-assignment.service';
 import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store';
 import type { MembershipStore, UserStore } from './user.service';
 
@@ -200,6 +201,11 @@ export interface BuilderLeadsServiceDeps {
    */
   readonly statusChanges?: LeadStatusChangeStore;
   /**
+   * #721: leads Feasly moved away from this builder, listed as
+   * "Reassigned by Feasly". Absent in tests that don't cover it.
+   */
+  readonly reassignments?: Pick<LeadAssignmentService, 'listReassignedAway'>;
+  /**
    * "Needs you" tunables from config (`lead.needsYouStaleDays`,
    * `lead.needsYouScanLimit`). Required by `getNeedsYou` — it fails with
    * 500 when absent rather than inventing a threshold.
@@ -321,6 +327,7 @@ export function createBuilderLeadsService(
     fallbackAdminInbox,
     statusChanges,
     needsYou,
+    reassignments,
   } = deps;
   const clock = deps.clock ?? (() => new Date());
 
@@ -707,7 +714,12 @@ export function createBuilderLeadsService(
       );
       summary.needsRecording = leads.filter((lead) => lead.needsRecording).length;
 
-      return { leads, summary };
+      const reassigned =
+        reassignments === undefined
+          ? []
+          : await reassignments.listReassignedAway(builder.id);
+
+      return { leads, summary, reassigned };
     },
 
     async getNeedsYou(tenantKey: string): Promise<BuilderLeadsNeedsYouResponse> {

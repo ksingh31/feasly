@@ -53,6 +53,12 @@ export const ErrorCodes = {
   /** Lead status lock (2026-09-29): status change on a recorded-contract lead. */
   LEAD_STATUS_LOCKED: 'LEAD_STATUS_LOCKED',
   /**
+   * #721: reassigning a lead that still has a non-void commission invoice
+   * with its current builder. 409; the message names the invoice. Void or
+   * refund it first.
+   */
+  LEAD_HAS_INVOICE: 'LEAD_HAS_INVOICE',
+  /**
    * Commission rate outside the allowed range (billing/08): builder rate
    * must satisfy 0 <= rate <= 10 (percent).
    */
