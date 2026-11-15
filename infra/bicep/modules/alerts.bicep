@@ -29,6 +29,14 @@
 // as a platform metric at the storage account level. To be re-added with
 // a correct metric/namespace when needed.)
 //
+// Query shape (#767): every rule uses `timeAggregation: 'Count'` with no
+// `metricMeasureColumn`, which makes Azure Monitor count the query's result
+// ROWS. Queries must therefore return the matching rows themselves — never
+// end in `| summarize count()` (that always yields exactly one row, so a
+// `> 0` rule fires every evaluation and a `> 2` rule can never fire). If an
+// aggregate is ever needed, set `metricMeasureColumn` + `timeAggregation:
+// 'Total'`. Guarded by apps/api/test/alert-queries.test.ts.
+//
 // Routes to the ops action group (email). Severity 2 = warning.
 // Free-tier safe: alert rules are ~$0.10/mo each.
 
@@ -83,7 +91,7 @@ resource http5xxAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
       allOf: [
         {
           criterionType: 'StaticThresholdCriterion'
-          query: 'AppRequests | where TimeGenerated > ago(5m) | where ResultCode startswith "5" | summarize count()'
+          query: 'AppRequests | where TimeGenerated > ago(5m) | where ResultCode startswith "5"'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 5
@@ -130,7 +138,7 @@ resource timerScheduleMonitorAlert 'Microsoft.Insights/scheduledQueryRules@2021-
       allOf: [
         {
           criterionType: 'StaticThresholdCriterion'
-          query: 'AppExceptions | where TimeGenerated > ago(15m) | where ProblemId contains "StorageScheduleMonitor" or OuterMessage contains "Could not create BlobContainer" | summarize count()'
+          query: 'AppExceptions | where TimeGenerated > ago(15m) | where ProblemId contains "StorageScheduleMonitor" or OuterMessage contains "Could not create BlobContainer"'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 2
@@ -173,7 +181,7 @@ resource emailSendFailureAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-0
       allOf: [
         {
           criterionType: 'StaticThresholdCriterion'
-          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "email.send-failed" | summarize count()'
+          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "email.send-failed"'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 2
@@ -220,7 +228,7 @@ resource backupCheckProbeAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-0
       allOf: [
         {
           criterionType: 'StaticThresholdCriterion'
-          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "backup-check-timer: PROBE FAILED" | summarize count()'
+          query: 'AppTraces | where TimeGenerated > ago(15m) | where Message contains "backup-check-timer: PROBE FAILED"'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
