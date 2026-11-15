@@ -115,6 +115,8 @@ export type StatusDomain = keyof typeof STATUS_DICTIONARY;
 const ENUM_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
   e_transfer: 'E-transfer',
   api_key: 'API key',
+  api: 'API',
+  mcp: 'MCP',
   super_admin: 'Super admin',
 };
 

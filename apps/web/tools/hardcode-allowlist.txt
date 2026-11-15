@@ -139,20 +139,14 @@ apps/web/src/app/features/compare/compare-results/compare-results.component.ts
 apps/web/src/app/core/seo/jsonld-schemas.ts
 apps/web/src/app/core/seo/seo.service.ts
 
-# Leads explorer filters (admin/02): lead_score is a fixed 0–100 domain
-# scale (the `100` clamp is a domain bound, not a tunable); the `T00:00:00` /
-# `T23:59:59.999` day-boundary times are calendar constants for the date-range
-# filter, not tunables. They change by product decision, never by deploy tuning.
-apps/web/src/app/features/admin/admin-leads.component.ts
+# Admin Leads saved views (#539): `24 * 60 * 60 * 1000` is the ms-per-day
+# calendar constant for the "Quoting > N days" cutoff (N itself is config:
+# admin.leads.quotingStaleDays), not a tunable.
+apps/web/src/app/features/admin/admin-leads-view.ts
 
-# Lead detail note maxlength (admin/02): the 5000-char bound is a validation
-# limit matching the backend, not a deploy tunable.
-apps/web/src/app/features/admin/admin-lead-detail.component.ts
-
-# Quarantine-tab placeholder copy (admin/02): explains that approve/discard
-# needs a backend endpoint — product copy pinned by the story's placeholder
-# rule, not tunable text.
-apps/web/src/app/features/admin/admin-leads.component.html
+# Lead drawer note maxlength (admin/02, #539): the 5000-char bound is a
+# validation limit matching the backend, not a deploy tunable.
+apps/web/src/app/features/admin/admin-lead-drawer.component.ts
 
 # Cents-to-CAD formatting (admin/02 AC2): `100` is the mathematical
 # cents-per-dollar constant, and the `$x – $y` format strings are display
@@ -263,6 +257,8 @@ apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts
 # admin-builders.component.spec.ts.
 apps/web/src/app/features/admin/admin-builders.component.html
 apps/web/src/app/features/admin/admin-builders.component.ts
+apps/web/src/app/features/admin/admin-builder-drawer.component.html
+apps/web/src/app/features/admin/admin-builder-drawer.component.ts
 
 # Builder team invite form (auth/05): Validators.maxLength(120) for the
 # name field mirrors the backend zod schema (API contract, not a tunable).
