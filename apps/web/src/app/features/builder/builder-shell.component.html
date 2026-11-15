@@ -4,73 +4,135 @@
       <app-brand-mark [size]="28" />
       <span class="builder-shell__wordmark">{{ copy.shellBrand }}</span>
     </a>
-    <button
-      type="button"
-      class="builder-shell__menu-toggle"
-      [attr.aria-expanded]="menuOpen()"
-      aria-controls="builder-nav"
-      (click)="toggleMenu()"
-    >
-      <span class="builder-shell__menu-icon" aria-hidden="true"></span>
-      <span class="builder-shell__menu-label">{{
-        menuOpen() ? copy.shellMenuCloseLabel : copy.shellMenuOpenLabel
-      }}</span>
-    </button>
-    <nav
-      class="builder-shell__nav"
-      id="builder-nav"
-      aria-label="Builder"
-      [class.builder-shell__nav--open]="menuOpen()"
-    >
+
+    <nav class="builder-shell__nav" [attr.aria-label]="copy.shellNavLabel">
       <a
         routerLink="/builder"
         routerLinkActive="active"
+        ariaCurrentWhenActive="page"
         [routerLinkActiveOptions]="{ exact: true }"
-        (click)="closeMenu()"
-      >
-        {{ copy.shellNavDashboard }}
-      </a>
-      <!-- Billing surfaces are admin-only (QA 2026-10-04): every billing
-           endpoint is backend-gated by builder:billing, so members get
-           the Team treatment — nav-hidden AND route-guarded — instead of
-           403 retry loops. -->
+      >{{ copy.shellNavDashboard }}</a>
       @if (isBuilderAdmin()) {
-        <a routerLink="/builder/billing" routerLinkActive="active" (click)="closeMenu()">
-          {{ copy.shellNavBilling }}
-        </a>
-        <a routerLink="/builder/invoices" routerLinkActive="active" (click)="closeMenu()">
-          {{ copy.shellNavInvoices }}
-        </a>
-      }
-      @if (isBuilderAdmin()) {
-        <a routerLink="/builder/team" routerLinkActive="active" (click)="closeMenu()">
-          {{ copy.teamNavLabel }}
-        </a>
-      }
-      @if (activeOrgName(); as orgName) {
         <a
-          routerLink="/builder/org-picker"
+          routerLink="/builder/invoices"
+          [class.active]="inMoney()"
+          [attr.aria-current]="inMoney() ? 'page' : null"
+        >{{ copy.shellNavMoney }}</a>
+        <a
+          routerLink="/builder/team"
           routerLinkActive="active"
-          class="builder-shell__org"
-          [attr.aria-label]="copy.orgSwitcherLabel + ': ' + orgName"
-          (click)="closeMenu()"
-        >
-          {{ orgName }}
-        </a>
+          ariaCurrentWhenActive="page"
+        >{{ copy.teamNavLabel }}</a>
       }
-      @if (isBuilderAdmin()) {
-        <a routerLink="/builder/record-contract" routerLinkActive="active" (click)="closeMenu()">
-          {{ copy.shellNavReportContract }}
-        </a>
-      }
-      @if (session(); as s) {
-        <span class="builder-shell__email">{{ s.email }}</span>
-      }
-      <button type="button" (click)="signOut()">{{ copy.signOutLabel }}</button>
     </nav>
+
+    <div class="builder-shell__account" #accountRoot>
+      <button
+        #accountTrigger
+        type="button"
+        class="builder-shell__account-trigger"
+        aria-controls="builder-account-menu"
+        [attr.aria-expanded]="accountOpen()"
+        [attr.aria-label]="accountLabel()"
+        (click)="toggleAccount()"
+      >
+        <span class="builder-shell__org">{{ activeOrgName() ?? session()?.email }}</span>
+        <span class="builder-shell__chev" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+      </button>
+      @if (accountOpen()) {
+        <div class="builder-shell__account-menu" id="builder-account-menu">
+          @if (activeOrgName(); as orgName) {
+            <p class="builder-shell__account-org">
+              <span class="builder-shell__account-label">{{ copy.orgSwitcherLabel }}</span>
+              <span>{{ orgName }}</span>
+            </p>
+          }
+          <a
+            class="builder-shell__account-item builder-shell__switch-org"
+            routerLink="/builder/org-picker"
+            (click)="closeAccount()"
+          >{{ copy.shellSwitchOrgLabel }}</a>
+          @if (session(); as s) {
+            <p class="builder-shell__email">
+              <span class="builder-shell__account-label">{{ copy.shellSignedInAs }}</span>
+              <span>{{ s.email }}</span>
+            </p>
+          }
+          <button
+            type="button"
+            class="builder-shell__account-item builder-shell__sign-out"
+            (click)="signOut()"
+          >{{ copy.signOutLabel }}</button>
+        </div>
+      }
+    </div>
   </header>
+
   <app-view-as-banner [banner]="viewAsBanner()" (exit)="exitViewAs()" />
+
+  @if (hasFailedCharge()) {
+    <div class="builder-shell__danger" role="alert">
+      <span>{{ copy.shellFailedCardMessage }}</span>
+      <a routerLink="/builder/billing">{{ copy.shellFailedCardCta }}</a>
+    </div>
+  }
+
+  @if (isBuilderAdmin() && inMoney()) {
+    <nav class="builder-shell__subnav" [attr.aria-label]="copy.shellMoneyNavLabel">
+      <a routerLink="/builder/invoices" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+        copy.shellNavInvoices
+      }}</a>
+      <a routerLink="/builder/billing" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+        copy.shellNavBilling
+      }}</a>
+      <a
+        class="builder-shell__subnav-action"
+        routerLink="/builder/record-contract"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+      >{{ copy.shellNavReportContract }}</a>
+    </nav>
+  }
+
   <main class="builder-shell__main">
     <router-outlet />
   </main>
+
+  <nav class="builder-shell__tabs" [attr.aria-label]="copy.shellTabsLabel">
+    <a
+      routerLink="/builder"
+      routerLinkActive="active"
+      ariaCurrentWhenActive="page"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+      <span>{{ copy.shellNavDashboard }}</span>
+    </a>
+    @if (isBuilderAdmin()) {
+      <a
+        routerLink="/builder/invoices"
+        [class.active]="inMoney()"
+        [attr.aria-current]="inMoney() ? 'page' : null"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8" />
+          <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.8" />
+        </svg>
+        <span>{{ copy.shellNavMoney }}</span>
+      </a>
+      <a routerLink="/builder/team" routerLinkActive="active" ariaCurrentWhenActive="page">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="9" cy="9" r="3.2" stroke="currentColor" stroke-width="1.8" />
+          <path d="M3.5 19c.8-3 3-4.6 5.5-4.6s4.7 1.6 5.5 4.6M16 6.5a3 3 0 010 5.4M17.5 14.6c1.6.5 2.6 2 3 4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>{{ copy.teamNavLabel }}</span>
+      </a>
+    }
+  </nav>
 </div>

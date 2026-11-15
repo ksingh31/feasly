@@ -433,3 +433,40 @@ describe('BuilderState (embed/09)', () => {
     });
   });
 });
+
+describe('BuilderState.activeBuilderName (#502)', () => {
+  const base = {
+    session: { builderId: 'b2', builderName: null },
+    memberships: [
+      { builderId: 'b1', builderName: 'Alpha Homes', role: 'builder_admin' },
+      { builderId: 'b2', builderName: 'Beta Homes', role: 'builder_member' },
+    ],
+  } as unknown as BuilderStateModel;
+
+  it('prefers the session org name', () => {
+    const state = {
+      ...base,
+      session: { builderId: 'b2', builderName: 'Session Name' },
+    } as unknown as BuilderStateModel;
+    expect(BuilderState.activeBuilderName(state)).toBe('Session Name');
+  });
+
+  it('falls back to the membership matching the active org (after a reload)', () => {
+    expect(BuilderState.activeBuilderName(base)).toBe('Beta Homes');
+  });
+
+  it('is null with no session, no active org, or no matching membership', () => {
+    expect(
+      BuilderState.activeBuilderName({ ...base, session: null } as BuilderStateModel),
+    ).toBeNull();
+    expect(
+      BuilderState.activeBuilderName({
+        ...base,
+        session: { builderId: null, builderName: null },
+      } as unknown as BuilderStateModel),
+    ).toBeNull();
+    expect(
+      BuilderState.activeBuilderName({ ...base, memberships: [] } as BuilderStateModel),
+    ).toBeNull();
+  });
+});

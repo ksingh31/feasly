@@ -506,7 +506,19 @@ export const routes: Routes = [
     path: 'builder',
     loadComponent: () =>
       import('./features/builder/builder-shell.component').then((m) => m.BuilderShellComponent),
-    canActivate: [robotsGuard, builderGuard],
+    canActivate: [
+      robotsGuard,
+      builderGuard,
+      // Shell v2 (#502): the failed-card danger strip persists across
+      // every builder page, so the shell reads BuilderInvoicesState
+      // (actionable set). Lazy-provided here — still out of the initial
+      // bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-invoices.state'))
+            .builderInvoicesStateProvider,
+      ),
+    ],
     data: { noindex: true },
     children: [
       {
