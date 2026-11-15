@@ -107,7 +107,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const result = await withLimit(
       {},
       'corr-1',
-      { endpoint: '/api/v1/estimate' },
+      { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
       async () => {
         handlerRan = true;
         return { ok: true };
@@ -128,7 +128,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
 
     // 5 succeed
     for (let i = 0; i < 5; i++) {
-      const r = await withLimit(headers, 'corr-1', { endpoint: '/api/v1/estimate' }, async () => ({ ok: true }));
+      const r = await withLimit(headers, 'corr-1', { endpoint: '/api/v1/estimate', requiredScope: 'estimate' }, async () => ({ ok: true }));
       expect(isProblemDetails(r)).toBe(false);
     }
     expect(usageStore.rows.length).toBe(5);
@@ -137,7 +137,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const denied = await withLimit(
       headers,
       'corr-1',
-      { endpoint: '/api/v1/estimate' },
+      { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
       async () => ({ ok: true }),
     );
     expect(isProblemDetails(denied)).toBe(true);
@@ -167,13 +167,13 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
 
     // Exhaust key-A
     for (let i = 0; i < 2; i++) {
-      await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e' }, async () => ({}));
+      await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({}));
     }
-    const deniedA = await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e' }, async () => ({}));
+    const deniedA = await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({}));
     expect(isProblemDetails(deniedA)).toBe(true);
 
     // key-B still fine
-    const okB = await withLimit({ authorization: 'Bearer token-b' }, 'c', { endpoint: '/e' }, async () => ({ ok: 1 }));
+    const okB = await withLimit({ authorization: 'Bearer token-b' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({ ok: 1 }));
     expect(isProblemDetails(okB)).toBe(false);
   });
 
@@ -189,6 +189,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       'corr-1',
       {
         endpoint: '/api/v1/estimate',
+        requiredScope: 'estimate',
         extractEstimateId: (r) => (r as { estimateId: string }).estimateId,
       },
       async () => ({ estimateId: 'est-123' }),
@@ -208,10 +209,81 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       withLimit(
         { authorization: 'Bearer bogus' },
         'corr-1',
-        { endpoint: '/api/v1/estimate' },
+        { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
         async () => ({}),
       ),
     ).rejects.toMatchObject({ status: 401, code: 'INVALID_API_KEY' });
     expect(usageStore.rows.length).toBe(0);
+  });
+  describe('#802: required scope', () => {
+    it('key without the required scope → 403 FORBIDDEN, handler not run, no usage, no budget', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read'] });
+      const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+
+      let handlerRan = false;
+      await expect(
+        withLimit(
+          { authorization: 'Bearer read-only' },
+          'corr-1',
+          { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
+          async () => {
+            handlerRan = true;
+            return {};
+          },
+        ),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      expect(handlerRan).toBe(false);
+      expect(usageStore.rows.length).toBe(0);
+    });
+
+    it('scope is checked before the rate limit (exhausted key still gets 403 for a missing scope)', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read'], rateLimitPerMin: 1 });
+      const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+      const headers = { authorization: 'Bearer read-only' };
+      const lookup = { endpoint: '/api/v1/properties/lookup', requiredScope: 'property:read' } as const;
+
+      await withLimit(headers, 'c', lookup, async () => ({}));
+      const limited = await withLimit(headers, 'c', lookup, async () => ({}));
+      expect(isProblemDetails(limited) && limited.status).toBe(429);
+
+      await expect(
+        withLimit(headers, 'c', { endpoint: '/api/v1/leads', requiredScope: 'lead' }, async () => ({})),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    });
+
+    it('key with the required scope among several → handler runs', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read', 'lead'] });
+      const apiKeys = createFakeApiKeys({ multi: keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+
+      const result = await withLimit(
+        { authorization: 'Bearer multi' },
+        'corr-1',
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
+        async () => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+      expect(usageStore.rows.length).toBe(1);
+    });
+
+    it('no Bearer key → passthrough regardless of required scope (first-party traffic)', async () => {
+      const usage = createUsageService({ store: createInMemoryUsageStore() });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys: createFakeApiKeys({}), usage });
+      const result = await withLimit(
+        {},
+        'corr-1',
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
+        async () => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+    });
   });
 });
