@@ -8,7 +8,13 @@ import type { CallbackWindow, CostRange, FinishTier, ApiError } from '@feasly/co
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponent, OptionSelectorComponent } from '../../shared/components';
+import {
+  BrandMarkComponent,
+  SiteFooterComponent,
+  SiteNavComponent,
+  BuilderMatchingExplainerComponent,
+  OptionSelectorComponent,
+} from '../../shared/components';
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { isUnitLikeAddress } from '../../shared/utils/address';
@@ -95,7 +101,15 @@ function userFacingApiErrorMessage(error: unknown): string | null {
 @Component({
   selector: 'app-report-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, BuilderMatchingExplainerComponent, OptionSelectorComponent, SiteFooterComponent, SiteNavComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    BrandMarkComponent,
+    BuilderMatchingExplainerComponent,
+    OptionSelectorComponent,
+    SiteFooterComponent,
+    SiteNavComponent,
+  ],
   templateUrl: './report-page.component.html',
   styleUrls: ['../wizard/wizard-shell.scss', './report-page.component.scss'],
 })
@@ -111,6 +125,13 @@ export class ReportPageComponent implements OnInit {
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
+  /** Print-only brand header (#509): the site name beside the brand mark. */
+  protected readonly siteName = this.config.get('site').name;
+  /**
+   * Print-only disclaimer (#509): always printed, every report state —
+   * the same deterministic-figures line the PDF carries.
+   */
+  protected readonly printDisclaimer = this.config.get('copy').narrativeDisclaimer;
   /** Tier names live with the wizard copy — reused, never duplicated. */
   protected readonly tierOptions = this.config.get('copy').wizard.scopeTiers;
   /** Wizard tunables bound the sqft stepper (config-owned). */
@@ -267,6 +288,27 @@ export class ReportPageComponent implements OnInit {
     });
     return this.copy.updatedLabel.replace('{date}', date);
   });
+
+  /**
+   * Print-only header date (#509): "Prepared {date}" from the snapshot's
+   * preparedAt (the same date the PDF prints); pre-gate there is no
+   * snapshot yet, so it falls back to the day the page is printed.
+   */
+  protected readonly printDateLabel = computed(() => {
+    const preparedAt = this.snapshot()?.preparedAt;
+    const date = (preparedAt ? new Date(preparedAt) : new Date()).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    return this.copy.printPreparedLabel.replace('{date}', date);
+  });
+
+  /**
+   * Print disclaimer (#509) shows in every state except an unlocked reno
+   * report, which already prints the verbatim deterministic note.
+   */
+  protected readonly showPrintDisclaimer = computed(() => !(this.unlocked() && this.isReno()));
 
   /** Active finish tier: verified snapshot post-gate, wizard inputs pre-gate. */
   protected readonly activeTier = computed<FinishTier>(

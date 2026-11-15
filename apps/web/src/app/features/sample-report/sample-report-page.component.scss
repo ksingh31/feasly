@@ -54,7 +54,7 @@
   border-radius: 999px;
   /* --accent-deep: white on --accent is only 3.98:1. */
   background: var(--accent-deep);
-  color: #fff;
+  color: var(--cta-on-accent-fg);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
@@ -159,7 +159,6 @@ button.cta.pdf {
 @media print {
   .stepper-card {
     break-inside: avoid;
-    /* Token-derived light grey (≈ the old #ccc) so the card edge survives print. */
-    border-color: color-mix(in srgb, var(--text) 20%, white);
+    border-color: var(--border);
   }
 }
