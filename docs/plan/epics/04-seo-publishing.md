@@ -45,7 +45,8 @@ prerendered).
    has the trailing slash; non-slash 301-redirects (SWA `staticwebapp.config.json`
    routes). Slugs are kebab-case, derived from City community names.
 4. **How many pages at launch:** top 40 Calgary communities by assessment
-   record count (config `COMMUNITY_PAGE_LIMIT=40` in the build script) —
+   record count (config `COMMUNITY_PAGE_LIMIT=40` in the build script; superseded
+   by #690: config-driven selection in `apps/web/scripts/config/community-selection.json`) —
    enough for a real content engine, small enough to keep build times sane.
    The index page links all 40; the rest are reachable via search, not linked
    (avoids thin-content sprawl).
@@ -65,7 +66,8 @@ prerendered).
 per-community aggregates (record count, avg assessed value, avg lot sqft,
 community name) for Calgary from the Socrata dataset (via the API's cached
 `properties` table when available, direct Socrata read as fallback), filters
-to the top `COMMUNITY_PAGE_LIMIT` (default 40) by record count, and writes
+to the top `COMMUNITY_PAGE_LIMIT` (default 40) by record count (superseded by
+#690 — see `apps/web/SEO.md` "Community pages"), and writes
 `apps/web/src/content/data/community-aggregates.json`:
 `{ generated_at, cost_data_version, communities: [{ slug, name, count,
 avg_assessed_value, avg_lot_sqft }] }`. Runs as a `prebuild` step; CI fails

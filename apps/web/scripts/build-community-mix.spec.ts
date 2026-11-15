@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   classifyCommunities,
   PROFILE_MULTI_FAMILY_THRESHOLD,
-  PROFILE_OVERRIDE_SLUGS,
   type MixCountRow,
 } from './build-community-mix.js';
+import { loadCitySelection } from './community-selection.schema.js';
 
 const row = (commName: string, subPropertyUse: string, count: number): MixCountRow => ({
   commName,
@@ -46,12 +46,20 @@ describe('build-community-mix classifyCommunities', () => {
     expect(mix.mix.multiFamily).toBe(0);
   });
 
-  it('applies the manual override list even below the threshold', () => {
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('beltline');
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('downtown-commercial-core');
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('east-village');
+  it('applies the config override list even below the threshold', () => {
+    const overrides = loadCitySelection(undefined, undefined).selection.profileOverrides;
+    expect(overrides).toContain('beltline');
+    expect(overrides).toContain('downtown-commercial-core');
+    expect(overrides).toContain('east-village');
     const rows = [row('DOWNTOWN COMMERCIAL CORE', 'R110', 100), row('DOWNTOWN COMMERCIAL CORE', 'R201', 10)];
-    const [mix] = classifyCommunities(rows, ['downtown-commercial-core']);
+    expect(classifyCommunities(rows, ['downtown-commercial-core'])[0].communityType).toBe('build-guide');
+    const [mix] = classifyCommunities(rows, ['downtown-commercial-core'], () => undefined, new Set(overrides));
+    expect(mix.communityType).toBe('profile');
+  });
+
+  it('forces profile for residential-basis communities (#690: no condo average on a guide)', () => {
+    const rows = [row('POINT MCKAY', 'R110', 24), row('POINT MCKAY', 'R201', 30)];
+    const [mix] = classifyCommunities(rows, ['point-mckay'], () => undefined, new Set(['point-mckay']));
     expect(mix.communityType).toBe('profile');
   });
 

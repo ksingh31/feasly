@@ -21,10 +21,15 @@
  * Excluded from dwelling counts: `A*` sub-property-use codes (condo common
  * elements, parking, storage — not dwellings) and non-LI property types.
  *
- * Manual override: these slugs are ALWAYS 'profile' (belt-and-suspenders
- * for the communities Karan named; harmless when the data already agrees).
+ * Manual override: the selection config's `profileOverrides` slugs are
+ * ALWAYS 'profile' (belt-and-suspenders for the communities Karan named;
+ * harmless when the data already agrees).
  *
- * Only the slugs in community-aggregates.json (the 40 page communities) are
+ * #690: a community whose aggregates fell back to the 'residential' basis
+ * (too few single/semi-detached homes for a guide average) is ALWAYS
+ * 'profile' — a build guide never shows a condo-inclusive average.
+ *
+ * Only the slugs in community-aggregates.json (the page communities) are
  * classified. Like build-community-data.ts: 30-day freshness skip, `--force`
  * to override; when regeneration fails a stale snapshot is used with a
  * warning (#469) and only a missing/unreadable snapshot fails the build.
@@ -47,6 +52,7 @@ import type {
 } from './community-mix.schema.js';
 
 import { reportRefreshFailure, resolveRefreshFailure } from './snapshot-fallback.js';
+import { loadCitySelection } from './community-selection.schema.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-mix.json');
@@ -60,12 +66,6 @@ const MAX_AGE_DAYS = 30;
 /** Multi-family share above which a community gets the profile page. */
 export const PROFILE_MULTI_FAMILY_THRESHOLD = 0.6;
 
-/** Slugs that are always 'profile', regardless of the computed share. */
-export const PROFILE_OVERRIDE_SLUGS: readonly string[] = [
-  'beltline',
-  'downtown-commercial-core',
-  'east-village',
-];
 
 /** sub_property_use codes for semi-detached / duplex dwellings. */
 const SEMI_DUPLEX_CODES = new Set(['R120', 'R121', 'R111']);
@@ -157,6 +157,8 @@ export function classifyCommunities(
   rows: readonly MixCountRow[],
   slugs: readonly string[],
   onWarn: (message: string) => void = console.warn,
+  /** Slugs that must get the profile page (config overrides + residential-basis communities). */
+  forceProfile: ReadonlySet<string> = new Set(),
 ): CommunityDwellingMix[] {
   const wanted = new Set(slugs);
   const buckets = new Map<string, { singleDetached: number; semiDuplex: number; multiFamily: number }>();
@@ -189,7 +191,7 @@ export function classifyCommunities(
           ? 'semiDuplex'
           : 'multiFamily';
     const communityType =
-      PROFILE_OVERRIDE_SLUGS.includes(slug) || multiShare > PROFILE_MULTI_FAMILY_THRESHOLD
+      forceProfile.has(slug) || multiShare > PROFILE_MULTI_FAMILY_THRESHOLD
         ? 'profile'
         : 'build-guide';
     return {
@@ -266,16 +268,34 @@ export function writeTypesFile(
   return parsed.data;
 }
 
-function readAggregateSlugs(): string[] {
+function readAggregates(): { slugs: string[]; residentialBasis: string[] } {
   const parsed: unknown = JSON.parse(readFileSync(AGGREGATES_PATH, 'utf8'));
-  const communities = (parsed as { communities?: Array<{ slug?: string }> }).communities;
+  const communities = (parsed as { communities?: Array<{ slug?: string; basis?: string }> }).communities;
   if (!Array.isArray(communities)) throw new Error(`build-community-mix: cannot read slugs from ${AGGREGATES_PATH}`);
-  return communities.map((c) => String(c.slug)).filter(Boolean);
+  return {
+    slugs: communities.map((c) => String(c.slug)).filter(Boolean),
+    residentialBasis: communities.filter((c) => c.basis === 'residential').map((c) => String(c.slug)),
+  };
+}
+
+/** True when every aggregate slug has a classification in the on-disk mix file. */
+function mixCoversAggregates(slugs: readonly string[]): boolean {
+  try {
+    const parsed = communityMixFileSchema.safeParse(JSON.parse(readFileSync(OUTPUT_PATH, 'utf8')));
+    if (!parsed.success) return false;
+    const have = new Set(parsed.data.communities.map((c) => c.slug));
+    return slugs.length === have.size && slugs.every((s) => have.has(s));
+  } catch {
+    return false;
+  }
 }
 
 export async function run(config: MixBuildConfig): Promise<void> {
   const age = ageInDays();
-  if (!config.force && age !== null && age < MAX_AGE_DAYS) {
+  const { slugs, residentialBasis } = readAggregates();
+  // The page list changes with the selection config (#690): a cached mix
+  // that doesn't cover exactly the aggregate slugs is regenerated.
+  if (!config.force && age !== null && age < MAX_AGE_DAYS && mixCoversAggregates(slugs)) {
     console.log(
       `build-community-mix: using cached community-mix.json (generated ${age.toFixed(1)} days ago, fresh for ${MAX_AGE_DAYS} days)`,
     );
@@ -283,11 +303,11 @@ export async function run(config: MixBuildConfig): Promise<void> {
   }
   if (config.force) console.log('build-community-mix: --force: regenerating');
 
-  const slugs = readAggregateSlugs();
+  const forceProfile = new Set([...loadCitySelection().selection.profileOverrides, ...residentialBasis]);
   const rollYear = await latestRollYear(config);
   const rows = await fetchMixCounts(config, rollYear);
   console.log(`build-community-mix: fetched ${rows.length} community×use rows for roll ${rollYear}`);
-  const mixes = classifyCommunities(rows, slugs);
+  const mixes = classifyCommunities(rows, slugs, console.warn, forceProfile);
   const profiles = mixes.filter((m) => m.communityType === 'profile').map((m) => m.slug);
   console.log(`build-community-mix: ${mixes.length} classified, profile: ${profiles.join(', ') || '(none)'}`);
   writeMix(mixes, rollYear);

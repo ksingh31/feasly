@@ -1783,6 +1783,8 @@ export interface AppConfig {
         landingBody: string;
         /** Index page intro paragraph. */
         intro: string;
+        /** #690: index section headings — established/infill communities first, then newer ones. */
+        groups: Record<'established' | 'newer', { heading: string; body: string }>;
       };
     };
     /**
@@ -1834,7 +1836,12 @@ export interface AppConfig {
       /** Meta description pattern; {name} is the community display name. */
       descriptionTemplate: string;
       statLabel: string;
+      /** Guide pages: what the average is built from (single/semi-detached homes, #690). */
       statNote: string;
+      /** Guide pages: label for the record count the average is built from (#690). */
+      statCountLabel: string;
+      /** Profile pages: what the average is built from (all residential dwellings, #690). */
+      profileStatNote: string;
       basisNote: string;
       tierSectionTitle: string;
       tierSectionSub: string;

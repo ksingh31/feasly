@@ -97,6 +97,21 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/acadia",
+      "redirect": "/communities/acadia/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/albert-park-radisson-heights",
+      "redirect": "/communities/albert-park-radisson-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/altadore",
+      "redirect": "/communities/altadore/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/arbour-lake",
       "redirect": "/communities/arbour-lake/",
       "statusCode": 301
@@ -107,8 +122,28 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/banff-trail",
+      "redirect": "/communities/banff-trail/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bankview",
+      "redirect": "/communities/bankview/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bayview",
+      "redirect": "/communities/bayview/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/beddington-heights",
       "redirect": "/communities/beddington-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/bel-aire",
+      "redirect": "/communities/bel-aire/",
       "statusCode": 301
     },
     {
@@ -117,8 +152,23 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/bonavista-downs",
+      "redirect": "/communities/bonavista-downs/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/bowness",
       "redirect": "/communities/bowness/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/braeside",
+      "redirect": "/communities/braeside/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/brentwood",
+      "redirect": "/communities/brentwood/",
       "statusCode": 301
     },
     {
@@ -132,8 +182,53 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/britannia",
+      "redirect": "/communities/britannia/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/cambrian-heights",
+      "redirect": "/communities/cambrian-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/canyon-meadows",
+      "redirect": "/communities/canyon-meadows/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/capitol-hill",
+      "redirect": "/communities/capitol-hill/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/cedarbrae",
+      "redirect": "/communities/cedarbrae/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/chaparral",
       "redirect": "/communities/chaparral/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/charleswood",
+      "redirect": "/communities/charleswood/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/chinook-park",
+      "redirect": "/communities/chinook-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/cliff-bungalow",
+      "redirect": "/communities/cliff-bungalow/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/collingwood",
+      "redirect": "/communities/collingwood/",
       "statusCode": 301
     },
     {
@@ -157,6 +252,16 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/crescent-heights",
+      "redirect": "/communities/crescent-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/dalhousie",
+      "redirect": "/communities/dalhousie/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/douglasdale-glen",
       "redirect": "/communities/douglasdale-glen/",
       "statusCode": 301
@@ -172,8 +277,28 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/eagle-ridge",
+      "redirect": "/communities/eagle-ridge/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/edgemont",
       "redirect": "/communities/edgemont/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/elbow-park",
+      "redirect": "/communities/elbow-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/elboya",
+      "redirect": "/communities/elboya/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/erlton",
+      "redirect": "/communities/erlton/",
       "statusCode": 301
     },
     {
@@ -187,8 +312,98 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/fairview",
+      "redirect": "/communities/fairview/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/forest-heights",
+      "redirect": "/communities/forest-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/forest-lawn",
+      "redirect": "/communities/forest-lawn/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/garrison-woods",
+      "redirect": "/communities/garrison-woods/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/glamorgan",
+      "redirect": "/communities/glamorgan/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/glenbrook",
+      "redirect": "/communities/glenbrook/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/glendale",
+      "redirect": "/communities/glendale/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/greenview",
+      "redirect": "/communities/greenview/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/greenwood-greenbriar",
+      "redirect": "/communities/greenwood-greenbriar/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/haysboro",
+      "redirect": "/communities/haysboro/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/highland-park",
+      "redirect": "/communities/highland-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/highwood",
+      "redirect": "/communities/highwood/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/hillhurst",
+      "redirect": "/communities/hillhurst/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/hounsfield-heights-briar-hill",
+      "redirect": "/communities/hounsfield-heights-briar-hill/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/huntington-hills",
       "redirect": "/communities/huntington-hills/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/inglewood",
+      "redirect": "/communities/inglewood/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/kelvin-grove",
+      "redirect": "/communities/kelvin-grove/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/killarney-glengarry",
+      "redirect": "/communities/killarney-glengarry/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/kingsland",
+      "redirect": "/communities/kingsland/",
       "statusCode": 301
     },
     {
@@ -197,8 +412,18 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/lakeview",
+      "redirect": "/communities/lakeview/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/legacy",
       "redirect": "/communities/legacy/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/lincoln-park",
+      "redirect": "/communities/lincoln-park/",
       "statusCode": 301
     },
     {
@@ -207,8 +432,38 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/lower-mount-royal",
+      "redirect": "/communities/lower-mount-royal/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/mahogany",
       "redirect": "/communities/mahogany/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/maple-ridge",
+      "redirect": "/communities/maple-ridge/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/marlborough",
+      "redirect": "/communities/marlborough/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/marlborough-park",
+      "redirect": "/communities/marlborough-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mayfair",
+      "redirect": "/communities/mayfair/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mayland-heights",
+      "redirect": "/communities/mayland-heights/",
       "statusCode": 301
     },
     {
@@ -222,8 +477,63 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/meadowlark-park",
+      "redirect": "/communities/meadowlark-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/midnapore",
+      "redirect": "/communities/midnapore/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mission",
+      "redirect": "/communities/mission/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/montgomery",
+      "redirect": "/communities/montgomery/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/mount-pleasant",
+      "redirect": "/communities/mount-pleasant/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/new-brighton",
       "redirect": "/communities/new-brighton/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/north-glenmore-park",
+      "redirect": "/communities/north-glenmore-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/north-haven",
+      "redirect": "/communities/north-haven/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/north-haven-upper",
+      "redirect": "/communities/north-haven-upper/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/oakridge",
+      "redirect": "/communities/oakridge/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/ogden",
+      "redirect": "/communities/ogden/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/palliser",
+      "redirect": "/communities/palliser/",
       "statusCode": 301
     },
     {
@@ -232,13 +542,103 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/parkdale",
+      "redirect": "/communities/parkdale/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/parkland",
+      "redirect": "/communities/parkland/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/penbrooke-meadows",
+      "redirect": "/communities/penbrooke-meadows/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/pineridge",
+      "redirect": "/communities/pineridge/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/point-mckay",
+      "redirect": "/communities/point-mckay/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/pump-hill",
+      "redirect": "/communities/pump-hill/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/queensland",
+      "redirect": "/communities/queensland/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/ramsay",
+      "redirect": "/communities/ramsay/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/ranchlands",
+      "redirect": "/communities/ranchlands/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/renfrew",
+      "redirect": "/communities/renfrew/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/richmond",
+      "redirect": "/communities/richmond/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rideau-park",
+      "redirect": "/communities/rideau-park/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/rocky-ridge",
       "redirect": "/communities/rocky-ridge/",
       "statusCode": 301
     },
     {
+      "route": "/communities/rosedale",
+      "redirect": "/communities/rosedale/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rosemont",
+      "redirect": "/communities/rosemont/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rosscarrock",
+      "redirect": "/communities/rosscarrock/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/roxboro",
+      "redirect": "/communities/roxboro/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/royal-oak",
       "redirect": "/communities/royal-oak/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rundle",
+      "redirect": "/communities/rundle/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/rutland-park",
+      "redirect": "/communities/rutland-park/",
       "statusCode": 301
     },
     {
@@ -252,8 +652,23 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/scarboro",
+      "redirect": "/communities/scarboro/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/scarboro-sunalta-west",
+      "redirect": "/communities/scarboro-sunalta-west/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/seton",
       "redirect": "/communities/seton/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/shaganappi",
+      "redirect": "/communities/shaganappi/",
       "statusCode": 301
     },
     {
@@ -262,8 +677,28 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/silver-springs",
+      "redirect": "/communities/silver-springs/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/skyview-ranch",
       "redirect": "/communities/skyview-ranch/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/south-calgary",
+      "redirect": "/communities/south-calgary/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/southview",
+      "redirect": "/communities/southview/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/southwood",
+      "redirect": "/communities/southwood/",
       "statusCode": 301
     },
     {
@@ -272,8 +707,38 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/spruce-cliff",
+      "redirect": "/communities/spruce-cliff/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/st-andrews-heights",
+      "redirect": "/communities/st-andrews-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/sunalta",
+      "redirect": "/communities/sunalta/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/sunnyside",
+      "redirect": "/communities/sunnyside/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/taradale",
       "redirect": "/communities/taradale/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/temple",
+      "redirect": "/communities/temple/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/thorncliffe",
+      "redirect": "/communities/thorncliffe/",
       "statusCode": 301
     },
     {
@@ -282,8 +747,28 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/tuxedo-park",
+      "redirect": "/communities/tuxedo-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/university-heights",
+      "redirect": "/communities/university-heights/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/upper-mount-royal",
+      "redirect": "/communities/upper-mount-royal/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/varsity",
       "redirect": "/communities/varsity/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/vista-heights",
+      "redirect": "/communities/vista-heights/",
       "statusCode": 301
     },
     {
@@ -292,8 +777,43 @@
       "statusCode": 301
     },
     {
+      "route": "/communities/west-hillhurst",
+      "redirect": "/communities/west-hillhurst/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/west-springs",
       "redirect": "/communities/west-springs/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/westgate",
+      "redirect": "/communities/westgate/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/whitehorn",
+      "redirect": "/communities/whitehorn/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/wildwood",
+      "redirect": "/communities/wildwood/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/willow-park",
+      "redirect": "/communities/willow-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/windsor-park",
+      "redirect": "/communities/windsor-park/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities/winston-heights-mountview",
+      "redirect": "/communities/winston-heights-mountview/",
       "statusCode": 301
     },
     {
