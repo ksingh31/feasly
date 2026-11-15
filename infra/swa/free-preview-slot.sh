@@ -20,4 +20,12 @@ if [ -n "${MAKE_ROOM_FOR:-}" ]; then
     [ -n "$victim" ] && del "$victim" "least recently updated open PR — evicted for #$MAKE_ROOM_FOR"
   fi
 fi
+# Azure deletes asynchronously: wait (≤3 min) until a slot is really free.
+if [ -n "${MAKE_ROOM_FOR:-}" ]; then
+  for _ in $(seq 1 18); do
+    n=$(envs | grep -vx "$MAKE_ROOM_FOR" | wc -l | tr -d ' ')
+    [ "$n" -lt "$MAX" ] && break
+    echo "waiting for Azure to release a slot ($n/$MAX in use)…"; sleep 10
+  done
+fi
 echo "preview envs now: $(envs | tr '\n' ' ')"
