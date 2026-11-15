@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component } from '@angular/core';
+import { ChangeDetectorRef, Component, PLATFORM_ID } from '@angular/core';
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -84,7 +84,10 @@ describe('AnalyzingPageComponent', () => {
     fixture.debugElement.injector.get(ChangeDetectorRef).detectChanges();
   }
 
-  async function setup(apiProvider: unknown = provideApi()): Promise<void> {
+  async function setup(
+    apiProvider: unknown = provideApi(),
+    extraProviders: unknown[] = [],
+  ): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AnalyzingPageComponent, BlankComponent],
@@ -101,6 +104,7 @@ describe('AnalyzingPageComponent', () => {
         // LeadState + ReportState: the pipeline reads the lead receipt and
         // dispatches SetReportToken for the same-session unlock.
         provideStore([WizardState, LeadState, ReportState, EmbedState]),
+        ...(extraProviders as never[]),
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -407,6 +411,18 @@ describe('AnalyzingPageComponent', () => {
       fixture.detectChanges();
       expect(navigateSpy).toHaveBeenCalledWith(['/']);
       // The pipeline never started: no stages stuck "in progress".
+      expect(fixture.nativeElement.querySelectorAll('.stage').length).toBe(0);
+    });
+  });
+
+  describe('server render (#515)', () => {
+    it('neither redirects nor runs the pipeline on the server platform', async () => {
+      await setup(provideApi(), [{ provide: PLATFORM_ID, useValue: 'server' }]);
+      // Empty wizard, as on the server (no localStorage to rehydrate from).
+      const navigateSpy = vi.spyOn(router, 'navigate');
+      fixture = TestBed.createComponent(AnalyzingPageComponent);
+      fixture.detectChanges();
+      expect(navigateSpy).not.toHaveBeenCalled();
       expect(fixture.nativeElement.querySelectorAll('.stage').length).toBe(0);
     });
   });
