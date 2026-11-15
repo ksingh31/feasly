@@ -72,12 +72,6 @@ const ROUTES: SeoRouteConfig[] = [
     noindex: true,
   },
   {
-    pattern: 'estimate/details',
-    titleKey: 'detailsTitle',
-    descriptionKey: 'details',
-    noindex: true,
-  },
-  {
     pattern: 'estimate/report',
     titleKey: 'reportTitle',
     descriptionKey: 'report',

@@ -127,7 +127,7 @@
 .max-warning {
   font-size: 14px;
   font-weight: 600;
-  color: var(--error, #b3261e);
+  color: var(--danger);
   margin: 12px 0 0;
 }
 
@@ -211,8 +211,9 @@
   font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 700;
-  color: #fff;
-  background: var(--accent);
+  /* The one primary CTA style: charcoal on cream (consumer review S1). */
+  color: var(--cta-fg);
+  background: var(--cta-bg);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -224,7 +225,7 @@
 }
 
 .cta:not(:disabled):hover {
-  filter: brightness(1.05);
+  background: var(--cta-bg-hover);
 }
 
 .cta-hint {

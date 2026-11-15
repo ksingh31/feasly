@@ -225,8 +225,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
     wizard: {
       stepAddress: 'Address',
-      stepScope: 'Scope',
-      stepDetails: 'Details',
+      stepScope: 'Your home',
+      stepEstimate: 'Estimate',
       scopeHeading: 'Configure your build scope',
       scopeSqftLabel: 'Living area',
       scopeSqftHint:
@@ -359,14 +359,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       renoScopeCta: 'See My Preview →',
       renoScopeEmpty: 'No address selected yet.',
       renoScopeEmptyCta: 'Find your address to start →',
-      detailsLivingArea: 'Living area',
-      detailsFinishTier: 'Finish tier',
-      detailsGarage: 'Garage',
-      detailsBasement: 'Basement',
-      detailsPreviewCta: 'See My Preview →',
-      detailsEmpty: 'No address selected yet.',
-      detailsEmptyCta: 'Find your address to start →',
-      detailsBackLabel: '← Back to scope',
     },
     comparison: {
       landingTitle: 'Compare neighbourhoods',
@@ -418,11 +410,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     preview: {
       heading: 'Your estimate preview',
       readyNote: 'Your numbers are ready.',
-      backLabel: '← Back to details',
-      renoBackLabel: '← Back to scope',
-      // RENO-04: reno-specific visible fact labels
-      renoTypeLabel: 'Renovation type',
-      renoSqftLabel: 'Affected area',
+      backLabel: '← Back to scope',
+      recapEditLabel: 'Edit',
+      recapEditAriaLabel: 'Edit your home details',
+      recapSqftUnit: 'sq ft',
       validationHeading: 'We can’t price this property yet',
       validationGenericBody:
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
@@ -691,9 +682,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       scope: 'Set your build size and finish tier for a Calgary new home build estimate — step 2 of 3.',
       renoScopeTitle: 'Feasly — Describe your renovation',
       renoScope: 'Describe your Calgary renovation — type, area, and finishes — step 2 of 3.',
-      detailsTitle: 'Feasly — Configure your build details',
-      details:
-        'Configure square footage, finish tier, garage, and basement for your Calgary build estimate — step 3 of 3.',
       previewTitle: 'Feasly — Your estimate preview',
       preview:
         'Your blurred build-cost and total preview for your Calgary new home build estimate — get the full report.',

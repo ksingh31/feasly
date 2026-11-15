@@ -251,8 +251,9 @@
 }
 
 .compare-results__unlock {
-  background: var(--accent);
-  color: #fff;
+  /* The one primary CTA style: charcoal on cream (consumer review S1). */
+  background: var(--cta-bg);
+  color: var(--cta-fg);
   border: none;
   border-radius: 999px;
   padding: 0.875rem 2rem;
@@ -261,7 +262,7 @@
   cursor: pointer;
 
   &:hover {
-    background: var(--accent-dark);
+    background: var(--cta-bg-hover);
   }
 
   &:focus-visible {

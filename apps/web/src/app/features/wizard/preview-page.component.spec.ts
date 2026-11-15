@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { throwError } from 'rxjs';
@@ -24,8 +24,10 @@ class BlankComponent {}
  * S5 estimate preview step: the single lead-gate point. Visible: address,
  * community, lot size, zoning, assessed value + chosen sqft/tier. Blurred
  * (CSS-only placeholders + lock note): build cost range, total project
- * range. The one "Unlock" CTA routes to the gate; "← Back to details"
- * returns to S3. No real dollar figures may appear in the figures section.
+ * range. The one "Unlock" CTA routes to the gate. #507: the Details step is
+ * gone — a one-line recap chip with Edit replaces the property card + recap
+ * above the figures, "← Back to scope" / Edit return to the scope step, and
+ * /estimate/details redirects here without losing wizard state.
  */
 describe('PreviewPageComponent', () => {
   let fixture: ComponentFixture<PreviewPageComponent>;
@@ -76,7 +78,8 @@ describe('PreviewPageComponent', () => {
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/preview', component: PreviewPageComponent },
-          { path: 'estimate/details', component: BlankComponent },
+          { path: 'estimate/details', redirectTo: 'estimate/preview', pathMatch: 'full' },
+          { path: 'estimate/scope', component: BlankComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
         provideStore([WizardState, ReportState, EmbedState]),
@@ -115,13 +118,67 @@ describe('PreviewPageComponent', () => {
     expect(text()).toContain('Your numbers are ready.');
   });
 
-  it('shows the visible estimate basis: property facts + chosen sqft/tier', () => {
-    expect(text()).toContain('918 16 Ave NW, Calgary, AB');
-    expect(text()).toContain('2,200 sq ft');
-    // Tier renders capitalized via CSS (.cap); textContent keeps the raw value.
-    const tierDd = fixture.nativeElement.querySelector('.inputs-summary .cap') as HTMLElement;
-    expect(tierDd?.textContent?.trim()).toBe('premium');
-    expect(getComputedStyle(tierDd).textTransform).toBe('capitalize');
+  it('collapses the estimate basis into a one-line recap chip with Edit (#507)', () => {
+    const chip = fixture.nativeElement.querySelector('.recap-chip') as HTMLElement;
+    expect(chip.querySelector('.recap-text')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      '918 16 Ave NW, Calgary, AB · 2,200 sq ft · Premium',
+    );
+    // Only the address may truncate; size and tier never do.
+    expect(chip.querySelector('.recap-address')?.textContent?.trim()).toBe('918 16 Ave NW, Calgary, AB');
+    const edit = chip.querySelector('a.recap-edit') as HTMLAnchorElement;
+    expect(edit.textContent?.trim()).toBe('Edit');
+    expect(edit.getAttribute('href')).toBe('/estimate/scope');
+    expect(edit.getAttribute('aria-label')).toBe('Edit your home details');
+    // The old multi-row recap is gone.
+    expect(fixture.nativeElement.querySelector('.inputs-summary')).toBeNull();
+  });
+
+  it('leads with the locked totals and CTA; the property card follows the CTA (#507)', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const chip = el.querySelector('.recap-chip')!;
+    const total = el.querySelector('.hero-total')!;
+    const cta = el.querySelector('a.cta.unlock')!;
+    const build = el.querySelector('.build-card')!;
+    const card = el.querySelector('app-property-card')!;
+    expect(card).toBeTruthy();
+    const follows = (a: Element, b: Element): boolean =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(chip, total)).toBe(true);
+    // CTA sits right under the total (before the build card) so both land
+    // in the first 390×844 viewport.
+    expect(follows(total, cta)).toBe(true);
+    expect(follows(cta, build)).toBe(true);
+    expect(follows(build, card)).toBe(true);
+    // City-assessed facts are still on the page, just below the payoff.
+    expect(card.textContent).toContain('R-C1');
+  });
+
+  it('shows step 3 "Estimate" of Address → Your home → Estimate (#507)', () => {
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('.steps .step-label'),
+      (n: Element) => n.textContent?.trim(),
+    );
+    expect(labels).toEqual(['Address', 'Your home', 'Estimate']);
+    const current = fixture.nativeElement.querySelector('.step-current .step-label');
+    expect(current?.textContent?.trim()).toBe('Estimate');
+  });
+
+  it('Edit returns to the scope step and moves the wizard to step 2', async () => {
+    const edit = fixture.nativeElement.querySelector('a.recap-edit') as HTMLAnchorElement;
+    edit.click();
+    expect(store.selectSnapshot(WizardState.step)).toBe(2);
+    const router = TestBed.inject(Router);
+    await pollFor(() => router.url === '/estimate/scope', 'scope navigation');
+    // Inputs survive the round-trip.
+    expect(store.selectSnapshot(WizardState.inputs).sqft).toBe(2200);
+  });
+
+  it('redirects /estimate/details to the preview without losing state (#507)', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/estimate/details');
+    expect(router.url).toBe('/estimate/preview');
+    expect(store.selectSnapshot(WizardState.property)?.address).toBe('918 16 Ave NW, Calgary, AB');
+    expect(store.selectSnapshot(WizardState.inputs)).toMatchObject({ sqft: 2200, tier: 'premium' });
   });
 
   it('blurs the real computed build/total figures pre-gate', () => {
@@ -163,10 +220,10 @@ describe('PreviewPageComponent', () => {
     expect((matches[0] as HTMLAnchorElement).getAttribute('href')).toBe('/estimate/gate');
   });
 
-  it('links back to the details step', () => {
+  it('links back to the scope step (no Details step, #507)', () => {
     const back = fixture.nativeElement.querySelector('.wizard-backbar-btn') as HTMLAnchorElement;
-    expect(back?.textContent).toContain('Back to details');
-    expect(back?.getAttribute('href')).toBe('/estimate/details');
+    expect(back?.textContent).toContain('Back to scope');
+    expect(back?.getAttribute('href')).toBe('/estimate/scope');
   });
 
   it('prompts the gate without promising finish-tier exploration', () => {
@@ -297,10 +354,11 @@ describe('PreviewPageComponent loading state', () => {
 
     it('shows reno-specific visible facts (reno type, affected sqft, tier)', async () => {
       const fixture = await setupReno();
-      const summary = fixture.nativeElement.querySelector('.inputs-summary') as HTMLElement;
-      expect(summary.textContent).toContain('Basement');
-      expect(summary.textContent).toContain('800');
-      expect(summary.textContent).toContain('premium');
+      const chip = fixture.nativeElement.querySelector('.recap-chip') as HTMLElement;
+      expect(chip.querySelector('.recap-text')?.textContent?.replace(/\s+/g, ' ').trim()).toMatch(
+        /^1234 14 St NW, Calgary, AB · .*Basement.* · 800 sq ft · Premium$/,
+      );
+      expect(chip.querySelector('a.recap-edit')?.getAttribute('href')).toBe('/estimate/reno-scope');
       TestBed.resetTestingModule();
     });
 
