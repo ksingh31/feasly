@@ -362,3 +362,71 @@ export interface ManualInvoiceResponse {
   /** ISO 8601 — end of the builder's review/dispute window. */
   readonly reviewDueAt: string | null;
 }
+
+/**
+ * Builder billing plan type — mirrors the server's `BILLING_MODEL`:
+ * 'commission' (a percentage of each signed contract, excl. land) or
+ * 'flat' (a fixed monthly subscription).
+ */
+export type BillingPlanType = 'commission' | 'flat';
+
+/** One failed (charge declined) invoice, for the Money page's failed list. */
+export interface BillingOverviewFailedInvoice {
+  readonly id: string;
+  /** Human-readable invoice number, e.g. "INV-0042". */
+  readonly invoiceNumber: string;
+  readonly leadId: string;
+  /** Commission owed on this invoice, integer cents. */
+  readonly commissionCents: number;
+}
+
+/**
+ * The next automatic card charge: the earliest-due in-review invoice whose
+ * payment method is the card on file. The invoice-reviewer timer charges
+ * it once its 7-day review window ends (`chargeAt`), unless disputed.
+ */
+export interface BillingOverviewNextCharge {
+  readonly invoiceId: string;
+  readonly invoiceNumber: string;
+  /** Amount to be charged, integer cents. */
+  readonly amountCents: number;
+  /** ISO 8601 — end of the review window, when the charge runs. */
+  readonly chargeAt: string;
+  /** Last 4 digits of the card on file; null when no card is saved. */
+  readonly cardLast4: string | null;
+}
+
+/**
+ * GET /api/v1/builder/billing/overview — one call powers the builder
+ * portal's Money page header. Tenant-scoped to the session's builder org.
+ * All money figures are integer cents computed server-side.
+ */
+export interface BuilderBillingOverviewResponse {
+  readonly planType: BillingPlanType;
+  /**
+   * The builder org's commission rate, in PERCENT (1 = 1%), from tenant
+   * config (falls back to the configured default, 1%). Null under 'flat'.
+   */
+  readonly commissionRatePercent: number | null;
+  readonly currency: string;
+  /**
+   * Sum of commission still owed across unpaid invoices (draft,
+   * in_review, finalized, failed), integer cents. Disputed invoices are
+   * excluded — their charge clock is frozen until resolved.
+   */
+  readonly outstandingCents: number;
+  /** Number of unpaid invoices included in `outstandingCents`. */
+  readonly outstandingCount: number;
+  /** Null when no card auto-charge is scheduled. */
+  readonly nextCharge: BillingOverviewNextCharge | null;
+  readonly failedCount: number;
+  /** Failed invoices, newest first. */
+  readonly failedInvoices: readonly BillingOverviewFailedInvoice[];
+  /** Number of invoices currently disputed (charge clock frozen). */
+  readonly disputedCount: number;
+  /**
+   * Card on file (brand/last4/expiry only — never the PAN). Null under
+   * 'flat', where the card lives on the Stripe subscription instead.
+   */
+  readonly card: CardOnFileStatus | null;
+}
