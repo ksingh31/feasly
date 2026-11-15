@@ -84,6 +84,7 @@ async function setup(opts: SetupOptions = {}) {
     providers: [
       provideRouter([
         { path: 'builder', component: BlankComponent },
+        { path: 'builder/money', component: BlankComponent },
         { path: 'builder/billing', component: BlankComponent },
         { path: 'builder/invoices', component: BlankComponent },
         { path: 'builder/team', component: BlankComponent },
@@ -136,6 +137,7 @@ async function openAccount(fixture: ComponentFixture<BuilderShellComponent>) {
 
 describe('isMoneyUrl', () => {
   it.each([
+    ['/builder/money', true],
     ['/builder/invoices', true],
     ['/builder/invoices?invoice=abc', true],
     ['/builder/billing', true],
@@ -172,7 +174,7 @@ describe('BuilderShellComponent', () => {
     expect(labels).toEqual(['Leads', 'Money', 'Team']);
     expect(hrefsIn(fixture, '.builder-shell__nav')).toEqual([
       '/builder',
-      '/builder/invoices',
+      '/builder/money',
       '/builder/team',
     ]);
     // Record contract is an action, not a nav item.
@@ -187,7 +189,7 @@ describe('BuilderShellComponent', () => {
     expect(tabs!.getAttribute('aria-label')).toBe('Builder portal sections');
     expect(hrefsIn(fixture, '.builder-shell__tabs')).toEqual([
       '/builder',
-      '/builder/invoices',
+      '/builder/money',
       '/builder/team',
     ]);
   });
@@ -282,10 +284,11 @@ describe('BuilderShellComponent', () => {
 
   it('marks Money active and shows the Money sub-nav (with Record contract) on Money routes', async () => {
     const { fixture } = await setup({ url: '/builder/billing' });
-    const money = q<HTMLAnchorElement>(fixture, '.builder-shell__nav a[href="/builder/invoices"]')!;
+    const money = q<HTMLAnchorElement>(fixture, '.builder-shell__nav a[href="/builder/money"]')!;
     expect(money.classList.contains('active')).toBe(true);
     expect(money.getAttribute('aria-current')).toBe('page');
     expect(hrefsIn(fixture, '.builder-shell__subnav')).toEqual([
+      '/builder/money',
       '/builder/invoices',
       '/builder/billing',
       '/builder/record-contract',

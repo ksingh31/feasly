@@ -371,6 +371,82 @@ export interface BuilderCopy {
   contractCommissionContractValue: string;
   contractCommissionRate: string;
   contractRetry: string;
+  /** Money sub-nav: the overview page (#532). */
+  shellNavMoneyOverview: string;
+  /** Money page (#532) H1. */
+  moneyHeading: string;
+  /** Money page one-line description. */
+  moneyDescription: string;
+  /** Money page meta description. */
+  moneySeoDescription: string;
+  /** Accessible name for the KPI row. */
+  moneyKpiLabel: string;
+  /** Loading label for the KPI row. */
+  moneyLoading: string;
+  /** KPI row load error. */
+  moneyLoadError: string;
+  /** KPI: outstanding balance label. */
+  moneyKpiOutstanding: string;
+  /** KPI sub: {count} = unpaid invoice count (2+ or 0). */
+  moneyKpiOutstandingSub: string;
+  /** KPI sub for exactly one unpaid invoice. */
+  moneyKpiOutstandingSubOne: string;
+  /** KPI: next auto-charge label. */
+  moneyKpiNextCharge: string;
+  /** KPI value when no auto-charge is scheduled. */
+  moneyKpiNextChargeNone: string;
+  /** KPI sub when no auto-charge is scheduled. */
+  moneyKpiNextChargeNoneSub: string;
+  /** KPI sub: {date}, {last4}. */
+  moneyKpiNextChargeSub: string;
+  /** KPI sub when no card is saved: {date}. */
+  moneyKpiNextChargeSubNoCard: string;
+  /** KPI: failed payments label. */
+  moneyKpiFailed: string;
+  /** KPI sub when payments failed (tile links to the card page). */
+  moneyKpiFailedSub: string;
+  /** KPI sub when nothing failed. */
+  moneyKpiFailedNoneSub: string;
+  /** KPI: plan label. */
+  moneyKpiPlan: string;
+  /** KPI value under a commission plan: {rate} e.g. "1%". */
+  moneyPlanCommission: string;
+  /** KPI sub under a commission plan. */
+  moneyPlanCommissionSub: string;
+  /** KPI value under a flat plan. */
+  moneyPlanFlat: string;
+  /** KPI sub under a flat plan. */
+  moneyPlanFlatSub: string;
+  /** Recent invoices section heading. */
+  moneyInvoicesHeading: string;
+  /** Link to the full invoice list. */
+  moneyInvoicesViewAll: string;
+  /** Invoice table empty heading. */
+  moneyInvoicesEmptyHeading: string;
+  /** Invoice table empty body. */
+  moneyInvoicesEmptyBody: string;
+  /** Invoice table: review-window end column. */
+  moneyColReviewEnds: string;
+  /** Invoice table: lifecycle stepper column. */
+  moneyColLifecycle: string;
+  /** Accessible name of each invoice's lifecycle stepper. */
+  moneyLifecycleLabel: string;
+  /** Card panel heading. */
+  moneyCardHeading: string;
+  /** Card panel expiry line: {exp} = MM/YY. */
+  moneyCardExpires: string;
+  /** Card panel body when no card is saved. */
+  moneyCardNone: string;
+  /** Card panel link when a card is saved. */
+  moneyCardManage: string;
+  /** Card panel link when no card is saved. */
+  moneyCardAdd: string;
+  /** Card panel body under a flat plan. */
+  moneyCardFlat: string;
+  /** "How charges work" panel heading. */
+  moneyHowHeading: string;
+  /** Link to question an invoice (href: config billing.questionInvoiceHref). */
+  moneyQuestionInvoice: string;
 }
 
 export interface AppConfig {
@@ -417,6 +493,13 @@ export interface AppConfig {
   billing: {
     /** Stripe publishable key (`pk_test_…` in dev). Empty = unavailable. */
     stripePublishableKey: string;
+    /**
+     * Where the Money page's "Question an invoice" link goes (#532) — a
+     * `mailto:` or contact URL, deploy-provided. Empty = the link is hidden
+     * (builder disputes in-app are deferred; the contact inbox is an owner
+     * decision).
+     */
+    questionInvoiceHref: string;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {

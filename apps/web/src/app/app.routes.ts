@@ -548,6 +548,18 @@ export const routes: Routes = [
         ],
       },
       {
+        // Builder Money overview (#532): KPIs, recent invoices with the
+        // lifecycle stepper, card panel, how charges work. The shell
+        // already lazy-provides BuilderInvoicesState; BuilderBillingState
+        // is root-provided. Admin-only like every billing page.
+        path: 'money',
+        loadComponent: () =>
+          import('./features/builder/builder-money.component').then(
+            (m) => m.BuilderMoneyComponent,
+          ),
+        canActivate: [builderBillingGuard],
+      },
+      {
         // Builder billing (billing/02, BILL-02): card-on-file section.
         // Lazy-loaded like the dashboard so the builder portal stays out
         // of the initial bundle. builderBillingGuard: every billing

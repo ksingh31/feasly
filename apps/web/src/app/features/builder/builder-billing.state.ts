@@ -2,12 +2,13 @@ import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
-import type { CardOnFileStatus } from '@feasly/contracts';
+import type { BuilderBillingOverviewResponse, CardOnFileStatus } from '@feasly/contracts';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
   ClearBillingState,
   LoadBillingCard,
+  LoadBillingOverview,
   LoadDefaultPaymentMethod,
   SetDefaultPaymentMethod,
 } from './builder-billing.actions';
@@ -29,6 +30,9 @@ export interface BuilderBillingStateModel {
   defaultMethod: BuilderPaymentMethod | null;
   defaultMethodStatus: BillingCardStatus;
   defaultMethodSaveStatus: DefaultPaymentMethodSaveStatus;
+  /** Money page header (#531). Memory-only; null until loaded. */
+  overview: BuilderBillingOverviewResponse | null;
+  overviewStatus: BillingCardStatus;
 }
 
 const defaults: BuilderBillingStateModel = {
@@ -37,6 +41,8 @@ const defaults: BuilderBillingStateModel = {
   defaultMethod: null,
   defaultMethodStatus: 'idle',
   defaultMethodSaveStatus: 'idle',
+  overview: null,
+  overviewStatus: 'idle',
 };
 
 /**
@@ -85,6 +91,30 @@ export class BuilderBillingState {
     state: BuilderBillingStateModel,
   ): DefaultPaymentMethodSaveStatus {
     return state.defaultMethodSaveStatus;
+  }
+
+  @Selector()
+  static overview(
+    state: BuilderBillingStateModel,
+  ): BuilderBillingOverviewResponse | null {
+    return state.overview;
+  }
+
+  @Selector()
+  static overviewStatus(state: BuilderBillingStateModel): BillingCardStatus {
+    return state.overviewStatus;
+  }
+
+  @Action(LoadBillingOverview)
+  loadOverview(ctx: StateContext<BuilderBillingStateModel>) {
+    ctx.patchState({ overviewStatus: 'loading' });
+    return this.api.getOverview().pipe(
+      tap((overview) => ctx.patchState({ overview, overviewStatus: 'ready' })),
+      catchError(() => {
+        ctx.patchState({ overviewStatus: 'error' });
+        return of(null);
+      }),
+    );
   }
 
   @Action(LoadBillingCard)

@@ -22,6 +22,11 @@ export class SetDefaultPaymentMethod {
   constructor(public readonly method: BuilderPaymentMethod) {}
 }
 
+/** Loads the Money page overview (#531): balance, next charge, plan, card. */
+export class LoadBillingOverview {
+  static readonly type = '[BuilderBilling] Load overview';
+}
+
 /** Resets billing state (after logout). */
 export class ClearBillingState {
   static readonly type = '[BuilderBilling] Clear';
