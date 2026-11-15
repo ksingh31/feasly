@@ -15,10 +15,14 @@
 }
 
 .builders-page__builder-cell {
-  display: inline-flex;
+  /* flex + max-width (not inline-flex): in the phone card list the cell
+     must shrink to the card, or a long business name / tenant key pushes
+     the page wider than the viewport (#548 no-overflow e2e). */
+  display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  max-width: 100%;
 }
 
 .builders-page__avatar {
@@ -60,6 +64,8 @@
   font-size: 0.75rem;
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .builders-page__num {
