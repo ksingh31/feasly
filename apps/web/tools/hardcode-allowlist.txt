@@ -263,6 +263,8 @@ apps/web/src/app/shared/components/brand-mark/brand-mark.component.ts
 # admin-builders.component.spec.ts.
 apps/web/src/app/features/admin/admin-builders.component.html
 apps/web/src/app/features/admin/admin-builders.component.ts
+apps/web/src/app/features/admin/admin-builder-drawer.component.html
+apps/web/src/app/features/admin/admin-builder-drawer.component.ts
 
 # Builder team invite form (auth/05): Validators.maxLength(120) for the
 # name field mirrors the backend zod schema (API contract, not a tunable).
