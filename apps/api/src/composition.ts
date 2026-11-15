@@ -1795,6 +1795,10 @@ export function createComposition(
     invoiceSummaries: invoiceSummaryStore,
     commentSummaries: commentStore,
     users: userStore,
+    // Issue #530: "Mark won" → email the org's admins to record the contract.
+    memberships: membershipStore,
+    email: emailService,
+    fallbackAdminInbox: config.email.opsAlertEmail,
     statusChanges: leadStatusChangeStore,
     needsYou: {
       staleAfterDays: config.lead.needsYouStaleDays,
@@ -1804,6 +1808,7 @@ export function createComposition(
   const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
     builderLeads: builderLeadsService,
     builderGuard,
+    permissionGuard,
   });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =

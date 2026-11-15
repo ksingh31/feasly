@@ -71,9 +71,10 @@ const LEADS_RESPONSE: BuilderLeadListResponse = {
         authorKind: 'builder',
         createdAt: '2026-09-28T10:00:00.000Z',
       },
+      needsRecording: false,
     },
   ],
-  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
+  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
 };
 
 // The same lead with zero notes: the section shows the empty-state CTA
@@ -84,9 +85,10 @@ const NO_NOTES_RESPONSE: BuilderLeadListResponse = {
       ...LEADS_RESPONSE.leads[0],
       commentCount: 0,
       latestComment: null,
+      needsRecording: false,
     },
   ],
-  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0 },
+  summary: { total: 1, new: 1, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
 };
 
 const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
@@ -106,12 +108,12 @@ const RECORDED_LEAD_RESPONSE: BuilderLeadListResponse = {
       },
     },
   ],
-  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 0 },
 };
 
 const EMPTY_RESPONSE: BuilderLeadListResponse = {
   leads: [],
-  summary: { total: 0, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0 },
+  summary: { total: 0, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0 },
 };
 
 // Won but not yet recorded (no invoice): the card still shows the status
@@ -123,9 +125,10 @@ const WON_NO_INVOICE_RESPONSE: BuilderLeadListResponse = {
       status: 'won',
       hasInvoice: false,
       invoiceSummary: null,
+      needsRecording: true,
     },
   ],
-  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0 },
+  summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 1, lost: 0, needsRecording: 1 },
 };
 
 // Data inconsistency (#474): an invoice on a lead that is NOT won. The
@@ -135,7 +138,7 @@ function invoicedLeadWithStatus(
 ): BuilderLeadListResponse {
   return {
     leads: [{ ...RECORDED_LEAD_RESPONSE.leads[0], status }],
-    summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, [status]: 1 },
+    summary: { total: 1, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0, needsRecording: 0, [status]: 1 },
   };
 }
 
@@ -342,6 +345,11 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ status: 'won' });
     req.flush({ ok: true });
+    // The state re-reads the pipeline so #530's needsRecording stays server-derived.
+    loadLeads(httpMock, {
+      ...LEADS_RESPONSE,
+      leads: [{ ...LEADS_RESPONSE.leads[0], status: 'won', needsRecording: true }],
+    });
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -495,6 +503,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
       expect(req.request.method).toBe('PATCH');
       expect(req.request.body).toEqual({ status: 'won' });
       req.flush({ ok: true });
+      loadLeads(httpMock, invoicedLeadWithStatus('quoted'));
       httpMock.verify();
     });
 
@@ -506,7 +515,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
           RECORDED_LEAD_RESPONSE.leads[0],
           { ...WON_NO_INVOICE_RESPONSE.leads[0], id: '22222222-2222-4222-8222-222222222222' },
         ],
-        summary: { total: 2, new: 0, contacted: 0, quoted: 0, won: 2, lost: 0 },
+        summary: { total: 2, new: 0, contacted: 0, quoted: 0, won: 2, lost: 0, needsRecording: 0 },
       });
       fixture.detectChanges();
       await fixture.whenStable();

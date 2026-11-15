@@ -488,3 +488,41 @@ ${fallbackLink(cardUrl)}`;
     `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Card declined', body), text };
 }
+
+/* ── Issue #530: "Mark won" → admin asked to record the contract ─────────
+ *
+ * Transactional org notice to a builder admin: a teammate marked a lead
+ * won, and only admins can record the signed contract. No figures, no
+ * unsubscribe footer (account notice, not marketing).
+ */
+
+export interface ContractNeedsRecordingTemplateInput {
+  /** Display name (or email) of the teammate who marked the lead won. */
+  readonly markedBy: string;
+  /** The homeowner lead's name, as shown in the builder portal. */
+  readonly leadName: string;
+  /** The lead's property address key, as shown in the builder portal. */
+  readonly address: string;
+  /** Builder org display name. */
+  readonly builderName: string;
+  /** Lead id — deep-links the record-contract form to this lead. */
+  readonly leadId: string;
+}
+
+export function renderContractNeedsRecordingEmail(
+  ctx: TemplateContext,
+  input: ContractNeedsRecordingTemplateInput,
+): RenderedEmail {
+  const recordUrl = `${ctx.appBaseUrl}/builder/record-contract?lead=${encodeURIComponent(input.leadId)}`;
+  const subject = `Needs recording: ${input.leadName} was marked won`;
+  const body = `<p>Hi there,</p>
+<p><strong>${esc(input.markedBy)}</strong> marked <strong>${esc(input.leadName)}</strong> (${esc(input.address)}) as won for ${esc(input.builderName)}.</p>
+<p>Only an admin can record the signed contract. Open the lead to record it and close out the deal.</p>
+${ctaButton(recordUrl, 'Record contract')}
+${fallbackLink(recordUrl)}`;
+  const text =
+    `Hi there,\n\n${input.markedBy} marked ${input.leadName} (${input.address}) as won for ${input.builderName}.\n\n` +
+    `Only an admin can record the signed contract. Open the lead to record it and close out the deal.\n\n` +
+    `Record contract: ${recordUrl}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Needs recording', body), text };
+}

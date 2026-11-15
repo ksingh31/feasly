@@ -62,7 +62,11 @@ function makeRoute(session: { email: string; tenantKey: string } | null) {
     requireBuilder: async () => {},
     getBuilderSession: async () => builderSession,
   };
-  return { route: createBuilderLeadsRoute({ builderLeads, builderGuard }), getNeedsYou };
+  return { route: createBuilderLeadsRoute({
+      builderLeads,
+      builderGuard,
+      permissionGuard: { requirePermission: async () => ctxFor('builder_admin') },
+    }), getNeedsYou };
 }
 
 function ctxFor(role: 'builder_admin' | 'builder_member' | 'viewer'): AuthContext {

@@ -24,6 +24,7 @@ import {
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentReceivedEmail,
+  renderContractNeedsRecordingEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
   renderNudgeEmail,
@@ -144,6 +145,19 @@ export interface CommissionPaymentFailedEmailInput {
   readonly updateWithinDays: number;
 }
 
+/**
+ * Issue #530 input: a teammate marked a lead won; a builder admin is asked
+ * to record the signed contract. Transactional org notice — no figures.
+ */
+export interface ContractNeedsRecordingEmailInput {
+  readonly to: string;
+  readonly markedBy: string;
+  readonly leadName: string;
+  readonly address: string;
+  readonly builderName: string;
+  readonly leadId: string;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -164,6 +178,10 @@ export interface EmailService {
   /** BILL-04: off-session charge failed (update-card CTA). */
   sendCommissionPaymentFailed(
     input: CommissionPaymentFailedEmailInput,
+  ): Promise<EmailDelivery>;
+  /** Issue #530: lead marked won — ask an org admin to record the contract. */
+  sendContractNeedsRecording(
+    input: ContractNeedsRecordingEmailInput,
   ): Promise<EmailDelivery>;
 }
 
@@ -389,6 +407,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendContractNeedsRecording(
+      input: ContractNeedsRecordingEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderContractNeedsRecordingEmail(ctx, {
+        markedBy: input.markedBy,
+        leadName: input.leadName,
+        address: input.address,
+        builderName: input.builderName,
+        leadId: input.leadId,
       });
       return deliver({ ...rendered, to: input.to });
     },

@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
@@ -93,6 +93,7 @@ export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
   quoted: 0,
   won: 0,
   lost: 0,
+  needsRecording: 0,
 };
 
 const defaults: BuilderStateModel = {
@@ -434,6 +435,10 @@ export class BuilderState {
     ctx.patchState({ updatingLeadId: action.leadId, updateError: null });
     return this.leadsApi.updateStatus(action.leadId, action.status).pipe(
       tap(() => this.applyStatusLocally(ctx, action.leadId, action.status)),
+      // `needsRecording` is derived server-side only (#530) — refresh the
+      // pipeline quietly (no loading skeleton) so the flag and its summary
+      // count come from the backend, never from a client-side rule.
+      switchMap(() => this.refreshLeadsQuietly(ctx)),
       catchError((error: unknown) => {
         const code =
           typeof error === 'object' && error !== null && 'code' in error
@@ -464,14 +469,35 @@ export class BuilderState {
     const state = ctx.getState();
     const now = new Date().toISOString();
     const leads = state.leads.map((lead) =>
-      lead.id === leadId ? { ...lead, status, statusUpdatedAt: now } : lead,
+      lead.id === leadId
+        ? {
+            ...lead,
+            status,
+            statusUpdatedAt: now,
+          }
+        : lead,
     );
     const summary = { ...EMPTY_SUMMARY };
     for (const lead of leads) {
       summary[lead.status] += 1;
+      if (lead.needsRecording) {
+        summary.needsRecording += 1;
+      }
     }
     summary.total = leads.length;
     ctx.patchState({ leads, summary, updatingLeadId: null, updateError: null });
+  }
+
+  /**
+   * Re-reads the pipeline after a confirmed write without flipping
+   * `leadsStatus` to 'loading'. A failed refresh keeps the optimistic state —
+   * the write itself already succeeded.
+   */
+  private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return this.leadsApi.listLeads().pipe(
+      tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      catchError(() => of(null)),
+    );
   }
 
   @Action(LogoutBuilder)
