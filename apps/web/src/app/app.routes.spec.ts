@@ -77,11 +77,11 @@ describe('retired /admin/verify route', () => {  beforeEach(() => {
  * deep links to the address step instead of rendering a dead-end page.
  */
 describe('wizard deep-link guards', () => {
-  it("guards 'estimate/details' with the property guard", async () => {
-    const mod = await import('./features/wizard/wizard-property.guard');
+  it("redirects the retired 'estimate/details' step to the preview (#507)", () => {
     const route = routes.find((r) => r.path === 'estimate/details');
-    expect(route).toBeDefined();
-    expect(route?.canActivate).toContain(mod.wizardPropertyGuard);
+    expect(route?.redirectTo).toBe('estimate/preview');
+    expect(route?.pathMatch).toBe('full');
+    expect(route?.component).toBeUndefined();
   });
 
   it("guards 'estimate/scope' and 'estimate/preview' with the property guard", async () => {

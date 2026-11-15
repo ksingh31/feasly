@@ -150,6 +150,7 @@ export class ScopePageComponent implements OnInit {
       return;
     }
     this.store.dispatch([new ChooseProjectType(type), new GoToStep(3)]);
-    void this.router.navigate(['/estimate/details']);
+    // #507: no Details step — scope goes straight to the preview.
+    void this.router.navigate(['/estimate/preview']);
   }
 }
