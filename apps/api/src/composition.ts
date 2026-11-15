@@ -1495,12 +1495,17 @@ export function createComposition(
   // #520: built before the privacy service, which exports/erases it.
   const waitlistStore: WaitlistStore =
     options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
+  // #639: built before the privacy service, which exports/erases it.
+  const callbackRequestStore: CallbackRequestStore =
+    options.callbackRequestStore ??
+    createDrizzleCallbackRequestStore({ db: db.db });
   const privacyService: PrivacyService = createPrivacyService({
     magicLinks: magicLinkStore,
     leads: leadStore,
     estimates: estimateStore,
     privacy: privacyStore,
     waitlist: waitlistStore,
+    callbacks: callbackRequestStore,
     blockers: createNoopBlockerChecker(),
   });
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
@@ -1628,9 +1633,6 @@ export function createComposition(
   const reportSnapshotStore: ReportSnapshotStore =
     options.reportSnapshotStore ??
     createDrizzleReportSnapshotStore({ db: db.db });
-  const callbackRequestStore: CallbackRequestStore =
-    options.callbackRequestStore ??
-    createDrizzleCallbackRequestStore({ db: db.db });
   const partnerShareStore: PartnerShareStore =
     options.partnerShareStore ?? createDrizzlePartnerShareStore({ db: db.db });
   const previewService: PreviewService = createPreviewService({

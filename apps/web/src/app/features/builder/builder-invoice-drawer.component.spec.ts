@@ -267,7 +267,10 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     function stubDownload() {
       const createObjectURL = vi.fn(() => 'blob:invoice');
       const revokeObjectURL = vi.fn();
-      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      // defineProperty, not assign: another spec may have left these
+      // non-writable (still configurable) on the shared URL global.
+      Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
       const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
         clicked.push(this.download);
       });

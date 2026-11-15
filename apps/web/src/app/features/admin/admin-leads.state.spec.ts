@@ -432,8 +432,8 @@ describe('AdminLeadsState', () => {
     // jsdom has no URL.createObjectURL — define it for this test only.
     const createObjectURL = vi.fn(() => 'blob:mock');
     const revokeObjectURL = vi.fn();
-    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true });
-    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true });
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
     // Spy on a real anchor so jsdom's appendChild accepts it.
     const realCreateElement = document.createElement.bind(document);
     const click = vi.fn();
