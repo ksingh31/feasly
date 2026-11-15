@@ -22,7 +22,8 @@
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--canvas-2);
+  background: var(--surface-sunken);
+  color: var(--text);
 }
 
 .invoice-modal__row {

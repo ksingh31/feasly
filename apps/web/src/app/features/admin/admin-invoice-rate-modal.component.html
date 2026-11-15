@@ -15,16 +15,20 @@
       <dt>Rate</dt>
       <dd>
         <span class="invoice-modal__before">{{ beforeRate }}</span>
-        <span aria-hidden="true">→</span><span class="sr-only">to</span>
-        <strong class="invoice-modal__after">{{ afterRate() }}</strong>
+        @if (afterRate(); as after) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after" data-testid="rate-after">{{ after }}</strong>
+        }
       </dd>
     </div>
     <div class="invoice-modal__row">
       <dt>Commission</dt>
       <dd>
         <span class="invoice-modal__before">{{ invoice.commissionCents | kitMoney }}</span>
-        <span aria-hidden="true">→</span><span class="sr-only">to</span>
-        <strong class="invoice-modal__after">{{ afterCents() | kitMoney }}</strong>
+        @if (afterCents() !== null) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after">{{ afterCents() | kitMoney }}</strong>
+        }
       </dd>
     </div>
   </dl>
