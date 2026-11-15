@@ -20,3 +20,5 @@ param domainName = ''
 param postgresAdminPassword = readEnvironmentVariable('FEASLY_POSTGRES_ADMIN_PASSWORD', '')
 param emailProvider = 'acs'
 param acsConnectionString = readEnvironmentVariable('FEASLY_ACS_CONNECTION_STRING', '')
+// #574: CI/ops identity reads the subscription-scoped feasly-monthly-cap budget.
+param grantDeployerCostReader = true

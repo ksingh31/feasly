@@ -4,31 +4,39 @@
 
 /* Unmissable SAMPLE watermark: fixed to the viewport, tiled diagonally, so it
  * stays visible on every viewport while scrolling. Pointer-events none keeps
- * it from intercepting taps; aria-hidden keeps it out of screen readers. */
+ * it from intercepting taps; aria-hidden keeps it out of screen readers.
+ *
+ * #628: the word is drawn by an SVG mask image, not text nodes. Decorative
+ * text at 7% opacity fails axe `color-contrast` (serious) even when
+ * aria-hidden; a mask has no text node to test. The colour still comes from
+ * the --text token (background-color shows through the mask). The SVG uses
+ * a system font stack: fonts never load inside an image. */
 .sample-watermark {
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: space-evenly;
-  justify-content: space-evenly;
-  gap: 12vmin;
   overflow: hidden;
   pointer-events: none;
   user-select: none;
+  background-color: var(--text);
+  opacity: 0.07;
+  --sample-watermark-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='360' viewBox='0 0 520 360'%3E%3Ctext x='260' y='180' transform='rotate(-24 260 180)' text-anchor='middle' dominant-baseline='middle' font-family='system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif' font-size='104' font-weight='800' letter-spacing='8'%3ESAMPLE%3C/text%3E%3C/svg%3E");
+  -webkit-mask-image: var(--sample-watermark-mask);
+  mask-image: var(--sample-watermark-mask);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: clamp(260px, 56vmin, 620px) auto;
+  mask-size: clamp(260px, 56vmin, 620px) auto;
 }
 
-.sample-watermark span {
-  font-family: var(--font-headline);
-  font-size: clamp(48px, 14vmin, 160px);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--text);
-  opacity: 0.07;
-  transform: rotate(-24deg);
-  white-space: nowrap;
-  line-height: 1;
+@media print {
+  /* Masks print unreliably; keep the watermark on paper too. */
+  .sample-watermark {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }
 
 /* Sample banner: the first thing a visitor reads. */
