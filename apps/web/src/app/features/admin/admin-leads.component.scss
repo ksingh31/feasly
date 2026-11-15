@@ -1,177 +1,117 @@
-@use '../../shared/form-controls' as *;
-
-/**
- * Admin leads explorer (admin/02) — FE-9 premium redesign.
- *
- * Cream background, charcoal text, brass accents. Manrope headings,
- * Instrument Sans body (inherited). Lead cards with avatar initials;
- * the lead detail is a centered modal (near-full-screen sheet on mobile).
- *
- * Modal-card styles live in admin-lead-detail.component.scss; badges in
- * _admin-lead-badges.scss.
- */
-
-@use './admin-lead-badges' as *;
+// Admin Leads (#539, admin review S5). Tokens only. Table, filter bar and
+// drawer chrome come from the UI kit; this file lays out the page around them.
 
 .leads-page {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  background: var(--cream);
+  gap: var(--space-4);
+  min-width: 0;
   color: var(--text);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  min-height: 100%;
-}
-
-.leads-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.leads-page__header h1 {
-  margin: 0;
-  font-family: var(--font-headline);
-  font-size: 1.75rem;
-  font-weight: 700;
 }
 
 .leads-page__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .leads-page__sandbox {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.875rem;
+  gap: var(--space-2);
+  min-height: 44px;
+  font: var(--type-body-sm);
   cursor: pointer;
+
+  input {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--accent);
+  }
 }
 
-.leads-page__export {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--card);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-
-.leads-page__export:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.leads-page__export-error {
+.leads-page__alert {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin: 0.75rem 0 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--danger, #c0392b);
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--danger, #c0392b) 8%, transparent);
-  color: var(--text);
-  font-size: 0.875rem;
-}
-
-.leads-page__export-error button {
-  flex-shrink: 0;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  font: var(--type-body-sm);
 }
 
 .leads-page__tabs {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border-bottom: 1px solid var(--border);
 }
 
 .leads-page__tab {
-  border: none;
-  background: none;
-  padding: 0.625rem 1rem;
-  font: inherit;
-  font-size: 0.9375rem;
-  color: var(--muted);
-  cursor: pointer;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  background: none;
+  color: var(--muted);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
 }
 
 .leads-page__tab--active {
-  color: var(--text);
-  font-weight: 600;
   border-bottom-color: var(--accent);
+  color: var(--text);
 }
 
-.leads-page__quarantine-note {
+.leads-page__note,
+.leads-page__view-hint {
   margin: 0;
-  font-size: 0.875rem;
   color: var(--muted);
+  font: var(--type-body-sm);
 }
-
-.leads-page__quarantine-error {
-  margin: 0.5rem 0 0;
-  padding: 0.625rem 0.875rem;
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--danger) 8%, var(--cream));
-  color: var(--danger);
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.leads-page__quarantine-error button {
-  flex: 0 0 auto;
-  background: none;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  color: inherit;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-
-/* Pipeline totals row */
 
 .leads-page__totals {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.625rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .leads-page__total {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.125rem;
-  padding: 0.75rem 0.5rem;
-  background: var(--card);
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  cursor: pointer;
-  font: inherit;
+  border-radius: var(--radius-md);
+  background: var(--card);
   color: var(--text);
-}
+  text-align: start;
+  cursor: pointer;
 
-.leads-page__total:hover {
-  border-color: var(--accent);
+  &:hover {
+    border-color: var(--accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
 }
 
 .leads-page__total--active {
@@ -180,381 +120,142 @@
 }
 
 .leads-page__total-count {
-  font-family: var(--font-headline);
-  font-size: 1.375rem;
-  font-weight: 700;
+  font: var(--type-product-h2);
+  font-variant-numeric: tabular-nums;
 }
 
 .leads-page__total-label {
-  font-size: 0.8125rem;
   color: var(--muted);
+  font: var(--type-meta);
 }
 
-/* Filters — three streamlined filters; collapse behind a toggle on mobile */
-
-.leads-page__filters-toggle {
-  display: none;
-  align-self: flex-start;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--card);
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.leads-page__filters {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
-  gap: 0.75rem;
-  align-items: end;
-}
-
-.leads-page__filter {
+.leads-page__views {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.875rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }
 
-.leads-page__filter > span {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.leads-page__filter input {
-  padding: 0.625rem 0.75rem;
+.leads-page__segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  font: inherit;
-  font-size: 0.9375rem;
+  border-radius: var(--radius-pill);
   background: var(--card);
-  color: var(--text);
-  width: 100%;
-  box-sizing: border-box;
 }
 
-.leads-page__filter select {
-  /* Shared select chrome: custom chevron with proper arrow spacing. */
-  @include feasly-select;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.leads-page__clear {
-  padding: 0.625rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: transparent;
-  font: inherit;
-  font-size: 0.875rem;
+.leads-page__segment {
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--muted);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
-  color: var(--text);
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+}
+
+.leads-page__segment--active {
+  background: var(--accent-bg);
+  color: var(--accent-text);
 }
 
 .leads-page__count {
   margin: 0;
-  font-size: 0.9375rem;
+  min-height: 1.25rem;
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.leads-page__muted {
   color: var(--muted);
+  font-weight: 400;
 }
 
-.leads-page__count-note {
-  font-size: 0.8125rem;
-}
-
-.leads-page__error {
-  padding: 1rem;
-  border: 1px solid var(--danger);
-  border-radius: 0.625rem;
-  background: #fdf0ef;
-}
-
-.leads-page__error p {
-  margin: 0 0 0.75rem;
-}
-
-.leads-page__error button {
-  padding: 0.5rem 1.25rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: var(--danger);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-}
-
-/* Lead cards */
-
-.leads-page__cards {
+.leads-page__lead {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-}
-
-.lead-card {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1rem 1.25rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  cursor: pointer;
-}
-
-.lead-card:hover {
-  border-color: var(--accent);
-}
-
-.lead-card--selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.lead-card__avatar {
-  flex: 0 0 auto;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 999px;
-  background: var(--accent-bg);
-  color: var(--accent-deep);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-headline);
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.lead-card__main {
-  flex: 1 1 auto;
   min-width: 0;
 }
 
-.lead-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+.leads-page__lead-name {
+  display: inline-flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
 }
 
-.lead-card__name {
-  margin: 0;
-  font-family: var(--font-headline);
-  font-size: 1.0625rem;
-  font-weight: 700;
-}
-
-.lead-card__contact {
-  margin: 0.25rem 0 0;
-  font-size: 0.875rem;
+.leads-page__lead-email {
   color: var(--muted);
+  font: var(--type-meta);
   overflow-wrap: anywhere;
 }
 
-.lead-card__meta {
-  margin: 0.5rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.875rem;
+.leads-page__badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  font: var(--type-label);
 }
 
-.lead-card__side {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
+.leads-page__badge--warn {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
-.lead-card__consent-date {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-/* Quarantine moderation actions (approve / discard) on lead cards. */
-.lead-card__quarantine-actions {
-  display: flex;
-  gap: 0.375rem;
-  margin-top: 0.375rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.lead-card__quarantine-approve,
-.lead-card__quarantine-discard,
-.lead-card__quarantine-confirm,
-.lead-card__quarantine-cancel {
-  font-size: 0.8125rem;
+.leads-page__consent {
+  color: var(--status-success-fg);
   font-weight: 600;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  border: 1px solid transparent;
 }
 
-.lead-card__quarantine-approve {
-  background: var(--accent-deep);
-  color: #fff;
-  border-color: var(--accent-deep);
+.leads-page__consent--out {
+  color: var(--status-danger-fg);
 }
 
-.lead-card__quarantine-discard {
-  background: transparent;
-  color: var(--danger);
-  border-color: var(--danger);
+.leads-page__row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.lead-card__quarantine-confirm {
-  background: var(--danger);
-  color: #fff;
-  border-color: var(--danger);
-}
-
-.lead-card__quarantine-cancel {
-  background: transparent;
-  color: var(--muted);
-  border-color: var(--muted);
-}
-
-.lead-card__quarantine-approve:disabled,
-.lead-card__quarantine-discard:disabled,
-.lead-card__quarantine-confirm:disabled,
-.lead-card__quarantine-cancel:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-
-.leads-page__empty {
-  text-align: center;
-  padding: 3rem 1.5rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-}
-
-.leads-page__empty h2 {
-  margin: 0 0 0.5rem;
-  font-family: var(--font-headline);
-  font-size: 1.25rem;
-}
-
-.leads-page__empty p {
-  margin: 0 0 1.25rem;
-  color: var(--muted);
-}
-
-.leads-page__empty button {
-  padding: 0.625rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: var(--accent-deep);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-}
-
-.leads-page__load-more {
-  align-self: center;
-  padding: 0.625rem 2rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--card);
-  font: inherit;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.leads-page__load-more:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Centered lead-detail modal */
-
-.lead-modal {
-  position: fixed;
-  inset: 0;
-  /* Above the admin mobile nav dropdown (z-index 100) — the modal must own
-     the screen while open. */
-  z-index: 150;
+.leads-page__more {
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 1.5rem;
 }
 
-.lead-modal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(26, 22, 18, 0.5);
-}
-
-.lead-modal__dialog {
-  position: relative;
-  width: min(45rem, 100%);
-  max-height: calc(100vh - 3rem);
-  overflow-y: auto;
-  z-index: 41;
-}
-
-/* Mobile: filters collapse, totals wrap, modal shell becomes a sheet. */
-
-@media (max-width: 40rem) {
-  .leads-page {
-    padding: 1rem;
-  }
-
+// Phones: saved views scroll sideways in their own lane; totals go 3 + 2.
+@media (max-width: 767.98px) {
   .leads-page__totals {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.375rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .leads-page__total {
-    padding: 0.5rem 0.25rem;
+    padding: var(--space-2) var(--space-3);
   }
 
-  .leads-page__total-count {
-    font-size: 1.125rem;
+  .leads-page__segments {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
   }
 
-  .leads-page__total-label {
-    font-size: 0.6875rem;
-  }
-
-  .leads-page__filters-toggle {
-    display: inline-block;
-  }
-
-  .leads-page__filters {
-    display: none;
-    grid-template-columns: 1fr;
-  }
-
-  .leads-page__filters--open {
-    display: grid;
-  }
-
-  .lead-card__side {
-    display: none;
-  }
-
-  .lead-modal {
-    padding: 0;
-    align-items: flex-end;
-  }
-
-  .lead-modal__dialog {
-    width: 100%;
-    max-height: 94vh;
-    border-radius: 1rem 1rem 0 0;
+  .leads-page__segment {
+    min-height: 44px;
   }
 }
