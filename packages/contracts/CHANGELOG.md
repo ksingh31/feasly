@@ -12,6 +12,16 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-15 (additive)
+
+Builder Leads home "Needs you" feed (issue #526):
+
+- **Added** `BuilderLeadsNeedsYouResponse` (`uncontacted`, `stale`,
+  `wonWithoutContract`, `staleAfterDays`, `counts`) and
+  `BuilderLeadNeedsYouItem` for `GET /api/v1/builder/leads/needs-you`.
+- **Added** `BuilderLeadStatusCounts`; `BuilderLeadListResponse.summary` now
+  uses it (same shape, no change on the wire).
+
 ## 0.3.0 — 2026-09-24 (additive)
 
 PIPEDA self-service privacy endpoints (legal/02):
