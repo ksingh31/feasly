@@ -1,5 +1,7 @@
 <ui-modal heading="Record payment" asForm (submitted)="save()">
-  <p class="invoice-modal__context">{{ invoice.invoiceNumber }} · {{ invoice.tenantKey }}</p>
+  <p class="invoice-modal__context" data-testid="payment-context">
+    {{ invoice.invoiceNumber }} · {{ builderName }} · <strong>{{ invoice.commissionCents | kitMoney }}</strong>
+  </p>
 
   <div [formGroup]="form" class="invoice-modal__fields">
     <ui-select label="Paid by" required formControlName="method" [options]="options" placeholder="Choose a method" />
@@ -32,7 +34,7 @@
   </dl>
 
   <p class="invoice-modal__note">
-    The invoice is marked paid and the scheduled card charge is cancelled, so the builder is never charged twice.
+    The invoice is marked paid and the scheduled card charge is cancelled, so {{ builderName }} is never charged twice.
   </p>
 
   @if (error(); as err) {

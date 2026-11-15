@@ -1,25 +1,29 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
-import type { BillingHealthResponse } from '@feasly/contracts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Subject, of, throwError } from 'rxjs';
+import type { BillingHealthResponse, Builder } from '@feasly/contracts';
+import { UiConfirmService, type UiConfirmOptions, UiDrawerService, UiModalService, UiToastService } from '@app/shared/ui';
 import { AdminBillingApiService } from './admin-billing-api.service';
+import { AdminBuildersApiService } from './admin-builders-api.service';
+import { BuilderInvoicesApiService } from '../builder/builder-invoices-api.service';
+import { AdminDisputesApiService } from './admin-disputes-api.service';
 import { BillingHealthState } from './billing-health.state';
+import { AdminBuildersState } from './admin-builders.state';
+import { AdminInvoicesState } from './admin-invoices.state';
 import { AdminAuthState } from './admin-auth.state';
 import { AdminBillingComponent } from './admin-billing.component';
+import { AdminCreateInvoiceComponent } from './admin-create-invoice.component';
+import { AdminInvoiceDrawerComponent } from './admin-invoice-drawer.component';
+import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
 
 const HEALTH: BillingHealthResponse = {
   model: 'commission',
   stripe: { configured: true, testMode: true },
   generatedAt: '2026-09-26T12:00:00.000Z',
-  mrr: {
-    cents: null,
-    currency: 'CAD',
-    activeSubscriptions: 0,
-    source: 'not_applicable',
-  },
+  mrr: { cents: null, currency: 'CAD', activeSubscriptions: 0, source: 'not_applicable' },
   collectedTrailing30d: { count: 2, commissionCents: 50_000 },
   inReview: {
     under48h: { count: 1, commissionCents: 10_000 },
@@ -48,9 +52,9 @@ const HEALTH: BillingHealthResponse = {
       commissionCents: 10_000,
       currency: 'CAD',
       reviewDueAt: '2026-10-03T12:00:00.000Z',
-      commissionRatePercent: 1,
+      commissionRatePercent: 1.5,
       contractValueCents: 1_000_000,
-      paymentMethod: 'card',
+      paymentMethod: 'cheque',
     },
   ],
   maxChargeRetries: 3,
@@ -63,280 +67,295 @@ const HEALTH: BillingHealthResponse = {
   },
 };
 
-describe('AdminBillingComponent (billing/03)', () => {
-  let fixture: ComponentFixture<AdminBillingComponent>;
-  let store: Store;
+const BUILDERS = [
+  {
+    id: 'b-1',
+    tenantKey: 'test-builder',
+    displayName: 'Test Builder',
+    businessName: 'Test Builder Inc.',
+    commissionRatePercent: 1,
+  } as Builder,
+];
 
-  /** Grants the session every permission the billing write UI needs. */
-  function grantBillingManage(): void {
-    store.reset({
-      billingHealth: store.selectSnapshot((s) => s.billingHealth),
-      adminAuth: {
-        ...store.selectSnapshot((s) => s.adminAuth),
-        permissions: [ADMIN_PERMISSIONS.billingManage],
-      },
-    });
+const INVOICE_DETAIL = {
+  id: 'inv-2',
+  tenantKey: 'test-builder',
+  invoiceNumber: 'INV-0002',
+  commissionCents: 10_000,
+  contractValueCents: 1_000_000,
+  status: 'in_review',
+  paymentMethod: 'cheque',
+};
+
+async function until(cond: () => boolean, label: string, ms = 2000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for: ${label}`);
+    await new Promise((r) => setTimeout(r, 5));
   }
+}
 
-  beforeEach(async () => {
-    const api = {
-      getBillingHealth: vi.fn().mockReturnValue(of(HEALTH)),
-      retryInvoiceCharge: vi.fn().mockReturnValue(
-        of({ invoiceId: 'inv-1', status: 'finalized', retryCount: 2 }),
-      ),
-    };
-    await TestBed.configureTestingModule({
-      imports: [AdminBillingComponent],
-      providers: [
-        provideRouter([]),
-        provideStore([BillingHealthState, AdminAuthState]),
-        { provide: AdminBillingApiService, useValue: api },
-      ],
-    }).compileComponents();
-    store = TestBed.inject(Store);
-    // Existing tests assert the full write UI — the session manages billing.
-    grantBillingManage();
-    fixture = TestBed.createComponent(AdminBillingComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
+interface Harness {
+  fixture: ComponentFixture<AdminBillingComponent>;
+  store: Store;
+  el: HTMLElement;
+  api: { getBillingHealth: ReturnType<typeof vi.fn>; retryInvoiceCharge: ReturnType<typeof vi.fn> };
+  confirms: { confirm: ReturnType<typeof vi.fn>; answer: Subject<boolean> };
+  modals: { open: ReturnType<typeof vi.fn> };
+  drawers: { open: ReturnType<typeof vi.fn>; openDrawer: null };
+  toasts: { show: ReturnType<typeof vi.fn> };
+  invoicesApi: { getInvoice: ReturnType<typeof vi.fn> };
+}
+
+async function setup(opts: { health?: BillingHealthResponse; permissions?: string[] } = {}): Promise<Harness> {
+  TestBed.resetTestingModule();
+  const api = {
+    getBillingHealth: vi.fn().mockReturnValue(of(opts.health ?? HEALTH)),
+    retryInvoiceCharge: vi.fn().mockReturnValue(of({ invoiceId: 'inv-1', status: 'finalized', retryCount: 2 })),
+  };
+  const answer = new Subject<boolean>();
+  const confirms = { confirm: vi.fn(() => answer.asObservable()), answer };
+  const modals = { open: vi.fn(() => ({ closed: of(false) })) };
+  const drawers = { open: vi.fn(), openDrawer: null };
+  const toasts = { show: vi.fn() };
+  const invoicesApi = { getInvoice: vi.fn(() => of(INVOICE_DETAIL)) };
+  await TestBed.configureTestingModule({
+    imports: [AdminBillingComponent],
+    providers: [
+      provideRouter([]),
+      provideStore([BillingHealthState, AdminAuthState, AdminBuildersState, AdminInvoicesState]),
+      { provide: AdminBillingApiService, useValue: api },
+      { provide: AdminBuildersApiService, useValue: { listBuilders: vi.fn(() => of({ builders: BUILDERS })) } },
+      { provide: BuilderInvoicesApiService, useValue: invoicesApi },
+      { provide: AdminDisputesApiService, useValue: {} },
+      { provide: UiConfirmService, useValue: confirms },
+      { provide: UiModalService, useValue: modals },
+      { provide: UiDrawerService, useValue: drawers },
+      { provide: UiToastService, useValue: toasts },
+    ],
+  }).compileComponents();
+  const store = TestBed.inject(Store);
+  store.reset({
+    ...store.snapshot(),
+    adminAuth: {
+      ...store.selectSnapshot((s) => s.adminAuth),
+      permissions: opts.permissions ?? [ADMIN_PERMISSIONS.billingManage],
+    },
+  });
+  const fixture = TestBed.createComponent(AdminBillingComponent);
+  fixture.autoDetectChanges();
+  await fixture.whenStable();
+  const el = fixture.nativeElement as HTMLElement;
+  return { fixture, store, el, api, confirms, modals, drawers, toasts, invoicesApi };
+}
+
+function q(el: HTMLElement, id: string): HTMLElement | null {
+  return el.querySelector(`[data-testid="${id}"]`);
+}
+
+function buttonLabels(el: HTMLElement): string[] {
+  return Array.from(el.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
+}
+
+/** Opens a row's ⋮ menu and picks an action by its id. */
+async function pickRowAction(h: Harness, queue: string, action: string): Promise<void> {
+  const trigger = h.el.querySelector(`[data-testid="${queue}"] .row-actions__trigger`) as HTMLButtonElement;
+  expect(trigger).not.toBeNull();
+  trigger.click();
+  await h.fixture.whenStable();
+  const item = document.querySelector(`.row-actions__item[data-action="${action}"]`) as HTMLButtonElement;
+  expect(item).not.toBeNull();
+  item.click();
+  await h.fixture.whenStable();
+}
+
+describe('AdminBillingComponent (#544 Billing overview)', () => {
+  afterEach(() => {
+    document.querySelectorAll('.cdk-overlay-container').forEach((el) => (el.innerHTML = ''));
   });
 
-  it('loads billing health on init and renders the panels', () => {
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Billing health');
-    expect(text).toContain('Commission');
-    expect(text).toContain('Stripe test mode');
-    // MRR is n/a under the commission model.
-    expect(text).toContain('n/a under the commission model');
-    // Collected trailing 30d.
+  it('renders the kit header with environment chips, KPIs and both queues', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('h1')?.textContent).toContain('Billing');
+    expect(q(el, 'billing-model-chip')?.textContent).toContain('Commission');
+    expect(q(el, 'stripe-mode-chip')?.textContent).toContain('Stripe test mode');
+    // Chips are status, not buttons (review S9).
+    expect(q(el, 'stripe-mode-chip')?.querySelector('button')).toBeNull();
+    const text = el.textContent ?? '';
+    expect(text).toContain('Not used under the commission model');
     expect(text).toContain('$500');
-    // Overdue bucket flags attention.
     expect(text).toContain('needs attention');
-    // Dunning row.
-    expect(text).toContain('test-builder');
-    expect(text).toContain('$150');
-    // Webhook health.
-    expect(text).toContain('payment_intent.succeeded');
+    // Builder names, not tenant keys, once builders load.
+    expect(q(el, 'in-review-queue')?.textContent).toContain('Test Builder');
+    expect(q(el, 'in-review-queue')?.textContent).toContain('1.5%');
+    expect(q(el, 'in-review-queue')?.textContent).toContain('Cheque');
+    expect(q(el, 'dunning-queue')?.textContent).toContain('$150');
+    expect(q(el, 'dunning-queue')?.textContent).toContain('1 of 3');
+    expect(q(el, 'dunning-queue')?.textContent).toContain('Your card was declined.');
   });
 
-  it('renders an empty dunning state when the queue is clear', async () => {
-    const api = TestBed.inject(AdminBillingApiService) as unknown as {
-      getBillingHealth: ReturnType<typeof vi.fn>;
-    };
-    api.getBillingHealth.mockReturnValue(of({ ...HEALTH, dunning: [] }));
-    const refreshButton = fixture.nativeElement.querySelector(
-      '.billing-panel__refresh',
-    ) as HTMLButtonElement;
-    refreshButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('dunning queue is clear');
+  it('moves webhook detail off the page and links to Webhooks', async () => {
+    const { el } = await setup();
+    expect(el.textContent).not.toContain('payment_intent.succeeded');
+    expect(q(el, 'webhooks-link')?.getAttribute('href')).toBe('/admin/webhooks');
+    expect(el.textContent).toContain('Webhooks need attention');
   });
 
-  it('shows a retry affordance on load failure', async () => {
-    const api = TestBed.inject(AdminBillingApiService) as unknown as {
-      getBillingHealth: ReturnType<typeof vi.fn>;
-    };
-    const { throwError } = await import('rxjs');
-    api.getBillingHealth.mockReturnValue(
-      throwError(() => new Error('network down')),
+  it('flags live and unconfigured Stripe in the header chip', async () => {
+    let h = await setup({ health: { ...HEALTH, stripe: { configured: true, testMode: false } } });
+    expect(q(h.el, 'stripe-mode-chip')?.textContent).toContain('Stripe live');
+    h = await setup({ health: { ...HEALTH, stripe: { configured: false, testMode: false } } });
+    expect(q(h.el, 'stripe-mode-chip')?.textContent).toContain('Stripe not configured');
+  });
+
+  it('renders the empty dunning state when the queue is clear', async () => {
+    const { el } = await setup({ health: { ...HEALTH, dunning: [] } });
+    expect(q(el, 'dunning-queue')?.textContent).toContain('No failed charges');
+  });
+
+  it('shows an error state with Retry on load failure', async () => {
+    TestBed.resetTestingModule();
+    const h = await setup();
+    h.store.reset({ ...h.store.snapshot(), billingHealth: { ...h.store.snapshot().billingHealth, health: null } });
+    h.api.getBillingHealth.mockReturnValue(throwError(() => new Error('network down')));
+    (q(h.el, 'refresh-billing') as HTMLButtonElement).click();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain("Couldn't load billing");
+    expect(buttonLabels(h.el)).toContain('Retry');
+  });
+
+  it('opens the invoice drawer in place from a row and from Manage', async () => {
+    const h = await setup();
+    (h.el.querySelector('[data-testid="in-review-queue"] [data-testid="manage-invoice"]') as HTMLButtonElement).click();
+    expect(h.drawers.open).toHaveBeenCalledWith(
+      AdminInvoiceDrawerComponent,
+      expect.objectContaining({ data: { invoiceId: 'inv-2' }, urlId: 'inv-2' }),
     );
-    const refreshButton = fixture.nativeElement.querySelector(
-      '.billing-panel__refresh',
-    ) as HTMLButtonElement;
-    refreshButton.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Could not load billing health');
-    expect(text).toContain('Retry');
+    const row = h.el.querySelector('[data-testid="dunning-queue"] tbody tr') as HTMLElement;
+    row.click();
+    expect(h.drawers.open).toHaveBeenLastCalledWith(
+      AdminInvoiceDrawerComponent,
+      expect.objectContaining({ data: { invoiceId: 'inv-1' } }),
+    );
   });
 
-  it('renders retry count, failure reason, and a Retry 2 of 3 button per failed invoice', () => {
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('1 of 3');
-    expect(text).toContain('Your card was declined.');
-    expect(text).toContain('Retry 2 of 3');
-  });
-
-  it('requires a confirm click before dispatching the retry', async () => {
-    const api = TestBed.inject(AdminBillingApiService) as unknown as {
-      retryInvoiceCharge: ReturnType<typeof vi.fn>;
-    };
-    const retryButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((b) => (b as HTMLButtonElement).textContent?.includes('Retry 2 of 3'));
-    expect(retryButton).toBeDefined();
-    (retryButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    // First click only arms the confirm state — no API call yet.
-    expect(api.retryInvoiceCharge).not.toHaveBeenCalled();
-    const confirmButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((b) => (b as HTMLButtonElement).textContent?.includes('Confirm retry'));
-    expect(confirmButton).toBeDefined();
-    (confirmButton as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(api.retryInvoiceCharge).toHaveBeenCalledWith('inv-1');
-    // Durable success feedback.
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Charge re-attempted');
-  });
-
-  it('renders the in-review work queue with a Manage action per invoice', () => {
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('In-review invoices');
-    expect(text).toContain('Manage');
-    // The work-queue row shows the effective rate.
-    expect(text).toContain('1%');
-  });
-
-  it('links Manage to the invoice drawer on the Invoices page (#543)', () => {
-    const links = Array.from(
-      fixture.nativeElement.querySelectorAll('a.billing-panel__link'),
-    ) as HTMLAnchorElement[];
-    const manage = links.filter((a) => a.textContent?.trim() === 'Manage');
-    expect(manage.length).toBeGreaterThan(0);
-    expect(manage[0].getAttribute('href')).toContain('/admin/billing/invoices?open=');
-    // The old in-page manage modal is gone.
-    expect(fixture.nativeElement.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  describe('viewer permission gating (QA admin-console finding 8)', () => {
-    /** Re-renders the page with a read-only session (no permissions). */
-    async function renderAsViewer(): Promise<void> {
-      store.reset({
-        billingHealth: store.selectSnapshot((s) => s.billingHealth),
-        adminAuth: {
-          ...store.selectSnapshot((s) => s.adminAuth),
-          permissions: [],
-        },
-      });
-      fixture.detectChanges();
-      await fixture.whenStable();
-    }
-
-    function buttonLabels(): string[] {
-      return Array.from(fixture.nativeElement.querySelectorAll('button')).map(
-        (b) => ((b as HTMLButtonElement).textContent ?? '').trim(),
+  describe('retry charge (AC1)', () => {
+    it('confirms with the amount and builder before dispatching', async () => {
+      const h = await setup();
+      await pickRowAction(h, 'dunning-queue', 'retry');
+      await until(() => h.confirms.confirm.mock.calls.length === 1, 'confirm opened');
+      const options = h.confirms.confirm.mock.calls[0][0] as UiConfirmOptions;
+      expect(options.title).toContain('Test Builder');
+      expect(options.title).toContain('$150');
+      expect(options.body).toContain('$150');
+      expect(options.body).toContain('retry 2 of 3');
+      expect(options.verb).toBe('Retry charge');
+      // Nothing is charged until the verb is pressed.
+      expect(h.api.retryInvoiceCharge).not.toHaveBeenCalled();
+      h.confirms.answer.next(true);
+      h.confirms.answer.complete();
+      await h.fixture.whenStable();
+      expect(h.api.retryInvoiceCharge).toHaveBeenCalledWith('inv-1');
+      expect(h.toasts.show).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('Charge re-attempted'), tone: 'success' }),
       );
-    }
+    });
 
-    function linkLabels(): string[] {
-      return Array.from(fixture.nativeElement.querySelectorAll('a.billing-panel__link')).map(
-        (a) => ((a as HTMLAnchorElement).textContent ?? '').trim(),
-      );
-    }
+    it('does nothing when the confirm is cancelled', async () => {
+      const h = await setup();
+      await pickRowAction(h, 'dunning-queue', 'retry');
+      await until(() => h.confirms.confirm.mock.calls.length === 1, 'confirm opened');
+      h.confirms.answer.next(false);
+      h.confirms.answer.complete();
+      await h.fixture.whenStable();
+      expect(h.api.retryInvoiceCharge).not.toHaveBeenCalled();
+    });
 
-    it('shows the write UI to billing managers', () => {
-      const labels = buttonLabels();
-      expect(labels).toContain('Create invoice');
-      expect(linkLabels()).toContain('Manage');
-      expect(labels.some((l) => l.startsWith('Retry'))).toBe(true);
+    it('disables retry once retries are exhausted', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [{ ...HEALTH.dunning[0], retryCount: 3 }] } });
+      const trigger = h.el.querySelector('[data-testid="dunning-queue"] .row-actions__trigger') as HTMLButtonElement;
+      trigger.click();
+      await h.fixture.whenStable();
+      const retry = document.querySelector('.row-actions__item[data-action="retry"]') as HTMLButtonElement;
+      expect(retry.getAttribute('aria-disabled')).toBe('true');
+      expect(retry.textContent).toContain('All retries used');
+    });
+  });
+
+  it('records a payment from the queue through the payment modal (AC1)', async () => {
+    const h = await setup();
+    await pickRowAction(h, 'in-review-queue', 'record-payment');
+    await until(() => h.modals.open.mock.calls.length === 1, 'payment modal opened');
+    expect(h.invoicesApi.getInvoice).toHaveBeenCalledWith('inv-2');
+    expect(h.modals.open).toHaveBeenCalledWith(
+      AdminInvoicePaymentModalComponent,
+      expect.objectContaining({ data: { invoice: expect.objectContaining({ id: 'inv-2' }) } }),
+    );
+  });
+
+  it('opens the create-invoice modal from the header (AC2)', async () => {
+    const h = await setup();
+    (q(h.el, 'open-create-invoice') as HTMLButtonElement).click();
+    expect(h.modals.open).toHaveBeenCalledWith(AdminCreateInvoiceComponent, expect.anything());
+    // No inline form pushes the page down any more.
+    expect(h.el.querySelector('app-admin-create-invoice')).toBeNull();
+  });
+
+  describe('viewer permission gating', () => {
+    it('shows the write UI to billing managers', async () => {
+      const { el } = await setup();
+      expect(buttonLabels(el)).toContain('Create invoice');
+      expect(buttonLabels(el)).toContain('Manage');
+      expect(el.querySelectorAll('.row-actions__trigger').length).toBeGreaterThan(0);
     });
 
     it('hides every write action from viewers but keeps the read-only data', async () => {
-      await renderAsViewer();
-      const labels = buttonLabels();
+      const { el } = await setup({ permissions: [] });
+      const labels = buttonLabels(el);
       expect(labels).not.toContain('Create invoice');
-      expect(linkLabels()).not.toContain('Manage');
-      expect(linkLabels()).toContain('Details');
-      expect(labels.some((l) => l.startsWith('Retry'))).toBe(false);
-      // The money overview itself stays visible.
-      const text = fixture.nativeElement.textContent as string;
-      expect(text).toContain('Billing health');
-      expect(text).toContain('test-builder');
-      // Details links are read-only and stay available to viewers.
-      expect(
-        fixture.nativeElement.querySelectorAll('a.billing-panel__link').length,
-      ).toBeGreaterThan(0);
+      expect(labels).not.toContain('Manage');
+      expect(labels).toContain('Details');
+      expect(el.querySelectorAll('.row-actions__trigger').length).toBe(0);
+      expect(el.textContent).toContain('Test Builder');
     });
-  });
-
-  it('shows manual handling when retries are exhausted', async () => {
-    TestBed.resetTestingModule();
-    const exhausted = {
-      ...HEALTH,
-      dunning: [
-        { ...HEALTH.dunning[0], retryCount: 3 },
-      ],
-    };
-    const api = {
-      getBillingHealth: vi.fn().mockReturnValue(of(exhausted)),
-      retryInvoiceCharge: vi.fn(),
-    };
-    await TestBed.configureTestingModule({
-      imports: [AdminBillingComponent],
-      providers: [
-        provideRouter([]),
-        provideStore([BillingHealthState, AdminAuthState]),
-        { provide: AdminBillingApiService, useValue: api },
-      ],
-    }).compileComponents();
-    // The retry queue is a billing:manage write surface.
-    const store2 = TestBed.inject(Store);
-    store2.reset({
-      billingHealth: store2.selectSnapshot((s) => s.billingHealth),
-      adminAuth: {
-        ...store2.selectSnapshot((s) => s.adminAuth),
-        permissions: [ADMIN_PERMISSIONS.billingManage],
-      },
-    });
-    const f2 = TestBed.createComponent(AdminBillingComponent);
-    f2.detectChanges();
-    await f2.whenStable();
-    const text = f2.nativeElement.textContent as string;
-    expect(text).toContain('Manual handling');
-    expect(text).not.toContain('Retry charge');
   });
 });
 
 /**
- * Regression guard for the 2026-09-27 incident: the component's own spec
- * provided BillingHealthState directly in its TestBed, masking the fact that
- * the state was never registered in production — so /admin/billing crashed
- * at init. These tests simulate the production route setup: the root store
- * WITHOUT the state, plus the route-level billingHealthStateProvider that
- * lazyProvider installs.
+ * Regression guard for the 2026-09-27 incident: the production root store
+ * does NOT hold BillingHealthState — the admin/billing route lazy-registers
+ * it (and, since #544, AdminInvoicesState for the in-place drawer).
  */
 describe('AdminBillingComponent route-level state registration', () => {
-  async function setup(withRouteProvider: boolean) {
+  async function render(withRouteProviders: boolean) {
     TestBed.resetTestingModule();
-    const api = {
-      getBillingHealth: vi.fn().mockReturnValue(of(HEALTH)),
-      retryInvoiceCharge: vi.fn(),
-    };
     const { billingHealthStateProvider } = await import('./billing-health.state');
+    const { adminInvoicesStateProvider } = await import('./admin-invoices.state');
+    const { adminBuildersStateProvider } = await import('./admin-builders.state');
     await TestBed.configureTestingModule({
       imports: [AdminBillingComponent],
       providers: [
         provideRouter([]),
-        // Production root store: BillingHealthState is NOT here (it is
-        // lazy-loaded at the admin/billing route); AdminAuthState IS in
-        // the root store (app.config.ts).
         provideStore([AdminAuthState]),
-        ...(withRouteProvider ? [billingHealthStateProvider] : []),
-        { provide: AdminBillingApiService, useValue: api },
+        // The parent /admin route registers AdminBuildersState.
+        adminBuildersStateProvider,
+        ...(withRouteProviders ? [billingHealthStateProvider, adminInvoicesStateProvider] : []),
+        { provide: AdminBillingApiService, useValue: { getBillingHealth: vi.fn(() => of(HEALTH)) } },
+        { provide: AdminBuildersApiService, useValue: { listBuilders: vi.fn(() => of({ builders: BUILDERS })) } },
       ],
     }).compileComponents();
+    return TestBed.createComponent(AdminBillingComponent);
   }
 
   it('reproduces the production crash when the route provider is missing', async () => {
-    await setup(false);
-    const fixture = TestBed.createComponent(AdminBillingComponent);
-    // selectSignal throws lazily when the template reads the signal during
-    // change detection — exactly the production crash path.
+    const fixture = await render(false);
     expect(() => fixture.detectChanges()).toThrow();
   });
 
-  it('initializes cleanly with the route-level billingHealthStateProvider', async () => {
-    await setup(true);
-    const fixture = TestBed.createComponent(AdminBillingComponent);
+  it('initializes cleanly with the route-level providers', async () => {
+    const fixture = await render(true);
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(fixture.nativeElement.textContent).toContain('Billing health');
+    expect(fixture.nativeElement.querySelector('h1').textContent).toContain('Billing');
   });
 });

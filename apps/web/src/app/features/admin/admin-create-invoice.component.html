@@ -1,178 +1,126 @@
-<section class="create-invoice" aria-labelledby="create-invoice-title">
-  <h2 id="create-invoice-title">Create invoice</h2>
-
-  @if (confirmedInvoice(); as invoice) {
-    <!-- Success confirmation: the server's authoritative figures. -->
-    <div class="create-invoice__feedback create-invoice__feedback--ok" role="status">
-      <p>
-        <strong>Invoice created.</strong>
-        {{ invoice.invoiceId }} · status {{ invoice.status }} ·
-        commission {{ formatCad(invoice.commissionCents) }}
+@if (confirmedInvoice(); as invoice) {
+  <!-- Success: the server's authoritative figures. -->
+  <ui-modal heading="Invoice created">
+    <div class="create-invoice__done" role="status" data-testid="create-invoice-done">
+      <p class="create-invoice__context">{{ selectedBuilderName() }} · {{ selectedLead()?.label }}</p>
+      <dl class="create-invoice__compare">
+        <div class="create-invoice__row">
+          <dt>Status</dt>
+          <dd><ui-status-chip domain="invoice" [status]="invoice.status" /></dd>
+        </div>
+        <div class="create-invoice__row">
+          <dt>Commission</dt>
+          <dd><strong>{{ invoice.commissionCents | kitMoney }}</strong></dd>
+        </div>
         @if (invoice.reviewDueAt) {
-          · review window ends {{ invoice.reviewDueAt | date: 'medium' }}
+          <div class="create-invoice__row">
+            <dt>Review window ends</dt>
+            <dd>{{ invoice.reviewDueAt | kitDateTime }}</dd>
+          </div>
         }
+      </dl>
+      <p class="create-invoice__note">
+        The invoice is in review. The builder's card on file is charged automatically when the review window passes.
       </p>
-      <p class="create-invoice__muted">
-        The invoice is in review — the builder's card on file is charged
-        automatically when the review window passes.
-      </p>
-      <button type="button" class="create-invoice__btn" (click)="close()">
-        Done
-      </button>
     </div>
-  } @else {
-    @if (createFeedback(); as feedback) {
-      @if (!feedback.ok) {
-        <div class="create-invoice__feedback create-invoice__feedback--error" role="alert">
-          {{ feedback.message }}
-        </div>
-      }
-    }
-
-    @if (reviewing()) {
-      <!-- Review/confirm step: estimated commission at the builder's rate + 7-day review note. -->
-      <div class="create-invoice__review" role="region" aria-label="Review invoice">
-        <h3>Review invoice</h3>
-        <dl>
-          <div>
-            <dt>Builder</dt>
-            <dd>{{ form.controls.builder.value }}</dd>
-          </div>
-          <div>
-            <dt>Lead</dt>
-            <dd>{{ form.controls.leadId.value }}</dd>
-          </div>
-          <div>
-            <dt>Contract value</dt>
-            <dd>
-              {{ formatCad(contractValueCents() ?? 0) }}
-              <span class="create-invoice__muted">(excluding land)</span>
-            </dd>
-          </div>
-          <div>
-            <dt>Signed</dt>
-            <dd>{{ form.controls.signedDate.value }}</dd>
-          </div>
-          <div>
-            <dt>Estimated commission ({{ selectedRateLabel() }})</dt>
-            <dd>
-              <strong>{{ formatCad(estimatedCommissionCents() ?? 0) }}</strong>
-            </dd>
-          </div>
-        </dl>
-        <p class="create-invoice__note">
-          The invoice enters the <strong>7-day builder review window</strong> —
-          the card on file is charged automatically when the window passes.
-        </p>
-        <div class="create-invoice__actions">
-          <button
-            type="button"
-            class="create-invoice__btn create-invoice__btn--primary"
-            (click)="confirmCreate()"
-            [disabled]="createStatus() === 'submitting'"
-          >
-            @if (createStatus() === 'submitting') {
-              Creating…
-            } @else {
-              Confirm create invoice
-            }
-          </button>
-          <button
-            type="button"
-            class="create-invoice__btn"
-            (click)="backToForm()"
-            [disabled]="createStatus() === 'submitting'"
-          >
-            Back
-          </button>
-        </div>
+    <ng-container uiModalFooter>
+      <button type="button" ui-button data-testid="create-invoice-close" (click)="close()">Done</button>
+    </ng-container>
+  </ui-modal>
+} @else if (reviewing()) {
+  <!-- Review/confirm step: estimated commission at the builder's rate + 7-day review note. -->
+  <ui-modal heading="Review invoice">
+    <dl class="create-invoice__compare" data-testid="create-invoice-review">
+      <div class="create-invoice__row">
+        <dt>Builder</dt>
+        <dd>{{ selectedBuilderName() }}</dd>
       </div>
-    } @else {
-      <form [formGroup]="form" (ngSubmit)="startReview()" novalidate>
-        <div class="create-invoice__field">
-          <label for="create-invoice-builder">Builder</label>
-          <select
-            id="create-invoice-builder"
-            formControlName="builder"
-            [attr.aria-invalid]="form.controls.builder.invalid && form.controls.builder.touched"
-          >
-            <option value="" disabled>Select a builder…</option>
-            @for (builder of builders(); track builder.tenantKey) {
-              <option [value]="builder.tenantKey">
-                {{ builderLabel(builder) }}
-              </option>
-            }
-          </select>
-          @if (form.controls.builder.touched && form.controls.builder.invalid) {
-            <p class="create-invoice__error">Choose the builder being invoiced.</p>
-          }
-        </div>
-
-        <div class="create-invoice__field">
-          <label for="create-invoice-lead">Lead ID</label>
-          <input
-            id="create-invoice-lead"
-            type="text"
-            formControlName="leadId"
-            placeholder="UUID of the converted lead"
-            autocomplete="off"
-            spellcheck="false"
-            [attr.aria-invalid]="form.controls.leadId.invalid && form.controls.leadId.touched"
-          />
-          <p class="create-invoice__hint">
-            The Feasly lead this contract came from. Attribution is lead-keyed.
-          </p>
-          @if (form.controls.leadId.touched && form.controls.leadId.invalid) {
-            <p class="create-invoice__error">Enter the lead's UUID.</p>
-          }
-        </div>
-
-        <div class="create-invoice__field">
-          <label for="create-invoice-value">Contract value (CAD)</label>
-          <input
-            id="create-invoice-value"
-            type="number"
-            formControlName="contractDollars"
-            min="0.01"
-            step="0.01"
-            placeholder="850000.00"
-            [attr.aria-invalid]="
-              form.controls.contractDollars.invalid && form.controls.contractDollars.touched
-            "
-          />
-          <p class="create-invoice__hint">
-            Gross construction contract value, <strong>excluding land</strong>.
-          </p>
-          @if (form.controls.contractDollars.touched && form.controls.contractDollars.invalid) {
-            <p class="create-invoice__error">Enter a contract value above $0.</p>
-          }
-        </div>
-
-        <div class="create-invoice__field">
-          <label for="create-invoice-date">Contract signing date</label>
-          <input
-            id="create-invoice-date"
-            type="date"
-            formControlName="signedDate"
-            [max]="maxSignedDate"
-            [attr.aria-invalid]="
-              form.controls.signedDate.invalid && form.controls.signedDate.touched
-            "
-          />
-          @if (form.controls.signedDate.touched && form.controls.signedDate.invalid) {
-            <p class="create-invoice__error">Enter the date the contract was signed.</p>
-          }
-        </div>
-
-        <div class="create-invoice__actions">
-          <button type="submit" class="create-invoice__btn create-invoice__btn--primary">
-            Review invoice
-          </button>
-          <button type="button" class="create-invoice__btn" (click)="close()">
-            Cancel
-          </button>
-        </div>
-      </form>
+      <div class="create-invoice__row">
+        <dt>Lead</dt>
+        <dd>{{ selectedLead()?.label }}</dd>
+      </div>
+      <div class="create-invoice__row">
+        <dt>Contract value <span class="create-invoice__muted">(excluding land)</span></dt>
+        <dd>{{ form.controls.contractValueCents.value ?? 0 | kitMoney }}</dd>
+      </div>
+      <div class="create-invoice__row">
+        <dt>Signed</dt>
+        <dd>{{ form.controls.signedDate.value }}</dd>
+      </div>
+      <div class="create-invoice__row">
+        <dt>Estimated commission ({{ selectedRateLabel() }})</dt>
+        <dd><strong data-testid="create-invoice-estimate">{{ estimatedCommissionCents() ?? 0 | kitMoney }}</strong></dd>
+      </div>
+    </dl>
+    <p class="create-invoice__note">
+      The invoice enters the <strong>7-day builder review window</strong>. The card on file is charged automatically
+      when the window passes.
+    </p>
+    @if (createError(); as err) {
+      <p class="create-invoice__alert" role="alert">{{ err }}</p>
     }
-  }
-</section>
+    <ng-container uiModalFooter>
+      <button type="button" ui-button variant="secondary" [disabled]="createStatus() === 'submitting'" (click)="backToForm()">
+        Back
+      </button>
+      <button
+        type="button"
+        ui-button
+        data-testid="create-invoice-confirm"
+        [loading]="createStatus() === 'submitting'"
+        (click)="confirmCreate()"
+      >
+        Create invoice
+      </button>
+    </ng-container>
+  </ui-modal>
+} @else {
+  <ui-modal heading="Create invoice" asForm (submitted)="startReview()">
+    <div [formGroup]="form" class="create-invoice__fields">
+      <ui-entity-combobox
+        label="Builder"
+        formControlName="builderId"
+        placeholder="Search builders"
+        [options]="builderOptions()"
+        [loading]="listStatus() === 'loading'"
+        loadingLabel="Loading builders…"
+        emptyLabel="No builders match"
+        [error]="form.controls.builderId.touched && form.controls.builderId.invalid ? 'Choose the builder being invoiced.' : undefined"
+        (selectionChange)="onBuilderChange($event)"
+      />
+      <ui-entity-combobox
+        label="Lead"
+        formControlName="leadId"
+        placeholder="Search leads"
+        [options]="leadOptions()"
+        [filterLocally]="false"
+        [loading]="leadSearchStatus() === 'loading'"
+        emptyLabel="No leads match for this builder"
+        [hint]="leadHint()"
+        [error]="form.controls.leadId.touched && form.controls.leadId.invalid ? 'Choose the lead this contract came from.' : undefined"
+        (queryChange)="onLeadQuery($event)"
+        (selectionChange)="onLeadChange($event)"
+      />
+      <ui-money-field
+        label="Contract value"
+        required
+        formControlName="contractValueCents"
+        hint="Gross construction contract value, excluding land."
+        [error]="form.controls.contractValueCents.touched && form.controls.contractValueCents.invalid ? 'Enter a contract value above $0.' : null"
+      />
+      <ui-date-field
+        label="Contract signed on"
+        required
+        formControlName="signedDate"
+        [max]="today"
+        [error]="dateError() ?? (form.controls.signedDate.touched && form.controls.signedDate.invalid ? 'Enter the date the contract was signed.' : null)"
+      />
+    </div>
+    <ng-container uiModalFooter>
+      <button type="button" ui-button variant="secondary" (click)="close()">Cancel</button>
+      <button type="submit" ui-button data-testid="create-invoice-review-btn" [disabled]="!canReview()">
+        Review invoice
+      </button>
+    </ng-container>
+  </ui-modal>
+}
