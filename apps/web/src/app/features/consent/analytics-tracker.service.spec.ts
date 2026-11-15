@@ -30,7 +30,6 @@ describe('AnalyticsTrackerService', () => {
         provideRouter([
           { path: 'estimate/scope', component: DummyComponent },
           { path: 'estimate/reno-scope', component: DummyComponent },
-          { path: 'estimate/details', component: DummyComponent },
           { path: 'estimate/preview', component: DummyComponent },
           { path: 'estimate/gate', component: DummyComponent },
           { path: 'estimate/report', component: DummyComponent },
@@ -48,7 +47,7 @@ describe('AnalyticsTrackerService', () => {
   });
 
   it('maps wizard steps to step_view', async () => {
-    for (const path of ['/estimate/scope', '/estimate/reno-scope', '/estimate/details', '/estimate/preview']) {
+    for (const path of ['/estimate/scope', '/estimate/reno-scope', '/estimate/preview']) {
       track.mockClear();
       await router.navigate([path]);
       expect(track).toHaveBeenCalledTimes(1);

@@ -1,10 +1,17 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { CostRange } from '@feasly/contracts';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
+import {
+  PropertyCardComponent,
+  SiteFooterComponent,
+  SiteNavComponent,
+  WizardBackComponent,
+  WizardStepsComponent,
+} from '../../shared/components';
 import { formatCompactCad, formatCompactRange } from '../../shared/utils/money';
 import { EmbedState } from '../embed/embed.state';
 import { LoadPreview } from '../report/report.actions';
@@ -22,15 +29,29 @@ import { WizardState } from './wizard.state';
  * blurred real digits replace the old animated shimmer bars. The blur is a
  * lead-capture nudge, not a security boundary.
  *
- * The one "Unlock" CTA in the flow routes to the lead gate; "← Back to
- * details" returns to S3 with wizard state intact (NGXS storage plugin).
+ * #507 (M3): the Details step is gone. The property card and inputs recap
+ * collapse into one chip ("address · 2,200 sq ft · Standard · Edit") so the
+ * locked totals and the CTA sit in the first 390×844 viewport; the full
+ * property card follows below the CTA. Edit and "← Back to scope" return to
+ * the scope step with wizard state intact (NGXS storage plugin). Step
+ * indicator: 3 of Address → Your home → Estimate.
+ *
+ * The one "Unlock" CTA in the flow routes to the lead gate.
  * Loads the preview through the shared ReportState — this component
  * never calls the API directly.
  */
 @Component({
   selector: 'app-preview-page',
   standalone: true,
-  imports: [PropertyCardComponent, RouterLink, SiteFooterComponent, SiteNavComponent, WizardBackComponent],
+  imports: [
+    NgTemplateOutlet,
+    PropertyCardComponent,
+    RouterLink,
+    SiteFooterComponent,
+    SiteNavComponent,
+    WizardBackComponent,
+    WizardStepsComponent,
+  ],
   templateUrl: './preview-page.component.html',
   styleUrls: ['./wizard-shell.scss', './preview-page.component.scss'],
 })
@@ -47,7 +68,7 @@ export class PreviewPageComponent implements OnInit {
    * duplicated (the word "Unlock" has a single source in the flow).
    */
   protected readonly reportCopy = this.config.get('copy').report;
-  /** Visible summary labels live with the wizard copy — reused, never duplicated. */
+  /** Tier and reno-type display names live with the wizard copy — reused, never duplicated. */
   protected readonly wizardCopy = this.config.get('copy').wizard;
 
   protected readonly property = this.store.selectSignal(WizardState.property);
@@ -69,6 +90,39 @@ export class PreviewPageComponent implements OnInit {
     return this.wizardCopy.renoTypes.find((t) => t.id === renoType)?.name ?? renoType;
   });
 
+  /** "2,200 sq ft" — unit from config copy. */
+  private formatSqft(sqft: number): string {
+    return [sqft.toLocaleString('en-CA'), this.copy.recapSqftUnit].join(' ');
+  }
+
+  /** Tier display name (config-owned; falls back to the id). */
+  private tierName(tier: string): string {
+    return this.wizardCopy.scopeTiers.find((t) => t.id === tier)?.name ?? tier;
+  }
+
+  /**
+   * Facts half of the one-line recap chip (#507): " · 2,200 sq ft · Standard",
+   * with the renovation type first for reno. The address renders in its own
+   * span so only the address truncates on narrow screens — size and tier
+   * always stay visible. Display formatting only — no math.
+   */
+  protected readonly recapFacts = computed(() => {
+    const parts: string[] = [];
+    if (this.isReno()) {
+      const reno = this.renoInputs();
+      const type = this.renoTypeLabel();
+      if (type) parts.push(type);
+      parts.push(this.formatSqft(reno.renoSqft), this.tierName(reno.tier));
+    } else {
+      const inputs = this.inputs();
+      parts.push(this.formatSqft(inputs.sqft), this.tierName(inputs.tier));
+    }
+    return parts.map((part) => ` · ${part}`).join('');
+  });
+
+  /** Edit / back target: the scope step the inputs came from. */
+  protected readonly editLink = computed(() => (this.isReno() ? '/estimate/reno-scope' : '/estimate/scope'));
+
   protected readonly loading = computed(() => this.status() === 'loading' && this.preview() === null);
   protected readonly ready = computed(() => this.status() === 'ready' && this.preview() !== null);
 
@@ -84,18 +138,6 @@ export class PreviewPageComponent implements OnInit {
   protected formatCompact(value: number): string {
     return formatCompactCad(value);
   }
-  /** Display name for the chosen garage (config-owned; falls back to the id). */
-  protected garageName(): string {
-    const garage = this.inputs().garage;
-    return this.wizardCopy.scopeGarages.find((g) => g.id === garage)?.name ?? garage;
-  }
-
-  /** Display name for the chosen basement (config-owned; falls back to the id). */
-  protected basementName(): string {
-    const basement = this.inputs().basement;
-    return this.wizardCopy.scopeBasements.find((b) => b.id === basement)?.name ?? basement;
-  }
-
   /** Full-page error card only when nothing loaded yet. */
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);
 
@@ -117,7 +159,7 @@ export class PreviewPageComponent implements OnInit {
   ngOnInit(): void {
     this.seo.setForRoute('estimate/preview');
     // Runs on every visit so the preview always reflects the current
-    // details inputs (e.g. after "← Back to details" edits). An unchanged
+    // scope inputs (e.g. after an Edit round-trip). An unchanged
     // request reuses the cached preview instead of minting a new estimate
     // (#489) — the gate attaches the lead to that same estimateId.
     this.store.dispatch(new LoadPreview(this.tenantKey()));
@@ -137,6 +179,10 @@ export class PreviewPageComponent implements OnInit {
    * different property, so the wizard-step bookkeeping resets to step 1
    * (the routerLink on the template anchor performs the navigation).
    */
+  protected editInputs(): void {
+    this.store.dispatch(new GoToStep(2));
+  }
+
   protected backToAddress(): void {
     this.store.dispatch(new GoToStep(1));
   }

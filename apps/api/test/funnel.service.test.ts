@@ -44,9 +44,10 @@ function serviceWith(
 const ALL = { kind: 'all' } as const;
 
 describe('funnel service', () => {
-  it('maps (event, route) counts onto the five funnel steps in order', async () => {
+  it('maps (event, route) counts onto the four funnel steps in order', async () => {
     const { service } = serviceWith([
       { event: 'step_view', route: '/estimate/scope', count: 100 },
+      // #507: the retired Details step is ignored, never a funnel step.
       { event: 'step_view', route: '/estimate/details', count: 80 },
       { event: 'step_view', route: '/estimate/preview', count: 60 },
       { event: 'gate_view', route: '/estimate/gate', count: 40 },
@@ -55,12 +56,11 @@ describe('funnel service', () => {
     const report = await service.getFunnel({ tenant: ALL });
     expect(report.steps.map((s) => s.step)).toEqual([
       'scope',
-      'details',
       'preview',
       'gate',
       'report',
     ]);
-    expect(report.steps.map((s) => s.count)).toEqual([100, 80, 60, 40, 30]);
+    expect(report.steps.map((s) => s.count)).toEqual([100, 60, 40, 30]);
   });
 
   it('merges new-build and reno scope routes into the scope step', async () => {
@@ -75,7 +75,7 @@ describe('funnel service', () => {
   it('computes step-to-step conversion rates rounded to 4 decimals', async () => {
     const { service } = serviceWith([
       { event: 'step_view', route: '/estimate/scope', count: 100 },
-      { event: 'step_view', route: '/estimate/details', count: 33 },
+      { event: 'step_view', route: '/estimate/preview', count: 33 },
     ]);
     const report = await service.getFunnel({ tenant: ALL });
     expect(report.steps[0]!.conversionFromPrevious).toBeNull();
@@ -84,7 +84,7 @@ describe('funnel service', () => {
 
   it('returns null conversion when the previous step count is 0', async () => {
     const { service } = serviceWith([
-      { event: 'step_view', route: '/estimate/details', count: 5 },
+      { event: 'step_view', route: '/estimate/preview', count: 5 },
     ]);
     const report = await service.getFunnel({ tenant: ALL });
     expect(report.steps[0]!.count).toBe(0);
@@ -95,7 +95,7 @@ describe('funnel service', () => {
   it('returns zero counts for empty data (empty state, never an error)', async () => {
     const { service } = serviceWith([]);
     const report = await service.getFunnel({ tenant: ALL });
-    expect(report.steps).toHaveLength(5);
+    expect(report.steps).toHaveLength(4);
     expect(report.steps.every((s) => s.count === 0)).toBe(true);
     expect(
       report.steps.every((s) => s.conversionFromPrevious === null),
@@ -111,7 +111,7 @@ describe('funnel service', () => {
     ]);
     const report = await service.getFunnel({ tenant: ALL });
     expect(report.steps[0]!.count).toBe(10);
-    expect(report.steps[4]!.count).toBe(0);
+    expect(report.steps[3]!.count).toBe(0);
   });
 
   it('passes the date range and tenant filter to the store', async () => {
@@ -167,7 +167,6 @@ describe('funnel service', () => {
     const trackerMap: Record<string, string> = {
       '/estimate/scope': 'step_view',
       '/estimate/reno-scope': 'step_view',
-      '/estimate/details': 'step_view',
       '/estimate/preview': 'step_view',
       '/estimate/gate': 'gate_view',
       '/estimate/report': 'report_open',

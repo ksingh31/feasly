@@ -14,7 +14,7 @@ import { WizardBackComponent } from './wizard-back.component';
 })
 class HostComponent {
   label = '← Back to details';
-  link = '/estimate/details';
+  link = '/estimate/scope';
   step: 1 | 2 | 3 | null = 3;
 }
 
@@ -57,7 +57,7 @@ describe('WizardBackComponent', () => {
     setup(3);
     const a = anchor();
     expect(a?.textContent?.trim()).toBe('← Back to details');
-    expect(a?.getAttribute('href')).toBe('/estimate/details');
+    expect(a?.getAttribute('href')).toBe('/estimate/scope');
   });
 
   it('dispatches GoToStep(step) on click when step is given', () => {

@@ -57,7 +57,6 @@ describe('initial bundle imports (#612)', () => {
     'RenoScopePageComponent',
     'GatePageComponent',
     'AnalyzingPageComponent',
-    'DetailsPageComponent',
     'PreviewPageComponent',
     'ReportPageComponent',
   ];

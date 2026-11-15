@@ -9,7 +9,7 @@
  * (`apps/web/.../analytics-tracker.service.ts`), not the story's aspirational
  * text: `/` (landing) is deliberately unmapped client-side because it doubles
  * as the marketing homepage, so the measured funnel starts at the scope step;
- * there is a details step the story text didn't name. Any future route or
+ * the Details step was retired in #507. Any future route or
  * event rename must update FUNNEL_STEPS here — the service test pins the
  * table to the tracker's ROUTE_ANALYTICS map.
  *
@@ -26,7 +26,7 @@ import type {
 } from './funnel.store';
 
 export interface FunnelStepDef {
-  readonly id: 'scope' | 'details' | 'preview' | 'gate' | 'report';
+  readonly id: 'scope' | 'preview' | 'gate' | 'report';
   readonly label: string;
   readonly event: AnalyticsEventName;
   /** Client routes that count toward this step. */
@@ -35,7 +35,9 @@ export interface FunnelStepDef {
 
 /**
  * The canonical funnel, in order. `scope` merges the new-build and reno
- * scope steps — they are the same funnel position.
+ * scope steps — they are the same funnel position. The Details step was
+ * retired in #507 (/estimate/details now redirects to the preview, so the
+ * tracker never records it); historical details rows are simply ignored.
  */
 export const FUNNEL_STEPS: readonly FunnelStepDef[] = [
   {
@@ -43,12 +45,6 @@ export const FUNNEL_STEPS: readonly FunnelStepDef[] = [
     label: 'Scope',
     event: 'step_view',
     routes: ['/estimate/scope', '/estimate/reno-scope'],
-  },
-  {
-    id: 'details',
-    label: 'Details',
-    event: 'step_view',
-    routes: ['/estimate/details'],
   },
   {
     id: 'preview',
