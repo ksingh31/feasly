@@ -172,6 +172,10 @@ describe('loadConfig', () => {
         retentionDays: 30,
         dryRun: true,
       },
+      followUpEmail: {
+        enabled: false,
+        delayHours: 72,
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,

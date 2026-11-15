@@ -156,6 +156,13 @@ export const leads = pgTable(
     /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
     nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
     /**
+     * #703: first time the homeowner opened their report with the owner
+     * link. Stamped once by the report service, never overwritten.
+     */
+    reportOpenedAt: timestamp('report_opened_at', { withTimezone: true }),
+    /** #703: exactly-once guard for the post-report follow-up; null = not sent. */
+    followUpSentAt: timestamp('follow_up_sent_at', { withTimezone: true }),
+    /**
      * Admin assignment to a builder (builders table). Nullable — null is
      * the normal state and the lead flow never depends on it. Set via the
      * admin UI ("Assign to builder"); the builder portal scopes its lead

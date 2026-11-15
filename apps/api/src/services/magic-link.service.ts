@@ -35,6 +35,7 @@ import {
   type AnyRateLimiter,
   type SharedCooldown,
 } from '../middleware/shared-rate-limit';
+import { formatDisplayAddress } from '../lib/display-address';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
@@ -124,6 +125,8 @@ export interface IssueAndSendMagicLinkArgs {
   readonly name?: string;
   readonly appBaseUrl: string;
   readonly magicLinkTtlSeconds: number;
+  /** #703: the lead's `address_key` — named in the report email. */
+  readonly addressKey?: string;
   readonly clock?: () => Date;
 }
 
@@ -159,6 +162,10 @@ export interface SendOwnerMagicLinkEmailArgs {
   readonly appBaseUrl: string;
   readonly magicLinkTtlSeconds: number;
   readonly token: string;
+  /** #703: the lead's `address_key` — named (display-formatted) in the email. */
+  readonly addressKey?: string;
+  /** #703: the issued token's `expires_at` — the email states this date. */
+  readonly expiresAt?: Date;
 }
 
 /**
@@ -191,6 +198,8 @@ export async function sendOwnerMagicLinkEmail(
     expiresInDays: Math.max(1, Math.ceil(args.magicLinkTtlSeconds / 86_400)),
     audience: 'consumer',
     unsubscribeUrl,
+    ...(args.addressKey ? { address: formatDisplayAddress(args.addressKey) } : {}),
+    ...(args.expiresAt ? { expiresOn: args.expiresAt } : {}),
   });
 }
 
@@ -198,7 +207,11 @@ export async function issueAndSendMagicLink(
   args: IssueAndSendMagicLinkArgs,
 ): Promise<EmailDelivery> {
   const issued = await issueOwnerMagicLinkToken(args);
-  return sendOwnerMagicLinkEmail({ ...args, token: issued.token });
+  return sendOwnerMagicLinkEmail({
+    ...args,
+    token: issued.token,
+    expiresAt: issued.expiresAt,
+  });
 }
 
 /** P1-6: the per-email send budget is hourly (registry: "/hr per email"). */
@@ -335,6 +348,7 @@ export function createMagicLinkService(
         name: lead.name,
         appBaseUrl,
         magicLinkTtlSeconds,
+        addressKey: lead.addressKey,
         clock,
       });
       // Only a delivered resend starts the cooldown — a failed send leaves

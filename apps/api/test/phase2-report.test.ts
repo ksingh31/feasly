@@ -117,6 +117,9 @@ function fakes(opts?: {
   link?: MagicLinkRecord | null;
   latest?: ReportSnapshotRecord | null;
   estimateNarrative?: string | null;
+  /** #703: report-opened stamp sink; omitted → dep not wired. */
+  opened?: Array<{ leadId: string; at: Date }>;
+  openedThrows?: boolean;
 }): Fakes {
   const inserted: NewReportSnapshot[] = [];
   const snapshots: ReportSnapshotStore = {
@@ -157,6 +160,16 @@ function fakes(opts?: {
     properties,
     costData: PLACEHOLDER_COST_DATA,
     allowDraftCostData: true,
+    ...(opts?.opened
+      ? {
+          followUps: {
+            markReportOpened: async (args: { leadId: string; at: Date }) => {
+              if (opts.openedThrows) throw new Error('db down');
+              opts.opened!.push(args);
+            },
+          },
+        }
+      : {}),
     clock: () => new Date('2026-09-26T05:00:00Z'),
   });
   return { service, inserted };
@@ -218,6 +231,34 @@ describe('report service — getReport', () => {
     const expired = { ...liveLink(), expiresAt: new Date('2026-01-01T00:00:00Z') };
     const { service } = fakes({ link: expired });
     await expect(service.getReport(TOKEN)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('report service — report-opened stamp (#703)', () => {
+  it('stamps the owner\'s report open on every read (store keeps the first)', async () => {
+    const opened: Array<{ leadId: string; at: Date }> = [];
+    const { service } = fakes({ opened });
+    await service.getReport(TOKEN);
+    // AC2: the same owner link opens the report again within its lifetime.
+    const second = await service.getReport(TOKEN);
+    expect(second.estimateId).toBe(ESTIMATE_ID);
+    expect(opened).toEqual([
+      { leadId: LEAD_ID, at: new Date('2026-09-26T05:00:00Z') },
+      { leadId: LEAD_ID, at: new Date('2026-09-26T05:00:00Z') },
+    ]);
+  });
+
+  it('partner-share opens never count as the owner opening the report', async () => {
+    const opened: Array<{ leadId: string; at: Date }> = [];
+    const { service } = fakes({ opened, link: { ...liveLink(), purpose: 'partner-share' } });
+    await service.getReport(TOKEN);
+    expect(opened).toHaveLength(0);
+  });
+
+  it('a failed stamp never fails the report read', async () => {
+    const { service } = fakes({ opened: [], openedThrows: true });
+    const report = await service.getReport(TOKEN);
+    expect(report.estimateId).toBe(ESTIMATE_ID);
   });
 });
 

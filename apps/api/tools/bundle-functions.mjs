@@ -91,6 +91,10 @@ const targets = [
     out: 'nudge-timer/index.js',
   },
   {
+    entry: 'src/functions/follow-up-timer.ts',
+    out: 'follow-up-timer/index.js',
+  },
+  {
     entry: 'src/functions/sandbox-purge-timer.ts',
     out: 'sandbox-purge-timer/index.js',
   },

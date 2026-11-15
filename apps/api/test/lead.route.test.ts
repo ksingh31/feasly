@@ -110,6 +110,7 @@ describe('lead route', () => {
         sendPartnerShare: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCallbackConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
         sendNudge: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendFollowUp: async () => ({ sent: true as const, provider: 'log' as const }),
         sendOpsAlert: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCommissionInvoiceReady: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCommissionPaymentReceived: async () => ({ sent: true as const, provider: 'log' as const }),

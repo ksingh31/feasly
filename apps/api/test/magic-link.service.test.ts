@@ -177,6 +177,7 @@ function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
     sendPartnerShare: async () => ok,
     sendCallbackConfirmation: async () => ok,
     sendNudge: async () => ok,
+    sendFollowUp: async () => ok,
     sendOpsAlert: async () => ok,
     sendCommissionInvoiceReady: async () => ok,
     sendCommissionPaymentReceived: async () => ok,
@@ -247,6 +248,16 @@ describe('magic-link verify', () => {
       estimateId: NEW_ESTIMATE_ID,
       leadId: LEAD_ID,
     });
+  });
+
+  it('#703 AC2: the same owner link verifies again on a second open (reusable until expiry)', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('email-token', linkRecord());
+    const { service } = makeService({ magicLinks });
+    const first = await service.verify('email-token');
+    const second = await service.verify('email-token');
+    expect(first).toMatchObject({ valid: true, reportToken: 'email-token' });
+    expect(second).toEqual(first);
   });
 
   it('falls back to the link-era estimate when the household has none left', async () => {
@@ -359,6 +370,11 @@ describe('magic-link reissue', () => {
     expect(email.sends[0]!.to).toBe('sam@example.com');
     expect(email.sends[0]!.magicLinkUrl.startsWith(APP_BASE_URL)).toBe(true);
     expect(email.sends[0]!.expiresInDays).toBe(7);
+    // #703: the report email names the property and states the real expiry.
+    expect(email.sends[0]!.address).toBe('Calgary 123 Fake St NW');
+    expect(email.sends[0]!.expiresOn).toEqual(
+      new Date(NOW.getTime() + 7 * 86_400 * 1000),
+    );
   });
 
   it('reissues when the lead never had a link', async () => {

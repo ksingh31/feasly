@@ -102,6 +102,7 @@ function fakeEmailService(): EmailService & {
     sendPartnerShare: async () => ok,
     sendCallbackConfirmation: async () => ok,
     sendNudge: async () => ok,
+    sendFollowUp: async () => ok,
     sendOpsAlert: async () => ok,
     sendCommissionInvoiceReady: async () => ok,
     sendCommissionPaymentReceived: async () => ok,
@@ -401,6 +402,10 @@ describe('lead service', () => {
     expect(sent.expiresInDays).toBe(1);
     expect(sent.magicLinkUrl.startsWith('https://feasly.example/r/')).toBe(true);
     expect(sent.magicLinkUrl.length).toBeGreaterThan('https://feasly.example/r/'.length);
+    // #703: the report email names the property and states the issued
+    // token's real expiry (900s TTL → NOW + 15 min).
+    expect(sent.address).toBe('Calgary 123 Fake St NW');
+    expect(sent.expiresOn).toEqual(new Date(NOW.getTime() + 900_000));
 
     expect(store.inserted).toHaveLength(1);
     const saved = store.inserted[0];
