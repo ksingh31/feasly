@@ -75,7 +75,7 @@ export async function propertiesAutocompleteHandler(
       app.withApiKeyRateLimit(
         headers,
         correlationId,
-        { endpoint: '/api/v1/properties/autocomplete' },
+        { endpoint: '/api/v1/properties/autocomplete', requiredScope: 'property:read' },
         () => app.propertyRoute.autocomplete(q),
       ),
   );
