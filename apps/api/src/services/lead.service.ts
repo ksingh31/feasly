@@ -330,6 +330,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       appBaseUrl: deps.appBaseUrl,
       magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
       token: issued.token,
+      addressKey: existing.addressKey,
+      expiresAt: issued.expiresAt,
     });
     if (delivery.sent || delivery.acceptedByProvider) {
       // Record accepted-but-unconfirmed too: re-sending would likely
@@ -512,6 +514,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             appBaseUrl: deps.appBaseUrl,
             magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
             token: issued.token,
+            addressKey: estimate.addressKey,
+            expiresAt: issued.expiresAt,
           });
           if (!delivery.sent) {
             console.warn(

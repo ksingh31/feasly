@@ -97,6 +97,27 @@ describe('/r/:token in a fresh browser context (issue #484)', () => {
     expect(store.selectSnapshot(ReportState.partnerView)).toBe(false);
   });
 
+  it('#703 AC2: the same owner link opens the report again on another fresh device', async () => {
+    // First open — phone.
+    await setup(null);
+    const first = await RouterTestingHarness.create();
+    await first.navigateByUrl('/r/tok-email');
+    await pollUrl('/estimate/report');
+    expect(store.selectSnapshot(ReportState.reportToken)).toBe('rep-fresh');
+
+    // Second open of the SAME link in a brand-new context — laptop. The
+    // link is a reusable bearer handle until it expires (never "once").
+    await setup(null);
+    expect(store.selectSnapshot(WizardState.property)).toBeNull();
+    expect(store.selectSnapshot(ReportState.reportToken)).toBeNull();
+    const second = await RouterTestingHarness.create();
+    await second.navigateByUrl('/r/tok-email');
+    await pollUrl('/estimate/report');
+    expect(api.verifyMagicLink).toHaveBeenCalledWith('tok-email');
+    expect(store.selectSnapshot(ReportState.reportToken)).toBe('rep-fresh');
+    expect(store.selectSnapshot(ReportState.partnerView)).toBe(false);
+  });
+
   it('partner-share link lands on the report in partner view via the same path', async () => {
     await setup({
       valid: true,

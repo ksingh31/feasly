@@ -27,6 +27,7 @@ import {
   type EmailService,
 } from '../src/services/email';
 import {
+  renderFollowUpEmail,
   renderMagicLinkEmail,
   renderShareEmail,
   renderNudgeEmail,
@@ -102,9 +103,9 @@ describe('magic-link template', () => {
     expect(magicAnchors.length).toBe(2);
   });
 
-  it('states the 7-day expiry from config (never hardcoded)', () => {
-    expect(rendered.html).toContain('expires in 7 days');
-    expect(rendered.text).toContain('expires in 7 days');
+  it('states the 7-day lifetime from config when no expiry date is passed', () => {
+    expect(rendered.html).toContain('works for 7 days');
+    expect(rendered.text).toContain('works for 7 days');
   });
 
   it('ships a plain-text fallback containing the link', () => {
@@ -170,6 +171,145 @@ describe('magic-link template', () => {
       expect(team.html.toLowerCase()).not.toContain('unsubscribe');
       expect(team.text.toLowerCase()).not.toContain('unsubscribe');
     }
+  });
+});
+
+const REPORT_INPUT = {
+  name: 'Aman',
+  magicLinkUrl: MAGIC_URL,
+  expiresInDays: 7,
+  audience: 'consumer' as const,
+  unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
+  address: '1412 Prospect Av SW',
+  // 2026-11-22 18:00 UTC = Nov 22, 2026 11:00 in America/Edmonton.
+  expiresOn: new Date('2026-11-22T18:00:00Z'),
+};
+
+const FOLLOW_UP_INPUT = {
+  name: 'Aman',
+  address: '1412 Prospect Av SW',
+  reportUrl: `${CTX.appBaseUrl}/r/fresh-owner-token`,
+  unsubscribeUrl: `${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`,
+};
+
+describe('report email (#703)', () => {
+  const rendered = renderMagicLinkEmail(CTX, REPORT_INPUT);
+
+  it('AC1: subject and body name the property', () => {
+    expect(rendered.subject).toBe('Your estimate for 1412 Prospect Av SW');
+    expect(rendered.html).toContain('1412 Prospect Av SW');
+    expect(rendered.text).toContain('1412 Prospect Av SW');
+  });
+
+  it('AC1: states the expiry DATE (Edmonton) and that the link is reusable', () => {
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('works until Nov 22, 2026');
+      expect(body).toContain('as often as you like');
+    }
+  });
+
+  it('AC1: never claims the link can only be used once', () => {
+    for (const body of [rendered.subject, rendered.html, rendered.text]) {
+      expect(body.toLowerCase()).not.toContain('only be used once');
+      expect(body.toLowerCase()).not.toContain('single-use');
+    }
+  });
+
+  it('AC1: no dollar figures anywhere', () => {
+    for (const body of [rendered.subject, rendered.html, rendered.text]) {
+      expect(body).not.toMatch(/\$\s?\d/);
+    }
+  });
+
+  it('lists what the report contains and how to get a fresh link', () => {
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('estimated cost range');
+      expect(body).toContain('line-by-line cost breakdown');
+      expect(body).toContain('Next steps');
+      expect(body).toContain('we will send you a fresh one');
+    }
+  });
+
+  it('plain-text part matches the html content (no markup, same link + footer)', () => {
+    expect(rendered.text).not.toMatch(/<[a-z]/i);
+    expect(rendered.text).toContain(MAGIC_URL);
+    expect(rendered.text).toContain(`${CTX.unsubscribeBaseUrl}/lead-1.iat.sig`);
+  });
+
+  it('escapes the address in html', () => {
+    const evil = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, address: '<b>1 X St</b>' });
+    expect(evil.html).not.toContain('<b>1 X St</b>');
+    expect(evil.html).toContain('&lt;b&gt;1 X St&lt;/b&gt;');
+  });
+
+  it('falls back to a generic subject without an address', () => {
+    const generic = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, address: undefined });
+    expect(generic.subject).toBe('Your Feasly estimate is ready');
+  });
+
+  it('builder sign-in links (single-use by markUsed) keep the once-only line', () => {
+    const builder = renderMagicLinkEmail(CTX, {
+      magicLinkUrl: MAGIC_URL,
+      expiresInDays: 7,
+      audience: 'builder',
+    });
+    expect(builder.text).toContain('can only be used once');
+  });
+
+  it('every link is built from the configured URLs only', () => {
+    for (const r of [rendered, renderFollowUpEmail(CTX, FOLLOW_UP_INPUT)]) {
+      const hrefs = [...r.html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]!);
+      expect(hrefs.length).toBeGreaterThan(0);
+      for (const href of hrefs) {
+        expect(href.startsWith(CTX.appBaseUrl)).toBe(true);
+      }
+    }
+  });
+
+  it('renders for narrow screens and dark-mode clients', () => {
+    for (const r of [rendered, renderFollowUpEmail(CTX, FOLLOW_UP_INPUT)]) {
+      // Narrow width: responsive viewport, fluid outer table, the card is
+      // capped by max-width (not a fixed width), long URLs wrap.
+      expect(r.html).toContain('name="viewport" content="width=device-width,initial-scale=1"');
+      expect(r.html).toContain('width="100%"');
+      expect(r.html).toContain('max-width:560px');
+      expect(r.html).toContain('word-break:break-all');
+      expect(r.html).not.toMatch(/width:\s*(?:[6-9]\d{2}|\d{4,})px/);
+      // Dark mode: the light palette is declared so clients don't
+      // auto-invert into unreadable brass-on-charcoal, and every text
+      // block sets an explicit colour on an explicit background.
+      expect(r.html).toContain('name="color-scheme" content="light only"');
+      expect(r.html).toContain('name="supported-color-schemes" content="light only"');
+      expect(r.html).toContain('background-color:#ffffff');
+      expect(r.html).toContain('color:#232323');
+    }
+  });
+});
+
+describe('follow-up template (#703, non-transactional)', () => {
+  const rendered = renderFollowUpEmail(CTX, FOLLOW_UP_INPUT);
+
+  it('names the property and offers callback + adjust-inputs', () => {
+    expect(rendered.subject).toBe('Questions about your estimate for 1412 Prospect Av SW?');
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('Request a callback');
+      expect(body).toContain('Adjust your inputs');
+      expect(body).toContain(FOLLOW_UP_INPUT.reportUrl);
+    }
+  });
+
+  it('carries the one-click unsubscribe footer in html and text', () => {
+    expect(rendered.html).toContain(FOLLOW_UP_INPUT.unsubscribeUrl);
+    expect(rendered.html.toLowerCase()).toContain('unsubscribe');
+    expect(rendered.text).toContain(`Unsubscribe: ${FOLLOW_UP_INPUT.unsubscribeUrl}`);
+  });
+
+  it('sets List-Unsubscribe headers for one-click unsubscribe', async () => {
+    const { service, provider } = serviceWithFake();
+    await service.sendFollowUp({ to: 'home@example.com', ...FOLLOW_UP_INPUT });
+    const msg = provider.sent[0]!;
+    expect(msg.headers?.['List-Unsubscribe']).toBe(`<${FOLLOW_UP_INPUT.unsubscribeUrl}>`);
+    expect(msg.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
   });
 });
 
@@ -444,6 +584,8 @@ describe('banned copy patterns (rendered output)', () => {
         resumeUrl: `${CTX.appBaseUrl}/resume/abc`,
         unsubscribeUrl: `${CTX.unsubscribeBaseUrl}?token=x`,
       }),
+      renderMagicLinkEmail(CTX, REPORT_INPUT),
+      renderFollowUpEmail(CTX, FOLLOW_UP_INPUT),
     ].flatMap((r) => [r.subject, r.html, r.text]);
     for (const body of bodies) {
       for (const re of patterns) {
@@ -460,7 +602,9 @@ describe('banned copy patterns (rendered output)', () => {
         audience: 'consumer',
       }),
       renderShareEmail(CTX, { shareUrl: SHARE_URL, expiresInDays: 7 }),
-    ].flatMap((r) => [r.html, r.text]);
+      renderMagicLinkEmail(CTX, REPORT_INPUT),
+      renderFollowUpEmail(CTX, FOLLOW_UP_INPUT),
+    ].flatMap((r) => [r.subject, r.html, r.text]);
     for (const body of bodies) {
       expect(body).not.toMatch(/\$\s?\d/);
     }

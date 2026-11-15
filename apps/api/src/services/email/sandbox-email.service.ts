@@ -18,6 +18,7 @@ import type {
   InvitationEmailInput,
   MagicLinkEmailInput,
   NudgeEmailInput,
+  FollowUpEmailInput,
   OpsAlertEmailInput,
   PartnerShareEmailInput,
   CallbackConfirmationInput,
@@ -62,6 +63,8 @@ export function createSandboxSuppressingEmailService(
     sendCallbackConfirmation: (_input: CallbackConfirmationInput) =>
       suppressed('sendCallbackConfirmation', log),
     sendNudge: (_input: NudgeEmailInput) => suppressed('sendNudge', log),
+    sendFollowUp: (_input: FollowUpEmailInput) =>
+      suppressed('sendFollowUp', log),
     sendOpsAlert: (_input: OpsAlertEmailInput) =>
       suppressed('sendOpsAlert', log),
     sendCommissionInvoiceReady: (_input: CommissionInvoiceReadyEmailInput) =>

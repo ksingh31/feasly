@@ -112,6 +112,16 @@ const EnvSchema = z.object({
   SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
 
+  // #703: one post-report follow-up email ("Questions about your
+  // estimate?"), marketing-consent leads only. Off by default — flip per
+  // environment once the copy is approved. DELAY_HOURS counts from the
+  // first time the homeowner opened their report.
+  FOLLOW_UP_EMAIL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
+
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
   // zero-filled). ALERT_AFTER_FAILURES consecutive timer failures fire the
@@ -803,6 +813,13 @@ export interface BillingConfig {
   readonly isProduction: boolean;
 }
 
+/** #703: post-report follow-up email (hourly timer, flag default off). */
+export interface FollowUpEmailConfig {
+  readonly enabled: boolean;
+  /** Hours after the report is first opened before the follow-up is due. */
+  readonly delayHours: number;
+}
+
 export interface SandboxPurgeConfig {
   readonly retentionDays: number;
   readonly dryRun: boolean;
@@ -970,6 +987,7 @@ export interface ApiConfig {
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
+  readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
@@ -1209,6 +1227,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
+    },
+    followUpEmail: {
+      enabled: e.FOLLOW_UP_EMAIL_ENABLED,
+      delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
     },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
