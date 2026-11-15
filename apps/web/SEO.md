@@ -103,13 +103,35 @@ build only, and swap the placeholder in `app-config.defaults.ts`,
 
 `/404` and the wildcard route render `NotFoundPageComponent` (cream canvas,
 "That page doesn't exist." / "The page you're looking for moved or never
-existed." / "Back to home →"). `staticwebapp.config.json` sets
-`responseOverrides.404 → rewrite /index.html` so platform-level 404s
-(e.g. missing files excluded from the fallback) land in the SPA shell.
+existed." / "Back to home →").
 
-Status-code nuance, stated honestly: SWA's `navigationFallback` serves
-`/index.html` with **HTTP 200** for unknown SPA paths (the branded 404
-renders client-side, noindexed, so crawlers treat it as a soft-404 and move
-on). A true HTTP 404 status is returned only for platform-level 404s via
-`responseOverrides`. This is the standard SPA-on-SWA trade-off; deep links
-to real routes keep working, which matters more than the status code.
+Real 404 status (#490): `staticwebapp.config.json` has **no**
+`navigationFallback` — SWA answers every unmatched path with HTTP 200 when it
+is set, which made unknown URLs soft 404s. Instead:
+
+- Prerendered routes (`prerender-routes.txt`) are served as their own
+  `index.html` files — unaffected. SWA maps the no-slash form to the
+  folder's `index.html` too: on the PR #566 preview, every `sitemap.xml` URL
+  both with and without a trailing slash (`/privacy`, `/terms`, `/faq`,
+  `/how-it-works`, `/developers`, `/guides/*`, `/communities`,
+  `/communities/<slug>`) returned 200 with its own `<title>`. Unknown paths
+  returned 404 with "Page not found".
+- Client-only routes (`/estimate/*`, `/embed`, `/embed/*`, `/unsubscribe/*`,
+  `/error`, `/admin`, `/admin/*`, `/builder`, `/builder/*`, `/r/*`) are an
+  explicit allow-list of `rewrite: /index.html` rules so deep links and
+  refreshes keep working.
+- `/embed/v1/*` (the builder loader `embed/v1/loader.js`, built by
+  `snippet/build.mjs`) has its own rule with no rewrite, placed before
+  `/embed/*`. Route rewrites run before static files, so without it the
+  loader would be served as `index.html` and every builder embed would
+  break. Bump the rule when the loader's major version changes (the spec
+  checks it against `FEASLY_LOADER_VERSION`).
+- Everything else hits `responseOverrides.404 → /404.html` with
+  `statusCode: 404`: the prerendered branded page, HTTP 404. `/404.html` is
+  a flat copy of the prerendered `404/index.html` written by the postbuild
+  step `scripts/build-404-page.ts` (a nested rewrite target broke for
+  multi-segment unknown paths in the SWA emulator).
+
+**Adding a new client-only (non-prerendered) top-level route? Add its
+rewrite rule** — `staticwebapp-config.spec.ts` fails if any route in
+`app.routes.ts` lacks one. Unknown community slugs are deliberately real 404s.
