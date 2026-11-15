@@ -52,6 +52,10 @@ apps/web/src/app/features/admin/admin-login.component.html
 # story's acceptance criteria — they change by product decision, not by
 # deploy tuning. Copy-pinned by admin-estimate-lookup.component.spec.ts.
 apps/web/src/app/features/admin/admin-estimate-lookup.component.html
+# Kit migration (#547): the component builds KeyValueList rows and the bucket
+# aria-label from kit-pipe output (`$x ($low–$high)`) — formatting templates,
+# not tunables. Pinned by admin-estimate-lookup.component.spec.ts.
+apps/web/src/app/features/admin/admin-estimate-lookup.component.ts
 
 # Unsubscribe center page (email/03): the only long literals are the import
 # paths of the shared site-nav/site-footer chrome components. All user copy
@@ -182,6 +186,12 @@ apps/web/src/app/features/admin/admin-calibration.state.ts
 # acceptance criteria — it changes by product decision, not by deploy
 # tuning. Pinned by sheets-sync state specs.
 apps/web/src/app/features/admin/admin-sheets-status.component.html
+
+# Admin Webhooks page copy (#547, split out of /admin/billing): alert and
+# empty-state strings are admin-facing UI copy (same category as the
+# billing-health entry) — they change by product decision, not by deploy
+# tuning. Copy-pinned by admin-webhooks.component.spec.ts.
+apps/web/src/app/features/admin/admin-webhooks.component.html
 # Embed relay code shape (embed/06): the 64-hex regex is a protocol constant —
 # the server issues 32-byte relay codes (64 hex chars), so the iframe's
 # inbound gate only accepts exactly that shape. It changes by protocol
@@ -314,7 +324,7 @@ apps/web/src/app/features/builder/builder-invoices-api.service.ts
 # Report-contract datetime helpers (billing/01 builder lane): the `60`
 # minutes-per-hour and `T00:00:00` day-boundary literals are ISO-8601
 # formatting facts, not deploy tunables. Pinned by
-# builder-report-contract.component.spec.ts.
+# builder-record-contract-panel.component.spec.ts (submit payload).
 apps/web/src/app/shared/utils/datetime.ts
 
 # D-03 shared entry-point test harness: drives the shared address-autocomplete

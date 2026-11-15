@@ -1,0 +1,70 @@
+/**
+ * Admin Webhooks (#547). Kit PageHeader / StatusChip / KpiTile /
+ * DataTable; this file only lays out alerts and the table card. Tokens only.
+ */
+
+:host {
+  display: block;
+}
+
+.webhooks-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.webhooks-page__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.webhooks-page__alert {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--status-warning-fg);
+  border-radius: var(--radius-sm);
+  background: var(--status-warning-bg);
+  color: var(--text);
+  font: var(--type-body-sm);
+
+  p {
+    margin: 0;
+  }
+}
+
+.webhooks-page__alert--danger {
+  border-left-color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+}
+
+.webhooks-page__alert--info {
+  border-left-color: var(--status-info-fg);
+  background: var(--status-info-bg);
+}
+
+.webhooks-page__card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.webhooks-page__card-title {
+  margin: 0 0 var(--space-3);
+  font: var(--type-product-h2);
+}
+
+.webhooks-page__type {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.webhooks-page__generated {
+  margin: 0;
+  font: var(--type-meta);
+  color: var(--muted);
+}

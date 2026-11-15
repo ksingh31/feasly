@@ -95,18 +95,19 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     const { fixture, api } = await setup();
     expect(api.getEstimate).not.toHaveBeenCalled();
     expect(textOf(fixture)).toContain(
-      'Paste an estimate ID to see exactly what the homeowner saw',
+      'Look up an estimate by ID to see exactly what the homeowner saw',
     );
     expect(textOf(fixture)).not.toContain('Ops');
   });
 
-  it('shows the exact not-found copy for ESTIMATE_NOT_FOUND (AC2)', async () => {
+  it('shows admin not-found copy for ESTIMATE_NOT_FOUND (AC2, review B21)', async () => {
     const { fixture } = await setup({
       id: 'missing-id',
       error: { code: 'ESTIMATE_NOT_FOUND', message: 'No estimate.', retryable: false },
     });
-    expect(textOf(fixture)).toContain("We couldn't find that estimate");
-    expect(textOf(fixture)).toContain('check the link and try again');
+    expect(textOf(fixture)).toContain('No estimate matches that ID');
+    // Admins pasted an ID — homeowner "check the link" copy is gone.
+    expect(textOf(fixture)).not.toContain('check the link');
     expect(textOf(fixture)).toContain('missing-id');
   });
 
@@ -117,7 +118,7 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       id: 'not-a-uuid',
       error: { code: 'VALIDATION_FAILED', message: 'Invalid estimate id.', retryable: false },
     });
-    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).toContain('No estimate matches that ID');
     expect(textOf(fixture)).not.toContain('Something went wrong');
     expect(textOf(fixture)).not.toContain('Retry');
   });
@@ -127,7 +128,7 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       id: 'not-a-uuid',
       error: { code: 'http_400', message: 'Request failed.', retryable: false },
     });
-    expect(textOf(fixture)).toContain("We couldn't find that estimate");
+    expect(textOf(fixture)).toContain('No estimate matches that ID');
   });
 
   it('shows a retryable error for transient failures', async () => {
@@ -149,8 +150,17 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
       fixture.nativeElement.querySelectorAll('.timeline a'),
     ).map((a) => (a as HTMLAnchorElement).getAttribute('href'));
     expect(links).toEqual(['/admin/estimates/estimate-2', '/admin/estimates/estimate-1']);
-    // The current estimate is marked.
-    expect(text).toContain('current');
+    // The viewed snapshot and the newest one are both marked (review B20).
+    const items = Array.from(
+      fixture.nativeElement.querySelectorAll('.timeline__item'),
+    ) as HTMLElement[];
+    expect(items[0].textContent).toContain('Latest');
+    expect(items[0].textContent).not.toContain('Viewing');
+    expect(items[1].textContent).toContain('Viewing');
+    expect(items[1].classList).toContain('timeline__item--current');
+    // Dates go through the kit pipe: no raw ISO, no seconds.
+    expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(text).toContain('Sep 20, 2026 · 4:00 a.m. MT');
   });
 
   it('renders hero totals and input rows like the consumer report', async () => {
@@ -222,7 +232,7 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     // The only form on the page is the search box; the detail itself has
     // no inputs, textareas, selects, or contenteditable regions.
     const detailInputs = el.querySelectorAll(
-      '.card input, .card textarea, .card select, .card [contenteditable="true"]',
+      '.estimate-page__card input, .estimate-page__card textarea, .estimate-page__card select, .estimate-page__card [contenteditable="true"]',
     );
     expect(detailInputs.length).toBe(0);
   });
@@ -302,8 +312,41 @@ describe('AdminEstimateLookupComponent (admin/03)', () => {
     fixture.detectChanges();
     expect(textOf(fixture)).not.toContain('Ops');
     expect(textOf(fixture)).toContain(
-      'Paste an estimate ID to see exactly what the homeowner saw',
+      'Look up an estimate by ID to see exactly what the homeowner saw',
     );
+  });
+
+  it('links the lead from the header (View lead → lead drawer)', async () => {
+    const { fixture } = await setup({ id: 'estimate-1' });
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="view-lead"]',
+    ) as HTMLAnchorElement | null;
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toBe('/admin/leads?open=lead-9');
+    expect(link!.classList).toContain('ui-button');
+  });
+
+  it('omits View lead when the gate was never completed', async () => {
+    const { fixture } = await setup({
+      id: 'estimate-1',
+      detail: { ...DETAIL, linkedLeadId: null },
+    });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="view-lead"]')).toBeNull();
+    expect(textOf(fixture)).toContain('No lead yet — gate not completed.');
+  });
+
+  it('uses only kit controls — no unstyled native buttons or inputs', async () => {
+    const { fixture } = await setup({ id: 'estimate-1' });
+    const el = fixture.nativeElement as HTMLElement;
+    const buttons = Array.from(el.querySelectorAll('button')).filter(
+      (b) => !b.closest('ui-text-field, ui-error-state, ui-empty-state'),
+    );
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect(b.classList).toContain('ui-button');
+    for (const input of Array.from(el.querySelectorAll('input'))) {
+      expect(input.classList).toContain('ui-field__control');
+    }
   });
 
   it('renders reno inputs with reno wording', async () => {

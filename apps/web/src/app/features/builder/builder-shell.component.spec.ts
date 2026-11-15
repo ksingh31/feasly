@@ -94,7 +94,6 @@ async function setup(opts: SetupOptions = {}) {
         { path: 'builder/invoices', component: BlankComponent },
         { path: 'builder/team', component: BlankComponent },
         { path: 'builder/org-picker', component: BlankComponent },
-        { path: 'builder/record-contract', component: BlankComponent },
         { path: '**', component: BlankComponent },
       ]),
       { provide: SeoService, useValue: seo },
@@ -146,7 +145,6 @@ describe('isMoneyUrl', () => {
     ['/builder/invoices', true],
     ['/builder/invoices?invoice=abc', true],
     ['/builder/billing', true],
-    ['/builder/record-contract', true],
     ['/builder', false],
     ['/builder/team', false],
     ['/builder/invoicesx', false],
@@ -287,7 +285,7 @@ describe('BuilderShellComponent', () => {
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(LogoutBuilder));
   });
 
-  it('marks Money active and shows the Money sub-nav (with Record contract) on Money routes', async () => {
+  it('marks Money active and shows the Money sub-nav on Money routes (Record contract lives in the lead drawer, #529)', async () => {
     const { fixture } = await setup({ url: '/builder/billing' });
     const money = q<HTMLAnchorElement>(fixture, '.builder-shell__nav a[href="/builder/money"]')!;
     expect(money.classList.contains('active')).toBe(true);
@@ -296,7 +294,6 @@ describe('BuilderShellComponent', () => {
       '/builder/money',
       '/builder/invoices',
       '/builder/billing',
-      '/builder/record-contract',
     ]);
   });
 

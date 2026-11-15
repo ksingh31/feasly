@@ -1,47 +1,85 @@
-<div class="funnels" id="main-content" tabindex="-1">
-  <header class="funnels__header">
-    <h1>{{ copy.title }}</h1>
-    <p class="funnels__subtitle">{{ copy.subtitle }}</p>
-  </header>
+<div class="funnels">
+  <ui-page-header [heading]="copy.title" [description]="copy.subtitle" />
 
   <form class="funnels__filters" (ngSubmit)="applyFilters()">
-    <label class="funnels__field">
-      <span>{{ copy.fromLabel }}</span>
-      <input type="date" [(ngModel)]="from" name="from" [disabled]="loading()" />
-    </label>
-    <label class="funnels__field">
-      <span>{{ copy.toLabel }}</span>
-      <input type="date" [(ngModel)]="to" name="to" [disabled]="loading()" />
-    </label>
-    <label class="funnels__field">
-      <span>{{ copy.tenantLabel }}</span>
-      <select [(ngModel)]="tenantMode" name="tenantMode" [disabled]="loading()">
-        <option value="all">{{ copy.tenantAll }}</option>
-        <option value="direct">{{ copy.tenantDirect }}</option>
-        <option value="key">{{ copy.tenantKey }}</option>
-      </select>
-    </label>
-    @if (tenantMode() === 'key') {
-      <label class="funnels__field">
-        <span>{{ copy.tenantKeyLabel }}</span>
-        <input
-          type="text"
-          [(ngModel)]="tenantKey"
-          name="tenantKey"
-          [placeholder]="copy.tenantKeyPlaceholder"
+    <div class="funnels__presets" role="group" [attr.aria-label]="copy.presetsLabel">
+      @for (preset of copy.presets; track preset.days) {
+        <button
+          type="button"
+          ui-button
+          size="sm"
+          class="funnels__preset"
+          [variant]="activePreset() === preset.days ? 'primary' : 'secondary'"
+          [attr.aria-pressed]="activePreset() === preset.days"
           [disabled]="loading()"
+          (click)="applyPreset(preset.days)"
+        >
+          {{ preset.label }}
+        </button>
+      }
+      <button
+        type="button"
+        ui-button
+        size="sm"
+        class="funnels__preset"
+        [variant]="activePreset() === 'all' ? 'primary' : 'secondary'"
+        [attr.aria-pressed]="activePreset() === 'all'"
+        [disabled]="loading()"
+        (click)="applyPreset('all')"
+      >
+        {{ copy.presetAll }}
+      </button>
+    </div>
+
+    <div class="funnels__fields">
+      <ui-date-field
+        class="funnels__field"
+        [label]="copy.fromLabel"
+        [value]="from() || null"
+        [max]="to() || null"
+        [disabled]="loading()"
+        (valueChange)="onFromChange($event)"
+      />
+      <ui-date-field
+        class="funnels__field"
+        [label]="copy.toLabel"
+        [value]="to() || null"
+        [min]="from() || null"
+        [disabled]="loading()"
+        (valueChange)="onToChange($event)"
+      />
+      <ui-select
+        class="funnels__field"
+        [label]="copy.tenantLabel"
+        [options]="tenantOptions"
+        [value]="tenantMode()"
+        [disabled]="loading()"
+        (valueChange)="onTenantModeChange($event)"
+      />
+      @if (tenantMode() === 'key') {
+        <ui-text-field
+          class="funnels__field funnels__tenant-key"
+          [label]="copy.tenantKeyLabel"
+          [placeholder]="copy.tenantKeyPlaceholder"
           autocomplete="off"
-          spellcheck="false"
+          [disabled]="loading()"
+          [(value)]="tenantKey"
         />
-      </label>
-    }
-    <div class="funnels__actions">
-      <button type="submit" class="funnels__apply" [disabled]="loading() || rangeError() !== null">
-        {{ loading() ? copy.loading : copy.apply }}
-      </button>
-      <button type="button" class="funnels__reset" (click)="resetFilters()" [disabled]="loading()">
-        {{ copy.reset }}
-      </button>
+      }
+      <div class="funnels__actions">
+        <button
+          type="submit"
+          ui-button
+          class="funnels__apply"
+          [loading]="loading()"
+          [disabled]="rangeError() !== null"
+        >
+          {{ loading() ? copy.loading : copy.apply }}
+        </button>
+        <button type="button" ui-button variant="ghost" class="funnels__reset" [disabled]="loading()" (click)="resetFilters()">
+          {{ copy.reset }}
+        </button>
+      </div>
     </div>
   </form>
 
@@ -53,23 +91,36 @@
   }
 
   @if (loading() && report() === null) {
-    <p class="funnels__notice">{{ copy.loading }}</p>
+    <ui-skeleton variant="block" [label]="copy.loading" />
   } @else if (report() !== null) {
     @if (isEmpty()) {
       <p class="funnels__notice">{{ copy.empty }}</p>
     } @else {
-      <ol class="funnels__steps">
+      @if (steps().length > 0) {
+        <ui-kpi-grid class="funnels__kpis">
+          <ui-kpi-tile [label]="steps()[0].label" [value]="steps()[0].count | kitCount" [sub]="copy.entryStep" />
+          @if (steps().length > 1) {
+            <ui-kpi-tile
+              [label]="steps()[steps().length - 1].label"
+              [value]="steps()[steps().length - 1].count | kitCount"
+            />
+            <ui-kpi-tile
+              [label]="copy.overallConversion"
+              [value]="conversionLabel(overallConversion())"
+              [sub]="overallConversionSub()"
+            />
+          }
+        </ui-kpi-grid>
+      }
+
+      <ol class="funnels__steps" [attr.aria-label]="copy.stepsLabel">
         @for (step of steps(); track step.step; let i = $index) {
           <li class="funnels__step">
             <div class="funnels__step-head">
               <span class="funnels__step-label">{{ step.label }}</span>
-              <span class="funnels__step-count">{{ step.count }}</span>
+              <span class="funnels__step-count">{{ step.count | kitCount }}</span>
             </div>
-            <div
-              class="funnels__bar"
-              role="img"
-              [attr.aria-label]="step.label + ': ' + step.count"
-            >
+            <div class="funnels__bar" role="img" [attr.aria-label]="step.label + ': ' + (step.count | kitCount)">
               <div class="funnels__bar-fill" [style.width.%]="barWidth(step.count)"></div>
             </div>
             <p class="funnels__conversion">
@@ -77,6 +128,9 @@
                 {{ copy.entryStep }}
               } @else {
                 {{ copy.conversionPrefix }} {{ conversionLabel(step.conversionFromPrevious) }}
+                @if (dropOff(i) > 0) {
+                  <span class="funnels__drop">· {{ dropOffLabel(i) }}</span>
+                }
               }
             </p>
           </li>

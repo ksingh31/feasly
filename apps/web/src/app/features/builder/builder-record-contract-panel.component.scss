@@ -1,0 +1,68 @@
+:host {
+  display: block;
+  margin-top: var(--space-3);
+}
+
+.record-panel__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.record-panel__preview {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+}
+
+.record-panel__rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+  font: var(--type-body-sm);
+}
+.record-panel__rows dt {
+  font: var(--type-meta);
+  color: var(--muted);
+}
+.record-panel__rows dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.record-panel__rows a {
+  color: var(--accent-text);
+}
+.record-panel__commission {
+  grid-column: 1 / -1;
+}
+.record-panel__commission dd {
+  font: var(--type-product-h2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-panel__body {
+  margin: 0;
+  font: var(--type-body-sm);
+}
+.record-panel__error {
+  color: var(--status-danger-fg);
+}
+.record-panel__failure {
+  margin-top: var(--space-3);
+}
+.record-panel__cta {
+  margin-top: var(--space-3);
+}
+
+.record-panel__success-title {
+  margin: 0 0 var(--space-2);
+  font: var(--type-body);
+  font-weight: 600;
+}
+.record-panel__success .record-panel__rows {
+  margin-top: var(--space-2);
+}
