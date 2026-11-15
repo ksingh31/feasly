@@ -111,6 +111,9 @@ function fakeEmailService(): EmailService & {
   };
 }
 
+/** #793: a sandbox estimate at the same address as ESTIMATE_ID. */
+const SANDBOX_ESTIMATE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
 function fakeEstimateStore(): EstimateStore {
   const record: EstimateRecord = {
     id: ESTIMATE_ID,
@@ -127,7 +130,12 @@ function fakeEstimateStore(): EstimateStore {
   };
   return {
     save: async () => {},
-    findById: async (id: string) => (id === ESTIMATE_ID ? record : null),
+    findById: async (id: string) =>
+      id === ESTIMATE_ID
+        ? record
+        : id === SANDBOX_ESTIMATE_ID
+          ? { ...record, id, sandbox: true }
+          : null,
     setNarrative: async () => false,
     findByAddressKey: async () => [],
   };
@@ -1052,6 +1060,9 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     };
   }
 
+  /** A sandbox key's lead references a sandbox estimate. */
+  const SANDBOX_BODY = { ...VALID_BODY, estimateId: SANDBOX_ESTIMATE_ID };
+
   it('a sandbox write is sandbox-flagged and sends no email', async () => {
     const store = fakeLeadStore();
     const email = fakeEmailService();
@@ -1062,7 +1073,7 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
       return null;
     };
     const service = createLeadService({ ...DEPS, store, email, magicLinks });
-    const result = await service.submitLead(VALID_BODY, { sandbox: true });
+    const result = await service.submitLead(SANDBOX_BODY, { sandbox: true });
 
     expect(store.inserted).toHaveLength(1);
     expect(store.inserted[0]!.sandbox).toBe(true);
@@ -1100,7 +1111,7 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     const email = fakeEmailService();
     const magicLinks = recordingMagicLinks();
     const service = createLeadService({ ...DEPS, store, email, magicLinks });
-    const result = await service.submitLead(VALID_BODY, { sandbox: true });
+    const result = await service.submitLead(SANDBOX_BODY, { sandbox: true });
 
     expect(store.updated).toHaveLength(1);
     expect(magicLinks.sandboxFlags).toEqual([true]);
@@ -1112,7 +1123,7 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     const store = fakeLeadStore();
     const email = fakeEmailService();
     const service = createLeadService({ ...DEPS, store, email });
-    await service.submitLead(VALID_BODY, { sandbox: true });
+    await service.submitLead(SANDBOX_BODY, { sandbox: true });
     await service.submitLead(VALID_BODY);
     expect(email.magicLinkSends).toHaveLength(1);
   });
@@ -1124,5 +1135,19 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     await service.submitLead({ ...VALID_BODY, sandbox: true });
     expect(store.inserted[0]!.sandbox).toBe(false);
     expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('rejects a lead whose sandbox mode does not match its estimate', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    // Live key → sandbox estimate: would block the sandbox purge (RESTRICT FK).
+    await expect(service.submitLead(SANDBOX_BODY)).rejects.toMatchObject({ status: 400 });
+    // Sandbox key → live estimate: would leak test traffic onto real data.
+    await expect(service.submitLead(VALID_BODY, { sandbox: true })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(store.inserted).toHaveLength(0);
+    expect(email.magicLinkSends).toHaveLength(0);
   });
 });

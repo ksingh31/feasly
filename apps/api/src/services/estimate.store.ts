@@ -105,6 +105,7 @@ export function createDrizzleEstimateStore(
         narrative: row.narrative,
         narrativeGeneratedAt: row.narrativeGeneratedAt,
         assumptions: row.assumptions,
+        sandbox: row.sandbox,
       };
     },
 

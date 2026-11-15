@@ -403,7 +403,12 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       const email = input.email.toLowerCase();
 
       const estimate = await deps.estimateStore.findById(input.estimateId);
-      if (!estimate) {
+      // #793: a lead's sandbox flag must match its estimate's. A live lead
+      // pointing at a sandbox estimate would block the sandbox purge (the
+      // leads → estimates FK is RESTRICT), and a sandbox lead on a live
+      // estimate would leak test traffic into real data. A mismatch is
+      // indistinguishable from an unknown id — no cross-mode probing.
+      if (!estimate || (estimate.sandbox ?? false) !== sandbox) {
         throw new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
