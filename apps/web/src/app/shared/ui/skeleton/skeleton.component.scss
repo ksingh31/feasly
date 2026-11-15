@@ -1,0 +1,53 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ui-skeleton__bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ui-skeleton__bar {
+  display: block;
+  width: 100%;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--status-neutral-bg) 0%,
+    var(--cream-2) 50%,
+    var(--status-neutral-bg) 100%
+  );
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.ui-skeleton__bars--text .ui-skeleton__bar:last-child:not(:first-child) {
+  width: 60%;
+}
+
+.ui-skeleton__bars--rows {
+  gap: var(--space-2);
+}
+
+.ui-skeleton__bars--rows .ui-skeleton__bar {
+  height: 48px;
+  border-radius: var(--radius-md);
+}
+
+.ui-skeleton__bars--block .ui-skeleton__bar {
+  height: 160px;
+  border-radius: var(--radius-lg);
+}
+
+@keyframes ui-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
+}

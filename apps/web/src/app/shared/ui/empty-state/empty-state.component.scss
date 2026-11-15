@@ -1,0 +1,56 @@
+@use '../../buttons' as *;
+
+@include feasly-button-classes;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-7) var(--space-4);
+  text-align: center;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.ui-empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+}
+
+:host(.ui-empty-state--all-clear) .ui-empty-state__icon {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+:host(.ui-empty-state--error) .ui-empty-state__icon {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+}
+
+.ui-empty-state__title {
+  margin: 0;
+  font: var(--type-product-h2);
+}
+
+.ui-empty-state__message {
+  max-width: 32rem;
+  margin: 0;
+  font: var(--type-body);
+  color: var(--muted);
+}
+
+.ui-empty-state__action {
+  margin-top: var(--space-3);
+  max-width: 100%;
+  white-space: normal;
+}

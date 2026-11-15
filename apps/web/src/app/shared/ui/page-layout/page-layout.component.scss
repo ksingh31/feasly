@@ -1,0 +1,39 @@
+:host {
+  /* Portal UI kit §3: builder 1120px, admin fluid ≤1440px, narrow 640px. */
+  --ui-page-max: 1120px;
+  --ui-page-gutter: var(--space-6);
+
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+:host(.ui-page-layout--admin) {
+  --ui-page-max: 1440px;
+}
+
+/* Narrow wins over the portal width (forms in either portal). */
+:host(.ui-page-layout--narrow) {
+  --ui-page-max: 640px;
+}
+
+.ui-page-layout__inner {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: calc(var(--ui-page-max) + 2 * var(--ui-page-gutter));
+  margin-inline: auto;
+  padding-inline: var(--ui-page-gutter);
+  padding-block: var(--space-6);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+  :host {
+    --ui-page-gutter: var(--space-4);
+  }
+
+  .ui-page-layout__inner {
+    padding-block: var(--space-5);
+  }
+}
