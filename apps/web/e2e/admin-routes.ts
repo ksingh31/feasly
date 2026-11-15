@@ -34,6 +34,7 @@ export const ADMIN_E2E_ROUTES: readonly AdminE2eRoute[] = [
     public: true,
   },
   { path: 'admin/leads', url: '/admin/leads', name: 'leads', ready: SHELL_READY },
+  { path: 'admin/quarantine', url: '/admin/quarantine', name: 'quarantine', ready: SHELL_READY },
   { path: 'admin/builders', url: '/admin/builders', name: 'builders', ready: SHELL_READY },
   { path: 'admin/users', url: '/admin/users', name: 'users', ready: SHELL_READY },
   { path: 'admin/disputes', url: '/admin/disputes', name: 'disputes', ready: SHELL_READY },

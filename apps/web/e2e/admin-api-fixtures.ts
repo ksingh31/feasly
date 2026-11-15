@@ -122,6 +122,19 @@ export const ADMIN_LEAD_LIST: AdminLeadListResponse = {
   statusCounts: { new: 2, contacted: 1, quoting: 1, won: 1, lost: 1 },
 };
 
+/** Honeypot-flagged leads for the Quarantine page (`quarantinedOnly=true`). */
+const QUARANTINED: readonly AdminLeadListItem[] = [
+  adminLead(7, 'Zzzz Automated Submission With An Extremely Long Display Name', 'new', { quarantined: true }),
+  adminLead(8, 'Test Test', 'new', { quarantined: true, sandbox: true }),
+];
+
+export const QUARANTINE_LIST: AdminLeadListResponse = {
+  leads: QUARANTINED,
+  nextCursor: null,
+  totalCount: QUARANTINED.length,
+  statusCounts: { new: 2, contacted: 0, quoting: 0, won: 0, lost: 0 },
+};
+
 function leadDetail(item: AdminLeadListItem): AdminLeadDetail {
   return {
     ...item,
@@ -524,7 +537,7 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
     if (method === 'GET') {
       switch (path) {
         case '/api/v1/admin/leads':
-          return json(route, ADMIN_LEAD_LIST);
+          return json(route, url.searchParams.get('quarantinedOnly') === 'true' ? QUARANTINE_LIST : ADMIN_LEAD_LIST);
         case '/api/v1/admin/builders':
           return json(route, ADMIN_BUILDERS);
         case '/api/v1/admin/users':
@@ -556,7 +569,7 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
       }
       const leadMatch = /^\/api\/v1\/admin\/leads\/([^/]+)$/.exec(path);
       if (leadMatch) {
-        const found = ADMIN_LEADS.find((l) => l.id === leadMatch[1]);
+        const found = [...ADMIN_LEADS, ...QUARANTINED].find((l) => l.id === leadMatch[1]);
         return found ? json(route, leadDetail(found)) : notFound(route);
       }
       const builderMatch = /^\/api\/v1\/admin\/builders\/([^/]+)$/.exec(path);
