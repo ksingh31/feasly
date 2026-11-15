@@ -139,16 +139,16 @@ describe('LandingPageComponent', () => {
       el.textContent?.trim(),
     );
     // The mock API harness answers refreshedMonth null → the honest
-    // "Live City data" fallback; no hardcoded month, no accuracy claim.
+    // "Live City data" fallback; no hardcoded year/month, no accuracy claim.
     expect(values).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);
     expect(labels).toEqual([
       'City of Calgary assessment records',
-      'Latest data refresh',
+      'City of Calgary assessment roll',
       'AI never invents prices',
     ]);
   });
 
-  describe('trust strip refresh month (trust-strip/01)', () => {
+  describe('trust strip freshness line (trust-strip/01, #513)', () => {
     /** API stub whose getCityDataFreshness answers with a canned response. */
     function freshnessProvider(
       response: Observable<CityDataFreshnessResponse>,
@@ -171,20 +171,51 @@ describe('LandingPageComponent', () => {
       );
     }
 
-    it('renders "<Month Year>" when the endpoint reports a month', async () => {
+    function trustLabels(): string[] {
+      return [...fixture.nativeElement.querySelectorAll('.trust-label')].map((el: Element) =>
+        el.textContent?.trim(),
+      );
+    }
+
+    it('renders the shared "<year> assessment roll (City of Calgary) · checked <Mon Year>" line', async () => {
+      await setup(
+        { propertyData: { source: 'live' } },
+        [freshnessProvider(of({ refreshedMonth: 'November 2026', rollYear: 2026 }))],
+      );
+      fixture.detectChanges();
+      expect(trustValues()).toEqual(['600,000+', '2026 assessment roll', 'Same fixed formula']);
+      expect(trustShorts()).toEqual(['600,000+', '2026 assessment roll', 'Same fixed formula']);
+      expect(trustLabels()[1]).toBe('(City of Calgary) · checked Nov 2026');
+      // AC #513: one string, read value-then-label, same as the property card.
+      expect(`${trustValues()[1]} ${trustLabels()[1]}`).toBe(
+        '2026 assessment roll (City of Calgary) · checked Nov 2026',
+      );
+    });
+
+    it('drops the year claim (not the month) when an older API omits rollYear', async () => {
       await setup(
         { propertyData: { source: 'live' } },
         [freshnessProvider(of({ refreshedMonth: 'September 2026' }))],
       );
       fixture.detectChanges();
-      expect(trustValues()).toEqual(['600,000+', 'September 2026', 'Same fixed formula']);
-      expect(trustShorts()).toEqual(['600,000+', 'Sep 2026', 'Same fixed formula']);
+      expect(trustValues()[1]).toBe('Current assessment roll');
+      expect(trustLabels()[1]).toBe('(City of Calgary) · checked Sep 2026');
     });
 
-    it('falls back to "Live City data" when the endpoint returns null', async () => {
+    it('drops the checked claim when only the roll year is known', async () => {
       await setup(
         { propertyData: { source: 'live' } },
-        [freshnessProvider(of({ refreshedMonth: null }))],
+        [freshnessProvider(of({ refreshedMonth: null, rollYear: 2026 }))],
+      );
+      fixture.detectChanges();
+      expect(trustValues()[1]).toBe('2026 assessment roll');
+      expect(trustLabels()[1]).toBe('(City of Calgary)');
+    });
+
+    it('falls back to "Live City data" when the endpoint knows neither', async () => {
+      await setup(
+        { propertyData: { source: 'live' } },
+        [freshnessProvider(of({ refreshedMonth: null, rollYear: null }))],
       );
       fixture.detectChanges();
       expect(trustValues()).toEqual(['600,000+', 'Live City data', 'Same fixed formula']);

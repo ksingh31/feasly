@@ -133,16 +133,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
       trustItems: [
         { value: '600,000+', label: 'City of Calgary assessment records' },
-        // The refresh month is dynamic (GET /api/v1/city-data/freshness);
-        // value/valueShort are the honest fallbacks while it is unknown —
-        // never a hardcoded month that goes stale.
+        // Rewritten at runtime into the shared freshness line
+        // (copy.dataFreshness, #513) from GET /api/v1/city-data/freshness;
+        // value/label are the honest fallbacks while it is unknown —
+        // never a hardcoded year or month that goes stale.
         {
           key: 'city-data-freshness',
           value: 'Live City data',
           valueShort: 'Live City data',
-          label: 'Latest data refresh',
-          refreshedValue: '{monthYear}',
-          refreshedValueShort: '{monthYearShort}',
+          label: 'City of Calgary assessment roll',
         },
         { value: 'Same fixed formula', label: 'AI never invents prices', badge: true },
       ],
@@ -424,6 +423,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       validationZoningGuideLink: 'Learn about Calgary zoning →',
       validationBackLabel: '← Try a different address',
     },
+    dataFreshness: {
+      rollTemplate: '{year} assessment roll',
+      rollUnknownYear: 'Current assessment roll',
+      detailTemplate: '(City of Calgary) · checked {monthYear}',
+      detailUnchecked: '(City of Calgary)',
+    },
     propertyCard: {
       freshnessMock: 'Sample data for illustration — live City records coming soon',
     },
@@ -529,7 +534,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
       stepsTitle: 'Your next three steps',
-      stepsProgress: '{done} of {total} steps done',
       steps: [
         {
           id: 'talk-to-builder',
@@ -547,6 +551,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
       ],
+      makeupLabel: 'What makes up the total',
+      adjustPanelTitle: 'Adjust your estimate',
+      actionsTitle: 'Save and share',
       planningTitle: 'Planning ahead',
       financingTitle: 'Financing this build',
       financingLines: [
@@ -572,8 +579,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shareRetry: 'Try again',
       partnerViewNote:
         'This report was shared with you — you’re viewing a read-only copy.',
-      callbackTitle: 'Prefer to talk it through?',
-      callbackHint: 'Request a callback and we will walk through the numbers with you.',
+      callbackTitle: 'Talk to a builder',
+      callbackHint:
+        'Request a callback and we will walk through the numbers with you — free, with no pressure.',
       callbackNameLabel: 'Your name',
       callbackPhoneLabel: 'Phone number',
       callbackWindowLabel: 'Preferred time',

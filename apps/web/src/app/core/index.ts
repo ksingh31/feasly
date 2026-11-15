@@ -3,3 +3,4 @@ export * from './config';
 export * from './api';
 export * from './seo';
 export * from './utils';
+export * from './data-freshness';

@@ -265,9 +265,9 @@ describe('ReportPageComponent', () => {
     });
 
     it('keeps the stepper visible but disabled behind the gate (no revise without a token)', () => {
-      const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
+      const stepper = fixture.nativeElement.querySelector('.adjust-size .stepper');
       expect(stepper).not.toBeNull();
-      for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
+      for (const btn of fixture.nativeElement.querySelectorAll('.adjust-size .step-btn')) {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
       }
       expect(text()).toContain('Get your full report to adjust the size.');
@@ -309,7 +309,7 @@ describe('ReportPageComponent', () => {
       });
 
       it('size stepper is active immediately (enabled buttons)', () => {
-        const buttons = [...fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')];
+        const buttons = [...fixture.nativeElement.querySelectorAll('.adjust-size .step-btn')];
         expect(buttons.length).toBeGreaterThan(0);
         for (const btn of buttons) {
           expect((btn as HTMLButtonElement).disabled).toBe(false);
@@ -454,10 +454,10 @@ describe('ReportPageComponent', () => {
     });
 
     it('stepper is always visible with no enable toggle and no separate re-run button', () => {
-      const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
+      const stepper = fixture.nativeElement.querySelector('.adjust-size .stepper');
       expect(stepper).not.toBeNull();
       // No enable toggle: the buttons are enabled post-gate.
-      for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
+      for (const btn of fixture.nativeElement.querySelectorAll('.adjust-size .step-btn')) {
         expect((btn as HTMLButtonElement).disabled).toBe(false);
       }
       // No re-run button anywhere on the report: revisions are live.
@@ -490,7 +490,7 @@ describe('ReportPageComponent', () => {
     describe('tier what-if toggle (QA 2026-09-30)', () => {
       function tierCard(id: string): HTMLButtonElement {
         const found = fixture.nativeElement.querySelector(
-          `.tier-toggle-card [data-option="${id}"]`,
+          `.adjust-tier [data-option="${id}"]`,
         ) as HTMLButtonElement;
         expect(found).not.toBeNull();
         return found;
@@ -499,7 +499,7 @@ describe('ReportPageComponent', () => {
       it('renders the toggle post-gate with the active tier selected', async () => {
         await setup({ leadSubmitted: true });
         fixture.detectChanges();
-        const toggle = fixture.nativeElement.querySelector('.tier-toggle-card app-option-selector');
+        const toggle = fixture.nativeElement.querySelector('.adjust-tier app-option-selector');
         expect(toggle).not.toBeNull();
         expect(toggle.textContent).toContain('What if you change the finish tier?');
         expect(toggle.textContent).toContain('Pick a finish level');
@@ -539,7 +539,7 @@ describe('ReportPageComponent', () => {
         const snap = store.selectSnapshot(ReportState.snapshot);
         expect(snap?.version).toBeGreaterThan(1);
         fixture.detectChanges();
-        const toggle = fixture.nativeElement.querySelector('.tier-toggle-card app-option-selector');
+        const toggle = fixture.nativeElement.querySelector('.adjust-tier app-option-selector');
         expect(toggle.querySelector('[aria-checked="true"]')?.getAttribute('data-option')).toBe(
           'luxury',
         );
@@ -563,14 +563,14 @@ describe('ReportPageComponent', () => {
         // unlocked the shared fixture, so re-run setup without a lead.
         await setup();
         fixture.detectChanges();
-        expect(fixture.nativeElement.querySelector('.tier-toggle-card')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.adjust-tier')).toBeNull();
       });
 
       it('is hidden in partner view (read-only report)', async () => {
         await setup({ leadSubmitted: true });
         store.dispatch(new SetPartnerView());
         fixture.detectChanges();
-        expect(fixture.nativeElement.querySelector('.tier-toggle-card')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.adjust-tier')).toBeNull();
       });
     });
 
@@ -785,56 +785,116 @@ describe('ReportPageComponent', () => {
       });
     });
 
-    it('renders the three next steps as an honest checklist (no matched-builder promises)', () => {
-      const items = [...fixture.nativeElement.querySelectorAll('.steps.checklist li')];
-      const titles = items.map((li: Element) => li.querySelector('strong')?.textContent?.trim());
-      const bodies = items.map((li: Element) => li.querySelector('p')?.textContent?.trim());
-      // Locked story: exactly 3 distinct steps — never 2, never duplicated.
-      expect(titles).toEqual(['Talk to a builder', 'Refine your project brief', 'Save and share']);
-      expect(new Set(bodies).size).toBe(3);
-      // M1 honesty: the builder step points at the callback — no builders,
-      // no match scores, no matching promises anywhere on the report.
-      expect(bodies[0]).toContain('callback');
-      expect(bodies[0]).not.toContain('match scores');
-      expect(text()).not.toContain('match scores');
-      // Terminology alignment: the stepper updates figures instantly —
-      // there is no re-run button, so the steps never say "re-run".
-      expect(bodies[1]).toContain('no re-run button');
-      expect(text()).not.toContain('re-run the estimate');
-      // The save-and-share step covers PDF, partner email, and callback.
-      expect(bodies[2]).toContain('Download the PDF');
-      // Every step is a checkbox with a visible progress line.
-      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')];
-      expect(boxes).toHaveLength(3);
-      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
-    });
+    describe('report layout (#508, consumer review S3)', () => {
+      /** Top-level blocks of the report, in DOM order, by accessible name. */
+      const blockNames = (): string[] =>
+        [...fixture.nativeElement.querySelectorAll('main > section')].map(
+          (el: Element) => el.getAttribute('aria-label') ?? '',
+        );
 
-    it('checklist ticks persist per report and drive the progress line', async () => {
-      await setup({ leadSubmitted: true });
-      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
-      expect(boxes).toHaveLength(3);
-      boxes[0].click();
-      fixture.detectChanges();
-      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': true });
-      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('1 of 3 steps done');
-      // Unchecking toggles back off.
-      boxes[0].click();
-      fixture.detectChanges();
-      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'talk-to-builder': false });
-      expect(fixture.nativeElement.querySelector('.steps-progress')?.textContent).toContain('0 of 3 steps done');
-    });
+      it('renders the blocks in the spec order: header, breakdown, adjust, talk, actions, reference', async () => {
+        await setup({ leadSubmitted: true });
+        expect(blockNames()).toEqual([
+          'Your build estimate', // header: total range + Build | Land row
+          'Where the build budget goes',
+          'Adjust your estimate',
+          'Talk to a builder',
+          'Save and share',
+          'How we calculate your estimate',
+          'What your estimate covers',
+          'Planning ahead',
+          'AI summary',
+        ]);
+        // Inside the header: range total first, then the Build | Land row.
+        const hero = fixture.nativeElement.querySelector('section.hero');
+        const heroKids = [...hero.children].map((el: Element) => el.className);
+        expect(heroKids[0]).toContain('hero-total');
+        expect(heroKids[1]).toContain('hero-sub');
+        const makeup = hero.querySelector('.hero-sub');
+        expect(makeup.getAttribute('aria-label')).toBe('What makes up the total');
+        expect(makeup.querySelector('.build-highlight')).not.toBeNull();
+        expect(makeup.querySelector('.land-card')).not.toBeNull();
+      });
 
-    it('checklist state resets when a different report loads', async () => {
-      await setup({ leadSubmitted: true });
-      const boxes = [...fixture.nativeElement.querySelectorAll('.steps.checklist input[type="checkbox"]')] as HTMLInputElement[];
-      boxes[1].click();
-      fixture.detectChanges();
-      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({ 'refine-brief': true });
-      // A new report (new lead) wipes the previous report's ticks.
-      store.dispatch(new StoreLeadResult({ leadId: 'lead-new', email: 'b@example.com', magicLinkSent: false, expiresInDays: 7 }));
-      store.dispatch(new LoadLeadEstimate());
-      await pollFor(() => store.selectSnapshot(ReportState.snapshot)?.leadId === 'lead-new', 'second report');
-      expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({});
+      it('has ONE adjust panel with size and tier side by side, and the tier notes beside the toggle', async () => {
+        await setup({ leadSubmitted: true });
+        const panels = fixture.nativeElement.querySelectorAll('.adjust-panel');
+        expect(panels).toHaveLength(1);
+        const grid = panels[0].querySelector('.adjust-grid');
+        expect(grid.querySelector('.adjust-size .stepper')).not.toBeNull();
+        expect(grid.querySelector('.adjust-tier app-option-selector')).not.toBeNull();
+        expect(grid.classList.contains('single')).toBe(false);
+        expect(grid.querySelector('.adjust-tier .tier-blurb')).not.toBeNull();
+        expect(grid.querySelector('.adjust-tier .tier-choices')).not.toBeNull();
+      });
+
+      it('has ONE "Talk to a builder" block merging the callback and the builder explainer', async () => {
+        await setup({ leadSubmitted: true });
+        const blocks = fixture.nativeElement.querySelectorAll('section[aria-label="Talk to a builder"]');
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].querySelector('form input[autocomplete="tel"]')).not.toBeNull();
+        expect(blocks[0].querySelector('app-builder-matching-explainer')).not.toBeNull();
+        expect(fixture.nativeElement.querySelectorAll('app-builder-matching-explainer')).toHaveLength(1);
+        // No matched-builder promises anywhere on the report (M1 honesty).
+        expect(text()).not.toContain('match scores');
+      });
+
+      it('groups Share, PDF and New estimate in one action row', async () => {
+        await setup({ leadSubmitted: true });
+        const row = fixture.nativeElement.querySelector('section[aria-label="Save and share"] .actions-row');
+        expect(row.querySelector('section[aria-label="Share with a partner"] form')).not.toBeNull();
+        expect(row.querySelector('button.pdf')).not.toBeNull();
+        expect(row.querySelector('a.another-address')).not.toBeNull();
+      });
+
+      it('collapses the reference sections (closed <details>) and keeps the uncalibrated note visible', async () => {
+        await setup({ leadSubmitted: true });
+        const refs = [...fixture.nativeElement.querySelectorAll('section.ref')] as Element[];
+        expect(refs.map((r) => r.getAttribute('aria-label'))).toEqual([
+          'How we calculate your estimate',
+          'What your estimate covers',
+          'Planning ahead',
+          'AI summary',
+        ]);
+        for (const r of refs) {
+          const details = r.querySelector('details') as HTMLDetailsElement;
+          expect(details).not.toBeNull();
+          expect(details.open).toBe(false);
+          expect(details.querySelector('summary h2.disclosure-heading')).not.toBeNull();
+        }
+        expect(fixture.nativeElement.querySelector('.howcalc > .uncalibrated-note')).not.toBeNull();
+      });
+
+      it('removes the next-steps checkbox tracker', async () => {
+        await setup({ leadSubmitted: true });
+        expect(fixture.nativeElement.querySelector('input[type="checkbox"]')).toBeNull();
+        expect(text()).not.toContain('steps done');
+        expect(text()).not.toContain('Your next three steps');
+      });
+
+      it('never nests a card inside a card', async () => {
+        await setup({ leadSubmitted: true });
+        const cardSel = '.card, .figure-card, .option-section:not(.flat)';
+        for (const card of fixture.nativeElement.querySelectorAll(cardSel)) {
+          expect((card as Element).parentElement?.closest(cardSel)).toBeNull();
+        }
+      });
+
+      it('pre-gate keeps the same order with the adjust panel locked', async () => {
+        await setup();
+        expect(blockNames()).toEqual([
+          'Your build estimate',
+          'Where the build budget goes',
+          'Adjust your estimate',
+          'AI summary',
+        ]);
+        expect(fixture.nativeElement.querySelector('.adjust-tier')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.adjust-grid')?.classList.contains('single')).toBe(true);
+        const cardSel = '.card, .figure-card, .option-section:not(.flat)';
+        for (const card of fixture.nativeElement.querySelectorAll(cardSel)) {
+          expect((card as Element).parentElement?.closest(cardSel)).toBeNull();
+        }
+      });
     });
 
     it('per-sqft line is whole dollars (#504) and reconciles with the build base to within $1/sq ft', async () => {
@@ -1337,7 +1397,7 @@ describe('ReportPageComponent', () => {
 
     it('hides the sqft stepper in partner view', async () => {
       await unlockAsPartner();
-      expect(fixture.nativeElement.querySelector('.stepper-card')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.adjust-size')).toBeNull();
     });
 
     it('hides the share and callback sections in partner view', async () => {
@@ -1346,7 +1406,7 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Share with a partner"]'),
       ).toBeNull();
       expect(
-        fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
+        fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]'),
       ).toBeNull();
     });
 
@@ -1356,7 +1416,7 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Share with a partner"]'),
       ).toBeTruthy();
       expect(
-        fixture.nativeElement.querySelector('section[aria-label="Prefer to talk it through?"]'),
+        fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
     });

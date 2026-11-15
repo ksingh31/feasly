@@ -1,13 +1,17 @@
-import { Component, inject, input } from '@angular/core';
+import { Component, computed, inject, input, OnInit } from '@angular/core';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../../core/config';
+import { DataFreshnessService, formatFreshnessLine } from '../../../core/data-freshness';
 
 /**
  * Property card (shared): community, lot size, zoning, assessed value,
  * year built, plus the data-freshness line. Used by the scope step now
  * and the address step (S1) later — built once, reused (DRY).
  *
- * Freshness line is mock-aware: sample values never masquerade as
+ * Freshness line (#513) is the shared one-story line — "2026 assessment
+ * roll (City of Calgary) · checked Nov 2026" — the same string as the
+ * landing trust strip: the property's own roll year plus the dataset check
+ * month from the shared DataFreshnessService. It is mock-aware: sample values never masquerade as
  * City records while the mock property harness is active. Keyed off
  * `propertyData.source` (not `api.useMockApi`): the property backend is
  * an independent switch and can be live while estimate/lead flows mock.
@@ -18,8 +22,9 @@ import { ConfigService } from '../../../core/config';
   templateUrl: './property-card.component.html',
   styleUrl: './property-card.component.scss',
 })
-export class PropertyCardComponent {
+export class PropertyCardComponent implements OnInit {
   private readonly config = inject(ConfigService);
+  private readonly dataFreshness = inject(DataFreshnessService);
 
   readonly property = input.required<PropertyRecord | null>();
 
@@ -43,16 +48,24 @@ export class PropertyCardComponent {
   /** Mock-mode freshness copy (config-owned, no hardcode). */
   protected readonly freshnessMock = this.config.get('copy').propertyCard.freshnessMock;
 
+  /** Shared freshness line: property roll year + dataset check month (#513). */
+  protected readonly freshnessLine = computed((): string => {
+    const p = this.property();
+    if (!p) return '';
+    return formatFreshnessLine(
+      this.config.get('copy').dataFreshness,
+      p.assessmentYear,
+      this.dataFreshness.freshness().refreshedMonth,
+    ).line;
+  });
+
+  ngOnInit(): void {
+    // One request per session, shared with the landing strip (no-op on mock).
+    this.dataFreshness.load();
+  }
+
   /** Integer CAD, no cents (contract guarantees an integer). */
   protected formatCad(value: number): string {
     return '$' + Math.round(value).toLocaleString('en-CA');
-  }
-
-  protected formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   }
 }

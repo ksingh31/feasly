@@ -35,7 +35,13 @@
       }
     }
 
-    <!-- HERO: one prominent total + planning range; blurred pre-gate. -->
+    <!-- #508 (consumer review S3): one top-down story —
+         1 header + range total, 2 Build | Land row, 3 breakdown,
+         4 ONE Adjust panel, 5 ONE "Talk to a builder" block,
+         6 Share / PDF / New estimate row, 7 collapsed reference sections.
+         Every block is a single flat card — no card nested in a card. -->
+
+    <!-- 1 + 2. HERO: the range total, then what makes it up. -->
     <section class="hero" [attr.aria-label]="copy.heading">
       @if (unlocked() && figures(); as f) {
         <div class="figure-card hero-total">
@@ -48,66 +54,7 @@
           }
         </div>
 
-        <!-- Living-area stepper: always visible, no toggle, no re-run button.
-             On reno reports this steps the affected area with reno wording.
-             Hidden in partner view — partners get a read-only report. -->
-        @if (!partnerView()) {
-        <div class="stepper-card no-print">
-          <div class="stepper-head">
-            <h2>{{ stepperTitle() }}</h2>
-            @if (loading()) {
-              <p class="updating" role="status">{{ copy.updatingLabel }}</p>
-            }
-          </div>
-          <p class="hint">{{ stepperHint() }}</p>
-          @if (isReno() && renoTypeLabel(); as rtLabel) {
-            <p class="reno-scope-line" role="note">
-              {{ copy.renoScopeLabel }}: {{ rtLabel }} · {{ formatSqft(renoSqftDisplay()) }}
-            </p>
-          }
-          <div class="stepper">
-            <button
-              type="button"
-              class="step-btn"
-              (click)="adjustSqft(-wizard.sqftStep)"
-              [attr.aria-label]="copy.decreaseLabel"
-            >
-              −
-            </button>
-            <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
-            <button
-              type="button"
-              class="step-btn"
-              (click)="adjustSqft(wizard.sqftStep)"
-              [attr.aria-label]="copy.increaseLabel"
-            >
-              +
-            </button>
-          </div>
-        </div>
-        }
-
-        <!-- TIER WHAT-IF TOGGLE (QA 2026-09-30): the other always-on adjust
-             control, next to the size stepper. New-build only: the tier
-             cards/descriptors assume new construction. Hidden in partner
-             view — partners get a read-only report. Pre-gate the preview
-             page carries the locked note instead. -->
-        @if (!partnerView() && !isReno()) {
-          <div class="tier-toggle-card no-print">
-            @if (loading()) {
-              <p class="updating" role="status">{{ copy.updatingLabel }}</p>
-            }
-            <app-option-selector
-              [selected]="activeTier()"
-              [options]="tierToggleOptions()"
-              [label]="copy.tierTitle"
-              [hint]="copy.tierToggleHint"
-              (selectedChange)="chooseTier($event)"
-            />
-          </div>
-        }
-
-        <div class="hero-sub">
+        <div class="hero-sub" role="group" [attr.aria-label]="copy.makeupLabel">
           <div class="figure-card build-highlight">
             <h2>{{ copy.buildLabel }}</h2>
             <p class="figure-single">{{ formatRange(f.build) }}</p>
@@ -120,14 +67,6 @@
               </p>
             }
             <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierLabel() }}</p>
-            <!-- tier-blurb/tier-choices are semantic hooks (also test selectors);
-                 the visual note style is shared with .build-note (DRY).
-                 New-build only: the descriptors assume new construction
-                 (basement ceilings, full-build upgrades). -->
-            @if (!isReno()) {
-              <p class="build-note tier-blurb">{{ tierDescriptor() }}</p>
-              <p class="build-note tier-choices">{{ copy.tierChoicesNote }}</p>
-            }
           </div>
           @if (!isReno()) {
             <div class="figure-card land-card">
@@ -157,7 +96,7 @@
           </p>
           <p class="locked-note">{{ copy.lockedNote }}</p>
         </div>
-        <div class="hero-sub">
+        <div class="hero-sub" role="group" [attr.aria-label]="copy.makeupLabel">
           <div class="figure-card locked">
             <h2>{{ copy.buildLabel }}</h2>
             <p class="locked-value" aria-hidden="true">{{ formatRange(p.figures.build) }}</p>
@@ -171,20 +110,6 @@
             }
           </div>
         </div>
-        <div class="stepper-card no-print">
-          <h2>{{ stepperTitle() }}</h2>
-          <p class="hint">{{ stepperLockedNote() }}</p>
-          @if (isReno() && renoTypeLabel(); as rtLabel) {
-            <p class="reno-scope-line" role="note">
-              {{ copy.renoScopeLabel }}: {{ rtLabel }} · {{ formatSqft(renoSqftDisplay()) }}
-            </p>
-          }
-          <div class="stepper" aria-disabled="true">
-            <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
-            <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
-            <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
-          </div>
-        </div>
         @if (!leadSubmitted()) {
           <a class="cta unlock" routerLink="/estimate/gate">{{ copy.unlockCta }}</a>
         }
@@ -195,7 +120,7 @@
       }
     </section>
 
-    <!-- COST BREAKDOWN: exactly three buckets, land excluded. -->
+    <!-- 3. COST BREAKDOWN: exactly three buckets, land excluded. -->
     <section class="card" [attr.aria-label]="copy.breakdownTitle">
       <h2>{{ copy.breakdownTitle }}</h2>
       @if (unlocked()) {
@@ -223,10 +148,193 @@
       }
     </section>
 
-    <!-- HOW WE CALCULATE: data-driven trust — compact expandable so the
-         skeptic can see exactly where every number comes from. -->
+    <!-- 4. ADJUST: ONE panel — size stepper and (new-build) tier what-if
+         side by side. Always on post-gate: no toggle, no re-run button.
+         On reno reports the stepper steps the affected area with reno
+         wording. Hidden in partner view — partners get a read-only report.
+         Pre-gate the stepper shows disabled with the locked note. -->
+    @if (showAdjustPanel()) {
+      <section class="card adjust-panel no-print" [attr.aria-label]="copy.adjustPanelTitle">
+        <div class="adjust-head">
+          <h2>{{ copy.adjustPanelTitle }}</h2>
+          @if (unlocked() && loading()) {
+            <p class="updating" role="status">{{ copy.updatingLabel }}</p>
+          }
+        </div>
+        <div class="adjust-grid" [class.single]="!unlocked() || isReno()">
+          <div class="adjust-size">
+            <h3 class="subhead">{{ stepperTitle() }}</h3>
+            <p class="hint">{{ unlocked() ? stepperHint() : stepperLockedNote() }}</p>
+            @if (isReno() && renoTypeLabel(); as rtLabel) {
+              <p class="reno-scope-line" role="note">
+                {{ copy.renoScopeLabel }}: {{ rtLabel }} · {{ formatSqft(renoSqftDisplay()) }}
+              </p>
+            }
+            @if (unlocked()) {
+              <div class="stepper">
+                <button
+                  type="button"
+                  class="step-btn"
+                  (click)="adjustSqft(-wizard.sqftStep)"
+                  [attr.aria-label]="copy.decreaseLabel"
+                >
+                  −
+                </button>
+                <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+                <button
+                  type="button"
+                  class="step-btn"
+                  (click)="adjustSqft(wizard.sqftStep)"
+                  [attr.aria-label]="copy.increaseLabel"
+                >
+                  +
+                </button>
+              </div>
+            } @else {
+              <div class="stepper" aria-disabled="true">
+                <button type="button" class="step-btn" disabled [attr.aria-label]="copy.decreaseLabel">−</button>
+                <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+                <button type="button" class="step-btn" disabled [attr.aria-label]="copy.increaseLabel">+</button>
+              </div>
+            }
+          </div>
+          <!-- Tier what-if (QA 2026-09-30): new-build only — the tier cards
+               and descriptors assume new construction. -->
+          @if (unlocked() && !isReno()) {
+            <div class="adjust-tier">
+              <app-option-selector
+                [selected]="activeTier()"
+                [options]="tierToggleOptions()"
+                [label]="copy.tierTitle"
+                [hint]="copy.tierToggleHint"
+                [flat]="true"
+                (selectedChange)="chooseTier($event)"
+              />
+              <!-- tier-blurb/tier-choices are semantic hooks (also test
+                   selectors); the visual note style is shared with .build-note. -->
+              <p class="build-note tier-blurb">{{ tierDescriptor() }}</p>
+              <p class="build-note tier-choices">{{ copy.tierChoicesNote }}</p>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     @if (unlocked()) {
-      <section class="card howcalc" [attr.aria-label]="copy.howWeCalculateTitle">
+      <!-- 5. TALK TO A BUILDER: ONE block — the callback form (next step 1)
+           plus the builder explainer. Hidden in partner view: the callback
+           is booked against the owner's lead (backend 403s). -->
+      @if (!partnerView()) {
+        <section class="card talk no-print" [attr.aria-label]="copy.callbackTitle">
+          <h2>{{ copy.callbackTitle }}</h2>
+          <p class="hint">{{ copy.callbackHint }}</p>
+          <form [formGroup]="callbackForm" (ngSubmit)="requestCallback()" class="form">
+            <label class="field">
+              <span>{{ copy.callbackNameLabel }}</span>
+              <input type="text" formControlName="name" autocomplete="name" />
+            </label>
+            <label class="field">
+              <span>{{ copy.callbackPhoneLabel }}</span>
+              <input type="tel" formControlName="phone" autocomplete="tel" inputmode="tel" />
+            </label>
+            <label class="field">
+              <span>{{ copy.callbackWindowLabel }}</span>
+              <select formControlName="window">
+                @for (w of copy.callbackWindows; track w.id) {
+                  <option [value]="w.id">{{ w.label }}</option>
+                }
+              </select>
+            </label>
+            @if (callbackDetailsInvalid) {
+              <p class="field-error" role="alert">{{ copy.callbackInvalid }}</p>
+            }
+            <button class="cta" type="submit" [disabled]="callbackStatus() === 'sending'">
+              {{ copy.callbackCta }}
+            </button>
+          </form>
+          @if (callbackStatus() === 'sent') {
+            <p class="form-success" role="status">{{ copy.callbackSuccess }}</p>
+          }
+          @if (callbackStatus() === 'error') {
+            <p class="field-error" role="alert">{{ copy.callbackError }}</p>
+          }
+          <app-builder-matching-explainer />
+        </section>
+      }
+
+      <!-- 6. ACTION ROW: Share / PDF / New estimate. The partner share goes
+           through the backend, which mints the partner their own link
+           (share/01) — no mailto: draft. Share is hidden in partner view: a
+           partner link must not mint more links (the backend 403s anyway). -->
+      <section class="card actions no-print" [attr.aria-label]="copy.actionsTitle">
+        <h2>{{ copy.actionsTitle }}</h2>
+        <div class="actions-row" [class.single]="partnerView()">
+          @if (!partnerView()) {
+            <section class="share" [attr.aria-label]="copy.shareTitle">
+              <h3 class="subhead">{{ copy.shareTitle }}</h3>
+              <p class="hint">{{ copy.shareHint }}</p>
+              <form [formGroup]="shareForm" (ngSubmit)="shareViaEmail()" class="form">
+                <label class="field">
+                  <span>{{ copy.shareEmailLabel }}</span>
+                  <input type="email" formControlName="email" autocomplete="email" inputmode="email" />
+                </label>
+                @if (shareEmailInvalid) {
+                  <p class="field-error" role="alert">{{ copy.shareInvalid }}</p>
+                }
+                <button class="cta" type="submit" [disabled]="shareStatus() === 'sending'">
+                  @switch (shareStatus()) {
+                    @case ('sending') {
+                      {{ copy.shareSending }}
+                    }
+                    @case ('send-error') {
+                      {{ copy.shareRetry }}
+                    }
+                    @default {
+                      {{ copy.shareCta }}
+                    }
+                  }
+                </button>
+              </form>
+              @if (shareStatus() === 'sent') {
+                <p class="form-success" role="status">{{ shareSentMessage() }}</p>
+              }
+              @if (shareStatus() === 'send-error') {
+                <p class="field-error" role="alert">{{ shareErrorMessage() }}</p>
+              }
+              @if (shareStatus() === 'token-error') {
+                <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
+              }
+            </section>
+          }
+          <div class="action-btns">
+            <button
+              class="cta pdf"
+              type="button"
+              (click)="downloadPdf()"
+              [disabled]="pdfState() === 'generating'"
+            >
+              {{ pdfState() === 'generating' ? copy.pdfGenerating : copy.pdfCta }}
+            </button>
+            @if (pdfState() === 'error') {
+              <p class="field-error" role="alert">
+                {{ copy.pdfError }}
+                <button type="button" class="link-btn" (click)="downloadPdf()">{{ copy.retryLabel }}</button>
+              </p>
+            }
+            <!-- RENO-04: estimate another address works from a reno report -->
+            <a class="cta secondary another-address" href="/" (click)="startNewEstimate($event)">{{
+              copy.estimateAnotherLabel
+            }}</a>
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- 7. REFERENCE: collapsed by default so the decision-making blocks
+         above stay short; each opens in place. -->
+    @if (unlocked()) {
+      <!-- HOW WE CALCULATE: data-driven trust — where every number comes from. -->
+      <section class="card ref howcalc" [attr.aria-label]="copy.howWeCalculateTitle">
         <details>
           <summary><h2 class="disclosure-heading">{{ copy.howWeCalculateTitle }}</h2></summary>
           <ul>
@@ -239,203 +347,74 @@
       </section>
     }
 
+    <!-- COVERAGE: what the estimate includes — and honestly excludes.
+         New-build only: the line-item framing, exclusions, financing and
+         timeline below are about new construction, not renovations. -->
+    @if (unlocked() && !isReno()) {
+      <section class="card ref" [attr.aria-label]="copy.coverageTitle">
+        <details>
+          <summary><h2 class="disclosure-heading">{{ copy.coverageTitle }}</h2></summary>
+          <p class="hint">{{ copy.includedLine }}</p>
+          <p class="build-note">{{ copy.costMovementNote }}</p>
+          <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
+          @for (e of copy.exclusions; track e) {
+            <p class="build-note exclusion">• {{ e }}</p>
+          }
+        </details>
+      </section>
+
+      <!-- PLANNING AHEAD: financing + timeline honesty for prospects. No
+           referrals, no promises, no specific lenders. -->
+      <section class="card ref" [attr.aria-label]="copy.planningTitle">
+        <details>
+          <summary><h2 class="disclosure-heading">{{ copy.planningTitle }}</h2></summary>
+          <h3 class="subhead">{{ copy.financingTitle }}</h3>
+          @for (line of copy.financingLines; track line) {
+            <p class="planning-text">{{ line }}</p>
+          }
+          <h3 class="subhead">{{ copy.timelineTitle }}</h3>
+          <p class="planning-text">{{ copy.timelineLine }}</p>
+        </details>
+      </section>
+    }
+
     <!-- AI SUMMARY: neighbourhood guide only — no cost figures.
          Rendered one paragraph per block: the prompt emits plain text for
          new narratives, and narrativeParagraphs() degrades older stored
          markdown narratives gracefully. When every model failed (BE-9),
          the backend returns the static Calgary guide labeled
          'static-guide' — rendered under its own honest title, never as
-         AI prose. -->
-    <section class="card" [attr.aria-label]="isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle">
-      <h2>{{ isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle }}</h2>
-      @if (unlocked() && narrative()) {
-        @if (isStaticGuide()) {
-          <p class="hint">{{ copy.staticGuideNote }}</p>
-          @for (para of guideParagraphs(); track $index) {
-            <p class="narrative">{{ para }}</p>
+         AI prose. Pre-gate it is a plain card with the locked hint. -->
+    <section class="card ref" [attr.aria-label]="isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle">
+      @if (unlocked()) {
+        <details>
+          <summary>
+            <h2 class="disclosure-heading">{{ isStaticGuide() ? copy.staticGuideTitle : copy.narrativeTitle }}</h2>
+          </summary>
+          @if (narrative()) {
+            @if (isStaticGuide()) {
+              <p class="hint">{{ copy.staticGuideNote }}</p>
+              @for (para of guideParagraphs(); track $index) {
+                <p class="narrative">{{ para }}</p>
+              }
+            } @else {
+              @for (para of narrativeParagraphs(); track $index) {
+                <p class="narrative">{{ para }}</p>
+              }
+            }
+          } @else {
+            <p class="hint">{{ copy.aiSummaryUnavailable }}</p>
           }
-        } @else {
-          <!-- One paragraph per block: new narratives are blank-line
-               separated plain text; legacy stored narratives (markdown,
-               duplicated or truncated) are cleaned by narrativeParagraphs()
-               so the footer never fuses with the last line of prose. -->
-          @for (para of narrativeParagraphs(); track $index) {
-            <p class="narrative">{{ para }}</p>
-          }
-        }
-      } @else if (unlocked()) {
-        <p class="hint">{{ copy.aiSummaryUnavailable }}</p>
+        </details>
       } @else {
+        <h2>{{ copy.narrativeTitle }}</h2>
         <p class="hint">{{ copy.aiSummaryLocked }}</p>
       }
     </section>
 
-    <!-- COVERAGE: what the estimate includes — and honestly excludes.
-         New-build only: the line-item framing, exclusions, financing and
-         timeline below are about new construction, not renovations. -->
-    @if (unlocked() && !isReno()) {
-      <section class="card" [attr.aria-label]="copy.coverageTitle">
-        <h2>{{ copy.coverageTitle }}</h2>
-        <p class="hint">{{ copy.includedLine }}</p>
-        <p class="build-note">{{ copy.costMovementNote }}</p>
-        <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
-        @for (e of copy.exclusions; track e) {
-          <p class="build-note exclusion">• {{ e }}</p>
-        }
-      </section>
-    }
-
-    <!-- NEXT 3 STEPS: a real checklist — checkboxes with progress,
-         persisted per report (NGXS, keyed by leadId) so ticks survive
-         reloads and magic-link return visits. -->
-    <section class="card" [attr.aria-label]="copy.stepsTitle">
-      <h2>{{ copy.stepsTitle }}</h2>
-      <p class="steps-progress" role="status">{{ stepsProgressLabel() }}</p>
-      <ol class="steps checklist">
-        @for (s of copy.steps; track s.id) {
-          <li>
-            <label class="step-check">
-              <input
-                type="checkbox"
-                [checked]="isStepChecked(s.id)"
-                (change)="toggleStep(s.id)"
-              />
-              <span class="step-text" [class.done]="isStepChecked(s.id)">
-                <strong>{{ s.title }}</strong>
-                <p>{{ s.body }}</p>
-              </span>
-            </label>
-          </li>
-        }
-      </ol>
-      <app-builder-matching-explainer />
-    </section>
-
-    <!-- PLANNING AHEAD: financing + timeline honesty for prospects.
-         New-build only (see coverage note above). No referrals, no
-         promises, no specific lenders — plain-English orientation for the
-         biggest purchase of their life. -->
-    @if (unlocked() && !isReno()) {
-      <section class="card" [attr.aria-label]="copy.planningTitle">
-        <h2>{{ copy.planningTitle }}</h2>
-        <h3 class="subhead">{{ copy.financingTitle }}</h3>
-        @for (line of copy.financingLines; track line) {
-          <p class="planning-text">{{ line }}</p>
-        }
-        <h3 class="subhead">{{ copy.timelineTitle }}</h3>
-        <p class="planning-text">{{ copy.timelineLine }}</p>
-      </section>
-    }
-
-    @if (unlocked()) {
-      <!-- PARTNER SHARE: the backend sends the structured Feasly email and
-           mints the partner their own link (share/01) — no mailto: draft.
-           Hidden in partner view: a partner link must not mint more links
-           (the backend answers 403 anyway). -->
-      @if (!partnerView()) {
-      <section class="card no-print" [attr.aria-label]="copy.shareTitle">
-        <h2>{{ copy.shareTitle }}</h2>
-        <p class="hint">{{ copy.shareHint }}</p>
-        <form [formGroup]="shareForm" (ngSubmit)="shareViaEmail()" class="form">
-          <label class="field">
-            <span>{{ copy.shareEmailLabel }}</span>
-            <input type="email" formControlName="email" autocomplete="email" inputmode="email" />
-          </label>
-          @if (shareEmailInvalid) {
-            <p class="field-error" role="alert">{{ copy.shareInvalid }}</p>
-          }
-          <button class="cta" type="submit" [disabled]="shareStatus() === 'sending'">
-            @switch (shareStatus()) {
-              @case ('sending') {
-                {{ copy.shareSending }}
-              }
-              @case ('send-error') {
-                {{ copy.shareRetry }}
-              }
-              @default {
-                {{ copy.shareCta }}
-              }
-            }
-          </button>
-        </form>
-        @if (shareStatus() === 'sent') {
-          <p class="form-success" role="status">{{ shareSentMessage() }}</p>
-        }
-        @if (shareStatus() === 'send-error') {
-          <p class="field-error" role="alert">{{ shareErrorMessage() }}</p>
-        }
-        @if (shareStatus() === 'token-error') {
-          <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
-        }
-      </section>
-      }
-
-      <!-- CALLBACK. Hidden in partner view: the callback is booked against
-           the owner's lead — a partner must not file one (backend 403s). -->
-      @if (!partnerView()) {
-      <section class="card no-print" [attr.aria-label]="copy.callbackTitle">
-        <h2>{{ copy.callbackTitle }}</h2>
-        <p class="hint">{{ copy.callbackHint }}</p>
-        <form [formGroup]="callbackForm" (ngSubmit)="requestCallback()" class="form">
-          <label class="field">
-            <span>{{ copy.callbackNameLabel }}</span>
-            <input type="text" formControlName="name" autocomplete="name" />
-          </label>
-          <label class="field">
-            <span>{{ copy.callbackPhoneLabel }}</span>
-            <input type="tel" formControlName="phone" autocomplete="tel" inputmode="tel" />
-          </label>
-          <label class="field">
-            <span>{{ copy.callbackWindowLabel }}</span>
-            <select formControlName="window">
-              @for (w of copy.callbackWindows; track w.id) {
-                <option [value]="w.id">{{ w.label }}</option>
-              }
-            </select>
-          </label>
-          @if (callbackDetailsInvalid) {
-            <p class="field-error" role="alert">{{ copy.callbackInvalid }}</p>
-          }
-          <button class="cta" type="submit" [disabled]="callbackStatus() === 'sending'">
-            {{ copy.callbackCta }}
-          </button>
-        </form>
-        @if (callbackStatus() === 'sent') {
-          <p class="form-success" role="status">{{ copy.callbackSuccess }}</p>
-        }
-        @if (callbackStatus() === 'error') {
-          <p class="field-error" role="alert">{{ copy.callbackError }}</p>
-        }
-      </section>
-      }
-
-      <button
-        class="cta pdf no-print"
-        type="button"
-        (click)="downloadPdf()"
-        [disabled]="pdfState() === 'generating'"
-      >
-        {{ pdfState() === 'generating' ? copy.pdfGenerating : copy.pdfCta }}
-      </button>
-      @if (pdfState() === 'error') {
-        <p class="field-error" role="alert">
-          {{ copy.pdfError }}
-          <button type="button" class="link-btn" (click)="downloadPdf()">{{ copy.retryLabel }}</button>
-        </p>
-      }
-
-      <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
-      @if (isReno()) {
-        <p class="deterministic-note" role="note">{{ copy.renoDeterministicNote }}</p>
-      }
-
-      <!-- RENO-04: estimate another address works from a reno report -->
-      <a
-        class="cta secondary no-print another-address"
-        href="/"
-        (click)="startNewEstimate($event)"
-        >{{ copy.estimateAnotherLabel }}</a
-      >
+    <!-- RENO-04: deterministic disclaimer (verbatim copy required) -->
+    @if (unlocked() && isReno()) {
+      <p class="deterministic-note" role="note">{{ copy.renoDeterministicNote }}</p>
     }
   }
 </main>

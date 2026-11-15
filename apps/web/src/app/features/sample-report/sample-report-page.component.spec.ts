@@ -160,7 +160,7 @@ describe('SampleReportPageComponent', () => {
     const text: string = fixture.nativeElement.textContent;
     expect(text).toContain('Your next three steps');
     expect(text).toContain('Share with a partner');
-    expect(text).toContain('Prefer to talk it through?');
+    expect(text).toContain('Talk to a builder');
     expect(text).toContain('Download PDF');
     // Inert: every CTA on the page is disabled.
     const ctas = fixture.nativeElement.querySelectorAll('.cta');

@@ -14,12 +14,13 @@ import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
-import { EmbedState } from './features/embed';
-import { ComparisonState } from './features/compare';
-import { ReportState, serializeReportState } from './features/report';
-import type { ReportStateModel } from './features/report';
-import { LeadState, WizardState } from './features/wizard';
-import { ConsentState } from './features/consent';
+import { EmbedState } from './features/embed/embed.state';
+import { ComparisonState } from './features/compare/comparison.state';
+import { ReportState, serializeReportState } from './features/report/report.state';
+import type { ReportStateModel } from './features/report/report.state';
+import { LeadState } from './features/wizard/lead.state';
+import { WizardState } from './features/wizard/wizard.state';
+import { ConsentState } from './features/consent/consent.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
 import { BuilderBillingState } from './features/builder/builder-billing.state';
@@ -27,7 +28,7 @@ import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.s
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
 import { CommunityProfileState } from './features/communities/community-profile.state';
-import { AnalyticsTrackerService } from './features/consent';
+import { AnalyticsTrackerService } from './features/consent/analytics-tracker.service';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {

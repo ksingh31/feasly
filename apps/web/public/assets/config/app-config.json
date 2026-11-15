@@ -27,7 +27,7 @@
       "seoDescription": "Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.",
       "trustItems": [
         { "value": "600,000+", "label": "City of Calgary assessment records" },
-        { "key": "city-data-freshness", "value": "Live City data", "valueShort": "Live City data", "label": "Latest data refresh", "refreshedValue": "{monthYear}", "refreshedValueShort": "{monthYearShort}" },
+        { "key": "city-data-freshness", "value": "Live City data", "valueShort": "Live City data", "label": "City of Calgary assessment roll" },
         { "value": "Same fixed formula", "label": "AI never invents prices", "badge": true }
       ],
       "trustEyebrow": "Why Feasly",
@@ -232,7 +232,6 @@
       "narrativeTitle": "AI summary",
       "narrativeComingSoon": "An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.",
       "stepsTitle": "Your next three steps",
-      "stepsProgress": "{done} of {total} steps done",
       "steps": [
         {
           "id": "talk-to-builder",
@@ -257,8 +256,8 @@
       "shareSuccess": "Report sent — your partner now has their own secure link.",
       "shareError": "Couldn’t send the report. Check your connection and try again.",
       "shareInvalid": "Enter a valid email address.",
-      "callbackTitle": "Prefer to talk it through?",
-      "callbackHint": "Request a callback and we will walk through the numbers with you.",
+      "callbackTitle": "Talk to a builder",
+      "callbackHint": "Request a callback and we will walk through the numbers with you — free, with no pressure.",
       "callbackNameLabel": "Your name",
       "callbackPhoneLabel": "Phone number",
       "callbackWindowLabel": "Preferred time",

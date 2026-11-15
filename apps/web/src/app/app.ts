@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ConnectivityService } from './core/errors/connectivity.service';
 import { OfflinePageComponent } from './features/error/offline-page.component';
-import { ConsentBannerComponent } from './features/consent';
+import { ConsentBannerComponent } from './features/consent/consent-banner.component';
 
 /**
  * Root shell: the router owns every pixel — unless the API is unreachable,
