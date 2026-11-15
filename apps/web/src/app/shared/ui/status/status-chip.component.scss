@@ -1,0 +1,34 @@
+:host {
+  display: inline-flex;
+  max-width: 100%;
+}
+.status-chip {
+  --chip-bg: var(--status-neutral-bg);
+  --chip-fg: var(--status-neutral-fg);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  max-width: 100%;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font: var(--type-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-chip__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.status-chip--info { --chip-bg: var(--status-info-bg); --chip-fg: var(--status-info-fg); }
+.status-chip--progress { --chip-bg: var(--status-progress-bg); --chip-fg: var(--status-progress-fg); }
+.status-chip--success { --chip-bg: var(--status-success-bg); --chip-fg: var(--status-success-fg); }
+.status-chip--warning { --chip-bg: var(--status-warning-bg); --chip-fg: var(--status-warning-fg); }
+.status-chip--danger { --chip-bg: var(--status-danger-bg); --chip-fg: var(--status-danger-fg); }
+.status-chip--paused { --chip-bg: var(--status-paused-bg); --chip-fg: var(--status-paused-fg); }

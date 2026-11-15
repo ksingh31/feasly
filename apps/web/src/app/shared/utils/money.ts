@@ -144,3 +144,20 @@ export function formatRatePercent(ratePercent: number): string {
   const rounded = Math.round(ratePercent * 10_000) / 10_000;
   return `${Number(rounded.toFixed(4))}%`;
 }
+
+/**
+ * Formats integer cents as whole CAD dollars, rounded to the nearest dollar
+ * (portal UI kit `money` pipe — "money is whole dollars").
+ * 1980049 -> "$19,800", 1980050 -> "$19,801". Display formatting only.
+ */
+export function formatCentsToWholeCad(cents: number): string {
+  const normalized = Number.isFinite(cents) ? cents : 0;
+  const sign = normalized < 0 ? '-' : '';
+  return `${sign}${formatWholeCad(Math.round(Math.abs(normalized) / 100))}`;
+}
+
+/** Formats a count with thousands separators: 1843 -> "1,843". */
+export function formatCount(value: number): string {
+  const normalized = Number.isFinite(value) ? Math.round(value) : 0;
+  return normalized.toLocaleString('en-CA');
+}

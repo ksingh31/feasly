@@ -53,3 +53,30 @@ export function formatEdmontonMediumDate(iso: string | null): string {
   }
   return mediumFormatter.format(date);
 }
+
+const timeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: EDMONTON_TIME_ZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** Suffix naming the zone every portal timestamp is shown in. */
+export const EDMONTON_ZONE_LABEL = 'MT';
+
+/**
+ * ISO instant → Edmonton date and time without seconds
+ * ("Nov 12, 2026 · 11:30 a.m. MT"). Returns '—' for null or unparseable
+ * input — never the raw ISO string.
+ */
+export function formatEdmontonDateTime(iso: string | null): string {
+  if (!iso) {
+    return '—';
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  const day = mediumFormatter.format(date);
+  const time = timeFormatter.format(date);
+  return `${day} · ${time} ${EDMONTON_ZONE_LABEL}`;
+}
