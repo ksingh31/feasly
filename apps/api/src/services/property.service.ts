@@ -24,6 +24,7 @@ import type {
 } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../middleware/errors';
 import { detectCoverageSignal } from '../lib/coverage';
+import { normalizeAddressQuery, type NormalizedAddressQuery } from '../lib/address-query';
 import type { PropertyDataConfig } from '../config';
 
 /** Raw Socrata row from the "Current Year Property Assessments (Parcel)" dataset. */
@@ -58,27 +59,6 @@ const DETAIL_FIELDS = [
 
 /** Minimum query length, mirroring the frontend autocomplete gate. */
 const MIN_QUERY_CHARS = 3;
-
-/**
- * Natural street-type spellings users type, mapped to the abbreviations the
- * City dataset actually stores. Sourced from the City of Calgary's official
- * STREET_TYPE list plus a live sample of the assessment dataset 4bsw-nn7w:
- * every street-type token observed is a two-letter abbreviation ("1600 90 AV
- * SW", never "AVE").
- */
-const STREET_TYPE_ABBREVIATIONS: Readonly<Record<string, string>> = {
-  ALLEY: 'AL', AVENUE: 'AV', AVE: 'AV', BAY: 'BA', BOULEVARD: 'BV', BLVD: 'BV',
-  CAPE: 'CA', CENTRE: 'CE', CTR: 'CE', CIRCLE: 'CI', CIR: 'CI', CLOSE: 'CL',
-  COMMON: 'CM', COURT: 'CO', CRT: 'CO', COVE: 'CV', CRESCENT: 'CR', CRES: 'CR',
-  DRIVE: 'DR', GATE: 'GA', GARDEN: 'GD', GARDENS: 'GD', GREEN: 'GR', GROVE: 'GV',
-  HEATH: 'HE', HEIGHTS: 'HT', HIGHWAY: 'HI', HWY: 'HI', HILL: 'HL', ISLAND: 'IS',
-  ISLE: 'IS', LANDING: 'LD', LANE: 'LN', LINK: 'LI', MANOR: 'MR', MEWS: 'ME',
-  MOUNT: 'MT', PARADE: 'PR', PARK: 'PA', PARKWAY: 'PY', PKY: 'PY', PASS: 'PS',
-  PASSAGE: 'PS', PATH: 'PH', PLACE: 'PL', PLAZA: 'PZ', PLZ: 'PZ', POINT: 'PT',
-  RISE: 'RI', ROAD: 'RD', ROW: 'RO', SQUARE: 'SQ', STREET: 'ST', TERRACE: 'TC',
-  TERR: 'TC', TRAIL: 'TR', VIEW: 'VW', VILLA: 'VI', VILLAS: 'VI', WALK: 'WK',
-  WAY: 'WY',
-};
 
 /** Trailing quadrant token stays uppercase: "16 AVE NW" -> "16 AV NW". */
 const QUADRANT = /^(NW|NE|SW|SE)$/i;
@@ -150,36 +130,49 @@ function formatAddress(raw: string): string {
 }
 
 /**
- * Normalizes for SoQL prefix search: uppercase, single-spaced, natural
- * street-type spellings ("AVE", "STREET") rewritten to the abbreviations the
- * City dataset stores ("AV", "ST") — and a trailing city/province tail
- * (", Calgary, AB") dropped. A full address never prefix-matches the stored
- * street address otherwise, so typing one surfaced zero suggestions while
- * shorter prefixes worked (frontend PR #225 had the same gap client-side).
+ * Miss reason for the `lookup.miss` metric (reno/05, #701). Only the
+ * normalized address key is ever passed to the metric sink — never raw user
+ * input. Autocomplete misses carry what the query looked like
+ * (`postal_code` → the FSA only, `no_house_number`, `unit`) so the team can
+ * see what people type.
  */
-function normalizeQuery(query: string): string {
-  const cleaned = query
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toUpperCase()
-    .replace(/,?\s*CALGARY\s*,?\s*AB\s*$/, '')
-    .replace(/,?\s*CALGARY\s*$/, '')
-    .replace(/,\s*AB\s*$/, '');
-  const tokens = cleaned.split(' ');
-  const typeIndex =
-    tokens.length >= 2 && QUADRANT.test(tokens[tokens.length - 1])
-      ? tokens.length - 2
-      : tokens.length - 1;
-  const abbreviation = STREET_TYPE_ABBREVIATIONS[tokens[typeIndex]];
-  if (abbreviation !== undefined) tokens[typeIndex] = abbreviation;
-  return tokens.join(' ');
+export type LookupMissReason =
+  | 'out_of_coverage'
+  | 'not_found'
+  | 'postal_code'
+  | 'no_house_number'
+  | 'unit';
+
+/** Autocomplete miss reason (and metric key) for a normalized query. */
+function autocompleteMiss(parsed: NormalizedAddressQuery): {
+  reason: LookupMissReason;
+  key: string;
+} {
+  switch (parsed.kind) {
+    case 'postal_code':
+      return { reason: 'postal_code', key: parsed.postalFsa ?? '' };
+    case 'unit':
+      return { reason: 'unit', key: parsed.search };
+    case 'no_house_number':
+      return { reason: 'no_house_number', key: parsed.search };
+    default:
+      return { reason: 'not_found', key: parsed.search };
+  }
 }
 
 /**
- * Miss reason for the `lookup.miss` metric (reno/05). Only the normalized
- * address key is ever passed to the metric sink — never raw user input.
+ * #701 fallback predicate: house number + street name as whole words,
+ * anywhere in the City key ("1234 17 " finds "201 1234 17 AV SW"). LIKE
+ * wildcards cannot reach it — normalization keeps only [A-Z0-9 #'-] — and
+ * quotes are escaped by soqlString.
  */
-export type LookupMissReason = 'out_of_coverage' | 'not_found';
+function fallbackPredicate(houseNumber: string, streetName: string): string {
+  const needle = `${houseNumber} ${streetName} `;
+  return (
+    `starts_with(upper(address),${soqlString(needle)})` +
+    ` OR upper(address) like ${soqlString(`% ${needle}%`)}`
+  );
+}
 
 export interface PropertyServiceDeps {
   /**
@@ -338,25 +331,52 @@ export function createPropertyService(
 
   return {
     async autocomplete(query: string): Promise<AutocompleteResponse> {
-      const q = normalizeQuery(query);
-      if (q.length < MIN_QUERY_CHARS) return { suggestions: [] };
+      const parsed = normalizeAddressQuery(query);
+      const q = parsed.search;
       // Reno/05: an explicit out-of-coverage query never hits Socrata — the
       // Calgary-only message is the answer, not an empty suggestion list.
       if (detectCoverageSignal(query) === 'out-of-coverage') {
-        miss(query, q, deps.onLookupMiss);
+        miss(query, q || (parsed.postalFsa ?? ''), deps.onLookupMiss);
       }
+      // #701: a Calgary postal code alone can never match (the dataset has no
+      // postal column) — answer empty without a City request.
+      if (parsed.kind === 'postal_code') {
+        const cacheKey = `postal:${parsed.postalFsa ?? ''}`;
+        const hit = cached(searchCache, cacheKey);
+        if (hit) return hit;
+        const empty: AutocompleteResponse = { suggestions: [] };
+        store(searchCache, cacheKey, empty);
+        const { reason, key } = autocompleteMiss(parsed);
+        deps.onLookupMiss?.(reason, key);
+        return empty;
+      }
+      if (q.length < MIN_QUERY_CHARS) return { suggestions: [] };
       const hit = cached(searchCache, q);
       if (hit) return hit;
 
-      const params = new URLSearchParams({
-        $select: SEARCH_FIELDS.join(','),
-        $where: `starts_with(upper(address),${soqlString(q)})`,
-        $order: 'address',
-        $limit: String(config.searchRowLimit),
-      });
-      const suggestions = toSuggestions(await fetchRows(params));
+      const search = (where: string): Promise<AutocompleteSuggestion[]> =>
+        fetchRows(
+          new URLSearchParams({
+            $select: SEARCH_FIELDS.join(','),
+            $where: where,
+            $order: 'address',
+            $limit: String(config.searchRowLimit),
+          }),
+        ).then(toSuggestions);
+
+      let suggestions = await search(`starts_with(upper(address),${soqlString(q)})`);
+      // #701 fallback: at most one more City request, only when the query has
+      // a house number and a street token (e.g. a unit's building, or a
+      // wrong street type) — house number + street name, anywhere in the key.
+      if (suggestions.length === 0 && parsed.houseNumber && parsed.streetName) {
+        suggestions = await search(fallbackPredicate(parsed.houseNumber, parsed.streetName));
+      }
       const response: AutocompleteResponse = { suggestions };
       store(searchCache, q, response);
+      if (suggestions.length === 0) {
+        const { reason, key } = autocompleteMiss(parsed);
+        deps.onLookupMiss?.(reason, key);
+      }
       return response;
     },
 

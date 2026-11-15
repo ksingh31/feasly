@@ -215,6 +215,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // the street number and picking a suggestion from the list.
       noResults:
         "We couldn't find that address. Start typing the street number and pick your address from the list.",
+      // #701: specific no-results hints, picked by what the user typed.
+      noResultsPostalCode:
+        "We can't search by postal code. Search by street address, for example 1412 Prospect Av SW.",
+      noResultsNoHouseNumber: 'Start with the house number, for example 1412 Prospect Av SW.',
+      noResultsUnit:
+        "We couldn't find that unit. Condos and suites are listed by the building's street address, so try the building address on its own and pick from the list. You'll see the City's record for that address.",
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",

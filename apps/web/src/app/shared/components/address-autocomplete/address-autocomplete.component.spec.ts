@@ -129,9 +129,25 @@ describe('AddressAutocompleteComponent', () => {
 
   it('shows the no-results copy when a 3+ char query matches nothing', async () => {
     const fixture = create();
-    await type(fixture, 'zzz nowhere');
+    await type(fixture, '99999 zzz nowhere');
     const empty = fixture.nativeElement.querySelector('.ac-empty');
     expect(empty?.textContent).toContain("couldn't find that address");
+  });
+
+  describe('specific no-results hints (#701)', () => {
+    it.each([
+      ['T2T 0X5', "can't search by postal code"],
+      ['zzz nowhere', 'Start with the house number'],
+      ['#9999 99999 zzz nowhere', 'listed by the building'],
+    ])('"%s" shows its hint in the role=status no-results state', async (query, text) => {
+      const fixture = create();
+      await type(fixture, query);
+      const empty: HTMLElement | null = fixture.nativeElement.querySelector('.ac-empty');
+      expect(empty?.textContent).toContain(text);
+      expect(empty?.getAttribute('role')).toBe('status');
+      // No listbox rendered → the combobox must not point at one (#487).
+      expect(inputEl(fixture).getAttribute('aria-controls')).toBeNull();
+    });
   });
 
   describe('aria-controls only references a rendered listbox (#487)', () => {
@@ -413,7 +429,7 @@ describe('AddressAutocompleteComponent', () => {
 
     it('shows the not-found copy (not the Calgary-only copy) for a Calgary-looking miss', async () => {
       const fixture = create();
-      await type(fixture, 'zzz nowhere calgary');
+      await type(fixture, '99999 zzz nowhere calgary');
       const component = fixture.componentInstance;
       expect(component.outOfCoverage()).toBe(false);
       const empty = fixture.nativeElement.querySelector('.ac-empty');

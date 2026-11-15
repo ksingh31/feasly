@@ -188,6 +188,116 @@ describe('property service', () => {
         expect(fetchSpy).not.toHaveBeenCalled();
       });
     });
+
+    describe('#701 — common inputs, fallback search, miss reasons', () => {
+      const prospect = { ...ROW, address: '1412 PROSPECT AV SW', comm_name: 'MOUNT ROYAL UPPER' };
+      const unitRow = { ...ROW, address: '201 1234 17 AV SW' };
+
+      /** fetch stub answering each call from the list in order. */
+      function mockFetchSequence(...bodies: unknown[]): ReturnType<typeof vi.fn> {
+        const fn = vi.fn();
+        for (const body of bodies) fn.mockResolvedValueOnce({ ok: true, json: async () => body });
+        vi.stubGlobal('fetch', fn);
+        return fn;
+      }
+
+      function whereOf(fn: ReturnType<typeof vi.fn>, call: number): string {
+        return new URL(String(fn.mock.calls[call][0])).searchParams.get('$where') ?? '';
+      }
+
+      it.each(['1412 Prospect Av Southwest', '1412 Prospect Av S.W.', '1412 Prospect Avenue SW'])(
+        '"%s" prefix-matches 1412 PROSPECT AV SW with one City request',
+        async (input) => {
+          const fn = mockFetchSequence([prospect]);
+          const res = await service.autocomplete(input);
+          expect(res.suggestions.map((s) => s.addressKey)).toEqual(['1412 PROSPECT AV SW']);
+          expect(fn).toHaveBeenCalledTimes(1);
+          expect(whereOf(fn, 0)).toBe("starts_with(upper(address),'1412 PROSPECT AV SW')");
+        },
+      );
+
+      it.each(['#201 1234 17 Ave SW', '201-1234 17 Ave SW'])(
+        '"%s" (unit first) searches the City unit format',
+        async (input) => {
+          const fn = mockFetchSequence([unitRow]);
+          const res = await service.autocomplete(input);
+          expect(res.suggestions.map((s) => s.addressKey)).toEqual(['201 1234 17 AV SW']);
+          expect(whereOf(fn, 0)).toBe("starts_with(upper(address),'201 1234 17 AV SW')");
+        },
+      );
+
+      it('falls back to house number + street name when the prefix search is empty', async () => {
+        const fn = mockFetchSequence([], [unitRow, { ...ROW, address: '1234 17 AV SW' }]);
+        const res = await service.autocomplete('Unit 999 1234 17th Avenue SW');
+        expect(fn).toHaveBeenCalledTimes(2);
+        expect(whereOf(fn, 1)).toBe(
+          "starts_with(upper(address),'1234 17 ') OR upper(address) like '% 1234 17 %'",
+        );
+        expect(res.suggestions.map((s) => s.addressKey)).toEqual([
+          '201 1234 17 AV SW',
+          '1234 17 AV SW',
+        ]);
+        // Fallback rows are capped like the primary search.
+        expect(new URL(String(fn.mock.calls[1][0])).searchParams.get('$limit')).toBe('50');
+      });
+
+      it('finds the address despite a wrong street type via the fallback', async () => {
+        const fn = mockFetchSequence([], [prospect]);
+        const res = await service.autocomplete('1412 Prospect St SW');
+        expect(res.suggestions.map((s) => s.addressKey)).toEqual(['1412 PROSPECT AV SW']);
+        expect(fn).toHaveBeenCalledTimes(2);
+      });
+
+      it('never makes more than two City requests, and caches the empty answer', async () => {
+        const fn = mockFetchSequence([], []);
+        await service.autocomplete('1412 Nowhere Av SW');
+        await service.autocomplete('1412 Nowhere Av SW');
+        expect(fn).toHaveBeenCalledTimes(2);
+      });
+
+      it('runs no fallback without a house number', async () => {
+        const fn = mockFetchSequence([]);
+        const res = await service.autocomplete('prospect av');
+        expect(res.suggestions).toEqual([]);
+        expect(fn).toHaveBeenCalledTimes(1);
+      });
+
+      it('answers a Calgary postal code with no City request and the postal_code reason (FSA only)', async () => {
+        const fn = vi.fn();
+        vi.stubGlobal('fetch', fn);
+        const misses: Array<{ reason: string; key: string }> = [];
+        const svc = createPropertyService(CONFIG, {
+          onLookupMiss: (reason, key) => misses.push({ reason, key }),
+        });
+        expect(await svc.autocomplete('T2T 0X5')).toEqual({ suggestions: [] });
+        expect(await svc.autocomplete('T2T 0X5')).toEqual({ suggestions: [] });
+        expect(fn).not.toHaveBeenCalled();
+        expect(misses).toEqual([{ reason: 'postal_code', key: 'T2T' }]);
+      });
+
+      it.each([
+        ['prospect av', 'no_house_number', 'PROSPECT AV'],
+        ['#999 1234 17 Ave SW', 'unit', '999 1234 17 AV SW'],
+        ['1412 Nowhere Av SW', 'not_found', '1412 NOWHERE AV SW'],
+      ])('"%s" miss emits reason %s with the normalized key only', async (input, reason, key) => {
+        mockFetchSequence([], []);
+        const misses: Array<{ reason: string; key: string }> = [];
+        const svc = createPropertyService(CONFIG, {
+          onLookupMiss: (r, k) => misses.push({ reason: r, key: k }),
+        });
+        await svc.autocomplete(input);
+        expect(misses).toEqual([{ reason, key }]);
+        expect(misses[0].key).not.toBe(input);
+      });
+
+      it('emits no miss when suggestions are found', async () => {
+        mockFetchSequence([prospect]);
+        const misses: string[] = [];
+        const svc = createPropertyService(CONFIG, { onLookupMiss: (r) => misses.push(r) });
+        await svc.autocomplete('1412 Prospect Av SW');
+        expect(misses).toEqual([]);
+      });
+    });
   });
 
   describe('getProperty', () => {

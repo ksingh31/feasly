@@ -6,6 +6,7 @@ import type { AutocompleteSuggestion, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
 import { ConfigService } from '../../../core/config';
 import { WaitlistSignupComponent } from '../waitlist-signup';
+import { noResultsHintKind } from './address-query-hint';
 
 let nextInstanceId = 0;
 
@@ -76,6 +77,23 @@ export class AddressAutocompleteComponent {
   readonly outOfCoverage = computed(() => this.errorCode() === OUT_OF_COVERAGE);
   /** True when the last failure was ADDRESS_NOT_FOUND (reno/05). */
   readonly addressNotFound = computed(() => this.errorCode() === ADDRESS_NOT_FOUND);
+  /**
+   * No-results copy for the last searched query (#701): a postal code, a
+   * unit or a missing house number gets a specific hint; anything else the
+   * generic guidance.
+   */
+  readonly noResultsCopy = computed(() => {
+    switch (noResultsHintKind(this.lastQuery())) {
+      case 'postal_code':
+        return this.copy.noResultsPostalCode;
+      case 'unit':
+        return this.copy.noResultsUnit;
+      case 'no_house_number':
+        return this.copy.noResultsNoHouseNumber;
+      default:
+        return this.copy.noResults;
+    }
+  });
   /** A 3+ char search completed (controls the no-results message). */
   readonly searched = signal(false);
   /** Empty-submit hint, set by the parent via `nudgeIfEmpty()`. */
