@@ -173,14 +173,64 @@ export interface BuilderLeadCommentPreview {
 
 export interface BuilderLeadListResponse {
   readonly leads: readonly BuilderLeadListItem[];
-  readonly summary: {
-    readonly total: number;
-    readonly new: number;
-    readonly contacted: number;
-    readonly quoted: number;
-    readonly won: number;
-    readonly lost: number;
-  };
+  readonly summary: BuilderLeadStatusCounts;
+}
+
+/** Per-status lead counts for the portal's segmented pipeline filter. */
+export interface BuilderLeadStatusCounts {
+  readonly total: number;
+  readonly new: number;
+  readonly contacted: number;
+  readonly quoted: number;
+  readonly won: number;
+  readonly lost: number;
+}
+
+/**
+ * One row in the Leads home "Needs you" section (phase 3 portal redesign).
+ * A slim lead projection — the full list item (invoice, notes) comes from
+ * `GET /api/v1/builder/leads`.
+ */
+export interface BuilderLeadNeedsYouItem {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly phone: string | null;
+  readonly timeline: string;
+  readonly leadScore: number;
+  readonly status: BuilderLeadStatus;
+  readonly addressKey: string;
+  /** ISO-8601 — when the lead arrived. */
+  readonly createdAt: string;
+  /**
+   * ISO-8601 — the last pipeline status change (from the status history),
+   * or `createdAt` when the status never changed.
+   */
+  readonly statusChangedAt: string;
+  /**
+   * ISO-8601 anchor for the row's age label ("2h ago"): `createdAt` for
+   * uncontacted leads, `statusChangedAt` for stale and won leads.
+   */
+  readonly waitingSince: string;
+}
+
+/**
+ * `GET /api/v1/builder/leads/needs-you` — the Leads home "Needs you"
+ * groups plus pipeline counts. Grouping, sorting and counting all happen
+ * server-side. Each group is sorted by `leadScore` (highest first), then by
+ * `waitingSince` (oldest first). A lead appears in at most one group.
+ */
+export interface BuilderLeadsNeedsYouResponse {
+  /** status `new` — not contacted yet. */
+  readonly uncontacted: readonly BuilderLeadNeedsYouItem[];
+  /** status `contacted` or `quoted`, no status change in `staleAfterDays`+ days. */
+  readonly stale: readonly BuilderLeadNeedsYouItem[];
+  /** status `won` with no recorded contract (no commission invoice). */
+  readonly wonWithoutContract: readonly BuilderLeadNeedsYouItem[];
+  /** The staleness threshold the `stale` group used (server config). */
+  readonly staleAfterDays: number;
+  /** Status counts for the segmented filter (All · New · … · Lost). */
+  readonly counts: BuilderLeadStatusCounts;
 }
 
 export interface BuilderLeadStatusUpdateBody {
