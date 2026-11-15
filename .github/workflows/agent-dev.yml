@@ -77,6 +77,27 @@ jobs:
             --model claude-opus-5-5
             --max-turns 120
             --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch"
+      - name: Requeue the issue if the run ended without a PR
+        # A "successful" run that opened no PR (agent stopped early, wrong role)
+        # would otherwise leave the issue claimed forever.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          labels=$(gh issue view "$ISSUE" -R "$GITHUB_REPOSITORY" --json state,labels -q '"\(.state) \([.labels[].name]|join(","))"')
+          case "$labels" in CLOSED*|*needs:karan*) exit 0 ;; esac   # done, or the agent escalated on purpose
+          pr=$(gh pr list -R "$GITHUB_REPOSITORY" --state open --json headRefName -q "[.[]|select(.headRefName|startswith(\"agent/issue-$ISSUE-\"))]|length")
+          [ "$pr" -gt 0 ] && exit 0
+          n=$(gh issue view "$ISSUE" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[]|select(.body|contains("<!-- agent:requeue -->"))]|length')
+          if [ "$n" -ge 2 ]; then
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:stuck
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Dev agent ended without a PR again ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) after $n requeues — parked as agent:stuck for the orchestrator."
+          else
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:ready
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "<!-- agent:requeue -->
+          Dev agent run ended without opening a PR ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) — requeued."
+          fi
       - name: Requeue the issue if this run failed
         if: failure()
         env:
@@ -91,11 +112,12 @@ jobs:
             exit 0
           fi
           # A failed run (model API error, timeout) must not leave the issue
-          # claimed for hours. Two failures in a row park it for Karan.
+          # claimed for hours. Two failures in a row park it as agent:stuck for the
+          # orchestrator (escalation policy: repeated agent failures are not owner decisions).
           n=$(gh issue view "$ISSUE" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[]|select(.body|contains("<!-- agent:requeue -->"))]|length')
           if [ "$n" -ge 2 ]; then
-            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label needs:karan
-            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Dev agent failed again ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) after $n requeues — parked for Karan."
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:stuck
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Dev agent failed again ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) after $n requeues — parked as agent:stuck for the orchestrator."
           else
             gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:ready
             gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "<!-- agent:requeue -->
