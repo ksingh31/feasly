@@ -22,7 +22,7 @@ apps/web/src/app/features/admin/api-key-usage.component.scss 2
 apps/web/src/app/features/admin/api-keys-page.component.scss 22
 apps/web/src/app/features/admin/funnels-page.component.scss 2
 apps/web/src/app/features/builder/builder-billing.component.scss 32
-apps/web/src/app/features/builder/builder-invoices.component.scss 57
+apps/web/src/app/features/builder/builder-invoices.component.scss 40
 apps/web/src/app/features/builder/builder-login.component.scss 11
 apps/web/src/app/features/builder/builder-org-picker.component.scss 4
 apps/web/src/app/features/builder/builder-report-contract.component.scss 34
