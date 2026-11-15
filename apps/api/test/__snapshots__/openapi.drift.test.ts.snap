@@ -430,6 +430,13 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
               "null",
             ],
           },
+          "rollYear": {
+            "description": "Latest assessment roll year in the dataset (e.g. 2026); null when it could not be read.",
+            "type": [
+              "integer",
+              "null",
+            ],
+          },
         },
         "required": [
           "refreshedMonth",

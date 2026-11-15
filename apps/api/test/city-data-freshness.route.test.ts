@@ -13,24 +13,24 @@ import {
 } from '../src/routes/city-data-freshness.route';
 import type { CityDataFreshnessService } from '../src/services/city-data-freshness.service';
 
-function serviceWith(month: string | null): CityDataFreshnessService {
+function serviceWith(month: string | null, rollYear: number | null = null): CityDataFreshnessService {
   return {
-    getFreshness: async () => ({ refreshedMonth: month }),
+    getFreshness: async () => ({ refreshedMonth: month, rollYear }),
   };
 }
 
 describe('city-data freshness route', () => {
-  it('returns the refresh month from the service', async () => {
+  it('returns the refresh month and roll year from the service', async () => {
     const route = createCityDataFreshnessRoute({
-      freshness: serviceWith('September 2026'),
+      freshness: serviceWith('September 2026', 2026),
     });
     const res: CityDataFreshnessResponse = await route.handle();
-    expect(res).toEqual({ refreshedMonth: 'September 2026' });
+    expect(res).toEqual({ refreshedMonth: 'September 2026', rollYear: 2026 });
   });
 
   it('passes through null when the Socrata metadata is unreachable', async () => {
     const route = createCityDataFreshnessRoute({ freshness: serviceWith(null) });
     const res: CityDataFreshnessResponse = await route.handle();
-    expect(res).toEqual({ refreshedMonth: null });
+    expect(res).toEqual({ refreshedMonth: null, rollYear: null });
   });
 });
