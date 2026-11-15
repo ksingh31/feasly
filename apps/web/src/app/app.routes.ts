@@ -1,17 +1,12 @@
 import { Routes, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
-import { leadGateGuard } from './features/compare';
+import { leadGateGuard } from './features/compare/lead-gate.guard';
 import { ErrorPageComponent } from './features/error/error-page.component';
-import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
-import { GatePageComponent } from './features/wizard/gate-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
-import { PreviewPageComponent } from './features/wizard/preview-page.component';
-import { RenoScopePageComponent } from './features/wizard/reno-scope-page.component';
-import { ReportPageComponent } from './features/report/report-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
-import { FaqPageComponent, HowItWorksPageComponent } from './features/marketing';
-import { ScopePageComponent } from './features/wizard/scope-page.component';
+import { FaqPageComponent } from './features/marketing/faq-page.component';
+import { HowItWorksPageComponent } from './features/marketing/how-it-works-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
@@ -25,7 +20,7 @@ export const routes: Routes = [
   // Scope step (FE-2): deep links without a selected property bounce to the address step.
   {
     path: 'estimate/scope',
-    component: ScopePageComponent,
+    loadComponent: () => import('./features/wizard/scope-page.component').then((m) => m.ScopePageComponent),
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
@@ -33,7 +28,7 @@ export const routes: Routes = [
   // page): deep links without a selected property bounce to the address step.
   {
     path: 'estimate/reno-scope',
-    component: RenoScopePageComponent,
+    loadComponent: () => import('./features/wizard/reno-scope-page.component').then((m) => m.RenoScopePageComponent),
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
@@ -42,7 +37,7 @@ export const routes: Routes = [
   // Private lead data: noindex like the other wizard routes.
   {
     path: 'estimate/gate',
-    component: GatePageComponent,
+    loadComponent: () => import('./features/wizard/gate-page.component').then((m) => m.GatePageComponent),
     canActivate: [robotsGuard, leadGateGuard],
     data: { noindex: true },
   },
@@ -51,7 +46,7 @@ export const routes: Routes = [
   // (Karan 2026-09-27: reno out of launch scope).
   {
     path: 'estimate/analyzing',
-    component: AnalyzingPageComponent,
+    loadComponent: () => import('./features/wizard/analyzing-page.component').then((m) => m.AnalyzingPageComponent),
     canActivate: [robotsGuard, wizardScopeGuard],
     data: { noindex: true },
   },
@@ -179,7 +174,7 @@ export const routes: Routes = [
   // Private estimate data: noindex like the other wizard routes.
   {
     path: 'estimate/report',
-    component: ReportPageComponent,
+    loadComponent: () => import('./features/report/report-page.component').then((m) => m.ReportPageComponent),
     canActivate: [robotsGuard, reportEstimateGuard],
     data: { noindex: true },
   },
@@ -187,7 +182,7 @@ export const routes: Routes = [
   // property bounce to the address step.
   {
     path: 'estimate/preview',
-    component: PreviewPageComponent,
+    loadComponent: () => import('./features/wizard/preview-page.component').then((m) => m.PreviewPageComponent),
     canActivate: [robotsGuard, wizardPropertyGuard],
     data: { noindex: true },
   },
