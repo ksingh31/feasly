@@ -37,6 +37,8 @@ tools/check-secrets.mjs :: PLACEHOLDER :: detection patterns for placeholder sec
 # SEO-04 community ranges pipeline — uses PLACEHOLDER_COST_DATA until calibrated.
 # Same unblock condition as the engine: Karan's cost Sheet (story cost-engine/01).
 apps/web/scripts/build-community-ranges.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA for community range bands, blocked on Karan's cost Sheet
+apps/web/scripts/build-community-data.ts :: PLACEHOLDER :: labels community data with PLACEHOLDER_COST_DATA.version, blocked on Karan's cost Sheet
+apps/web/scripts/build-community-data.spec.ts :: PLACEHOLDER :: asserts the PLACEHOLDER_COST_DATA.version label, blocked on Karan's cost Sheet
 
 # Calibration console (admin/09): the v2 import flow ships with cost-engine/01,
 # which needs Karan's cost Sheet. Until then the action is disabled and says so.
