@@ -194,7 +194,11 @@ export class EmbedShellComponent {
     // Early coverage guard (same condition as the preview-time backstop):
     // never start the funnel for a property the cost data can't price.
     // Lot size NEVER blocks (Karan, 2026-09-28).
-    const issue = pricingCoverageIssue(picked, this.config.get('limits'));
+    const issue = pricingCoverageIssue(
+      picked,
+      this.config.get('limits'),
+      this.config.get('coverage').singleFamilyDistricts.calgary,
+    );
     if (issue !== null) {
       this.coverageIssue.set(issue);
       return;

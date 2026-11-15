@@ -58,11 +58,18 @@ describe('detectCoverageSignal', () => {
   });
 });
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DEFAULT_APP_CONFIG } from '../config/app-config.defaults';
 import {
   pricingCoverageIssue,
   type PricingCoverageBounds,
   type PricingCoverageFacts,
 } from './coverage';
+
+/** The configured Calgary list — the same source the components pass in (#685). */
+const CALGARY_DISTRICTS = DEFAULT_APP_CONFIG.coverage.singleFamilyDistricts.calgary;
 
 /**
  * Pricing-coverage guard: lot size is NEVER a coverage issue (Karan,
@@ -89,9 +96,9 @@ describe('pricingCoverageIssue', () => {
   });
 
   it('returns null for ordinary single-family lots', () => {
-    expect(pricingCoverageIssue(facts(), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: 1200, assessedValue: 25000 }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: 20000, assessedValue: 10000000 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts(), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1200, assessedValue: 25000 }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 20000, assessedValue: 10000000 }), bounds, CALGARY_DISTRICTS)).toBeNull();
   });
 
   it('keeps single-family-buildable zones eligible (case-insensitive, whitespace-tolerant)', () => {
@@ -100,36 +107,59 @@ describe('pricingCoverageIssue', () => {
     // R-C2 (duplex) is eligible — single-family homes do get built in
     // duplex-zoned areas; R-CG/R-G cover most inner-city infill teardowns.
     for (const zoning of ['R-C1', 'R-C1S', 'R-C2', 'R-CG', 'R-G', 'H-GO', 'r-cg', 'h-go', '  R-G  ']) {
-      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBeNull();
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBeNull();
     }
   });
 
+  it('quotes the districts lots reverted to after the 2026 rezoning repeal, single token, any case (#685)', () => {
+    for (const code of ['R-1', 'R-1s', 'R-1N', 'R-2', 'R-2M', 'R-C1N', 'R-C1L', 'R-C1Ls']) {
+      for (const zoning of [code, code.toLowerCase(), code.toUpperCase(), `  ${code} `]) {
+        expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBeNull();
+      }
+    }
+  });
+
+  it('keeps rejecting multi-residential, commercial, industrial and special-purpose districts (#685 AC2)', () => {
+    for (const zoning of ['M-C1', 'M-CG', 'C-N2', 'I-G', 'S-SPR', 'R-MH', 'R-Gm', 'MU-1']) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBe(
+        'unsupported-property-type',
+      );
+    }
+  });
+
+  it('reads eligibility from the list it is given, not a built-in set (#685 AC3)', () => {
+    expect(pricingCoverageIssue(facts({ zoning: 'R-C1' }), bounds, ['R-G'])).toBe('unsupported-property-type');
+    expect(pricingCoverageIssue(facts({ zoning: 'X-TEST' }), bounds, ['x-test'])).toBeNull();
+    // Blank zoning still fails open whatever the list says.
+    expect(pricingCoverageIssue(facts({ zoning: '' }), bounds, [])).toBeNull();
+  });
+
   it("never blocks on lot size — Karan's 21,577 sq ft lot prices (lot-size block bug, 2026-09-28)", () => {
-    expect(pricingCoverageIssue(facts({ lotSqft: 21577 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 21577 }), bounds, CALGARY_DISTRICTS)).toBeNull();
   });
 
   it('never blocks on very large or very small lots', () => {
     // Supersedes the old 643,811 sq ft regression: no lot size may block.
     // (assessed values below are in range — only the lot varies.)
-    expect(pricingCoverageIssue(facts({ lotSqft: 643811 }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: 1199 }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: 0 }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: NaN }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ lotSqft: 1199.4 }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 643811 }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1199 }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 0 }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: NaN }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ lotSqft: 1199.4 }), bounds, CALGARY_DISTRICTS)).toBeNull();
   });
 
   it("flags missing/out-of-range assessed values as 'assessed-value'", () => {
-    expect(pricingCoverageIssue(facts({ assessedValue: 0 }), bounds)).toBe('assessed-value');
-    expect(pricingCoverageIssue(facts({ assessedValue: 24999 }), bounds)).toBe('assessed-value');
-    expect(pricingCoverageIssue(facts({ assessedValue: 10000001 }), bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ assessedValue: 0 }), bounds, CALGARY_DISTRICTS)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ assessedValue: 24999 }), bounds, CALGARY_DISTRICTS)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ assessedValue: 10000001 }), bounds, CALGARY_DISTRICTS)).toBe('assessed-value');
   });
 
   it('still flags assessed value when the lot is also extreme (lot never wins)', () => {
-    expect(pricingCoverageIssue(facts({ lotSqft: 643811, assessedValue: 0 }), bounds)).toBe('assessed-value');
+    expect(pricingCoverageIssue(facts({ lotSqft: 643811, assessedValue: 0 }), bounds, CALGARY_DISTRICTS)).toBe('assessed-value');
   });
 
   it("flags non-residential parcels as 'non-residential' (industrial/commercial)", () => {
-    expect(pricingCoverageIssue(facts({ lotSqft: 452960, isNonResidential: true }), bounds)).toBe(
+    expect(pricingCoverageIssue(facts({ lotSqft: 452960, isNonResidential: true }), bounds, CALGARY_DISTRICTS)).toBe(
       'non-residential',
     );
   });
@@ -139,16 +169,16 @@ describe('pricingCoverageIssue', () => {
     // cap — the user must see the specific commercial/industrial message,
     // not the generic can't-price card.
     expect(
-      pricingCoverageIssue(facts({ lotSqft: 452960, assessedValue: 61580000, isNonResidential: true }), bounds),
+      pricingCoverageIssue(facts({ lotSqft: 452960, assessedValue: 61580000, isNonResidential: true }), bounds, CALGARY_DISTRICTS),
     ).toBe('non-residential');
-    expect(pricingCoverageIssue(facts({ assessedValue: 0, isNonResidential: true }), bounds)).toBe(
+    expect(pricingCoverageIssue(facts({ assessedValue: 0, isNonResidential: true }), bounds, CALGARY_DISTRICTS)).toBe(
       'non-residential',
     );
   });
 
   it("flags M-*, C-*, I-* and other non-single-family zoning as 'unsupported-property-type'", () => {
     for (const zoning of ['M-C1', 'M-C2', 'M-H1', 'M-X1', 'C-COR1', 'C-COR2', 'I-G', 'I-C', 'S-CRI', 'S-R']) {
-      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBe('unsupported-property-type');
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBe('unsupported-property-type');
     }
   });
 
@@ -163,38 +193,38 @@ describe('pricingCoverageIssue', () => {
       'R-C1,',
       'DC,M-C2',
     ]) {
-      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBeNull();
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBeNull();
     }
   });
 
   it("flags compound designations with no single-family district as 'unsupported-property-type'", () => {
     for (const zoning of ['M-C1,M-C2', 'C-COR1, I-G', 'M-CG,']) {
-      expect(pricingCoverageIssue(facts({ zoning }), bounds)).toBe('unsupported-property-type');
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBe('unsupported-property-type');
     }
   });
 
   it('fails open on a comma-only designation with no district tokens', () => {
-    expect(pricingCoverageIssue(facts({ zoning: ',' }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ zoning: ' , , ' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: ',' }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: ' , , ' }), bounds, CALGARY_DISTRICTS)).toBeNull();
   });
 
   it('fails open on blank zoning and DC — never blocks on missing data', () => {
-    expect(pricingCoverageIssue(facts({ zoning: '' }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ zoning: '   ' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: '' }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: '   ' }), bounds, CALGARY_DISTRICTS)).toBeNull();
     // Direct Control is common for new-community greenfield lots: eligible.
-    expect(pricingCoverageIssue(facts({ zoning: 'DC' }), bounds)).toBeNull();
-    expect(pricingCoverageIssue(facts({ zoning: 'dc' }), bounds)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: 'DC' }), bounds, CALGARY_DISTRICTS)).toBeNull();
+    expect(pricingCoverageIssue(facts({ zoning: 'dc' }), bounds, CALGARY_DISTRICTS)).toBeNull();
   });
 
   it("precedence: non-residential > unsupported-property-type > assessed-value (Karan, 2026-10-02)", () => {
     // An M-C2 parcel whose assessed value also breaks the cap: the user
     // sees the single-family message, not the generic can't-price card.
-    expect(pricingCoverageIssue(facts({ zoning: 'M-C2', assessedValue: 61580000 }), bounds)).toBe(
+    expect(pricingCoverageIssue(facts({ zoning: 'M-C2', assessedValue: 61580000 }), bounds, CALGARY_DISTRICTS)).toBe(
       'unsupported-property-type',
     );
     // Commercial/industrial wins even on an unsupported designation.
     expect(
-      pricingCoverageIssue(facts({ zoning: 'M-X2', assessedValue: 0, isNonResidential: true }), bounds),
+      pricingCoverageIssue(facts({ zoning: 'M-X2', assessedValue: 0, isNonResidential: true }), bounds, CALGARY_DISTRICTS),
     ).toBe('non-residential');
   });
 });

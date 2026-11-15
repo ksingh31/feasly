@@ -1,0 +1,107 @@
+{
+  "source": "City of Calgary assessments dataset 4bsw-nn7w (data.calgary.ca)",
+  "query": "sub_property_use='R110' AND roll_year='2026', grouped by land_use_designation, top 25 by count",
+  "capturedOn": "2026-11-15",
+  "rows": [
+    {
+      "designation": "R-C1,R-CG",
+      "homes": 139014
+    },
+    {
+      "designation": "R-1N,R-G",
+      "homes": 49001
+    },
+    {
+      "designation": "R-C2,R-CG",
+      "homes": 35211
+    },
+    {
+      "designation": "R-1,R-G",
+      "homes": 27900
+    },
+    {
+      "designation": "R-G",
+      "homes": 19755
+    },
+    {
+      "designation": "R-C1N,R-CG",
+      "homes": 15465
+    },
+    {
+      "designation": "DC",
+      "homes": 5437
+    },
+    {
+      "designation": "R-1s,R-G",
+      "homes": 4014
+    },
+    {
+      "designation": "R-2,R-G",
+      "homes": 2022
+    },
+    {
+      "designation": "R-CG",
+      "homes": 1730
+    },
+    {
+      "designation": "M-CG",
+      "homes": 1621
+    },
+    {
+      "designation": "H-GO,R-C1",
+      "homes": 1241
+    },
+    {
+      "designation": "M-C1",
+      "homes": 938
+    },
+    {
+      "designation": "H-GO,R-C2",
+      "homes": 683
+    },
+    {
+      "designation": "R-C1s,R-CG",
+      "homes": 435
+    },
+    {
+      "designation": "R-C1L,R-CG",
+      "homes": 423
+    },
+    {
+      "designation": "M-C2",
+      "homes": 272
+    },
+    {
+      "designation": "R-MH",
+      "homes": 225
+    },
+    {
+      "designation": "R-2M",
+      "homes": 214
+    },
+    {
+      "designation": "R-Gm",
+      "homes": 161
+    },
+    {
+      "designation": "H-GO",
+      "homes": 124
+    },
+    {
+      "designation": "S-FUD",
+      "homes": 109
+    },
+    {
+      "designation": "H-GO,R-CG",
+      "homes": 97
+    },
+    {
+      "designation": "MU-1",
+      "homes": 92
+    },
+    {
+      "designation": "DC,R-G",
+      "homes": 70
+    }
+  ]
+}

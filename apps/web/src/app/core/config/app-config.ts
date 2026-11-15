@@ -885,6 +885,25 @@ export interface AppConfig {
      */
     estimateRoundingStep: number;
   };
+  /**
+   * Estimator eligibility by city (#685). The early coverage guard
+   * (core/utils/coverage.ts) reads these lists; no district code literal
+   * lives in code. When the zoning catalogue story lands it becomes the
+   * single source and this key goes away.
+   */
+  coverage: {
+    /**
+     * Land-use districts where a single-detached dwelling is a listed use,
+     * keyed by city. Matched case-insensitively against each token of the
+     * City `land_use_designation` (compound values like 'R-1N,R-G' pass when
+     * ANY token is listed). Blank/unknown zoning always fails open. The
+     * zoning guide table is held to this list by
+     * coverage-zoning-copy-drift.spec.ts.
+     */
+    singleFamilyDistricts: {
+      calgary: readonly string[];
+    };
+  };
   /** Analytics consent. */
   analytics: {
     enabled: boolean;

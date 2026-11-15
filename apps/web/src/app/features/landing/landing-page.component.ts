@@ -126,7 +126,11 @@ export class LandingPageComponent implements OnInit {
     // community profile page showing the property's assessed value vs the
     // community average. Falls back to the inline card only when the
     // community isn't recognized (never fabricate a profile).
-    const issue = pricingCoverageIssue(property, this.config.get('limits'));
+    const issue = pricingCoverageIssue(
+      property,
+      this.config.get('limits'),
+      this.config.get('coverage').singleFamilyDistricts.calgary,
+    );
     if (issue !== null) {
       const community = this.communityService.byName(property.community);
       if (community) {
