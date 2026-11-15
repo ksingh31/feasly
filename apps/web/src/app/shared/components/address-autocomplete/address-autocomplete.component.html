@@ -7,7 +7,7 @@
       type="text"
       role="combobox"
       aria-autocomplete="list"
-      [attr.aria-expanded]="open()"
+      [attr.aria-expanded]="listboxRendered()"
       [attr.aria-controls]="listboxRendered() ? listboxId : null"
       [attr.aria-activedescendant]="activeIndex() >= 0 ? listboxId + '-opt-' + activeIndex() : null"
       [placeholder]="copy.placeholder"
