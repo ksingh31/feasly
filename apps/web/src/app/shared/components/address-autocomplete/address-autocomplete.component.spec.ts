@@ -145,6 +145,15 @@ describe('AddressAutocompleteComponent', () => {
         expect(controls).not.toBeNull();
         expect(fixture.nativeElement.querySelector(`#${controls}[role="listbox"]`)).not.toBeNull();
       }
+      // aria-activedescendant must name a rendered option inside the
+      // controlled listbox (#579).
+      const active = input.getAttribute('aria-activedescendant');
+      if (active !== null) {
+        expect(controls).not.toBeNull();
+        expect(
+          fixture.nativeElement.querySelector(`#${controls} > #${active}[role="option"]`),
+        ).not.toBeNull();
+      }
     }
 
     it('omits aria-controls before any search', () => {
@@ -175,6 +184,99 @@ describe('AddressAutocompleteComponent', () => {
       expect(inputEl(fixture).hasAttribute('aria-controls')).toBe(false);
       expect(inputEl(fixture).getAttribute('aria-expanded')).toBe('false');
       assertControlsValid(fixture);
+    });
+
+    describe('aria-activedescendant only names a rendered option (#579)', () => {
+      function optionCount(fixture: ComponentFixture<AddressAutocompleteComponent>): number {
+        return fixture.nativeElement.querySelectorAll('[role="option"]').length;
+      }
+
+      it('ArrowUp before any search does nothing', () => {
+        const fixture = create();
+        key(fixture, 'ArrowUp');
+        expect(fixture.componentInstance.activeIndex()).toBe(-1);
+        expect(fixture.componentInstance.open()).toBe(false);
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
+        assertControlsValid(fixture);
+      });
+
+      it('Escape then ArrowUp re-opens the list on the last option', async () => {
+        const fixture = create();
+        const component = fixture.componentInstance;
+        await type(fixture, '14 st');
+        key(fixture, 'ArrowDown');
+        key(fixture, 'Escape');
+        expect(component.open()).toBe(false);
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
+        assertControlsValid(fixture);
+
+        key(fixture, 'ArrowUp');
+        const count = component.suggestions().length;
+        expect(component.open()).toBe(true);
+        expect(optionCount(fixture)).toBe(count);
+        expect(component.activeIndex()).toBe(count - 1);
+        expect(inputEl(fixture).getAttribute('aria-activedescendant')).toBe(
+          `${component.listboxId}-opt-${count - 1}`,
+        );
+        assertControlsValid(fixture);
+      });
+
+      it('ArrowUp with the list open moves up and stops at the first option', async () => {
+        const fixture = create();
+        const component = fixture.componentInstance;
+        await type(fixture, '14 st');
+        const count = component.suggestions().length;
+        expect(count).toBeGreaterThan(1);
+        expect(component.open()).toBe(true);
+
+        // Nothing highlighted yet: ArrowUp lands on the last option.
+        key(fixture, 'ArrowUp');
+        expect(component.activeIndex()).toBe(count - 1);
+        assertControlsValid(fixture);
+
+        key(fixture, 'ArrowUp');
+        expect(component.activeIndex()).toBe(count - 2);
+        assertControlsValid(fixture);
+
+        for (let i = 0; i < count + 1; i++) key(fixture, 'ArrowUp');
+        expect(component.activeIndex()).toBe(0);
+        expect(inputEl(fixture).getAttribute('aria-activedescendant')).toBe(
+          `${component.listboxId}-opt-0`,
+        );
+        assertControlsValid(fixture);
+      });
+
+      it('blur leaves no aria-activedescendant', async () => {
+        const fixture = create();
+        await type(fixture, '14 st');
+        key(fixture, 'ArrowDown');
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(true);
+        inputEl(fixture).dispatchEvent(new FocusEvent('blur'));
+        fixture.detectChanges();
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
+        assertControlsValid(fixture);
+      });
+
+      it('choosing an option leaves no aria-activedescendant', async () => {
+        const fixture = create();
+        await type(fixture, '14 st');
+        key(fixture, 'ArrowDown');
+        key(fixture, 'Enter');
+        expect(fixture.componentInstance.open()).toBe(false);
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
+        assertControlsValid(fixture);
+      });
+
+      it('never names an option while the list is closed, even with a stale index', async () => {
+        const fixture = create();
+        const component = fixture.componentInstance;
+        await type(fixture, '14 st');
+        component.open.set(false);
+        component.activeIndex.set(0);
+        fixture.detectChanges();
+        expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
+        assertControlsValid(fixture);
+      });
     });
   });
 
