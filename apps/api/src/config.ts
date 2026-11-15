@@ -69,10 +69,15 @@ const EnvSchema = z.object({
   // estimates 20/hr/IP) — env-overridable, never hardcoded per endpoint.
   // Embed traffic is additionally aggregated per tenant so one builder's
   // viral page can't starve the endpoint for everyone else.
+  // #737: the per-tenant default was 20/hr, below the pilot's assumed 1x peak
+  // of 50 estimates/hr (apps/api/loadtest/README.md traffic model), so one
+  // builder's embed would have been throttled at normal traffic. It is now
+  // 600/hr: the 10x target (500/hr) plus 20% headroom. Still a cap per
+  // builder, so one viral page can't starve the endpoint.
   ESTIMATE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
   ESTIMATE_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
   ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
-  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   // Analytics ingest is public by design (story consumer/01), so it gets
   // its own limiter — generous (300/min per IP) but separate from the
   // general API traffic.
@@ -513,7 +518,7 @@ export interface LeadConfig {
 export interface EstimateConfig {
   /** Per-IP limiter for the public estimates endpoint (frozen: 20/hr/IP). */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
-  /** Per-tenant limiter aggregating embed traffic (frozen: 20/hr/tenant). */
+  /** Per-tenant limiter aggregating embed traffic (default 600/hr/tenant: the 10x launch target, #737). */
   readonly tenantRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
