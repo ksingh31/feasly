@@ -1,0 +1,105 @@
+/* Builder Money page (#532). Tokens only — no hex literals. */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.money__kpis {
+  margin-bottom: var(--space-6);
+}
+
+.money__stack {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* Card + "How charges work" side by side under the invoices. */
+.money__side {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
+}
+
+.money__panel {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+}
+
+.money__panel > a {
+  justify-self: start;
+}
+
+.money__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.money__panel-title {
+  margin: 0;
+  font: var(--type-product-h2);
+}
+
+.money__card-title {
+  margin: 0;
+  font: var(--type-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.money__meta,
+.money__how {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.money__how {
+  color: var(--text);
+}
+
+.money__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.money__link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.money__stepper {
+  min-width: 18rem;
+  padding-block: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .money__panel {
+    padding: var(--space-4);
+  }
+
+  .money__invoices {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}

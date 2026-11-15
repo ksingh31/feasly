@@ -1,0 +1,86 @@
+<ui-page-layout>
+  <ui-page-header [heading]="copy.moneyHeading" [description]="copy.moneyDescription" />
+
+  <section class="money__kpis" [attr.aria-label]="copy.moneyKpiLabel">
+    @if (overviewStatus() === 'error') {
+      <ui-error-state
+        [heading]="copy.moneyLoadError"
+        [retryLabel]="copy.retryLabel"
+        (retry)="retryOverview()"
+      />
+    } @else if (!overview()) {
+      <ui-skeleton variant="rows" [count]="2" [label]="copy.moneyLoading" />
+    } @else {
+      <ui-kpi-grid>
+        @for (kpi of kpis(); track kpi.key) {
+          <ui-kpi-tile
+            [attr.data-kpi]="kpi.key"
+            [label]="kpi.label"
+            [value]="kpi.value"
+            [sub]="kpi.sub"
+            [tone]="kpi.tone"
+            [interactive]="!!kpi.link"
+            (activate)="openKpi(kpi)"
+          />
+        }
+      </ui-kpi-grid>
+    }
+  </section>
+
+  <div class="money__stack">
+    <section class="money__panel money__invoices" aria-labelledby="money-invoices-heading">
+      <div class="money__panel-head">
+        <h2 id="money-invoices-heading" class="money__panel-title">{{ copy.moneyInvoicesHeading }}</h2>
+        <a class="money__link" routerLink="/builder/invoices">{{ copy.moneyInvoicesViewAll }}</a>
+      </div>
+      <ui-data-table
+        [rows]="invoices()"
+        [columns]="columns"
+        [rowId]="rowId"
+        [label]="copy.moneyInvoicesHeading"
+        [loading]="listStatus() === 'loading' || listStatus() === 'idle'"
+        [error]="listError()"
+        [emptyHeading]="copy.moneyInvoicesEmptyHeading"
+        [emptyMessage]="copy.moneyInvoicesEmptyBody"
+        [retryLabel]="copy.retryLabel"
+        [loadingLabel]="copy.invoicesLoading"
+        (open)="openInvoice($event)"
+        (retry)="retryInvoices()"
+      >
+        <ng-template uiCell="lifecycle" let-row>
+          <ui-stepper class="money__stepper" [model]="stepper(row.status)" [label]="copy.moneyLifecycleLabel" />
+        </ng-template>
+      </ui-data-table>
+    </section>
+
+    <div class="money__side">
+      <section class="money__panel" aria-labelledby="money-card-heading">
+        <h2 id="money-card-heading" class="money__panel-title">{{ copy.moneyCardHeading }}</h2>
+        @if (cardPanel(); as panel) {
+          @if (panel.title) {
+            <p class="money__card-title">{{ panel.title }}</p>
+          }
+          @if (panel.expiry) {
+            <p class="money__meta">{{ panel.expiry }}</p>
+          }
+          @if (panel.body) {
+            <p class="money__meta">{{ panel.body }}</p>
+          }
+          @if (panel.action) {
+            <a ui-button variant="secondary" size="sm" routerLink="/builder/billing">{{ panel.action }}</a>
+          }
+        } @else if (overviewStatus() !== 'error') {
+          <ui-skeleton variant="text" [count]="2" [label]="copy.moneyLoading" />
+        }
+      </section>
+
+      <section class="money__panel" aria-labelledby="money-how-heading">
+        <h2 id="money-how-heading" class="money__panel-title">{{ copy.moneyHowHeading }}</h2>
+        <p class="money__how">{{ chargeTiming }}</p>
+        @if (questionHref) {
+          <a class="money__link" [href]="questionHref">{{ copy.moneyQuestionInvoice }}</a>
+        }
+      </section>
+    </div>
+  </div>
+</ui-page-layout>
