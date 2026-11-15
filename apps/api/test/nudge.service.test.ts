@@ -103,7 +103,13 @@ const OK: EmailDelivery = { sent: true, provider: 'log', messageId: 'msg-1' };
 
 function makeService(
   world: World,
-  opts?: { failNudgeFor?: string; onLeadError?: (error: unknown) => void },
+  opts?: {
+    failNudgeFor?: string;
+    onLeadError?: (error: unknown) => void;
+    onWarn?: (message: string) => void;
+    /** Override the delivery result returned by sendNudge. */
+    nudgeDelivery?: EmailDelivery;
+  },
 ) {
   const leads: LeadStore = {
     findRecentByEmailAndAddress: async () => null,
@@ -192,7 +198,7 @@ function makeService(
         throw new Error('smtp down');
       }
       world.nudges.push(input);
-      return OK;
+      return opts?.nudgeDelivery ?? OK;
     },
   } as unknown as EmailService;
 
@@ -213,6 +219,7 @@ function makeService(
     magicLinkTtlSeconds: 604_800,
     clock: () => NOW,
     onLeadError: opts?.onLeadError,
+    onWarn: opts?.onWarn ?? (() => {}),
   });
   return { service, world };
 }
@@ -397,7 +404,7 @@ describe('nudge service (email/02)', () => {
     ).toHaveLength(0);
   });
 
-  it('an email failure is counted as skipped and retried next run (no stamp)', async () => {
+  it('an email failure is counted as skipped and not stamped', async () => {
     const world = makeWorld();
     world.leads.set('lead-1', leadFixture());
     world.links.push(linkRecord());
@@ -408,8 +415,73 @@ describe('nudge service (email/02)', () => {
     const result = await service.runNudgeCycle();
 
     expect(result).toEqual({ nudged: 0, skipped: 1 });
-    // Not stamped — the next hourly run will retry.
+    // Not stamped (the lead ages out of the 1h window — dropped, not retried).
     expect(world.nudgeSentAtCalls).toHaveLength(0);
+  });
+
+  it('#576: provider-accepted but unconfirmed delivery is stamped as sent, does not throw, warns without PII', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.links.push(linkRecord());
+    const warnings: string[] = [];
+    const errors: unknown[] = [];
+    const { service } = makeService(world, {
+      nudgeDelivery: {
+        sent: false,
+        provider: 'acs',
+        failureReason:
+          'Azure Communication Services email failed (delivery polling timed out after 7000ms).',
+        emailError: 'delivery-failed',
+        acceptedByProvider: true,
+      },
+      onWarn: (m) => void warnings.push(m),
+      onLeadError: (e) => void errors.push(e),
+    });
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 1, skipped: 0 });
+    expect(errors).toHaveLength(0);
+    expect(world.nudgeSentAtCalls).toEqual([{ id: 'lead-1', at: NOW }]);
+    expect(world.leads.get('lead-1')!.nudgeSentAt).toEqual(NOW);
+    expect(warnings).toHaveLength(1);
+    const warning = warnings[0]!;
+    expect(warning).toMatch(/accepted/);
+    const token = world.nudges[0]!.resumeUrl.split('/r/')[1]!;
+    for (const pii of ['sam@example.com', 'Sam', 'lead-1', token]) {
+      expect(warning).not.toContain(pii);
+    }
+
+    // Exactly-once: a second run sends nothing more.
+    const again = await service.runNudgeCycle();
+    expect(again).toEqual({ nudged: 0, skipped: 0 });
+    expect(world.nudges).toHaveLength(1);
+  });
+
+  it('#576: a send failure without acceptedByProvider is not stamped and is reported', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.links.push(linkRecord());
+    const warnings: string[] = [];
+    const errors: unknown[] = [];
+    const { service } = makeService(world, {
+      nudgeDelivery: {
+        sent: false,
+        provider: 'acs',
+        failureReason: 'rejected',
+        emailError: 'delivery-failed',
+      },
+      onWarn: (m) => void warnings.push(m),
+      onLeadError: (e) => void errors.push(e),
+    });
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 0, skipped: 1 });
+    expect(world.nudgeSentAtCalls).toHaveLength(0);
+    expect(world.leads.get('lead-1')!.nudgeSentAt).toBeNull();
+    expect(errors).toHaveLength(1);
+    expect(warnings).toHaveLength(0);
   });
 
   it('a per-lead failure is reported via onLeadError (visibility, not just a skipped count)', async () => {

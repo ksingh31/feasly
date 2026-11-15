@@ -23,6 +23,8 @@ export interface InvoiceSummaryRecord {
   readonly invoiceNumber: string;
   readonly contractValueCents: number;
   readonly commissionCents: number;
+  /** ISO 4217 currency code of the invoice (e.g. "CAD"). */
+  readonly currency: string;
   readonly status: string;
   readonly reviewDueAt: Date | null;
   /** Payment method snapshot (QA 2026-10-04): card auto-charge or manual. */
@@ -68,6 +70,7 @@ export function createInvoiceSummaryStore(
           invoiceNumber: commissionInvoices.invoiceNumber,
           contractValueCents: commissionInvoices.contractValueCents,
           commissionCents: commissionInvoices.commissionCents,
+          currency: commissionInvoices.currency,
           status: commissionInvoices.status,
           reviewDueAt: commissionInvoices.reviewDueAt,
           paymentMethod: commissionInvoices.paymentMethod,

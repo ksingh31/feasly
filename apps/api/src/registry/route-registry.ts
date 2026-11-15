@@ -1214,6 +1214,20 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/builder/billing/overview',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder portal Money page header in one call (#531): outstanding ' +
+      'total (unpaid, non-disputed invoices), next card auto-charge ' +
+      '(amount, date, card last4), failed invoices, plan type + the ' +
+      'org\'s configured commission rate (default 1%), and card on file. ' +
+      'Tenant-scoped to the builder session.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/payment-method',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,
