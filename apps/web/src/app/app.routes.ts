@@ -1,4 +1,5 @@
-import { Routes, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { inject } from '@angular/core';
+import { Routes, ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare/lead-gate.guard';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -383,11 +384,10 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-estimate-lookup.component').then((m) => m.AdminEstimateLookupComponent),
       },
-      // Admin invoice list + detail (QA admin-console fix 3): every
+      // Admin invoice list + drawer (QA admin-console fix 3, #543): every
       // commission invoice across tenants with status + invoice-number
-      // filters, and a standalone detail page — including paid invoices
-      // unreachable from the billing work queues. The manage modal
-      // (mark-paid / rate override) is reused from the billing page.
+      // filters; a row opens the invoice drawer (`?open=<id>`) with the
+      // Change rate / Change payment method / Record payment modals.
       // AdminInvoicesState lazy-loads at these routes via lazyProvider so
       // the invoices chunk stays out of the initial bundle (790kB
       // production budget).
@@ -403,29 +403,22 @@ export const routes: Routes = [
               (await import('./features/admin/admin-invoices.state'))
                 .adminInvoicesStateProvider,
           ),
-        ],
-      },
-      {
-        path: 'billing/invoices/:id',
-        loadComponent: () =>
-          import('./features/admin/admin-invoice-detail.component').then(
-            (m) => m.AdminInvoiceDetailComponent,
-          ),
-        canActivate: [
-          lazyProvider(
-            async () =>
-              (await import('./features/admin/admin-invoices.state'))
-                .adminInvoicesStateProvider,
-          ),
-          // The reused manage modal reads BillingHealthState (#472):
-          // without this, opening Manage on a deep-linked invoice threw
-          // and crashed out of the admin shell.
+          // The drawer's action modals dispatch BillingHealth actions (#472).
           lazyProvider(
             async () =>
               (await import('./features/admin/billing-health.state'))
                 .billingHealthStateProvider,
           ),
         ],
+      },
+      // The old standalone detail page (#543): the invoice drawer on the
+      // list is the hub now; keep old links working via `?open=<id>`.
+      {
+        path: 'billing/invoices/:id',
+        redirectTo: ({ params }) =>
+          inject(Router).createUrlTree(['/admin/billing/invoices'], {
+            queryParams: { open: params['id'] },
+          }),
       },
       // In-shell error page (#472): uncaught failures on admin routes land
       // here (via GlobalErrorHandler) so admins keep the admin nav instead

@@ -16,6 +16,7 @@ import {
   RouterOutlet,
   type RouterStateSnapshot,
   type Routes,
+  type UrlTree,
 } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -116,11 +117,15 @@ describe('admin billing routes register BillingHealthState', () => {
     const { BuilderInvoicesApiService } = await import(
       './features/builder/builder-invoices-api.service'
     );
+    const { AdminDisputesApiService } = await import(
+      './features/admin/admin-disputes-api.service'
+    );
     TestBed.configureTestingModule({
       providers: [
         provideStore([]),
         { provide: AdminBillingApiService, useValue: {} },
         { provide: BuilderInvoicesApiService, useValue: {} },
+        { provide: AdminDisputesApiService, useValue: {} },
       ],
     });
     const route = adminChildren().find((r) => r.path === path);
@@ -135,7 +140,8 @@ describe('admin billing routes register BillingHealthState', () => {
     return TestBed.inject(Store);
   }
 
-  it.each(['billing', 'billing/invoices/:id'])(
+  // The invoice drawer's action modals (#543) live on the Invoices list.
+  it.each(['billing', 'billing/invoices'])(
     "'%s' makes the manage modal's state selectable",
     async (path) => {
       const store = await activate(path);
@@ -148,6 +154,15 @@ describe('admin billing routes register BillingHealthState', () => {
       expect(store.selectSnapshot(BillingHealthState.invoiceFeedback)).toBeNull();
     },
   );
+
+  it('redirects the old invoice detail URL to the drawer (#543)', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const route = adminChildren().find((r) => r.path === 'billing/invoices/:id');
+    const redirect = route?.redirectTo as (snapshot: { params: Record<string, string> }) => UrlTree;
+    const tree = TestBed.runInInjectionContext(() => redirect({ params: { id: 'inv-1' } }));
+    expect(TestBed.inject(Router).serializeUrl(tree)).toBe('/admin/billing/invoices?open=inv-1');
+  });
 
   it('registers the in-shell admin error route', async () => {
     const route = adminChildren().find((r) => r.path === 'error');

@@ -1,0 +1,135 @@
+<ui-drawer [heading]="heading()" [closeLabel]="t.closeLabel">
+  @if (invoice(); as inv) {
+    <ui-status-chip uiDrawerChip domain="invoice" [status]="inv.status" />
+  }
+  @if (invoice()) {
+    <span uiDrawerMeta class="invoice-drawer__meta" data-testid="invoice-meta">
+      {{ meta() }}
+      @if (countdown(); as c) {
+        <span aria-hidden="true"> · </span><span class="invoice-drawer__countdown" data-testid="invoice-countdown">{{ c }}</span>
+      }
+    </span>
+  }
+
+  @if (invoice(); as inv) {
+
+    @if (inv.status === 'failed') {
+      <p class="invoice-drawer__banner invoice-drawer__banner--danger" role="alert">
+        {{ copy.invoicesPaymentFailed }}
+      </p>
+    }
+    @if (inv.status === 'paid') {
+      <p class="invoice-drawer__banner invoice-drawer__banner--success" role="status">
+        {{ copy.invoicesPaymentReceived }}
+      </p>
+    }
+
+    <section class="invoice-drawer__section" [attr.aria-label]="t.lifecycleLabel">
+      <ui-stepper
+        [model]="stepper()"
+        [label]="t.lifecycleLabel"
+        [completeLabel]="t.stepCompleteLabel"
+        [currentStateLabel]="t.stepCurrentLabel"
+        [upcomingLabel]="t.stepUpcomingLabel"
+      />
+    </section>
+
+    @if (breakdown(); as b) {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-breakdown">
+        <h3 id="invoice-drawer-breakdown" class="invoice-drawer__heading">{{ t.breakdownHeading }}</h3>
+        <dl class="invoice-drawer__rows" data-testid="invoice-breakdown">
+          <div>
+            <dt>{{ copy.invoicesContractRow }}</dt>
+            <dd>{{ b.contract }}</dd>
+          </div>
+          <div>
+            <dt>{{ t.breakdownRate }}</dt>
+            <dd>× {{ b.rate }}</dd>
+          </div>
+          <div class="invoice-drawer__total">
+            <dt>{{ t.breakdownCommission }}</dt>
+            <dd>{{ b.commission }}</dd>
+          </div>
+        </dl>
+        @if (b.formula) {
+          <p class="invoice-drawer__formula" data-testid="invoice-formula">{{ b.formula }}</p>
+        }
+      </section>
+    }
+
+    <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-method">
+      <h3 id="invoice-drawer-method" class="invoice-drawer__heading">{{ t.paymentHeading }}</h3>
+      <div class="invoice-drawer__method-row">
+        <span class="invoice-drawer__method" data-testid="invoice-method">{{ method() }}</span>
+        @if (editable()) {
+          <button
+            type="button"
+            class="invoice-drawer__link"
+            data-testid="invoice-change-method"
+            [attr.aria-label]="changeAria()"
+            (click)="changeMethod()"
+          >
+            {{ t.changeMethod }}
+          </button>
+        }
+      </div>
+      @if (methodNote(); as note) {
+        <p class="invoice-drawer__note" role="note" data-testid="invoice-method-note">{{ note }}</p>
+      }
+    </section>
+
+    <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-timeline">
+      <h3 id="invoice-drawer-timeline" class="invoice-drawer__heading">{{ t.timelineHeading }}</h3>
+      <ui-timeline
+        data-testid="invoice-timeline"
+        order="oldest"
+        [events]="timeline()"
+        [label]="t.timelineHeading"
+        [emptyLabel]="t.timelineEmpty"
+      />
+    </section>
+
+    @if (inv.status === 'paid') {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-receipt">
+        <h3 id="invoice-drawer-receipt" class="invoice-drawer__heading">{{ copy.invoicesReceiptHeading }}</h3>
+        <dl class="invoice-drawer__rows" data-testid="invoice-receipt">
+          <div>
+            <dt>{{ copy.invoicesReceiptAmount }}</dt>
+            <dd>{{ breakdown()?.commission }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.invoicesReceiptDate }}</dt>
+            <dd>{{ date(inv.paidAt) }}</dd>
+          </div>
+          <div>
+            <dt>{{ copy.invoicesReceiptCard }}</dt>
+            <dd>{{ receiptCard() }}</dd>
+          </div>
+        </dl>
+      </section>
+    }
+
+    @if (inv.status === 'failed' || questionHref) {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-actions">
+        <h3 id="invoice-drawer-actions" class="invoice-drawer__heading">{{ t.actionsHeading }}</h3>
+        <div class="invoice-drawer__actions">
+          @if (inv.status === 'failed') {
+            <a ui-button routerLink="/builder/billing" data-testid="invoice-update-card">{{ copy.invoicesUpdateCardCta }}</a>
+          }
+          @if (questionHref) {
+            <a ui-button variant="secondary" data-testid="invoice-question" [href]="questionHref">{{
+              t.questionInvoice
+            }}</a>
+          }
+        </div>
+      </section>
+    }
+  } @else if (loadFailed()) {
+    <div class="invoice-drawer__error" role="alert">
+      <p>{{ copy.invoicesLoadError }}</p>
+      <button type="button" ui-button variant="secondary" (click)="retry()">{{ copy.retryLabel }}</button>
+    </div>
+  } @else {
+    <p class="invoice-drawer__loading" role="status">{{ copy.invoicesLoading }}</p>
+  }
+</ui-drawer>
