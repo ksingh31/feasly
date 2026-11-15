@@ -1,0 +1,66 @@
+// Admin Quarantine (#540). Tokens only. Table, filter bar, bulk bar and
+// confirm chrome come from the UI kit; this file lays out the page.
+
+.quarantine-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  color: var(--text);
+}
+
+.quarantine-page__alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  font: var(--type-body-sm);
+}
+
+.quarantine-page__count {
+  margin: 0;
+  min-height: 1.25rem;
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.quarantine-page__bulk,
+.quarantine-page__row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// Two small buttons: keep them side by side so table rows stay 48px-ish.
+.quarantine-page__row-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.quarantine-page__lead {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quarantine-page__lead-name {
+  font-weight: 600;
+}
+
+.quarantine-page__lead-email {
+  color: var(--muted);
+  font: var(--type-meta);
+  overflow-wrap: anywhere;
+}
+
+.quarantine-page__more {
+  display: flex;
+  justify-content: center;
+}
