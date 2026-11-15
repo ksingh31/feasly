@@ -401,6 +401,7 @@
   },
   "admin": {
     "defaultRateLimit": 60,
+    "environmentLabel": "Dev",
     "entra": {
       "tenantSubdomain": "feaslyext",
       "tenantId": "e8f46aab-2491-4389-8e39-ae78ee12db6a",

@@ -1,38 +1,151 @@
-<div class="admin-shell">
-  <header class="admin-shell__header">
-    <a class="admin-shell__brand" routerLink="/admin/leads" aria-label="Feasly Admin home">
-      <app-brand-mark [size]="28" />
-      <span class="admin-shell__wordmark">Feasly&nbsp;Admin</span>
-    </a>
-    <button
-      type="button"
-      class="admin-shell__menu-toggle"
-      [attr.aria-expanded]="menuOpen()"
-      aria-controls="admin-nav"
-      (click)="toggleMenu()"
-    >
-      <span class="admin-shell__menu-icon" aria-hidden="true"></span>
-      <span class="admin-shell__menu-label">{{ menuOpen() ? 'Close menu' : 'Open menu' }}</span>
-    </button>
-    <nav class="admin-shell__nav" id="admin-nav" aria-label="Admin" [class.admin-shell__nav--open]="menuOpen()">
-      <a routerLink="/admin/leads" routerLinkActive="active" (click)="closeMenu()">Leads</a>
-      <a routerLink="/admin/builders" routerLinkActive="active" (click)="closeMenu()">Builders</a>
-      <a routerLink="/admin/users" routerLinkActive="active" (click)="closeMenu()">Users</a>
-      <a routerLink="/admin/disputes" routerLinkActive="active" (click)="closeMenu()">Disputes</a>
-      <a routerLink="/admin/billing" routerLinkActive="active" (click)="closeMenu()">Billing</a>
-      <a routerLink="/admin/billing/invoices" routerLinkActive="active" (click)="closeMenu()">Invoices</a>
-      <a routerLink="/admin/calibration" routerLinkActive="active" (click)="closeMenu()">Calibration</a>
-      <a routerLink="/admin/ops/sheets" routerLinkActive="active" (click)="closeMenu()">Sheets sync</a>
-      <a routerLink="/admin/estimates" routerLinkActive="active" (click)="closeMenu()">Estimates</a>
-      <a routerLink="/admin/funnels" routerLinkActive="active" (click)="closeMenu()">Funnels</a>
-      @if (canManageApiKeys()) {
-        <a routerLink="/admin/api-keys" routerLinkActive="active" (click)="closeMenu()">API keys</a>
+<div
+  class="admin-shell"
+  [class.admin-shell--collapsed]="collapsed()"
+  [class.admin-shell--menu-open]="menuOpen()"
+>
+  <div
+    #sidebar
+    class="admin-sidebar"
+    id="admin-sidebar"
+    (keydown)="onNavKeydown($event)"
+  >
+    <div class="admin-sidebar__head">
+      <a class="admin-sidebar__brand" routerLink="/admin/leads" [attr.aria-label]="copy.homeLabel">
+        <app-brand-mark [size]="28" />
+        <span class="admin-sidebar__wordmark">{{ copy.brand }}</span>
+      </a>
+    </div>
+    <nav class="admin-nav" [attr.aria-label]="copy.navLabel">
+      @for (group of groups(); track group.id) {
+        <div class="admin-nav__group">
+          <p class="admin-nav__group-label" [id]="'admin-nav-group-' + group.id">{{ group.label }}</p>
+          <ul class="admin-nav__list" [attr.aria-labelledby]="'admin-nav-group-' + group.id">
+            @for (item of group.items; track item.id) {
+              <li>
+                <a
+                  class="admin-nav__link"
+                  [routerLink]="item.path"
+                  routerLinkActive="admin-nav__link--active"
+                  ariaCurrentWhenActive="page"
+                  [routerLinkActiveOptions]="{ exact: item.exact }"
+                  [attr.title]="collapsed() ? item.label : null"
+                  [attr.data-nav-id]="item.id"
+                  (click)="closeMenu()"
+                >
+                  <span class="admin-nav__glyph" aria-hidden="true">{{ item.label.charAt(0) }}</span>
+                  <span class="admin-nav__label">{{ item.label }}</span>
+                  @if (item.badge > 0) {
+                    <span class="admin-nav__badge">
+                      {{ item.badge }}<span class="sr-only">&nbsp;{{ copy.badgeSuffix }}</span>
+                    </span>
+                  }
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
       }
-      <button type="button" (click)="signOut()">Sign out</button>
     </nav>
-  </header>
-  <app-view-as-banner [banner]="viewAsBanner()" (exit)="exitViewAs()" />
-  <main class="admin-shell__main">
-    <router-outlet />
-  </main>
+  </div>
+
+  <div class="admin-shell__scrim" aria-hidden="true" (click)="closeMenu(true)"></div>
+
+  <div class="admin-shell__body">
+    <header class="admin-topbar">
+      <button
+        #menuToggle
+        type="button"
+        class="admin-topbar__icon-button admin-topbar__menu-toggle"
+        [attr.aria-expanded]="menuOpen()"
+        aria-controls="admin-sidebar"
+        [attr.aria-label]="menuOpen() ? copy.closeMenu : copy.openMenu"
+        (click)="toggleMenu()"
+      >
+        <span class="admin-topbar__burger" aria-hidden="true"></span>
+      </button>
+      <button
+        type="button"
+        class="admin-topbar__icon-button admin-topbar__collapse-toggle"
+        [attr.aria-expanded]="!collapsed()"
+        aria-controls="admin-sidebar"
+        [attr.aria-label]="collapsed() ? copy.expandSidebar : copy.collapseSidebar"
+        (click)="toggleCollapsed()"
+      >
+        <span class="admin-topbar__chevron" aria-hidden="true"></span>
+      </button>
+
+      <nav class="admin-topbar__crumbs" [attr.aria-label]="copy.breadcrumbLabel">
+        @if (breadcrumbs(); as crumbs) {
+          <ol>
+            <li class="admin-topbar__crumb-group">{{ crumbs.group }}</li>
+            <li>
+              <a [routerLink]="crumbs.path" aria-current="page">{{ crumbs.label }}</a>
+            </li>
+          </ol>
+        }
+      </nav>
+
+      <div class="admin-topbar__search">
+        <button
+          #searchButton
+          type="button"
+          class="admin-topbar__search-button"
+          aria-describedby="admin-search-hint"
+          (click)="showSearchHint()"
+          (blur)="hideSearchHint()"
+        >
+          <span class="admin-topbar__search-label">{{ copy.searchLabel }}</span>
+          <kbd class="admin-topbar__kbd">{{ copy.searchShortcut }}</kbd>
+        </button>
+        <p id="admin-search-hint" class="admin-topbar__search-hint" role="status">
+          @if (searchHintVisible()) {
+            {{ copy.searchComingSoon }}
+          }
+        </p>
+      </div>
+
+      @if (environmentLabel) {
+        <span class="admin-topbar__env">
+          <span class="sr-only">{{ copy.environmentLabel }}:&nbsp;</span>{{ environmentLabel }}
+        </span>
+      }
+
+      <div class="admin-topbar__user">
+        <button
+          #userMenuButton
+          type="button"
+          class="admin-topbar__avatar"
+          aria-haspopup="true"
+          [attr.aria-expanded]="userMenuOpen()"
+          aria-controls="admin-user-menu"
+          [attr.aria-label]="copy.userMenuLabel"
+          (click)="toggleUserMenu()"
+        >
+          <span aria-hidden="true">{{ initial() }}</span>
+        </button>
+        @if (userMenuOpen()) {
+          <div class="admin-topbar__menu" id="admin-user-menu">
+            @if (name() || email()) {
+              <div class="admin-topbar__identity">
+                @if (name()) {
+                  <span class="admin-topbar__identity-name">{{ name() }}</span>
+                }
+                @if (email()) {
+                  <span class="admin-topbar__identity-email">{{ email() }}</span>
+                }
+              </div>
+            }
+            <button type="button" class="admin-topbar__menu-item" (click)="signOut()">
+              {{ copy.signOut }}
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <app-view-as-banner [banner]="viewAsBanner()" (exit)="exitViewAs()" />
+    <main class="admin-shell__main" id="admin-main">
+      <router-outlet />
+    </main>
+  </div>
 </div>

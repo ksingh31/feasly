@@ -108,6 +108,16 @@ describe('GlobalErrorHandler', () => {
       expect(navigateByUrl).not.toHaveBeenCalled();
     });
 
+    it('keeps a repeat failure during the admin error navigation inside the shell (#503)', async () => {
+      await router.navigateByUrl('/admin/billing/invoices/inv-1');
+      const navigate = vi.spyOn(router, 'navigate');
+      handler.handleError(new Error('first'));
+      handler.handleError(new Error('second'));
+      await waitForUrl('/admin/error');
+      expect(navigate).not.toHaveBeenCalledWith(['/error'], expect.anything());
+      expect(router.url).toBe('/admin/error');
+    });
+
     it('falls back to /error when the admin error navigation fails', async () => {
       await router.navigateByUrl('/admin/billing/invoices/inv-1');
       vi.spyOn(router, 'navigateByUrl').mockResolvedValueOnce(false);
