@@ -71,7 +71,7 @@ export async function embedConfigHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.embedConfigRoute.handle(req.query ?? {}),
   );
 

@@ -58,7 +58,7 @@ export async function magicLinkReissueHandler(
 
   // The body is never logged — it carries an email address.
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.magicLinkRoute.reissue(req.body),
   );
 

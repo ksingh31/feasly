@@ -73,7 +73,7 @@ export async function embedRelayResendHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.embedRelayResendRoute.handle(req.body, clientIpFrom(req)),
   );
 
