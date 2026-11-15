@@ -168,6 +168,7 @@ function fakeEmailService(): EmailService {
     sendMagicLink: async () => result,
     sendInvitation: async () => result,
     sendNudge: async () => result,
+    sendFollowUp: async () => result,
     sendUnsubscribeConfirmation: async () => result,
     sendPartnerShare: async () => result,
     sendCallbackConfirmation: async () => result,

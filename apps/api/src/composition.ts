@@ -56,6 +56,14 @@ import {
   type NudgeService,
 } from './services/nudge.service';
 import {
+  createFollowUpService,
+  type FollowUpService,
+} from './services/follow-up.service';
+import {
+  createDrizzleLeadFollowUpStore,
+  type LeadFollowUpStore,
+} from './services/lead-follow-up.store';
+import {
   createSandboxPurgeService,
   type SandboxPurgeService,
 } from './services/sandbox-purge.service';
@@ -623,6 +631,8 @@ export interface AppComposition {
   readonly unsubscribeRoute: UnsubscribeRoute;
   /** email/02: hourly 24h-nudge timer for unverified leads. */
   readonly nudgeService: NudgeService;
+  /** #703: hourly post-report follow-up timer (flag default off). */
+  readonly followUpService: FollowUpService;
   /** api-mcp/09: daily sandbox test-data purge timer. */
   readonly sandboxPurgeService: SandboxPurgeService;
   /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
@@ -804,6 +814,8 @@ export interface CompositionOptions {
   readonly rateLimitStore?: SharedCounterStore;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
+  /** #703: report-opened + follow-up stamps (default: Drizzle). */
+  readonly leadFollowUpStore?: LeadFollowUpStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
@@ -1032,6 +1044,8 @@ export function createComposition(
   const leadStatusChangeStore: LeadStatusChangeStore =
     options.leadStatusChangeStore ??
     createDrizzleLeadStatusChangeStore({ db: db.db });
+  const leadFollowUpStore: LeadFollowUpStore =
+    options.leadFollowUpStore ?? createDrizzleLeadFollowUpStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
   const analyticsStore: AnalyticsStore =
@@ -1132,6 +1146,23 @@ export function createComposition(
     onLeadError: (error) =>
       console.error(
         `nudge: lead send failed (error=${sanitizeErrorMessage(error)})`,
+      ),
+  });
+  // #703 — one post-report follow-up email (marketing consent only, flag
+  // default off). Same stamp + no-retry rules as the nudge above.
+  const followUpService: FollowUpService = createFollowUpService({
+    enabled: config.followUpEmail.enabled,
+    leads: leadStore,
+    followUps: leadFollowUpStore,
+    magicLinks: magicLinkStore,
+    email: emailService,
+    unsubscribe: unsubscribeService,
+    appBaseUrl: config.email.appBaseUrl,
+    magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    delayHours: config.followUpEmail.delayHours,
+    onLeadError: (error) =>
+      console.error(
+        `follow-up: lead send failed (error=${sanitizeErrorMessage(error)})`,
       ),
   });
   // api-mcp/09 — daily sandbox purge for test data. Hard-deletes sandbox
@@ -1684,6 +1715,7 @@ export function createComposition(
     properties: propertyService,
     costData: PLACEHOLDER_COST_DATA,
     allowDraftCostData: config.costEngine.allowDraftCostData,
+    followUps: leadFollowUpStore,
   });
   const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
   // Narrative worker (consumer/06): created here (after propertyService)
@@ -2012,6 +2044,7 @@ export function createComposition(
     unsubscribeService,
     unsubscribeRoute,
     nudgeService,
+    followUpService,
     sandboxPurgeService,
     sheetsSyncService,
     opsAlertsService,

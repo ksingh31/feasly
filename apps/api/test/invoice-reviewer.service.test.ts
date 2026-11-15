@@ -105,6 +105,7 @@ function fakeEmail(): EmailService {
     sendPartnerShare: noop,
     sendCallbackConfirmation: noop,
     sendNudge: noop,
+    sendFollowUp: noop,
     sendOpsAlert: noop,
   } as unknown as EmailService;
 }
