@@ -75,6 +75,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   timings: {
     debounceMs: 250,
     reviseDebounceMs: 400,
+    filterDebounceMs: 250,
     resendCooldownSec: 60,
     mockLatencyMinMs: 400,
     mockLatencyMaxMs: 900,

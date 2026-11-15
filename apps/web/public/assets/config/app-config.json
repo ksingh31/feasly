@@ -423,6 +423,7 @@
   },
   "timings": {
     "debounceMs": 250,
+    "filterDebounceMs": 250,
     "mockLatencyMaxMs": 900,
     "mockLatencyMinMs": 400,
     "resendCooldownSec": 60,

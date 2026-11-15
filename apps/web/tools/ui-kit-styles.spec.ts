@@ -70,3 +70,41 @@ describe('shared/ui uses tokens only', () => {
     }
   });
 });
+
+/**
+ * #500 AC1: DataTable/FilterBar never widen the page at 390px. jsdom can't
+ * measure `scrollWidth`, so this pins the CSS that guarantees it; the
+ * real-browser measurement (scrollWidth <= innerWidth at 390x844) is in the
+ * PR and moves to the Playwright harness tracked in #536.
+ */
+describe('ui-data-table / ui-filter-bar never widen the page', () => {
+  const table = read('data-table/data-table.component.scss');
+  const bar = read('filter-bar/filter-bar.component.scss');
+  const mobile = (css: string) => /@media \(max-width: 767px\)\s*\{([\s\S]*)\}\s*$/.exec(css)?.[1] ?? '';
+
+  it('hosts are capped at their container', () => {
+    for (const css of [table, bar]) {
+      expect(css).toMatch(/:host\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
+    }
+  });
+
+  it('the wide table scrolls inside its own box, never the page', () => {
+    expect(table).toMatch(/\.ui-dt__scroll\s*\{[^}]*max-width:\s*100%;[^}]*overflow-x:\s*auto;/);
+  });
+
+  it('below 768px the table is swapped for the card list', () => {
+    expect(table).toMatch(/\.ui-dt__cards\s*\{\s*display:\s*none;/);
+    const m = mobile(table);
+    expect(m).toMatch(/\.ui-dt__scroll\s*\{\s*display:\s*none;/);
+    expect(m).toMatch(/\.ui-dt__cards\s*\{\s*display:\s*block;/);
+    expect(table).toMatch(/\.ui-dt__card-body\s*\{[^}]*min-width:\s*0;/);
+  });
+
+  it('below 768px the FilterBar collapses to [Search] [Filters (n)] with 44px targets', () => {
+    const m = mobile(bar);
+    expect(m).toMatch(/\.ui-fb__desktop\s*\{\s*display:\s*none;/);
+    expect(m).toMatch(/\.ui-fb__mobile\s*\{\s*display:\s*block;/);
+    expect(m).toMatch(/min-height:\s*44px;/);
+    expect(bar).toMatch(/\.ui-fb__search\s*\{[^}]*min-width:\s*0;/);
+  });
+});

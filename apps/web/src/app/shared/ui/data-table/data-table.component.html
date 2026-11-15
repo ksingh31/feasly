@@ -1,0 +1,202 @@
+<ng-template #cell let-row let-column="column">
+  @if (templates().get(column.key); as tpl) {
+    <ng-container *ngTemplateOutlet="tpl; context: ctx(row, column)" />
+  } @else {
+    @switch (column.kind) {
+      @case ('money') {
+        {{ asNumber(value(column, row)) | kitMoney }}
+      }
+      @case ('count') {
+        {{ asNumber(value(column, row)) | kitCount }}
+      }
+      @case ('date') {
+        {{ asString(value(column, row)) | kitDate }}
+      }
+      @case ('status') {
+        <ui-status-chip [domain]="column.statusDomain!" [status]="asString(value(column, row))" />
+      }
+      @case ('id') {
+        <span class="ui-dt__id">{{ text(column, row) }}</span>
+      }
+      @default {
+        <span class="ui-dt__clamp" [attr.title]="text(column, row)">{{ text(column, row) }}</span>
+      }
+    }
+  }
+</ng-template>
+
+@if (selectable() && selection().length > 0) {
+  <div class="ui-dt__bulk" role="region" [attr.aria-label]="label() + ' — ' + selectedCountLabel()">
+    <span class="ui-dt__bulk-count" aria-live="polite">{{ selection().length }} {{ selectedCountLabel() }}</span>
+    <div class="ui-dt__bulk-actions"><ng-content select="[uiBulkActions]" /></div>
+  </div>
+}
+
+@switch (state()) {
+  @case ('loading') {
+    <ui-skeleton variant="rows" [count]="skeletonRows" [label]="loadingLabel()" />
+  }
+  @case ('error') {
+    <ui-error-state [heading]="errorHeading()" [message]="error()" [retryLabel]="retryLabel()" (retry)="retry.emit()" />
+  }
+  @case ('empty') {
+    @if (filtered()) {
+      <ui-empty-state
+        variant="no-results"
+        [heading]="noResultsHeading()"
+        [message]="noResultsMessage()"
+        [actionLabel]="clearFiltersLabel()"
+        (action)="clearFilters.emit()"
+      />
+    } @else {
+      <ui-empty-state variant="zero-data" [heading]="emptyHeading()" [message]="emptyMessage()" />
+    }
+  }
+  @case ('rows') {
+    <!-- ≥ 768px: table -->
+    <div class="ui-dt__scroll">
+      <table class="ui-dt__table" [attr.aria-label]="label()">
+        <thead>
+          <tr>
+            @if (selectable()) {
+              <th scope="col" class="ui-dt__check">
+                <input
+                  type="checkbox"
+                  [checked]="allSelected()"
+                  [indeterminate]="someSelected()"
+                  [attr.aria-label]="selectAllLabel()"
+                  (change)="toggleAll($any($event.target).checked)"
+                />
+              </th>
+            }
+            @for (column of columns(); track column.key) {
+              <th scope="col" [class.ui-dt__end]="align(column) === 'end'" [attr.aria-sort]="ariaSort(column)">
+                @if (column.sortable) {
+                  <button type="button" class="ui-dt__sort" (click)="onSort(column)">
+                    {{ column.header }}
+                    <span class="ui-dt__sort-icon" [attr.data-dir]="ariaSort(column)" aria-hidden="true"></span>
+                  </button>
+                } @else {
+                  {{ column.header }}
+                }
+              </th>
+            }
+            @if (actionsTemplate()) {
+              <th scope="col" class="ui-dt__actions"><span class="sr-only">{{ actionsHeader() }}</span></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track rowId()(row)) {
+            <tr
+              class="ui-dt__row"
+              tabindex="0"
+              [class.ui-dt__row--open]="isOpen(row)"
+              [attr.aria-current]="isOpen(row) ? 'true' : null"
+              (click)="onRowClick($event, row)"
+              (keydown)="onRowKeydown($event, row)"
+            >
+              @if (selectable()) {
+                <td class="ui-dt__check">
+                  <input
+                    type="checkbox"
+                    [checked]="isSelected(row)"
+                    [attr.aria-label]="selectRowLabel() + ' ' + (card().title ? text(card().title!, row) : rowId()(row))"
+                    (change)="toggleRow(row, $any($event.target).checked)"
+                  />
+                </td>
+              }
+              @for (column of columns(); track column.key) {
+                <td [class.ui-dt__end]="align(column) === 'end'" [class.ui-dt__num]="column.kind === 'money' || column.kind === 'count'">
+                  <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, column: column }" />
+                </td>
+              }
+              @if (actionsTemplate(); as actions) {
+                <td class="ui-dt__actions">
+                  <ng-container *ngTemplateOutlet="actions; context: ctx(row)" />
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- < 768px: card list -->
+    <div class="ui-dt__cards">
+      @if (sortOptions().length > 0) {
+        <label class="ui-dt__sort-select">
+          <span class="ui-dt__sort-select-label">{{ sortByLabel() }}</span>
+          <select [value]="sortValue()" (change)="onSortSelect($any($event.target).value)">
+            <option value="" [selected]="sortValue() === ''">{{ noSortLabel() }}</option>
+            @for (opt of sortOptions(); track opt.value) {
+              <option [value]="opt.value" [selected]="opt.value === sortValue()">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+      <ul class="ui-dt__card-list" [attr.aria-label]="label()">
+        @for (row of rows(); track rowId()(row)) {
+          <li
+            class="ui-dt__card"
+            tabindex="0"
+            [class.ui-dt__card--open]="isOpen(row)"
+            [attr.aria-current]="isOpen(row) ? 'true' : null"
+            (click)="onRowClick($event, row)"
+            (keydown)="onRowKeydown($event, row)"
+          >
+            @if (selectable()) {
+              <input
+                type="checkbox"
+                class="ui-dt__card-check"
+                [checked]="isSelected(row)"
+                [attr.aria-label]="selectRowLabel() + ' ' + (card().title ? text(card().title!, row) : rowId()(row))"
+                (change)="toggleRow(row, $any($event.target).checked)"
+              />
+            }
+            <div class="ui-dt__card-body">
+              <div class="ui-dt__card-head">
+                @if (card().title; as title) {
+                  <span class="ui-dt__card-title">
+                    <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, column: title }" />
+                  </span>
+                }
+                @if (card().chip; as chip) {
+                  <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, column: chip }" />
+                }
+              </div>
+              @for (column of card().meta; track column.key) {
+                <p class="ui-dt__card-meta">
+                  <span class="ui-dt__card-meta-label">{{ column.header + ':' }}</span>
+                  <span [class.ui-dt__num]="column.kind === 'money' || column.kind === 'count'">
+                    <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, column: column }" />
+                  </span>
+                </p>
+              }
+              @if (actionsTemplate(); as actions) {
+                <div class="ui-dt__card-actions">
+                  <ng-container *ngTemplateOutlet="actions; context: ctx(row)" />
+                </div>
+              }
+            </div>
+            <span class="ui-dt__chevron" aria-hidden="true"></span>
+          </li>
+        }
+      </ul>
+    </div>
+
+    @if (showPagination()) {
+      <nav class="ui-dt__pager" [attr.aria-label]="paginationLabel()">
+        <button type="button" class="ui-dt__page-btn" [disabled]="page() <= 1" (click)="goTo(page() - 1)">
+          {{ previousLabel() }}
+        </button>
+        <span class="ui-dt__page-status" aria-live="polite">
+          {{ pageLabel() }} {{ page() }} {{ pageOfLabel() }} {{ pages() }}
+        </span>
+        <button type="button" class="ui-dt__page-btn" [disabled]="page() >= pages()" (click)="goTo(page() + 1)">
+          {{ nextLabel() }}
+        </button>
+      </nav>
+    }
+  }
+}

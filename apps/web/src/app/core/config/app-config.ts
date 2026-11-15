@@ -469,6 +469,8 @@ export interface AppConfig {
     debounceMs: number;
     /** Report sqft-stepper live-revise debounce (D-02: 400 ms trailing). */
     reviseDebounceMs: number;
+    /** Portal FilterBar search debounce (portal-ui-kit §3: 250 ms). */
+    filterDebounceMs: number;
     /** Cooldown between magic-link resends. */
     resendCooldownSec: number;
     /** Mock API latency window (FE0-003). Real API ignores these. */
