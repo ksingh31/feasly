@@ -356,6 +356,10 @@ export const AnalyticsEventNameSchema = z
     'partner_share',
     'pdf_download',
     'embed_loaded',
+    'report_resume',
+    'report_link_request',
+    'report_link_copy',
+    'report_link_share',
   ])
   .openapi('AnalyticsEventName');
 

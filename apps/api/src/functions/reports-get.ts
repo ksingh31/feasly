@@ -65,7 +65,7 @@ export async function reportsGetHandler(
   // The path param is never logged — it is the Bearer <redacted>
   const reportToken = req.params?.reportToken ?? '';
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.reportRoute.get(reportToken),
   );
 

@@ -578,6 +578,7 @@ import {
   createRequestPipeline,
   type LogEntry,
   type RequestPipeline,
+  type RequestPipelineDeps,
 } from './middleware/pipeline';
 
 export interface AppComposition {
@@ -930,8 +931,25 @@ export function createComposition(
     maxRequests: config.rateLimit.maxRequests,
     maxTrackedKeys: config.rateLimit.maxTrackedKeys,
   });
+  // Created before the pipelines: the #794 CSRF origin check audit-logs
+  // every denial here.
+  const adminAuditStore: AdminAuditStore =
+    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  // #794 (#731 F-6): every pipeline refuses state-changing requests that
+  // authenticate with an admin/builder session COOKIE unless Origin (or
+  // Referer) is in CORS_ORIGINS. Bearer-header auth is unaffected.
+  const csrf: RequestPipelineDeps['csrf'] = {
+    allowlist: config.corsOrigins,
+    onDenied: (denial) =>
+      adminAuditStore.log({
+        actorEmail: null,
+        action: 'csrf.denied',
+        detail: `method=${denial.method} cookie=${denial.cookie} reason=${denial.reason} correlation=${denial.correlationId}`,
+      }),
+  };
   const requestPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter,
+    csrf,
     logger: options.logger,
   });
   // The lead gate is public by design, so it gets its own deliberately
@@ -961,6 +979,7 @@ export function createComposition(
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // consumer/03 — estimates are the most expensive endpoint to leave
@@ -988,6 +1007,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    csrf,
     logger: options.logger,
   });
   // HRD-06: the health endpoint reports real dependency state. A sick
@@ -1007,6 +1027,7 @@ export function createComposition(
   });
   const analyticsPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: analyticsRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // auth/02 — the Entra callback is public by design (it IS the sign-in),
@@ -1020,6 +1041,7 @@ export function createComposition(
   });
   const entraCallbackPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: entraCallbackRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
@@ -1100,9 +1122,8 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
-  const adminAuditStore: AdminAuditStore =
-    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
   // #721: lead reassignment rules (attribution close/open, invoice block).
+  // (adminAuditStore is defined above, before the auth middleware.)
   const leadAssignmentService: LeadAssignmentService = createLeadAssignmentService({
     db: db.db,
     audit: adminAuditStore,
@@ -1446,6 +1467,7 @@ export function createComposition(
   });
   const builderEntraCallbackPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: builderEntraCallbackRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const viewAsService: ViewAsService = createViewAsService({
@@ -1501,6 +1523,7 @@ export function createComposition(
   const adminSearchPipeline: RequestPipeline = createAdminSearchPipeline({
     ipLimiter: adminSearchIpRateLimiter,
     sessionLimiter: adminSearchSessionRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const adminSearchService: AdminSearchService = createAdminSearchService({
@@ -2019,6 +2042,7 @@ export function createComposition(
   });
   const webhookPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: webhookRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1.
