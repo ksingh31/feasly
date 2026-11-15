@@ -332,6 +332,102 @@ if (!existsSync(ogPath)) {
   }
 }
 
+// --- One URL form (#707): every sitemap <loc> is byte-equal to the canonical
+// of the page it points to, and the non-slash form 301s to it. ---
+{
+  const sitemapPath = join(BROWSER, 'sitemap.xml');
+  const swaPath = join(BROWSER, 'staticwebapp.config.json');
+  let swa = null;
+  try {
+    swa = JSON.parse(readFileSync(swaPath, 'utf8'));
+  } catch {
+    failures.push(`cannot read ${swaPath}`);
+  }
+  if (!existsSync(sitemapPath)) {
+    failures.push('missing sitemap.xml in build output');
+  } else {
+    const locs = [...readFileSync(sitemapPath, 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    if (locs.length === 0) failures.push('sitemap.xml has no <loc> entries');
+    const redirects = new Map(
+      (swa?.routes ?? []).filter((r) => r.redirect).map((r) => [r.route, { to: r.redirect, status: r.statusCode }]),
+    );
+    for (const loc of locs) {
+      const path = new URL(loc).pathname;
+      const html = htmlFor(path);
+      if (html === null) continue;
+      const tag = html.match(/<link[^>]*rel="canonical"[^>]*>/i)?.[0] ?? '';
+      const canonical = tag.match(/href="([^"]*)"/)?.[1] ?? '';
+      if (canonical !== loc) {
+        failures.push(`sitemap <loc> "${loc}" is not byte-equal to its page canonical "${canonical}"`);
+      }
+      if (path !== '/') {
+        const bare = path.replace(/\/$/, '');
+        const r = redirects.get(bare);
+        if (!r || r.to !== path || r.status !== 301) {
+          failures.push(`"${bare}" must 301 to "${path}" in staticwebapp.config.json (one URL form)`);
+        }
+      }
+    }
+    notes.push(`sitemap URLs matched to canonicals: ${locs.length}`);
+  }
+
+  // --- Non-production noindex (#707): a build without SITE_URL (empty
+  // site.url in the shipped config) must carry X-Robots-Tag + Disallow: /;
+  // a build with SITE_URL must carry neither. ---
+  let siteUrl = null;
+  try {
+    siteUrl = JSON.parse(readFileSync(join(BROWSER, 'assets', 'config', 'app-config.json'), 'utf8')).site?.url ?? '';
+  } catch {
+    failures.push('cannot read assets/config/app-config.json in build output');
+  }
+  if (swa !== null && siteUrl !== null) {
+    const robotsHeader = swa.globalHeaders?.['X-Robots-Tag'];
+    const robotsRoute = (swa.routes ?? []).find((r) => r.route === '/robots.txt');
+    const noindexRobotsPath = join(BROWSER, 'robots.noindex.txt');
+    const before = failures.length;
+    if (siteUrl === '') {
+      if (robotsHeader !== 'noindex, nofollow') {
+        failures.push(`non-production build: X-Robots-Tag must be "noindex, nofollow" (got ${JSON.stringify(robotsHeader)})`);
+      }
+      if (swa.routes?.[0]?.route !== '/robots.txt' || robotsRoute?.rewrite !== '/robots.noindex.txt') {
+        failures.push('non-production build: first SWA route must rewrite /robots.txt to /robots.noindex.txt');
+      }
+      if (!existsSync(noindexRobotsPath) || !/^Disallow: \/$/m.test(readFileSync(noindexRobotsPath, 'utf8'))) {
+        failures.push('non-production build: robots.noindex.txt missing or lacks "Disallow: /"');
+      }
+      if (failures.length === before) notes.push('non-production build: X-Robots-Tag noindex + Disallow: / present');
+    } else {
+      if (robotsHeader !== undefined) failures.push('production build (SITE_URL set) must not send X-Robots-Tag');
+      if (robotsRoute) failures.push('production build (SITE_URL set) must not rewrite /robots.txt');
+      if (existsSync(noindexRobotsPath)) failures.push('production build (SITE_URL set) must not ship robots.noindex.txt');
+      if (failures.length === before) notes.push(`production build for ${siteUrl}: indexable`);
+    }
+  }
+
+  // --- Shared report links (#707 AC5): /r/* is rewritten to a static shell
+  // whose preview tags (title, description, og:*, twitter:*) are what a
+  // message app shows. They must carry no dollar figure; the shell is static,
+  // so it cannot carry a report's address or name. ---
+  const shareTarget = (swa?.routes ?? []).find((r) => r.route === '/r/*')?.rewrite;
+  if (!shareTarget) {
+    failures.push('staticwebapp.config.json has no /r/* rewrite (shared report links)');
+  } else {
+    const shellPath = join(BROWSER, shareTarget.replace(/^\//, ''));
+    if (!existsSync(shellPath)) {
+      failures.push(`/r/* rewrite target ${shareTarget} missing from build output`);
+    } else {
+      const shell = readFileSync(shellPath, 'utf8');
+      const previewTags = [
+        ...(shell.match(/<title[^>]*>[\s\S]*?<\/title>/gi) ?? []),
+        ...(shell.match(/<meta[^>]*(name="description"|property="og:[^"]*"|name="twitter:[^"]*")[^>]*>/gi) ?? []),
+      ];
+      for (const tag of previewTags) {
+        if (/\$\s?\d/.test(tag)) failures.push(`/r/* share preview tag carries a dollar figure: ${tag}`);
+      }
+    }
+  }
+}
+
 if (notes.length > 0) {
   for (const note of notes) console.log(`  note: ${note}`);
 }
