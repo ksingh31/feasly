@@ -130,7 +130,7 @@ export class CompareResultsComponent {
 
   /** Community averages and estimate figures, rounded to $1,000 (#504). */
   protected formatMoney(value: number): string {
-    return formatRoundedCad(value);
+    return formatRoundedCad(value, this.config.get('limits').estimateRoundingStep);
   }
 
   protected formatRange(range: CostRange): string {

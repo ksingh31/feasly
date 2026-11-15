@@ -6,6 +6,10 @@ import type { CostRow } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { mockReport } from '../../core/api/mock-data';
 import { formatCompactCad } from '../../shared/utils/money';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
+
+/** Configured estimate display step (#608). */
+const ROUNDING_STEP = DEFAULT_APP_CONFIG.limits.estimateRoundingStep;
 import {
   ReportPdfService,
   loadBrandFonts,
@@ -292,9 +296,9 @@ describe('ReportPdfService', () => {
     // #504: range-first headline (rounded), base secondary.
     const snap = input().snapshot;
     // (The PDF text extractor drops the en dash, so check each end.)
-    expect(text).toContain(`${copy.mostLikelyPdfLabel} ${formatCompactCad(snap.totalRange.base)}`);
-    expect(text).toContain(formatCompactCad(snap.totalRange.low));
-    expect(text).toContain(formatCompactCad(snap.totalRange.high));
+    expect(text).toContain(`${copy.mostLikelyPdfLabel} ${formatCompactCad(snap.totalRange.base, ROUNDING_STEP)}`);
+    expect(text).toContain(formatCompactCad(snap.totalRange.low, ROUNDING_STEP));
+    expect(text).toContain(formatCompactCad(snap.totalRange.high, ROUNDING_STEP));
     expect(text).toContain('$306 per sq ft');
   });
 

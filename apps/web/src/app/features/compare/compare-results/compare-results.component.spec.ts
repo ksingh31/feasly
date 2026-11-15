@@ -16,6 +16,10 @@ import { StoreLeadResult } from '../../wizard/lead.actions';
 import { ComparisonLeadSubmitted, RunComparison } from '../comparison.actions';
 import { ComparisonState } from '../comparison.state';
 import { formatRoundedCad } from '../../../shared/utils/money';
+import { DEFAULT_APP_CONFIG } from '../../../core/config/app-config.defaults';
+
+/** Configured estimate display step (#608). */
+const ROUNDING_STEP = DEFAULT_APP_CONFIG.limits.estimateRoundingStep;
 
 /**
  * NBH-03 acceptance criteria: the results render 2–3 community cards with
@@ -98,7 +102,7 @@ describe('CompareResultsComponent', () => {
     const expected = [
       stats['beltline'].avg_assessed_value,
       stats['panorama-hills'].avg_assessed_value,
-    ].map((v) => formatRoundedCad(v)); // #504: rounded to $1,000
+    ].map((v) => formatRoundedCad(v, ROUNDING_STEP)); // #504: rounded to $1,000
     const rendered = Array.from(landValues).map((n) => n.textContent?.trim());
     expect(rendered).toEqual(expect.arrayContaining(expected));
     // A single fixed figure — no range separator anywhere in the land cells.
@@ -149,7 +153,7 @@ describe('CompareResultsComponent', () => {
     expect(el.querySelector('.locked-slot__skeleton')).toBeNull();
 
     const stats = store.selectSnapshot(ComparisonState.stats);
-    const fmt = (v: number) => formatRoundedCad(v); // #504: rounded to $1,000
+    const fmt = (v: number) => formatRoundedCad(v, ROUNDING_STEP); // #504: rounded to $1,000
     result?.rowSets.forEach((rowSet, i) => {
       const buildLocked = el.querySelectorAll('[data-testid="build-range-locked"]')[i];
       const totalLocked = el.querySelectorAll('[data-testid="total-range-locked"]')[i];
@@ -253,7 +257,7 @@ describe('CompareResultsComponent', () => {
     expect(totals).toHaveLength(2);
     expect(maths).toHaveLength(2);
 
-    const fmt = (v: number) => formatRoundedCad(v); // #504: rounded to $1,000
+    const fmt = (v: number) => formatRoundedCad(v, ROUNDING_STEP); // #504: rounded to $1,000
     result?.rowSets.forEach((rowSet, i) => {
       const assessed = stats[rowSet.slug].avg_assessed_value;
       const expectedLow = assessed + rowSet.build.low;

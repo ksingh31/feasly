@@ -6,6 +6,7 @@ import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/config';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
 import { CommunityProfileState } from './community-profile.state';
@@ -111,6 +112,7 @@ describe('CommunityPageComponent', () => {
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
     copy: { seo: {}, communities: communitiesCopy },
+    limits: DEFAULT_APP_CONFIG.limits,
   };
 
   /**
