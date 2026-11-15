@@ -38,3 +38,4 @@ worktrees/
 # pattern above does not match symlinks, so this must be listed explicitly.
 apps/web/node_modules
 apps/api/node_modules
+e2e-results/
