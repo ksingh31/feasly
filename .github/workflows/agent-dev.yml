@@ -106,7 +106,18 @@ jobs:
           EXEC: ${{ steps.claude.outputs.execution_file }}
         run: |
           # Usage limit / overload: requeue without counting it as a failure.
-          if [ -n "$EXEC" ] && [ -f "$EXEC" ] && grep -qiE 'rate.?limit|usage limit|overloaded|529|quota' "$EXEC"; then
+          # Judge only the final result entry, never the whole transcript: a real
+          # run that mentions issue #529 or the word "quota" is not a capacity error.
+          # A capacity failure never reaches the model, so it costs $0.
+          cap=0
+          if [ -n "$EXEC" ] && [ -f "$EXEC" ]; then
+            if jq -e 'map(select(.type=="result")) | last | . != null and ((.total_cost_usd // 0) == 0)' "$EXEC" >/dev/null 2>&1; then
+              cap=1
+            elif jq -r 'map(select(.type=="result")) | last | (.result // "")' "$EXEC" 2>/dev/null | grep -qiE 'rate.?limit|usage limit|overloaded|\b529\b|quota'; then
+              cap=1
+            fi
+          fi
+          if [ "$cap" = 1 ]; then
             gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:ready
             gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Model capacity error — requeued (not counted)."
             exit 0
