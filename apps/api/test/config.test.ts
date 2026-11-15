@@ -582,7 +582,7 @@ describe('loadConfig', () => {
       loadConfig({
         ...noNodeEnv,
         PAYMENTS_PROVIDER: 'simulated',
-        STRIPE_SECRET_KEY: 'sk_live_placeholder',
+        STRIPE_SECRET_KEY: 'sk_live_123',
       }),
     ).toThrow(/PAYMENTS_PROVIDER: the simulated payment provider cannot run with a live/);
   });
