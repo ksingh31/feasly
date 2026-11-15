@@ -12,7 +12,7 @@ into a gate you can repeat.
   database or Entra tenant is needed. The fixtures use long names, emails, addresses
   and key names, so the layout is tested under realistic pressure.
 - **Viewports:** 1440×900 and 390×844.
-- **Per route** (all 16 non-redirect admin routes, listed in `e2e/admin-routes.ts`),
+- **Per route** (all 17 non-redirect admin routes, listed in `e2e/admin-routes.ts`),
   the suite checks four things:
   - the page settles: ready selector visible, no skeletons;
   - `scrollWidth <= innerWidth`, i.e. no horizontal overflow;
@@ -37,7 +37,7 @@ E2E_SCREENSHOTS=1 npm run e2e --workspace=@feasly/web   # PLAYWRIGHT_CHANNEL=chr
 
 ## Result
 
-**52 / 52 checks pass** after the fixes below (26 targets × 2 viewports). The builder
+**54 / 54 checks pass** after the fixes below (27 targets × 2 viewports). The builder
 suite (#536) still passes, 18 / 18.
 
 ### Routes (1440 and 390)
@@ -47,6 +47,7 @@ suite (#536) still passes, 18 / 18.
 | `/admin/login` | none | 0 | 0 |
 | `/admin/auth/callback?error=…` | none | 0 | 0 |
 | `/admin/leads` | none | 0 | 0 |
+| `/admin/quarantine` (#540, merged during this story) | none | 0 | 0 |
 | `/admin/builders` | **fixed** (390) | 0 | 0 |
 | `/admin/users` | none | 0 | 0 |
 | `/admin/disputes` | none | 0 | 0 |
