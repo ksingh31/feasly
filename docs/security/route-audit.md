@@ -13,7 +13,7 @@ Audited against `apps/web/public/staticwebapp.config.json`,
 | `/estimate/report` | Public (wizard) | `reportEstimateGuard` (needs property + sqft); `data.noindex`; dollar figures blurred until the lead gate (PR #26) | Full numbers only post-gate |
 | `/estimate/gate`, `/estimate/analyzing` | Public (wizard) | Arrive with PR #26 (lead gate + analyzing). Until then the report's Unlock CTA points at a not-yet-existing route and the `**` rule returns users to landing — no dead end, no leak | Tracked in PR #35 body |
 | `/privacy`, `/terms` | Public | None | Legal pages, indexable |
-| `/embed/*` | Builder tenants' sites (iframe) | Public embed route (embed/01 story, not yet built) | CSP `frame-ancestors` allows only the per-tenant allowlist; the current value is `https://PLACEHOLDER-TENANT.feasly.example` — **fail-closed by design**: it matches no real tenant, so framing is denied until embed/02 lands real origins. Must be replaced, never widened casually |
+| `/embed/*` | Builder tenants' sites (iframe) | Public embed route (embed/01 story, not yet built) | CSP `frame-ancestors` allows only `'self'` + the per-tenant allowlist, generated from `config/builders/*.json` by `apps/web/tools/sync-embed-csp.mjs` (lint fails if out of sync). IANA-reserved placeholder origins (e.g. the demo tenant's `demo.example.com`) are skipped, so none ship (#796). Never widen casually |
 | `/assets/*`, `/robots.txt`, `/sitemap.xml`, `/llms.txt` | Public / crawlers | None | Excluded from the SPA navigation fallback |
 | `**` (unknown paths) | Public | None | Redirects to `/` (Angular); the SWA navigation fallback serves `index.html` so client routing handles it. The SEO story adds a branded 404 page |
 | `/api/*` | API clients | Proxied to the Function App (see below) | SWA `globalHeaders` still apply to proxied responses |
@@ -30,7 +30,7 @@ Audited against `apps/web/public/staticwebapp.config.json`,
 ## Findings
 
 1. **No internal route is accidentally public.** The only anonymous API routes are the two public wizard endpoints and the data-free health check. Admin routes are live and Entra-gated (Microsoft Entra External ID email+password, authorization by roles/permissions in Postgres — the old magic-link + allowlist flow was retired 2026-09-28); when new admin routes land, this doc must gain their rows.
-2. **frame-ancestors is deny-by-default.** Global CSP sets `'none'`; only `/embed/*` overrides it, and the override currently points at a placeholder that matches nothing (fail-closed).
+2. **frame-ancestors is deny-by-default.** Global CSP sets `'none'`; only `/embed` and `/embed/*` override it, with `'self'` + real tenant origins generated from tenant config (placeholder/reserved origins excluded, #796).
 3. **CORS is allowlist-only, no wildcards.** Production has no localhost origins — they are injected only when `NODE_ENV=development`. `evil.example`-style origins receive no `Access-Control-Allow-Origin` (covered by `test/middleware-cors.test.ts`).
 4. **Preflight does not touch the pipeline.** OPTIONS requests are answered 204 at the adapter edge — no rate-limit consumption, no DB work, no PII logging surface.
 5. **SPA rewrites are an allow-list.** (Updated #490: `navigationFallback` was removed.) Only client-only route prefixes rewrite to `index.html`; `/assets/*`, `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/api/*` are never rewritten, and unknown paths return HTTP 404 with the branded page. Global headers apply to all of them.

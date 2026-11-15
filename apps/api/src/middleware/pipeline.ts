@@ -8,7 +8,10 @@
  */
 import { createHash } from 'node:crypto';
 import { ensureCorrelationId, type HeaderValue } from './correlation';
+import { checkCookieCsrf, type CsrfDenyReason } from './csrf';
 import {
+  ErrorCodes,
+  HttpError,
   rateLimitedProblem,
   toProblemDetails,
   type ProblemDetails,
@@ -25,6 +28,20 @@ export interface PipelineRequest {
    * rate-limit story).
    */
   readonly tenantKey?: string;
+  /**
+   * HTTP method (#794). Drives the cookie-credential CSRF origin check
+   * when the pipeline is configured with `csrf`. Undefined is treated as
+   * state-changing (fail closed).
+   */
+  readonly method?: string;
+}
+
+/** Details of a denied cookie-credential cross-origin request (#794). */
+export interface CsrfDenial {
+  readonly correlationId: string;
+  readonly method: string;
+  readonly reason: CsrfDenyReason;
+  readonly cookie: 'admin' | 'builder';
 }
 
 export interface PipelineContext {
@@ -78,6 +95,18 @@ export interface RequestPipelineDeps {
    * entries land in Application Insights with the correlation ID.
    */
   readonly logger?: (entry: LogEntry) => void;
+  /**
+   * #794 (#731 F-6): cookie-credential CSRF origin check. When set, a
+   * state-changing request authenticated by an admin/builder session
+   * COOKIE (no Bearer header) must carry an `Origin` (or `Referer`) in
+   * `allowlist` (config `CORS_ORIGINS`), else 403 FORBIDDEN before the
+   * handler runs. `onDenied` audit-logs the denial; its failure never
+   * turns the 403 into a 500.
+   */
+  readonly csrf?: {
+    readonly allowlist: readonly string[];
+    readonly onDenied?: (denial: CsrfDenial) => Promise<void>;
+  };
 }
 
 const UNKNOWN_CLIENT = 'unknown';
@@ -97,6 +126,7 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
     keyFor = (request) => request.clientIp ?? UNKNOWN_CLIENT,
     extraLimiters = [],
     logger = (entry) => console[entry.level](entry.message),
+    csrf,
   } = deps;
 
   return {
@@ -133,6 +163,48 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
             correlationId,
           });
           return rateLimitedProblem(correlationId, extraVerdict.retryAfterMs);
+        }
+      }
+
+      if (csrf) {
+        const csrfVerdict = checkCookieCsrf({
+          method: request.method,
+          headers: request.headers,
+          allowlist: csrf.allowlist,
+        });
+        if (!csrfVerdict.allowed) {
+          const method = (request.method ?? 'UNKNOWN').toUpperCase();
+          // Never log the origin value itself — it is attacker-controlled.
+          logger({
+            level: 'warn',
+            message: `csrf-denied method=${method} cookie=${csrfVerdict.cookie} reason=${csrfVerdict.reason}`,
+            correlationId,
+          });
+          if (csrf.onDenied) {
+            try {
+              await csrf.onDenied({
+                correlationId,
+                method,
+                reason: csrfVerdict.reason,
+                cookie: csrfVerdict.cookie,
+              });
+            } catch (error) {
+              logger({
+                level: 'error',
+                message: `csrf-denied audit failed: ${error instanceof Error ? error.message : String(error)}`,
+                correlationId,
+              });
+            }
+          }
+          return toProblemDetails(
+            new HttpError(
+              403,
+              ErrorCodes.FORBIDDEN,
+              'Cross-origin request refused.',
+              false,
+            ),
+            correlationId,
+          );
         }
       }
 

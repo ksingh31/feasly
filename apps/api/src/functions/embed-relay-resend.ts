@@ -58,7 +58,7 @@ export async function embedRelayResendHandler(
   if (middleware.isPreflight(req.method, origin)) {
     context.res = {
       status: 204,
-      headers: { ...corsHeaders, ...middleware.preflightHeaders() },
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
     };
     return;
   }
@@ -73,7 +73,7 @@ export async function embedRelayResendHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.embedRelayResendRoute.handle(req.body, clientIpFrom(req)),
   );
 
@@ -81,6 +81,7 @@ export async function embedRelayResendHandler(
     context.res = {
       status: result.status,
       headers: {
+        ...middleware.securityHeaders(),
         ...middleware.problemResponseHeaders(result),
         [CORRELATION_RESPONSE_HEADER]: result.correlationId,
         ...corsHeaders,
@@ -92,6 +93,7 @@ export async function embedRelayResendHandler(
   context.res = {
     status: 200,
     headers: {
+      ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,
