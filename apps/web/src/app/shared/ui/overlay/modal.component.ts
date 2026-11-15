@@ -7,6 +7,7 @@ import {
   ViewEncapsulation,
   booleanAttribute,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -56,6 +57,13 @@ export class UiModalComponent {
   /** Wrap body + footer in a form; Enter emits `submitted`. */
   readonly asForm = input(false, { transform: booleanAttribute });
   readonly closeLabel = input('Close');
+  /**
+   * Ignore user dismissals (Esc, scrim, swipe, ×) while true — set it while
+   * an operation that must not be interrupted is in flight (e.g. Stripe
+   * `confirmCardSetup`, including a 3DS challenge). The × is disabled.
+   * Programmatic `DialogRef.close()` still works.
+   */
+  readonly closeLocked = input(false, { transform: booleanAttribute });
 
   /** The form was submitted (asForm only). */
   readonly submitted = output<void>();
@@ -75,7 +83,13 @@ export class UiModalComponent {
   );
   private dragStartY: number | null = null;
 
+  constructor() {
+    effect(() => this.context?.closeLocked.set(this.closeLocked()));
+  }
+
+  /** User dismissal (× / swipe): honours `closeLocked` and the opener's `canClose`. */
   close(): void {
+    if (this.closeLocked() || (this.context && !this.context.canDismiss())) return;
     this.ref?.close();
   }
 
@@ -85,7 +99,7 @@ export class UiModalComponent {
   }
 
   protected onHandleDown(event: PointerEvent): void {
-    if (!this.swipeable) return;
+    if (!this.swipeable || this.closeLocked()) return;
     this.dragStartY = event.clientY;
     (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
   }

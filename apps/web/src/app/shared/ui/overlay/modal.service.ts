@@ -1,7 +1,7 @@
 import { Dialog, type DialogRef } from '@angular/cdk/dialog';
 import { hasModifierKey } from '@angular/cdk/keycodes';
 import type { ComponentType } from '@angular/cdk/portal';
-import { Injectable, InjectionToken, type Injector, inject } from '@angular/core';
+import { Injectable, InjectionToken, type Injector, type WritableSignal, inject, signal } from '@angular/core';
 import { filter, takeUntil } from 'rxjs';
 
 export type UiModalSize = 'sm' | 'md' | 'lg';
@@ -18,6 +18,13 @@ export interface UiModalOptions<D = unknown> {
   dismissOnScrim?: boolean;
   /** Esc closes the modal. Default true. */
   dismissOnEsc?: boolean;
+  /**
+   * Close guard for user dismissals (Esc, scrim, swipe, ×). Return false to
+   * keep the modal open — e.g. while a payment confirmation is in flight.
+   * Programmatic `ref.close()` is never blocked. The content component can
+   * also lock dismissal itself with `<ui-modal [closeLocked]="…">`.
+   */
+  canClose?: () => boolean;
   /** `alertdialog` for confirmations; default `dialog`. */
   role?: 'dialog' | 'alertdialog';
   /** Parent injector for the content (defaults to the root injector). */
@@ -29,6 +36,10 @@ export interface UiModalContext {
   titleId: string;
   bodyId: string;
   dismissOnScrim: boolean;
+  /** Set by `ui-modal [closeLocked]`: user dismissals are ignored while true. */
+  closeLocked: WritableSignal<boolean>;
+  /** Whether a user dismissal (Esc, scrim, swipe, ×) may close the modal now. */
+  canDismiss: () => boolean;
 }
 
 export const UI_MODAL_CONTEXT = new InjectionToken<UiModalContext>('UI_MODAL_CONTEXT');
@@ -52,10 +63,13 @@ export class UiModalService {
 
   open<C, R = unknown, D = unknown>(component: ComponentType<C>, options: UiModalOptions<D> = {}): DialogRef<R, C> {
     const id = nextModalId++;
+    const closeLocked = signal(false);
     const context: UiModalContext = {
       titleId: `ui-modal-title-${id}`,
       bodyId: `ui-modal-body-${id}`,
       dismissOnScrim: options.dismissOnScrim ?? true,
+      closeLocked,
+      canDismiss: () => !closeLocked() && (options.canClose?.() ?? true),
     };
     const role = options.role ?? 'dialog';
     const ref = this.dialog.open<R, D, C>(component, {
@@ -83,11 +97,13 @@ export class UiModalService {
         )
         .subscribe((event) => {
           event.preventDefault();
-          ref.close();
+          if (context.canDismiss()) ref.close();
         });
     }
     if (context.dismissOnScrim) {
-      ref.backdropClick.pipe(takeUntil(ref.closed)).subscribe(() => ref.close());
+      ref.backdropClick.pipe(takeUntil(ref.closed)).subscribe(() => {
+        if (context.canDismiss()) ref.close();
+      });
     }
     return ref;
   }
