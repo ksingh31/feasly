@@ -1,6 +1,7 @@
 import { JsonPipe } from '@angular/common';
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { DisputeListItem } from '@feasly/contracts';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
@@ -48,6 +49,7 @@ export class AdminDisputesComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   protected readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
   protected readonly listStatus = this.store.selectSignal(AdminDisputesState.listStatus);
@@ -79,6 +81,12 @@ export class AdminDisputesComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminDisputes());
+
+    // Deep link from the invoice drawer (#543): `?open=<disputeId>`.
+    const openId = this.route?.snapshot.queryParamMap.get('open') ?? null;
+    if (openId) {
+      this.selectDispute(openId);
+    }
 
     // Clear any open selection when leaving the page so a stale dispute
     // doesn't linger in memory-only state.
