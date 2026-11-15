@@ -453,7 +453,7 @@ function apiKey(id: string, name: string, extra: Partial<ApiKeyRecordResponse> =
     id,
     name,
     tenant_id: ELITE,
-    key_prefix: 'fsk_live_9f3k2m',
+    key_prefix: 'feasly_live_…9f3k',
     scopes: ['property:read', 'estimate', 'lead'],
     rate_limit_per_min: 60,
     sandbox: false,
@@ -469,7 +469,7 @@ export const API_KEYS: ApiKeyListResponse = {
     apiKey('key-1', 'Elite Craft production website embed integration'),
     apiKey('key-2', 'Northern Lights sandbox', {
       tenant_id: NORTHERN,
-      key_prefix: 'fsk_test_a81b7c',
+      key_prefix: 'feasly_test_…a81b',
       sandbox: true,
       scopes: ['property:read', 'estimate:read'],
     }),
