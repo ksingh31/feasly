@@ -46,3 +46,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_MAX_WIP: ${{ vars.AGENT_MAX_WIP }}
+          AGENT_MAX_OPEN_PRS: ${{ vars.AGENT_MAX_OPEN_PRS }}
