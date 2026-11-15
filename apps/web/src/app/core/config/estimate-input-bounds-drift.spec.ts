@@ -3,8 +3,8 @@
  *
  * `limits.minLotSizeSqft/maxLotSizeSqft/minAssessedLandValue/maxAssessedLandValue`
  * in DEFAULT_APP_CONFIG mirror the `inputBounds` of the cost-data file.
- * The property record arrives direct from Socrata (propertyData.source
- * 'live'), so the client needs the assessed-value bounds for the early
+ * The property record carries no eligibility verdict (on every
+ * propertyData.source), so the client needs the assessed-value bounds for the early
  * coverage guard. The lot-size bounds are RESERVED for future bigger-lot
  * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the estimator
  * never blocks on lot size. The cost-data file remains the single source of

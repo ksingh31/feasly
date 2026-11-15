@@ -192,7 +192,11 @@ function formatAddress(raw: string): string {
 }
 
 /**
- * Live City of Calgary property data (FE1-002): address autocomplete and
+ * Live City of Calgary property data (FE1-002), `propertyData.source: 'live'`
+ * — LOCAL DEVELOPMENT ONLY since #752; the served site reads through our API
+ * ('backend'), which adds address normalisation (#701) and the current
+ * land-use district (#686) this path lacks.
+ * Address autocomplete and
  * property records straight from the City's open-data Socrata API — free,
  * no key required. Anonymous Socrata requests are rate-limited per IP, so
  * this service leans on the component's debounce plus a short response

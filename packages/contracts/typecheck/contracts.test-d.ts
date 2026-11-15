@@ -28,8 +28,11 @@ import type {
   PropertyRecord,
   ReportSnapshot,
   TierRevisionRequest,
+  ZoningDistrict,
+  ZoningDistrictsResponse,
+  ZoningRulesVersion,
 } from '../src';
-import { CONTRACT_NAMES } from '../src';
+import { BUILDING_FORMS, CONTRACT_NAMES } from '../src';
 
 // --- tiny assertion helpers (compile-time only) ---
 function assertType<T>(value: T): void {
@@ -178,6 +181,19 @@ const needsYouItem: BuilderLeadNeedsYouItem = needsYou.stale[0]!;
 // @ts-expect-error — the status is a closed union, never a free string
 const badStatus: BuilderLeadNeedsYouItem = { ...needsYouItem, status: 'stale' };
 void badStatus;
+
+// --- zoning catalogue (issue #687): public shapes carry no `verified` flag ---
+declare const zoningRes: ZoningDistrictsResponse;
+assertType<string>(zoningRes.city);
+assertType<string>(zoningRes.effectiveDate);
+assertType<string>(zoningRes.sourceUrl);
+assertType<readonly ZoningDistrict[]>(zoningRes.districts);
+declare const zoningSource: ZoningRulesVersion;
+assertType<boolean>(zoningSource.districts[0]!.forms[0]!.verified);
+const publicForm = zoningRes.districts[0]!.forms[0]!;
+// @ts-expect-error — the wire shape never carries a verified flag
+void publicForm.verified;
+assertType<number>(BUILDING_FORMS.length);
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;

@@ -79,6 +79,10 @@ const targets = [
     out: 'city-data-freshness/index.js',
   },
   {
+    entry: 'src/functions/zoning-districts.ts',
+    out: 'zoning-districts/index.js',
+  },
+  {
     entry: 'src/functions/unsubscribe-get.ts',
     out: 'unsubscribe-get/index.js',
   },

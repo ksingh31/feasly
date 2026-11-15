@@ -27,6 +27,12 @@ function invoice(over: Partial<CommissionInvoiceRecord> = {}): CommissionInvoice
     leadName: 'Jordan (Lot 7)',
     contractValueCents: 50_000_000,
     commissionCents: 500_000,
+    subtotalCents: 500_000,
+    taxRatePercent: 0,
+    taxInclusive: false,
+    taxCents: 0,
+    totalCents: 500_000,
+    taxLabel: null,
     currency: 'cad',
     stripePaymentIntentId: null,
     status: 'in_review',
@@ -169,5 +175,74 @@ describe('invoice PDF service', () => {
     expect(invoicePdfFilename('INV-0042')).toBe('feasly-INV-0042.pdf');
     expect(invoicePdfFilename('../"x')).toBe('feasly-x.pdf');
     expect(invoicePdfFilename('')).toBe('feasly-invoice.pdf');
+  });
+});
+
+describe('invoice PDF — GST (#714)', () => {
+  const TAX = {
+    label: 'GST',
+    supplierLegalName: 'Example Holdings Ltd.',
+    supplierAddress: '100 Example St SW, Calgary AB',
+    registrationNumber: '123456789RT0001',
+  };
+  // AC1 figures: $1,250,000 contract at 1.5% + 5% GST.
+  const taxed = (over: Partial<CommissionInvoiceRecord> = {}) =>
+    invoice({
+      contractValueCents: 125_000_000,
+      commissionCents: 1_875_000,
+      subtotalCents: 1_875_000,
+      effectiveRatePercent: 1.5,
+      taxRatePercent: 5,
+      taxCents: 93_750,
+      totalCents: 1_968_750,
+      taxLabel: 'GST',
+      ...over,
+    });
+
+  function render(record: CommissionInvoiceRecord, tax: typeof TAX | undefined = TAX) {
+    const builders = {
+      getByTenantKey: vi.fn(async () => ({ businessName: 'Elite Craft Builders', displayName: 'Elite Craft' }) as never),
+    };
+    return createInvoicePdfService({
+      billing: { getInvoice: vi.fn(async () => record) },
+      commissionCard: { getCard: vi.fn(async () => ({ hasCard: true, brand: 'visa', last4: '4242' }) as never) },
+      builders,
+      ...(tax ? { tax } : {}),
+    }).renderInvoicePdf(INVOICE_ID, null);
+  }
+
+  it('shows subtotal, tax label + rate, tax, total, registration number and supplier details (AC5)', async () => {
+    const s = text((await render(taxed())).pdf);
+    expect(s).toContain("(Commission \\(subtotal\\))");
+    expect(s).toContain('($18,750.00)');
+    expect(s).toContain('(GST \\(5%\\))');
+    expect(s).toContain('($937.50)');
+    expect(s).toContain(`(${INVOICE_PDF_COPY.totalLabel})`);
+    expect(s).toContain('($19,687.50)');
+    expect(s).toContain('(GST registration number)');
+    expect(s).toContain('(123456789RT0001)');
+    expect(s).toContain('(Example Holdings Ltd.)');
+    expect(s).toContain('(100 Example St SW, Calgary AB)');
+    expect(s).toContain('(Elite Craft Builders)');
+  });
+
+  it('paid taxed invoices show the same breakdown on the receipt block (AC5)', async () => {
+    const s = text(
+      (await render(taxed({ status: 'paid', paidAt: new Date('2026-11-14T18:00:00Z') }))).pdf,
+    );
+    const receipt = s.slice(s.indexOf(`(${INVOICE_PDF_COPY.receiptHeading})`));
+    expect(receipt).toContain('($19,687.50)');
+    expect(receipt).toContain('($18,750.00)');
+    expect(receipt).toContain('(GST \\(5%\\))');
+    expect(receipt).toContain('($937.50)');
+  });
+
+  it('untaxed invoices render byte-identically with or without tax config (AC2)', async () => {
+    const plain = invoice();
+    const withConfig = await render(plain, TAX);
+    const without = await render(plain, undefined);
+    expect(withConfig.pdf.equals(without.pdf)).toBe(true);
+    expect(text(withConfig.pdf)).not.toContain('(GST');
+    expect(text(withConfig.pdf)).not.toContain('(123456789RT0001)');
   });
 });

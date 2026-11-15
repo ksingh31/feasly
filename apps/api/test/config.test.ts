@@ -27,7 +27,7 @@ describe('loadConfig', () => {
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
-        tenantRateLimit: { windowMs: 3_600_000, maxRequests: 20 },
+        tenantRateLimit: { windowMs: 3_600_000, maxRequests: 600 },
       },
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
@@ -140,6 +140,8 @@ describe('loadConfig', () => {
         cacheTtlMs: 86_400_000,
         httpTimeoutMs: 3_000,
       },
+      // #687: zoning rules catalogue city + public cache lifetime.
+      zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
       // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
       // successful fetches only.
@@ -163,6 +165,15 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        tax: {
+          enabled: false,
+          ratePercent: 5,
+          label: 'GST',
+          inclusive: false,
+          supplierLegalName: 'PLACEHOLDER_SUPPLIER_LEGAL_NAME',
+          supplierAddress: 'PLACEHOLDER_SUPPLIER_ADDRESS',
+          registrationNumber: 'PLACEHOLDER_GST_NUMBER',
+        },
       },
       sandboxPurge: {
         retentionDays: 30,
@@ -300,7 +311,48 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      tax: {
+        enabled: false,
+        ratePercent: 5,
+        label: 'GST',
+        inclusive: false,
+        supplierLegalName: 'PLACEHOLDER_SUPPLIER_LEGAL_NAME',
+        supplierAddress: 'PLACEHOLDER_SUPPLIER_ADDRESS',
+        registrationNumber: 'PLACEHOLDER_GST_NUMBER',
+      },
     });
+  });
+
+  it('reads the GST settings (#714) and defaults to tax OFF, 5%, commission plus GST', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      BILLING_TAX_ENABLED: 'true',
+      BILLING_TAX_RATE: '0.13',
+      BILLING_TAX_LABEL: 'HST',
+      BILLING_TAX_INCLUSIVE: 'true',
+      BILLING_SUPPLIER_LEGAL_NAME: 'Example Holdings Ltd.',
+      BILLING_SUPPLIER_ADDRESS: '100 Example St SW, Calgary AB',
+      BILLING_TAX_REGISTRATION_NUMBER: '123456789RT0001',
+    });
+    expect(config.billing.tax).toEqual({
+      enabled: true,
+      ratePercent: 13,
+      label: 'HST',
+      inclusive: true,
+      supplierLegalName: 'Example Holdings Ltd.',
+      supplierAddress: '100 Example St SW, Calgary AB',
+      registrationNumber: '123456789RT0001',
+    });
+    expect(loadConfig(VALID_ENV).billing.tax?.enabled).toBe(false);
+    expect(() => loadConfig({ ...VALID_ENV, BILLING_TAX_ENABLED: 'yes' })).toThrow(
+      /BILLING_TAX_ENABLED/,
+    );
+  });
+
+  it('allows placeholder supplier details with tax ON outside production (#714)', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_TAX_ENABLED: 'true' }).billing.tax?.enabled,
+    ).toBe(true);
   });
 
   it('reads BILLING_SETTLEMENT_THRESHOLD_HOURS (#711) and rejects non-positive values', () => {
@@ -422,16 +474,18 @@ describe('loadConfig', () => {
     expect(config.auth.magicLinkTtlSeconds).toBe(600);
   });
 
-  it('estimates rate limits default to the frozen registry values (TECH_PLAN.md §13.3: 20/hr/IP)', () => {
+  it('estimates rate limits default to the registry values (TECH_PLAN.md §13.3: 20/hr/IP, 600/hr/tenant)', () => {
     const config = loadConfig(VALID_ENV);
     expect(config.estimate.rateLimit).toEqual({
       windowMs: 3_600_000,
       maxRequests: 20,
     });
+    // #737: the per-tenant cap must cover the 10x launch target (500/hr).
     expect(config.estimate.tenantRateLimit).toEqual({
       windowMs: 3_600_000,
-      maxRequests: 20,
+      maxRequests: 600,
     });
+    expect(config.estimate.tenantRateLimit.maxRequests).toBeGreaterThanOrEqual(500);
   });
 
   it('estimates rate limits are env-overridable', () => {
@@ -501,6 +555,32 @@ describe('loadConfig', () => {
         STRIPE_SECRET_KEY: 'sk_test_123',
       }),
     ).toThrow(/production requires an sk_live_ key/);
+  });
+
+  it('production refuses tax ON while supplier details are placeholders (#714)', () => {
+    // Built at runtime so the secrets scanner (HRD-07) never sees a key-shaped literal.
+    const fakeLiveKey = ['sk', 'live', '123'].join('_');
+    const fakeWebhookSecret = ['whsec', '123'].join('_');
+    const prod = {
+      ...VALID_ENV,
+      NODE_ENV: 'production',
+      STRIPE_SECRET_KEY: fakeLiveKey,
+      STRIPE_WEBHOOK_SECRET: fakeWebhookSecret,
+    };
+    expect(() => loadConfig({ ...prod, BILLING_TAX_ENABLED: 'true' })).toThrow(
+      /BILLING_TAX_REGISTRATION_NUMBER: required when BILLING_TAX_ENABLED=true in production/,
+    );
+    // Tax OFF in production with placeholders is fine (pre-tax behaviour).
+    expect(loadConfig(prod).billing.tax?.enabled).toBe(false);
+    expect(
+      loadConfig({
+        ...prod,
+        BILLING_TAX_ENABLED: 'true',
+        BILLING_SUPPLIER_LEGAL_NAME: 'Example Holdings Ltd.',
+        BILLING_SUPPLIER_ADDRESS: '100 Example St SW, Calgary AB',
+        BILLING_TAX_REGISTRATION_NUMBER: '123456789RT0001',
+      }).billing.tax?.enabled,
+    ).toBe(true);
   });
 
   it('leaves billing dormant when no Stripe key is configured', () => {

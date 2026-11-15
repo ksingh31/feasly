@@ -41,14 +41,17 @@ describe('build-llms-txt (SEO-07)', () => {
     const { llmsTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
 
     // Spot-check known communities from the aggregates; the count assertion
-    // guards the full set without hardcoding all 40 names.
+    // guards the full set without hardcoding every name.
     expect(llmsTxt).toContain('BELTLINE');
     expect(llmsTxt).toContain('PANORAMA HILLS');
     expect(llmsTxt).toContain('/communities/beltline/');
     expect(llmsTxt).toContain('/communities/panorama-hills/');
 
     const communityLines = llmsTxt.split('\n').filter((l) => l.startsWith('- **') && l.includes('/communities/'));
-    expect(communityLines.length).toBe(40);
+    const total = (
+      JSON.parse(readFileSync(join(DATA_DIR, 'community-aggregates.json'), 'utf-8')) as { communities: unknown[] }
+    ).communities.length;
+    expect(communityLines.length).toBe(total);
   });
 
   it('community figures match the aggregates source (parity)', () => {
@@ -67,7 +70,7 @@ describe('build-llms-txt (SEO-07)', () => {
     expect(llmsTxt).toContain(expected);
   });
 
-  it('all 40 community figures match the community page rendering (AC4 parity)', () => {
+  it('every community figure matches the community page rendering (AC4 parity)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'llms-'));
     const { llmsTxt, llmsFullTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
 
@@ -82,7 +85,15 @@ describe('build-llms-txt (SEO-07)', () => {
 
     const aggregates = JSON.parse(
       readFileSync(join(DATA_DIR, 'community-aggregates.json'), 'utf-8'),
-    ) as { communities: Array<{ slug: string; name: string; avgAssessedValue: number }> };
+    ) as { communities: Array<{ slug: string; name: string }> };
+    // The figure each page renders lives in its per-slug page file (#690:
+    // guide = single/semi-detached average, profile = all-residential).
+    const pageAvg = (slug: string): number =>
+      (
+        JSON.parse(readFileSync(join(DATA_DIR, 'community-pages', `${slug}.json`), 'utf-8')) as {
+          aggregate: { avgAssessedValue: number };
+        }
+      ).aggregate.avgAssessedValue;
     const ranges = JSON.parse(
       readFileSync(join(DATA_DIR, 'community-ranges.json'), 'utf-8'),
     ) as {
@@ -92,15 +103,20 @@ describe('build-llms-txt (SEO-07)', () => {
       }>;
     };
     const tiersBySlug = new Map(ranges.communities.map((c) => [c.slug, c.tiers]));
+    const types = (
+      JSON.parse(readFileSync(join(DATA_DIR, 'community-types.json'), 'utf-8')) as { types: Record<string, string> }
+    ).types;
 
-    expect(aggregates.communities.length).toBe(40);
+    expect(aggregates.communities.length).toBeGreaterThanOrEqual(40);
 
     for (const c of aggregates.communities) {
       // Assessed value rendered on the page must appear in both files.
-      expect(llmsTxt).toContain(formatCad(c.avgAssessedValue));
-      expect(llmsFullTxt).toContain(formatCad(c.avgAssessedValue));
+      expect(llmsTxt).toContain(formatCad(pageAvg(c.slug)));
+      expect(llmsFullTxt).toContain(formatCad(pageAvg(c.slug)));
 
-      // Per-tier figures rendered on the page (build cost, land, total) must appear.
+      // Per-tier figures rendered on guide pages (build cost, land, total) must
+      // appear; profile pages render no ranges, so llms.txt quotes none.
+      if (types[c.slug] === 'profile') continue;
       const tiers = tiersBySlug.get(c.slug);
       expect(tiers).toBeDefined();
       for (const key of ['standard', 'premium', 'luxury'] as const) {

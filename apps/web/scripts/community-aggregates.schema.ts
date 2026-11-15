@@ -18,11 +18,9 @@ const slugSchema = z
   .max(80)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'slug must be kebab-case');
 
-export const communityAggregateSchema = z.object({
-  slug: slugSchema,
-  /** Display name as the City dataset spells it (e.g. "PANORAMA HILLS"). */
-  name: z.string().min(1).max(120),
-  /** Assessment record count — drives the top-N page selection. */
+/** One set of averages over a record subset. */
+export const communityAveragesSchema = z.object({
+  /** Assessment records the averages are built from. */
   count: z.number().int().positive(),
   /** Average City-assessed value, integer CAD. Never a range. */
   avgAssessedValue: z.number().int().nonnegative(),
@@ -30,11 +28,35 @@ export const communityAggregateSchema = z.object({
   avgLotSqft: z.number().int().nonnegative(),
 });
 
+/**
+ * Which records the top-level averages come from (#690):
+ *   - 'detached-semi': single-detached + semi-detached homes only (build-guide basis)
+ *   - 'residential': every residential dwelling record (condos included) —
+ *     used only when a community has too few houses for a guide; such a
+ *     community always gets the profile page, never a build guide.
+ */
+export const averagesBasisSchema = z.enum(['detached-semi', 'residential']);
+
+export const communityAggregateSchema = communityAveragesSchema.extend({
+  slug: slugSchema,
+  /** Display name as the City dataset spells it (e.g. "PANORAMA HILLS"). */
+  name: z.string().min(1).max(120),
+  basis: averagesBasisSchema,
+  /** Index grouping: established/inner-city communities vs newer ones. */
+  group: z.enum(['established', 'newer']),
+  /** City sector from the community boundaries dataset (e.g. "CENTRE"); drives nearby links. */
+  sector: z.string().max(40).optional(),
+  /** All residential dwelling records (condos included) — the profile-page view. */
+  residential: communityAveragesSchema,
+});
+
 export const communityAggregatesFileSchema = z.object({
   /** ISO-8601 timestamp of when the data was generated (UTC). */
   generatedAt: z.string().datetime({ offset: true }),
   /** Frozen engine version the figures were produced against (placeholder). */
   costDataVersion: z.string().min(1),
+  /** Hash of the selection config the file was built from (#690). */
+  selectionHash: z.string().regex(/^[a-f0-9]{8,64}$/).optional(),
   communities: z.array(communityAggregateSchema).min(1),
 });
 
@@ -58,7 +80,8 @@ export const DENY_LIST: readonly string[] = [
  * Scans serialized JSON for deny-listed terms. Returns the offending terms
  * found (empty when clean). Case-insensitive substring match — the artifact's
  * known keys (generatedAt, costDataVersion, slug, name, count,
- * avgAssessedValue, avgLotSqft) contain none of these substrings.
+ * avgAssessedValue, avgLotSqft, basis, group, sector, residential) contain
+ * none of these substrings.
  */
 export function scanDenyList(json: string): string[] {
   const lowered = json.toLowerCase();

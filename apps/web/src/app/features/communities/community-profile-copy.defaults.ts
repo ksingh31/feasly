@@ -10,8 +10,8 @@ import type { RawCommunityProfileCopy } from '@feasly/contracts';
  * Placeholders {name}, {year}, {avgAssessed}, {multiPct}, {semiPct},
  * {singlePct} are filled by `resolveProfileCopy`; never render raw.
  * `statLabel`/`statNote` are intentionally absent: the route component
- * merges the build-guide's assessed-value wording over this copy (same
- * figure, same wording, one source of truth).
+ * merges the build-guide's assessed-value label and the communities copy's
+ * `profileStatNote` over this copy (one source of truth).
  *
  * Deploy-time overrides are not wired for this copy (unlike BUILDER_COPY):
  * the served `/assets/config/app-config.json` never carried profile keys.

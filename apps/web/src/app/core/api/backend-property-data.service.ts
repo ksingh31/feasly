@@ -9,9 +9,11 @@ import { toApiError } from './api-error';
 
 /**
  * Backend property data (FE1-002, extracted from HttpApiService): our own
- * /api/v1 property routes. Selected by `propertyData.source: 'backend'`;
- * the live City API ('live', the default) serves property data directly
- * until then. Route shapes mirror the backend functions exactly:
+ * /api/v1 property routes. Selected by `propertyData.source: 'backend'`,
+ * the served default since #752: the API adds what the raw City roll lacks
+ * (address normalisation from #701, the current land-use district from
+ * #686). Failures surface as ApiErrors (no fallback to another source).
+ * Route shapes mirror the backend functions exactly:
  * GET /api/v1/properties/autocomplete?q=… and
  * GET /api/v1/properties/lookup?addressKey=….
  */
