@@ -137,6 +137,10 @@ assertType<
   | 'partner_share'
   | 'pdf_download'
   | 'embed_loaded'
+  | 'report_resume'
+  | 'report_link_request'
+  | 'report_link_copy'
+  | 'report_link_share'
 >(event.event);
 const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
 assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);

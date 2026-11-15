@@ -146,7 +146,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   deepLink: {
     addressMinLength: 3,
     addressMaxLength: 120,
-    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search'],
+    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share'],
   },
   analytics: {
     enabled: false,
@@ -838,6 +838,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
       magicLinkTitle: 'Feasly — Opening your estimate',
       magicLink: 'Opening your secure Feasly estimate link — verifying and opening your Calgary build estimate.',
+      myReportTitle: 'Feasly — Find your report',
+      myReport: 'Request a fresh link to your Feasly build estimate by email.',
       // Admin console (admin/07): per-section titles for client-side nav.
       // All noindexed via the seo-routes table — never in search results.
       adminHomeTitle: 'Admin — Feasly',
@@ -1748,6 +1750,35 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       resendDoneHeading: 'Your fresh link is on its way.',
       resendDoneBody: 'Check your inbox — your new estimate link is on its way. It expires in 7 days.',
       resendErrorBody: 'We couldn’t send a fresh link. Check your connection and try again.',
+    },
+    myReport: {
+      heading: 'Find your report',
+      body: 'Enter the email you used for your estimate and we’ll send you a link to your report.',
+      emailLabel: 'Email address',
+      emailPlaceholder: 'you@example.com',
+      emailError: 'Enter a valid email address.',
+      cta: 'Email me my report link',
+      sendingLabel: 'Sending…',
+      sentHeading: 'Check your inbox',
+      sentBody:
+        'If that email has an estimate with us, a link to your report is on its way. It can take a few minutes, so check your spam folder too.',
+      rateLimitedBody: 'Too many requests just now. Wait a minute, then try again.',
+      errorBody: 'We couldn’t send your link. Check your connection and try again.',
+      homeCta: 'Back to home',
+    },
+    returning: {
+      findReportPrompt: 'Already have an estimate?',
+      findReportLink: 'Find my report',
+      resumeLabel: 'Continue your estimate for {address}',
+      resumeDismissLabel: 'Dismiss',
+      copyLinkCta: 'Copy link',
+      copyLinkDone: 'Link copied',
+      copyLinkError: 'We couldn’t copy the link. Try again.',
+      nativeShareCta: 'Share',
+      shareLinkHint:
+        'The link opens a preview for this address. Whoever opens it enters their own email to see the full figures.',
+      shareTitle: 'Feasly build estimate',
+      shareText: 'Build cost estimate for {address}',
     },
   },
 };
