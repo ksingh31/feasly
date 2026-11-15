@@ -215,6 +215,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       outOfCoverageHeading: 'We only support Calgary right now.',
       outOfCoverageBody:
         "Feasly's cost data covers Calgary addresses only. Try a Calgary address to continue.",
+      // B11 (#514): coverage is deterministic, so the action is never "Retry" —
+      // it clears and focuses the input for a fresh Calgary address.
+      outOfCoverageAction: 'Try a Calgary address',
       error: 'Address search is temporarily unavailable. Please try again in a moment.',
       retryLabel: 'Retry',
       searchingLabel: 'Searching addresses…',
