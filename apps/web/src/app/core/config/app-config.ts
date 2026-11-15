@@ -737,6 +737,10 @@ export interface AppConfig {
   admin: {
     /** Default per-minute rate limit prefilled in the issue form. */
     defaultRateLimit: number;
+    /** Highest per-minute rate limit the API accepts (mirrors the zod max). */
+    rateLimitMax: number;
+    /** Longest API key name the API accepts (mirrors the zod max). */
+    apiKeyNameMax: number;
     /**
      * Environment chip in the admin top bar (#503), e.g. "Dev". Empty hides
      * the chip. Per-deploy value: set in the served app-config.json.
@@ -1873,46 +1877,95 @@ export interface AppConfig {
         /** Shown when conversion is meaningless (first step / zero prior). */
         noConversion: string;
       };
+      /** Admin API keys (api-mcp/02; redesign #546, review S13). */
       apiKeys: {
         title: string;
         subtitle: string;
         issueButton: string;
-        issueTitle: string;
-        nameLabel: string;
-        namePlaceholder: string;
-        tenantLabel: string;
-        tenantPlaceholder: string;
+        /** DataTable. */
+        tableLabel: string;
+        colName: string;
+        colBuilder: string;
+        colPrefix: string;
+        colScopes: string;
+        colLastUsed: string;
+        colStatus: string;
+        never: string;
+        noBuilder: string;
+        sandboxChip: string;
+        openKey: string;
+        empty: string;
+        emptyMessage: string;
+        loadError: string;
+        loadErrorMessage: string;
+        retry: string;
+        /** Key drawer. */
+        tabsLabel: string;
+        tabOverview: string;
+        tabUsage: string;
+        builderLabel: string;
+        prefixLabel: string;
+        modeLabel: string;
+        modeLive: string;
+        modeSandbox: string;
+        createdLabel: string;
+        lastUsedLabel: string;
+        revokedAtLabel: string;
+        accessHeading: string;
+        accessHint: string;
+        revokedNote: string;
         scopesLabel: string;
+        scopesError: string;
         rateLimitLabel: string;
-        sandboxLabel: string;
-        sandboxHint: string;
-        createButton: string;
-        cancelButton: string;
-        copyButton: string;
-        copiedButton: string;
-        plaintextWarning: string;
+        rateLimitHint: string;
+        rateLimitError: string;
+        saveButton: string;
+        savedToast: string;
+        saveError: string;
+        closeButton: string;
+        dangerHeading: string;
+        rotateHint: string;
+        revokeHint: string;
         rotateButton: string;
         revokeButton: string;
+        rotateConfirmTitle: string;
         rotateConfirm: string;
+        revokeConfirmTitle: string;
         revokeConfirm: string;
-        confirmYes: string;
-        confirmNo: string;
-        editButton: string;
-        saveButton: string;
-        usageTitle: string;
+        cancelButton: string;
+        revokedToast: string;
+        actionError: string;
+        /** Usage tab. */
+        usageChartLabel: string;
+        usageTotal: string;
+        usageShowTable: string;
         usageLoading: string;
         usageEmpty: string;
         usageDateHeader: string;
         usageEndpointHeader: string;
         usageRequestsHeader: string;
         usageEstimatesHeader: string;
-        loading: string;
-        empty: string;
-        loadError: string;
-        revokedLabel: string;
-        activeLabel: string;
-        lastUsedLabel: string;
-        createdLabel: string;
+        /** Issue modal. */
+        issueTitle: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        nameError: string;
+        builderPlaceholder: string;
+        builderHint: string;
+        builderEmpty: string;
+        sandboxLabel: string;
+        sandboxHint: string;
+        createButton: string;
+        issueError: string;
+        /** One-time secret modal. */
+        secretTitle: string;
+        plaintextWarning: string;
+        secretLabel: string;
+        copyButton: string;
+        copiedButton: string;
+        copyFailed: string;
+        ackLabel: string;
+        doneButton: string;
       };
       /**
        * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.

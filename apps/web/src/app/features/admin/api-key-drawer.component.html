@@ -1,0 +1,136 @@
+<ui-drawer [heading]="heading()" asForm [dirty]="form.dirty" (submitted)="save()">
+  @if (status(); as s) {
+    <ui-status-chip uiDrawerChip domain="apiKey" [status]="s" />
+  }
+  @if (key(); as k) {
+    <code uiDrawerMeta class="key-drawer__prefix">{{ k.key_prefix }}</code>
+  }
+
+  <div class="key-drawer">
+    <div class="key-drawer__tabs" role="tablist" [attr.aria-label]="copy.tabsLabel" (keydown)="onTabKeydown($event)">
+      <button
+        type="button"
+        role="tab"
+        id="key-drawer-tab-overview"
+        class="key-drawer__tab"
+        aria-controls="key-drawer-panel-overview"
+        data-testid="tab-overview"
+        [class.key-drawer__tab--active]="tab() === 'overview'"
+        [attr.aria-selected]="tab() === 'overview'"
+        [attr.tabindex]="tab() === 'overview' ? 0 : -1"
+        (click)="selectTab('overview')"
+      >
+        {{ copy.tabOverview }}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="key-drawer-tab-usage"
+        class="key-drawer__tab"
+        aria-controls="key-drawer-panel-usage"
+        data-testid="tab-usage"
+        [class.key-drawer__tab--active]="tab() === 'usage'"
+        [attr.aria-selected]="tab() === 'usage'"
+        [attr.tabindex]="tab() === 'usage' ? 0 : -1"
+        (click)="selectTab('usage')"
+      >
+        {{ copy.tabUsage }}
+      </button>
+    </div>
+
+    @if (actionFailed(); as msg) {
+      <p class="key-drawer__alert" role="alert">{{ msg }}</p>
+    }
+
+    @if (tab() === 'overview') {
+      <div
+        class="key-drawer__panel"
+        role="tabpanel"
+        id="key-drawer-panel-overview"
+        aria-labelledby="key-drawer-tab-overview"
+        data-testid="panel-overview"
+      >
+        <ui-key-value-list [items]="details()" />
+
+        <section class="key-drawer__section" aria-labelledby="key-drawer-access">
+          <h3 class="key-drawer__heading" id="key-drawer-access">{{ copy.accessHeading }}</h3>
+          @if (editable()) {
+            <p class="key-drawer__hint">{{ copy.accessHint }}</p>
+            <div class="key-drawer__access" [formGroup]="form">
+              <fieldset class="key-drawer__scopes" [attr.aria-describedby]="error('scopes') ? 'key-drawer-scopes-error' : null">
+                <legend>{{ copy.scopesLabel }}</legend>
+                <div class="key-drawer__scope-grid">
+                  @for (scope of scopes; track scope) {
+                    <label class="key-drawer__check">
+                      <input type="checkbox" [checked]="hasScope(scope)" (change)="toggleScope(scope)" />
+                      <code>{{ scope }}</code>
+                    </label>
+                  }
+                </div>
+                @if (error('scopes'); as msg) {
+                  <p class="key-drawer__error" id="key-drawer-scopes-error">{{ msg }}</p>
+                }
+              </fieldset>
+              <ui-text-field
+                [label]="copy.rateLimitLabel"
+                formControlName="rateLimit"
+                inputmode="numeric"
+                [hint]="copy.rateLimitHint"
+                [error]="error('rateLimit')"
+              />
+            </div>
+          } @else {
+            @if (status() === 'revoked') {
+              <p class="key-drawer__hint">{{ copy.revokedNote }}</p>
+            }
+            @if (key(); as k) {
+              <ul class="key-drawer__chips" [attr.aria-label]="copy.scopesLabel">
+                @for (scope of k.scopes; track scope) {
+                  <li class="key-drawer__chip">{{ scope }}</li>
+                }
+              </ul>
+              <p class="key-drawer__hint">{{ copy.rateLimitLabel }}: {{ k.rate_limit_per_min }}</p>
+            }
+          }
+        </section>
+
+        @if (editable()) {
+          <section class="key-drawer__section key-drawer__section--danger" aria-labelledby="key-drawer-danger">
+            <h3 class="key-drawer__heading" id="key-drawer-danger">{{ copy.dangerHeading }}</h3>
+            <div class="key-drawer__danger-row">
+              <p class="key-drawer__hint">{{ copy.rotateHint }}</p>
+              <button type="button" ui-button variant="secondary" data-testid="rotate-key" (click)="rotate()">
+                {{ copy.rotateButton }}
+              </button>
+            </div>
+            <div class="key-drawer__danger-row">
+              <p class="key-drawer__hint">{{ copy.revokeHint }}</p>
+              <button type="button" ui-button variant="danger-secondary" data-testid="revoke-key" (click)="revoke()">
+                {{ copy.revokeButton }}
+              </button>
+            </div>
+          </section>
+        }
+      </div>
+    } @else if (key(); as k) {
+      <div
+        class="key-drawer__panel"
+        role="tabpanel"
+        id="key-drawer-panel-usage"
+        aria-labelledby="key-drawer-tab-usage"
+        data-testid="panel-usage"
+      >
+        <app-api-key-usage [keyId]="k.id" />
+      </div>
+    }
+  </div>
+
+  <button uiDrawerFooterStart type="button" ui-button variant="secondary" (click)="ref.requestClose()">
+    {{ copy.closeButton }}
+  </button>
+  @if (editable()) {
+    <button uiDrawerFooterEnd type="submit" ui-button data-testid="save-key" [disabled]="!form.dirty" [loading]="mutating()">
+      {{ copy.saveButton }}
+    </button>
+  }
+</ui-drawer>
