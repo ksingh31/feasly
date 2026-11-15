@@ -43,14 +43,19 @@ export async function enforceRoutePermissions(
   // auth/03: OR branch — the caller needs any one of permissionsAnyOf.
   // requirePermission with an array is OR (`.some`), matching the route
   // layer's own check; the route then applies role-specific scoping.
-  if (entry.permissionsAnyOf && entry.permissionsAnyOf.length > 0) {
+  const anyOf = entry.permissionsAnyOf ?? [];
+  const hasAnyOf = anyOf.length > 0;
+  if (hasAnyOf) {
     await permissionGuard.requirePermission(
-      entry.permissionsAnyOf,
+      anyOf,
       headers,
       `${httpMethod} ${path}`,
     );
   }
-  if (entry.permissions.length === 0) return;
+  if (entry.permissions.length === 0 && !hasAnyOf) return;
+  // `requirePermissions` also audit-logs the action under the REAL actor
+  // when view-as is active (#731 AC5) — so it runs for anyOf-only routes
+  // too (with an empty AND list it only resolves + audits).
   await permissionGuard.requirePermissions(
     entry.permissions,
     headers,
