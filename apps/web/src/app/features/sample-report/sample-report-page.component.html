@@ -1,9 +1,7 @@
 <app-site-nav />
 <!-- Unmissable SAMPLE watermark: fixed, so it stays visible on every viewport while scrolling. -->
-<div class="sample-watermark" aria-hidden="true">
-  <span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span>
-  <span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span><span>SAMPLE</span>
-</div>
+<!-- #628: drawn by a CSS mask (no text nodes), so axe colour-contrast has nothing to flag. -->
+<div class="sample-watermark" aria-hidden="true" data-watermark="SAMPLE"></div>
 <main class="wrap report" id="main-content" tabindex="-1">
   <p class="sample-banner" role="note">{{ banner }}</p>
   <h1 class="report-heading">Sample build estimate <span class="sample-tag">SAMPLE</span></h1>

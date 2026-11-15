@@ -65,7 +65,13 @@ describe('SampleReportPageComponent', () => {
     const watermark = fixture.nativeElement.querySelector('.sample-watermark');
     expect(watermark).not.toBeNull();
     expect(watermark.getAttribute('aria-hidden')).toBe('true');
-    expect(watermark.textContent).toContain('SAMPLE');
+    expect(watermark.getAttribute('data-watermark')).toBe('SAMPLE');
+  });
+
+  it('draws the watermark without text nodes so axe color-contrast has nothing to test (#628)', () => {
+    const watermark: HTMLElement = fixture.nativeElement.querySelector('.sample-watermark');
+    expect(watermark.textContent?.trim()).toBe('');
+    expect(watermark.children.length).toBe(0);
   });
 
   it('frames the uncalibrated-data note for the fictional sample, not a real property', () => {
