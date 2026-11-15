@@ -16,8 +16,12 @@
   color: var(--chip-fg);
   font: var(--type-label);
   white-space: nowrap;
+}
+.status-chip__label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .status-chip__dot {
   flex: none;

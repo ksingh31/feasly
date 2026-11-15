@@ -68,6 +68,10 @@ describe('StatusChipComponent', () => {
     fixture.detectChanges();
     expect(chip().textContent?.trim()).toBe('Auto-charges in 3 days');
     expect(chip().classList).toContain('status-chip--warning');
+    // Long labels truncate with an ellipsis on the inner label span; the
+    // title keeps the full text readable.
+    expect(chip().querySelector('.status-chip__label')?.textContent).toBe('Auto-charges in 3 days');
+    expect(chip().getAttribute('title')).toBe('Auto-charges in 3 days');
   });
 
   it('never renders a raw enum for an unknown status', () => {

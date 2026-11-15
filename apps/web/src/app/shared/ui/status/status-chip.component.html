@@ -1,6 +1,9 @@
-<span [class]="'status-chip status-chip--' + presentation().tone">
+<span
+  [class]="'status-chip status-chip--' + presentation().tone"
+  [attr.title]="text()"
+>
   @if (dot()) {
     <span class="status-chip__dot" aria-hidden="true"></span>
   }
-  {{ label() ?? presentation().label }}
+  <span class="status-chip__label">{{ text() }}</span>
 </span>

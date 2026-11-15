@@ -23,4 +23,7 @@ export class StatusChipComponent {
   protected readonly presentation = computed(() =>
     statusPresentation(this.domain(), this.status()),
   );
+
+  /** Visible text; also the `title` so a truncated label can be read in full. */
+  protected readonly text = computed(() => this.label() ?? this.presentation().label);
 }
