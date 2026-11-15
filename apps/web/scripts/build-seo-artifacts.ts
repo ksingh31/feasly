@@ -195,13 +195,34 @@ export function applyNoindexToSwaConfig(config: SwaConfig): SwaConfig {
   };
 }
 
-function writeNonProductionRules(outputDir: string): boolean {
-  writeFileSync(join(outputDir, NOINDEX_ROBOTS_FILE), buildNoindexRobotsTxt());
+/**
+ * Size budget for the deployed SWA config (#690). Static Web Apps rejects a
+ * `staticwebapp.config.json` over 20 KB, and each prerendered community adds
+ * an exact 301 rule. The deployed copy is written minified; the build fails
+ * before deploy if even that exceeds the budget.
+ */
+export const SWA_CONFIG_MAX_BYTES = 20 * 1024;
+
+/** Minified SWA config; throws when over the size budget. */
+export function serializeSwaConfig(config: SwaConfig): string {
+  const out = `${JSON.stringify(config)}\n`;
+  const bytes = Buffer.byteLength(out, 'utf8');
+  if (bytes > SWA_CONFIG_MAX_BYTES) {
+    throw new Error(
+      `build-seo-artifacts: ${SWA_CONFIG_FILE} is ${bytes} bytes minified — over the ${SWA_CONFIG_MAX_BYTES}-byte Static Web Apps limit (too many community redirect rules?)`,
+    );
+  }
+  return out;
+}
+
+/** Rewrites the deployed SWA config minified, with the noindex rules on non-production builds. */
+function writeSwaConfig(outputDir: string, indexable: boolean): boolean {
+  if (!indexable) writeFileSync(join(outputDir, NOINDEX_ROBOTS_FILE), buildNoindexRobotsTxt());
   const swaPath = join(outputDir, SWA_CONFIG_FILE);
   if (!existsSync(swaPath)) return false;
   const swa = JSON.parse(readFileSync(swaPath, 'utf-8')) as SwaConfig;
-  writeFileSync(swaPath, `${JSON.stringify(applyNoindexToSwaConfig(swa), null, 2)}\n`);
-  return true;
+  writeFileSync(swaPath, serializeSwaConfig(indexable ? swa : applyNoindexToSwaConfig(swa)));
+  return !indexable;
 }
 
 export function buildSeoArtifacts(config: SeoArtifactsConfig = loadConfig()): {
@@ -224,7 +245,7 @@ export function buildSeoArtifacts(config: SeoArtifactsConfig = loadConfig()): {
   writeFileSync(join(config.outputDir, 'sitemap.xml'), sitemapXml);
   writeFileSync(join(config.outputDir, 'robots.txt'), robotsTxt);
 
-  const noindexApplied = config.indexable ? false : writeNonProductionRules(config.outputDir);
+  const noindexApplied = writeSwaConfig(config.outputDir, config.indexable);
 
   return { sitemapXml, robotsTxt, urlCount: urls.length, noindexApplied };
 }

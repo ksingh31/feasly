@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  cachedMixMatches,
   classifyCommunities,
   PROFILE_MULTI_FAMILY_THRESHOLD,
-  PROFILE_OVERRIDE_SLUGS,
   type MixCountRow,
 } from './build-community-mix.js';
+import { loadCitySelection } from './community-selection.schema.js';
 
 const row = (commName: string, subPropertyUse: string, count: number): MixCountRow => ({
   commName,
@@ -46,12 +47,20 @@ describe('build-community-mix classifyCommunities', () => {
     expect(mix.mix.multiFamily).toBe(0);
   });
 
-  it('applies the manual override list even below the threshold', () => {
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('beltline');
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('downtown-commercial-core');
-    expect(PROFILE_OVERRIDE_SLUGS).toContain('east-village');
+  it('applies the config override list even below the threshold', () => {
+    const overrides = loadCitySelection(undefined, undefined).selection.profileOverrides;
+    expect(overrides).toContain('beltline');
+    expect(overrides).toContain('downtown-commercial-core');
+    expect(overrides).toContain('east-village');
     const rows = [row('DOWNTOWN COMMERCIAL CORE', 'R110', 100), row('DOWNTOWN COMMERCIAL CORE', 'R201', 10)];
-    const [mix] = classifyCommunities(rows, ['downtown-commercial-core']);
+    expect(classifyCommunities(rows, ['downtown-commercial-core'])[0].communityType).toBe('build-guide');
+    const [mix] = classifyCommunities(rows, ['downtown-commercial-core'], () => undefined, new Set(overrides));
+    expect(mix.communityType).toBe('profile');
+  });
+
+  it('forces profile for residential-basis communities (#690: no condo average on a guide)', () => {
+    const rows = [row('POINT MCKAY', 'R110', 24), row('POINT MCKAY', 'R201', 30)];
+    const [mix] = classifyCommunities(rows, ['point-mckay'], () => undefined, new Set(['point-mckay']));
     expect(mix.communityType).toBe('profile');
   });
 
@@ -68,5 +77,44 @@ describe('build-community-mix classifyCommunities', () => {
     const mixes = classifyCommunities(rows, ['beltline']);
     expect(mixes).toHaveLength(1);
     expect(mixes[0].dwellingUnits).toBe(0);
+  });
+});
+
+describe('build-community-mix cachedMixMatches (#766 review)', () => {
+  const rows = [
+    row('BELTLINE', 'R201', 900),
+    row('BELTLINE', 'R110', 100),
+    row('ALTADORE', 'R110', 800),
+    row('ALTADORE', 'R201', 200),
+  ];
+  const slugs = ['beltline', 'altadore'];
+  const cachedWith = (forceProfile: ReadonlySet<string>) => ({
+    generatedAt: new Date().toISOString(),
+    assessmentYear: '2026',
+    communities: classifyCommunities(rows, slugs, () => undefined, forceProfile),
+  });
+
+  it('reuses the cache when slugs and forced profiles are unchanged', () => {
+    const force = new Set(['beltline']);
+    expect(cachedMixMatches(cachedWith(force), slugs, force)).toBe(true);
+  });
+
+  it('invalidates when a build-guide community becomes forced-profile (new override or residential-basis flip)', () => {
+    // Same slug set; altadore is now in profileOverrides or has a residential-basis aggregate.
+    expect(cachedMixMatches(cachedWith(new Set()), slugs, new Set(['altadore']))).toBe(false);
+  });
+
+  it('invalidates when a profile override is removed', () => {
+    expect(cachedMixMatches(cachedWith(new Set(['altadore'])), slugs, new Set())).toBe(false);
+  });
+
+  it('keeps a data-driven profile valid without an override', () => {
+    // beltline is >60% multi-family, so it is profile with or without forcing.
+    expect(cachedMixMatches(cachedWith(new Set(['beltline'])), slugs, new Set())).toBe(true);
+  });
+
+  it('invalidates when the slug set changes', () => {
+    expect(cachedMixMatches(cachedWith(new Set()), ['beltline'], new Set())).toBe(false);
+    expect(cachedMixMatches(cachedWith(new Set()), ['beltline', 'altadore', 'mission'], new Set())).toBe(false);
   });
 });

@@ -39,6 +39,7 @@ import { DEFAULT_APP_CONFIG } from '../src/app/core/config/app-config.defaults.j
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
+const TYPES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-types.json');
 const RANGES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-ranges.json');
 
 /** Size limits from SEO-07 AC1. */
@@ -83,8 +84,19 @@ function formatMoney(n: number): string {
 function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: string } {
   const raw = JSON.parse(readFileSync(AGGREGATES_PATH, 'utf-8')) as {
     costDataVersion: string;
-    communities: Array<{ slug: string; name: string; avgAssessedValue: number; count: number }>;
+    communities: Array<{
+      slug: string;
+      name: string;
+      avgAssessedValue: number;
+      count: number;
+      residential?: { avgAssessedValue: number; count: number };
+    }>;
   };
+  // #690: profile pages show the all-residential averages, guide pages the
+  // single/semi-detached ones — llms.txt states the figure its page shows.
+  const types: Record<string, string> = existsSync(TYPES_PATH)
+    ? ((JSON.parse(readFileSync(TYPES_PATH, 'utf-8')) as { types?: Record<string, string> }).types ?? {})
+    : {};
 
   // Build-cost ranges (SEO-04, community-ranges.json). Shape: tiers.{standard,premium,luxury}
   // each with buildLow/buildHigh (build cost), landValue (assessed), totalLow/totalHigh.
@@ -111,13 +123,18 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
     }
   }
 
-  const communities: CommunitySummary[] = raw.communities.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    avgAssessedValue: c.avgAssessedValue,
-    count: c.count,
-    tiers: tiersBySlug.get(c.slug),
-  }));
+  const communities: CommunitySummary[] = raw.communities.map((c) => {
+    const profile = types[c.slug] === 'profile';
+    const view = profile && c.residential ? c.residential : c;
+    return {
+      slug: c.slug,
+      name: c.name,
+      avgAssessedValue: view.avgAssessedValue,
+      count: view.count,
+      // Profile pages (condo/apartment-dominated) show no build ranges, so neither does llms.txt.
+      tiers: profile ? undefined : tiersBySlug.get(c.slug),
+    };
+  });
 
   return { communities, costDataVersion: raw.costDataVersion };
 }

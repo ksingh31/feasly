@@ -829,7 +829,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Build on the Feasly API: address-aware property data, deterministic build estimates, and lead capture. Quickstart, auth, scopes, rate limits, errors, sandbox, and the live OpenAPI spec.',
       communitiesTitle: 'Feasly — Calgary community guides',
       communities:
-        'Browse guides for 40 Calgary communities: average assessed values and dwelling mix, plus estimated new-build cost ranges by finish tier where single-family homes get built.',
+        'Browse Calgary community guides, from inner-city infill areas to newer suburbs: average assessed values and dwelling mix, plus estimated new-build cost ranges by finish tier where single-family homes get built.',
       notFoundTitle: 'Feasly — Page not found',
       notFound: "The page you're looking for moved or never existed.",
       errorTitle: 'Feasly — Something went wrong',
@@ -993,7 +993,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         ],
         exampleTitle: 'What that looks like for a 2,400 sq ft home',
         exampleBody:
-          'At 2,400 square feet — a common size for a Calgary infill — the build itself budgets roughly $468,000–$703,000 at Standard tier, $629,000–$938,000 at Premium, and $864,000–$1,298,000 at Luxury. Land sits on top: the average City-assessed land value across the 40 Calgary communities we cover is about $766,000, but it varies a lot by neighbourhood.',
+          'At 2,400 square feet — a common size for a Calgary infill — the build itself budgets roughly $468,000–$703,000 at Standard tier, $629,000–$938,000 at Premium, and $864,000–$1,298,000 at Luxury. Land sits on top: the City-assessed value varies a lot by neighbourhood — each community guide shows its own average.',
         includedTitle: 'What’s included in the estimate',
         includedBody:
           'Feasly budgets the way a real Calgary builder does — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Demolition, soil and servicing, permits and fees, financing costs, and GST are part of the range.',
@@ -1010,7 +1010,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         faqs: [
           {
             q: 'How much does it cost to build a house in Calgary?',
-            a: 'For a typical 2,400 sq ft home, budget roughly $1.2M–$2.1M all-in including land. The build itself runs $195–$541 per square foot depending on finish tier, and land averages about $766,000 in assessed value across the communities we cover — though it varies widely. Run a free estimate with your address for the range on your lot.',
+            a: 'For a typical 2,400 sq ft home, budget roughly $1.2M–$2.1M all-in including land. The build itself runs $195–$541 per square foot depending on finish tier, and land is the City-assessed value, which varies widely by community. Run a free estimate with your address for the range on your lot.',
           },
           {
             q: 'What drives the cost up or down the most?',
@@ -1030,7 +1030,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Which Calgary communities cost the least to build in?',
-            a: 'Land value drives the all-in number, so communities with lower assessed land values budget lower overall. Our community cost guides show average assessed values and build ranges for 40 Calgary neighbourhoods — start there to compare.',
+            a: 'Land value drives the all-in number, so communities with lower assessed land values budget lower overall. Our community cost guides show average assessed values and build ranges for Calgary neighbourhoods — start there to compare.',
           },
         ],
         mathNoteTitle: 'Real math, not guesses',
@@ -1222,9 +1222,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       communities: {
         landingTitle: 'Browse community guides',
         landingBody:
-          'Guides for 40 Calgary communities — assessed values, dwelling mix, and cost ranges by finish tier where single-family homes get built.',
+          'Guides for Calgary communities, from inner-city infill areas to newer suburbs — assessed values, dwelling mix, and cost ranges by finish tier where single-family homes get built.',
         intro:
           'Every community, one page: average assessed values and dwelling mix from City of Calgary assessment data — plus estimated new-build cost ranges by finish tier in communities where single-family homes get built. Pick a community to see its guide.',
+        groups: {
+          established: {
+            heading: 'Established and inner-city communities',
+            body: 'Older neighbourhoods where most Calgary infill homes get built. Averages on cost guides use single-detached and semi-detached homes only.',
+          },
+          newer: {
+            heading: 'Newer communities',
+            body: 'Communities built from the 1980s on.',
+          },
+        },
       },
     },
     builderMatching: {
@@ -1256,7 +1266,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Planning cost ranges for building a home in {name}, Calgary — average City-assessed value {avgAssessed}, Standard/Premium/Luxury build ranges, and FAQs.',
       statLabel: 'Average City-assessed value (not market value)',
       statNote:
-        'The average of all City of Calgary property assessment records in this community. Assessments are for tax purposes and can differ from actual sale prices.',
+        'The average City of Calgary assessment for single-detached and semi-detached homes in this community — condos, apartments and non-residential properties are left out. Assessments are for tax purposes and can differ from actual sale prices.',
+      statCountLabel: 'Detached and semi-detached homes assessed',
+      profileStatNote:
+        'The average City of Calgary assessment for homes in this community — houses, condos and apartments alike; non-residential properties are left out. Assessments are for tax purposes and can differ from actual sale prices.',
       basisNote:
         'City-assessed basis: land is the community average City-assessed value (a fixed fact, not a range). Build ranges assume 2,400 sqft of above-grade living area.',
       tierSectionTitle: 'What it costs to build in {name}',

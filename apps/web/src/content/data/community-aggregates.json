@@ -1,286 +1,2167 @@
 {
-  "generatedAt": "2026-11-13T06:33:02.149Z",
+  "generatedAt": "2026-11-15T19:35:26.540Z",
   "costDataVersion": "v0.1.0-unclibrated",
+  "selectionHash": "dc2f14069a13874c",
   "communities": [
     {
+      "count": 11626,
+      "avgAssessedValue": 722797,
+      "avgLotSqft": 19724,
       "slug": "beltline",
       "name": "BELTLINE",
-      "count": 21577,
-      "avgAssessedValue": 609901,
-      "avgLotSqft": 21559
+      "basis": "residential",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 11626,
+        "avgAssessedValue": 722797,
+        "avgLotSqft": 19724
+      }
     },
     {
-      "slug": "panorama-hills",
-      "name": "PANORAMA HILLS",
-      "count": 9188,
-      "avgAssessedValue": 600433,
-      "avgLotSqft": 17887
-    },
-    {
+      "count": 6226,
+      "avgAssessedValue": 810141,
+      "avgLotSqft": 4736,
       "slug": "cranston",
       "name": "CRANSTON",
-      "count": 8974,
-      "avgAssessedValue": 678977,
-      "avgLotSqft": 21733
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 8167,
+        "avgAssessedValue": 716856,
+        "avgLotSqft": 13233
+      }
     },
     {
+      "count": 5983,
+      "avgAssessedValue": 764928,
+      "avgLotSqft": 4685,
+      "slug": "panorama-hills",
+      "name": "PANORAMA HILLS",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 8109,
+        "avgAssessedValue": 651976,
+        "avgLotSqft": 12163
+      }
+    },
+    {
+      "count": 5696,
+      "avgAssessedValue": 718114,
+      "avgLotSqft": 3657,
       "slug": "saddle-ridge",
       "name": "SADDLE RIDGE",
-      "count": 8853,
-      "avgAssessedValue": 597568,
-      "avgLotSqft": 18232
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 7558,
+        "avgAssessedValue": 644382,
+        "avgLotSqft": 12320
+      }
     },
     {
-      "slug": "mahogany",
-      "name": "MAHOGANY",
-      "count": 8723,
-      "avgAssessedValue": 716424,
-      "avgLotSqft": 43229
-    },
-    {
-      "slug": "mckenzie-towne",
-      "name": "MCKENZIE TOWNE",
-      "count": 8713,
-      "avgAssessedValue": 489578,
-      "avgLotSqft": 27078
-    },
-    {
+      "count": 5597,
+      "avgAssessedValue": 746311,
+      "avgLotSqft": 4584,
       "slug": "evergreen",
       "name": "EVERGREEN",
-      "count": 8702,
-      "avgAssessedValue": 588856,
-      "avgLotSqft": 29306
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 7427,
+        "avgAssessedValue": 668409,
+        "avgLotSqft": 18350
+      }
     },
     {
+      "count": 5273,
+      "avgAssessedValue": 861941,
+      "avgLotSqft": 4131,
+      "slug": "mahogany",
+      "name": "MAHOGANY",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 7217,
+        "avgAssessedValue": 798641,
+        "avgLotSqft": 36310
+      }
+    },
+    {
+      "count": 4299,
+      "avgAssessedValue": 635686,
+      "avgLotSqft": 4076,
+      "slug": "mckenzie-towne",
+      "name": "MCKENZIE TOWNE",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 7156,
+        "avgAssessedValue": 529765,
+        "avgLotSqft": 19114
+      }
+    },
+    {
+      "count": 5707,
+      "avgAssessedValue": 776246,
+      "avgLotSqft": 4682,
       "slug": "tuscany",
       "name": "TUSCANY",
-      "count": 7438,
-      "avgAssessedValue": 691792,
-      "avgLotSqft": 20829
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 6758,
+        "avgAssessedValue": 731465,
+        "avgLotSqft": 12734
+      }
     },
     {
-      "slug": "sage-hill",
-      "name": "SAGE HILL",
-      "count": 7258,
-      "avgAssessedValue": 516604,
-      "avgLotSqft": 36130
-    },
-    {
+      "count": 4455,
+      "avgAssessedValue": 813092,
+      "avgLotSqft": 4263,
       "slug": "auburn-bay",
       "name": "AUBURN BAY",
-      "count": 7041,
-      "avgAssessedValue": 652123,
-      "avgLotSqft": 15233
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 6342,
+        "avgAssessedValue": 697700,
+        "avgLotSqft": 11565
+      }
     },
     {
-      "slug": "skyview-ranch",
-      "name": "SKYVIEW RANCH",
-      "count": 6707,
-      "avgAssessedValue": 434908,
-      "avgLotSqft": 44044
-    },
-    {
+      "count": 4891,
+      "avgAssessedValue": 736293,
+      "avgLotSqft": 4134,
       "slug": "evanston",
       "name": "EVANSTON",
-      "count": 6263,
-      "avgAssessedValue": 744078,
-      "avgLotSqft": 9640
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 6152,
+        "avgAssessedValue": 709879,
+        "avgLotSqft": 7561
+      }
     },
     {
-      "slug": "copperfield",
-      "name": "COPPERFIELD",
-      "count": 6218,
-      "avgAssessedValue": 488900,
-      "avgLotSqft": 23734
-    },
-    {
-      "slug": "signal-hill",
-      "name": "SIGNAL HILL",
-      "count": 6208,
-      "avgAssessedValue": 775291,
-      "avgLotSqft": 33655
-    },
-    {
-      "slug": "legacy",
-      "name": "LEGACY",
-      "count": 6138,
-      "avgAssessedValue": 550827,
-      "avgLotSqft": 77123
-    },
-    {
-      "slug": "seton",
-      "name": "SETON",
-      "count": 6034,
-      "avgAssessedValue": 823274,
-      "avgLotSqft": 45728
-    },
-    {
-      "slug": "varsity",
-      "name": "VARSITY",
-      "count": 5951,
-      "avgAssessedValue": 824499,
-      "avgLotSqft": 90238
-    },
-    {
-      "slug": "cornerstone",
-      "name": "CORNERSTONE",
-      "count": 5937,
-      "avgAssessedValue": 582097,
-      "avgLotSqft": 22557
-    },
-    {
-      "slug": "west-springs",
-      "name": "WEST SPRINGS",
-      "count": 5744,
-      "avgAssessedValue": 836395,
-      "avgLotSqft": 19821
-    },
-    {
-      "slug": "springbank-hill",
-      "name": "SPRINGBANK HILL",
-      "count": 5742,
-      "avgAssessedValue": 899139,
-      "avgLotSqft": 45072
-    },
-    {
-      "slug": "douglasdale-glen",
-      "name": "DOUGLASDALE/GLEN",
-      "count": 5728,
-      "avgAssessedValue": 765027,
-      "avgLotSqft": 59626
-    },
-    {
+      "count": 5245,
+      "avgAssessedValue": 583271,
+      "avgLotSqft": 4109,
       "slug": "coventry-hills",
       "name": "COVENTRY HILLS",
-      "count": 5564,
-      "avgAssessedValue": 609093,
-      "avgLotSqft": 5429
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 5513,
+        "avgAssessedValue": 574040,
+        "avgLotSqft": 3988
+      }
     },
     {
+      "count": 3345,
+      "avgAssessedValue": 644964,
+      "avgLotSqft": 4012,
+      "slug": "copperfield",
+      "name": "COPPERFIELD",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 5390,
+        "avgAssessedValue": 536998,
+        "avgLotSqft": 20725
+      }
+    },
+    {
+      "count": 2061,
+      "avgAssessedValue": 780691,
+      "avgLotSqft": 4147,
+      "slug": "sage-hill",
+      "name": "SAGE HILL",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 5336,
+        "avgAssessedValue": 626719,
+        "avgLotSqft": 25155
+      }
+    },
+    {
+      "count": 4612,
+      "avgAssessedValue": 894140,
+      "avgLotSqft": 6247,
       "slug": "edgemont",
       "name": "EDGEMONT",
-      "count": 5494,
-      "avgAssessedValue": 850311,
-      "avgLotSqft": 36396
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 5318,
+        "avgAssessedValue": 840656,
+        "avgLotSqft": 32841
+      }
     },
     {
-      "slug": "royal-oak",
-      "name": "ROYAL OAK",
-      "count": 5309,
-      "avgAssessedValue": 561838,
-      "avgLotSqft": 32565
+      "count": 3640,
+      "avgAssessedValue": 950635,
+      "avgLotSqft": 6083,
+      "slug": "signal-hill",
+      "name": "SIGNAL HILL",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "WEST",
+      "residential": {
+        "count": 5292,
+        "avgAssessedValue": 778880,
+        "avgLotSqft": 26000
+      }
     },
     {
-      "slug": "lake-bonavista",
-      "name": "LAKE BONAVISTA",
-      "count": 5233,
-      "avgAssessedValue": 813110,
-      "avgLotSqft": 68355
+      "count": 3674,
+      "avgAssessedValue": 716954,
+      "avgLotSqft": 3293,
+      "slug": "cornerstone",
+      "name": "CORNERSTONE",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 4991,
+        "avgAssessedValue": 634094,
+        "avgLotSqft": 12187
+      }
     },
     {
-      "slug": "huntington-hills",
-      "name": "HUNTINGTON HILLS",
-      "count": 4845,
-      "avgAssessedValue": 599468,
-      "avgLotSqft": 56036
+      "count": 2705,
+      "avgAssessedValue": 1028989,
+      "avgLotSqft": 7471,
+      "slug": "varsity",
+      "name": "VARSITY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 4924,
+        "avgAssessedValue": 793992,
+        "avgLotSqft": 93885
+      }
     },
     {
-      "slug": "bridlewood",
-      "name": "BRIDLEWOOD",
-      "count": 4798,
-      "avgAssessedValue": 495552,
-      "avgLotSqft": 28162
+      "count": 3951,
+      "avgAssessedValue": 770368,
+      "avgLotSqft": 5623,
+      "slug": "douglasdale-glen",
+      "name": "DOUGLASDALE/GLEN",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 4893,
+        "avgAssessedValue": 784725,
+        "avgLotSqft": 35451
+      }
     },
     {
+      "count": 1687,
+      "avgAssessedValue": 679344,
+      "avgLotSqft": 3730,
+      "slug": "skyview-ranch",
+      "name": "SKYVIEW RANCH",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 4624,
+        "avgAssessedValue": 578213,
+        "avgLotSqft": 34021
+      }
+    },
+    {
+      "count": 2976,
+      "avgAssessedValue": 1088855,
+      "avgLotSqft": 5463,
+      "slug": "west-springs",
+      "name": "WEST SPRINGS",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "WEST",
+      "residential": {
+        "count": 4623,
+        "avgAssessedValue": 936863,
+        "avgLotSqft": 12857
+      }
+    },
+    {
+      "count": 4244,
+      "avgAssessedValue": 801154,
+      "avgLotSqft": 5539,
       "slug": "mckenzie-lake",
       "name": "MCKENZIE LAKE",
-      "count": 4681,
-      "avgAssessedValue": 778650,
-      "avgLotSqft": 10098
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 4582,
+        "avgAssessedValue": 777604,
+        "avgLotSqft": 7483
+      }
     },
     {
-      "slug": "livingston",
-      "name": "LIVINGSTON",
-      "count": 4633,
-      "avgAssessedValue": 645373,
-      "avgLotSqft": 12269
+      "count": 2827,
+      "avgAssessedValue": 758132,
+      "avgLotSqft": 3959,
+      "slug": "legacy",
+      "name": "LEGACY",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 4526,
+        "avgAssessedValue": 651176,
+        "avgLotSqft": 47366
+      }
     },
     {
-      "slug": "taradale",
-      "name": "TARADALE",
-      "count": 4595,
-      "avgAssessedValue": 567863,
-      "avgLotSqft": 16037
+      "count": 3526,
+      "avgAssessedValue": 602209,
+      "avgLotSqft": 5640,
+      "slug": "huntington-hills",
+      "name": "HUNTINGTON HILLS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTH",
+      "residential": {
+        "count": 4512,
+        "avgAssessedValue": 586679,
+        "avgLotSqft": 53054
+      }
     },
     {
-      "slug": "chaparral",
-      "name": "CHAPARRAL",
-      "count": 4518,
-      "avgAssessedValue": 683781,
-      "avgLotSqft": 21569
-    },
-    {
-      "slug": "arbour-lake",
-      "name": "ARBOUR LAKE",
-      "count": 4494,
-      "avgAssessedValue": 797172,
-      "avgLotSqft": 31221
-    },
-    {
+      "count": 3405,
+      "avgAssessedValue": 671155,
+      "avgLotSqft": 4011,
       "slug": "new-brighton",
       "name": "NEW BRIGHTON",
-      "count": 4410,
-      "avgAssessedValue": 644241,
-      "avgLotSqft": 12982
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 4368,
+        "avgAssessedValue": 612276,
+        "avgLotSqft": 11528
+      }
     },
     {
+      "count": 3531,
+      "avgAssessedValue": 621527,
+      "avgLotSqft": 3687,
+      "slug": "taradale",
+      "name": "TARADALE",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 4362,
+        "avgAssessedValue": 569283,
+        "avgLotSqft": 11804
+      }
+    },
+    {
+      "count": 3476,
+      "avgAssessedValue": 564982,
+      "avgLotSqft": 4540,
       "slug": "beddington-heights",
       "name": "BEDDINGTON HEIGHTS",
-      "count": 4387,
-      "avgAssessedValue": 550990,
-      "avgLotSqft": 99657
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTH",
+      "residential": {
+        "count": 4280,
+        "avgAssessedValue": 529293,
+        "avgLotSqft": 100456
+      }
     },
     {
+      "count": 2837,
+      "avgAssessedValue": 1260524,
+      "avgLotSqft": 7890,
+      "slug": "springbank-hill",
+      "name": "SPRINGBANK HILL",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "WEST",
+      "residential": {
+        "count": 4266,
+        "avgAssessedValue": 1100636,
+        "avgLotSqft": 29605
+      }
+    },
+    {
+      "count": 3577,
+      "avgAssessedValue": 764331,
+      "avgLotSqft": 4908,
+      "slug": "chaparral",
+      "name": "CHAPARRAL",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 4194,
+        "avgAssessedValue": 709393,
+        "avgLotSqft": 11283
+      }
+    },
+    {
+      "count": 2903,
+      "avgAssessedValue": 806090,
+      "avgLotSqft": 5243,
+      "slug": "royal-oak",
+      "name": "ROYAL OAK",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 4171,
+        "avgAssessedValue": 684099,
+        "avgLotSqft": 22126
+      }
+    },
+    {
+      "count": 3139,
+      "avgAssessedValue": 609453,
+      "avgLotSqft": 4065,
+      "slug": "bridlewood",
+      "name": "BRIDLEWOOD",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 4168,
+        "avgAssessedValue": 537392,
+        "avgLotSqft": 16503
+      }
+    },
+    {
+      "count": 1594,
+      "avgAssessedValue": 734212,
+      "avgLotSqft": 3220,
+      "slug": "seton",
+      "name": "SETON",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 4121,
+        "avgAssessedValue": 617536,
+        "avgLotSqft": 37623
+      }
+    },
+    {
+      "count": 3258,
+      "avgAssessedValue": 1096743,
+      "avgLotSqft": 7056,
+      "slug": "lake-bonavista",
+      "name": "LAKE BONAVISTA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 4087,
+        "avgAssessedValue": 952684,
+        "avgLotSqft": 41263
+      }
+    },
+    {
+      "count": 3102,
+      "avgAssessedValue": 712649,
+      "avgLotSqft": 7062,
       "slug": "bowness",
       "name": "BOWNESS",
-      "count": 4353,
-      "avgAssessedValue": 770404,
-      "avgLotSqft": 19289
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 4053,
+        "avgAssessedValue": 687102,
+        "avgLotSqft": 15987
+      }
     },
     {
+      "count": 2747,
+      "avgAssessedValue": 466697,
+      "avgLotSqft": 4618,
       "slug": "dover",
       "name": "DOVER",
-      "count": 4331,
-      "avgAssessedValue": 442846,
-      "avgLotSqft": 42264
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 3898,
+        "avgAssessedValue": 461873,
+        "avgLotSqft": 31686
+      }
     },
     {
-      "slug": "rocky-ridge",
-      "name": "ROCKY RIDGE",
-      "count": 4272,
-      "avgAssessedValue": 575823,
-      "avgLotSqft": 33951
+      "count": 3050,
+      "avgAssessedValue": 761398,
+      "avgLotSqft": 3619,
+      "slug": "livingston",
+      "name": "LIVINGSTON",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTH",
+      "residential": {
+        "count": 3814,
+        "avgAssessedValue": 725857,
+        "avgLotSqft": 5612
+      }
     },
     {
-      "slug": "bridgeland-riverside",
-      "name": "BRIDGELAND/RIVERSIDE",
-      "count": 4239,
-      "avgAssessedValue": 695649,
-      "avgLotSqft": 31923
+      "count": 2997,
+      "avgAssessedValue": 811742,
+      "avgLotSqft": 5116,
+      "slug": "arbour-lake",
+      "name": "ARBOUR LAKE",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 3813,
+        "avgAssessedValue": 751505,
+        "avgLotSqft": 20242
+      }
     },
     {
-      "slug": "downtown-commercial-core",
-      "name": "DOWNTOWN COMMERCIAL CORE",
-      "count": 4234,
-      "avgAssessedValue": 5445748,
-      "avgLotSqft": 25821
+      "count": 2418,
+      "avgAssessedValue": 672261,
+      "avgLotSqft": 5708,
+      "slug": "acadia",
+      "name": "ACADIA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 3806,
+        "avgAssessedValue": 582444,
+        "avgLotSqft": 83738
+      }
     },
     {
+      "count": 2350,
+      "avgAssessedValue": 707756,
+      "avgLotSqft": 3690,
       "slug": "walden",
       "name": "WALDEN",
-      "count": 4006,
-      "avgAssessedValue": 592056,
-      "avgLotSqft": 11409
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 3596,
+        "avgAssessedValue": 621582,
+        "avgLotSqft": 7167
+      }
+    },
+    {
+      "count": 3171,
+      "avgAssessedValue": 528618,
+      "avgLotSqft": 4608,
+      "slug": "whitehorn",
+      "name": "WHITEHORN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 3510,
+        "avgAssessedValue": 501321,
+        "avgLotSqft": 13650
+      }
+    },
+    {
+      "count": 2739,
+      "avgAssessedValue": 782911,
+      "avgLotSqft": 6330,
+      "slug": "silver-springs",
+      "name": "SILVER SPRINGS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 3502,
+        "avgAssessedValue": 694829,
+        "avgLotSqft": 50627
+      }
+    },
+    {
+      "count": 2093,
+      "avgAssessedValue": 890477,
+      "avgLotSqft": 4204,
+      "slug": "killarney-glengarry",
+      "name": "KILLARNEY/GLENGARRY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 3494,
+        "avgAssessedValue": 765675,
+        "avgLotSqft": 121832
+      }
+    },
+    {
+      "count": 2195,
+      "avgAssessedValue": 779555,
+      "avgLotSqft": 7037,
+      "slug": "dalhousie",
+      "name": "DALHOUSIE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 3477,
+        "avgAssessedValue": 655347,
+        "avgLotSqft": 66866
+      }
+    },
+    {
+      "count": 2912,
+      "avgAssessedValue": 531763,
+      "avgLotSqft": 4507,
+      "slug": "temple",
+      "name": "TEMPLE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 3420,
+        "avgAssessedValue": 504252,
+        "avgLotSqft": 27465
+      }
+    },
+    {
+      "count": 1814,
+      "avgAssessedValue": 717675,
+      "avgLotSqft": 6137,
+      "slug": "haysboro",
+      "name": "HAYSBORO",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 3322,
+        "avgAssessedValue": 523792,
+        "avgLotSqft": 46911
+      }
+    },
+    {
+      "count": 2142,
+      "avgAssessedValue": 875325,
+      "avgLotSqft": 5514,
+      "slug": "rocky-ridge",
+      "name": "ROCKY RIDGE",
+      "basis": "detached-semi",
+      "group": "newer",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 3318,
+        "avgAssessedValue": 716564,
+        "avgLotSqft": 23506
+      }
+    },
+    {
+      "count": 1710,
+      "avgAssessedValue": 857819,
+      "avgLotSqft": 4659,
+      "slug": "renfrew",
+      "name": "RENFREW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 3229,
+        "avgAssessedValue": 650211,
+        "avgLotSqft": 35063
+      }
+    },
+    {
+      "count": 2100,
+      "avgAssessedValue": 812664,
+      "avgLotSqft": 7235,
+      "slug": "canyon-meadows",
+      "name": "CANYON MEADOWS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 3140,
+        "avgAssessedValue": 656075,
+        "avgLotSqft": 100225
+      }
+    },
+    {
+      "count": 2241,
+      "avgAssessedValue": 511058,
+      "avgLotSqft": 4956,
+      "slug": "pineridge",
+      "name": "PINERIDGE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 3068,
+        "avgAssessedValue": 514644,
+        "avgLotSqft": 38635
+      }
+    },
+    {
+      "count": 1161,
+      "avgAssessedValue": 907166,
+      "avgLotSqft": 4359,
+      "slug": "crescent-heights",
+      "name": "CRESCENT HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2979,
+        "avgAssessedValue": 648347,
+        "avgLotSqft": 12147
+      }
+    },
+    {
+      "count": 2303,
+      "avgAssessedValue": 568117,
+      "avgLotSqft": 5300,
+      "slug": "rundle",
+      "name": "RUNDLE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 2976,
+        "avgAssessedValue": 546849,
+        "avgLotSqft": 51009
+      }
+    },
+    {
+      "count": 2354,
+      "avgAssessedValue": 603202,
+      "avgLotSqft": 6012,
+      "slug": "thorncliffe",
+      "name": "THORNCLIFFE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTH",
+      "residential": {
+        "count": 2945,
+        "avgAssessedValue": 589560,
+        "avgLotSqft": 45353
+      }
+    },
+    {
+      "count": 2574,
+      "avgAssessedValue": 517868,
+      "avgLotSqft": 5064,
+      "slug": "ogden",
+      "name": "OGDEN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTHEAST",
+      "residential": {
+        "count": 2912,
+        "avgAssessedValue": 560652,
+        "avgLotSqft": 24011
+      }
+    },
+    {
+      "count": 2044,
+      "avgAssessedValue": 1303428,
+      "avgLotSqft": 4272,
+      "slug": "altadore",
+      "name": "ALTADORE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2866,
+        "avgAssessedValue": 1127614,
+        "avgLotSqft": 10103
+      }
+    },
+    {
+      "count": 2130,
+      "avgAssessedValue": 525987,
+      "avgLotSqft": 5236,
+      "slug": "marlborough-park",
+      "name": "MARLBOROUGH PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 2818,
+        "avgAssessedValue": 472298,
+        "avgLotSqft": 105712
+      }
+    },
+    {
+      "count": 1979,
+      "avgAssessedValue": 791661,
+      "avgLotSqft": 5943,
+      "slug": "brentwood",
+      "name": "BRENTWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 2766,
+        "avgAssessedValue": 749092,
+        "avgLotSqft": 5967
+      }
+    },
+    {
+      "count": 2099,
+      "avgAssessedValue": 1087399,
+      "avgLotSqft": 4341,
+      "slug": "west-hillhurst",
+      "name": "WEST HILLHURST",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2758,
+        "avgAssessedValue": 990321,
+        "avgLotSqft": 7701
+      }
+    },
+    {
+      "count": 940,
+      "avgAssessedValue": 943174,
+      "avgLotSqft": 4062,
+      "slug": "bridgeland-riverside",
+      "name": "BRIDGELAND/RIVERSIDE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2753,
+        "avgAssessedValue": 825449,
+        "avgLotSqft": 23440
+      }
+    },
+    {
+      "count": 2012,
+      "avgAssessedValue": 480975,
+      "avgLotSqft": 5011,
+      "slug": "penbrooke-meadows",
+      "name": "PENBROOKE MEADOWS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 2723,
+        "avgAssessedValue": 439344,
+        "avgLotSqft": 35263
+      }
+    },
+    {
+      "count": 1737,
+      "avgAssessedValue": 629986,
+      "avgLotSqft": 5613,
+      "slug": "ranchlands",
+      "name": "RANCHLANDS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 2714,
+        "avgAssessedValue": 546200,
+        "avgLotSqft": 84246
+      }
+    },
+    {
+      "count": 2381,
+      "avgAssessedValue": 525792,
+      "avgLotSqft": 5216,
+      "slug": "marlborough",
+      "name": "MARLBOROUGH",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 2599,
+        "avgAssessedValue": 542073,
+        "avgLotSqft": 42859
+      }
+    },
+    {
+      "count": 1413,
+      "avgAssessedValue": 660034,
+      "avgLotSqft": 6463,
+      "slug": "braeside",
+      "name": "BRAESIDE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2538,
+        "avgAssessedValue": 516755,
+        "avgLotSqft": 101703
+      }
+    },
+    {
+      "count": 1266,
+      "avgAssessedValue": 1093427,
+      "avgLotSqft": 3943,
+      "slug": "hillhurst",
+      "name": "HILLHURST",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2516,
+        "avgAssessedValue": 876195,
+        "avgLotSqft": 14647
+      }
+    },
+    {
+      "count": 1532,
+      "avgAssessedValue": 737099,
+      "avgLotSqft": 4687,
+      "slug": "glenbrook",
+      "name": "GLENBROOK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 2474,
+        "avgAssessedValue": 656819,
+        "avgLotSqft": 71648
+      }
+    },
+    {
+      "count": 2109,
+      "avgAssessedValue": 890538,
+      "avgLotSqft": 4157,
+      "slug": "mount-pleasant",
+      "name": "MOUNT PLEASANT",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2403,
+        "avgAssessedValue": 883255,
+        "avgLotSqft": 7195
+      }
+    },
+    {
+      "count": 1794,
+      "avgAssessedValue": 595923,
+      "avgLotSqft": 4876,
+      "slug": "cedarbrae",
+      "name": "CEDARBRAE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2364,
+        "avgAssessedValue": 570806,
+        "avgLotSqft": 24894
+      }
+    },
+    {
+      "count": 1728,
+      "avgAssessedValue": 680867,
+      "avgLotSqft": 5222,
+      "slug": "midnapore",
+      "name": "MIDNAPORE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2322,
+        "avgAssessedValue": 689208,
+        "avgLotSqft": 27768
+      }
+    },
+    {
+      "count": 1198,
+      "avgAssessedValue": 699190,
+      "avgLotSqft": 5896,
+      "slug": "glamorgan",
+      "name": "GLAMORGAN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 2267,
+        "avgAssessedValue": 686216,
+        "avgLotSqft": 126922
+      }
+    },
+    {
+      "count": 1715,
+      "avgAssessedValue": 871118,
+      "avgLotSqft": 7113,
+      "slug": "oakridge",
+      "name": "OAKRIDGE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2257,
+        "avgAssessedValue": 749636,
+        "avgLotSqft": 68122
+      }
+    },
+    {
+      "count": 1609,
+      "avgAssessedValue": 648936,
+      "avgLotSqft": 5884,
+      "slug": "southwood",
+      "name": "SOUTHWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2256,
+        "avgAssessedValue": 569579,
+        "avgLotSqft": 74894
+      }
+    },
+    {
+      "count": 530,
+      "avgAssessedValue": 827133,
+      "avgLotSqft": 4005,
+      "slug": "bankview",
+      "name": "BANKVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2249,
+        "avgAssessedValue": 577909,
+        "avgLotSqft": 12067
+      }
+    },
+    {
+      "count": 2196,
+      "avgAssessedValue": 1122091,
+      "avgLotSqft": 24787,
+      "slug": "downtown-commercial-core",
+      "name": "DOWNTOWN COMMERCIAL CORE",
+      "basis": "residential",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2196,
+        "avgAssessedValue": 1122091,
+        "avgLotSqft": 24787
+      }
+    },
+    {
+      "count": 51,
+      "avgAssessedValue": 775833,
+      "avgLotSqft": 3187,
+      "slug": "mission",
+      "name": "MISSION",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2100,
+        "avgAssessedValue": 779875,
+        "avgLotSqft": 24646
+      }
+    },
+    {
+      "count": 1663,
+      "avgAssessedValue": 968036,
+      "avgLotSqft": 4283,
+      "slug": "richmond",
+      "name": "RICHMOND",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2066,
+        "avgAssessedValue": 944065,
+        "avgLotSqft": 5530
+      }
+    },
+    {
+      "count": 846,
+      "avgAssessedValue": 1029576,
+      "avgLotSqft": 3855,
+      "slug": "south-calgary",
+      "name": "SOUTH CALGARY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2032,
+        "avgAssessedValue": 851686,
+        "avgLotSqft": 10230
+      }
+    },
+    {
+      "count": 1467,
+      "avgAssessedValue": 749372,
+      "avgLotSqft": 4193,
+      "slug": "tuxedo-park",
+      "name": "TUXEDO PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 2022,
+        "avgAssessedValue": 751026,
+        "avgLotSqft": 5927
+      }
+    },
+    {
+      "count": 1588,
+      "avgAssessedValue": 952639,
+      "avgLotSqft": 7343,
+      "slug": "willow-park",
+      "name": "WILLOW PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 2010,
+        "avgAssessedValue": 860777,
+        "avgLotSqft": 58489
+      }
+    },
+    {
+      "count": 1601,
+      "avgAssessedValue": 482418,
+      "avgLotSqft": 5703,
+      "slug": "forest-lawn",
+      "name": "FOREST LAWN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 2006,
+        "avgAssessedValue": 547944,
+        "avgLotSqft": 7428
+      }
+    },
+    {
+      "count": 1760,
+      "avgAssessedValue": 1122479,
+      "avgLotSqft": 6964,
+      "slug": "lakeview",
+      "name": "LAKEVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 1993,
+        "avgAssessedValue": 1087193,
+        "avgLotSqft": 30688
+      }
+    },
+    {
+      "count": 1573,
+      "avgAssessedValue": 605223,
+      "avgLotSqft": 5096,
+      "slug": "mayland-heights",
+      "name": "MAYLAND HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 1941,
+        "avgAssessedValue": 625782,
+        "avgLotSqft": 27492
+      }
+    },
+    {
+      "count": 907,
+      "avgAssessedValue": 861472,
+      "avgLotSqft": 4469,
+      "slug": "inglewood",
+      "name": "INGLEWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1933,
+        "avgAssessedValue": 720686,
+        "avgLotSqft": 16953
+      }
+    },
+    {
+      "count": 1352,
+      "avgAssessedValue": 471426,
+      "avgLotSqft": 5311,
+      "slug": "forest-heights",
+      "name": "FOREST HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 1912,
+        "avgAssessedValue": 432242,
+        "avgLotSqft": 23477
+      }
+    },
+    {
+      "count": 516,
+      "avgAssessedValue": 797416,
+      "avgLotSqft": 3410,
+      "slug": "sunnyside",
+      "name": "SUNNYSIDE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1866,
+        "avgAssessedValue": 654739,
+        "avgLotSqft": 13884
+      }
+    },
+    {
+      "count": 559,
+      "avgAssessedValue": 913795,
+      "avgLotSqft": 4626,
+      "slug": "windsor-park",
+      "name": "WINDSOR PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1784,
+        "avgAssessedValue": 671166,
+        "avgLotSqft": 28647
+      }
+    },
+    {
+      "count": 1380,
+      "avgAssessedValue": 586483,
+      "avgLotSqft": 5520,
+      "slug": "queensland",
+      "name": "QUEENSLAND",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 1756,
+        "avgAssessedValue": 547237,
+        "avgLotSqft": 72377
+      }
+    },
+    {
+      "count": 1289,
+      "avgAssessedValue": 517987,
+      "avgLotSqft": 4952,
+      "slug": "albert-park-radisson-heights",
+      "name": "ALBERT PARK/RADISSON HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 1714,
+        "avgAssessedValue": 602109,
+        "avgLotSqft": 12574
+      }
+    },
+    {
+      "count": 1483,
+      "avgAssessedValue": 781803,
+      "avgLotSqft": 4766,
+      "slug": "montgomery",
+      "name": "MONTGOMERY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 1700,
+        "avgAssessedValue": 798027,
+        "avgLotSqft": 5980
+      }
+    },
+    {
+      "count": 433,
+      "avgAssessedValue": 894618,
+      "avgLotSqft": 5542,
+      "slug": "spruce-cliff",
+      "name": "SPRUCE CLIFF",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 1650,
+        "avgAssessedValue": 628066,
+        "avgLotSqft": 39081
+      }
+    },
+    {
+      "count": 1337,
+      "avgAssessedValue": 826861,
+      "avgLotSqft": 4189,
+      "slug": "capitol-hill",
+      "name": "CAPITOL HILL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1607,
+        "avgAssessedValue": 944556,
+        "avgLotSqft": 5410
+      }
+    },
+    {
+      "count": 644,
+      "avgAssessedValue": 970784,
+      "avgLotSqft": 3896,
+      "slug": "garrison-woods",
+      "name": "GARRISON WOODS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1527,
+        "avgAssessedValue": 750001,
+        "avgLotSqft": 42190
+      }
+    },
+    {
+      "count": 1354,
+      "avgAssessedValue": 900000,
+      "avgLotSqft": 6885,
+      "slug": "parkland",
+      "name": "PARKLAND",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 1447,
+        "avgAssessedValue": 870981,
+        "avgLotSqft": 10152
+      }
+    },
+    {
+      "count": 1182,
+      "avgAssessedValue": 798022,
+      "avgLotSqft": 5081,
+      "slug": "winston-heights-mountview",
+      "name": "WINSTON HEIGHTS/MOUNTVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1442,
+        "avgAssessedValue": 766432,
+        "avgLotSqft": 28193
+      }
+    },
+    {
+      "count": 66,
+      "avgAssessedValue": 952576,
+      "avgLotSqft": 3154,
+      "slug": "lower-mount-royal",
+      "name": "LOWER MOUNT ROYAL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1437,
+        "avgAssessedValue": 567929,
+        "avgLotSqft": 16107
+      }
+    },
+    {
+      "count": 1164,
+      "avgAssessedValue": 708005,
+      "avgLotSqft": 4837,
+      "slug": "highland-park",
+      "name": "HIGHLAND PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1433,
+        "avgAssessedValue": 734210,
+        "avgLotSqft": 9549
+      }
+    },
+    {
+      "count": 1322,
+      "avgAssessedValue": 880793,
+      "avgLotSqft": 5992,
+      "slug": "charleswood",
+      "name": "CHARLESWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 1332,
+        "avgAssessedValue": 891253,
+        "avgLotSqft": 6063
+      }
+    },
+    {
+      "count": 1223,
+      "avgAssessedValue": 872438,
+      "avgLotSqft": 5396,
+      "slug": "banff-trail",
+      "name": "BANFF TRAIL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1301,
+        "avgAssessedValue": 1043149,
+        "avgLotSqft": 5639
+      }
+    },
+    {
+      "count": 791,
+      "avgAssessedValue": 716446,
+      "avgLotSqft": 5811,
+      "slug": "kingsland",
+      "name": "KINGSLAND",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 1297,
+        "avgAssessedValue": 936881,
+        "avgLotSqft": 24835
+      }
+    },
+    {
+      "count": 193,
+      "avgAssessedValue": 764951,
+      "avgLotSqft": 3843,
+      "slug": "sunalta",
+      "name": "SUNALTA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1290,
+        "avgAssessedValue": 651581,
+        "avgLotSqft": 11317
+      }
+    },
+    {
+      "count": 1254,
+      "avgAssessedValue": 634727,
+      "avgLotSqft": 5649,
+      "slug": "fairview",
+      "name": "FAIRVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 1257,
+        "avgAssessedValue": 687285,
+        "avgLotSqft": 5849
+      }
+    },
+    {
+      "count": 1185,
+      "avgAssessedValue": 2122815,
+      "avgLotSqft": 7315,
+      "slug": "elbow-park",
+      "name": "ELBOW PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1187,
+        "avgAssessedValue": 2121051,
+        "avgLotSqft": 7316
+      }
+    },
+    {
+      "count": 479,
+      "avgAssessedValue": 839416,
+      "avgLotSqft": 7280,
+      "slug": "palliser",
+      "name": "PALLISER",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 1186,
+        "avgAssessedValue": 773127,
+        "avgLotSqft": 129246
+      }
+    },
+    {
+      "count": 949,
+      "avgAssessedValue": 748437,
+      "avgLotSqft": 5998,
+      "slug": "westgate",
+      "name": "WESTGATE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 1154,
+        "avgAssessedValue": 701545,
+        "avgLotSqft": 28165
+      }
+    },
+    {
+      "count": 669,
+      "avgAssessedValue": 1454177,
+      "avgLotSqft": 6904,
+      "slug": "hounsfield-heights-briar-hill",
+      "name": "HOUNSFIELD HEIGHTS/BRIAR HILL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 1051,
+        "avgAssessedValue": 1240383,
+        "avgLotSqft": 76870
+      }
+    },
+    {
+      "count": 1035,
+      "avgAssessedValue": 985945,
+      "avgLotSqft": 6547,
+      "slug": "wildwood",
+      "name": "WILDWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 1039,
+        "avgAssessedValue": 998556,
+        "avgLotSqft": 6884
+      }
+    },
+    {
+      "count": 807,
+      "avgAssessedValue": 789603,
+      "avgLotSqft": 4678,
+      "slug": "rosscarrock",
+      "name": "ROSSCARROCK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 1010,
+        "avgAssessedValue": 810403,
+        "avgLotSqft": 5716
+      }
+    },
+    {
+      "count": 718,
+      "avgAssessedValue": 1103740,
+      "avgLotSqft": 4521,
+      "slug": "parkdale",
+      "name": "PARKDALE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 977,
+        "avgAssessedValue": 1002657,
+        "avgLotSqft": 6993
+      }
+    },
+    {
+      "count": 928,
+      "avgAssessedValue": 837081,
+      "avgLotSqft": 6619,
+      "slug": "glendale",
+      "name": "GLENDALE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 963,
+        "avgAssessedValue": 875066,
+        "avgLotSqft": 8004
+      }
+    },
+    {
+      "count": 911,
+      "avgAssessedValue": 1070134,
+      "avgLotSqft": 6096,
+      "slug": "north-glenmore-park",
+      "name": "NORTH GLENMORE PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 945,
+        "avgAssessedValue": 1073830,
+        "avgLotSqft": 6147
+      }
+    },
+    {
+      "count": 931,
+      "avgAssessedValue": 409199,
+      "avgLotSqft": 112174,
+      "slug": "lincoln-park",
+      "name": "LINCOLN PARK",
+      "basis": "residential",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 931,
+        "avgAssessedValue": 409199,
+        "avgLotSqft": 112174
+      }
+    },
+    {
+      "count": 809,
+      "avgAssessedValue": 2430320,
+      "avgLotSqft": 10055,
+      "slug": "upper-mount-royal",
+      "name": "UPPER MOUNT ROYAL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 897,
+        "avgAssessedValue": 2295904,
+        "avgLotSqft": 11071
+      }
+    },
+    {
+      "count": 769,
+      "avgAssessedValue": 933754,
+      "avgLotSqft": 6648,
+      "slug": "collingwood",
+      "name": "COLLINGWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 853,
+        "avgAssessedValue": 909928,
+        "avgLotSqft": 19946
+      }
+    },
+    {
+      "count": 848,
+      "avgAssessedValue": 531345,
+      "avgLotSqft": 181063,
+      "slug": "point-mckay",
+      "name": "POINT MCKAY",
+      "basis": "residential",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 848,
+        "avgAssessedValue": 531345,
+        "avgLotSqft": 181063
+      }
+    },
+    {
+      "count": 826,
+      "avgAssessedValue": 701375,
+      "avgLotSqft": 5691,
+      "slug": "highwood",
+      "name": "HIGHWOOD",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 846,
+        "avgAssessedValue": 701285,
+        "avgLotSqft": 5634
+      }
+    },
+    {
+      "count": 799,
+      "avgAssessedValue": 838389,
+      "avgLotSqft": 4249,
+      "slug": "ramsay",
+      "name": "RAMSAY",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 825,
+        "avgAssessedValue": 972204,
+        "avgLotSqft": 5016
+      }
+    },
+    {
+      "count": 806,
+      "avgAssessedValue": 785720,
+      "avgLotSqft": 6320,
+      "slug": "maple-ridge",
+      "name": "MAPLE RIDGE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 806,
+        "avgAssessedValue": 785720,
+        "avgLotSqft": 6320
+      }
+    },
+    {
+      "count": 737,
+      "avgAssessedValue": 675216,
+      "avgLotSqft": 5685,
+      "slug": "north-haven",
+      "name": "NORTH HAVEN",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTH",
+      "residential": {
+        "count": 792,
+        "avgAssessedValue": 703282,
+        "avgLotSqft": 13167
+      }
+    },
+    {
+      "count": 227,
+      "avgAssessedValue": 568341,
+      "avgLotSqft": 5711,
+      "slug": "greenview",
+      "name": "GREENVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 762,
+        "avgAssessedValue": 414943,
+        "avgLotSqft": 62593
+      }
+    },
+    {
+      "count": 345,
+      "avgAssessedValue": 871517,
+      "avgLotSqft": 6217,
+      "slug": "rutland-park",
+      "name": "RUTLAND PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "WEST",
+      "residential": {
+        "count": 760,
+        "avgAssessedValue": 745174,
+        "avgLotSqft": 182798
+      }
+    },
+    {
+      "count": 471,
+      "avgAssessedValue": 922880,
+      "avgLotSqft": 4862,
+      "slug": "shaganappi",
+      "name": "SHAGANAPPI",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 736,
+        "avgAssessedValue": 968490,
+        "avgLotSqft": 8589
+      }
+    },
+    {
+      "count": 715,
+      "avgAssessedValue": 847140,
+      "avgLotSqft": 5980,
+      "slug": "cambrian-heights",
+      "name": "CAMBRIAN HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 730,
+        "avgAssessedValue": 871184,
+        "avgLotSqft": 6231
+      }
+    },
+    {
+      "count": 125,
+      "avgAssessedValue": 1130652,
+      "avgLotSqft": 3970,
+      "slug": "cliff-bungalow",
+      "name": "CLIFF BUNGALOW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 719,
+        "avgAssessedValue": 796104,
+        "avgLotSqft": 13593
+      }
+    },
+    {
+      "count": 481,
+      "avgAssessedValue": 1603852,
+      "avgLotSqft": 6771,
+      "slug": "elboya",
+      "name": "ELBOYA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 710,
+        "avgAssessedValue": 1192936,
+        "avgLotSqft": 22874
+      }
+    },
+    {
+      "count": 154,
+      "avgAssessedValue": 922601,
+      "avgLotSqft": 4064,
+      "slug": "erlton",
+      "name": "ERLTON",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 683,
+        "avgAssessedValue": 621843,
+        "avgLotSqft": 25270
+      }
+    },
+    {
+      "count": 393,
+      "avgAssessedValue": 575406,
+      "avgLotSqft": 5026,
+      "slug": "vista-heights",
+      "name": "VISTA HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHEAST",
+      "residential": {
+        "count": 647,
+        "avgAssessedValue": 521518,
+        "avgLotSqft": 198683
+      }
+    },
+    {
+      "count": 595,
+      "avgAssessedValue": 549424,
+      "avgLotSqft": 6170,
+      "slug": "southview",
+      "name": "SOUTHVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "EAST",
+      "residential": {
+        "count": 619,
+        "avgAssessedValue": 575735,
+        "avgLotSqft": 6551
+      }
+    },
+    {
+      "count": 579,
+      "avgAssessedValue": 1575756,
+      "avgLotSqft": 6144,
+      "slug": "rosedale",
+      "name": "ROSEDALE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 589,
+        "avgAssessedValue": 1567244,
+        "avgLotSqft": 6154
+      }
+    },
+    {
+      "count": 402,
+      "avgAssessedValue": 1478300,
+      "avgLotSqft": 7007,
+      "slug": "st-andrews-heights",
+      "name": "ST. ANDREWS HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 535,
+        "avgAssessedValue": 1212898,
+        "avgLotSqft": 79549
+      }
+    },
+    {
+      "count": 355,
+      "avgAssessedValue": 1297521,
+      "avgLotSqft": 7911,
+      "slug": "kelvin-grove",
+      "name": "KELVIN GROVE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 530,
+        "avgAssessedValue": 1195958,
+        "avgLotSqft": 31516
+      }
+    },
+    {
+      "count": 491,
+      "avgAssessedValue": 985066,
+      "avgLotSqft": 7096,
+      "slug": "chinook-park",
+      "name": "CHINOOK PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 528,
+        "avgAssessedValue": 954277,
+        "avgLotSqft": 8963
+      }
+    },
+    {
+      "count": 460,
+      "avgAssessedValue": 1124405,
+      "avgLotSqft": 7579,
+      "slug": "university-heights",
+      "name": "UNIVERSITY HEIGHTS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 527,
+        "avgAssessedValue": 1855777,
+        "avgLotSqft": 10337
+      }
+    },
+    {
+      "count": 132,
+      "avgAssessedValue": 2236932,
+      "avgLotSqft": 6801,
+      "slug": "rideau-park",
+      "name": "RIDEAU PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 448,
+        "avgAssessedValue": 1034134,
+        "avgLotSqft": 89074
+      }
+    },
+    {
+      "count": 439,
+      "avgAssessedValue": 926983,
+      "avgLotSqft": 6190,
+      "slug": "rosemont",
+      "name": "ROSEMONT",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 445,
+        "avgAssessedValue": 930197,
+        "avgLotSqft": 6219
+      }
+    },
+    {
+      "count": 433,
+      "avgAssessedValue": 1426477,
+      "avgLotSqft": 11280,
+      "slug": "pump-hill",
+      "name": "PUMP HILL",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 436,
+        "avgAssessedValue": 1511570,
+        "avgLotSqft": 11877
+      }
+    },
+    {
+      "count": 62,
+      "avgAssessedValue": 950597,
+      "avgLotSqft": 4413,
+      "slug": "greenwood-greenbriar",
+      "name": "GREENWOOD/GREENBRIAR",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTHWEST",
+      "residential": {
+        "count": 384,
+        "avgAssessedValue": 855667,
+        "avgLotSqft": 71396
+      }
+    },
+    {
+      "count": 330,
+      "avgAssessedValue": 1321398,
+      "avgLotSqft": 7019,
+      "slug": "scarboro",
+      "name": "SCARBORO",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 383,
+        "avgAssessedValue": 1196777,
+        "avgLotSqft": 10873
+      }
+    },
+    {
+      "count": 367,
+      "avgAssessedValue": 642872,
+      "avgLotSqft": 5784,
+      "slug": "bonavista-downs",
+      "name": "BONAVISTA DOWNS",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 367,
+        "avgAssessedValue": 642872,
+        "avgLotSqft": 5784
+      }
+    },
+    {
+      "count": 256,
+      "avgAssessedValue": 2758174,
+      "avgLotSqft": 10198,
+      "slug": "britannia",
+      "name": "BRITANNIA",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 293,
+        "avgAssessedValue": 2477724,
+        "avgLotSqft": 10481
+      }
+    },
+    {
+      "count": 281,
+      "avgAssessedValue": 869390,
+      "avgLotSqft": 6439,
+      "slug": "meadowlark-park",
+      "name": "MEADOWLARK PARK",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 281,
+        "avgAssessedValue": 869390,
+        "avgLotSqft": 6439
+      }
+    },
+    {
+      "count": 212,
+      "avgAssessedValue": 1653009,
+      "avgLotSqft": 10286,
+      "slug": "bayview",
+      "name": "BAYVIEW",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 248,
+        "avgAssessedValue": 1581718,
+        "avgLotSqft": 44712
+      }
+    },
+    {
+      "count": 245,
+      "avgAssessedValue": 717357,
+      "avgLotSqft": 6223,
+      "slug": "north-haven-upper",
+      "name": "NORTH HAVEN UPPER",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "NORTH",
+      "residential": {
+        "count": 245,
+        "avgAssessedValue": 717357,
+        "avgLotSqft": 6223
+      }
+    },
+    {
+      "count": 164,
+      "avgAssessedValue": 1293829,
+      "avgLotSqft": 8171,
+      "slug": "scarboro-sunalta-west",
+      "name": "SCARBORO/SUNALTA WEST",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 164,
+        "avgAssessedValue": 1293829,
+        "avgLotSqft": 8171
+      }
+    },
+    {
+      "count": 157,
+      "avgAssessedValue": 2955032,
+      "avgLotSqft": 14799,
+      "slug": "bel-aire",
+      "name": "BEL-AIRE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 157,
+        "avgAssessedValue": 2955032,
+        "avgLotSqft": 14799
+      }
+    },
+    {
+      "count": 155,
+      "avgAssessedValue": 1697613,
+      "avgLotSqft": 10567,
+      "slug": "mayfair",
+      "name": "MAYFAIR",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 155,
+        "avgAssessedValue": 1697613,
+        "avgLotSqft": 10567
+      }
+    },
+    {
+      "count": 155,
+      "avgAssessedValue": 2123335,
+      "avgLotSqft": 7029,
+      "slug": "roxboro",
+      "name": "ROXBORO",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "CENTRE",
+      "residential": {
+        "count": 155,
+        "avgAssessedValue": 2123335,
+        "avgLotSqft": 7029
+      }
+    },
+    {
+      "count": 99,
+      "avgAssessedValue": 2607374,
+      "avgLotSqft": 17097,
+      "slug": "eagle-ridge",
+      "name": "EAGLE RIDGE",
+      "basis": "detached-semi",
+      "group": "established",
+      "sector": "SOUTH",
+      "residential": {
+        "count": 109,
+        "avgAssessedValue": 2503119,
+        "avgLotSqft": 20988
+      }
     }
   ]
 }
