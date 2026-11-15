@@ -48,9 +48,6 @@ export const BUILDER_ROLES: readonly BuilderRole[] = [
   'builder_member',
 ];
 
-/** The one account the API refuses to edit or delete. */
-export const PROTECTED_EMAIL = 'karanbirsingh667@gmail.com';
-
 export interface UserRecord {
   readonly id: string;
   readonly email: string;

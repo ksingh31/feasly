@@ -15,7 +15,7 @@ assignment scoped to the resource group.
 
 ```bash
 az login
-az account set --subscription 9b7d7805-311a-4e4f-ac48-5d281d7e1185
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"   # the owner's subscription id
 az account show --query '{name:name, id:id, tenantId:tenantId}' -o table
 
 # The resource group must already exist:
@@ -107,8 +107,8 @@ secrets; none of them are secret):
 | Variable | Value |
 |---|---|
 | `AZURE_CLIENT_ID` | `$IDENTITY_CLIENT_ID` (from step 1) |
-| `AZURE_TENANT_ID` | `e9b8f029-1138-4a0f-86c4-88c4a84d0d68` |
-| `AZURE_SUBSCRIPTION_ID` | `9b7d7805-311a-4e4f-ac48-5d281d7e1185` |
+| `AZURE_TENANT_ID` | `<tenant-id>` (`az account show --query tenantId -o tsv`) |
+| `AZURE_SUBSCRIPTION_ID` | `<subscription-id>` (`az account show --query id -o tsv`) |
 
 Workflow step:
 

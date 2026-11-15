@@ -29,9 +29,10 @@ import {
 } from '../src/services/privacy.service';
 import type { LeadRecord, LeadStore } from '../src/services/lead.store';
 import type { EstimateRecord, EstimateStore } from '../src/services/estimate.store';
-import type {
-  MagicLinkRecord,
-  MagicLinkStore,
+import {
+  PARTNER_SHARE_LINK_PURPOSE,
+  type MagicLinkRecord,
+  type MagicLinkStore,
 } from '../src/services/magic-link.store';
 import type {
   ErasureRequestRecord,
@@ -59,6 +60,7 @@ const ALICE_ESTIMATE = 'eaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOB_ESTIMATE = 'ebbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const ALICE_TOKEN = 'alice-raw-bearer-token';
 const BOB_TOKEN = 'bob-raw-bearer-token';
+const PARTNER_TOKEN = 'partner-raw-bearer-token';
 
 function lead(id: string, email: string, estimateId: string): LeadRecord {
   return {
@@ -171,6 +173,8 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
   const tokenToLinkId = new Map([
     [ALICE_TOKEN, 'l1'],
     [BOB_TOKEN, 'l2'],
+    // #805: only resolves when a test pushes link 'p1' into world.links.
+    [PARTNER_TOKEN, 'p1'],
   ]);
 
   const magicLinks: MagicLinkStore = {
@@ -557,6 +561,56 @@ describe('erasure confirm (step 2)', () => {
     const out = await service.exportMyData(BOB_TOKEN);
     expect(out.leads.map((l) => l.id)).toEqual([BOB_LEAD]);
     expect(out.estimates.map((e) => e.id)).toEqual([BOB_ESTIMATE]);
+  });
+});
+
+describe('#805: partner-share tokens never authenticate privacy endpoints', () => {
+  let service: PrivacyService;
+  let world: World;
+  beforeEach(() => {
+    ({ service, world } = setup());
+    // A live partner-share link whose lead_id points at the OWNER's lead.
+    world.links.push(
+      link('p1', ALICE_LEAD, { purpose: PARTNER_SHARE_LINK_PURPOSE }),
+    );
+  });
+
+  function expectUniformDenial(err: unknown, action: string): void {
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(401);
+    expect((err as HttpError).message).toBe('A valid bearer token is required.');
+    const denied = world.audits.filter((a) => a.action === action);
+    expect(denied).toHaveLength(1);
+    expect(denied[0]!.leadId).toBeNull();
+  }
+
+  it('export: uniform 401 + denied audit row, owner data not returned', async () => {
+    const err = await service.exportMyData(PARTNER_TOKEN).catch((e: unknown) => e);
+    expectUniformDenial(err, 'export.denied');
+    expect(world.audits.filter((a) => a.action === 'export')).toHaveLength(0);
+  });
+
+  it('erase request: uniform 401 + denied audit row, no request created', async () => {
+    const err = await service.requestErasure(PARTNER_TOKEN).catch((e: unknown) => e);
+    expectUniformDenial(err, 'erase.request.denied');
+    expect(world.requests).toHaveLength(0);
+  });
+
+  it('erase confirm: uniform 401 + denied audit row, owner data intact', async () => {
+    // The owner opened a request; the partner tries to confirm it.
+    const { requestId } = await service.requestErasure(ALICE_TOKEN);
+    const err = await service
+      .confirmErasure(PARTNER_TOKEN, requestId)
+      .catch((e: unknown) => e);
+    expectUniformDenial(err, 'erase.confirm.denied');
+    expect(world.leads.map((l) => l.id)).toContain(ALICE_LEAD);
+    expect(world.links.find((l) => l.id === 'l1')!.revokedAt).toBeNull();
+  });
+
+  it('owner token still works alongside a live partner link', async () => {
+    const out = await service.exportMyData(ALICE_TOKEN);
+    expect(out.email).toBe(ALICE);
+    expect(out.leads.map((l) => l.id)).toEqual([ALICE_LEAD]);
   });
 });
 

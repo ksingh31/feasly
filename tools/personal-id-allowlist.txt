@@ -1,0 +1,27 @@
+# Personal-identifier allowlist (#758) — read by tools/check-personal-ids.mjs.
+#
+# Format: <exact repo-relative path> :: <hash prefix> :: <reason>
+#
+# Only LOAD-BEARING runtime values belong here. Docs, tests and fixtures use
+# role addresses / placeholders / SEED_ADMIN_EMAIL instead. Hash fa90efc9f9ba
+# is the seeded protected super_admin's email.
+#
+# Unblock for all entries below: the owner names an ops inbox and provides the
+# admin bootstrap address out of band (Key Vault / app setting), then a
+# contract migration re-seeds without the literal (tracked in #772, follow-up
+# to #758). Applied migrations are immutable, so those entries stay until a
+# deliberate re-baseline.
+
+# Applied migrations — seed the protected super_admin. Immutable history.
+apps/api/src/db/migrations/0020_admin_session_auth.sql :: fa90efc9f9ba :: admin_allowlist seed (applied migration, immutable)
+apps/api/src/db/migrations/0036_auth_user_model.sql :: fa90efc9f9ba :: protected super_admin seed (applied migration, immutable)
+apps/api/src/db/migrations/0042_builder_qa_membership.sql :: fa90efc9f9ba :: QA builder membership for the seed admin (applied migration, immutable)
+
+# Schema-repair SQL mirrors the migration seeds exactly (generated file + source).
+apps/api/tools/repair-sql.mjs :: fa90efc9f9ba :: mirrors the 0036/0042 seeds (schema-repair coverage)
+infra/db/repair-missing-tables.sql :: fa90efc9f9ba :: generated from apps/api/tools/repair-sql.mjs
+
+# Single runtime constant: ops inbox / alert defaults (no app setting set yet).
+apps/api/src/config.ts :: fa90efc9f9ba :: SEED_ADMIN_EMAIL — OPS_INBOX_EMAIL / OPS_ALERT_EMAIL default
+# Action-group receiver for metric alerts; changing it reroutes ops alerts.
+infra/bicep/main.bicep :: fa90efc9f9ba :: opsAlertEmail param default (metric-alert action group receiver)

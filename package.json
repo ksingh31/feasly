@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "gen:route-docs": "npm run -s gen:route-docs --workspace @feasly/api"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
+# Private returning-user page (#704): request a report link by email.
+Disallow: /my-report
 
 # TODO(launch): confirm the production domain (feasly.com unverified as of 2026-09-24).
 Sitemap: https://feasly.com/sitemap.xml

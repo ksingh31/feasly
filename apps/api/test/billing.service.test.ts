@@ -204,6 +204,14 @@ describe('billing service facade', () => {
     expect(commission.getById).toHaveBeenCalledWith('inv-1');
   });
 
+  it('disputeInvoice 403s for another tenant invoice and records nothing (#731)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(
+      service.disputeInvoice('inv-1', 'other-builder', 'x'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(commission.disputeInvoice).not.toHaveBeenCalled();
+  });
+
   it('disputeInvoice checks the tenant then disputes', async () => {
     const { service, commission } = makeDeps();
     const result = await service.disputeInvoice(

@@ -16,6 +16,12 @@
  */
 export type HeaderRecord = Record<string, string | string[] | undefined>;
 
+/** The admin httpOnly session cookie name — must match the verify endpoint. */
+export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
+
+/** The builder httpOnly session cookie name — must match the verify endpoint. */
+export const BUILDER_SESSION_COOKIE = 'feasly_builder_session';
+
 /**
  * Extract the token from an `Authorization: Bearer <token>` header.
  * Returns null when absent or malformed (the guard treats it as

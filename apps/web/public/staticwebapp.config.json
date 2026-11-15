@@ -52,6 +52,10 @@
       "rewrite": "/index.html"
     },
     {
+      "route": "/my-report",
+      "rewrite": "/index.html"
+    },
+    {
       "route": "/privacy",
       "redirect": "/privacy/",
       "statusCode": 301

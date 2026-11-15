@@ -6,7 +6,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, ClearComparison, GoToStep, ResetWizard, SelectProperty, SetEntrySource, StorePreviewEstimate, UpdateComparison, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
+import { ChooseProjectType, ClearComparison, DismissResume, GoToStep, ResetWizard, SelectProperty, SetEntrySource, StorePreviewEstimate, UpdateComparison, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
 import { WizardState, type WizardStateModel } from './wizard.state';
 
 /** FE1-001: wizard state transitions + config-seeded input defaults. */
@@ -178,6 +178,19 @@ describe('WizardState', () => {
     expect(store.selectSnapshot(WizardState.entrySource)).toBe('community-lots');
     store.dispatch(new ResetWizard());
     expect(store.selectSnapshot(WizardState.entrySource)).toBeNull();
+  });
+
+  it('DismissResume hides the resume chip until a new estimate starts (#704)', () => {
+    expect(store.selectSnapshot(WizardState.resumeDismissed)).toBe(false);
+    store.dispatch(new SelectProperty(fakeProperty));
+    store.dispatch(new DismissResume());
+    expect(store.selectSnapshot(WizardState.resumeDismissed)).toBe(true);
+    // A new estimate (new property) brings the chip back.
+    store.dispatch(new SelectProperty(fakeProperty));
+    expect(store.selectSnapshot(WizardState.resumeDismissed)).toBe(false);
+    store.dispatch(new DismissResume());
+    store.dispatch(new ResetWizard());
+    expect(store.selectSnapshot(WizardState.resumeDismissed)).toBe(false);
   });
 
   it('selectors expose property, inputs, and step', () => {

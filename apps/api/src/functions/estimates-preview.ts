@@ -71,6 +71,7 @@ export async function estimatesPreviewHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
@@ -80,6 +81,7 @@ export async function estimatesPreviewHandler(
         correlationId,
         {
           endpoint: '/api/v1/estimates/preview',
+          requiredScope: 'estimate',
           extractEstimateId: (r) =>
             typeof r === 'object' && r !== null && 'estimateId' in r
               ? String((r as { estimateId: unknown }).estimateId)

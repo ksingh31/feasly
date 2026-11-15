@@ -10,6 +10,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent } from '../../shared/components/site-footer/site-footer.component';
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
 import { SetPartnerView, SetReportToken } from '../report/report.actions';
+import { AnalyticsService } from '../consent/analytics.service';
 
 /**
  * Magic-link redemption (consumer/02): `/r/:token`.
@@ -53,6 +54,7 @@ export class MagicLinkPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly analytics = inject(AnalyticsService);
 
   protected readonly copy = this.config.get('copy').magicLink;
   protected readonly view = signal<MagicLinkView>('verifying');
@@ -90,6 +92,8 @@ export class MagicLinkPageComponent implements OnInit {
       return;
     }
     this.resendStatus.set('sending');
+    // #704: consent-gated inside AnalyticsService; carries no email.
+    this.analytics.track('report_link_request');
     this.api
       .reissueMagicLink({ email: this.resendForm.controls.email.value.trim() })
       .pipe(takeUntilDestroyed(this.destroyRef))

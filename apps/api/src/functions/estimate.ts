@@ -94,6 +94,7 @@ export async function estimateHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
@@ -105,6 +106,7 @@ export async function estimateHandler(
         correlationId,
         {
           endpoint: '/api/v1/estimate',
+          requiredScope: 'estimate',
           extractEstimateId: (r) =>
             typeof r === 'object' && r !== null && 'estimateId' in r
               ? String((r as { estimateId: unknown }).estimateId)

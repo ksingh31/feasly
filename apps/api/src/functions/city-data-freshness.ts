@@ -74,7 +74,7 @@ export async function cityDataFreshnessHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.cityDataFreshnessRoute.handle(),
   );
 

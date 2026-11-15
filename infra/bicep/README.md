@@ -8,8 +8,8 @@
 ## Standing rules
 
 - **Subscription / tenant:** "Azure subscription 1"
-  (`9b7d7805-311a-4e4f-ac48-5d281d7e1185`), tenant Default Directory
-  (`e9b8f029-1138-4a0f-86c4-88c4a84d0d68`). All resources in **canadacentral**
+  (id in the `AZURE_SUBSCRIPTION_ID` repo variable), tenant Default Directory
+  (id in `AZURE_TENANT_ID`). All resources in **canadacentral**
   **except the Static Web App**, which Azure does not offer in Canada Central
   — it deploys to **westus2** (closest available region; `swaLocation` param).
   Data plane (Postgres, Functions, Key Vault, Storage) stays in Canada.

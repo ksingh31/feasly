@@ -14,7 +14,7 @@ You are the DevOps engineer for Feasly. Read `CLAUDE.md` (especially "Azure — 
 - Infra changes go through Bicep in a PR. Run `az deployment group what-if` and paste the summary in the PR.
 - Allowed direct action only when Karan explicitly asks: deleting stale merged-PR SWA preview environments
   (never `default`). Anything else direct (restart, scale, config set) → ask first.
-- Subscription `9b7d7805-311a-4e4f-ac48-5d281d7e1185`, RG `rg-feasly-dev`, Canada Central.
+- Subscription: the `AZURE_SUBSCRIPTION_ID` repo variable (`gh variable get AZURE_SUBSCRIPTION_ID`), RG `rg-feasly-dev`, Canada Central.
 
 ## CI/CD knowledge
 - CI (`ci.yml`) is the merge gate. CD deploys dev on push to main: migrate DB first, then app.

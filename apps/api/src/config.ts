@@ -22,6 +22,14 @@ import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
+/**
+ * The protected super_admin seeded by migrations 0020/0036/0042 (and mirrored
+ * in tools/repair-sql.mjs). The only runtime copy of this address in app code:
+ * it backs the ops inbox/alert defaults, and tests import it rather than
+ * repeating it. Allowlisted in tools/personal-id-allowlist.txt (#758).
+ */
+export const SEED_ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+
 /** Split a comma-separated env value into a trimmed, non-empty list. */
 function csvToList(raw: string): string[] {
   return raw
@@ -460,12 +468,12 @@ const EnvSchema = z.object({
   UNSUBSCRIBE_TOKEN_SECRET: z.string().min(1).optional(),
   // One-click unsubscribe token validity: 30 days (story requirement).
   UNSUBSCRIBE_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
-  // Team inbox for callback confirmations. Standing test email until Karan
-  // names the ops inbox.
-  OPS_INBOX_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
-  // Ops alert recipient (admin/06). Standing test email until Karan names
-  // an ops inbox.
-  OPS_ALERT_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
+  // Team inbox for callback confirmations. Defaults to the seeded super_admin
+  // until the owner names an ops inbox (set OPS_INBOX_EMAIL to override).
+  OPS_INBOX_EMAIL: z.string().email().default(SEED_ADMIN_EMAIL),
+  // Ops alert recipient (admin/06). Defaults to the seeded super_admin until
+  // the owner names an ops inbox (set OPS_ALERT_EMAIL to override).
+  OPS_ALERT_EMAIL: z.string().email().default(SEED_ADMIN_EMAIL),
   // Ops alert dedupe window per alert class: at most one failure email
   // per class inside this window (admin/06).
   OPS_ALERT_DEDUPE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
