@@ -40,8 +40,6 @@ apps/web/src/app/features/consent/consent-banner.component.scss 2
 apps/web/src/app/features/developers/developers.scss 4
 apps/web/src/app/features/landing/landing-page.component.scss 3
 apps/web/src/app/features/magic-link/magic-link-page.component.scss 3
-apps/web/src/app/features/report/report-page.component.scss 1
-apps/web/src/app/features/sample-report/sample-report-page.component.scss 1
 apps/web/src/app/features/unsubscribe/unsubscribe-page.scss 6
 apps/web/src/app/features/wizard/analyzing-page.component.scss 1
 apps/web/src/app/features/wizard/gate-page.component.scss 1

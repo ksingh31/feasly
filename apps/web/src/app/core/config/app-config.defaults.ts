@@ -522,6 +522,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       renoScopeLabel: 'Renovation scope',
       updatingLabel: 'Updating your estimate…',
       updatedLabel: 'Updated {date}',
+      printPreparedLabel: 'Prepared {date}',
       perSqftUnit: 'per sq ft',
       narrativeTitle: 'AI summary',
       narrativeComingSoon:
