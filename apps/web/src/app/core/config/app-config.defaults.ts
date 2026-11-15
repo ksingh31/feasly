@@ -86,7 +86,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     autocompleteSuggestionLimit: 6,
     /**
      * Mirror of the cost-data inputBounds
-     * (packages/cost-engine/cost-data/v0.3.0-unclibrated.json). The property
+     * (packages/cost-engine/cost-data/v0.4.0-unclibrated.json). The property
      * record arrives direct from Socrata, so the client needs the
      * assessed-value bounds for the early coverage guard.
      * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot

@@ -7,7 +7,8 @@
  * ships as a new file (e.g. v0.2.0-calgary.json) so every historic estimate
  * stays reproducible via its pinned cost_data_version.
  */
-import rawPlaceholder from '../cost-data/v0.3.0-unclibrated.json';
+import rawPlaceholder from '../cost-data/v0.4.0-unclibrated.json';
+import rawV030 from '../cost-data/v0.3.0-unclibrated.json';
 import type {
   ComparisonSpec,
   CostData,
@@ -216,6 +217,11 @@ export function assertValidCostData(value: unknown): asserts value is CostData {
       'cost data: landSpread was removed — the assessed land value is now a fixed figure (see v0.2.0+)',
     );
   }
+  if ('roundTo' in value) {
+    if (!Number.isInteger(value['roundTo']) || (value['roundTo'] as number) <= 0) {
+      throw new Error('cost data: roundTo must be a positive integer');
+    }
+  }
   checkRenoSpec(value['reno'], 'cost data.reno');
   checkComparisonSpec(value['comparison'], 'cost data.comparison');
 }
@@ -223,13 +229,32 @@ export function assertValidCostData(value: unknown): asserts value is CostData {
 const placeholder: unknown = rawPlaceholder;
 assertValidCostData(placeholder);
 
+const v030: unknown = rawV030;
+assertValidCostData(v030);
+
 /**
- * The bundled placeholder calibration table (v0.3.0-unclibrated,
+ * The bundled placeholder calibration table (v0.4.0-unclibrated,
  * calibrated: false). Stand-in numbers until Karan's real cost Sheet
  * arrives — see the file's _comment. Composition wires this in; the
  * engine itself only ever sees it as a CostData parameter.
+ *
+ * v0.4.0 = v0.3.0 + a top-level `roundTo` (1000): new-build and comparison
+ * bands round to the nearest $1,000 (#581).
  */
 export const PLACEHOLDER_COST_DATA: CostData = placeholder;
 
-/** Every bundled table version, for future multi-version support. */
-export const BUNDLED_COST_DATA_VERSIONS: readonly string[] = [PLACEHOLDER_COST_DATA.version];
+/**
+ * The previous placeholder table (v0.3.0-unclibrated, no top-level
+ * `roundTo` → whole-dollar output). Kept bundled so estimates pinned to it
+ * stay reproducible byte-for-byte.
+ */
+export const COST_DATA_V0_3_0: CostData = v030;
+
+/** Every bundled table, keyed by version, for multi-version support. */
+export const BUNDLED_COST_DATA: Readonly<Record<string, CostData>> = {
+  [COST_DATA_V0_3_0.version]: COST_DATA_V0_3_0,
+  [PLACEHOLDER_COST_DATA.version]: PLACEHOLDER_COST_DATA,
+};
+
+/** Every bundled table version, oldest first. */
+export const BUNDLED_COST_DATA_VERSIONS: readonly string[] = Object.keys(BUNDLED_COST_DATA);
