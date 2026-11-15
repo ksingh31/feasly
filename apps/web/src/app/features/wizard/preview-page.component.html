@@ -1,48 +1,28 @@
 <app-site-nav />
 <main class="wrap" id="main-content" tabindex="-1">
   <app-wizard-back
-    [label]="isReno() ? copy.renoBackLabel : copy.backLabel"
-    [link]="isReno() ? '/estimate/reno-scope' : '/estimate/details'"
-    [step]="3"
+    [label]="copy.backLabel"
+    [link]="editLink()"
+    [step]="2"
   />
+  <app-wizard-steps [current]="3" />
   <h1 class="preview-heading">{{ copy.heading }}</h1>
 
-  @if (property(); as p) {
-    <app-property-card [property]="p" [showLandNote]="!isReno()" />
-    <dl class="inputs-summary">
-      @if (isReno()) {
-        <!-- RENO-04: reno-specific visible facts (address/community in property card above) -->
-        <div>
-          <dt>{{ copy.renoTypeLabel }}</dt>
-          <dd>{{ renoTypeLabel() }}</dd>
-        </div>
-        <div>
-          <dt>{{ copy.renoSqftLabel }}</dt>
-          <dd>{{ renoInputs().renoSqft.toLocaleString('en-CA') }} sq ft</dd>
-        </div>
-        <div>
-          <dt>{{ wizardCopy.detailsFinishTier }}</dt>
-          <dd class="cap">{{ renoInputs().tier }}</dd>
-        </div>
-      } @else {
-        <div>
-          <dt>{{ wizardCopy.detailsLivingArea }}</dt>
-          <dd>{{ inputs().sqft.toLocaleString('en-CA') }} sq ft</dd>
-        </div>
-        <div>
-          <dt>{{ wizardCopy.detailsFinishTier }}</dt>
-          <dd class="cap">{{ inputs().tier }}</dd>
-        </div>
-        <div>
-          <dt>{{ wizardCopy.detailsGarage }}</dt>
-          <dd>{{ garageName() }}</dd>
-        </div>
-        <div>
-          <dt>{{ wizardCopy.detailsBasement }}</dt>
-          <dd>{{ basementName() }}</dd>
-        </div>
-      }
-    </dl>
+  @if (property()) {
+    <!-- #507 (M3): the property card + inputs recap collapse to one chip so
+         the locked totals and the CTA land in the first phone viewport. -->
+    <p class="recap-chip">
+      <span class="recap-text">
+        <span class="recap-address">{{ property()?.address }}</span>
+        <span class="recap-facts">{{ recapFacts() }}</span>
+      </span>
+      <a
+        class="recap-edit"
+        [routerLink]="editLink()"
+        (click)="editInputs()"
+        [attr.aria-label]="copy.recapEditAriaLabel"
+      >{{ copy.recapEditLabel }}</a>
+    </p>
   }
 
   @if (loading()) {
@@ -67,7 +47,9 @@
 
     <!-- Blurred pre-gate figures: the REAL computed ranges, rendered with
          CSS blur (aria-hidden, unselectable, no pointer interaction) until
-         the lead gate unlocks. -->
+         the lead gate unlocks. #507 (M3): DOM order is total → CTA → build so
+         the payoff and the single CTA share the first phone viewport; on
+         desktop the grid puts total and build side by side, CTA below. -->
     @if (previewFigures(); as figures) {
       <section class="figures" aria-label="Locked estimate figures">
         <div class="figure-card hero-total locked">
@@ -79,16 +61,30 @@
           </p>
           <p class="locked-note">{{ reportCopy.lockedNote }}</p>
         </div>
-        <div class="figure-card locked">
+        <div class="unlock-block">
+          <ng-container *ngTemplateOutlet="unlockCta" />
+        </div>
+        <div class="figure-card build-card locked">
           <h2>{{ reportCopy.buildLabel }}</h2>
           <p class="locked-value" aria-hidden="true">{{ previewRange(figures.build) }}</p>
           <p class="locked-note">{{ reportCopy.lockedNote }}</p>
         </div>
       </section>
+    } @else {
+      <ng-container *ngTemplateOutlet="unlockCta" />
     }
 
-    <p class="tier-hint">{{ reportCopy.tierLockedNote }}</p>
-    <a class="cta unlock" routerLink="/estimate/gate">{{ reportCopy.unlockCta }}</a>
+    <ng-template #unlockCta>
+      <a class="cta unlock" routerLink="/estimate/gate">{{ reportCopy.unlockCta }}</a>
+      <p class="tier-hint">{{ reportCopy.tierLockedNote }}</p>
+    </ng-template>
+  }
+
+  @if (property(); as p) {
+    <!-- City-assessed property facts stay visible, below the payoff. -->
+    <div class="property-facts">
+      <app-property-card [property]="p" [showLandNote]="!isReno()" />
+    </div>
   }
 </main>
 <app-site-footer />

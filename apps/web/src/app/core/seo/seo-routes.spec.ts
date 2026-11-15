@@ -97,7 +97,6 @@ describe('seo-routes', () => {
     const samples: Record<string, string> = {
       'estimate/scope': 'estimate/scope',
       'estimate/reno-scope': 'estimate/reno-scope',
-      'estimate/details': 'estimate/details',
       'estimate/gate': 'estimate/gate',
       'estimate/analyzing': 'estimate/analyzing',
       'estimate/reno-coming-soon': 'estimate/reno-coming-soon',

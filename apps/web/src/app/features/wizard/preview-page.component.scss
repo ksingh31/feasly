@@ -11,43 +11,65 @@
   margin: 8px 0 20px;
 }
 
-/* Visible estimate basis: chosen sqft + tier (labels reused from the
-   details step; two-up on desktop, stacked on mobile). */
-// FIX(mobile-overflow): minmax(0, …) stops grid blowout on narrow screens.
-.inputs-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  margin: 20px 0 0;
-  padding: 20px 24px;
+/* #507 (M3) recap chip: the property card + inputs recap collapsed to one
+   line ("address · 2,200 sq ft · Standard · Edit") so the locked totals sit
+   in the first phone viewport. The text truncates; Edit never does. */
+.recap-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 4px 4px 4px 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--text);
 }
 
-@media (min-width: 640px) {
-  .inputs-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.recap-text {
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  white-space: nowrap;
 }
 
-.inputs-summary dt {
-  font-size: 11px;
+.recap-address {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recap-facts {
+  flex: 0 0 auto;
+  white-space: pre;
+}
+
+.recap-edit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 4px;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.inputs-summary dd {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+.recap-edit:hover {
+  background: var(--cream-2);
 }
 
-.cap {
-  text-transform: capitalize;
+.recap-edit:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* Full City-assessed property card, below the payoff. */
+.property-facts {
+  margin-top: 32px;
 }
 
 .loading {
@@ -83,7 +105,7 @@
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
-  margin: 28px 0 16px;
+  margin: 4px 0 12px;
 }
 
 /* Blurred pre-gate figures: total as the hero, build below; side by side
@@ -95,10 +117,26 @@
   gap: 16px;
 }
 
+/* Desktop: total | build side by side, the unlock block spans below. */
 @media (min-width: 640px) {
   .figures {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'total build'
+      'unlock unlock';
     align-items: stretch;
+  }
+
+  .hero-total {
+    grid-area: total;
+  }
+
+  .build-card {
+    grid-area: build;
+  }
+
+  .unlock-block {
+    grid-area: unlock;
   }
 }
 
@@ -128,14 +166,15 @@
 .tier-hint {
   font-size: 14px;
   color: var(--muted);
-  margin: 20px 0 0;
+  margin: 12px 0 0;
+  text-align: center;
 }
 
 /* The one "Unlock" CTA in the flow: full-width primary (base button
    styling lives in the shared wizard shell). */
 .cta.unlock {
   width: 100%;
-  margin-top: 16px;
+  margin-top: 0;
   text-decoration: none;
   display: inline-flex;
   align-items: center;

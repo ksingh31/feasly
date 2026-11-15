@@ -7,9 +7,8 @@ import { WizardStepsComponent } from './wizard-steps.component';
 /**
  * Wizard stepper regression spec (W3, 2026-09-28).
  *
- * Live QA on a deep-linked details page saw only "Address" and "Details" —
- * the Scope step was missing. The stepper must always render the full
- * 1 Address → 2 Scope → 3 Details flow, with labels from config copy.
+ * The stepper must always render the full three-step flow, with labels
+ * from config copy. #507: 1 Address → 2 Your home → 3 Estimate.
  */
 @Component({
   standalone: true,
@@ -32,8 +31,8 @@ describe('WizardStepsComponent', () => {
             get: vi.fn().mockReturnValue({
               wizard: {
                 stepAddress: 'Address',
-                stepScope: 'Scope',
-                stepDetails: 'Details',
+                stepScope: 'Your home',
+                stepEstimate: 'Estimate',
               },
             }),
           },
@@ -49,11 +48,11 @@ describe('WizardStepsComponent', () => {
       fixture.nativeElement.querySelectorAll('.step-label'),
       (el: Element) => el.textContent?.trim(),
     );
-    expect(labels).toEqual(['Address', 'Scope', 'Details']);
+    expect(labels).toEqual(['Address', 'Your home', 'Estimate']);
   });
 
   it('marks the current step', () => {
     const current = fixture.nativeElement.querySelector('.step-current .step-label');
-    expect(current?.textContent?.trim()).toBe('Details');
+    expect(current?.textContent?.trim()).toBe('Estimate');
   });
 });

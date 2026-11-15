@@ -677,7 +677,6 @@ export function mockShareOk(partnerEmail: string): PartnerShareResponse {
  */
 export const MOCK_FUNNEL_COUNTS: ReadonlyArray<{ step: string; label: string; count: number }> = [
   { step: 'scope', label: 'Scope', count: 1240 },
-  { step: 'details', label: 'Details', count: 986 },
   { step: 'preview', label: 'Preview', count: 812 },
   { step: 'gate', label: 'Gate', count: 644 },
   { step: 'report', label: 'Report', count: 301 },
