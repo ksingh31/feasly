@@ -1,5 +1,7 @@
 /**
- * BuilderTeamApiService tests (#647).
+ * BuilderTeamApiService tests (#535, #647).
+ *
+ * Resend speaks `POST /api/v1/builder/users/{id}/resend-invite`.
  *
  * The API (`@feasly/contracts` `BuilderOrgUser`) calls a deactivated member
  * `disabled`; the team page calls it `deactivated`. The client maps at the
@@ -100,6 +102,19 @@ describe('BuilderTeamApiService', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ user: wireUser('disabled'), emailSent: true });
     expect(result!.user.status).toBe('deactivated');
+    expect(result!.emailSent).toBe(true);
+  });
+
+  it('resends an invite with POST to the per-user resend-invite route', () => {
+    let result: BuilderTeamInviteResponse | null = null;
+    service.resendInvite('u2').subscribe((r) => (result = r));
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith('/api/v1/builder/users/u2/resend-invite'),
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({ user: wireUser('invited', 'u2'), emailSent: true });
+    expect(result!.user.status).toBe('invited');
     expect(result!.emailSent).toBe(true);
   });
 });

@@ -19,6 +19,9 @@
  *   lifecycle is Feasly-staff-only). Disabling kills the user's builder
  *   sessions immediately (the service also revokes admin + builder
  *   sessions server-side).
+ * - `POST /api/v1/builder/users/{id}/resend-invite` — re-issue a pending
+ *   invitation for an org member who never accepted (#535). The target
+ *   must hold a membership in the active org and still be `invited`.
  * - `DELETE /api/v1/builder/users/{id}` — remove the user from the org
  *   (membership revoked; the user row is disabled when it has no other
  *   memberships, killing all sessions immediately).
@@ -80,6 +83,11 @@ export interface BuilderUsersRoute {
     id: unknown,
     body: unknown,
   ): Promise<BuilderOrgUser>;
+  /** POST /api/v1/builder/users/{id}/resend-invite */
+  resendInvite(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<BuilderOrgUserInviteResponse>;
   /** DELETE /api/v1/builder/users/{id} */
   remove(
     headers: Record<string, string | string[] | undefined>,
@@ -110,6 +118,7 @@ function toBuilderOrgUser(user: PublicUser, builderId: string): BuilderOrgUser {
     name: user.name,
     status: user.status,
     role: membership?.role ?? 'builder_member',
+    createdAt: user.createdAt.toISOString(),
   };
 }
 
@@ -315,6 +324,34 @@ export function createBuilderUsersRoute(
         });
       }
       return toBuilderOrgUser(updated, builderId);
+    },
+
+    async resendInvite(headers, id): Promise<BuilderOrgUserInviteResponse> {
+      const route = 'POST /api/v1/builder/users/{id}/resend-invite';
+      const { ctx, builderId } = await requireOrgContext(headers, route);
+      const userId = parseUserId(id);
+      const target = await userService.findById(userId);
+      if (!target) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found.', false);
+      }
+      requireOrgMember(builderId, target);
+      if (target.status !== 'invited') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          'Only pending invites can be resent.',
+          false,
+        );
+      }
+      // The service re-checks status, retries the Graph account when the
+      // first attempt failed, withdraws the old pending invite, and sends
+      // a fresh email — audit-logged under the caller.
+      const { user, emailSent } = await userService.resendInvite(target.email, {
+        invitedBy: ctx.userId,
+        inviterName: ctx.name,
+        actorEmail: ctx.email,
+      });
+      return { user: toBuilderOrgUser(user, builderId), emailSent };
     },
 
     async remove(headers, id): Promise<{ readonly removed: true }> {

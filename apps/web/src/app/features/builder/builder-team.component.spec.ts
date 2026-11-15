@@ -9,8 +9,12 @@
  * - The invite form validates name + email and dispatches
  *   `InviteBuilderTeamUser` on submit; success shows the sent banner and
  *   closes the modal, failure shows the error banner.
- * - Deactivate asks for confirmation first; confirming dispatches
- *   `SetBuilderTeamUserStatus`.
+ * - Deactivate and Revoke confirm in the shared ConfirmDialog (danger)
+ *   first; confirming dispatches, cancelling does nothing (#535).
+ * - Pending invites offer only Resend + Revoke; Resend dispatches directly.
+ * - Success toasts; failures stay inline on the row.
+ * - The signed-in user's row carries a "You" tag and no manage controls;
+ *   deactivated rows are greyed with no role select.
  * - Reactivate dispatches directly.
  */
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -29,9 +33,12 @@ import {
   InviteBuilderTeamUser,
   LoadBuilderTeam,
   RemoveBuilderTeamUser,
+  ResendBuilderTeamInvite,
   SetBuilderTeamUserRole,
   SetBuilderTeamUserStatus,
 } from './builder-team.state';
+import { UiConfirmService, UiToastService } from '@app/shared/ui';
+import type { UiConfirmOptions, UiToastOptions } from '@app/shared/ui';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import type { BuilderTeamUser } from './builder-auth.contracts';
@@ -70,11 +77,19 @@ const TEAM_COPY = {
   teamInviteError: 'Could not send the invite.',
   teamDeactivateLabel: 'Deactivate',
   teamReactivateLabel: 'Reactivate',
-  teamRemoveLabel: 'Remove',
-  teamDeactivateConfirm: 'Deactivate this person?',
-  teamRemoveConfirm: 'Remove this invite?',
-  teamConfirmYes: 'Yes, continue',
   teamConfirmNo: 'Cancel',
+  teamYouTag: 'You',
+  teamResendLabel: 'Resend',
+  teamResent: 'Invite resent to {email}.',
+  teamRevokeLabel: 'Revoke',
+  teamRevokeTitle: 'Revoke the invite for {name}?',
+  teamRevokeBody: 'Their invite link stops working.',
+  teamRevoked: 'Invite for {name} revoked.',
+  teamDeactivateTitle: 'Deactivate {name}?',
+  teamDeactivateBody: 'They lose access immediately.',
+  teamDeactivated: '{name} deactivated.',
+  teamReactivated: '{name} reactivated.',
+  teamViewAsHint: 'See the portal as {name} sees it.',
   teamActionError: 'Something went wrong.',
   teamCountOne: '1 team member',
   teamCountMany: 'team members',
@@ -109,12 +124,28 @@ function setup(opts: {
    * the error. Avoids timing races: Subject completion is synchronous.
    */
   deferredViewAs?: boolean;
+  /** ConfirmDialog answer (#535); default true (verb pressed). */
+  confirmAnswer?: boolean;
 } = {}) {
   const isAdmin = opts.isAdmin ?? true;
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn() };
   const dispatched: unknown[] = [];
   const viewAsPending: Subject<unknown>[] = [];
+  const confirmCalls: UiConfirmOptions[] = [];
+  const toastCalls: UiToastOptions[] = [];
+  const confirms = {
+    confirm: vi.fn((options: UiConfirmOptions) => {
+      confirmCalls.push(options);
+      return of(opts.confirmAnswer ?? true);
+    }),
+  };
+  const toasts = {
+    show: vi.fn((options: UiToastOptions) => {
+      toastCalls.push(options);
+      return { id: toastCalls.length, dismissed: of('manual'), dismiss: () => undefined };
+    }),
+  };
   const store = {
     dispatch: vi.fn((action: unknown) => {
       dispatched.push(action);
@@ -157,6 +188,9 @@ function setup(opts: {
       if (selector === BuilderState.isBuilderAdmin) return isAdmin;
       if (selector === BuilderTeamState.inviteFeedback)
         return opts.feedback ?? null;
+      if (selector === BuilderTeamState.actionError) return opts.actionError ?? false;
+      if (selector === BuilderTeamState.actionErrorUserId)
+        return opts.actionErrorUserId ?? null;
       return null;
     }),
   };
@@ -172,12 +206,14 @@ function setup(opts: {
       { provide: Store, useValue: store },
       { provide: ConfigService, useValue: config },
       { provide: SeoService, useValue: seo },
+      { provide: UiConfirmService, useValue: confirms },
+      { provide: UiToastService, useValue: toasts },
     ],
   });
   const fixture: ComponentFixture<BuilderTeamComponent> =
     TestBed.createComponent(BuilderTeamComponent);
   fixture.detectChanges();
-  return { fixture, dispatched, viewAsPending };
+  return { fixture, dispatched, viewAsPending, confirmCalls, toastCalls };
 }
 
 function openInviteModal(fixture: ComponentFixture<BuilderTeamComponent>) {
@@ -439,92 +475,177 @@ describe('BuilderTeamComponent (auth/05)', () => {
     expect(text).toContain('Retry');
   });
 
-  it('deactivate asks for confirmation before dispatching', () => {
+  it('deactivate confirms in the ConfirmDialog (danger) before dispatching', () => {
     // auth/07: the confirm flow needs an enabled Deactivate, so seed two
     // active admins (with a sole admin the button is disabled instead).
-    const { fixture, dispatched } = setup({
+    const { fixture, dispatched, confirmCalls, toastCalls } = setup({
       users: [
         { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
         { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
       ],
     });
-    const buttons = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
-    const deactivate = buttons.find((b) => b.textContent?.includes('Deactivate'));
-    deactivate?.click();
-    fixture.detectChanges();
-    // Confirm dialog appears; nothing dispatched yet.
-    expect(
-      dispatched.some((a) => a instanceof SetBuilderTeamUserStatus),
-    ).toBe(false);
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Deactivate this person?');
-    // Confirming dispatches the status change.
-    const confirm = (
-      fixture.nativeElement.querySelectorAll('.builder-team__confirm-actions button') as NodeListOf<HTMLButtonElement>
-    )[1];
-    confirm.click();
+    const bobDeactivate = rowOf(fixture, 'Bob').querySelector(
+      'button.builder-team__danger-link',
+    ) as HTMLButtonElement;
+    expect(bobDeactivate.textContent).toContain('Deactivate');
+    bobDeactivate.click();
+    expect(confirmCalls).toEqual([
+      {
+        title: 'Deactivate Bob?',
+        body: 'They lose access immediately.',
+        verb: 'Deactivate',
+        tone: 'danger',
+        cancelLabel: 'Cancel',
+      },
+    ]);
     const action = dispatched.find(
       (a) => a instanceof SetBuilderTeamUserStatus,
     ) as SetBuilderTeamUserStatus;
     expect(action).toBeDefined();
+    expect(action.id).toBe('u2');
     expect(action.status).toBe('deactivated');
+    expect(toastCalls.map((t) => t.message)).toEqual(['Bob deactivated.']);
   });
 
-  it('remove is id-scoped to the clicked row and names the invitee', () => {
-    const { fixture, dispatched } = setup({
-      copyExtra: { teamRemoveConfirm: 'Remove the invite for {name}?' },
+  it('cancelling the ConfirmDialog dispatches nothing and shows no toast', () => {
+    const { fixture, dispatched, toastCalls } = setup({ confirmAnswer: false });
+    (rowOf(fixture, 'Bob').querySelector('button.builder-team__danger-link') as HTMLButtonElement).click();
+    expect(dispatched.some((a) => a instanceof RemoveBuilderTeamUser)).toBe(false);
+    expect(toastCalls).toEqual([]);
+  });
+
+  it('a pending invite offers only Resend and Revoke (no Deactivate / Remove)', () => {
+    const { fixture } = setup();
+    const labels = actionLabels(rowOf(fixture, 'Bob'));
+    expect(labels).toEqual(['Resend', 'Revoke']);
+  });
+
+  it('revoke is id-scoped, confirms naming the invitee, then toasts', () => {
+    const { fixture, dispatched, confirmCalls, toastCalls } = setup();
+    const revoke = rowOf(fixture, 'Bob').querySelector(
+      'button.builder-team__danger-link',
+    ) as HTMLButtonElement;
+    expect(revoke.textContent).toContain('Revoke');
+    revoke.click();
+    expect(confirmCalls[0]).toMatchObject({
+      title: 'Revoke the invite for Bob?',
+      verb: 'Revoke',
+      tone: 'danger',
     });
-    const buttons = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
-    // Bob (u2) is the invited row with a Remove action.
-    const remove = buttons.find((b) => b.textContent?.includes('Remove'));
-    expect(remove).toBeDefined();
-    remove!.click();
-    fixture.detectChanges();
-    // The dialog names the invitee; nothing dispatched yet.
-    const dialogText = fixture.nativeElement.querySelector(
-      '.builder-team__confirm-text',
-    ).textContent as string;
-    expect(dialogText).toContain('Remove the invite for Bob?');
-    expect(
-      dispatched.some((a) => a instanceof RemoveBuilderTeamUser),
-    ).toBe(false);
-    // Confirming dispatches the remove scoped to Bob's id.
-    const confirm = (
-      fixture.nativeElement.querySelectorAll('.builder-team__confirm-actions button') as NodeListOf<HTMLButtonElement>
-    )[1];
-    confirm.click();
     const action = dispatched.find(
       (a) => a instanceof RemoveBuilderTeamUser,
     ) as RemoveBuilderTeamUser;
-    expect(action).toBeDefined();
     expect(action.id).toBe('u2');
+    expect(toastCalls.map((t) => t.message)).toEqual(['Invite for Bob revoked.']);
   });
 
-  it('row action buttons disable while a confirm dialog is open', () => {
-    const { fixture } = setup();
-    const buttons = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
-    const remove = buttons.find((b) => b.textContent?.includes('Remove'));
-    remove!.click();
-    fixture.detectChanges();
-    const actionButtons = Array.from(
-      // The ⓘ tooltip trigger is informational, not an action — it stays
-      // enabled so the user can read why the action is disabled.
-      fixture.nativeElement.querySelectorAll(
-        '.builder-team__actions button:not(.info-tooltip__trigger)',
-      ),
-    ) as HTMLButtonElement[];
-    expect(actionButtons.length).toBeGreaterThan(0);
-    for (const button of actionButtons) {
-      expect(button.disabled).toBe(true);
-    }
+  it('resend dispatches directly (no confirm) and toasts the email', () => {
+    const { fixture, dispatched, confirmCalls, toastCalls } = setup();
+    const resend = Array.from(
+      rowOf(fixture, 'Bob').querySelectorAll('button'),
+    ).find((b) => b.textContent?.includes('Resend')) as HTMLButtonElement;
+    resend.click();
+    expect(confirmCalls).toEqual([]);
+    const action = dispatched.find(
+      (a) => a instanceof ResendBuilderTeamInvite,
+    ) as ResendBuilderTeamInvite;
+    expect(action.id).toBe('u2');
+    expect(toastCalls.map((t) => t.message)).toEqual(['Invite resent to bob@example.com.']);
+  });
+
+  it('a failed resend shows no toast — the error stays inline on the row', () => {
+    const { fixture, toastCalls } = setup({
+      actionError: true,
+      actionErrorUserId: 'u2',
+      actionErrorMessage: 'Only pending invites can be resent.',
+    });
+    const row = rowOf(fixture, 'Bob');
+    (Array.from(row.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Resend'),
+    ) as HTMLButtonElement).click();
+    expect(toastCalls).toEqual([]);
+    expect(row.querySelector('[role="alert"]')?.textContent).toContain(
+      'Only pending invites can be resent.',
+    );
+  });
+
+  it('tags the signed-in user "You" and gives their row no manage controls', () => {
+    const { fixture } = setup({
+      sessionEmail: 'Alice@Example.com',
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u3', name: 'Cara', email: 'cara@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
+    const self = rowOf(fixture, 'Alice');
+    expect(self.querySelector('.builder-team__you')?.textContent?.trim()).toBe('You');
+    expect(self.querySelector('select')).toBeNull();
+    expect(actionLabels(self)).toEqual([]);
+    const other = rowOf(fixture, 'Cara');
+    expect(other.querySelector('.builder-team__you')).toBeNull();
+    expect(other.querySelector('select')).not.toBeNull();
+  });
+
+  it('greys a deactivated row, shows its role as text, and offers Reactivate', () => {
+    const { fixture, dispatched, toastCalls } = setup({
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u4', name: 'Dan', email: 'dan@example.com', role: 'builder_member', status: 'deactivated', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
+    const row = rowOf(fixture, 'Dan');
+    expect(row.classList).toContain('builder-team__row--deactivated');
+    expect(row.querySelector('select')).toBeNull();
+    expect(row.textContent).toContain('Member');
+    expect(row.textContent).toContain('Deactivated');
+    expect(actionLabels(row)).toEqual(['Reactivate']);
+    (row.querySelector('.builder-team__actions button') as HTMLButtonElement).click();
+    const action = dispatched.find(
+      (a) => a instanceof SetBuilderTeamUserStatus,
+    ) as SetBuilderTeamUserStatus;
+    expect(action).toMatchObject({ id: 'u4', status: 'active' });
+    expect(toastCalls.map((t) => t.message)).toEqual(['Dan reactivated.']);
+  });
+
+  it('explains "View as" with a tooltip naming the member', () => {
+    const { fixture } = setup({
+      users: [
+        { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'builder_admin', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+        { id: 'u5', name: 'Marco', email: 'marco@example.com', role: 'builder_member', status: 'active', createdAt: '2026-09-28T00:00:00.000Z' },
+      ],
+    });
+    const tooltip = fixture.debugElement
+      .queryAll(By.directive(InfoTooltipComponent))
+      .find((d) => d.componentInstance.tooltipId() === 'view-as-hint-u5');
+    expect(tooltip).toBeDefined();
+    expect(tooltip!.componentInstance.text()).toBe('See the portal as Marco sees it.');
+    const viewAs = Array.from(
+      rowOf(fixture, 'Marco').querySelectorAll('button'),
+    ).find((b) => b.textContent?.includes('View as')) as HTMLButtonElement;
+    expect(viewAs.getAttribute('aria-describedby')).toBe('view-as-hint-u5');
   });
 });
+
+/** The table row whose name cell reads `name`. */
+function rowOf(fixture: ComponentFixture<BuilderTeamComponent>, name: string): HTMLTableRowElement {
+  const rows = Array.from(
+    fixture.nativeElement.querySelectorAll('tbody tr'),
+  ) as HTMLTableRowElement[];
+  const row = rows.find(
+    (r) => r.querySelector('.builder-team__name')?.textContent?.trim() === name,
+  );
+  expect(row, `row for ${name}`).toBeDefined();
+  return row!;
+}
+
+/** Visible action-button labels in a row (ⓘ tooltip triggers excluded). */
+function actionLabels(row: HTMLElement): string[] {
+  return (
+    Array.from(
+      row.querySelectorAll('.builder-team__actions button:not(.info-tooltip__trigger)'),
+    ) as HTMLButtonElement[]
+  ).map((b) => b.textContent?.trim() ?? '');
+}
 
 /**
  * Builder team component specs (auth/07 — last-admin protection).

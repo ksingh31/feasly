@@ -113,6 +113,26 @@ export class BuilderTeamApiService {
     );
   }
 
+  /** Re-send a pending invitation (#535) — fresh link, old one withdrawn. */
+  resendInvite(id: string): Observable<BuilderTeamInviteResponse> {
+    return this.call(
+      this.http
+        .post<
+          Omit<BuilderTeamInviteResponse, 'user'> & { readonly user: WireTeamUser }
+        >(`${this.userUrl(id)}/resend-invite`, {}, {
+          withCredentials: true,
+        })
+        .pipe(
+          map(
+            (res): BuilderTeamInviteResponse => ({
+              ...res,
+              user: fromWireUser(res.user),
+            }),
+          ),
+        ),
+    );
+  }
+
   /** Rename, change role, or deactivate/reactivate. */
   updateUser(id: string, body: BuilderTeamUpdateBody): Observable<BuilderTeamUser> {
     return this.call(

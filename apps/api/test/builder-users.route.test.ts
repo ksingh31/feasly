@@ -68,6 +68,10 @@ function makeDeps() {
     renameUser: vi.fn(async (_id: string, name: string) => publicUser({ name })),
     disableUser: vi.fn(async () => publicUser({ status: 'disabled' })),
     enableUser: vi.fn(async () => publicUser({ status: 'active' })),
+    resendInvite: vi.fn(async () => ({
+      user: publicUser({ status: 'invited' }),
+      emailSent: true,
+    })),
   } as unknown as UserService;
 
   const permissionGuard = {
@@ -309,5 +313,78 @@ describe('builder users route', () => {
     const route = createBuilderUsersRoute(d.deps);
     const err = await route.remove(HEADERS, ACTOR_ID).catch((e: unknown) => e);
     expect((err as HttpError).status).toBe(403);
+  });
+
+  describe('resendInvite (#535)', () => {
+    it('re-issues a pending invite for an org member, audited under the caller', async () => {
+      vi.mocked(d.userService.findById).mockResolvedValue(
+        publicUser({ status: 'invited' }),
+      );
+      const route = createBuilderUsersRoute(d.deps);
+      const result = await route.resendInvite(HEADERS, TARGET_ID);
+      expect(result).toEqual({
+        user: {
+          id: TARGET_ID,
+          email: 'member@example.com',
+          name: 'Member',
+          status: 'invited',
+          role: 'builder_member',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        emailSent: true,
+      });
+      expect(d.permissionGuard.requirePermission).toHaveBeenCalledWith(
+        'builder:users:manage',
+        HEADERS,
+        'POST /api/v1/builder/users/{id}/resend-invite',
+      );
+      expect(d.userService.resendInvite).toHaveBeenCalledWith(
+        'member@example.com',
+        {
+          invitedBy: ACTOR_ID,
+          inviterName: 'Builder Admin',
+          actorEmail: 'admin@builder.com',
+        },
+      );
+    });
+
+    it('refuses targets outside the active org (403)', async () => {
+      vi.mocked(d.userService.findById).mockResolvedValue(
+        publicUser({
+          status: 'invited',
+          memberships: [
+            { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
+          ],
+        }),
+      );
+      const route = createBuilderUsersRoute(d.deps);
+      const err = await route
+        .resendInvite(HEADERS, TARGET_ID)
+        .catch((e: unknown) => e);
+      expect((err as HttpError).status).toBe(403);
+      expect(d.userService.resendInvite).not.toHaveBeenCalled();
+    });
+
+    it('refuses members who already accepted (409)', async () => {
+      const route = createBuilderUsersRoute(d.deps);
+      const err = await route
+        .resendInvite(HEADERS, TARGET_ID)
+        .catch((e: unknown) => e);
+      expect((err as HttpError).status).toBe(409);
+      expect(d.userService.resendInvite).not.toHaveBeenCalled();
+    });
+
+    it('404s an unknown user and 400s a malformed id', async () => {
+      vi.mocked(d.userService.findById).mockResolvedValue(null);
+      const route = createBuilderUsersRoute(d.deps);
+      const missing = await route
+        .resendInvite(HEADERS, TARGET_ID)
+        .catch((e: unknown) => e);
+      expect((missing as HttpError).status).toBe(404);
+      const bad = await route
+        .resendInvite(HEADERS, 'not-a-uuid')
+        .catch((e: unknown) => e);
+      expect((bad as HttpError).status).toBe(400);
+    });
   });
 });
