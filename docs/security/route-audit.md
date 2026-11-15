@@ -33,7 +33,7 @@ Audited against `apps/web/public/staticwebapp.config.json`,
 2. **frame-ancestors is deny-by-default.** Global CSP sets `'none'`; only `/embed/*` overrides it, and the override currently points at a placeholder that matches nothing (fail-closed).
 3. **CORS is allowlist-only, no wildcards.** Production has no localhost origins — they are injected only when `NODE_ENV=development`. `evil.example`-style origins receive no `Access-Control-Allow-Origin` (covered by `test/middleware-cors.test.ts`).
 4. **Preflight does not touch the pipeline.** OPTIONS requests are answered 204 at the adapter edge — no rate-limit consumption, no DB work, no PII logging surface.
-5. **navigationFallback excludes are correct.** `/assets/*`, `/robots.txt`, `/sitemap.xml`, `/llms.txt` bypass the SPA rewrite; everything else falls through to `index.html` with headers intact.
+5. **SPA rewrites are an allow-list.** (Updated #490: `navigationFallback` was removed.) Only client-only route prefixes rewrite to `index.html`; `/assets/*`, `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/api/*` are never rewritten, and unknown paths return HTTP 404 with the branded page. Global headers apply to all of them.
 
 ## Verification
 
