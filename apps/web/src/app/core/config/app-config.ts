@@ -994,6 +994,11 @@ export interface AppConfig {
        */
       outOfCoverageHeading: string;
       outOfCoverageBody: string;
+      /**
+       * Out-of-coverage action label (B11, #514). Clears and focuses the
+       * input — never "Retry", since coverage is deterministic.
+       */
+      outOfCoverageAction: string;
       /** Shown when the autocomplete request fails. */
       error: string;
       retryLabel: string;
