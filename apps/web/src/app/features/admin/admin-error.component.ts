@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { UiButtonComponent } from '@app/shared/ui';
 import { ErrorRecoveryService } from '../../core/errors/error-recovery.service';
 
 /**
@@ -16,7 +17,7 @@ import { ErrorRecoveryService } from '../../core/errors/error-recovery.service';
 @Component({
   selector: 'app-admin-error',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, UiButtonComponent],
   templateUrl: './admin-error.component.html',
   styleUrl: './admin-error.component.scss',
 })

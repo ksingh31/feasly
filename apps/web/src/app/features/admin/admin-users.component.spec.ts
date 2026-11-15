@@ -214,41 +214,143 @@ describe('AdminUsersComponent', () => {
     expect(rows()[1]!.querySelector('.users-page__you')).toBeNull();
   });
 
-  it('opens and closes the invite dialog', () => {
+  /** #548: the invite modal is a kit modal (CDK overlay, outside the fixture). */
+  function inviteModal(): HTMLElement | null {
+    return document.querySelector('[data-testid="invite-modal"]');
+  }
+
+  it('opens the invite modal off inviteOpen; Cancel closes it and clears the state', async () => {
     flushInit([]);
-    expect(fixture.nativeElement.querySelector('.users-page__overlay')).toBeNull();
+    expect(inviteModal()).toBeNull();
 
     store.dispatch(new OpenInviteAdminUser());
     fixture.detectChanges();
-    const overlay = fixture.nativeElement.querySelector('.users-page__overlay');
-    expect(overlay).not.toBeNull();
-    expect(overlay.textContent).toContain('Invite user');
+    await until(() => inviteModal() !== null, 'invite modal opens');
+    const dialog = inviteModal()!.closest('[role="dialog"]') as HTMLElement;
+    expect(dialog).not.toBeNull();
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.textContent).toContain('Invite user');
+
+    const cancel = Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel')!;
+    cancel.click();
+    await until(() => inviteModal() === null, 'invite modal closes');
+    expect(store.selectSnapshot(AdminUsersState.inviteOpen)).toBe(false);
   });
 
-  it('dispatches the invite with the form values', () => {
+  it('dispatches the invite with the form values and closes on success', async () => {
     flushInit([]);
     store.dispatch(new OpenInviteAdminUser());
     fixture.detectChanges();
+    await until(() => inviteModal() !== null, 'invite modal opens');
 
-    const setInput = (name: string, value: string) => {
-      const input = fixture.nativeElement.querySelector(
-        `input[formcontrolname="${name}"]`,
-      ) as HTMLInputElement;
+    const setInput = (type: string, value: string) => {
+      const input = inviteModal()!.querySelector(`input[type="${type}"]`) as HTMLInputElement;
       input.value = value;
       input.dispatchEvent(new Event('input'));
     };
     setInput('email', 'new@example.com');
-    setInput('name', 'New Teammate');
-    fixture.detectChanges();
+    setInput('text', 'New Teammate');
+    TestBed.tick();
 
-    const form = fixture.nativeElement.querySelector('.users-page__modal form');
-    form.dispatchEvent(new Event('submit'));
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
     const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/users/invite'));
     expect(req.request.body).toMatchObject({
       email: 'new@example.com',
       name: 'New Teammate',
       role: 'viewer',
     });
+    req.flush({ user: { ...INVITED, email: 'new@example.com', name: 'New Teammate' }, emailSent: true });
+    httpMock.match((r) => r.url.endsWith('/api/v1/admin/users'));
+    await until(() => inviteModal() === null, 'invite modal closes after success');
+    expect(store.selectSnapshot(AdminUsersState.inviteOpen)).toBe(false);
+  });
+
+  it('a builder role asks for the organization before sending', async () => {
+    flushInit([], [BUILDER_A, BUILDER_B]);
+    store.dispatch(new OpenInviteAdminUser());
+    fixture.detectChanges();
+    await until(() => inviteModal() !== null, 'invite modal opens');
+
+    const fill = (type: string, value: string) => {
+      const input = inviteModal()!.querySelector(`input[type="${type}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    fill('email', 'pm@elitecraft.example');
+    fill('text', 'Project Manager');
+    const role = inviteModal()!.querySelector('select') as HTMLSelectElement;
+    role.value = 'builder_member';
+    role.dispatchEvent(new Event('change'));
+    await until(() => inviteModal()!.querySelectorAll('select').length === 2, 'organization select appears');
+
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    TestBed.tick();
+    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    await until(() => (inviteModal()!.textContent ?? '').includes('Choose the builder organization.'), 'org error');
+
+    const org = inviteModal()!.querySelectorAll('select')[1] as HTMLSelectElement;
+    org.value = BUILDER_B.id;
+    org.dispatchEvent(new Event('change'));
+    TestBed.tick();
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    expect(req.request.body).toMatchObject({ role: 'builder_member', builderId: BUILDER_B.id });
+  });
+
+  it('switching back to a staff role clears the org requirement so Send works', async () => {
+    flushInit([], [BUILDER_A, BUILDER_B]);
+    store.dispatch(new OpenInviteAdminUser());
+    fixture.detectChanges();
+    await until(() => inviteModal() !== null, 'invite modal opens');
+
+    const fill = (type: string, value: string) => {
+      const input = inviteModal()!.querySelector(`input[type="${type}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    fill('email', 'ops@example.com');
+    fill('text', 'Ops Person');
+    const role = inviteModal()!.querySelector('select') as HTMLSelectElement;
+    role.value = 'builder_member';
+    role.dispatchEvent(new Event('change'));
+    await until(() => inviteModal()!.querySelectorAll('select').length === 2, 'organization select appears');
+
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    TestBed.tick();
+    httpMock.expectNone((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    await until(() => (inviteModal()!.textContent ?? '').includes('Choose the builder organization.'), 'org error');
+
+    role.value = 'viewer';
+    role.dispatchEvent(new Event('change'));
+    await until(() => inviteModal()!.querySelectorAll('select').length === 1, 'organization select hides');
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/users/invite'));
+    expect(req.request.body).toMatchObject({ role: 'viewer' });
+    expect(req.request.body.builderId).toBeUndefined();
+  });
+
+  it('keeps the modal open with the error inline when the invite fails', async () => {
+    flushInit([]);
+    store.dispatch(new OpenInviteAdminUser());
+    fixture.detectChanges();
+    await until(() => inviteModal() !== null, 'invite modal opens');
+
+    const email = inviteModal()!.querySelector('input[type="email"]') as HTMLInputElement;
+    email.value = 'dupe@example.com';
+    email.dispatchEvent(new Event('input'));
+    const name = inviteModal()!.querySelector('input[type="text"]') as HTMLInputElement;
+    name.value = 'Dupe';
+    name.dispatchEvent(new Event('input'));
+    TestBed.tick();
+    (document.querySelector('[data-testid="invite-submit"]') as HTMLButtonElement).click();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/users/invite'))
+      .flush({ error: { code: 'CONFLICT', message: 'That email already has an account.' } }, { status: 409, statusText: 'Conflict' });
+    await until(() => !!inviteModal()?.querySelector('[role="alert"]'), 'inline invite error');
+    const message = store.selectSnapshot(AdminUsersState.inviteError);
+    expect(message).toBeTruthy();
+    expect(inviteModal()!.querySelector('[role="alert"]')!.textContent).toContain(message!);
+    expect(store.selectSnapshot(AdminUsersState.inviteOpen)).toBe(true);
   });
 
   it('Resend invite from the row menu posts the resend', async () => {

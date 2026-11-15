@@ -1,0 +1,35 @@
+<ui-modal heading="Invite user" asForm [closeLocked]="inviting()" (submitted)="submit()">
+  <div class="invite-modal" [formGroup]="form" data-testid="invite-modal">
+    <p class="invite-modal__sub">
+      They'll get an email invite and sign in with their Microsoft account —
+      Feasly never sees a password.
+    </p>
+    @if (inviteError(); as message) {
+      <p class="invite-modal__alert" role="alert">{{ message }}</p>
+    }
+    <ui-text-field
+      label="Email"
+      type="email"
+      autocomplete="off"
+      required
+      formControlName="email"
+      [error]="error('email')"
+    />
+    <ui-text-field label="Name" autocomplete="off" required formControlName="name" [error]="error('name')" />
+    <ui-select label="Role" required formControlName="role" [options]="roleOptions" />
+    @if (roleIsBuilder()) {
+      <ui-select
+        label="Organization"
+        required
+        formControlName="builderId"
+        placeholder="Choose an organization…"
+        [options]="builderOptions()"
+        [error]="error('builderId')"
+      />
+    }
+  </div>
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" [disabled]="inviting()" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button data-testid="invite-submit" [loading]="inviting()">Send invite</button>
+  </ng-container>
+</ui-modal>
