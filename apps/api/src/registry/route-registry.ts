@@ -83,7 +83,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/estimate',
     auth: 'none',
     permissions: [] as const,
-    rateLimit: '20/hr per IP · 20/hr per tenant (embed)',
+    rateLimit: '20/hr per IP · 600/hr per tenant (embed; #737, 10× launch target)',
     status: 'live',
     summary:
       'Run a cost estimate (deterministic engine). Public for the web funnel; ' +
