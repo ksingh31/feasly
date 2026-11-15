@@ -769,3 +769,295 @@ describe('builder-leads comment summaries (notes section redesign)', () => {
     expect(result.leads[0]?.latestComment).toBeNull();
   });
 });
+
+describe('builder-leads "Needs you" feed (issue #526)', () => {
+  const NOW = new Date('2026-11-15T12:00:00.000Z');
+  const daysAgo = (d: number) => new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000);
+
+  function lead(
+    id: string,
+    status: string,
+    opts: {
+      readonly score?: number;
+      readonly createdAt?: Date;
+      readonly updatedAt?: Date;
+      readonly builderId?: string;
+    } = {},
+  ) {
+    const createdAt = opts.createdAt ?? daysAgo(30);
+    return {
+      ...makeLead({ id, status, builderId: opts.builderId ?? ELITE_BUILDER_ID }),
+      leadScore: opts.score ?? 50,
+      createdAt,
+      updatedAt: opts.updatedAt ?? createdAt,
+    };
+  }
+
+  function makeNeedsYouService(opts: {
+    readonly leads: ReadonlyArray<ReturnType<typeof lead>>;
+    readonly history?: Readonly<Record<string, Date>>;
+    readonly invoicedLeadIds?: readonly string[];
+    readonly withStatusChanges?: boolean;
+    readonly withConfig?: boolean;
+  }) {
+    const base = makeDeps();
+    base.leads.clear();
+    for (const l of opts.leads) base.leads.set(l.id, l);
+    const listSpy = vi.spyOn(base.leadStore, 'listByBuilderId');
+    const historyLookup = vi.fn(async (ids: readonly string[]) => {
+      const out = new Map<string, Date>();
+      for (const id of ids) {
+        const at = opts.history?.[id];
+        if (at) out.set(id, at);
+      }
+      return out;
+    });
+    const invoiced = opts.invoicedLeadIds ?? [];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      clock: () => NOW,
+      invoiceSummaries: {
+        findByTenantKey: async (tenantKey: string) =>
+          tenantKey === 'elite-craft'
+            ? invoiced.map((leadId, i) => ({
+                id: `inv-${i}`,
+                leadId,
+                invoiceNumber: `INV-${i}`,
+                contractValueCents: 1,
+                commissionCents: 1,
+                status: 'in_review',
+                reviewDueAt: null,
+                paymentMethod: 'card',
+              }))
+            : [],
+        hasInvoiceForLead: async () => false,
+      },
+      ...(opts.withStatusChanges === false
+        ? {}
+        : { statusChanges: { latestStatusChangeByLeadIds: historyLookup } }),
+      ...(opts.withConfig === false
+        ? {}
+        : { needsYou: { staleAfterDays: 7, scanLimit: 250 } }),
+    });
+    return { service, listSpy, historyLookup };
+  }
+
+  it('groups uncontacted, stale and won-without-contract leads server-side', async () => {
+    const { service } = makeNeedsYouService({
+      leads: [
+        lead('new-1', 'new', { createdAt: daysAgo(0.1) }),
+        lead('contacted-stale', 'contacted'),
+        lead('contacted-fresh', 'contacted'),
+        lead('quoted-never-changed', 'quoted', { createdAt: daysAgo(8) }),
+        lead('won-open', 'won'),
+        lead('won-recorded', 'won'),
+        lead('lost-1', 'lost'),
+      ],
+      history: {
+        'contacted-stale': daysAgo(10),
+        'contacted-fresh': daysAgo(2),
+        'won-open': daysAgo(3),
+        'won-recorded': daysAgo(3),
+      },
+      invoicedLeadIds: ['won-recorded'],
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.uncontacted.map((l) => l.id)).toEqual(['new-1']);
+    expect(result.stale.map((l) => l.id).sort()).toEqual([
+      'contacted-stale',
+      'quoted-never-changed',
+    ]);
+    expect(result.wonWithoutContract.map((l) => l.id)).toEqual(['won-open']);
+    expect(result.staleAfterDays).toBe(7);
+    expect(result.counts).toEqual({
+      total: 7,
+      new: 1,
+      contacted: 2,
+      quoted: 1,
+      won: 2,
+      lost: 1,
+    });
+  });
+
+  it('sorts each group by score (desc) then age (oldest first)', async () => {
+    const { service } = makeNeedsYouService({
+      leads: [
+        lead('low-old', 'new', { score: 40, createdAt: daysAgo(5) }),
+        lead('high-young', 'new', { score: 90, createdAt: daysAgo(1) }),
+        lead('high-old', 'new', { score: 90, createdAt: daysAgo(3) }),
+        lead('mid', 'new', { score: 60, createdAt: daysAgo(0.5) }),
+        lead('stale-a', 'contacted', { score: 70 }),
+        lead('stale-b', 'quoted', { score: 70 }),
+        lead('stale-c', 'contacted', { score: 80 }),
+      ],
+      history: {
+        'stale-a': daysAgo(9),
+        'stale-b': daysAgo(20),
+        'stale-c': daysAgo(8),
+      },
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.uncontacted.map((l) => l.id)).toEqual([
+      'high-old',
+      'high-young',
+      'mid',
+      'low-old',
+    ]);
+    expect(result.stale.map((l) => l.id)).toEqual(['stale-c', 'stale-b', 'stale-a']);
+  });
+
+  it('sets waitingSince from createdAt (uncontacted) and the status change (stale/won)', async () => {
+    const { service } = makeNeedsYouService({
+      leads: [
+        lead('new-1', 'new', { createdAt: daysAgo(1) }),
+        lead('stale-1', 'contacted', { createdAt: daysAgo(30) }),
+        lead('won-1', 'won', { createdAt: daysAgo(30) }),
+      ],
+      history: { 'stale-1': daysAgo(10), 'won-1': daysAgo(2) },
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.uncontacted[0]).toMatchObject({
+      waitingSince: daysAgo(1).toISOString(),
+      createdAt: daysAgo(1).toISOString(),
+    });
+    expect(result.stale[0]).toMatchObject({
+      waitingSince: daysAgo(10).toISOString(),
+      statusChangedAt: daysAgo(10).toISOString(),
+      createdAt: daysAgo(30).toISOString(),
+    });
+    expect(result.wonWithoutContract[0]?.waitingSince).toBe(daysAgo(2).toISOString());
+  });
+
+  it('treats exactly staleAfterDays as stale and one minute less as fresh', async () => {
+    const { service } = makeNeedsYouService({
+      leads: [
+        lead('edge', 'contacted'),
+        lead('almost', 'contacted'),
+      ],
+      history: {
+        edge: daysAgo(7),
+        almost: new Date(daysAgo(7).getTime() + 60_000),
+      },
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.stale.map((l) => l.id)).toEqual(['edge']);
+  });
+
+  it('ignores updated_at noise when the status history says the lead is stale', async () => {
+    // A consent/nudge write bumps updated_at; the status itself is old.
+    const { service } = makeNeedsYouService({
+      leads: [lead('stale-1', 'contacted', { updatedAt: daysAgo(0.1) })],
+      history: { 'stale-1': daysAgo(12) },
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.stale.map((l) => l.id)).toEqual(['stale-1']);
+  });
+
+  it('only looks up status history for contacted/quoted/won leads', async () => {
+    const { service, historyLookup } = makeNeedsYouService({
+      leads: [
+        lead('new-1', 'new'),
+        lead('c-1', 'contacted'),
+        lead('q-1', 'quoted'),
+        lead('w-1', 'won'),
+        lead('l-1', 'lost'),
+      ],
+    });
+
+    await service.getNeedsYou('elite-craft');
+
+    expect(historyLookup).toHaveBeenCalledTimes(1);
+    expect([...(historyLookup.mock.calls[0]?.[0] ?? [])].sort()).toEqual([
+      'c-1',
+      'q-1',
+      'w-1',
+    ]);
+  });
+
+  it('falls back to updatedAt when no status-change store is wired', async () => {
+    const { service } = makeNeedsYouService({
+      withStatusChanges: false,
+      leads: [
+        lead('old', 'quoted', { updatedAt: daysAgo(9) }),
+        lead('recent', 'quoted', { updatedAt: daysAgo(1) }),
+      ],
+    });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(result.stale.map((l) => l.id)).toEqual(['old']);
+  });
+
+  it('is tenant-scoped: another builder never sees these leads', async () => {
+    const { service } = makeNeedsYouService({
+      leads: [
+        lead('mine', 'new'),
+        lead('theirs', 'new', { builderId: OTHER_BUILDER_ID }),
+      ],
+    });
+
+    const mine = await service.getNeedsYou('elite-craft');
+    const theirs = await service.getNeedsYou('other');
+
+    expect(mine.uncontacted.map((l) => l.id)).toEqual(['mine']);
+    expect(mine.counts.total).toBe(1);
+    expect(theirs.uncontacted.map((l) => l.id)).toEqual(['theirs']);
+    expect(theirs.counts.total).toBe(1);
+  });
+
+  it('scans at most the configured number of leads', async () => {
+    const { service, listSpy } = makeNeedsYouService({ leads: [] });
+
+    const result = await service.getNeedsYou('elite-craft');
+
+    expect(listSpy).toHaveBeenCalledWith({ builderId: ELITE_BUILDER_ID, limit: 250 });
+    expect(result).toEqual({
+      uncontacted: [],
+      stale: [],
+      wonWithoutContract: [],
+      staleAfterDays: 7,
+      counts: { total: 0, new: 0, contacted: 0, quoted: 0, won: 0, lost: 0 },
+    });
+  });
+
+  it('throws 404 for an unknown or inactive builder', async () => {
+    const { service } = makeNeedsYouService({ leads: [] });
+    await expect(service.getNeedsYou('nope')).rejects.toMatchObject({ status: 404 });
+    await expect(service.getNeedsYou('inactive')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('fails with 500 instead of inventing a threshold when unconfigured', async () => {
+    const { service } = makeNeedsYouService({ leads: [], withConfig: false });
+    await expect(service.getNeedsYou('elite-craft')).rejects.toMatchObject({ status: 500 });
+  });
+
+  it('never leaks invoice or rate fields onto the items', async () => {
+    const { service } = makeNeedsYouService({ leads: [lead('won-1', 'won')] });
+    const result = await service.getNeedsYou('elite-craft');
+    expect(Object.keys(result.wonWithoutContract[0] ?? {}).sort()).toEqual([
+      'addressKey',
+      'createdAt',
+      'email',
+      'id',
+      'leadScore',
+      'name',
+      'phone',
+      'status',
+      'statusChangedAt',
+      'timeline',
+      'waitingSince',
+    ]);
+  });
+});

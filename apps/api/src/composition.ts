@@ -17,7 +17,12 @@ import {
   type EstimateStore,
 } from './services/estimate.store';
 import { createLeadService, type LeadService } from './services/lead.service';
-import { createDrizzleLeadStore, type LeadStore } from './services/lead.store';
+import {
+  createDrizzleLeadStatusChangeStore,
+  createDrizzleLeadStore,
+  type LeadStatusChangeStore,
+  type LeadStore,
+} from './services/lead.store';
 import {
   createAnalyticsService,
   type AnalyticsService,
@@ -767,6 +772,7 @@ export interface CompositionOptions {
    */
   readonly estimateStore?: EstimateStore;
   readonly leadStore?: LeadStore;
+  readonly leadStatusChangeStore?: LeadStatusChangeStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
@@ -974,6 +980,9 @@ export function createComposition(
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =
     options.leadStore ?? createDrizzleLeadStore({ db: db.db });
+  const leadStatusChangeStore: LeadStatusChangeStore =
+    options.leadStatusChangeStore ??
+    createDrizzleLeadStatusChangeStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
   const analyticsStore: AnalyticsStore =
@@ -1786,6 +1795,11 @@ export function createComposition(
     invoiceSummaries: invoiceSummaryStore,
     commentSummaries: commentStore,
     users: userStore,
+    statusChanges: leadStatusChangeStore,
+    needsYou: {
+      staleAfterDays: config.lead.needsYouStaleDays,
+      scanLimit: config.lead.needsYouScanLimit,
+    },
   });
   const builderLeadsRoute: BuilderLeadsRoute = createBuilderLeadsRoute({
     builderLeads: builderLeadsService,
