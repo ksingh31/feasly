@@ -37,6 +37,16 @@ only Karan can provide.
 - [ ] **[KARAN]** Platform agreement reviewed by the lawyer (blocks the 1%
       commission billing engine going live, not the MVP launch).
 
+- [ ] **[KARAN]** GST on commission invoices (#714): set
+      `BILLING_SUPPLIER_LEGAL_NAME`, `BILLING_SUPPLIER_ADDRESS` and
+      `BILLING_TAX_REGISTRATION_NUMBER` (Function App settings), then
+      `BILLING_TAX_ENABLED=true` before the first live charge. Defaults: 5%
+      `BILLING_TAX_RATE`, label `GST`, commission plus GST
+      (`BILLING_TAX_INCLUSIVE=false`). Production refuses tax ON while any
+      supplier detail is still a placeholder. Remove the config.ts entry from
+      `tools/placeholder-allowlist.txt` once the real values are the defaults
+      or are set everywhere.
+
 ## Data & placeholders
 
 - [ ] **[GATE]** No unswapped placeholders: `PLACEHOLDER`, `TODO(launch)`,

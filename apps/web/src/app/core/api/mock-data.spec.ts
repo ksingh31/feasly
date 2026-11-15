@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ComparisonEstimateRequest } from '@feasly/contracts';
-import aggregates from '../../../content/data/community-aggregates.json';
+import aggregates from '../../../content/data/community-index.json';
 import { mockCommunityStats, mockComparisonEstimate } from './mock-data';
 
 /** Expected value read from the checked-in snapshot, so a routine refresh (#469) never breaks this spec. */

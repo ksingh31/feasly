@@ -8,13 +8,13 @@ import { PROPERTY_DATA_SERVICE, providePropertyData } from './property-data.serv
 
 /**
  * Proves the wiring (FE1-002): `providePropertyData()` routes property calls
- * from `propertyData.source` — live City API by default, the mock harness or
- * our own /api/v1 routes on request.
+ * from `propertyData.source` — our own /api/v1 routes by default (#752), the
+ * mock harness or the live City API (local dev) on request.
  *
  * REGRESSION (2026-09-24): the implementation choice is resolved per call,
  * not when the factory runs. NGXS v22 instantiates states in an *environment*
  * initializer (before APP_INITIALIZERs), so the factory used to run before
- * ConfigService.load() finished and froze the compiled default ('live') — a
+ * ConfigService.load() finished and froze the compiled default (then 'live') — a
  * served `propertyData.source: 'mock'` was silently ignored and the app always
  * hit the City API. The "injected before config load" test pins the fix.
  */
@@ -72,11 +72,32 @@ describe('providePropertyData', () => {
     expect(response.suggestions).toEqual([]);
   });
 
-  it('defaults to the live client when source is unknown', async () => {
+  it('resolves an unknown source to the backend, never the City API (#752)', async () => {
     const service = await wireWith('nope');
     const pending = firstValueFrom(service.autocomplete('1420'));
-    httpMock.expectOne((r) => r.url.includes('data.calgary.ca')).flush([]);
+    httpMock.expectOne((r) => r.url.includes('/api/v1/properties/autocomplete')).flush({ suggestions: [] });
+    httpMock.expectNone((r) => r.url.includes('data.calgary.ca'));
     await pending;
+  });
+
+  it('routes the property lookup to the backend for source backend (#752)', async () => {
+    const service = await wireWith('backend');
+    const pending = firstValueFrom(service.getProperty('16 DEERMEADE BA SE'));
+    const req = httpMock.expectOne((r) => r.url.includes('/api/v1/properties/lookup'));
+    expect(req.request.params.get('addressKey')).toBe('16 DEERMEADE BA SE');
+    req.flush({ addressKey: '16 DEERMEADE BA SE', zoning: 'R-C2' });
+    httpMock.expectNone((r) => r.url.includes('data.calgary.ca'));
+    expect((await pending).zoning).toBe('R-C2');
+  });
+
+  it('surfaces an API outage as a retryable error, with no fallback to the City API (#752 AC5)', async () => {
+    const service = await wireWith('backend');
+    const pending = firstValueFrom(service.autocomplete('1412 Prospect'));
+    httpMock
+      .expectOne((r) => r.url.includes('/api/v1/properties/autocomplete'))
+      .flush({ code: 'DEPENDENCY_UNAVAILABLE', message: 'City data is unavailable.' }, { status: 503, statusText: 'Service Unavailable' });
+    await expect(pending).rejects.toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE', retryable: true });
+    httpMock.expectNone((r) => r.url.includes('data.calgary.ca'));
   });
 
   it('honors a served source of mock even when injected before config load', async () => {

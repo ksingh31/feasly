@@ -75,6 +75,7 @@ not change the screen requirements.
 - [ ] A11y: keyboard-only path works, focus management correct, axe zero critical/serious
 - [ ] No hardcoded values (config or justified constants file; CI grep passes)
 - [ ] SEO: public routes prerendered with title/meta/OG/canonical; private routes `noindex`
+- [ ] SEO/GEO standard (`docs/seo-page-standard.md`): new/changed public pages have JSON-LD mirroring visible copy, answer-first content, sitemap + llms.txt entries, and are covered by `check-prerender-seo.mjs`
 - [ ] Copy-lint: no accuracy claims (±, %), "Unlock" appears exactly once repo-wide
 - [ ] Lighthouse on touched routes: Performance ≥90, Accessibility ≥95, SEO = 100
 

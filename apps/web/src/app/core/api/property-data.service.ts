@@ -30,9 +30,12 @@ export const PROPERTY_DATA_SERVICE = new InjectionToken<PropertyDataService>(
 
 /**
  * Wires the PropertyDataService implementation from config:
- * `propertyData.source` selects the live City of Calgary Socrata API
- * ('live', the dev default), the FE0-003 fixture harness ('mock'), or our
- * own /api/v1 property routes ('backend', once BE-3+ implements them).
+ * `propertyData.source` selects our own /api/v1 property routes ('backend',
+ * the served default since #752 — every visitor-facing property read goes
+ * through our API), the FE0-003 fixture harness ('mock'), or the City of
+ * Calgary Socrata API straight from the browser ('live', local development
+ * only). An unknown value resolves to 'backend': the app never silently
+ * falls back to a different data source.
  * Call once in app.config.ts, before `provideApi()`.
  */
 export function providePropertyData(): Provider {
@@ -43,7 +46,7 @@ export function providePropertyData(): Provider {
     // instantiates states inside an *environment* initializer, which Angular
     // runs before APP_INITIALIZERs (ReportState injects API_SERVICE, which
     // pulls PROPERTY_DATA_SERVICE in). An eager choice froze the compiled
-    // default ('live'), so a served `propertyData.source: 'mock'` was silently
+    // default (then 'live'), so a served `propertyData.source: 'mock'` was silently
     // ignored and the app always hit the City API (found by browser QA
     // 2026-09-24). Calls only happen after bootstrap, on user interaction, so
     // resolving then honors the loaded config — including config reloads.
@@ -60,10 +63,10 @@ class LazyPropertyDataService implements PropertyDataService {
     switch (source) {
       case 'mock':
         return this.injector.get(MockPropertyDataService);
-      case 'backend':
-        return this.injector.get(BackendPropertyDataService);
-      default:
+      case 'live':
         return this.injector.get(CalgaryAssessmentService);
+      default:
+        return this.injector.get(BackendPropertyDataService);
     }
   }
 

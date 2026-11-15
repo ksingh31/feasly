@@ -103,7 +103,8 @@ export function createBillingOverviewService(
       // findByTenantKey returns newest first, so failedInvoices is too.
       for (const inv of invoices) {
         if (OUTSTANDING_STATUSES.has(inv.status)) {
-          outstandingCents += inv.commissionCents;
+          // #714: outstanding = what the builder pays (incl. tax).
+          outstandingCents += inv.totalCents ?? inv.commissionCents;
           outstandingCount += 1;
         }
         if (inv.status === 'disputed') disputedCount += 1;
@@ -123,7 +124,7 @@ export function createBillingOverviewService(
           ? {
               invoiceId: nextInvoice.id,
               invoiceNumber: nextInvoice.invoiceNumber,
-              amountCents: nextInvoice.commissionCents,
+              amountCents: nextInvoice.totalCents ?? nextInvoice.commissionCents,
               chargeAt: nextInvoice.reviewDueAt.toISOString(),
               cardLast4: card?.hasCard ? (card.last4 ?? null) : null,
             }

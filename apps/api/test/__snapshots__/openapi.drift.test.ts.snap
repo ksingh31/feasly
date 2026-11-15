@@ -367,6 +367,20 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
+      "BuildingForm": {
+        "description": "Building form from the fixed vocabulary.",
+        "enum": [
+          "single-detached",
+          "semi-detached",
+          "duplex",
+          "rowhouse",
+          "townhouse",
+          "secondary-suite",
+          "backyard-suite",
+          "multi-residential",
+        ],
+        "type": "string",
+      },
       "CallbackRequest": {
         "properties": {
           "name": {
@@ -1357,6 +1371,240 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "vancouver",
         ],
         "type": "string",
+      },
+      "ZoningDistrict": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "category": {
+            "enum": [
+              "low-density",
+              "grade-oriented",
+              "multi-residential",
+              "mixed-use",
+              "direct-control",
+              "non-residential",
+            ],
+            "type": "string",
+          },
+          "code": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "coverage": {
+            "description": "covered: forms/rules listed; site-specific: Direct Control (see the DC bylaw); not-covered: a known district Feasly does not describe.",
+            "enum": [
+              "covered",
+              "site-specific",
+              "not-covered",
+            ],
+            "type": "string",
+          },
+          "forms": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "form": {
+                  "$ref": "#/components/schemas/BuildingForm",
+                },
+                "note": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "permission": {
+                  "enum": [
+                    "permitted",
+                    "discretionary",
+                  ],
+                  "type": "string",
+                },
+                "section": {
+                  "description": "Bylaw section reference, e.g. "s. 385(1)(b)".",
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "form",
+                "permission",
+                "section",
+              ],
+              "type": "object",
+            },
+            "type": "array",
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "note": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "rules": {
+            "additionalProperties": false,
+            "description": "Verified key rules only; an absent rule means "see the City's bylaw".",
+            "properties": {
+              "maxDensityUnitsPerHa": {
+                "additionalProperties": false,
+                "description": "Maximum density, units per hectare.",
+                "properties": {
+                  "note": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "section": {
+                    "description": "Bylaw section reference, e.g. "s. 385(1)(b)".",
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "value": {
+                    "minimum": 0,
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "value",
+                  "section",
+                ],
+                "type": "object",
+              },
+              "maxHeightM": {
+                "additionalProperties": false,
+                "description": "Maximum building height, metres.",
+                "properties": {
+                  "note": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "section": {
+                    "description": "Bylaw section reference, e.g. "s. 385(1)(b)".",
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "value": {
+                    "minimum": 0,
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "value",
+                  "section",
+                ],
+                "type": "object",
+              },
+              "maxLotCoveragePct": {
+                "additionalProperties": false,
+                "description": "Maximum parcel coverage, per cent of parcel area.",
+                "properties": {
+                  "note": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "section": {
+                    "description": "Bylaw section reference, e.g. "s. 385(1)(b)".",
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "value": {
+                    "minimum": 0,
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "value",
+                  "section",
+                ],
+                "type": "object",
+              },
+              "maxUnitsOnLot": {
+                "additionalProperties": false,
+                "description": "Fixed maximum number of units on a lot.",
+                "properties": {
+                  "note": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "section": {
+                    "description": "Bylaw section reference, e.g. "s. 385(1)(b)".",
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "value": {
+                    "minimum": 0,
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "value",
+                  "section",
+                ],
+                "type": "object",
+              },
+            },
+            "type": "object",
+          },
+        },
+        "required": [
+          "code",
+          "name",
+          "category",
+          "coverage",
+          "aliases",
+          "forms",
+          "rules",
+        ],
+        "type": "object",
+      },
+      "ZoningDistrictsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bylaw": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "bylawVersion": {
+            "description": "Which text of the bylaw the sections were read from.",
+            "minLength": 1,
+            "type": "string",
+          },
+          "city": {
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string",
+          },
+          "districts": {
+            "items": {
+              "$ref": "#/components/schemas/ZoningDistrict",
+            },
+            "type": "array",
+          },
+          "effectiveDate": {
+            "description": "ISO date the rules took effect.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string",
+          },
+          "sourceUrl": {
+            "description": "The City's bylaw page — where to confirm the rules.",
+            "format": "uri",
+            "type": "string",
+          },
+        },
+        "required": [
+          "city",
+          "effectiveDate",
+          "bylaw",
+          "bylawVersion",
+          "sourceUrl",
+          "districts",
+        ],
+        "type": "object",
       },
     },
     "securitySchemes": {
@@ -4509,6 +4757,117 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Join a waitlist",
+      },
+    },
+    "/v1/zoning/districts": {
+      "get": {
+        "description": "The active zoning rules catalogue for the configured city: for each land-use district, the building forms typically allowed (permitted or discretionary) and key rules (height, lot coverage, density), each with its bylaw section. Only verified values are returned; an absent rule means "see the City's bylaw". Confirm with the City at sourceUrl. Public by design; cached (Cache-Control public).",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoningDistrictsResponse",
+                },
+              },
+            },
+            "description": "Zoning rules catalogue",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "Get the zoning rules catalogue",
       },
     },
   },

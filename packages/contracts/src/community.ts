@@ -4,20 +4,43 @@
  * and margins must never appear here (deny-list scanned in FE-6).
  */
 
-export interface CommunityAggregate {
-  /** kebab-case, unique. */
-  readonly slug: string;
-  readonly name: string;
-  /** Assessment record count — drives the top-N page selection. */
+/** Averages over one subset of a community's assessment records. */
+export interface CommunityAverages {
+  /** Assessment records the averages are built from. */
   readonly count: number;
   /** Average City-assessed value, integer CAD. */
   readonly avgAssessedValue: number;
   readonly avgLotSqft: number;
 }
 
+/**
+ * Which records a community's top-level averages come from (#690):
+ * `detached-semi` = single-detached + semi-detached homes only (the
+ * build-guide basis); `residential` = every residential dwelling record,
+ * used only for communities with too few houses (always profile pages).
+ */
+export type CommunityAveragesBasis = 'detached-semi' | 'residential';
+
+/** Index grouping (#690): established/inner-city vs newer communities. */
+export type CommunityGroup = 'established' | 'newer';
+
+export interface CommunityAggregate extends CommunityAverages {
+  /** kebab-case, unique. */
+  readonly slug: string;
+  readonly name: string;
+  readonly basis?: CommunityAveragesBasis;
+  readonly group?: CommunityGroup;
+  /** City sector from the community boundaries dataset (e.g. "CENTRE"). */
+  readonly sector?: string;
+  /** All residential dwelling records (condos included) — profile-page view. */
+  readonly residential?: CommunityAverages;
+}
+
 export interface CommunityAggregatesFile {
   readonly generatedAt: string;
   readonly costDataVersion: string;
+  /** Hash of the selection config the file was built from (#690). */
+  readonly selectionHash?: string;
   readonly communities: readonly CommunityAggregate[];
 }
 
@@ -149,4 +172,27 @@ export interface CommunityProfileCopy {
    */
   readonly statLabel: string;
   readonly statNote: string;
+}
+
+/**
+ * One card on the community index (#690), from the generated
+ * `community-index.json`: just what the card needs, so the index route
+ * doesn't bundle every community's full aggregates.
+ */
+export interface CommunityIndexEntry {
+  readonly slug: string;
+  /** Display name as the City dataset spells it (e.g. "ALTADORE"). */
+  readonly name: string;
+  readonly type: CommunityType;
+  readonly group: CommunityGroup;
+  /** The figures its page shows (guide: single/semi-detached homes; profile: all residential dwellings). */
+  readonly count: number;
+  readonly avgAssessedValue: number;
+  readonly avgLotSqft: number;
+}
+
+export interface CommunityIndexFile {
+  /** When the underlying aggregates were generated (ISO-8601). */
+  readonly generatedAt: string;
+  readonly communities: readonly CommunityIndexEntry[];
 }

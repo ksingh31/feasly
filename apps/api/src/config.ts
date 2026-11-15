@@ -69,10 +69,15 @@ const EnvSchema = z.object({
   // estimates 20/hr/IP) — env-overridable, never hardcoded per endpoint.
   // Embed traffic is additionally aggregated per tenant so one builder's
   // viral page can't starve the endpoint for everyone else.
+  // #737: the per-tenant default was 20/hr, below the pilot's assumed 1x peak
+  // of 50 estimates/hr (apps/api/loadtest/README.md traffic model), so one
+  // builder's embed would have been throttled at normal traffic. It is now
+  // 600/hr: the 10x target (500/hr) plus 20% headroom. Still a cap per
+  // builder, so one viral page can't starve the endpoint.
   ESTIMATE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
   ESTIMATE_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
   ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
-  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   // Analytics ingest is public by design (story consumer/01), so it gets
   // its own limiter — generous (300/min per IP) but separate from the
   // general API traffic.
@@ -334,6 +339,12 @@ const EnvSchema = z.object({
   LAND_USE_CACHE_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   // Hard cap on what the district lookup can add to a property lookup (p95).
   LAND_USE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
+  // --- Zoning rules catalogue (#687) ---
+  // Which city's catalogue GET /api/v1/zoning/districts serves (a key in
+  // @feasly/zoning ZONING_CATALOGUES). Adding a city = data file + this value.
+  ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
+  // Cache-Control max-age for the catalogue (static per deploy; 1h default).
+  ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -357,6 +368,29 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // --- Sales tax on commission invoices (#714) ---
+  // Owner decision 2026-11-15: Feasly bills through the owner's existing
+  // company; GST at 5%, shown as its own line, priced "commission plus GST"
+  // (tax-exclusive) by default. OFF by default so every figure matches the
+  // pre-tax output until the registration number is configured; production
+  // refuses to start with tax ON and any supplier detail still a placeholder.
+  BILLING_TAX_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Tax rate as a fraction: 0.05 = 5% GST (Alberta).
+  BILLING_TAX_RATE: z.coerce.number().min(0).max(1).default(0.05),
+  BILLING_TAX_LABEL: z.string().trim().min(1).max(32).default('GST'),
+  // 'false' = commission plus tax (default); 'true' = commission includes tax.
+  BILLING_TAX_INCLUSIVE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Supplier details printed on tax invoices. Placeholders until the owner
+  // supplies them (tools/placeholder-allowlist.txt, docs/launch-checklist.md).
+  BILLING_SUPPLIER_LEGAL_NAME: z.string().trim().min(1).default('PLACEHOLDER_SUPPLIER_LEGAL_NAME'),
+  BILLING_SUPPLIER_ADDRESS: z.string().trim().min(1).default('PLACEHOLDER_SUPPLIER_ADDRESS'),
+  BILLING_TAX_REGISTRATION_NUMBER: z.string().trim().min(1).default('PLACEHOLDER_GST_NUMBER'),
   // Flat-plan fields — dormant until BILLING_MODEL=flat.
   BILLING_FLAT_PLAN_NAME: z.string().min(1).default('Builder Standard'),
   BILLING_FLAT_MONTHLY_CENTS: z.coerce.number().int().positive().default(30_000),
@@ -498,7 +532,7 @@ export interface LeadConfig {
 export interface EstimateConfig {
   /** Per-IP limiter for the public estimates endpoint (frozen: 20/hr/IP). */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
-  /** Per-tenant limiter aggregating embed traffic (frozen: 20/hr/tenant). */
+  /** Per-tenant limiter aggregating embed traffic (default 600/hr/tenant: the 10x launch target, #737). */
   readonly tenantRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
@@ -737,6 +771,17 @@ export interface LandUseConfig {
 }
 
 /**
+ * Zoning rules catalogue config (#687). The catalogue itself is data in
+ * `@feasly/zoning`; config only picks the city and the HTTP cache lifetime.
+ */
+export interface ZoningConfig {
+  /** City key of the served catalogue, e.g. 'calgary'. */
+  readonly city: string;
+  /** Cache-Control max-age (seconds) on the public catalogue response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * City-data freshness config (trust-strip/01).
  *
  * The landing trust strip reads "Refreshed <Month Year>" from the
@@ -820,6 +865,11 @@ export interface BillingConfig {
    * webhooks page flags it (#711). Default 24.
    */
   readonly settlementThresholdHours?: number;
+  /**
+   * Sales tax on commission invoices (#714). Absent or `enabled: false` =
+   * no tax: every invoice figure and document matches the pre-tax output.
+   */
+  readonly tax?: BillingTaxConfig;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -837,6 +887,24 @@ export interface BillingConfig {
   readonly stripeFlatPriceId: string | undefined;
   /** True when NODE_ENV=production (live-money guard). */
   readonly isProduction: boolean;
+}
+
+/** Sales tax (GST/HST) applied to commission invoices (#714). */
+export interface BillingTaxConfig {
+  /** When false, new invoices carry no tax (rate 0). */
+  readonly enabled: boolean;
+  /** Tax rate in PERCENT (5 = 5% GST), snapshotted onto each invoice. */
+  readonly ratePercent: number;
+  /** Label printed next to the tax line, e.g. "GST". */
+  readonly label: string;
+  /** false = commission plus tax (default); true = commission includes tax. */
+  readonly inclusive: boolean;
+  /** Supplier legal name printed on tax invoices. */
+  readonly supplierLegalName: string;
+  /** Supplier address printed on tax invoices. */
+  readonly supplierAddress: string;
+  /** GST/HST registration number printed on tax invoices. */
+  readonly registrationNumber: string;
 }
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
@@ -1010,6 +1078,7 @@ export interface ApiConfig {
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
+  readonly zoning: ZoningConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
@@ -1065,6 +1134,50 @@ function enforceStripeTestMode(
     return undefined;
   }
   return secretKey;
+}
+
+/**
+ * #714: a tax invoice without the real supplier details is not a valid tax
+ * invoice. Production with tax ON must have every supplier detail set —
+ * fail fast at startup, naming the variables. Outside production the
+ * placeholders are allowed so the tax path can be exercised in dev.
+ */
+function buildTaxConfig(e: {
+  BILLING_TAX_ENABLED: boolean;
+  BILLING_TAX_RATE: number;
+  BILLING_TAX_LABEL: string;
+  BILLING_TAX_INCLUSIVE: boolean;
+  BILLING_SUPPLIER_LEGAL_NAME: string;
+  BILLING_SUPPLIER_ADDRESS: string;
+  BILLING_TAX_REGISTRATION_NUMBER: string;
+  NODE_ENV: NodeEnv;
+}): BillingTaxConfig {
+  if (e.BILLING_TAX_ENABLED && e.NODE_ENV === 'production') {
+    const unset = (
+      [
+        'BILLING_SUPPLIER_LEGAL_NAME',
+        'BILLING_SUPPLIER_ADDRESS',
+        'BILLING_TAX_REGISTRATION_NUMBER',
+      ] as const
+    ).filter((key) => e[key].startsWith('PLACEHOLDER'));
+    if (unset.length > 0) {
+      throw new Error(
+        'Invalid configuration:\n' +
+          unset
+            .map((key) => `  - ${key}: required when BILLING_TAX_ENABLED=true in production`)
+            .join('\n'),
+      );
+    }
+  }
+  return {
+    enabled: e.BILLING_TAX_ENABLED,
+    ratePercent: Math.round(e.BILLING_TAX_RATE * 100 * 10_000) / 10_000,
+    label: e.BILLING_TAX_LABEL,
+    inclusive: e.BILLING_TAX_INCLUSIVE,
+    supplierLegalName: e.BILLING_SUPPLIER_LEGAL_NAME,
+    supplierAddress: e.BILLING_SUPPLIER_ADDRESS,
+    registrationNumber: e.BILLING_TAX_REGISTRATION_NUMBER,
+  };
 }
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
@@ -1379,6 +1492,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
       httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
     },
+    zoning: {
+      city: e.ZONING_CITY,
+      cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
+    },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       datasetId: e.SOCRATA_DATASET_ID,
@@ -1392,6 +1509,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
+      tax: buildTaxConfig(e),
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
