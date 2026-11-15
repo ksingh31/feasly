@@ -131,12 +131,12 @@ export class PreviewPageComponent implements OnInit {
 
   /** Blurred pre-gate range, rounded: "$3.24M – $3.39M" / "$608,000 – $735,000" (#504). */
   protected previewRange(range: CostRange): string {
-    return formatCompactRange(range);
+    return formatCompactRange(range, this.config.get('limits').estimateRoundingStep);
   }
 
   /** Blurred secondary base figure, e.g. "$3.31M" (#504). */
   protected formatCompact(value: number): string {
-    return formatCompactCad(value);
+    return formatCompactCad(value, this.config.get('limits').estimateRoundingStep);
   }
   /** Full-page error card only when nothing loaded yet. */
   protected readonly loadFailed = computed(() => this.status() === 'error' && this.preview() === null);

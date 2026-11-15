@@ -497,6 +497,13 @@ export interface AppConfig {
     maxLotSizeSqft: number;
     minAssessedLandValue: number;
     maxAssessedLandValue: number;
+    /**
+     * Display rounding step (whole dollars) for consumer estimate figures
+     * (#504, #608): no estimate renders more precise than this. Mirrors the
+     * top-level `roundTo` of the pinned cost-data file;
+     * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
+     */
+    estimateRoundingStep: number;
   };
   /** Analytics consent. */
   analytics: {

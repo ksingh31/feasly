@@ -98,6 +98,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     maxLotSizeSqft: 20000,
     minAssessedLandValue: 25000,
     maxAssessedLandValue: 10000000,
+    /**
+     * Display rounding step for estimate figures (#504, #608). Mirror of the
+     * cost-data top-level `roundTo` — the drift spec keeps them equal.
+     */
+    estimateRoundingStep: 1000,
   },
   analytics: {
     enabled: false,

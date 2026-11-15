@@ -216,6 +216,8 @@ class PdfLayout {
     private readonly useHeadingFont: boolean,
     private readonly useBodyFont: boolean,
     private readonly useBodyBoldFont: boolean,
+    /** Estimate display rounding step (ConfigService limits, #608). */
+    private readonly roundingStep: number,
   ) {
     this.paintBackground();
   }
@@ -462,7 +464,7 @@ class PdfLayout {
   bucketRow(width: number, bucket: CostBucket): Atom {
     const labelRun: TextRun = { font: 'body', bold: false, size: 11, color: THEME.text };
     const amountRun: TextRun = { font: 'body', bold: true, size: 11, color: THEME.text };
-    const amount = formatRoundedCad(bucket.range.base);
+    const amount = formatRoundedCad(bucket.range.base, this.roundingStep);
     const labelLines = this.lines(bucket.label, labelRun, width - 170);
     const height = Math.max(14, labelLines.length * labelRun.size * 1.35) + 8;
     return {
@@ -732,7 +734,8 @@ export class ReportPdfService {
       useBodyBold = true;
     }
 
-    const L = new PdfLayout(doc, useHeading, useBody, useBodyBold);
+    const roundingStep = this.config.get('limits').estimateRoundingStep;
+    const L = new PdfLayout(doc, useHeading, useBody, useBodyBold, roundingStep);
     const snap = input.snapshot;
     const reportCopy = this.config.get('copy').report;
     const w = L.contentW;
@@ -770,13 +773,13 @@ export class ReportPdfService {
     L.card(
       [
         L.eyebrow(inner, reportCopy.totalLabel),
-        L.heroFigure(inner, formatCompactRange(snap.totalRange)),
+        L.heroFigure(inner, formatCompactRange(snap.totalRange, roundingStep)),
         L.mixed(
           inner,
           [
             { text: `${reportCopy.mostLikelyPdfLabel} `, run: muted(11.5) },
             {
-              text: formatCompactCad(snap.totalRange.base),
+              text: formatCompactCad(snap.totalRange.base, roundingStep),
               run: { font: 'body', bold: true, size: 11.5, color: THEME.text },
             },
           ],
@@ -797,8 +800,8 @@ export class ReportPdfService {
     const colInner = (w - 12) / 2 - 40;
     const buildAtoms: Atom[] = [
       L.eyebrow(colInner, reportCopy.buildLabel),
-      L.figure(colInner, formatCompactRange(snap.buildRange)),
-      L.text(colInner, `${reportCopy.mostLikelyPdfLabel} ${formatCompactCad(snap.buildRange.base)}`, muted(10), 6),
+      L.figure(colInner, formatCompactRange(snap.buildRange, roundingStep)),
+      L.text(colInner, `${reportCopy.mostLikelyPdfLabel} ${formatCompactCad(snap.buildRange.base, roundingStep)}`, muted(10), 6),
       L.text(colInner, reportCopy.buildCostNote, muted(9.5), 6),
     ];
     if (!isReno && snap.inputs.sqft > 0) {

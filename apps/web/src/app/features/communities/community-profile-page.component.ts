@@ -3,13 +3,14 @@ import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type { CommunityProfileCopy, CommunityProfileView, DwellingBucket } from '@feasly/contracts';
+import { ConfigService } from '../../core/config';
 import { formatRoundedCad, formatWholeCad } from '../../shared/utils/money';
 import { ClearProfilePropertyContext } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 
-/** Community averages, rounded to $1,000 (#504). */
-function formatCad(value: number): string {
-  return formatRoundedCad(value);
+/** Community averages, rounded to the estimate display step (#504, #608). */
+function formatCad(value: number, roundingStep: number): string {
+  return formatRoundedCad(value, roundingStep);
 }
 
 function mixPct(view: CommunityProfileView, bucket: DwellingBucket): string {
@@ -27,6 +28,8 @@ function mixPct(view: CommunityProfileView, bucket: DwellingBucket): string {
 export function resolveProfileCopy(
   raw: CommunityProfileCopy,
   view: CommunityProfileView,
+  /** ConfigService `limits.estimateRoundingStep` (#608). */
+  roundingStep: number,
 ): CommunityProfileCopy {
   // NOTE: replaceAll, not replace — several templates contain the same
   // placeholder twice (e.g. {name} in the lede), and String.replace only
@@ -35,7 +38,7 @@ export function resolveProfileCopy(
     s
       .replaceAll('{name}', view.displayName)
       .replaceAll('{year}', view.assessmentYear)
-      .replaceAll('{avgAssessed}', formatCad(view.avgAssessedValue))
+      .replaceAll('{avgAssessed}', formatCad(view.avgAssessedValue, roundingStep))
       .replaceAll('{multiPct}', mixPct(view, 'multiFamily'))
       .replaceAll('{semiPct}', mixPct(view, 'semiDuplex'))
       .replaceAll('{singlePct}', mixPct(view, 'singleDetached'));
@@ -73,6 +76,7 @@ export function resolveProfileCopy(
 })
 export class CommunityProfilePageComponent {
   private readonly store = inject(Store);
+  private readonly config = inject(ConfigService);
   readonly view = input.required<CommunityProfileView>();
   /** Fully-resolved copy (placeholders filled) — render verbatim. */
   readonly copy = input.required<CommunityProfileCopy>();
@@ -125,7 +129,7 @@ export class CommunityProfilePageComponent {
   }
 
   formatCad(value: number): string {
-    return formatCad(value);
+    return formatCad(value, this.config.get('limits').estimateRoundingStep);
   }
 
   /** The visitor's own City-assessed value — a City fact, shown exactly. */
