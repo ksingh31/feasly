@@ -103,6 +103,9 @@ describe('SampleReportPageComponent', () => {
     expect(landCard).not.toBeNull();
     expect(landCard.textContent).toContain('$165,000');
     expect(landCard.textContent).toContain('City of Calgary assessment · not a market price');
+    // #505: same honest label + existing-home note as the real report.
+    expect(landCard.textContent).toContain('City-assessed property value (land + existing home)');
+    expect(landCard.textContent).toContain('Includes the current house; teardown value may differ.');
     // No range dash in the land figure.
     const figure = landCard.querySelector('.figure-single');
     expect(figure.textContent.trim()).toBe('$165,000');

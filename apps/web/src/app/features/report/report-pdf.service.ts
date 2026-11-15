@@ -832,6 +832,7 @@ export class ReportPdfService {
         [
           L.eyebrow(colInner, reportCopy.landLabel),
           L.figure(colInner, formatWholeCad(snap.landValue.value)),
+          L.text(colInner, reportCopy.landHouseNote, muted(9.5), 0),
           L.text(colInner, reportCopy.landFixedNote, muted(9.5), 0),
         ],
         { fill: THEME.brassWash, border: THEME.brass, borderWidth: 1.5 },

@@ -23,8 +23,22 @@ export class PropertyCardComponent {
 
   readonly property = input.required<PropertyRecord | null>();
 
+  /**
+   * Show the "includes the current house" note under the facts (#505).
+   * Off for renovations: the house stays, so the teardown caveat is moot.
+   */
+  readonly showLandNote = input(true);
+
   /** True while the mock property harness serves the data (never claim live data). */
   protected readonly isMockData = this.config.get('propertyData').source === 'mock';
+
+  /**
+   * Honest label for the City-assessed figure: it covers the lot AND the
+   * existing house (consumer review M2, #505). Same config copy as the
+   * report's land card — one source, no duplicate strings.
+   */
+  protected readonly landLabel = this.config.get('copy').report.landLabel;
+  protected readonly landHouseNote = this.config.get('copy').report.landHouseNote;
 
   /** Mock-mode freshness copy (config-owned, no hardcode). */
   protected readonly freshnessMock = this.config.get('copy').propertyCard.freshnessMock;

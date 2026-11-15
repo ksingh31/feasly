@@ -251,6 +251,18 @@ describe('ReportPageComponent', () => {
       expect(unlock?.getAttribute('href')).toBe('/estimate/gate');
     });
 
+    it('labels the locked land figure honestly with the existing-home note (#505)', () => {
+      const copy = DEFAULT_APP_CONFIG.copy.report;
+      expect(copy.landLabel).toBe('City-assessed property value (land + existing home)');
+      expect(text()).toContain(copy.landLabel);
+      const note = fixture.nativeElement.querySelector('.locked .land-house-note');
+      expect(note?.textContent?.trim()).toBe(
+        'Includes the current house; teardown value may differ.',
+      );
+      // The note is plain readable copy, never blurred.
+      expect(getComputedStyle(note).filter).not.toContain('blur');
+    });
+
     it('keeps the stepper visible but disabled behind the gate (no revise without a token)', () => {
       const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
       expect(stepper).not.toBeNull();
@@ -567,6 +579,13 @@ describe('ReportPageComponent', () => {
       // City assessed value ($823,000), not a canned constant.
       expect(landCard.textContent).toContain('$823,000');
       expect(landCard.textContent).toContain('City of Calgary assessment · not a market price');
+      // #505: honest label + existing-home note on the unlocked report.
+      expect(landCard.querySelector('h2')?.textContent).toContain(
+        'City-assessed property value (land + existing home)',
+      );
+      expect(landCard.querySelector('.land-house-note')?.textContent?.trim()).toBe(
+        'Includes the current house; teardown value may differ.',
+      );
       expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
     });
 

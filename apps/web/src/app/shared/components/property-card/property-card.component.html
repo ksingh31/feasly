@@ -4,7 +4,7 @@
         <p class="pcard-community">{{ p.community }} · Calgary</p>
         <dl class="pcard-facts">
           <div>
-            <dt>Assessed value</dt>
+            <dt>{{ landLabel }}</dt>
             <dd>
               {{ formatCad(p.assessedValue) }}
               @if (p.stale) {
@@ -25,6 +25,9 @@
             <dd>{{ p.yearBuilt ?? '—' }}</dd>
           </div>
         </dl>
+        @if (showLandNote()) {
+          <p class="pcard-land-note">{{ landHouseNote }}</p>
+        }
         <p class="pcard-freshness">
           @if (isMockData) {
             {{ freshnessMock }}

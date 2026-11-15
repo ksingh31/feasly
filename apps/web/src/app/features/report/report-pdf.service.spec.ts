@@ -398,6 +398,8 @@ describe('ReportPdfService', () => {
     // Land keeps its own fixed figure via the shared land label (eyebrows
     // render uppercased, like the sample report page's text-transform).
     expect(text).toContain(reportCopy().landLabel.toUpperCase());
+    // #505: the printed land card carries the existing-home note too.
+    expect(text).toContain(reportCopy().landHouseNote);
   });
 
   it('keeps every text run inside the right margin (PR #424 guarantee)', async () => {
