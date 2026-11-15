@@ -581,6 +581,8 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             // nor calls/messages-opted-out leads are nudge candidates.
             isNull(leads.unsubscribedAt),
             isNull(leads.contactOptOutAt),
+            // #793: sandbox (feasly_test_) leads never receive real email.
+            eq(leads.sandbox, false),
           ),
         )
         .orderBy(leads.createdAt)

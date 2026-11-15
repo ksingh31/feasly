@@ -310,6 +310,19 @@ describe('nudge service (email/02)', () => {
     expect(world.nudges).toHaveLength(0);
   });
 
+  it('#793: sandbox leads get no nudge (no real email for test-key traffic)', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture({ sandbox: true }));
+    world.links.push(linkRecord());
+    const { service } = makeService(world);
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 0, skipped: 1 });
+    expect(world.nudges).toHaveLength(0);
+    expect(world.issued).toBe(0);
+  });
+
   it('AC5: the nudge carries the fresh link and the one-click unsubscribe URL', async () => {
     const world = makeWorld();
     world.leads.set('lead-1', leadFixture());

@@ -168,6 +168,33 @@ describe('#793 sandbox writes (PGlite)', () => {
     expect(email.sends).toHaveLength(1);
   });
 
+  it('the nudge timer never picks a sandbox lead as a candidate', async () => {
+    const { estimate, leads } = services();
+    const body = { name: 'Nudge', timeline: 'exploring', marketingConsent: false };
+    const sbEst = await estimate.estimate(ESTIMATE_BODY, { sandbox: true });
+    if (!('estimateId' in sbEst)) throw new Error('expected an estimate response');
+    const sandbox = await leads.submitLead(
+      { ...body, email: 'nudge-sandbox@example.com', estimateId: sbEst.estimateId },
+      { sandbox: true },
+    );
+    const liveEst = await estimate.estimate(ESTIMATE_BODY);
+    if (!('estimateId' in liveEst)) throw new Error('expected an estimate response');
+    const live = await leads.submitLead({
+      ...body,
+      email: 'nudge-live@example.com',
+      estimateId: liveEst.estimateId,
+    });
+
+    const candidates = await createDrizzleLeadStore({ db: testDb.db }).findNudgeCandidates({
+      createdAfter: new Date(Date.now() - 60 * 60_000),
+      createdBefore: new Date(Date.now() + 60_000),
+      limit: 1000,
+    });
+    const ids = candidates.map((c) => c.id);
+    expect(ids).toContain(live.leadId);
+    expect(ids).not.toContain(sandbox.leadId);
+  });
+
   it('a sandbox lead never dedupes onto a real lead for the same email + property', async () => {
     const { estimate, leads } = services();
     const body = {
