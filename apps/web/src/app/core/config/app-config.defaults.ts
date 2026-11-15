@@ -112,6 +112,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   admin: {
     defaultRateLimit: 60,
+    // Per-deploy: the served app-config.json sets it (empty hides the chip).
+    environmentLabel: '',
     /**
      * Microsoft Entra External ID (auth/02 pivot). Placeholders — the
      * backend team provides the real tenant values (ENTRA_TENANT_SUBDOMAIN,
@@ -1207,6 +1209,37 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       },
     },
     admin: {
+      shell: {
+        brand: 'Feasly Admin',
+        homeLabel: 'Feasly Admin home',
+        navLabel: 'Admin',
+        groups: { pipeline: 'Pipeline', partners: 'Partners', money: 'Money', system: 'System' },
+        nav: {
+          leads: 'Leads',
+          estimates: 'Estimates',
+          builders: 'Builders',
+          users: 'Users & access',
+          apiKeys: 'API keys',
+          billing: 'Billing overview',
+          invoices: 'Invoices',
+          disputes: 'Disputes',
+          calibration: 'Calibration',
+          sheets: 'Sheets sync',
+          funnels: 'Funnels',
+        },
+        badgeSuffix: 'open',
+        openMenu: 'Open menu',
+        closeMenu: 'Close menu',
+        collapseSidebar: 'Collapse sidebar',
+        expandSidebar: 'Expand sidebar',
+        breadcrumbLabel: 'Breadcrumb',
+        searchLabel: 'Search',
+        searchShortcut: '⌘K',
+        searchComingSoon: 'Command search is coming soon.',
+        environmentLabel: 'Environment',
+        userMenuLabel: 'Account',
+        signOut: 'Sign out',
+      },
       apiKeys: {
         title: 'API keys',
         subtitle: 'Issue, rotate, and revoke keys for the public API. Plaintext is shown once — never again.',

@@ -518,6 +518,11 @@ export interface AppConfig {
     /** Default per-minute rate limit prefilled in the issue form. */
     defaultRateLimit: number;
     /**
+     * Environment chip in the admin top bar (#503), e.g. "Dev". Empty hides
+     * the chip. Per-deploy value: set in the served app-config.json.
+     */
+    environmentLabel: string;
+    /**
      * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
      * deploy-time values — the compiled defaults are placeholders that
      * MUST be replaced in app-config.json before the Entra flow can start.
@@ -1433,6 +1438,44 @@ export interface AppConfig {
      * copy lives here so the no-hardcode tripwire stays green.
      */
     admin: {
+      /**
+       * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
+       * ⌘K placeholder. Nav labels are keyed by the item ids in
+       * features/admin/admin-nav.ts.
+       */
+      shell: {
+        brand: string;
+        homeLabel: string;
+        navLabel: string;
+        groups: { pipeline: string; partners: string; money: string; system: string };
+        nav: {
+          leads: string;
+          estimates: string;
+          builders: string;
+          users: string;
+          apiKeys: string;
+          billing: string;
+          invoices: string;
+          disputes: string;
+          calibration: string;
+          sheets: string;
+          funnels: string;
+        };
+        /** Screen-reader suffix for a queue badge, e.g. "3 open". */
+        badgeSuffix: string;
+        openMenu: string;
+        closeMenu: string;
+        collapseSidebar: string;
+        expandSidebar: string;
+        breadcrumbLabel: string;
+        searchLabel: string;
+        searchShortcut: string;
+        /** Shown when the ⌘K placeholder is used before the palette ships. */
+        searchComingSoon: string;
+        environmentLabel: string;
+        userMenuLabel: string;
+        signOut: string;
+      };
       funnels: {
         /** Page heading. */
         title: string;

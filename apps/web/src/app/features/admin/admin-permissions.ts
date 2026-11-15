@@ -19,6 +19,8 @@ export const ADMIN_PERMISSIONS = {
   leadsAssign: 'leads:assign',
   /** Create/manage builders. */
   buildersManage: 'builders:manage',
+  /** Read billing: overview, invoices, the open-disputes queue. */
+  billingRead: 'billing:read',
   /** Retry charges, create/mark-paid/rate-override invoices, resolve disputes. */
   billingManage: 'billing:manage',
   /** Issue/revoke MCP API keys. */
