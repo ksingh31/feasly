@@ -145,14 +145,17 @@ function makeDeps() {
     updateStatusForBuilder: async ({
       id,
       builderId,
+      expectedStatus,
       status,
     }: {
       id: string;
       builderId: string;
+      expectedStatus: string;
       status: string;
     }) => {
+      // Mirrors the SQL compare-and-set (#620): WHERE id AND builder_id AND status.
       const lead = leads.get(id);
-      if (!lead || lead.builderId !== builderId) return null;
+      if (!lead || lead.builderId !== builderId || lead.status !== expectedStatus) return null;
       const updated = { ...lead, status, updatedAt: new Date() };
       leads.set(id, updated);
       return updated;
@@ -340,6 +343,52 @@ describe('builder-leads service (embed/09)', () => {
     expect(statusHistory).toHaveLength(0);
   });
 
+  it('two concurrent identical transitions append ONE history row (#620)', async () => {
+    const { service, statusHistory, leads } = makeDeps();
+    const results = await Promise.all([
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'a@example.com'),
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'b@example.com'),
+    ]);
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(leads.get('lead-1')?.status).toBe('quoted');
+    expect(statusHistory).toHaveLength(1);
+    expect(statusHistory[0]).toMatchObject({ oldStatus: 'new', newStatus: 'quoted' });
+  });
+
+  it('losing the race to the same transition succeeds without a history row (#620)', async () => {
+    const { service, statusHistory, leads, leadStore } = makeDeps();
+    // The read sees 'new', but another request already wrote 'contacted'.
+    const stale = leads.get('lead-1')!;
+    leads.set('lead-1', { ...stale, status: 'contacted' });
+    const realFind = leadStore.findByIdAndBuilderId;
+    leadStore.findByIdAndBuilderId = vi
+      .fn(realFind)
+      .mockResolvedValueOnce(stale);
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'contacted' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(statusHistory).toHaveLength(0);
+  });
+
+  it('losing the race to a different transition throws 409 CONFLICT and writes nothing (#620)', async () => {
+    const { service, statusHistory, leads, leadStore } = makeDeps();
+    const stale = leads.get('lead-1')!;
+    leads.set('lead-1', { ...stale, status: 'lost' });
+    const realFind = leadStore.findByIdAndBuilderId;
+    leadStore.findByIdAndBuilderId = vi
+      .fn(realFind)
+      .mockResolvedValueOnce(stale);
+    await expect(
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'builder@example.com'),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(leads.get('lead-1')?.status).toBe('lost');
+    expect(statusHistory).toHaveLength(0);
+  });
+
   it('updateStatus rejects invalid status with 400', async () => {
     const { service } = makeDeps();
     await expect(
@@ -404,6 +453,50 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
     expect(result.billing).toMatchObject({ billed: true });
     // The pipeline status still transitions.
     expect(leads.get('lead-1')?.status).toBe('won');
+  });
+
+  it('an invoiced won that loses the race to a different status still lands on won (#620)', async () => {
+    const { service, recordBillableEvent, leads, statusHistory } = makeBillingDeps({
+      billed: true,
+      reason: undefined,
+    });
+    // The read sees 'new'; another request moves the lead to 'lost' while
+    // billing runs — after the invoice exists.
+    recordBillableEvent.mockImplementationOnce(async () => {
+      const lead = leads.get('lead-1')!;
+      leads.set('lead-1', { ...lead, status: 'lost' });
+      return { billed: true, reason: undefined } as never;
+    });
+    const result = await service.updateStatus(
+      'lead-1',
+      {
+        status: 'won',
+        contractValueCents: 50_000_000,
+        contractSignedAt: '2026-09-20T10:00:00.000Z',
+      },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(result.billing).toMatchObject({ billed: true });
+    expect(leads.get('lead-1')?.status).toBe('won');
+    expect(statusHistory).toEqual([
+      expect.objectContaining({ oldStatus: 'lost', newStatus: 'won' }),
+    ]);
+  });
+
+  it('an un-invoiced won that loses the race to a different status still gets 409 (#620)', async () => {
+    const { service, recordBillableEvent, leads, statusHistory } = makeBillingDeps();
+    recordBillableEvent.mockImplementationOnce(async () => {
+      const lead = leads.get('lead-1')!;
+      leads.set('lead-1', { ...lead, status: 'lost' });
+      return { billed: false, reason: 'awaiting_contract_details' } as never;
+    });
+    await expect(
+      service.updateStatus('lead-1', { status: 'won' }, 'elite-craft', 'builder@example.com'),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(leads.get('lead-1')?.status).toBe('lost');
+    expect(statusHistory).toHaveLength(0);
   });
 
   it('won without contract details still calls the hook (parked invoice)', async () => {
@@ -948,6 +1041,26 @@ describe('builder-leads markWon → needs recording (#530)', () => {
     });
     expect(sent).toEqual([]);
     expect(statusHistory).toEqual([]);
+  });
+
+  it('two concurrent "Mark won" clicks notify admins ONCE (#620)', async () => {
+    const { service, leads, sent, statusHistory } = makeMarkWonService();
+    const results = await Promise.all([
+      service.markWon('lead-1', 'elite-craft', 'member@elite.example'),
+      service.markWon('lead-1', 'elite-craft', 'other@elite.example'),
+    ]);
+    expect(leads.get('lead-1')?.status).toBe('won');
+    expect(statusHistory).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+    expect(results.filter((r) => r.changed)).toHaveLength(1);
+    const loser = results.find((r) => !r.changed);
+    expect(loser).toEqual({
+      ok: true,
+      status: 'won',
+      needsRecording: true,
+      changed: false,
+      adminsNotified: 0,
+    });
   });
 
   it('a lead with a recorded contract is rejected with 409 LEAD_STATUS_LOCKED', async () => {
