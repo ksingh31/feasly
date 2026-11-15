@@ -112,6 +112,10 @@ describe('loadConfig', () => {
         // Worst case with in-code retries: 7+1+7+1+7 = 23s, inside the
         // frontend gate-submit timeout (25s).
         sendMaxAttempts: 3,
+        // #750 owner decision 2026-11-15: 300/day, alert at 80%.
+        dailyCap: 300,
+        dailyCapAlertRatio: 0.8,
+        outboxMaxAgeMs: 48 * 60 * 60 * 1000,
         appBaseUrl: 'https://feasly.example',
         unsubscribeUrlBase: 'https://feasly.example/unsubscribe',
         unsubscribeTokenSecret: undefined,
@@ -201,6 +205,7 @@ describe('loadConfig', () => {
         apiKey: '',
         models: ['gemini-3.8-flash'],
         timeoutMs: 20_000,
+        dailyLlmCap: 300,
         endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         fallback: {
           endpoint: 'https://api.groq.com/openai/v1',

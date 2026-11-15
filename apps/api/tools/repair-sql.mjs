@@ -783,6 +783,27 @@ ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "window_start" timest
 ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 CREATE INDEX IF NOT EXISTS "rate_limit_counters_expires_at_idx" ON "rate_limit_counters" USING btree ("expires_at");
+CREATE TABLE IF NOT EXISTS "email_outbox" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"to_address" text NOT NULL,
+	"subject" text NOT NULL,
+	"html" text NOT NULL,
+	"body_text" text NOT NULL,
+	"headers" jsonb,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "to_address" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "subject" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "html" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "body_text" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "headers" jsonb;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "last_error" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "email_outbox_created_at_idx" ON "email_outbox" USING btree ("created_at");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

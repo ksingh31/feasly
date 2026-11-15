@@ -130,6 +130,11 @@ param builderEntraUserFlow string = ''
 @description('Key Vault secret URI (versionless) for the builder-portal client secret used in the builder sign-in token exchange (confidential client). Empty = not configured; the builder Entra callback fails closed. The raw secret is provisioned in Key Vault outside Bicep — Bicep only references it, never writes it.')
 param builderEntraClientSecretUri string = ''
 
+@description('Flex Consumption scale-out ceiling (#750, owner 2026-11-15: 10). Bounds worst-case spend under abuse; raise only with owner approval.')
+@minValue(1)
+@maxValue(1000)
+param maximumInstanceCount int = 10
+
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
@@ -552,7 +557,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
         }
       }
       scaleAndConcurrency: {
-        maximumInstanceCount: 100
+        maximumInstanceCount: maximumInstanceCount
         instanceMemoryMB: 2048
       }
     }

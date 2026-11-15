@@ -110,13 +110,30 @@ limiter, in-memory or shared. It takes:
 New rate-limited routes should reuse this. Put a route on the shared store
 when abuse costs money or sends mail.
 
-## Not yet covered (tracked on #729)
+## Global daily circuit breakers (#750)
 
-These need owner input and are not implemented yet:
+Owner decisions, 2026-11-15. Each daily cap counts in `rate_limit_counters`
+(key `daily-cap:<scope>`, UTC day window), so it holds across instances.
 
-- global daily caps for LLM calls and outbound email;
-- a lower Function App `maximumInstanceCount`;
-- whether to add a bot challenge.
+| Breaker | Config | Default | Past the cap | Alert |
+|---|---|---|---|---|
+| LLM narratives | `NARRATIVE_DAILY_LLM_CAP` | 300/day | static Calgary guide (figures still from the engine) | `llm_daily_cap_reached`, on the first refusal |
+| Outbound email | `EMAIL_DAILY_CAP` | 300/day | queued in `email_outbox`; the `email-outbox-timer` (every 15 min) sends it when budget frees up | `email_daily_cap_near` at `EMAIL_DAILY_CAP_ALERT_RATIO` (0.8) |
+
+- Both fail closed: if the counter store is unreachable, narratives get the
+  static guide and capped mail is queued.
+- Ops alerts and billing notices count toward the email cap but are never
+  queued.
+- Queued rows hold a recipient address. They are deleted once sent and
+  dropped unsent after `EMAIL_OUTBOX_MAX_AGE_HOURS` (48).
+- Narratives are reused across estimates with the same address, inputs,
+  figures and cost-data version, so repeat lookups cost nothing.
+- Function App scale-out is capped at `maximumInstanceCount` = 10
+  (`infra/bicep/modules/function-app.bicep`).
+
+Bot protection stays invisible (honeypot + shared limits). A minimum
+time-to-submit check and a challenge shown only after a limit trips are
+tracked separately.
 
 ## Per-route limits (generated)
 

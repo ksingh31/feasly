@@ -1621,3 +1621,31 @@ export const rateLimitCounters = pgTable(
   },
   (t) => [index('rate_limit_counters_expires_at_idx').on(t.expiresAt)],
 );
+
+/**
+ * Outbound email queue for the daily email cap (#750).
+ *
+ * When the global daily email cap is reached, non-exempt mail is rendered
+ * and parked here; the email-outbox timer sends it oldest-first once the
+ * next day's budget opens. Rows carry the recipient address and the
+ * rendered body (which can hold a single-use link), so they are deleted as
+ * soon as they are sent and dropped unsent after EMAIL_OUTBOX_MAX_AGE_HOURS.
+ */
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    toAddress: text('to_address').notNull(),
+    subject: text('subject').notNull(),
+    html: text('html').notNull(),
+    bodyText: text('body_text').notNull(),
+    headers: jsonb('headers').$type<Record<string, string> | null>(),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('email_outbox_created_at_idx').on(t.createdAt)],
+);
