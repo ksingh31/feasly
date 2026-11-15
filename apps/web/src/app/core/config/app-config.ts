@@ -9,7 +9,14 @@
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
 import type { DataFreshnessCopy } from '../data-freshness/data-freshness';
-import type { BasementOption, CallbackWindow, FinishTier, GarageOption, TimelineOption } from '@feasly/contracts';
+import type {
+  BasementOption,
+  CallbackWindow,
+  FinishTier,
+  GarageOption,
+  TimelineOption,
+  WaitlistTopic,
+} from '@feasly/contracts';
 
 /**
  * One trust-strip stat block on the landing page: a big display value with a
@@ -434,8 +441,14 @@ export interface AppConfig {
   features: {
     /** Show the "view sample report" entry point. */
     sampleReport: boolean;
-    /** Show the renovation waitlist capture instead of the estimator. */
+    /**
+     * #520 (D-P4): badge the Renovation card "Coming soon" on the scope step
+     * and capture an email there instead of sending users through the reno
+     * scope form to a dead end.
+     */
     renovationWaitlist: boolean;
+    /** #520 (D-P4): notify-me capture (Toronto/Vancouver) on the out-of-coverage state. */
+    cityWaitlist: boolean;
   };
   /**
    * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
@@ -702,6 +715,10 @@ export interface AppConfig {
       scopeProjectTypes: { id: 'new-build' | 'renovation'; name: string; blurb: string }[];
       /** Shown under the cards when Renovation is selected (no prices, ever). */
       renoSelectedNote: string;
+      /** #520: badge on the Renovation card while `features.renovationWaitlist` is on. */
+      renoComingSoonBadge: string;
+      /** #520: secondary action under the reno waitlist — back to the working flow. */
+      renoNewBuildCta: string;
       /** Placeholder for the reno scope-inputs step until RENO-03 builds it. */
       renoScopePendingTitle: string;
       renoScopePendingBody: string;
@@ -1120,6 +1137,28 @@ export interface AppConfig {
       retryLabel: string;
       /** Back link out of the analyzing screen (the pipeline must never trap the user). */
       backLabel: string;
+    };
+    /** #520 waitlist capture (renovation + other cities). Shared form copy. */
+    waitlist: {
+      emailLabel: string;
+      emailPlaceholder: string;
+      submitLabel: string;
+      sendingLabel: string;
+      invalidEmail: string;
+      error: string;
+      /** What the email is used for (shown under the field). */
+      privacyNote: string;
+      /** Shown after a successful signup, per topic. */
+      successByTopic: Record<WaitlistTopic, string>;
+      renovation: { heading: string; body: string };
+      city: {
+        heading: string;
+        body: string;
+        /** Legend for the city choice. */
+        topicLabel: string;
+        /** City choices, in display order. `match` preselects from the typed address. */
+        cities: { id: WaitlistTopic; name: string; match: string }[];
+      };
     };
     /** Renovation coming-soon page (reno out of launch scope, Karan 2026-09-27). */
     renoComingSoon: {

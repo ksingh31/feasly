@@ -462,6 +462,10 @@ const targets = [
     out: 'callbacks/index.js',
   },
   {
+    entry: 'src/functions/waitlist.ts',
+    out: 'waitlist/index.js',
+  },
+  {
     entry: 'src/functions/shares.ts',
     out: 'shares/index.js',
   },

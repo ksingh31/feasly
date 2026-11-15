@@ -404,6 +404,13 @@ describe('MockApiService', () => {
       expect(res).toEqual({ ok: true, window: 'morning' });
     });
 
+    it('joinWaitlist echoes the topic', async () => {
+      const res = await firstValueFrom(
+        service.joinWaitlist({ email: 'a@example.com', topic: 'renovation' }),
+      );
+      expect(res).toEqual({ ok: true, topic: 'renovation' });
+    });
+
     it('shareWithPartner echoes the recipient', async () => {
       const res = await firstValueFrom(
         service.shareWithPartner({ reportToken: 'mock-x', partnerEmail: 'partner@example.com' }),

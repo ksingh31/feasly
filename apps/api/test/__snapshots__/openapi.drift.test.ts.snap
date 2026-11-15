@@ -1253,6 +1253,49 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
+      "WaitlistRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string",
+          },
+          "topic": {
+            "$ref": "#/components/schemas/WaitlistTopic",
+          },
+        },
+        "required": [
+          "email",
+          "topic",
+        ],
+        "type": "object",
+      },
+      "WaitlistResponse": {
+        "properties": {
+          "ok": {
+            "enum": [
+              true,
+            ],
+            "type": "boolean",
+          },
+          "topic": {
+            "$ref": "#/components/schemas/WaitlistTopic",
+          },
+        },
+        "required": [
+          "ok",
+          "topic",
+        ],
+        "type": "object",
+      },
+      "WaitlistTopic": {
+        "enum": [
+          "renovation",
+          "toronto",
+          "vancouver",
+        ],
+        "type": "string",
+      },
     },
     "securitySchemes": {
       "AdminKey": {
@@ -3492,6 +3535,90 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Stripe webhook receiver",
+      },
+    },
+    "/v1/waitlist": {
+      "post": {
+        "description": "Records a "tell me when it's ready" signup for renovation estimates or a city outside Calgary. Idempotent per (email, topic): a repeat signup returns the same 200, so membership is never revealed.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistResponse",
+                },
+              },
+            },
+            "description": "Signup recorded (or already on the list)",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "Join a waitlist",
       },
     },
   },

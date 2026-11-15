@@ -300,7 +300,7 @@ describe('AddressAutocompleteComponent', () => {
       expect(box?.textContent).toContain(BODY);
     });
 
-    it('collects no email on the out-of-coverage state (no input, no POST)', async () => {
+    it('collects no email on the out-of-coverage state unless the host opts in (embed default)', async () => {
       const fixture = create();
       await type(fixture, '123 King St W, Toronto');
       const box = fixture.nativeElement.querySelector('.ac-out-of-coverage');
@@ -314,6 +314,39 @@ describe('AddressAutocompleteComponent', () => {
       // …and no HTTP traffic beyond the lookup itself (mock mode makes no
       // HTTP calls at all; assert none were attempted).
       httpMock.expectNone(() => true);
+    });
+
+    it('#520: with [waitlist] on, offers the city notify-me below the alert, city preselected', async () => {
+      const fixture = create();
+      fixture.componentRef.setInput('waitlist', true);
+      await type(fixture, '1055 W Georgia St, Vancouver');
+      const signup: HTMLElement | null = fixture.nativeElement.querySelector(
+        'app-waitlist-signup[variant="city"]',
+      );
+      expect(signup).not.toBeNull();
+      // Outside the role="alert" box: a form inside an alert is re-announced.
+      expect(fixture.nativeElement.querySelector('.ac-out-of-coverage app-waitlist-signup')).toBeNull();
+      const checked = signup!.querySelector<HTMLInputElement>('input[type="radio"]:checked');
+      expect(checked?.value).toBe('vancouver');
+    });
+
+    it('#520: the city waitlist stays hidden when features.cityWaitlist is off', async () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [AddressAutocompleteComponent],
+        providers: [provideHttpClient(), provideHttpClientTesting(), providePropertyData(), provideApi()],
+      });
+      const http = TestBed.inject(HttpTestingController);
+      const pending = TestBed.inject(ConfigService).load();
+      http
+        .expectOne('/assets/config/app-config.json')
+        .flush({ ...testConfig, features: { cityWaitlist: false } });
+      await pending;
+      const fixture = create();
+      fixture.componentRef.setInput('waitlist', true);
+      await type(fixture, '123 King St W, Toronto');
+      expect(fixture.componentInstance.outOfCoverage()).toBe(true);
+      expect(fixture.nativeElement.querySelector('app-waitlist-signup')).toBeNull();
     });
 
     it('retry from the out-of-coverage state resets the input for a fresh search', async () => {

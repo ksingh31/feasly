@@ -1,10 +1,11 @@
-import { Component, DestroyRef, computed, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { AutocompleteSuggestion, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
 import { ConfigService } from '../../../core/config';
+import { WaitlistSignupComponent } from '../waitlist-signup';
 
 let nextInstanceId = 0;
 
@@ -30,7 +31,7 @@ const ADDRESS_NOT_FOUND = 'ADDRESS_NOT_FOUND';
 @Component({
   selector: 'app-address-autocomplete',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, WaitlistSignupComponent],
   templateUrl: './address-autocomplete.component.html',
   styleUrl: './address-autocomplete.component.scss',
 })
@@ -43,6 +44,16 @@ export class AddressAutocompleteComponent {
   readonly selected = output<PropertyRecord>();
   /** Fires on Enter with no highlighted suggestion (parent decides: pick the sole match or hint). */
   readonly submitted = output<void>();
+  /**
+   * #520: offer the other-city notify-me under the out-of-coverage message.
+   * Off by default — the builder embed (a Calgary builder's widget) never
+   * shows it; the consumer landing page opts in.
+   */
+  readonly waitlist = input(false);
+  /** Deploy-level kill switch for the city waitlist (config-owned). */
+  readonly cityWaitlistEnabled = this.config.get('features').cityWaitlist;
+  /** Trimmed query of the latest search (preselects the waitlist city). */
+  readonly lastQuery = signal('');
 
   /** User-facing strings (config-owned so the no-hardcode tripwire stays green). */
   readonly copy = this.config.get('copy').search;
@@ -120,7 +131,8 @@ export class AddressAutocompleteComponent {
           }
         }),
         filter((q) => q.length >= 3),
-        tap(() => {
+        tap((q) => {
+          this.lastQuery.set(q);
           this.status.set('searching');
           this.pendingKey = null;
         }),

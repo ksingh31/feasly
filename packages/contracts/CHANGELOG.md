@@ -14,6 +14,13 @@ real backend. Changing them has a cost, so:
 
 ## Unreleased — 2026-11-15 (additive)
 
+Waitlists for renovation and other cities (issue #520):
+
+- **Added** `waitlist.ts`: `WaitlistTopic` (`renovation` | `toronto` |
+  `vancouver`), `WaitlistRequest` (`email`, `topic`) and `WaitlistResponse`
+  for `POST /api/v1/waitlist`.
+
+
 Builder Leads home "Needs you" feed (issue #526):
 
 - **Added** `BuilderLeadsNeedsYouResponse` (`uncontacted`, `stale`,

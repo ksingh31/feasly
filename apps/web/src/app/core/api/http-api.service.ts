@@ -13,6 +13,8 @@ import type {
   AutocompleteResponse,
   CallbackRequest,
   CallbackResponse,
+  WaitlistRequest,
+  WaitlistResponse,
   CityDataFreshnessResponse,
   EstimateRequest,
   GetReportResponse,
@@ -184,6 +186,10 @@ export class HttpApiService implements ApiService {
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {
     return this.call(this.http.post<CallbackResponse>(`${this.base}/callbacks`, request));
+  }
+
+  joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse> {
+    return this.call(this.http.post<WaitlistResponse>(`${this.base}/waitlist`, request));
   }
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {

@@ -1,0 +1,167 @@
+/* #520 waitlist capture — same cream/brass language as the address field. */
+
+:host {
+  display: block;
+}
+
+.wl {
+  margin-top: 14px;
+  padding: 18px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.wl-heading {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wl-body,
+.wl-note {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.wl-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.wl-label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wl-cities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+.wl-cities legend {
+  padding: 0;
+}
+
+.wl-city {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--cream);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.wl-city.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.wl-city input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.wl-city:focus-within {
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.wl-row {
+  display: flex;
+  gap: 8px;
+}
+
+.wl-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  /* 16px minimum: stops iOS auto-zoom on focus. */
+  font-size: 16px;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 14px;
+}
+
+.wl-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.wl-input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.wl-submit {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 18px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cta-fg);
+  background: var(--cta-bg);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.wl-submit:hover:not(:disabled) {
+  background: var(--cta-bg-hover);
+}
+
+.wl-submit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.wl-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.wl-error {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.wl-success {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--status-success-fg);
+}
+
+@media (max-width: 480px) {
+  .wl-row {
+    flex-direction: column;
+  }
+
+  .wl-submit {
+    width: 100%;
+  }
+}

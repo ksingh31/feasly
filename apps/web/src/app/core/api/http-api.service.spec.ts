@@ -149,6 +149,12 @@ describe('HttpApiService', () => {
       url: `${BASE}/callbacks`,
     },
     {
+      name: 'joinWaitlist',
+      call: (api) => api.joinWaitlist({ email: 'a@example.com', topic: 'toronto' }),
+      method: 'POST',
+      url: `${BASE}/waitlist`,
+    },
+    {
       name: 'shareWithPartner',
       call: (api) => api.shareWithPartner({ reportToken: 'rep-123', partnerEmail: 'p@example.com' }),
       method: 'POST',

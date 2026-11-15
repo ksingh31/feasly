@@ -441,6 +441,19 @@ import {
   createShareRoute,
   type ShareRoute,
 } from './routes/share.route';
+// #520: renovation + other-city waitlists.
+import {
+  createDrizzleWaitlistStore,
+  type WaitlistStore,
+} from './services/waitlist.store';
+import {
+  createWaitlistService,
+  type WaitlistService,
+} from './services/waitlist.service';
+import {
+  createWaitlistRoute,
+  type WaitlistRoute,
+} from './routes/waitlist.route';
 import {
   createOpenApiRoute,
   type OpenApiRoute,
@@ -577,6 +590,10 @@ export interface AppComposition {
   readonly callbackRequestStore: CallbackRequestStore;
   readonly callbackService: CallbackService;
   readonly callbackRoute: CallbackRoute;
+  /** #520: renovation + other-city waitlist signups. */
+  readonly waitlistStore: WaitlistStore;
+  readonly waitlistService: WaitlistService;
+  readonly waitlistRoute: WaitlistRoute;
   /** phase-2 wiring: email-to-partner shares. */
   readonly partnerShareStore: PartnerShareStore;
   readonly shareService: ShareService;
@@ -799,6 +816,8 @@ export interface CompositionOptions {
   readonly reportSnapshotStore?: ReportSnapshotStore;
   readonly callbackRequestStore?: CallbackRequestStore;
   readonly partnerShareStore?: PartnerShareStore;
+  /** #520: test seam for the waitlist store. */
+  readonly waitlistStore?: WaitlistStore;
   /**
    * Test seam: substitute the Google Sheets client (fake in unit tests).
    * Production wiring uses the real Google Sheets API client.
@@ -1652,6 +1671,14 @@ export function createComposition(
   const callbackRoute: CallbackRoute = createCallbackRoute({
     callbacks: callbackService,
   });
+  const waitlistStore: WaitlistStore =
+    options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
+  const waitlistService: WaitlistService = createWaitlistService({
+    waitlist: waitlistStore,
+  });
+  const waitlistRoute: WaitlistRoute = createWaitlistRoute({
+    waitlist: waitlistService,
+  });
   const shareService: ShareService = createShareService({
     magicLinks: magicLinkStore,
     leads: leadStore,
@@ -1910,6 +1937,9 @@ export function createComposition(
     callbackRequestStore,
     callbackService,
     callbackRoute,
+    waitlistStore,
+    waitlistService,
+    waitlistRoute,
     partnerShareStore,
     shareService,
     shareRoute,

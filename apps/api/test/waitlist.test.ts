@@ -1,0 +1,103 @@
+/**
+ * #520 — waitlist signup endpoint (POST /api/v1/waitlist).
+ *
+ * Service + route against a fake store, then the real Drizzle store
+ * against the migrated PGlite database (AC1: waitlist rows stored).
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ErrorCodes, HttpError } from '../src/middleware/errors';
+import { WaitlistResponseSchema } from '../src/openapi/schemas';
+import { createWaitlistRoute } from '../src/routes/waitlist.route';
+import { createWaitlistService } from '../src/services/waitlist.service';
+import {
+  createDrizzleWaitlistStore,
+  type NewWaitlistSignup,
+  type WaitlistStore,
+} from '../src/services/waitlist.store';
+import { createTestDb, type TestDb } from './pglite-db';
+
+function fakeStore(): { store: WaitlistStore; inserted: NewWaitlistSignup[] } {
+  const inserted: NewWaitlistSignup[] = [];
+  return {
+    inserted,
+    store: {
+      insertIfAbsent: async (signup) => {
+        inserted.push(signup);
+      },
+      find: async () => null,
+    },
+  };
+}
+
+describe('waitlist service', () => {
+  it('stores a normalized signup and returns { ok, topic }', async () => {
+    const { store, inserted } = fakeStore();
+    const service = createWaitlistService({ waitlist: store });
+    const res = await service.join({ email: '  Jo@Example.COM ', topic: 'renovation' });
+    expect(res).toEqual({ ok: true, topic: 'renovation' });
+    expect(WaitlistResponseSchema.parse(res)).toEqual(res);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.email).toBe('jo@example.com');
+    expect(inserted[0]?.topic).toBe('renovation');
+    expect(inserted[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it.each([
+    [{ email: 'not-an-email', topic: 'toronto' }],
+    [{ email: 'a@example.com', topic: 'edmonton' }],
+    [{ email: 'a@example.com' }],
+    [{ email: 'a@example.com', topic: 'vancouver', extra: true }],
+    [null],
+  ])('rejects an invalid body with 400 VALIDATION_FAILED (%j)', async (body) => {
+    const { store, inserted } = fakeStore();
+    const service = createWaitlistService({ waitlist: store });
+    const err = await service.join(body).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(400);
+    expect((err as HttpError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('route delegates to the service', async () => {
+    const { store, inserted } = fakeStore();
+    const route = createWaitlistRoute({ waitlist: createWaitlistService({ waitlist: store }) });
+    await expect(route.handle({ email: 'v@example.com', topic: 'vancouver' })).resolves.toEqual({
+      ok: true,
+      topic: 'vancouver',
+    });
+    expect(inserted).toHaveLength(1);
+  });
+});
+
+describe('waitlist store (PGlite, real migrations)', () => {
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('stores one row per (email, topic); repeats are silent no-ops', async () => {
+    const store = createDrizzleWaitlistStore({ db: testDb.db });
+    const service = createWaitlistService({ waitlist: store });
+
+    await service.join({ email: 'Repeat@Example.com', topic: 'renovation' });
+    // Same answer the second time — membership is never revealed.
+    await expect(
+      service.join({ email: 'repeat@example.com', topic: 'renovation' }),
+    ).resolves.toEqual({ ok: true, topic: 'renovation' });
+    await service.join({ email: 'repeat@example.com', topic: 'toronto' });
+
+    const rows = await testDb.rows<{ email: string; topic: string }>(
+      `select email, topic from waitlist_signups order by topic`,
+    );
+    expect(rows).toEqual([
+      { email: 'repeat@example.com', topic: 'renovation' },
+      { email: 'repeat@example.com', topic: 'toronto' },
+    ]);
+    const found = await store.find('repeat@example.com', 'toronto');
+    expect(found?.createdAt).toBeInstanceOf(Date);
+    await expect(store.find('nobody@example.com', 'toronto')).resolves.toBeNull();
+  });
+});
