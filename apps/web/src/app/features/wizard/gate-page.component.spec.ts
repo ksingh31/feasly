@@ -140,6 +140,12 @@ describe('GatePageComponent', () => {
       expect(el.querySelector('.consent input[type="checkbox"]')).not.toBeNull();
     });
 
+    it('labels the submit "Show my report →" — "Unlock" is reserved for the preview CTA (#506)', () => {
+      const btn = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+      expect(btn.textContent?.trim()).toBe('Show my report →');
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toMatch(/unlock/i);
+    });
+
     it('leaves the consent checkbox unchecked by default and blocks submit until it is checked', async () => {
       const box = fixture.nativeElement.querySelector(
         '.consent input[type="checkbox"]',

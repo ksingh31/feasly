@@ -163,7 +163,7 @@ describe('PreviewPageComponent', () => {
   it('prompts the gate without promising finish-tier exploration', () => {
     // consumer/04 removed the tier what-if toggle from the report — the
     // preview must not promise it.
-    expect(text()).toContain('Unlock your report to see the full cost breakdown and next steps.');
+    expect(text()).toContain('Your full report adds the cost breakdown and next steps.');
     expect(text()).not.toContain('explore finish tiers');
   });
 

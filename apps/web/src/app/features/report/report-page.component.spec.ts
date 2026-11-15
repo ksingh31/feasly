@@ -269,7 +269,7 @@ describe('ReportPageComponent', () => {
       for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
       }
-      expect(text()).toContain('Unlock your report to adjust the size.');
+      expect(text()).toContain('Get your full report to adjust the size.');
     });
 
     it('reserves "Unlock" for the preview-to-gate CTA', () => {
