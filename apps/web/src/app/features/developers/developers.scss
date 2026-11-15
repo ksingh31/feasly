@@ -16,7 +16,7 @@
   font-size: var(--type-eyebrow);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
@@ -58,7 +58,7 @@
 
 .developers .toc a {
   font-size: 14px;
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
 }
 
@@ -156,14 +156,15 @@
   display: inline-block;
   padding: 14px 28px;
   border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
+  /* Charcoal primary: white on --accent is only 3.98:1. */
+  background: var(--canvas);
+  color: var(--on-dark);
   font-weight: 600;
   text-decoration: none;
 }
 
 .developers .cta.secondary {
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid var(--accent);
 }

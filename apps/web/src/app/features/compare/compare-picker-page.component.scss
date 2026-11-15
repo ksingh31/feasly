@@ -177,7 +177,7 @@
 .community-check {
   font-size: 18px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .no-results {
@@ -190,7 +190,7 @@
   margin-top: 16px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   background: none;
   border: none;
   padding: 8px 0;
@@ -279,7 +279,7 @@
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 

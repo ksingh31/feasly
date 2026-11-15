@@ -95,7 +95,7 @@
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   background: none;
   border: none;
   padding: 0;
@@ -494,7 +494,7 @@
   height: 32px;
   border-radius: 50%;
   background: var(--accent-bg);
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 15px;
@@ -634,7 +634,7 @@ a.cta.secondary.another-address {
   width: 100%;
   margin-top: 12px;
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid var(--accent);
   display: inline-flex;
   align-items: center;
