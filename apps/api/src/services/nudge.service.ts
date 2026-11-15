@@ -37,6 +37,12 @@ export interface NudgeServiceDeps {
    * root (never tokens, emails, or keys).
    */
   readonly onLeadError?: (error: unknown) => void;
+  /**
+   * Sink for sanitized warnings (e.g. provider accepted the nudge but
+   * delivery couldn't be confirmed). Messages never contain tokens,
+   * emails, names, or keys. Defaults to `console.warn`.
+   */
+  readonly onWarn?: (message: string) => void;
   readonly clock?: () => Date;
 }
 
@@ -60,6 +66,7 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     nudgeWindowHours = 1,
     maxCandidatesPerRun = 500,
     onLeadError = () => {},
+    onWarn = (message: string) => console.warn(message),
     clock = () => new Date(),
   } = deps;
 
@@ -88,11 +95,16 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
           if (sent) nudged++;
           else skipped++;
         } catch (error) {
-          // One bad lead must not kill the batch; it stays un-nudged and
-          // will be retried on the next hourly run. A rising `skipped`
-          // count alone is not enough visibility when the provider is
-          // down — the failure detail goes to the sink (sanitized at the
-          // composition root).
+          // One bad lead must not kill the batch; it stays un-nudged
+          // (nudge_sent_at NULL). There is NO retry: the candidate window
+          // is `nudgeWindowHours` wide (default 1h, matching the hourly
+          // timer), so by the next run the lead has aged out of the
+          // window and the failed nudge is dropped. That is deliberate —
+          // a late retry would revoke a link the homeowner may already
+          // hold and risk a second marketing email (CASL). A rising
+          // `skipped` count alone is not enough visibility when the
+          // provider is down — the failure detail goes to the sink
+          // (sanitized at the composition root).
           onLeadError(error);
           skipped++;
         }
@@ -106,7 +118,9 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
    * Nudge one lead. Returns true when the nudge was sent (and
    * `nudge_sent_at` stamped), false when the lead was legitimately
    * excluded. Throws on infrastructure failure so the caller can count
-   * it as skipped-without-stamping (retry next run).
+   * it as skipped-without-stamping (the nudge is dropped, not retried —
+   * see the batch loop). A provider-accepted but unconfirmed send counts
+   * as sent and is stamped.
    */
   async function maybeNudgeLead(leadId: string): Promise<boolean> {
     const lead = await leads.findById(leadId);
@@ -153,9 +167,19 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
       resumeUrl: `${appBaseUrl}/r/${issued.token}`,
       unsubscribeUrl,
     });
-    if (!delivery.sent) {
+    if (!delivery.sent && delivery.acceptedByProvider) {
+      // Accepted-but-unconfirmed (ACS beginSend succeeded, delivery poll
+      // timed out): the homeowner most likely has the email, so treat it
+      // as sent — same rule as lead.service. Stamping keeps lead state
+      // honest and guarantees no duplicate marketing email. Sanitized:
+      // failure code only, never lead id/email/name/token.
+      onWarn(
+        `nudge: provider accepted, delivery unconfirmed; stamping as sent (code=${delivery.emailError})`,
+      );
+    } else if (!delivery.sent) {
       // Don't stamp nudge_sent_at: the caller counts the throw as
-      // skipped-without-stamping so the next run retries the nudge.
+      // skipped-without-stamping. The lead ages out of the window before
+      // the next run, so this nudge is dropped (not retried).
       throw new EmailProviderError(`Nudge email failed: ${delivery.failureReason}`, {
         retryable: false,
         failureCode: delivery.emailError,
