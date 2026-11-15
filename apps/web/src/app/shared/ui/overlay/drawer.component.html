@@ -1,0 +1,29 @@
+<div class="ui-drawer__panel">
+  <header class="ui-drawer__header">
+    <div class="ui-drawer__heading">
+      <h2 class="ui-drawer__title" tabindex="-1" [id]="titleId">{{ heading() }}</h2>
+      <div class="ui-drawer__sub"><ng-content select="[uiDrawerChip]" /><ng-content select="[uiDrawerMeta]" /></div>
+    </div>
+    @if (closable()) {
+      <button type="button" class="ui-drawer__close" [attr.aria-label]="closeLabel()" (click)="close()">
+        <span aria-hidden="true">×</span>
+      </button>
+    }
+  </header>
+
+  @if (asForm()) {
+    <form class="ui-drawer__form" novalidate (submit)="onSubmit($event)">
+      <ng-container [ngTemplateOutlet]="content" />
+    </form>
+  } @else {
+    <ng-container [ngTemplateOutlet]="content" />
+  }
+
+  <ng-template #content>
+    <div class="ui-drawer__body"><ng-content /></div>
+    <div class="ui-drawer__footer">
+      <div class="ui-drawer__footer-start"><ng-content select="[uiDrawerFooterStart]" /></div>
+      <div class="ui-drawer__footer-end"><ng-content select="[uiDrawerFooterEnd]" /></div>
+    </div>
+  </ng-template>
+</div>
