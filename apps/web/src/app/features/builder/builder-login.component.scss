@@ -8,14 +8,14 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: var(--color-background, #faf9f7);
+  background: var(--cream);
 }
 
 .builder-login__card {
   width: 100%;
   max-width: 26rem;
   background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 2rem;
   text-align: center;
@@ -25,7 +25,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-muted, #6b6257);
+  color: var(--muted);
   margin: 0 0 0.5rem;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .builder-login__intro {
-  color: var(--color-text-muted, #6b6257);
+  color: var(--muted);
   margin: 0 0 1.5rem;
 }
 
@@ -53,8 +53,8 @@
   padding: 0.875rem 1rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
-  background: var(--color-primary, #1a1a1a);
+  color: var(--cta-fg);
+  background: var(--cta-bg);
   border: none;
   border-radius: 0.5rem;
   cursor: pointer;
