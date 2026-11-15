@@ -8,7 +8,7 @@
  * created within the window. The window bound is a parameter
  * (config-driven), not a constant.
  */
-import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, max, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leadNotes, leadStatusHistory, leads } from '../db/schema';
 
@@ -730,6 +730,51 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         );
       const n = rows[0]?.n ?? 0;
       return typeof n === 'number' ? n : Number(n);
+    },
+  };
+}
+
+/**
+ * Latest pipeline status change per lead, read from the append-only
+ * `lead_status_history` (issue #526 "Needs you" feed). Kept out of
+ * `LeadStore` on purpose: `leads.updated_at` moves on ANY column change
+ * (consent, nudge stamp), so staleness needs the history table, and a
+ * separate interface keeps every existing LeadStore fake unchanged.
+ */
+export interface LeadStatusChangeStore {
+  /**
+   * Map of leadId → newest `changed_at`. Leads with no history row are
+   * absent from the map (their status never changed since creation).
+   */
+  latestStatusChangeByLeadIds(
+    leadIds: readonly string[],
+  ): Promise<ReadonlyMap<string, Date>>;
+}
+
+export function createDrizzleLeadStatusChangeStore(
+  deps: DrizzleLeadStoreDeps,
+): LeadStatusChangeStore {
+  const { db } = deps;
+  return {
+    async latestStatusChangeByLeadIds(leadIds) {
+      const out = new Map<string, Date>();
+      if (leadIds.length === 0) {
+        return out;
+      }
+      const rows = await db
+        .select({
+          leadId: leadStatusHistory.leadId,
+          changedAt: max(leadStatusHistory.changedAt),
+        })
+        .from(leadStatusHistory)
+        .where(inArray(leadStatusHistory.leadId, [...leadIds]))
+        .groupBy(leadStatusHistory.leadId);
+      for (const row of rows) {
+        if (row.changedAt !== null) {
+          out.set(row.leadId, new Date(row.changedAt));
+        }
+      }
+      return out;
     },
   };
 }

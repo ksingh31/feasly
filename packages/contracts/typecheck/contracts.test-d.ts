@@ -6,6 +6,10 @@
 import type {
   AnalyticsEvent,
   AutocompleteSuggestion,
+  BuilderLeadListResponse,
+  BuilderLeadNeedsYouItem,
+  BuilderLeadStatusCounts,
+  BuilderLeadsNeedsYouResponse,
   CallbackRequest,
   CommunityAggregate,
   CostRange,
@@ -152,6 +156,25 @@ assertType<string>(tenant.allowedOrigin);
 
 declare const community: CommunityAggregate;
 assertType<number>(community.avgAssessedValue);
+
+// --- builder Leads home "Needs you" feed (issue #526) ---
+declare const needsYou: BuilderLeadsNeedsYouResponse;
+assertType<readonly BuilderLeadNeedsYouItem[]>(needsYou.uncontacted);
+assertType<readonly BuilderLeadNeedsYouItem[]>(needsYou.stale);
+assertType<readonly BuilderLeadNeedsYouItem[]>(needsYou.wonWithoutContract);
+assertType<number>(needsYou.staleAfterDays);
+assertType<BuilderLeadStatusCounts>(needsYou.counts);
+assertType<string>(needsYou.uncontacted[0]!.waitingSince);
+assertType<string>(needsYou.uncontacted[0]!.statusChangedAt);
+// The list summary and the needs-you counts are the same shape, so the
+// segmented filter reads either.
+declare const leadList: BuilderLeadListResponse;
+const sameCounts: BuilderLeadStatusCounts = leadList.summary;
+void sameCounts;
+const needsYouItem: BuilderLeadNeedsYouItem = needsYou.stale[0]!;
+// @ts-expect-error — the status is a closed union, never a free string
+const badStatus: BuilderLeadNeedsYouItem = { ...needsYouItem, status: 'stale' };
+void badStatus;
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;
