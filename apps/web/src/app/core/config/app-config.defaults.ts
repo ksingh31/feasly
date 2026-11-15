@@ -41,6 +41,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   // empty here = the card form stays unavailable until a deploy provides it.
   billing: {
     stripePublishableKey: '',
+    questionInvoiceHref: '',
   },
   propertyData: {
     source: 'live',

@@ -14,7 +14,7 @@
       >{{ copy.shellNavDashboard }}</a>
       @if (isBuilderAdmin()) {
         <a
-          routerLink="/builder/invoices"
+          routerLink="/builder/money"
           [class.active]="inMoney()"
           [attr.aria-current]="inMoney() ? 'page' : null"
         >{{ copy.shellNavMoney }}</a>
@@ -83,6 +83,9 @@
 
   @if (isBuilderAdmin() && inMoney()) {
     <nav class="builder-shell__subnav" [attr.aria-label]="copy.shellMoneyNavLabel">
+      <a routerLink="/builder/money" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+        copy.shellNavMoneyOverview
+      }}</a>
       <a routerLink="/builder/invoices" routerLinkActive="active" ariaCurrentWhenActive="page">{{
         copy.shellNavInvoices
       }}</a>
@@ -116,7 +119,7 @@
     </a>
     @if (isBuilderAdmin()) {
       <a
-        routerLink="/builder/invoices"
+        routerLink="/builder/money"
         [class.active]="inMoney()"
         [attr.aria-current]="inMoney() ? 'page' : null"
       >

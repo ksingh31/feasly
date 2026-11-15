@@ -32,6 +32,7 @@ import { BuilderInvoicesState } from './builder-invoices.state';
 
 /** Builder routes that belong to the Money section (nav + sub-nav). */
 const MONEY_PATHS = [
+  '/builder/money',
   '/builder/invoices',
   '/builder/billing',
   '/builder/record-contract',

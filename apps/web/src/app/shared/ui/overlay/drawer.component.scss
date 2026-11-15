@@ -1,0 +1,225 @@
+// Drawer — portal-ui-kit §3. Unencapsulated: the CDK pane and scrim render
+// outside any component view. Every selector is `ui-drawer*`-prefixed.
+// Tokens only (colours live in styles.scss).
+
+.ui-drawer-scrim {
+  background: var(--scrim);
+}
+
+// Widths: sm 400 · md 480 (560 from 1280px) · lg 640 (720 from 1280px).
+.cdk-overlay-pane.ui-drawer-pane {
+  width: 480px;
+  max-width: 100vw;
+  height: 100%;
+}
+.cdk-overlay-pane.ui-drawer-pane--sm {
+  width: 400px;
+}
+.cdk-overlay-pane.ui-drawer-pane--lg {
+  width: 640px;
+}
+@media (min-width: 1280px) {
+  .cdk-overlay-pane.ui-drawer-pane--md {
+    width: 560px;
+  }
+  .cdk-overlay-pane.ui-drawer-pane--lg {
+    width: 720px;
+  }
+}
+
+// CDK container → content component host → ui-drawer: fill the height.
+.ui-drawer-pane .cdk-dialog-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+.ui-drawer-pane .cdk-dialog-container > * {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.ui-drawer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.ui-drawer__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+  font: var(--type-body);
+  animation: ui-drawer-in 0.2s ease-out;
+}
+
+@keyframes ui-drawer-in {
+  from {
+    transform: translateX(var(--space-6));
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-drawer__panel {
+    animation: none;
+  }
+}
+
+.ui-drawer__header {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3) var(--space-4) var(--space-5);
+  padding-top: max(var(--space-4), env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.ui-drawer__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: var(--space-2);
+}
+
+.ui-drawer__title {
+  margin: 0;
+  font: var(--type-product-h2);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ui-drawer__title:focus {
+  outline: none;
+}
+.ui-drawer__title:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.ui-drawer__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font: var(--type-meta);
+  color: var(--muted);
+}
+.ui-drawer__sub:empty {
+  display: none;
+}
+
+.ui-drawer__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ui-drawer__close:hover {
+  background: var(--cream-2);
+  color: var(--text);
+}
+.ui-drawer__close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.ui-drawer__form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ui-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-5);
+}
+
+.ui-drawer__footer {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.ui-drawer__footer:not(:has(.ui-drawer__footer-start > *, .ui-drawer__footer-end > *)) {
+  display: none;
+}
+.ui-drawer__footer-start,
+.ui-drawer__footer-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ui-drawer__footer-end {
+  margin-left: auto;
+}
+
+/* Below 768px: a full-height sheet across the whole viewport. */
+@media (max-width: 767px) {
+  .cdk-overlay-pane.ui-drawer-pane,
+  .cdk-overlay-pane.ui-drawer-pane--sm,
+  .cdk-overlay-pane.ui-drawer-pane--md,
+  .cdk-overlay-pane.ui-drawer-pane--lg {
+    width: 100vw;
+  }
+
+  .ui-drawer__panel {
+    box-shadow: none;
+  }
+  .ui-drawer__header {
+    padding-left: var(--space-4);
+    padding-right: var(--space-2);
+  }
+  .ui-drawer__body {
+    padding: var(--space-4);
+  }
+  .ui-drawer__footer {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .ui-drawer__footer-start,
+  .ui-drawer__footer-end {
+    flex: 1 1 auto;
+  }
+  .ui-drawer__footer-start > *,
+  .ui-drawer__footer-end > * {
+    flex: 1 1 auto;
+  }
+}
