@@ -28,6 +28,7 @@ export const DEFAULTS = {
   prStaleHours: 24,
   ciRedHours: 12,
   maxRequeues: 2,
+  maxOpenPrs: 8,
 };
 
 /** Hidden comment markers so repeated runs stay idempotent. */
@@ -92,7 +93,7 @@ export const branchPrefixFor = (issueNumber) => `agent/issue-${issueNumber}-`;
  * @param {{readyIssues: any[], claimedCount: number, openAgentPrCount: number, maxWip?: number}} s
  * @returns {{start: any[], skipped: {number:number, reason:string}[]}}
  */
-export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxWip = DEFAULTS.maxWip, openIssueNumbers = null }) {
+export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxWip = DEFAULTS.maxWip, maxOpenPrs = DEFAULTS.maxOpenPrs, openIssueNumbers = null }) {
   const skipped = [];
   const eligible = [];
   for (const issue of readyIssues) {
@@ -111,12 +112,15 @@ export function planDispatch({ readyIssues, claimedCount, openAgentPrCount, maxW
   }
   eligible.sort(
     (a, b) =>
+      (has(a, LABELS.bug) ? 0 : 1) - (has(b, LABELS.bug) ? 0 : 1) || // bugs always before stories
       orderOf(a) - orderOf(b) ||
       priorityOf(a) - priorityOf(b) ||
       Date.parse(a.createdAt) - Date.parse(b.createdAt),
   );
-  const wip = claimedCount + openAgentPrCount;
-  const slots = Math.max(0, maxWip - wip);
+  // claimedCount = issues an agent is actively working (claimed, no PR yet). PRs waiting on
+  // CI/review/merge don't hold an agent slot (that deadlocked the pipeline); they are capped
+  // separately so unmerged work can't pile up without bound.
+  const slots = openAgentPrCount >= maxOpenPrs ? 0 : Math.max(0, maxWip - claimedCount);
   return { start: eligible.slice(0, slots), skipped };
 }
 
@@ -218,8 +222,13 @@ export function triageFailure({ failedJobs, pr }) {
  * @param {{openBugs:any[], backlogCount:number}} s
  * @returns {{release:boolean, blockingBugs:number[]}}
  */
-export function shouldReleaseBacklog({ openBugs, backlogCount }) {
-  const blocking = openBugs.filter((i) => !has(i, LABELS.needsKaran)).map((i) => i.number);
+export function shouldReleaseBacklog({ openBugs, backlogCount, cutoff = null }) {
+  // "Current bugs" = bugs that already existed when the backlog stories were written (cutoff =
+  // newest backlog issue's creation time); QA keeps filing new ones, which interleave by priority.
+  const blocking = openBugs
+    .filter((i) => !has(i, LABELS.needsKaran))
+    .filter((i) => !cutoff || Date.parse(i.createdAt) <= Date.parse(cutoff))
+    .map((i) => i.number);
   return { release: backlogCount > 0 && blocking.length === 0, blockingBugs: blocking };
 }
 
@@ -234,7 +243,8 @@ export const CODE_CHECKS = new Set(['build', 'lighthouse', 'dependency-audit', '
  */
 export function decideMerge(pr) {
   if (pr.isDraft) return { action: 'skip', reason: 'draft' };
-  if (pr.labels.includes(LABELS.needsKaran)) return { action: 'skip', reason: 'needs:karan' };
+  // Owner PRs aren't parked: Karan delegated pipeline changes (2026-11-14). Agent PRs still are.
+  if (pr.labels.includes(LABELS.needsKaran) && pr.author !== 'ksingh31') return { action: 'skip', reason: 'needs:karan' };
   const checks = pr.checks.filter((c) => c.bucket !== 'skipping');
   if (checks.length === 0) return { action: 'wait', reason: 'no checks yet' };
   if (checks.some((c) => c.bucket === 'pending')) return { action: 'wait', reason: 'checks running' };

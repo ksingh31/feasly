@@ -13,7 +13,11 @@
 import { decideMerge } from './lib.mjs';
 import { ghJson, ghWrite } from './gh.mjs';
 
-const prs = ghJson(['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,author,isDraft,labels,mergeStateStatus,reviews,headRefOid']) ?? [];
+const prs = ghJson(['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,author,isDraft,labels,mergeStateStatus,reviews,headRefOid,headRefName,comments']) ?? [];
+const once = (p, key) => !(p.comments ?? []).some((c) => (c.body ?? '').includes(`<!-- agent:${key}:${p.headRefOid} -->`));
+const mark = (p, key, text) => ghWrite(['pr', 'comment', String(p.number), '--body', `<!-- agent:${key}:${p.headRefOid} -->\n${text}`]);
+// I: CI runs on agent pushes that GitHub holds for human approval (oversight gate) — surface once.
+const waiting = ghJson(['run', 'list', '--status', 'action_required', '--limit', '50', '--json', 'headBranch']) ?? [];
 prs.sort((a, b) => a.number - b.number); // oldest first
 let merged = 0;
 let updated = false;
@@ -36,6 +40,21 @@ for (const p of prs) {
   };
   const d = decideMerge(pr);
   console.log(`#${p.number}: ${d.action} — ${d.reason}`);
+  const isAgent = pr.labels.includes('agent:pr');
+
+  if (waiting.some((w) => w.headBranch === p.headRefName) && once(p, 'needs-run-approval')) {
+    mark(p, 'needs-run-approval', 'CI runs for this PR are **waiting for owner approval** (Actions → the run → Approve and run). Agents cannot approve their own runs.');
+  }
+  // F: merge conflict on an agent PR → fix agent resolves it (once per head commit)
+  if (isAgent && p.mergeStateStatus === 'DIRTY' && once(p, 'conflict')) {
+    mark(p, 'conflict', 'Merge conflict with main — starting a fix round to merge main in and resolve.');
+    ghWrite(['workflow', 'run', 'agent-fix.yml', '-f', `pr=${p.number}`, '-f', 'reason=merge conflict with main: merge main in, resolve, re-verify']);
+  }
+  // E: green but never reviewed (review run skipped/crashed) → run the reviewer (once per head commit)
+  if (isAgent && d.action === 'skip' && d.reason === 'awaiting review' && once(p, 'review-requested')) {
+    mark(p, 'review-requested', 'All checks green but no review verdict for this commit — starting the reviewer.');
+    ghWrite(['workflow', 'run', 'agent-review.yml', '-f', `pr=${p.number}`]);
+  }
 
   if (d.action === 'merge') {
     ghWrite(['pr', 'merge', String(p.number), '--squash', '--delete-branch']);
@@ -58,5 +77,7 @@ for (const p of prs) {
 if (merged > 0) {
   ghWrite(['workflow', 'run', 'ci.yml', '--ref', 'main']);
   ghWrite(['workflow', 'run', 'cd.yml', '--ref', 'main', '-f', 'target=dev']);
+  // B: a GITHUB_TOKEN merge fires no 'pull_request: closed' event, so wake the orchestrator ourselves.
+  ghWrite(['workflow', 'run', 'agent-dispatch.yml', '--ref', 'main']);
   console.log('triggered CI + dev deploy on main');
 }
