@@ -1,0 +1,28 @@
+@if (breadcrumbs().length > 0) {
+  <nav class="ui-page-header__crumbs" [attr.aria-label]="breadcrumbLabel()">
+    <ol>
+      @for (crumb of breadcrumbs(); track $index) {
+        <li>
+          @if (!$last && crumb.link) {
+            <a [routerLink]="crumb.link">{{ crumb.label }}</a>
+          } @else if ($last) {
+            <span aria-current="page">{{ crumb.label }}</span>
+          } @else {
+            <span>{{ crumb.label }}</span>
+          }
+        </li>
+      }
+    </ol>
+  </nav>
+}
+<div class="ui-page-header__row">
+  <div class="ui-page-header__titles">
+    <h1 class="ui-page-header__title" [attr.id]="headingId()">{{ heading() }}</h1>
+    @if (description()) {
+      <p class="ui-page-header__description">{{ description() }}</p>
+    }
+  </div>
+  <div class="ui-page-header__actions">
+    <ng-content select="[uiPageHeaderActions]" />
+  </div>
+</div>
