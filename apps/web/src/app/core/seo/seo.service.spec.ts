@@ -61,6 +61,8 @@ describe('SeoService', () => {
         adminApiKeys: 'API keys description.',
         adminFunnelsTitle: 'Funnels — Feasly Admin',
         adminFunnels: 'Funnels description.',
+        adminWebhooksTitle: 'Webhooks — Feasly Admin',
+        adminWebhooks: 'Webhooks description.',
         adminLoginTitle: 'Admin sign in — Feasly',
         adminLogin: 'Login description.',
         adminCallbackTitle: 'Completing sign in — Feasly',
@@ -220,6 +222,7 @@ describe('SeoService', () => {
       ['admin/estimates', 'Estimate lookup — Feasly Admin'],
       ['admin/api-keys', 'API keys — Feasly Admin'],
       ['admin/funnels', 'Funnels — Feasly Admin'],
+      ['admin/webhooks', 'Webhooks — Feasly Admin'],
       ['admin/login', 'Admin sign in — Feasly'],
       ['admin/auth/callback', 'Completing sign in — Feasly'],
     ];

@@ -129,6 +129,7 @@ describe('AdminShellComponent — sidebar', () => {
       '/admin/calibration',
       '/admin/ops/sheets',
       '/admin/funnels',
+      '/admin/webhooks',
     ]);
     expect(qa(fixture, '.admin-nav__label').map(text)).toContain('Users & access');
   });

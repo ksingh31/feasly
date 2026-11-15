@@ -76,3 +76,14 @@ export function formatRelativeTime(iso: string | null, now: Date = new Date()): 
   const sign = diff < 0 ? -1 : 1;
   return relativeFormatter.format(sign * Math.floor(abs / unitMs), unit);
 }
+
+/**
+ * Local calendar date `days` days before `now`, as yyyy-MM-dd. Used by
+ * date-range presets ("last 7 days" = daysAgo 6 … today). DST-safe:
+ * steps the calendar date, never subtracts milliseconds.
+ */
+export function localDateStringDaysAgo(days: number, now: Date = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

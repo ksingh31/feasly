@@ -1441,6 +1441,8 @@ export interface AppConfig {
       adminApiKeys: string;
       adminFunnelsTitle: string;
       adminFunnels: string;
+      adminWebhooksTitle: string;
+      adminWebhooks: string;
       adminLoginTitle: string;
       adminLogin: string;
       adminCallbackTitle: string;
@@ -1685,6 +1687,7 @@ export interface AppConfig {
           calibration: string;
           sheets: string;
           funnels: string;
+          webhooks: string;
         };
         /** Screen-reader suffix for a queue badge, e.g. "3 open". */
         badgeSuffix: string;
@@ -1872,6 +1875,20 @@ export interface AppConfig {
         conversionPrefix: string;
         /** Shown when conversion is meaningless (first step / zero prior). */
         noConversion: string;
+        /** Accessible name of the date-preset button group. */
+        presetsLabel: string;
+        /** Date presets: label + trailing day count (today inclusive). */
+        presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
+        /** Date preset that clears both dates. */
+        presetAll: string;
+        /** KPI label: entry → final step conversion. */
+        overallConversion: string;
+        /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
+        overallConversionSub: string;
+        /** Drop-off annotation; `{count}` = people lost since the previous step. */
+        dropOff: string;
+        /** Accessible name of the funnel step list. */
+        stepsLabel: string;
       };
       apiKeys: {
         title: string;
