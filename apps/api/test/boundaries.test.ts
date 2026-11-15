@@ -105,4 +105,26 @@ describe('layer boundaries', () => {
       .flatMap((f) => urlLiterals(f).map((lit) => `${relative(SRC, f)} -> ${lit}`));
     expect(violations).toEqual([]);
   });
+
+  // #729 AC4: the left-most X-Forwarded-For entry is caller-controlled, so
+  // parsing it ad hoc made every per-IP limit bypassable. Only the shared
+  // helper (middleware/client-ip.ts) may read the header.
+  it('only middleware/client-ip.ts reads x-forwarded-for', () => {
+    const violations = files
+      .filter((f) => relative(SRC, f) !== join('middleware', 'client-ip.ts'))
+      .filter((f) => /x-forwarded-for/i.test(stripComments(readFileSync(f, 'utf8'))))
+      .map((f) => relative(SRC, f));
+    expect(violations).toEqual([]);
+  });
+
+  it('function adapters resolve the client IP via the shared helper (guard against vacuity)', () => {
+    const adapters = files.filter(
+      (f) => underDir(f, 'functions') && /clientIpFrom\(/.test(readFileSync(f, 'utf8')),
+    );
+    expect(adapters.length).toBeGreaterThan(30);
+    const missing = adapters
+      .filter((f) => !/clientIpFromHeaders\(/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f));
+    expect(missing).toEqual([]);
+  });
 });

@@ -54,6 +54,9 @@ const EnvSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
   // Safety valve: bounds the limiter's in-memory key map (DoS resistance).
   RATE_LIMIT_MAX_TRACKED_KEYS: z.coerce.number().int().positive().default(10_000),
+  // #729: how often (per instance) the Postgres-backed shared limiter
+  // deletes expired counter rows. Cleanup only — never affects a verdict.
+  RATE_LIMIT_SHARED_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
 
   // The lead gate is public by design (callers are unauthenticated), so it
   // gets its own deliberately tight limiter — separate from the general one.
@@ -437,6 +440,12 @@ export interface RateLimitConfig {
   readonly windowMs: number;
   readonly maxRequests: number;
   readonly maxTrackedKeys: number;
+}
+
+/** #729: Postgres-backed cross-instance limiter (money/mail endpoints). */
+export interface SharedRateLimitConfig {
+  /** Per-instance cadence for deleting expired counter rows. */
+  readonly sweepIntervalMs: number;
 }
 
 export interface LeadConfig {
@@ -900,6 +909,7 @@ export interface ApiConfig {
   readonly databaseUrl: string;
   readonly db: DbConfig;
   readonly rateLimit: RateLimitConfig;
+  readonly sharedRateLimit: SharedRateLimitConfig;
   readonly lead: LeadConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
@@ -1149,6 +1159,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       windowMs: e.RATE_LIMIT_WINDOW_MS,
       maxRequests: e.RATE_LIMIT_MAX_REQUESTS,
       maxTrackedKeys: e.RATE_LIMIT_MAX_TRACKED_KEYS,
+    },
+    sharedRateLimit: {
+      sweepIntervalMs: e.RATE_LIMIT_SHARED_SWEEP_INTERVAL_MS,
     },
     lead: {
       rateLimit: {

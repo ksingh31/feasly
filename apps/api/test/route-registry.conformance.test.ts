@@ -22,6 +22,9 @@ import { join, relative, sep } from 'node:path';
 import {
   registryKeys,
   renderRegistryTable,
+  renderRateLimitTable,
+  RATE_LIMIT_TABLE_BEGIN,
+  RATE_LIMIT_TABLE_END,
   resolveToRegistry,
   ROUTE_REGISTRY,
   type HttpMethod,
@@ -494,5 +497,21 @@ describe('route registry', () => {
       'docs/plan/TECH_PLAN.md §16 table is out of sync with ' +
         'src/registry/route-registry.ts — regenerate it from renderRegistryTable()',
     ).toBe(true);
+  });
+
+  // #729 AC5: the security doc's per-route rate-limit table is generated
+  // from the registry, so it can never go stale again.
+  it('docs/security/rate-limits.md generated table matches the registry', () => {
+    const doc = readFileSync(join(REPO_ROOT, 'docs', 'security', 'rate-limits.md'), 'utf8');
+    const start = doc.indexOf(RATE_LIMIT_TABLE_BEGIN);
+    const end = doc.indexOf(RATE_LIMIT_TABLE_END);
+    expect(start, 'generated-table BEGIN marker missing').toBeGreaterThan(-1);
+    expect(end, 'generated-table END marker missing').toBeGreaterThan(start);
+    const actual = doc.slice(start + RATE_LIMIT_TABLE_BEGIN.length, end).trim();
+    expect(
+      actual,
+      'docs/security/rate-limits.md is out of sync with src/registry/route-registry.ts — ' +
+        'run `npx tsx tools/insert-rate-limit-table.mts` in apps/api',
+    ).toBe(renderRateLimitTable());
   });
 });

@@ -28,6 +28,12 @@ import type {
 import type { EmailDelivery } from '../src/services/email/email.service';
 import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import { HttpError } from '../src/middleware/errors';
+import { createRateLimiter } from '../src/middleware/rate-limit';
+import {
+  createSharedCooldown,
+  createSharedRateLimiter,
+} from '../src/middleware/shared-rate-limit';
+import { createFakeSharedCounterStore } from './fake-shared-counter-store';
 
 const NOW = new Date('2026-09-24T12:00:00Z');
 const LEAD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -486,6 +492,57 @@ describe('magic-link reissue', () => {
     expect(await service.reissue({ email: 'other@example.com' })).toEqual({
       sent: true,
     });
+    expect(email.sends).toHaveLength(2);
+  });
+
+  it('#729: a cooldown started on one instance blocks a resend on another', async () => {
+    const store = createFakeSharedCounterStore();
+    const email = fakeEmail();
+    let nowMs = NOW.getTime();
+    const clockMs = () => nowMs;
+    const build = () =>
+      createMagicLinkService({
+        magicLinks: fakeMagicLinks(),
+        leads: fakeLeads(),
+        email,
+        unsubscribe: fakeUnsubscribe,
+        appBaseUrl: APP_BASE_URL,
+        magicLinkTtlSeconds: 7 * 86_400,
+        magicLinkReissueCooldownMs: 60_000,
+        magicLinkMaxSendsPerHour: 2,
+        reissueCooldown: createSharedCooldown({
+          store,
+          scope: 'magic-link:cooldown',
+          cooldownMs: 60_000,
+          clock: clockMs,
+        }),
+        sendBudget: createSharedRateLimiter({
+          store,
+          scope: 'magic-link:send',
+          windowMs: 3_600_000,
+          maxRequests: 2,
+          sweepIntervalMs: 300_000,
+          fallback: createRateLimiter({
+            windowMs: 3_600_000,
+            maxRequests: 2,
+            maxTrackedKeys: 100,
+            clock: clockMs,
+          }),
+          clock: clockMs,
+        }),
+        clock: () => new Date(nowMs),
+      });
+    const instanceA = build();
+    const instanceB = build();
+    expect(await instanceA.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    nowMs += 1_000;
+    // Different instance, inside the cooldown: blocked (would send pre-#729).
+    expect(await instanceB.reissue({ email: 'sam@example.com' })).toEqual({ sent: false });
+    nowMs += 61_000;
+    expect(await instanceB.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    nowMs += 61_000;
+    // Shared hourly budget of 2 is spent across both instances.
+    expect(await instanceA.reissue({ email: 'sam@example.com' })).toEqual({ sent: false });
     expect(email.sends).toHaveLength(2);
   });
 

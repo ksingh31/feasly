@@ -20,7 +20,7 @@ import type { EmbedRelayService } from '../services/embed-relay.service';
 
 export interface EmbedSessionRouteDeps {
   readonly relayService: EmbedRelayService;
-  /** Resolved by the function adapter from the request (x-forwarded-for). */
+  /** Resolved by the function adapter from the request via middleware/client-ip.ts (#729). */
   readonly clientIp?: string;
 }
 

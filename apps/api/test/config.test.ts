@@ -18,6 +18,7 @@ describe('loadConfig', () => {
       databaseUrl: 'postgresql://user:pass@localhost:5432/feasly',
       db: { poolMaxSize: 5 },
       rateLimit: { windowMs: 60_000, maxRequests: 100, maxTrackedKeys: 10_000 },
+      sharedRateLimit: { sweepIntervalMs: 300_000 },
       lead: {
         rateLimit: { windowMs: 60_000, maxRequests: 10 },
         dedupWindowDays: 90,
