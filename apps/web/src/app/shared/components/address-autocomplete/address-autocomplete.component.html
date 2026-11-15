@@ -9,7 +9,7 @@
       aria-autocomplete="list"
       [attr.aria-expanded]="listboxRendered()"
       [attr.aria-controls]="listboxRendered() ? listboxId : null"
-      [attr.aria-activedescendant]="activeIndex() >= 0 ? listboxId + '-opt-' + activeIndex() : null"
+      [attr.aria-activedescendant]="activeDescendantId()"
       [placeholder]="copy.placeholder"
       autocomplete="off"
       spellcheck="false"
