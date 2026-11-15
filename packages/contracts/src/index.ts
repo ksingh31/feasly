@@ -29,5 +29,6 @@ export * from './builder';
 export * from './admin-leads';
 export * from './admin-estimates';
 export * from './admin-calibration';
+export * from './admin-search';
 export * from './admin-sheets';
 export * from './admin-users';

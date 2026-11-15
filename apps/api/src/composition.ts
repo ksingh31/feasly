@@ -217,8 +217,21 @@ import {
 } from './services/builder-auth.store';
 import {
   createSessionAdminGuard,
+  createAdminSearchPipeline,
   type AdminGuard,
 } from './middleware/admin-guard';
+import {
+  createAdminSearchRoute,
+  type AdminSearchRoute,
+} from './routes/admin-search.route';
+import {
+  createAdminSearchService,
+  type AdminSearchService,
+} from './services/admin-search.service';
+import {
+  createDrizzleAdminSearchStore,
+  type AdminSearchStore,
+} from './services/admin-search.store';
 import {
   createSessionBuilderGuard,
   type BuilderGuard,
@@ -609,6 +622,12 @@ export interface AppComposition {
   readonly builderViewAsRoute: BuilderViewAsRoute;
   /** auth/03: admin user management (invite, edit, deactivate, delete). */
   readonly adminUsersRoute: AdminUsersRoute;
+  /** Admin ⌘K global search: dedicated per-IP + per-session limiters + route. */
+  readonly adminSearchIpRateLimiter: RateLimiter;
+  readonly adminSearchSessionRateLimiter: RateLimiter;
+  readonly adminSearchPipeline: RequestPipeline;
+  readonly adminSearchService: AdminSearchService;
+  readonly adminSearchRoute: AdminSearchRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
@@ -748,6 +767,8 @@ export interface CompositionOptions {
   readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
+  /** Admin global search store override (tests). */
+  readonly adminSearchStore?: AdminSearchStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -1335,6 +1356,35 @@ export function createComposition(
     permissionGuard,
     builders: builderService,
   });
+  // Admin ⌘K global search. The palette fires per keystroke, so it runs on
+  // its own limiters. Primary is per client IP and runs BEFORE any token is
+  // trusted — a session-token key alone is bypassable by rotating random
+  // Bearer tokens (each a fresh bucket + a session lookup before the 401).
+  // Secondary is per admin session (token hash — see
+  // adminSessionRateLimitKey), skipped when no token is presented.
+  const adminSearchIpRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.ipRateLimit.windowMs,
+    maxRequests: config.adminSearch.ipRateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchSessionRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.rateLimit.windowMs,
+    maxRequests: config.adminSearch.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchPipeline: RequestPipeline = createAdminSearchPipeline({
+    ipLimiter: adminSearchIpRateLimiter,
+    sessionLimiter: adminSearchSessionRateLimiter,
+    logger: options.logger,
+  });
+  const adminSearchService: AdminSearchService = createAdminSearchService({
+    store: options.adminSearchStore ?? createDrizzleAdminSearchStore({ db: db.db }),
+    config: { maxHitsPerKind: config.adminSearch.maxHitsPerKind },
+  });
+  const adminSearchRoute: AdminSearchRoute = createAdminSearchRoute({
+    search: adminSearchService,
+    permissionGuard,
+  });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
     permissionGuard,
@@ -1853,6 +1903,11 @@ export function createComposition(
     adminViewAsRoute,
     builderViewAsRoute,
     adminUsersRoute,
+    adminSearchIpRateLimiter,
+    adminSearchSessionRateLimiter,
+    adminSearchPipeline,
+    adminSearchService,
+    adminSearchRoute,
     userService,
     userStore,
     invitationStore,

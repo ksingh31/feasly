@@ -418,6 +418,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'escalate); audit-logged.',
   },
   // ── Admin user management (auth/03) ───────────────────────────────
+  // Admin redesign — ⌘K global search across leads, invoices, builders, users.
+  {
+    method: 'GET',
+    path: '/api/v1/admin/search',
+    auth: 'admin',
+    permissions: ['leads:read'] as const,
+    rateLimit: '60/min per session + 300/min per IP (dedicated search limiters)',
+    status: 'live',
+    summary:
+      'Global admin search: typed hits (lead, invoice, builder, user) with ' +
+      'display labels and IDs. Staff only; each kind gated by its own ' +
+      'read permission.',
+  },
   {
     method: 'GET',
     path: '/api/v1/admin/users',
