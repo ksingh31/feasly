@@ -17,10 +17,10 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import type { Observable } from 'rxjs';
 import {
   BuilderInvoicesApiService,
@@ -28,10 +28,9 @@ import {
 } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { BuilderBillingState } from './builder-billing.state';
-import {
-  BuilderInvoicesComponent,
-  sortTimelineChronologically,
-} from './builder-invoices.component';
+import { BuilderInvoicesComponent } from './builder-invoices.component';
+import { BuilderInvoiceDrawerComponent } from './builder-invoice-drawer.component';
+import { UiDrawerService } from '@app/shared/ui';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderInvoicesState } from './builder-invoices.state';
@@ -175,6 +174,8 @@ async function setupWithInvoices(
       id: string,
       method: BuilderPaymentMethod,
     ) => Observable<BuilderCommissionInvoice>;
+    /** Initial router URL (deep-link tests). */
+    url?: string;
   },
 ) {
   TestBed.resetTestingModule();
@@ -211,11 +212,27 @@ async function setupWithInvoices(
       return of(updated);
     },
   };
+  // Drawer service stub: records opens; close() completes the last drawer.
+  let closed$ = new Subject<unknown>();
+  const drawerMock = {
+    openDrawer: null as { urlId: string | null; finished: boolean } | null,
+    open: vi.fn((_component: unknown, options: { urlId?: string }) => {
+      closed$ = new Subject<unknown>();
+      drawerMock.openDrawer = { urlId: options.urlId ?? null, finished: false };
+      return { closed: closed$.asObservable() };
+    }),
+    close: () => {
+      if (drawerMock.openDrawer) drawerMock.openDrawer.finished = true;
+      closed$.next(undefined);
+      closed$.complete();
+    },
+  };
   TestBed.configureTestingModule({
     imports: [BuilderInvoicesComponent],
     providers: [
       { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
-      provideRouter([]),
+      { provide: UiDrawerService, useValue: drawerMock },
+      provideRouter([{ path: '**', children: [] }]),
       provideHttpClient(),
       provideHttpClientTesting(),
       provideStore([BuilderBillingState, BuilderInvoicesState]),
@@ -223,10 +240,13 @@ async function setupWithInvoices(
       { provide: BuilderInvoicesApiService, useValue: apiMock },
     ],
   });
+  if (overrides?.url) {
+    await TestBed.inject(Router).navigateByUrl(overrides.url);
+  }
   const fixture: ComponentFixture<BuilderInvoicesComponent> =
     TestBed.createComponent(BuilderInvoicesComponent);
   const store = TestBed.inject(Store);
-  return { fixture, store, apiMock };
+  return { fixture, store, apiMock, drawerMock };
 }
 
 async function setup() {
@@ -259,38 +279,6 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(text).toContain('Disputed');
     // Commission amounts render via the shared money util.
     expect(text).toContain('$6,850');
-  });
-
-  it('labels the detail view with the invoice\u2019s own effective rate (billing/08)', async () => {
-    const invoices = testInvoices().map((inv, i) =>
-      i === 0
-        ? { ...inv, commissionRatePercent: 2, effectiveRatePercent: 2 }
-        : inv,
-    );
-    const { fixture } = await setupWithInvoices({
-      invoices,
-      total: invoices.length,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    // The rate label lives in the detail view, not the list rows.
-    expect(fixture.nativeElement.textContent as string).not.toContain(
-      'Commission (2%)',
-    );
-
-    // Open the first invoice's detail view (the 2% one).
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    expect(buttons.length).toBeGreaterThan(0);
-    buttons[0].click();
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Commission (2%)');
   });
 
   it('renders the lead name in its own column for each invoice', async () => {
@@ -396,379 +384,6 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
       ...fixture.nativeElement.querySelectorAll('.builder-invoices__method'),
     ].map((el: Element) => el.textContent?.trim());
     expect(methodCells).toContain('Cheque');
-  });
-
-  it('opens the detail view with a failed-charge banner and update-card CTA', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    // Click the failed invoice's date button (third row in fixture order).
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    expect(buttons.length).toBeGreaterThan(0);
-    buttons[2].click();
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Your card was declined');
-    expect(text).toContain('Update your card');
-    // Timeline renders without any dispute affordance.
-    expect(text).toContain('Status timeline');
-    expect(text).not.toMatch(/dispute this/i);
-  });
-
-  it('renders receipt details for a paid invoice', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[1].click(); // paid invoice
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Payment received');
-    expect(text).toContain('Receipt');
-    expect(text).toContain('Amount charged');
-  });
-
-  it('shows the invoice number in the detail view (billing/12)', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Invoice number');
-    expect(text).toContain('INV-0042');
-  });
-
-  it('renders a payment-method select for an editable invoice (billing/12)', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Payment method');
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    expect(select).not.toBeNull();
-    expect(select.value).toBe('card');
-    const options = Array.from(select.options).map((o) => o.textContent?.trim());
-    expect(options).toEqual(['Card', 'Cheque', 'E-transfer', 'Bank draft']);
-  });
-
-  it('does not save the payment method on select alone — Apply is required (Karan 2026-10-02)', async () => {
-    const invoices = testInvoices();
-    const { fixture, apiMock } = await setupWithInvoices({
-      invoices,
-      total: invoices.length,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    select.value = 'cheque';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-
-    // The choice is staged in the dropdown, but nothing hits the API.
-    expect(apiMock.putCalls).toEqual([]);
-    expect(select.value).toBe('cheque');
-    // The review note still describes the SAVED method (card auto-charge).
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('We charge your card 7 days after the invoice is issued');
-    expect(text).not.toContain('Your card won’t be charged');
-  });
-
-  it('disables Apply until the selection differs from the saved method', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const apply = fixture.nativeElement.querySelector(
-      '.builder-invoices__apply',
-    ) as HTMLButtonElement;
-    expect(apply).not.toBeNull();
-    expect(apply.disabled).toBe(true);
-
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    select.value = 'cheque';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-    expect(apply.disabled).toBe(false);
-
-    // Re-selecting the saved method clears the staged change.
-    select.value = 'card';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-    expect(apply.disabled).toBe(true);
-  });
-
-  it('Apply PUTs the staged method and switches the review note to the manual copy', async () => {
-    const invoices = testInvoices();
-    const { fixture, apiMock } = await setupWithInvoices({
-      invoices,
-      total: invoices.length,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    select.value = 'cheque';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-
-    (
-      fixture.nativeElement.querySelector(
-        '.builder-invoices__apply',
-      ) as HTMLButtonElement
-    ).click();
-    await flushMock(fixture);
-
-    expect(apiMock.putCalls).toEqual([
-      { id: 'inv-test-001', method: 'cheque' },
-    ]);
-    const updated = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    expect(updated.value).toBe('cheque');
-    const text = fixture.nativeElement.textContent as string;
-    // The SAVED method is now cheque: the manual review note replaces the
-    // card auto-charge wording, and the saved confirmation shows.
-    expect(text).toContain('Your card won’t be charged — pay by cheque');
-    expect(text).not.toContain('We charge your card 7 days after the invoice is issued');
-    expect(text).toContain('Payment method updated.');
-    // Apply is disabled again — nothing left to apply.
-    expect(
-      (
-        fixture.nativeElement.querySelector(
-          '.builder-invoices__apply',
-        ) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-  });
-
-  it('reverts the select to the saved method and shows the error when Apply fails', async () => {
-    const invoices = testInvoices();
-    const { fixture, apiMock } = await setupWithInvoices(
-      {
-        invoices,
-        total: invoices.length,
-        page: 1,
-        pageSize: 10,
-      },
-      {
-        setInvoicePaymentMethod: () =>
-          throwError(() => new Error('PUT failed')),
-      },
-    );
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    select.value = 'cheque';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-
-    (
-      fixture.nativeElement.querySelector(
-        '.builder-invoices__apply',
-      ) as HTMLButtonElement
-    ).click();
-    await flushMock(fixture);
-
-    // The PUT was attempted…
-    expect(apiMock.putCalls).toEqual([
-      { id: 'inv-test-001', method: 'cheque' },
-    ]);
-    // …but the dropdown snapped back to the saved method and the
-    // failure copy surfaced.
-    const reverted = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    expect(reverted.value).toBe('card');
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('We couldn’t change the payment method');
-    // The review note still describes the SAVED method (card auto-charge).
-    expect(text).toContain('We charge your card 7 days after the invoice is issued');
-  });
-
-  it('Reset discards the staged change without saving', async () => {
-    const invoices = testInvoices();
-    const { fixture, apiMock } = await setupWithInvoices({
-      invoices,
-      total: invoices.length,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-
-    const select = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    select.value = 'cheque';
-    select.dispatchEvent(new Event('change'));
-    await flushMock(fixture);
-
-    const reset = fixture.nativeElement.querySelector(
-      '.builder-invoices__reset',
-    ) as HTMLButtonElement;
-    expect(reset).not.toBeNull();
-    reset.click();
-    await flushMock(fixture);
-
-    expect(apiMock.putCalls).toEqual([]);
-    const reverted = fixture.nativeElement.querySelector(
-      '#invoice-payment-method',
-    ) as HTMLSelectElement;
-    expect(reverted.value).toBe('card');
-    expect(
-      (
-        fixture.nativeElement.querySelector(
-          '.builder-invoices__apply',
-        ) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-  });
-
-  it('locks the payment method with an explainer for paid invoices (billing/12)', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[1].click(); // paid invoice
-    await flushMock(fixture);
-
-    expect(
-      fixture.nativeElement.querySelector('#invoice-payment-method'),
-    ).toBeNull();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain(
-      'Payment method can’t be changed once an invoice is settled.',
-    );
-  });
-
-  it('locks the payment method with an explainer for disputed invoices (billing/12)', async () => {
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[3].click(); // disputed invoice
-    await flushMock(fixture);
-
-    expect(
-      fixture.nativeElement.querySelector('#invoice-payment-method'),
-    ).toBeNull();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain(
-      'Payment method can’t be changed once an invoice is settled.',
-    );
-  });
-
-  it('renders the manual review note for an in-review cheque invoice (billing/12)', async () => {
-    const invoices = testInvoices().map((inv, i) =>
-      i === 0 ? { ...inv, paymentMethod: 'cheque' as const } : inv,
-    );
-    const { fixture } = await setupWithInvoices({
-      invoices,
-      total: invoices.length,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click();
-    await flushMock(fixture);
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Your card won’t be charged — pay by cheque');
-  });
-
-  it('card review note no longer references a builder dispute flow (QA 2026-10-04)', async () => {
-    // Builders cannot open disputes (UI deferred) and the admin console
-    // can only resolve them — the copy must not promise a dispute path.
-    const { fixture } = await setup();
-    fixture.detectChanges();
-    await flushMock(fixture);
-    const buttons: HTMLButtonElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
-    );
-    buttons[0].click(); // in_review invoice
-    await flushMock(fixture);
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('We charge your card 7 days after the invoice is issued');
-    expect(text).toContain('You can question it any time before then.');
-    expect(text).not.toContain('disputed through the admin console');
   });
 
   it('renders no tabs: invoices is a top-level tab, not under billing', async () => {
@@ -1047,61 +662,71 @@ describe('BuilderInvoices pagination params (no 400)', () => {
   });
 });
 
-describe('BuilderInvoices ?invoice= deep link', () => {
-  it('opens the invoice detail when the invoice query param is present', async () => {
-    const { convertToParamMap } = await import('@angular/router');
-    const invoices = testInvoices();
-    const apiMock = {
-      listInvoices: () => of({ invoices, total: null, page: 1, pageSize: 10 }),
-      getInvoice: (id: string) => {
-        const found = invoices.find((inv) => inv.id === id);
-        if (!found) {
-          throw new Error(`Test invoice not found: ${id}`);
-        }
-        return of(found);
-      },
-    };
+describe('BuilderInvoices drawer (#533)', () => {
+  beforeEach(() => {
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [BuilderInvoicesComponent],
-      providers: [
-      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
-        provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideStore([BuilderBillingState, BuilderInvoicesState]),
-        {
-          provide: ConfigService,
-          useValue: {
-            get: (s: keyof typeof DEFAULT_APP_CONFIG) => DEFAULT_APP_CONFIG[s],
-          },
-        },
-        { provide: BuilderInvoicesApiService, useValue: apiMock },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            queryParamMap: of(
-              convertToParamMap({ invoice: 'inv-test-002' }),
-            ),
-          },
-        },
-      ],
-    });
-    const fixture: ComponentFixture<BuilderInvoicesComponent> =
-      TestBed.createComponent(BuilderInvoicesComponent);
-    const store = TestBed.inject(Store);
+  });
+
+  it('opens the invoice drawer from a row (no inline detail replaces the list)', async () => {
+    const { fixture, drawerMock, store } = await setup();
     fixture.detectChanges();
     await flushMock(fixture);
 
-    // The record-contract "View invoice" deep link opens the detail view
-    // directly (the paid fixture invoice renders its receipt).
-    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.id).toBe(
-      'inv-test-002',
+    const buttons: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.builder-invoices__row-link'),
     );
-    const back = fixture.nativeElement.querySelector(
-      '.builder-invoices__back',
-    ) as HTMLButtonElement;
-    expect(back).not.toBeNull();
+    buttons[2].click();
+    await flushMock(fixture);
+
+    expect(drawerMock.open).toHaveBeenCalledTimes(1);
+    const [component, options] = drawerMock.open.mock.calls[0];
+    expect(component).toBe(BuilderInvoiceDrawerComponent);
+    expect(options).toMatchObject({ data: { invoiceId: 'inv-test-003' }, urlId: 'inv-test-003' });
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.id).toBe('inv-test-003');
+    // The list stays on the page behind the drawer.
+    expect(fixture.nativeElement.querySelector('.builder-invoices__table')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.builder-invoices__back')).toBeNull();
+  });
+
+  it('clears the selection when the drawer closes', async () => {
+    const { fixture, drawerMock, store } = await setup();
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    (fixture.nativeElement.querySelector('.builder-invoices__row-link') as HTMLButtonElement).click();
+    await flushMock(fixture);
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.id).toBe('inv-test-001');
+
+    drawerMock.close();
+    await flushMock(fixture);
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)).toBeNull();
+  });
+
+  it('opens the drawer for a ?open=<id> deep link', async () => {
+    const { fixture, drawerMock } = await setupWithInvoices(
+      { invoices: testInvoices(), total: null, page: 1, pageSize: 10 },
+      { url: '/?open=inv-test-002' },
+    );
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    expect(drawerMock.open).toHaveBeenCalled();
+    expect(drawerMock.open.mock.calls[0][1]).toMatchObject({ urlId: 'inv-test-002' });
+  });
+
+  it('rewrites the legacy ?invoice=<id> deep link to ?open=<id> in place', async () => {
+    const { fixture, drawerMock } = await setupWithInvoices(
+      { invoices: testInvoices(), total: null, page: 1, pageSize: 10 },
+      { url: '/?invoice=inv-test-002' },
+    );
+    fixture.detectChanges();
+    await flushMock(fixture);
+
+    const router = TestBed.inject(Router);
+    const params = router.parseUrl(router.url).queryParams;
+    expect(params['invoice']).toBeUndefined();
+    expect(params['open']).toBe('inv-test-002');
+    expect(drawerMock.open.mock.calls.at(-1)?.[1]).toMatchObject({ urlId: 'inv-test-002' });
   });
 });
 
@@ -1227,72 +852,4 @@ describe('BuilderInvoices invoice-number column + filter', () => {
     expect(text).toContain('No invoices match your search.');
   });
 
-  it('orders timeline events chronologically when the charge failed before finalize (#478)', async () => {
-    const [failed] = testInvoices().filter((inv) => inv.status === 'failed');
-    const invoice: BuilderCommissionInvoice = {
-      ...failed,
-      createdAt: '2026-10-28T16:00:00.000Z',
-      reviewDueAt: '2026-11-04T16:00:00.000Z',
-      // Charge failure recorded (updatedAt) before finalizedAt.
-      updatedAt: '2026-11-04T18:00:00.000Z',
-      finalizedAt: '2026-11-05T18:00:00.000Z',
-    };
-    const { fixture } = await setupWithInvoices({
-      invoices: [invoice],
-      total: 1,
-      page: 1,
-      pageSize: 10,
-    });
-    fixture.detectChanges();
-    await flushMock(fixture);
-
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '.builder-invoices__row-link',
-    );
-    button.click();
-    await flushMock(fixture);
-
-    const labels = [
-      ...fixture.nativeElement.querySelectorAll(
-        '.builder-invoices__timeline-label',
-      ),
-    ].map((el: Element) => el.textContent?.trim());
-    expect(labels).toEqual([
-      DEFAULT_BUILDER_COPY.invoicesTimelineCreated,
-      DEFAULT_BUILDER_COPY.invoicesTimelineReviewEnds,
-      DEFAULT_BUILDER_COPY.invoicesTimelineFailed,
-      DEFAULT_BUILDER_COPY.invoicesTimelineFinalized,
-    ]);
-  });
-});
-
-describe('sortTimelineChronologically (#478)', () => {
-  it('sorts entries oldest first', () => {
-    const sorted = sortTimelineChronologically([
-      { label: 'c', date: '2026-11-05T00:00:00.000Z' },
-      { label: 'a', date: '2026-11-01T00:00:00.000Z' },
-      { label: 'b', date: '2026-11-04T00:00:00.000Z' },
-    ]);
-    expect(sorted.map((e) => e.label)).toEqual(['a', 'b', 'c']);
-  });
-
-  it('keeps insertion order for equal timestamps (stable)', () => {
-    const sorted = sortTimelineChronologically([
-      { label: 'finalized', date: '2026-11-05T00:00:00.000Z' },
-      { label: 'paid', date: '2026-11-05T00:00:00.000Z' },
-      { label: 'created', date: '2026-11-01T00:00:00.000Z' },
-    ]);
-    expect(sorted.map((e) => e.label)).toEqual(['created', 'finalized', 'paid']);
-  });
-
-  it('places unparseable dates last in insertion order and does not mutate input', () => {
-    const input = [
-      { label: 'bad1', date: 'not-a-date' },
-      { label: 'ok', date: '2026-11-01T00:00:00.000Z' },
-      { label: 'bad2', date: '' },
-    ];
-    const sorted = sortTimelineChronologically(input);
-    expect(sorted.map((e) => e.label)).toEqual(['ok', 'bad1', 'bad2']);
-    expect(input.map((e) => e.label)).toEqual(['bad1', 'ok', 'bad2']);
-  });
 });

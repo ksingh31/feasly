@@ -30,6 +30,15 @@ export class LoadAdminInvoiceDetail {
   constructor(public readonly id: string) {}
 }
 
+/**
+ * Load the open dispute for a disputed invoice (#543): its id (for the
+ * "Open dispute" link) and audit trail (the drawer's activity timeline).
+ */
+export class LoadAdminInvoiceDispute {
+  static readonly type = '[AdminInvoices] Load invoice dispute';
+  constructor(public readonly invoiceId: string) {}
+}
+
 /** Clear the detail view (leaving the invoices page). */
 export class ClearAdminInvoiceDetail {
   static readonly type = '[AdminInvoices] Clear invoice detail';

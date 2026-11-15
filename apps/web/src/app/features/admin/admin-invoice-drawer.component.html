@@ -1,0 +1,167 @@
+<ui-drawer [heading]="heading()">
+  @if (invoice(); as inv) {
+    <ui-status-chip uiDrawerChip domain="invoice" [status]="inv.status" />
+  }
+  @if (invoice(); as inv) {
+    <span uiDrawerMeta class="invoice-drawer__meta">
+      <span>{{ inv.tenantKey }}</span>
+      <span aria-hidden="true">·</span>
+      <a
+        class="invoice-drawer__link"
+        data-testid="invoice-lead-link"
+        routerLink="/admin/leads"
+        [queryParams]="{ open: inv.leadId }"
+      >{{ inv.leadName }}</a>
+    </span>
+  }
+
+  <div class="invoice-drawer">
+    @if (detailStatus() === 'loading' && !invoice()) {
+      <p class="invoice-drawer__state" role="status">Loading invoice…</p>
+    } @else if (detailStatus() === 'error' && !invoice()) {
+      <div class="invoice-drawer__state invoice-drawer__state--error" role="alert">
+        <p>{{ detailError() ?? 'Could not load this invoice.' }}</p>
+        <button type="button" ui-button variant="secondary" size="sm" (click)="retry()">Try again</button>
+      </div>
+    } @else if (invoice(); as inv) {
+      @if (canAct()) {
+        <div class="invoice-drawer__actions" role="group" aria-label="Invoice actions">
+          <button type="button" ui-button variant="secondary" size="sm" data-testid="action-rate" (click)="changeRate()">
+            Change rate
+          </button>
+          <button type="button" ui-button variant="secondary" size="sm" data-testid="action-method" (click)="changeMethod()">
+            Change payment method
+          </button>
+          <button type="button" ui-button size="sm" data-testid="action-payment" (click)="recordPayment()">
+            Record payment
+          </button>
+        </div>
+      }
+
+      @if (inv.status === 'disputed') {
+        <div class="invoice-drawer__dispute" data-testid="invoice-dispute">
+          <div>
+            <p class="invoice-drawer__dispute-title">This invoice is disputed</p>
+            @if (inv.disputeReason) {
+              <p class="invoice-drawer__dispute-reason">{{ inv.disputeReason }}</p>
+            }
+          </div>
+          @if (dispute(); as d) {
+            <a
+              ui-button
+              variant="secondary"
+              size="sm"
+              data-testid="open-dispute"
+              routerLink="/admin/disputes"
+              [queryParams]="{ open: d.id }"
+            >Open dispute</a>
+          } @else if (disputeStatus() !== 'loading') {
+            <a ui-button variant="secondary" size="sm" data-testid="open-disputes" routerLink="/admin/disputes">
+              Go to disputes
+            </a>
+          }
+        </div>
+      }
+
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-amounts">
+        <h3 class="invoice-drawer__heading" id="invoice-drawer-amounts">Amounts</h3>
+        <dl class="invoice-drawer__list">
+          <div>
+            <dt>Commission</dt>
+            <dd class="invoice-drawer__num invoice-drawer__num--lead">{{ inv.commissionCents | kitMoney }}</dd>
+          </div>
+          <div>
+            <dt>Contract value (excl. land)</dt>
+            <dd class="invoice-drawer__num">{{ inv.contractValueCents | kitMoney }}</dd>
+          </div>
+          <div>
+            <dt>Rate applied</dt>
+            <dd class="invoice-drawer__num">
+              {{ rateLabel(inv.effectiveRatePercent) }}
+              @if (inv.commissionRateOverride !== null) {
+                <span class="invoice-drawer__muted">(changed by staff)</span>
+              }
+            </dd>
+          </div>
+          @if (inv.commissionRatePercent !== null) {
+            <div>
+              <dt>Builder rate at creation</dt>
+              <dd class="invoice-drawer__num">{{ rateLabel(inv.commissionRatePercent) }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-activity">
+        <h3 class="invoice-drawer__heading" id="invoice-drawer-activity">Activity</h3>
+        <ui-timeline [events]="timeline()" label="Invoice activity" />
+      </section>
+
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-payment">
+        <h3 class="invoice-drawer__heading" id="invoice-drawer-payment">Payment</h3>
+        <dl class="invoice-drawer__list">
+          <div>
+            <dt>Payment method</dt>
+            <dd>{{ plannedMethodLabel(inv.paymentMethod) }}</dd>
+          </div>
+          @if (inv.manualPaymentMethod !== null) {
+            <div>
+              <dt>Paid by</dt>
+              <dd>{{ manualMethodLabel(inv.manualPaymentMethod) }}</dd>
+            </div>
+          }
+          @if (inv.paymentReference !== null) {
+            <div>
+              <dt>Reference</dt>
+              <dd>{{ inv.paymentReference }}</dd>
+            </div>
+          }
+          @if (inv.paidAt !== null) {
+            <div>
+              <dt>Paid</dt>
+              <dd>{{ inv.paidAt | kitDateTime }}</dd>
+            </div>
+          }
+          @if (inv.reviewDueAt !== null && inv.status === 'in_review') {
+            <div>
+              <dt>Review window ends</dt>
+              <dd>{{ inv.reviewDueAt | kitDateTime }}</dd>
+            </div>
+          }
+          @if (inv.slaBreached) {
+            <div>
+              <dt>Reporting</dt>
+              <dd class="invoice-drawer__flag">Contract reported after the 14-day window</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-ids">
+        <h3 class="invoice-drawer__heading" id="invoice-drawer-ids">Technical IDs</h3>
+        <dl class="invoice-drawer__list">
+          <div>
+            <dt>Invoice</dt>
+            <dd class="invoice-drawer__mono">{{ inv.id }}</dd>
+          </div>
+          <div>
+            <dt>Lead</dt>
+            <dd class="invoice-drawer__mono">{{ inv.leadId }}</dd>
+          </div>
+          @if (inv.attributionId) {
+            <div>
+              <dt>Attribution</dt>
+              <dd class="invoice-drawer__mono">{{ inv.attributionId }}</dd>
+            </div>
+          }
+          @if (inv.stripePaymentIntentId !== null) {
+            <div>
+              <dt>Stripe payment</dt>
+              <dd class="invoice-drawer__mono">{{ inv.stripePaymentIntentId }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+  </div>
+</ui-drawer>

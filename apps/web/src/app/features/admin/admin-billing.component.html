@@ -60,26 +60,6 @@
     <app-admin-create-invoice (closed)="closeCreateForm()" />
   }
 
-  @if (managedInvoice(); as managed) {
-    <!-- Manage-invoice modal: backdrop click or Esc closes. Focus moves
-         into the dialog on open, Tab cycles inside it, and focus returns
-         to the invoking button on close (see the component). -->
-    <div
-      #manageDialog
-      class="billing-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Manage invoice"
-    >
-      <div class="billing-modal__backdrop" (click)="closeManage()"></div>
-      <app-admin-manage-invoice
-        class="billing-modal__dialog"
-        [invoice]="managed"
-        (closed)="closeManage()"
-      />
-    </div>
-  }
-
   @if (loadStatus() === 'loading' && !health()) {
     <p class="billing-panel__loading">Loading billing health…</p>
   }
@@ -202,17 +182,9 @@
                   <td>
                     <a
                       class="billing-panel__link"
-                      [routerLink]="['/admin/billing/invoices', invoice.id]"
-                    >Details</a>
-                    @if (canManageBilling()) {
-                      <button
-                        type="button"
-                        class="billing-panel__btn"
-                        (click)="openManageInReview(invoice, $event)"
-                      >
-                        Manage
-                      </button>
-                    }
+                      routerLink="/admin/billing/invoices"
+                      [queryParams]="{ open: invoice.id }"
+                    >{{ canManageBilling() ? 'Manage' : 'Details' }}</a>
                   </td>
                 </tr>
               }
@@ -269,17 +241,10 @@
                   <td>
                     <a
                       class="billing-panel__link"
-                      [routerLink]="['/admin/billing/invoices', invoice.id]"
-                    >Details</a>
+                      routerLink="/admin/billing/invoices"
+                      [queryParams]="{ open: invoice.id }"
+                    >{{ canManageBilling() ? 'Manage' : 'Details' }}</a>
                     @if (canManageBilling()) {
-                      <button
-                        type="button"
-                        class="billing-panel__btn"
-                        (click)="openManageDunning(invoice, $event)"
-                        title="Record an off-Stripe payment — cancels the scheduled auto-charge"
-                      >
-                        Mark as paid
-                      </button>
                       @if (retriesExhausted(invoice.retryCount, h.maxChargeRetries)) {
                         <span class="billing-panel__muted">Manual handling</span>
                       } @else if (isConfirming(invoice.id)) {
