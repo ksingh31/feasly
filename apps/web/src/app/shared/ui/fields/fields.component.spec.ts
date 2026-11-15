@@ -255,6 +255,29 @@ describe('UiMoneyFieldComponent', () => {
     expect(fixture.componentInstance.cents()).toBeNull();
   });
 
+  it('drops a pasted decimal part instead of reading cents as dollars', () => {
+    const input = inputs()[0]!;
+    typeInto(input, '1,250,000.00');
+    fixture.detectChanges();
+    expect(input.value).toBe('1,250,000');
+    expect(fixture.componentInstance.cents()).toBe(125000000);
+    typeInto(input, '$1,250.50');
+    fixture.detectChanges();
+    expect(input.value).toBe('1,250');
+    expect(fixture.componentInstance.cents()).toBe(125000);
+  });
+
+  it('ignores a typed "." and keeps the caret at the end', () => {
+    const input = inputs()[0]!;
+    typeInto(input, '1250');
+    fixture.detectChanges();
+    typeInto(input, '1,250.');
+    fixture.detectChanges();
+    expect(input.value).toBe('1,250');
+    expect(input.selectionStart).toBe(5);
+    expect(fixture.componentInstance.cents()).toBe(125000);
+  });
+
   it('rejects input too long to represent and keeps the last good value', () => {
     const input = inputs()[0]!;
     typeInto(input, '999999999999');

@@ -62,8 +62,11 @@ export class UiMoneyFieldComponent extends UiFieldBase<number | null> {
 
   protected onInput(event?: Event): void {
     const el = this.inputEl().nativeElement;
-    const raw = el.value;
-    const caret = el.selectionStart ?? raw.length;
+    // Whole dollars only: drop a decimal part (pasted "1,250.50", or "." from
+    // a numeric keypad) so its digits aren't read as dollars (×100).
+    const dot = el.value.indexOf('.');
+    const raw = dot === -1 ? el.value : el.value.slice(0, dot);
+    const caret = Math.min(el.selectionStart ?? raw.length, raw.length);
     let digitsBeforeCaret = raw.slice(0, caret).replace(/\D/g, '').length;
     let digits = raw.replace(/\D/g, '');
 
