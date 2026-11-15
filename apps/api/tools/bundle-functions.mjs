@@ -348,6 +348,11 @@ const targets = [
     entry: 'src/functions/billing-commission-rate.ts',
     out: 'billing-commission-rate/index.js',
   },
+  // #531 — builder portal Money page header (one-call billing overview).
+  {
+    entry: 'src/functions/builder-billing-overview.ts',
+    out: 'builder-billing-overview/index.js',
+  },
   // billing/12 — builder default payment method (GET + PUT).
   {
     entry: 'src/functions/billing-payment-method.ts',

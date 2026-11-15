@@ -500,6 +500,14 @@ import {
   type InvoiceSummaryStore,
 } from './services/billing/invoice-summary.store';
 import {
+  createBillingOverviewService,
+  type BillingOverviewService,
+} from './services/billing/billing-overview.service';
+import {
+  createBuilderBillingOverviewRoute,
+  type BuilderBillingOverviewRoute,
+} from './routes/builder/billing-overview.route';
+import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
 } from './routes/stripe-webhooks.route';
@@ -697,6 +705,10 @@ export interface AppComposition {
   readonly billingService: BillingService;
   /** billing/01: thin route for /api/v1/billing/*. */
   readonly billingRoute: BillingRoute;
+  /** #531: Money page header — one-call builder billing overview. */
+  readonly billingOverviewService: BillingOverviewService;
+  /** #531: thin route for GET /api/v1/builder/billing/overview. */
+  readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -1699,6 +1711,20 @@ export function createComposition(
   const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
     db: db.db,
   });
+  // #531 builder portal Money page header: one tenant-scoped read over the
+  // invoice summaries + configured rate + card on file.
+  const billingOverviewService: BillingOverviewService =
+    createBillingOverviewService({
+      billing: config.billing,
+      invoiceSummaries: invoiceSummaryStore,
+      commission: commissionService,
+      commissionCard: commissionCardService,
+    });
+  const builderBillingOverviewRoute: BuilderBillingOverviewRoute =
+    createBuilderBillingOverviewRoute({
+      overview: billingOverviewService,
+      builderGuard,
+    });
   // billing/05 lead comments store — created here (ahead of the leads
   // service) so the lead list can carry per-lead notes counts/previews.
   const commentStore: CommentStore = createDrizzleCommentStore({ db: db.db });
@@ -1914,6 +1940,8 @@ export function createComposition(
     embedBillingHookService,
     billingService,
     billingRoute,
+    billingOverviewService,
+    builderBillingOverviewRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,
