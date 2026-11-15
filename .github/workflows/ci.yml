@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch: # Agent · Merge runs CI on main after a GITHUB_TOKEN merge
 
 jobs:
   build:
