@@ -77,7 +77,7 @@ keeps existing guarantees, note why on the issue), file a bug, and fix it.
 - "Merged" is not "live": confirm CD is green and the change shows on dev.
 
 ## Azure — owner's standing rules
-- Subscription `9b7d7805-311a-4e4f-ac48-5d281d7e1185`, RG `rg-feasly-dev`, Canada Central.
+- Subscription: the `AZURE_SUBSCRIPTION_ID` repo variable (`gh variable get AZURE_SUBSCRIPTION_ID`; the `az` login default), RG `rg-feasly-dev`, Canada Central.
 - **Free tier only.** Never upgrade a SKU/subscription or create paid resources
   without Karan's explicit approval for that specific change.
 - Reads/diagnostics freely (`az`, Azure MCP in read-only mode, Log Analytics

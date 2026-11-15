@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
-import { loadConfig, parseNarrativeModels } from '../src/config';
+import { loadConfig, parseNarrativeModels, SEED_ADMIN_EMAIL } from '../src/config';
 import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
@@ -116,8 +116,8 @@ describe('loadConfig', () => {
         unsubscribeUrlBase: 'https://feasly.example/unsubscribe',
         unsubscribeTokenSecret: undefined,
         unsubscribeTokenTtlSeconds: 2_592_000,
-        opsInbox: 'karanbirsingh667@gmail.com',
-        opsAlertEmail: 'karanbirsingh667@gmail.com',
+        opsInbox: SEED_ADMIN_EMAIL,
+        opsAlertEmail: SEED_ADMIN_EMAIL,
         opsAlertDedupeWindowMs: 86_400_000,
         logLinks: true,
       },

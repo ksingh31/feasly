@@ -12,9 +12,10 @@ import {
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type { SheetsSyncStatusService } from '../src/services/sheets-sync-status.service';
 import type { SheetsSyncStatusResponse } from '@feasly/contracts';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const ADMIN_HEADERS = { cookie: 'feasly_admin_session=valid-test-session' };
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 
 function makeGuard() {
   return {
