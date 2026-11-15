@@ -309,8 +309,16 @@ export interface BuilderCopy {
   teamConfirmNo: string;
   teamActionError: string;
   shellHomeLabel: string;
-  shellMenuOpenLabel: string;
-  shellMenuCloseLabel: string;
+  /** Builder shell v2 (#502, portal UI kit §4). */
+  shellNavLabel: string;
+  shellTabsLabel: string;
+  shellNavMoney: string;
+  shellMoneyNavLabel: string;
+  shellAccountMenuLabel: string;
+  shellSwitchOrgLabel: string;
+  shellSignedInAs: string;
+  shellFailedCardMessage: string;
+  shellFailedCardCta: string;
   leadsSubtitle: string;
   leadsEmptyHeading: string;
   leadsEmptyGuidance: string;

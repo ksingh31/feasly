@@ -192,10 +192,22 @@ export class BuilderState {
     return state.session?.builderId ?? null;
   }
 
-  /** auth/05: the session's active org display name. */
+  /**
+   * auth/05: the session's active org display name. `/me` carries no org
+   * name, so after a reload (the session identity is never persisted) the
+   * name resolves from the memberships list by the active org id (#502:
+   * the shell must always show the current org).
+   */
   @Selector()
   static activeBuilderName(state: BuilderStateModel): string | null {
-    return state.session?.builderName ?? null;
+    const session = state.session;
+    if (!session) return null;
+    if (session.builderName) return session.builderName;
+    if (!session.builderId) return null;
+    return (
+      (state.memberships ?? []).find((m) => m.builderId === session.builderId)
+        ?.builderName ?? null
+    );
   }
 
   /** auth/05: the user's role in the active org. */

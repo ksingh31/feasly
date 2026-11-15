@@ -306,8 +306,16 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   teamViewAsError: 'Could not start viewing as this member. Please try again.',
   teamViewAsForbidden: 'Only administrators can view as a team member.',
   shellHomeLabel: 'Feasly Builder home',
-  shellMenuOpenLabel: 'Open menu',
-  shellMenuCloseLabel: 'Close menu',
+  // Builder shell v2 (#502): Leads · Money · Team + account menu.
+  shellNavLabel: 'Builder portal',
+  shellTabsLabel: 'Builder portal sections',
+  shellNavMoney: 'Money',
+  shellMoneyNavLabel: 'Money',
+  shellAccountMenuLabel: 'Account menu, current organization {org}',
+  shellSwitchOrgLabel: 'Switch organization',
+  shellSignedInAs: 'Signed in as',
+  shellFailedCardMessage: 'A card payment failed on one of your invoices.',
+  shellFailedCardCta: 'Update card',
   leadsSubtitle: 'Your matched homeowners, from first contact to signed contract.',
   leadsEmptyHeading: 'No leads yet',
   leadsEmptyGuidance:
