@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
+  planDispatch, orderOf, blockersOf, shouldReleaseBacklog, decideMerge, judgeClaimedIssue, judgeAgentPr, areaOf, isTrustedAuthor, sensitiveFiles, triageFailure, MARKERS, DEFAULTS,
 } from './lib.mjs';
 
 const H = 3_600_000;
@@ -19,7 +19,7 @@ test('dispatch fills free WIP slots, bugs and priority first', () => {
   assert.deepEqual(start.map((i) => i.number), [4, 2]);
 });
 
-test('dispatch follows the explicit Order: sequence before priority', () => {
+test('dispatch: bugs first, then the explicit Order: sequence, then priority', () => {
   const ready = [
     issue(1, ['bug', 'priority:high'], { body: 'x\nOrder: 3' }),
     issue(2, [], { body: 'Order: 1' }),
@@ -27,7 +27,7 @@ test('dispatch follows the explicit Order: sequence before priority', () => {
     issue(4, [], { body: 'Order: 2' }),
   ];
   const { start } = planDispatch({ readyIssues: ready, claimedCount: 0, openAgentPrCount: 0, maxWip: 4 });
-  assert.deepEqual(start.map((i) => i.number), [2, 4, 1, 3]);
+  assert.deepEqual(start.map((i) => i.number), [1, 3, 2, 4]);
 });
 
 test('dispatch skips issues whose blockers are still open', () => {
@@ -46,8 +46,11 @@ test('order and blocker parsing', () => {
 });
 
 test('dispatch starts nothing when WIP is full', () => {
-  const { start } = planDispatch({ readyIssues: [issue(1)], claimedCount: 1, openAgentPrCount: 1, maxWip: 2 });
-  assert.equal(start.length, 0);
+  assert.equal(planDispatch({ readyIssues: [issue(1)], claimedCount: 2, openAgentPrCount: 0, maxWip: 2 }).start.length, 0);
+  // open PRs no longer hold agent slots…
+  assert.equal(planDispatch({ readyIssues: [issue(1)], claimedCount: 0, openAgentPrCount: 4, maxWip: 2 }).start.length, 1);
+  // …but are capped so unmerged work can't pile up
+  assert.equal(planDispatch({ readyIssues: [issue(1)], claimedCount: 0, openAgentPrCount: 8, maxWip: 2, maxOpenPrs: 8 }).start.length, 0);
 });
 
 test('dispatch skips needs:karan, claimed, and untrusted authors', () => {
@@ -132,6 +135,34 @@ test('backlog waits until every non-parked bug is closed', () => {
     { release: false, blockingBugs: [1] });
   assert.equal(shouldReleaseBacklog({ openBugs: [issue(2, ['bug', 'needs:karan'])], backlogCount: 5 }).release, true);
   assert.equal(shouldReleaseBacklog({ openBugs: [], backlogCount: 0 }).release, false);
+});
+
+test('merger: only every-check-green + approved merges', () => {
+  const base = { author: 'claude[bot]', isDraft: false, labels: ['agent:pr'], verdict: 'APPROVE', mergeState: 'CLEAN',
+    checks: [{ name: 'build', bucket: 'pass' }, { name: 'preview (SWA)', bucket: 'pass' }, { name: 'deploy-dev', bucket: 'skipping' }] };
+  assert.equal(decideMerge(base).action, 'merge');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'pending' }] }).action, 'wait');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'fail' }] }).action, 'skip');
+  assert.equal(decideMerge({ ...base, checks: [{ name: 'build', bucket: 'pass' }, { name: 'preview (SWA)', bucket: 'fail' }] }).action, 'rerun');
+  assert.equal(decideMerge({ ...base, verdict: 'REQUEST_CHANGES' }).action, 'skip');
+  assert.equal(decideMerge({ ...base, verdict: '' }).action, 'skip');
+  assert.equal(decideMerge({ ...base, author: 'ksingh31', verdict: '' }).action, 'merge');
+  assert.equal(decideMerge({ ...base, mergeState: 'BEHIND' }).action, 'update');
+  assert.equal(decideMerge({ ...base, labels: ['agent:pr', 'needs:karan'] }).action, 'skip');
+  assert.equal(decideMerge({ ...base, author: 'ksingh31', verdict: '', labels: ['needs:karan'] }).action, 'merge');
+  assert.equal(decideMerge({ ...base, mergeState: 'DIRTY' }).action, 'skip');
+});
+
+test('bugs without Order still go before ordered stories', () => {
+  const ready = [issue(1, ['design'], { body: 'Order: 20' }), issue(2, ['bug'], { body: 'no order' })];
+  assert.deepEqual(planDispatch({ readyIssues: ready, claimedCount: 0, openAgentPrCount: 0, maxWip: 2 }).start.map((i) => i.number), [2, 1]);
+});
+
+test('backlog waits only for bugs that existed when the stories were written', () => {
+  const old = issue(1, ['bug'], { createdAt: '2026-11-13T10:00:00Z' });
+  const fresh = issue(2, ['bug'], { createdAt: '2026-11-14T01:00:00Z' });
+  assert.equal(shouldReleaseBacklog({ openBugs: [fresh], backlogCount: 3, cutoff: '2026-11-13T14:00:00Z' }).release, true);
+  assert.equal(shouldReleaseBacklog({ openBugs: [old, fresh], backlogCount: 3, cutoff: '2026-11-13T14:00:00Z' }).release, false);
 });
 
 test('sensitive paths hold auto-merge', () => {

@@ -27,3 +27,15 @@ You own the merge gate for Feasly. Read `CLAUDE.md` (Process section).
 
 ## Output
 Per PR: merged / not merged (and why), CI conclusion for the merge SHA, CD result, live check.
+
+## Supervision duty (every 10 minutes while agents are active)
+Owner rule (2026-11-13). Whoever operates the pipeline (release-manager, or the interactive session) checks
+agent runs (`agent-dev.yml`, `agent-fix.yml`) and claimed issues every 10 minutes and acts without waiting:
+- **Failed run** → requeue its issue now (remove `agent:claimed`, add `agent:ready`, comment `<!-- agent:requeue -->` + reason) and read the failure log.
+- **Claimed ≥ 15 min with no running agent and no PR** → requeue (orphaned claim).
+- **Ready work but 0 agents running** → `gh workflow run agent-dispatch.yml`.
+- **Run in progress ≥ 50 min** (normal: 15–40 min incl. verify-local) → read its log and step in.
+- **Same issue requeued 3+ times** → fix it directly or park with `needs:karan` and the reason.
+- **Merges**: only when *every* check is green and the reviewer verdict is APPROVE; re-run flaky environment checks, update branches one at a time.
+- **QA issues that contradict an owner decision** (CLAUDE.md "Owner decisions") → close citing the decision.
+

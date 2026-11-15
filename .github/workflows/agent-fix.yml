@@ -22,7 +22,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: read
+  actions: write # retry dispatch
   id-token: write
 
 jobs:
@@ -63,6 +63,7 @@ jobs:
       - if: steps.cap.outputs.go == 'true'
         run: npm ci && npm run build:configs --workspace @feasly/api
       - name: Fix
+        id: claude
         if: steps.cap.outputs.go == 'true'
         uses: anthropics/claude-code-action@v1
         with:
@@ -86,3 +87,25 @@ jobs:
             --model claude-opus-5-5
             --max-turns 100
             --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch"
+      - name: Retry a failed fix round once
+        if: failure() && steps.cap.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXEC: ${{ steps.claude.outputs.execution_file }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          # Usage limit / overload is transient: wait and retry without counting it.
+          if [ -n "$EXEC" ] && [ -f "$EXEC" ] && grep -qiE 'rate.?limit|usage limit|overloaded|529|quota' "$EXEC"; then
+            echo "transient model capacity error — retrying in 10 min"; sleep 600
+            gh workflow run agent-fix.yml -R "$GITHUB_REPOSITORY" -f pr="$PR" -f reason="$REASON (retry after capacity error)"
+            exit 0
+          fi
+          n=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[]|select(.body|contains("<!-- agent:fix-retry -->"))]|length')
+          if [ "$n" -lt 1 ]; then
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "<!-- agent:fix-retry -->
+          Fix round failed ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) — retrying once."
+            gh workflow run agent-fix.yml -R "$GITHUB_REPOSITORY" -f pr="$PR" -f reason="$REASON (retry)"
+          else
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs:karan
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "Fix round failed again ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) — parked."
+          fi
