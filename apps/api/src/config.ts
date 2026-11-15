@@ -1135,18 +1135,25 @@ function enforceStripeTestMode(
 }
 
 /**
- * #753: resolve the payment provider. Unset → `simulated` in development
- * only. Production refuses `simulated` — no simulated money in prod.
+ * #753: resolve the payment provider. Fail closed: unset → `stripe`
+ * everywhere. `simulated` must be set explicitly (Bicep sets it for dev
+ * only). Deployed apps don't set NODE_ENV at runtime, so the refusal also
+ * keys on a live Stripe key — a signal that is present in production.
  */
 function resolvePaymentsProvider(
   requested: 'simulated' | 'stripe' | undefined,
   nodeEnv: NodeEnv,
+  stripeSecretKey: string | undefined,
 ): 'simulated' | 'stripe' {
-  const provider =
-    requested ?? (nodeEnv === 'development' ? 'simulated' : 'stripe');
+  const provider = requested ?? 'stripe';
   if (provider === 'simulated' && nodeEnv === 'production') {
     throw new Error(
       'Invalid configuration:\n  - PAYMENTS_PROVIDER: production cannot use the simulated payment provider',
+    );
+  }
+  if (provider === 'simulated' && stripeSecretKey?.startsWith('sk_live_')) {
+    throw new Error(
+      'Invalid configuration:\n  - PAYMENTS_PROVIDER: the simulated payment provider cannot run with a live (sk_live_) STRIPE_SECRET_KEY',
     );
   }
   return provider;
@@ -1385,7 +1392,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
     },
     payments: {
-      provider: resolvePaymentsProvider(e.PAYMENTS_PROVIDER, e.NODE_ENV),
+      provider: resolvePaymentsProvider(
+        e.PAYMENTS_PROVIDER,
+        e.NODE_ENV,
+        e.STRIPE_SECRET_KEY,
+      ),
       simulatedWebhookSecret: e.PAYMENTS_SIMULATED_WEBHOOK_SECRET,
       simulatedWebhookDelayMs: e.PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS,
     },

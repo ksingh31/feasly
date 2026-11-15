@@ -175,7 +175,7 @@ describe('loadConfig', () => {
           registrationNumber: 'PLACEHOLDER_GST_NUMBER',
         },
       },
-      // #753: payment provider — `stripe` outside development by default.
+      // #753: payment provider — `stripe` unless PAYMENTS_PROVIDER=simulated.
       payments: {
         provider: 'stripe',
         simulatedWebhookSecret: undefined,
@@ -543,12 +543,15 @@ describe('loadConfig', () => {
     warnSpy.mockRestore();
   });
 
-  it('PAYMENTS_PROVIDER (#753): simulated in development by default, stripe elsewhere', () => {
-    expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'development' }).payments).toEqual({
-      provider: 'simulated',
+  it('PAYMENTS_PROVIDER (#753): fails closed to stripe unless simulated is set explicitly', () => {
+    // Deployed Function Apps set no NODE_ENV, so "everything unset" must be stripe.
+    const { NODE_ENV: _omit, ...noNodeEnv } = VALID_ENV as Record<string, string>;
+    expect(loadConfig(noNodeEnv).payments).toEqual({
+      provider: 'stripe',
       simulatedWebhookSecret: undefined,
       simulatedWebhookDelayMs: 1_500,
     });
+    expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'development' }).payments.provider).toBe('stripe');
     expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'staging' }).payments.provider).toBe('stripe');
     expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'production' }).payments.provider).toBe('stripe');
     const explicit = loadConfig({
@@ -562,10 +565,6 @@ describe('loadConfig', () => {
       simulatedWebhookSecret: 'sim-secret-0123456789',
       simulatedWebhookDelayMs: 0,
     });
-    expect(
-      loadConfig({ ...VALID_ENV, NODE_ENV: 'development', PAYMENTS_PROVIDER: 'stripe' })
-        .payments.provider,
-    ).toBe('stripe');
     expect(() => loadConfig({ ...VALID_ENV, PAYMENTS_PROVIDER: 'paypal' })).toThrow(
       /PAYMENTS_PROVIDER/,
     );
@@ -575,6 +574,17 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, NODE_ENV: 'production', PAYMENTS_PROVIDER: 'simulated' }),
     ).toThrow(/PAYMENTS_PROVIDER: production cannot use the simulated payment provider/);
+  });
+
+  it('refuses the simulated provider alongside a live Stripe key, whatever NODE_ENV says (#753)', () => {
+    const { NODE_ENV: _omit, ...noNodeEnv } = VALID_ENV as Record<string, string>;
+    expect(() =>
+      loadConfig({
+        ...noNodeEnv,
+        PAYMENTS_PROVIDER: 'simulated',
+        STRIPE_SECRET_KEY: 'sk_live_placeholder',
+      }),
+    ).toThrow(/PAYMENTS_PROVIDER: the simulated payment provider cannot run with a live/);
   });
 
   it('requires sk_live_ Stripe keys in production', () => {

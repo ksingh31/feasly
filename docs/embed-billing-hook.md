@@ -64,10 +64,14 @@ it (grep test enforces this).
 
 | `PAYMENTS_PROVIDER` | Implementation | Secrets |
 |---|---|---|
-| `simulated` (default when `NODE_ENV=development`, i.e. the deployed dev Function App) | `simulated-payment.provider.ts`: Stripe-shaped objects, statuses, decline messages and event types. State lives in `simulated_payment_objects`. | none (`PAYMENTS_SIMULATED_WEBHOOK_SECRET` is optional; unset means a random secret per process) |
-| `stripe` (default everywhere else) | `createStripeSdkClient` in `stripe.service.ts`, the official SDK | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (Key Vault) |
+| `simulated` (set explicitly; Bicep sets it on the dev Function App only) | `simulated-payment.provider.ts`: Stripe-shaped objects, statuses, decline messages and event types. State lives in `simulated_payment_objects`. | none (`PAYMENTS_SIMULATED_WEBHOOK_SECRET` is optional; unset means a random secret per process) |
+| `stripe` (default when unset, everywhere) | `createStripeSdkClient` in `stripe.service.ts`, the official SDK | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (Key Vault) |
 
-Production refuses to boot with `simulated`.
+The default fails closed: with `PAYMENTS_PROVIDER` unset the app uses
+`stripe`. The app refuses to boot with `simulated` when `NODE_ENV=production`
+or when `STRIPE_SECRET_KEY` is a live (`sk_live_…`) key. Deployed Function
+Apps set no `NODE_ENV` at runtime, so the live-key check is the guard that
+fires in production.
 
 **Simulated behaviour.** Cards are Stripe's public test numbers
 (`SIMULATED_TEST_CARDS` in `@feasly/contracts`). No other number is accepted.
@@ -115,8 +119,9 @@ failure webhook settles it. The Stripe provider reads the PaymentIntent from
    production) and `STRIPE_WEBHOOK_SECRET` (`whsec_…`) in Key Vault. Pass
    their secret URIs to `infra/bicep` (`stripeSecretKeySecretUri`,
    `stripeWebhookSecretUri`). The app settings are Key Vault references.
-2. Set the app setting `PAYMENTS_PROVIDER=stripe`. Only needed where
-   `NODE_ENV=development`; it is already the default elsewhere.
+2. Stop setting `PAYMENTS_PROVIDER=simulated`: change `paymentsProvider` for
+   dev in `infra/bicep/main.bicep` to `''` (or `'stripe'`). Unset means
+   `stripe`.
 3. In the Stripe dashboard, point the webhook endpoint at
    `POST /api/v1/stripe/webhooks` and subscribe to the event types listed
    in the `BillingWebhookService` dispatch table.

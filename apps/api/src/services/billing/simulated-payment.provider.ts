@@ -1,6 +1,6 @@
 /**
  * Simulated payment provider (#753) — a Stripe-shaped stand-in used until a
- * Stripe account exists (`PAYMENTS_PROVIDER=simulated`, dev default).
+ * Stripe account exists (`PAYMENTS_PROVIDER=simulated`, set explicitly on dev only).
  *
  * Implements the same `PaymentProvider` interface as the Stripe SDK client,
  * with Stripe's object shapes (`cus_`, `seti_`, `pm_`, `pi_`, `re_`, `dp_`,
