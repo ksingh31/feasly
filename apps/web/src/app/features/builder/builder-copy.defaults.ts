@@ -11,6 +11,15 @@ import type { BuilderCopy } from '../../core/config/app-config';
  * DEFAULT_APP_CONFIG (`copy.builder.entra`) because the Entra auth
  * service is root-provided and needs it before any builder route loads.
  */
+/**
+ * Owner-approved charge-timing sentence (2026-11-13, issue #479). Every
+ * card-charge timing message in the builder portal uses exactly this
+ * wording so the explainer, card-empty state, record-contract copy and
+ * invoice notes never contradict each other.
+ */
+export const CHARGE_TIMING_COPY =
+  'We charge your card 7 days after the invoice is issued. You can question it any time before then.';
+
 export const DEFAULT_BUILDER_COPY: BuilderCopy = {
       loginHeading: 'Builder sign in',
       loginExpired:
@@ -79,8 +88,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   reportContractSubmit: 'Record signed contract',
   reportContractSubmitting: 'Recording…',
   reportContractSuccessTitle: 'Contract recorded — your invoice is ready',
-  reportContractSuccessBody:
-    'You recorded a {amount} contract. Your {rate} commission is {commission}. The invoice is in its 7-day review window — we’ll charge your card on file after the review and email you a receipt.',
+  reportContractSuccessBody: `You recorded a {amount} contract. Your {rate} commission is {commission}. ${CHARGE_TIMING_COPY} We’ll email you a receipt.`,
   reportContractSuccessBodyManual:
     'You recorded a {amount} contract. Your {rate} commission is {commission}. The invoice is in its 7-day review window — your card won’t be charged. Pay by {method} and we’ll confirm it when it arrives; we’ll email you a receipt.',
   reportContractAlreadyReported:
@@ -108,15 +116,13 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   billingFormHeading: 'Card details',
   billingSaveCard: 'Save card',
   billingSavingCard: 'Saving…',
-  billingCardSaved:
-    'Card saved — we’ll charge this card after each 7-day review window.',
+  billingCardSaved: `Card saved. ${CHARGE_TIMING_COPY}`,
   billingSaveFailed:
     'We couldn’t save your card. Check the details and try again.',
   billingUnavailable:
     'Card setup isn’t available yet — please contact us to arrange billing.',
   billingCancel: 'Cancel',
-  billingExplainer:
-    'When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. The invoice auto-charges 7 days later — contact Feasly if something looks wrong.',
+  billingExplainer: `When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. ${CHARGE_TIMING_COPY}`,
   billingDefaultMethodTitle: 'Default payment method',
   billingDefaultMethodHelper:
     'New invoices use this unless you change it on the invoice.',
@@ -193,8 +199,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoicesReceiptAmount: 'Amount charged',
   invoicesReceiptDate: 'Charge date',
   invoicesReceiptCard: 'Card used',
-  invoicesReviewNote:
-    'The 7-day review window ends {date}. The card on file is charged automatically — contact Feasly if something looks wrong.',
+  invoicesReviewNote: `${CHARGE_TIMING_COPY} Review window ends {date}.`,
   invoicesPrevPage: 'Previous',
   invoicesNextPage: 'Next',
   invoicesPageOf: 'Page {page} of {pages}',
@@ -210,12 +215,12 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   dueBannersHeading: '{count} invoices need attention',
   dueBannersHeadingSingular: '1 invoice needs attention',
   dueBannersCollapseAll: 'Collapse all',
-  dueBannersBarFailedLead: 'Invoice {number} overdue:',
+  dueBannersBarFailedLead: 'Invoice {number} failed:',
   dueBannersBarFailedTail: '{amount} — payment failed',
-  dueBannersBarDueTodayLead: 'Invoice {number} due today:',
-  dueBannersBarDueTodayTail: '{amount} — charges tonight',
-  dueBannersBarOverdueLead: 'Invoice {number} overdue:',
-  dueBannersBarOverdueTail: '{amount} — charge pending',
+  dueBannersBarDueTodayLead: 'Invoice {number} in review:',
+  dueBannersBarDueTodayTail: '{amount} — review window ends today',
+  dueBannersBarOverdueLead: 'Invoice {number} in review:',
+  dueBannersBarOverdueTail: '{amount} — review window ended, charge pending',
   dueBannersMeta: 'Invoice {number} · {date} · {lead} · {contract} contract',
   dueBannersMethodLine: 'Payment method: {method} (change it on the invoice)',
   dueBannersCardLabel: 'Card •••• {last4}',
@@ -349,8 +354,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   billingCardNumberLabel: 'Card number',
   billingCardExpiryLabel: 'Expires',
   billingCardEmptyTitle: 'No card on file.',
-  billingCardEmptyBody:
-    'Commission invoices auto-charge 7 days after each review window. Add a card so charges go through.',
+  billingCardEmptyBody: `${CHARGE_TIMING_COPY} Add a card so charges go through.`,
   contractWhatHappensTitle: 'What happens next',
   contractFormHeading: 'Record details',
   contractLeadPlaceholder: 'Select a lead…',
