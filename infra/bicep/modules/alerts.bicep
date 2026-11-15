@@ -238,3 +238,49 @@ resource backupCheckProbeAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-0
     }
   }
 }
+
+// Log Analytics daily-cap monitor (#733 cost guardrail): the workspace has
+// a daily ingestion cap (monitoring.bicep `workspaceCapping`). When it is
+// reached, Azure pauses ingestion until the next UTC day and writes an
+// `OverQuota` ingestion operation to `_LogOperation` (operational records
+// are exempt from the cap, so this query still sees them). The app keeps
+// serving — only telemetry stops, which also blinds the other alerts in
+// this file until reset — so ops must hear about it. Fires on any
+// OverQuota event in the window (this is Microsoft's documented query for
+// a daily-cap alert). No `summarize count()`: with timeAggregation Count
+// and no measure column the rule counts result ROWS, and `summarize`
+// always returns exactly one row — so the raw rows are counted instead.
+resource dailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = {
+  name: '${namePrefix}-law-daily-cap'
+  location: workspaceLocation
+  properties: {
+    description: 'Log Analytics daily ingestion cap reached — telemetry paused until 00:00 UTC (API unaffected). See docs/ops/cost.md.'
+    severity: 2
+    enabled: true
+    scopes: [
+      logAnalyticsWorkspaceId
+    ]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          query: '_LogOperation | where TimeGenerated > ago(15m) | where Category =~ "Ingestion" | where Detail contains "OverQuota"'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+    }
+  }
+}
