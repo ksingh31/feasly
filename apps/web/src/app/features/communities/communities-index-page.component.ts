@@ -49,14 +49,23 @@ export class CommunitiesIndexPageComponent implements OnInit {
   /** Community index copy (config-owned, no hardcoded literals). */
   protected readonly indexCopy = this.config.get('copy').marketing.communities;
 
-  /** 40 communities in aggregate-data order (largest first). */
-  protected readonly communities: readonly CommunityAggregate[] = (
-    aggregates as CommunityAggregatesFile
-  ).communities;
-
   /** slug → page type ('build-guide' | 'profile'); unknown slugs default to 'build-guide'. */
   private readonly communityTypes: ReadonlyMap<string, CommunityType> = new Map(
     Object.entries((typeData as CommunityTypesFile).types),
+  );
+
+  /**
+   * Display order (consumer review S8): single-family build-guide
+   * communities first, condo/apartment-dominated profile communities last,
+   * each group alphabetical by display name. Aggregate-data order put
+   * Beltline — a condo district we can't quote — first.
+   */
+  protected readonly communities: readonly CommunityAggregate[] = [
+    ...(aggregates as CommunityAggregatesFile).communities,
+  ].sort(
+    (a, b) =>
+      Number(this.isProfile(a)) - Number(this.isProfile(b)) ||
+      toDisplayName(a.name).localeCompare(toDisplayName(b.name), 'en-CA'),
   );
 
   ngOnInit(): void {

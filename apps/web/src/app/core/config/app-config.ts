@@ -1386,7 +1386,7 @@ export interface AppConfig {
        * is the community display name.
        */
       coverageLede: string;
-      /** "This property's assessed value" label on the coverage card. */
+      /** "This address's assessed value" label on the coverage card. */
       propertyValueLabel: string;
       /** "{name} average" — community-average label on the coverage card. */
       communityAverageLabel: string;

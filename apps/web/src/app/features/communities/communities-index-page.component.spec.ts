@@ -112,4 +112,31 @@ describe('CommunitiesIndexPageComponent', () => {
     expect(ctaFor('MAHOGANY')).toBe('View cost guide →');
     expect(ctaFor('PANORAMA HILLS')).toBe('View cost guide →');
   });
+  it('lists single-family build-guide communities first, condo profiles last (S8)', () => {
+    fixture.detectChanges();
+    const cards = [...fixture.nativeElement.querySelectorAll('.community-card')] as Element[];
+    const isProfile = cards.map(
+      (c) => c.querySelector('.card-cta')?.textContent === 'View community profile →',
+    );
+    // Beltline (condo district we can't quote) is never the first card.
+    expect(cards[0].querySelector('h2')?.textContent).not.toBe('BELTLINE');
+    expect(isProfile[0]).toBe(false);
+    // No build-guide card appears after the first profile card.
+    const firstProfile = isProfile.indexOf(true);
+    expect(firstProfile).toBeGreaterThan(0);
+    expect(isProfile.slice(firstProfile).every(Boolean)).toBe(true);
+  });
+
+  it('orders each group alphabetically by name', () => {
+    fixture.detectChanges();
+    const cards = [...fixture.nativeElement.querySelectorAll('.community-card')] as Element[];
+    const rows = cards.map((c) => ({
+      name: c.querySelector('h2')?.textContent ?? '',
+      profile: c.querySelector('.card-cta')?.textContent === 'View community profile →',
+    }));
+    for (const profile of [false, true]) {
+      const names = rows.filter((r) => r.profile === profile).map((r) => r.name);
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-CA')));
+    }
+  });
 });

@@ -1169,12 +1169,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       // the community average, like the profile variant's hero.
       coverageLede:
         "We can't build-cost this address yet — here's the City-assessed value, compared with the {name} average.",
-      propertyValueLabel: "This property's assessed value",
+      propertyValueLabel: "This address's assessed value",
       communityAverageLabel: '{name} average',
-      comparePropertyTag: 'This property',
+      comparePropertyTag: 'This address',
       compareBarCaption: 'Bars drawn proportional to the larger value.',
       compareBarLabelTemplate:
-        'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+        'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
       coverageHonestNote:
         'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
     },
