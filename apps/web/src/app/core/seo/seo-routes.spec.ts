@@ -77,6 +77,7 @@ describe('seo-routes', () => {
       ['admin/estimates/3f9b2c1a-0000-4000-8000-000000000000', 'adminEstimatesTitle'],
       ['admin/api-keys', 'adminApiKeysTitle'],
       ['admin/funnels', 'adminFunnelsTitle'],
+      ['admin/webhooks', 'adminWebhooksTitle'],
       ['admin/login', 'adminLoginTitle'],
       ['admin/auth/callback', 'adminCallbackTitle'],
     ];
@@ -126,6 +127,7 @@ describe('seo-routes', () => {
       'admin/estimates/:id': 'admin/estimates/3f9b2c1a-0000-4000-8000-000000000000',
       'admin/api-keys': 'admin/api-keys',
       'admin/funnels': 'admin/funnels',
+      'admin/webhooks': 'admin/webhooks',
       'admin/login': 'admin/login',
       'admin/auth/callback': 'admin/auth/callback',
       'admin/**': 'admin/unknown-section',

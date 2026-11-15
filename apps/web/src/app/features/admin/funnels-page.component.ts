@@ -3,6 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ConfigService } from '../../core/config/config.service';
 import { API_SERVICE } from '../../core/api/api.service';
+import { localDateStringDaysAgo } from '../../shared/utils/datetime';
+import {
+  KitCountPipe,
+  KpiGridComponent,
+  KpiTileComponent,
+  PageHeaderComponent,
+  SkeletonComponent,
+  UiButtonComponent,
+  UiDateFieldComponent,
+  type UiSelectOption,
+  UiSelectComponent,
+  UiTextFieldComponent,
+} from '../../shared/ui';
 import type {
   FunnelQuery,
   FunnelReport,
@@ -25,7 +38,18 @@ import type {
 @Component({
   selector: 'app-funnels-page',
   standalone: true,
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    PageHeaderComponent,
+    UiButtonComponent,
+    UiDateFieldComponent,
+    UiSelectComponent,
+    UiTextFieldComponent,
+    KpiGridComponent,
+    KpiTileComponent,
+    SkeletonComponent,
+    KitCountPipe,
+  ],
   templateUrl: './funnels-page.component.html',
   styleUrl: './funnels-page.component.scss',
 })
@@ -35,6 +59,7 @@ export class FunnelsPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly copy = this.config.get('copy').admin.funnels;
+  private readonly count = new KitCountPipe();
 
   /** Inclusive start date (YYYY-MM-DD). Empty = unbounded. */
   protected readonly from = signal('');
@@ -44,6 +69,17 @@ export class FunnelsPageComponent implements OnInit {
   protected readonly tenantMode = signal<'all' | 'direct' | 'key'>('all');
   /** Tenant key when tenantMode === 'key'. */
   protected readonly tenantKey = signal('');
+  /**
+   * The date preset the current range came from: a trailing day count,
+   * 'all' (no dates), or null once the dates were edited by hand.
+   */
+  protected readonly activePreset = signal<number | 'all' | null>('all');
+
+  protected readonly tenantOptions: readonly UiSelectOption[] = [
+    { value: 'all', label: this.copy.tenantAll },
+    { value: 'direct', label: this.copy.tenantDirect },
+    { value: 'key', label: this.copy.tenantKey },
+  ];
 
   /** Latest fetched report. */
   protected readonly report = signal<FunnelReport | null>(null);
@@ -74,6 +110,22 @@ export class FunnelsPageComponent implements OnInit {
       this.report()!.steps.every((s) => s.count === 0),
   );
 
+  /** Entry → final step conversion (null when the entry step is empty). */
+  protected readonly overallConversion = computed<number | null>(() => {
+    const steps = this.steps();
+    if (steps.length < 2 || steps[0].count <= 0) return null;
+    return steps[steps.length - 1].count / steps[0].count;
+  });
+
+  /** "{first} → {last}" under the overall-conversion KPI. */
+  protected readonly overallConversionSub = computed(() => {
+    const steps = this.steps();
+    if (steps.length < 2) return undefined;
+    return this.copy.overallConversionSub
+      .replace('{from}', steps[0].label)
+      .replace('{to}', steps[steps.length - 1].label);
+  });
+
   /** Validation error for the date range (from > to). Null when valid. */
   protected readonly rangeError = computed(() => {
     const from = this.from().trim();
@@ -98,8 +150,51 @@ export class FunnelsPageComponent implements OnInit {
     this.load();
   }
 
+  /**
+   * Date preset: the trailing `days` days including today, or every date
+   * for 'all'. Applies immediately.
+   */
+  protected applyPreset(preset: number | 'all'): void {
+    if (this.loading()) return;
+    if (preset === 'all') {
+      this.from.set('');
+      this.to.set('');
+    } else {
+      this.from.set(localDateStringDaysAgo(preset - 1));
+      this.to.set(localDateStringDaysAgo(0));
+    }
+    this.activePreset.set(preset);
+    this.load();
+  }
+
+  protected onFromChange(value: string | null): void {
+    this.from.set(value ?? '');
+    this.activePreset.set(null);
+  }
+
+  protected onToChange(value: string | null): void {
+    this.to.set(value ?? '');
+    this.activePreset.set(null);
+  }
+
+  protected onTenantModeChange(value: string | null): void {
+    this.tenantMode.set(value === 'direct' || value === 'key' ? value : 'all');
+  }
+
+  /** People lost between step `index - 1` and step `index` (never negative). */
+  protected dropOff(index: number): number {
+    const steps = this.steps();
+    if (index <= 0 || index >= steps.length) return 0;
+    return Math.max(0, steps[index - 1].count - steps[index].count);
+  }
+
+  protected dropOffLabel(index: number): string {
+    return this.copy.dropOff.replace('{count}', this.count.transform(this.dropOff(index)));
+  }
+
   /** Resets all filters to the unbounded defaults. */
   protected resetFilters(): void {
+    this.activePreset.set('all');
     this.from.set('');
     this.to.set('');
     this.tenantMode.set('all');

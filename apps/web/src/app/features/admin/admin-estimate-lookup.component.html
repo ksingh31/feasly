@@ -1,176 +1,150 @@
-<div class="estimate-lookup">
-  <h1>Estimate lookup</h1>
-  <p class="hint">
-    Paste an estimate ID to see exactly what the homeowner saw — inputs,
-    ranges, cost-data version, snapshot history. Read-only.
-  </p>
+<div class="estimate-page">
+  <ui-page-header
+    [heading]="isDetailView() ? 'Estimate' : 'Estimates'"
+    description="Look up an estimate by ID to see exactly what the homeowner saw — inputs, ranges, cost-data version, snapshot history. Read-only."
+    [breadcrumbs]="breadcrumbs()"
+  >
+    @if (detail()?.linkedLeadId; as leadId) {
+      <a
+        uiPageHeaderActions
+        ui-button
+        variant="secondary"
+        data-testid="view-lead"
+        [routerLink]="['/admin/leads']"
+        [queryParams]="{ open: leadId }"
+      >
+        View lead
+      </a>
+    }
+  </ui-page-header>
 
-  <form class="search" (ngSubmit)="search()">
-    <label class="search__field">
-      <span>Estimate ID</span>
-      <input
-        type="text"
-        name="estimateId"
-        [(ngModel)]="searchId"
-        placeholder="e.g. 3f9b2c1a-…"
-        autocomplete="off"
-        spellcheck="false"
-      />
-    </label>
-    <button type="submit" class="search__submit" [disabled]="searchId().trim().length === 0">
+  <form class="estimate-page__search" role="search" aria-label="Estimate lookup" (ngSubmit)="search()">
+    <ui-text-field
+      class="estimate-page__search-field"
+      label="Estimate ID"
+      placeholder="e.g. 3f9b2c1a-…"
+      autocomplete="off"
+      [(value)]="searchId"
+    />
+    <button type="submit" ui-button data-testid="lookup-submit" [disabled]="searchId().trim().length === 0">
       Look up
     </button>
   </form>
 
   @if (showLoading()) {
-    <p class="loading" role="status">Loading estimate…</p>
+    <ui-skeleton variant="block" label="Loading estimate" />
   } @else if (showNotFound()) {
-    <div class="error-card" role="alert">
-      <p>We couldn't find that estimate — check the link and try again.</p>
-      <p class="hint">ID looked up: “{{ lookupId() }}”.</p>
-    </div>
+    <ui-empty-state
+      variant="not-found"
+      heading="No estimate matches that ID"
+      listLabel="Estimates"
+      [backLink]="'/admin/estimates'"
+      [message]="'ID looked up: “' + lookupId() + '”. Check the ID and look it up again.'"
+    />
   } @else if (showError()) {
-    <div class="error-card" role="alert">
-      <p>Something went wrong loading this estimate.</p>
-      <button type="button" class="link-btn" (click)="retry()">Retry</button>
-    </div>
+    <ui-error-state
+      heading="Couldn't load this estimate"
+      message="Something went wrong loading this estimate."
+      retryLabel="Retry"
+      (retry)="retry()"
+    />
   } @else if (detail(); as d) {
-    <!-- OPS STRIP: version string, created-at, linked lead, snapshot timeline. -->
-    <section class="card ops" aria-label="Estimate metadata">
-      <h2>Ops</h2>
-      <dl class="ops__grid">
-        <div>
-          <dt>Estimate ID</dt>
-          <dd class="mono">{{ d.id }}</dd>
-        </div>
-        <div>
-          <dt>Cost data version</dt>
-          <dd class="mono">{{ d.costDataVersion }}</dd>
-        </div>
-        <div>
-          <dt>Created</dt>
-          <dd>{{ formatDate(d.createdAt) }}</dd>
-        </div>
-        <div>
-          <dt>Project type</dt>
-          <dd>{{ isReno() ? 'Renovation' : 'New build' }}</dd>
-        </div>
-        <div>
-          <dt>Linked lead</dt>
-          <dd>
-            @if (d.linkedLeadId) {
-              <a [routerLink]="['/admin/leads']" class="mono">{{ d.linkedLeadId }}</a>
-            } @else {
-              <span class="hint">No lead yet — gate not completed.</span>
+    <div class="estimate-page__grid">
+      <!-- OPS: version string, created-at, linked lead, snapshot timeline. -->
+      <section class="estimate-page__card ops" aria-labelledby="estimate-ops-heading">
+        <h2 id="estimate-ops-heading" class="estimate-page__card-title">Ops</h2>
+        <ui-key-value-list [items]="opsItems()" />
+
+        <h3 class="estimate-page__sub-title">Snapshot timeline</h3>
+        @if (d.snapshots.length > 0) {
+          <ol class="timeline">
+            @for (s of d.snapshots; track s.id; let first = $first) {
+              <li class="timeline__item" [class.timeline__item--current]="s.id === d.id">
+                <a [routerLink]="['/admin/estimates', s.id]" class="timeline__id">{{ s.id }}</a>
+                <span class="timeline__date">{{ s.createdAt | kitDateTime }}</span>
+                <span class="timeline__tags">
+                  @if (first) {
+                    <span class="timeline__tag">Latest</span>
+                  }
+                  @if (s.id === d.id) {
+                    <span class="timeline__tag timeline__tag--viewing">Viewing</span>
+                  }
+                </span>
+              </li>
             }
-          </dd>
-        </div>
-      </dl>
-
-      <h3>Snapshot timeline</h3>
-      @if (d.snapshots.length > 0) {
-        <ol class="timeline">
-          @for (s of d.snapshots; track s.id) {
-            <li [class.current]="s.id === d.id">
-              <a [routerLink]="['/admin/estimates', s.id]" class="mono">{{ s.id }}</a>
-              <span class="timeline__date">{{ formatDate(s.createdAt) }}</span>
-              @if (s.id === d.id) {
-                <span class="timeline__badge">current</span>
-              }
-            </li>
-          }
-        </ol>
-      } @else {
-        <p class="hint">No snapshots for this address.</p>
-      }
-    </section>
-
-    <!-- HERO: one prominent total + planning range, like the consumer report. -->
-    <section class="card hero" aria-label="Estimate totals">
-      <h2>Total project cost</h2>
-      <p class="hero__value">{{ formatCad(d.outputs.totalRange.base) }}</p>
-      <p class="hero__range">
-        Planning range
-        <strong>{{ formatCad(d.outputs.totalRange.low) }}–{{ formatCad(d.outputs.totalRange.high) }}</strong>
-      </p>
-      <dl class="hero__grid">
-        <div>
-          <dt>Build cost</dt>
-          <dd>
-            {{ formatCad(d.outputs.buildRange.base) }}
-            <span class="hint">({{ formatCad(d.outputs.buildRange.low) }}–{{ formatCad(d.outputs.buildRange.high) }})</span>
-          </dd>
-        </div>
-        @if (!isReno()) {
-          <div>
-            <dt>Land value (City assessed, fixed)</dt>
-            <dd>{{ formatCad(d.outputs.landValue.value) }}</dd>
-          </div>
+          </ol>
+        } @else {
+          <p class="estimate-page__hint">No snapshots for this address.</p>
         }
-      </dl>
-    </section>
+      </section>
 
-    <!-- INPUTS: fixed inputs the estimate was built from. -->
-    <section class="card" aria-label="Estimate inputs">
-      <h2>Inputs</h2>
-      <dl class="inputs__grid">
-        @for (row of inputRows(); track row.label) {
-          <div>
-            <dt>{{ row.label }}</dt>
-            <dd>{{ row.value }}</dd>
-          </div>
-        }
-      </dl>
-    </section>
-
-    <!-- COST BREAKDOWN: same three buckets as the consumer report. -->
-    <section class="card" aria-label="Cost breakdown">
-      <h2>Cost breakdown</h2>
-      @if (buckets().length > 0) {
-        <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
-          @for (b of buckets(); track b.key) {
-            <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
-          }
-        </div>
-        <ul class="bucket-legend">
-          @for (b of buckets(); track b.key) {
-            <li>
-              <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
-              <span class="bucket-label">{{ b.label }}</span>
-              <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
-            </li>
-          }
-        </ul>
-      } @else {
-        <p class="hint">No breakdown rows on this estimate.</p>
-      }
-    </section>
-
-    <!-- NARRATIVE (fix #287): always rendered. When the estimate has no
-         stored narrative (never generated or generation failed), show a
-         graceful fallback with an admin-gated top-up instead of omitting
-         the section silently. -->
-    <section class="card" aria-label="AI summary">
-      <h2>AI summary</h2>
-      @if (d.narrative) {
-        <p class="narrative">{{ d.narrative }}</p>
-      } @else if (narrativeStatus() === 'generating') {
-        <p class="hint" role="status">Generating AI summary…</p>
-      } @else {
-        <p class="hint">No AI summary was generated for this estimate.</p>
-        @if (narrativeStatus() === 'error') {
-          <p class="hint" role="alert">
-            Generation failed — please try again.
+      <!-- AS THE HOMEOWNER SAW IT: totals, inputs, breakdown. -->
+      <div class="estimate-page__report" aria-label="As the homeowner saw it" role="group">
+        <section class="estimate-page__card hero" aria-labelledby="estimate-total-heading">
+          <h2 id="estimate-total-heading" class="estimate-page__card-title">Total project cost</h2>
+          <p class="hero__value">{{ d.outputs.totalRange.base | kitMoney: 'dollars' }}</p>
+          <p class="hero__range">
+            Planning range
+            <strong>{{ d.outputs.totalRange.low | kitMoney: 'dollars' }}–{{ d.outputs.totalRange.high | kitMoney: 'dollars' }}</strong>
           </p>
-        }
-        <button
-          type="button"
-          class="generate-narrative"
-          (click)="generateNarrative()"
-        >
-          Generate AI summary
-        </button>
-      }
-    </section>
+          <ui-key-value-list [items]="heroItems()" />
+        </section>
+
+        <section class="estimate-page__card" aria-labelledby="estimate-inputs-heading">
+          <h2 id="estimate-inputs-heading" class="estimate-page__card-title">Inputs</h2>
+          <ui-key-value-list [items]="inputRows()" />
+        </section>
+
+        <section class="estimate-page__card" aria-labelledby="estimate-breakdown-heading">
+          <h2 id="estimate-breakdown-heading" class="estimate-page__card-title">Cost breakdown</h2>
+          @if (buckets().length > 0) {
+            <div class="buckets-bar" role="img" [attr.aria-label]="bucketsAriaLabel()">
+              @for (b of buckets(); track b.key) {
+                <div class="bucket-seg bucket-{{ b.key }}" [style.flex-grow]="b.range.base"></div>
+              }
+            </div>
+            <ul class="bucket-legend">
+              @for (b of buckets(); track b.key) {
+                <li>
+                  <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
+                  <span class="bucket-label">{{ b.label }}</span>
+                  <span class="bucket-amount">{{ b.range.base | kitMoney: 'dollars' }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="estimate-page__hint">No breakdown rows on this estimate.</p>
+          }
+        </section>
+
+        <!-- NARRATIVE (fix #287): always rendered. When the estimate has no
+             stored narrative (never generated or generation failed), show a
+             graceful fallback with an admin-gated top-up instead of omitting
+             the section silently. -->
+        <section class="estimate-page__card" aria-labelledby="estimate-ai-heading">
+          <h2 id="estimate-ai-heading" class="estimate-page__card-title">AI summary</h2>
+          @if (d.narrative) {
+            <p class="narrative">{{ d.narrative }}</p>
+          } @else if (narrativeStatus() === 'generating') {
+            <p class="estimate-page__hint" role="status">Generating AI summary…</p>
+          } @else {
+            <p class="estimate-page__hint">No AI summary was generated for this estimate.</p>
+            @if (narrativeStatus() === 'error') {
+              <p class="estimate-page__error" role="alert">Generation failed — please try again.</p>
+            }
+            <button
+              type="button"
+              ui-button
+              variant="secondary"
+              size="sm"
+              class="generate-narrative"
+              (click)="generateNarrative()"
+            >
+              Generate AI summary
+            </button>
+          }
+        </section>
+      </div>
+    </div>
   }
 </div>

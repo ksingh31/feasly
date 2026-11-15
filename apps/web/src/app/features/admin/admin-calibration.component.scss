@@ -1,184 +1,159 @@
-@use '../../shared/buttons' as *;
-@use '../../shared/stacked-table' as *;
+/**
+ * Admin Calibration (#547). Kit PageHeader / KeyValueList / StatusChip /
+ * DataTable; this file lays out the cards and the histogram. Tokens only.
+ */
 
-@include feasly-button-classes;
+:host {
+  display: block;
+}
 
 .calibration {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-
-.calibration__title {
-  font-size: 1.75rem;
-  margin: 0 0 0.25rem;
-}
-
-.calibration__subtitle {
-  color: var(--color-text-muted, #666);
-  margin: 0 0 1.5rem;
-}
-
-.calibration__loading {
-  padding: 2rem;
-  text-align: center;
-}
-
-.calibration__error {
-  border: 1px solid #c00;
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .calibration__card {
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 0.75rem;
-  padding: 1.25rem 1.5rem;
-  margin-bottom: 1.5rem;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
 }
 
-.calibration__card h2 {
-  font-size: 1.25rem;
-  margin: 0 0 1rem;
+.calibration__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
-.calibration__card h3 {
-  font-size: 1.1rem;
-  margin: 1.5rem 0 0.75rem;
+.calibration__card-title {
+  margin: 0 0 var(--space-3);
+  font: var(--type-product-h2);
 }
 
-.calibration__facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.75rem 1.5rem;
+.calibration__card-head .calibration__card-title {
   margin: 0;
 }
 
-.calibration__facts > div {
-  margin: 0;
-}
-
-.calibration__facts dt {
-  font-size: 0.8rem;
+.calibration__sub-title {
+  margin: var(--space-4) 0 var(--space-2);
+  font: var(--type-label);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted, #666);
-  margin-bottom: 0.15rem;
+  color: var(--muted);
 }
 
-.calibration__facts dd {
-  margin: 0;
-  font-size: 1rem;
+.calibration__version {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
 }
 
-.calibration__badge {
-  display: inline-block;
-  padding: 0.15rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 600;
+.calibration__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
-.calibration__badge--ok {
-  background: #e6f4ea;
-  color: #137333;
-}
-
-.calibration__badge--warn {
-  background: #fef7e0;
-  color: #b06000;
-}
-
-.calibration__notes {
-  margin-top: 1rem;
-  font-size: 0.9rem;
-  color: var(--color-text-muted, #666);
+.calibration__notes,
+.calibration__body {
+  margin: var(--space-3) 0 0;
+  font: var(--type-body-sm);
 }
 
 .calibration__meta {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-3);
+  font: var(--type-body-sm);
+  color: var(--muted);
+
+  strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 .calibration__warning {
-  border-left: 4px solid #b06000;
-  background: #fef7e0;
-  padding: 0.75rem 1rem;
-  border-radius: 0 0.5rem 0.5rem 0;
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--status-warning-fg);
+  border-radius: var(--radius-sm);
+  background: var(--status-warning-bg);
+  color: var(--text);
+  font: var(--type-body-sm);
 }
 
-.calibration__empty {
-  color: var(--color-text-muted, #666);
-  font-style: italic;
+.calibration__nowrap {
+  white-space: nowrap;
 }
 
-.calibration__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-
-  /* Phones: each row stacks into a card (#476). */
-  @include feasly-stacked-table;
+.calibration__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
 }
 
-.calibration__table caption {
-  text-align: left;
-  font-weight: 600;
-  padding-bottom: 0.5rem;
+.calibration__hint {
+  margin: 0;
+  font: var(--type-meta);
+  color: var(--muted);
 }
 
-.calibration__table th,
-.calibration__table td {
-  text-align: left;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-border, #ddd);
+/* Histogram */
+.histogram {
+  margin: 0;
 }
 
-.calibration__table th[scope='row'] {
-  font-weight: 600;
-}
-
-.calibration__chart {
+.histogram__plot {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+  border-left: 1px solid var(--muted);
+  border-bottom: 1px solid var(--muted);
 }
 
-.calibration__bar-row {
-  display: flex;
+.histogram__row {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr) 3rem;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  font: var(--type-meta);
 }
 
-.calibration__bar-label {
-  flex: 0 0 10rem;
-  font-size: 0.85rem;
+.histogram__track {
+  display: block;
+  height: 0.875rem;
 }
 
-.calibration__bar {
-  height: 1.25rem;
-  background: var(--color-accent, #b08d57);
-  border-radius: 0.25rem;
-  min-width: 2%;
+.histogram__bar {
+  display: block;
+  height: 100%;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--accent);
 }
 
-.calibration__bar-count {
-  font-size: 0.85rem;
-  min-width: 2rem;
-  text-align: right;
+.histogram__count {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 480px) {
-  .calibration {
-    padding: 1rem;
-  }
+.histogram__row--empty {
+  color: var(--muted);
+}
 
-  .calibration__bar-label {
-    flex-basis: 7rem;
-  }
-
-  .calibration__table {
-    font-size: 0.85rem;
-  }
+.histogram__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+  font: var(--type-meta);
+  color: var(--muted);
 }

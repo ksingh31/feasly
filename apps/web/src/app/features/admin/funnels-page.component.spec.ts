@@ -28,6 +28,17 @@ const FUNNELS_COPY = {
   entryStep: 'Entry step',
   conversionPrefix: 'Converted from previous step:',
   noConversion: '—',
+  presetsLabel: 'Date range',
+  presets: [
+    { label: '7 days', days: 7 },
+    { label: '30 days', days: 30 },
+    { label: '90 days', days: 90 },
+  ],
+  presetAll: 'All time',
+  overallConversion: 'Overall conversion',
+  overallConversionSub: '{from} → {to}',
+  dropOff: '{count} dropped off',
+  stepsLabel: 'Funnel steps',
 };
 
 const REPORT: FunnelReport = {
@@ -125,13 +136,13 @@ describe('FunnelsPageComponent', () => {
   it('exposes the tenant-key input only in key mode', async () => {
     await setup(of(REPORT));
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('input[name="tenantKey"]')).toBeNull();
+    expect(el.querySelector('.funnels__tenant-key')).toBeNull();
     const component = fixture.componentInstance as unknown as {
       tenantMode: { set(v: 'all' | 'direct' | 'key'): void };
     };
     component.tenantMode.set('key');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('input[name="tenantKey"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.funnels__tenant-key input')).toBeTruthy();
   });
 
   it('ignores a stale response when a newer load supersedes it', async () => {
@@ -169,5 +180,64 @@ describe('FunnelsPageComponent', () => {
     first$.next(EMPTY_REPORT);
     fixture.detectChanges();
     expect(component.report()).toEqual(REPORT);
+  });
+
+  it('shows overall conversion and drop-off counts (review P1)', async () => {
+    await setup(of(REPORT));
+    const el: HTMLElement = fixture.nativeElement;
+    const tiles = [...el.querySelectorAll('ui-kpi-tile')].map((t) => t.textContent ?? '');
+    expect(tiles.length).toBe(3);
+    expect(tiles[2]).toContain('Overall conversion');
+    expect(tiles[2]).toContain('20.0%');
+    expect(tiles[2]).toContain('Scope → Report');
+    expect(el.textContent).toContain('20 dropped off');
+  });
+
+  it('formats counts with thousands separators', async () => {
+    await setup(
+      of({
+        ...REPORT,
+        steps: [
+          { step: 'landing', label: 'Landing', count: 4820, conversionFromPrevious: null },
+          { step: 'report', label: 'Report', count: 1843, conversionFromPrevious: 0.3824 },
+        ],
+      }),
+    );
+    const counts = [...fixture.nativeElement.querySelectorAll('.funnels__step-count')].map(
+      (n: Element) => n.textContent?.trim(),
+    );
+    expect(counts).toEqual(['4,820', '1,843']);
+  });
+
+  it('applies a date preset immediately with today as the end date', async () => {
+    await setup(of(REPORT));
+    api.getFunnel.mockClear();
+    const presets = [...fixture.nativeElement.querySelectorAll('.funnels__preset')] as HTMLButtonElement[];
+    expect(presets.map((b) => b.textContent?.trim())).toEqual(['7 days', '30 days', '90 days', 'All time']);
+    // 'All time' is the initial preset.
+    expect(presets[3].getAttribute('aria-pressed')).toBe('true');
+    presets[0].click();
+    fixture.detectChanges();
+    expect(api.getFunnel).toHaveBeenCalledTimes(1);
+    const query = api.getFunnel.mock.calls[0][0] as { from: string; to: string };
+    expect(query.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(query.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const span = (Date.parse(query.to) - Date.parse(query.from)) / 86_400_000;
+    expect(Math.round(span)).toBe(6);
+    expect(presets[0].getAttribute('aria-pressed')).toBe('true');
+    expect(presets[3].getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('uses only kit controls — no unstyled native inputs or buttons', async () => {
+    await setup(of(REPORT));
+    const el: HTMLElement = fixture.nativeElement;
+    for (const b of [...el.querySelectorAll('button')]) {
+      expect(b.classList).toContain('ui-button');
+    }
+    for (const c of [...el.querySelectorAll('input, select')]) {
+      expect(c.classList).toContain('ui-field__control');
+    }
+    // One H1 in the product type scale, via the kit PageHeader.
+    expect(el.querySelector('h1')?.classList).toContain('ui-page-header__title');
   });
 });

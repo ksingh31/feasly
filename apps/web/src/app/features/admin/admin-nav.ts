@@ -6,8 +6,8 @@
  * admin section must appear here (admin-nav.spec.ts asserts it against
  * app.routes.ts) so no admin page is reachable only by URL.
  *
- * Quarantine and Webhooks from the design have no route yet; they join
- * their groups when those pages ship.
+ * Quarantine from the design has no route yet; it joins its group when
+ * that page ships.
  */
 import { ADMIN_PERMISSIONS } from './admin-permissions';
 
@@ -24,7 +24,8 @@ export type AdminNavItemId =
   | 'disputes'
   | 'calibration'
   | 'sheets'
-  | 'funnels';
+  | 'funnels'
+  | 'webhooks';
 
 /** Queue badge sources the shell knows how to count. */
 export type AdminNavBadge = 'disputes';
@@ -78,6 +79,7 @@ export const ADMIN_NAV: readonly AdminNavGroupDef[] = [
       { id: 'calibration', path: '/admin/calibration' },
       { id: 'sheets', path: '/admin/ops/sheets' },
       { id: 'funnels', path: '/admin/funnels' },
+      { id: 'webhooks', path: '/admin/webhooks' },
     ],
   },
 ];

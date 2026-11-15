@@ -368,6 +368,23 @@ export const routes: Routes = [
           ),
         ],
       },
+      // Webhooks (#547): Stripe webhook health, split out of Billing
+      // (docs/reviews/2026-11-13-admin.md page map). Reads the same
+      // BillingHealthState payload, lazy-registered here like /billing.
+      {
+        path: 'webhooks',
+        loadComponent: () =>
+          import('./features/admin/admin-webhooks.component').then(
+            (m) => m.AdminWebhooksComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+        ],
+      },
       // admin/05: Sheets sync ops panel.
       {
         path: 'ops/sheets',
