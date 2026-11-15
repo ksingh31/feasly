@@ -1,16 +1,24 @@
 /**
  * Formula-correctness tests for the deterministic cost engine.
  *
- * Expected values below are hand-derived from the placeholder data file
- * (v0.3.0-unclibrated) — if the data file changes, these expectations must
- * be re-derived, which is exactly the point: the tests pin the math.
+ * The exact-figure expectations below are hand-derived from the previous
+ * placeholder table (v0.3.0-unclibrated, whole-dollar output). They stay
+ * pinned to v0.3.0 on purpose: an estimate under an older cost_data_version
+ * must stay byte-identical after the engine learns `roundTo` (#581). The
+ * current table (v0.4.0) is covered by the "output rounding" block.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createEstimate } from '../src/engine';
-import { PLACEHOLDER_COST_DATA } from '../src/cost-data';
-import { EngineInputError, type EngineInput } from '../src/types';
+import { createComparisonEstimate } from '../src/comparison';
+import { COST_DATA_V0_3_0, PLACEHOLDER_COST_DATA } from '../src/cost-data';
+import { EngineInputError, type ComparisonInput, type EngineInput } from '../src/types';
 
-const DATA = PLACEHOLDER_COST_DATA;
+/** Whole-dollar table: the pinned exact figures below must never move. */
+const DATA = COST_DATA_V0_3_0;
+/** Current table: same rates as v0.3.0 plus roundTo = 1000. */
+const CURRENT = PLACEHOLDER_COST_DATA;
 
 function standardInput(): EngineInput {
   return {
@@ -148,10 +156,117 @@ describe('createEstimate — determinism', () => {
 
 describe('createEstimate — version pin', () => {
   it('pins the cost-data version and calibration flag on every estimate', () => {
-    const result = createEstimate(standardInput(), DATA);
-    expect(result.costDataVersion).toBe(DATA.version);
-    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
+    const result = createEstimate(standardInput(), CURRENT);
+    expect(result.costDataVersion).toBe(CURRENT.version);
+    expect(result.costDataVersion).toBe('v0.4.0-unclibrated');
     expect(result.calibrated).toBe(false);
+    expect(createEstimate(standardInput(), DATA).costDataVersion).toBe('v0.3.0-unclibrated');
+  });
+});
+
+describe('older version stays byte-identical (#581)', () => {
+  // Captured from origin/main's engine before roundTo existed. Any diff
+  // here means a stored v0.3.0 estimate would no longer reproduce.
+  const golden = JSON.parse(
+    readFileSync(join(__dirname, 'fixtures', 'v0.3.0-golden.json'), 'utf8'),
+  ) as {
+    costDataVersion: string;
+    estimates: Array<{ input: EngineInput; output: unknown }>;
+    comparisons: Array<{ input: ComparisonInput; output: unknown }>;
+  };
+
+  it('the golden is for v0.3.0, which publishes no top-level roundTo', () => {
+    expect(golden.costDataVersion).toBe(DATA.version);
+    expect(DATA.roundTo).toBeUndefined();
+    expect(golden.estimates.length).toBeGreaterThan(0);
+  });
+
+  it('createEstimate under v0.3.0 matches the pre-#581 output byte-for-byte', () => {
+    for (const { input, output } of golden.estimates) {
+      expect(JSON.stringify(createEstimate(input, DATA))).toBe(JSON.stringify(output));
+    }
+  });
+
+  it('createComparisonEstimate under v0.3.0 matches the pre-#581 output byte-for-byte', () => {
+    for (const { input, output } of golden.comparisons) {
+      expect(JSON.stringify(createComparisonEstimate(input, DATA))).toBe(JSON.stringify(output));
+    }
+  });
+
+  it('the worked example totals are unchanged under v0.3.0', () => {
+    expect(JSON.stringify(createEstimate(standardInput(), DATA).totals)).toBe(
+      JSON.stringify({
+        build: { low: 194_130, base: 225_858, high: 257_586 },
+        land: { value: 300_000 },
+        total: { low: 494_130, base: 525_858, high: 557_586 },
+      }),
+    );
+  });
+});
+
+describe('createEstimate — output rounding (v0.4.0, roundTo from cost data)', () => {
+  const g = CURRENT.roundTo!;
+
+  it('the current table publishes a $1,000 output granularity', () => {
+    expect(g).toBe(1_000);
+  });
+
+  it('rounds the worked example to the nearest $1,000', () => {
+    const result = createEstimate(standardInput(), CURRENT);
+    // sitePrep 8000 ± 20% → 6400/9600 → 6000/10000
+    expect(rowByKey(result, 'hard.sitePrep').range).toEqual({ low: 6_000, base: 8_000, high: 10_000 });
+    // permits: hard base 191000 × 0.015 = 2865 → 3000 ± 25% → 2250/3750 → 2000/4000
+    expect(rowByKey(result, 'soft.permits').range).toEqual({ low: 2_000, base: 3_000, high: 4_000 });
+    // Land is the City fact — exact, never rounded.
+    expect(rowByKey(result, 'land').range).toEqual({ low: 300_000, base: 300_000, high: 300_000 });
+    expect(result.totals.land).toEqual({ value: 300_000 });
+  });
+
+  const sizes = [400, 999, 1_000, 1_234, 1_837, 2_400, 3_001, 4_567, 7_777, 12_000];
+  const lots = [1_200, 2_000, 3_333, 6_123, 20_000];
+  const lands = [25_000, 300_000, 487_321, 1_234_567];
+
+  for (const tier of ['standard', 'premium', 'luxury'] as const) {
+    it(`every build band leaf is a multiple of roundTo and totals stay consistent (${tier})`, () => {
+      for (const buildSqft of sizes) {
+        for (const lotSizeSqft of lots) {
+          for (const assessedLandValue of lands) {
+            const result = createEstimate(
+              { property: { assessedLandValue, lotSizeSqft, zoning: 'R-C1' }, scope: { buildSqft, tier } },
+              CURRENT,
+            );
+            for (const row of result.rows) {
+              if (row.key === 'land') continue;
+              for (const leaf of [row.range.low, row.range.base, row.range.high]) {
+                expect(leaf % g).toBe(0);
+              }
+              expect(row.range.low).toBeLessThanOrEqual(row.range.base);
+              expect(row.range.base).toBeLessThanOrEqual(row.range.high);
+            }
+            const { build, land, total } = result.totals;
+            for (const leaf of [build.low, build.base, build.high]) expect(leaf % g).toBe(0);
+            // total === land + build stays exact (land carried to the dollar).
+            expect(total).toEqual({
+              low: land.value + build.low,
+              base: land.value + build.base,
+              high: land.value + build.high,
+            });
+            expect(land.value).toBe(assessedLandValue);
+            // Build total = sum of the non-land rows.
+            const buildRows = result.rows.filter((r) => r.key !== 'land');
+            expect(buildRows.reduce((a, r) => a + r.range.base, 0)).toBe(build.base);
+            expect(buildRows.reduce((a, r) => a + r.range.low, 0)).toBe(build.low);
+            expect(buildRows.reduce((a, r) => a + r.range.high, 0)).toBe(build.high);
+          }
+        }
+      }
+    });
+  }
+
+  it('is deterministic under the rounding table', () => {
+    expect(JSON.stringify(createEstimate(standardInput(), CURRENT))).toBe(
+      JSON.stringify(createEstimate(standardInput(), CURRENT)),
+    );
   });
 });
 

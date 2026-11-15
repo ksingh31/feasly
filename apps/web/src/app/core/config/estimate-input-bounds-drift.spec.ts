@@ -27,7 +27,9 @@ const REPO_ROOT = join(here, '..', '..', '..', '..', '..', '..');
 
 function pinnedCostDataPath(): string {
   const src = readFileSync(join(REPO_ROOT, 'packages', 'cost-engine', 'src', 'cost-data.ts'), 'utf8');
-  const match = src.match(/from '\.\.\/cost-data\/([\w.\-]+\.json)'/);
+  // Match the placeholder import specifically: cost-data.ts also bundles
+  // older tables (e.g. v0.3.0, kept for reproducibility — #581).
+  const match = src.match(/import rawPlaceholder from '\.\.\/cost-data\/([\w.\-]+\.json)'/);
   if (!match) throw new Error('drift spec: cannot find the pinned cost-data import in cost-data.ts');
   return join(REPO_ROOT, 'packages', 'cost-engine', 'cost-data', match[1]);
 }
