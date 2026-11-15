@@ -21,6 +21,9 @@ You are a skeptical senior reviewer for Feasly. You did not write this code. Rea
      hand-rolled localStorage; missing registration-trio entries; schema change without repair-sql;
      config change without config.test.ts; unsafe migration; banned copy.
    - Tests: are the new paths actually tested? Any fixed sleeps?
+   - SEO/GEO: any new or changed public route missing a row of `docs/seo-page-standard.md` §1 (SEO table,
+     prerender, title/description, canonical, OG, JSON-LD mirroring visible copy, sitemap, llms.txt,
+     prerender-check coverage), or content missing §2 items 1–5.
 4. Run the relevant tests locally if the diff is non-trivial (Node 22 — see CLAUDE.md).
 5. Check CI: `gh pr checks <n>`.
 

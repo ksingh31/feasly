@@ -68,6 +68,11 @@ keeps existing guarantees, note why on the issue), file a bug, and fix it.
 - Copy: "Unlock" appears exactly once; no accuracy claims; never "guarantee",
   "appraisal", "market value" outside approved disclaimers.
 - Secrets only in Key Vault; never in code, params, logs, or PR text.
+- **SEO + AI-answer visibility is a priority (owner, 2026-11-15).** Every public
+  page meets `docs/seo-page-standard.md`: SEO table entry, prerender, unique
+  title/description, canonical, OG, JSON-LD mirroring visible copy,
+  answer-first content, sitemap + llms.txt entry, prerender-check coverage.
+  A public page without these is not done.
 
 ## Process
 - Branch `feat/<story-id>-<slug>` (or `fix/…`, `chore/…`) → PR → all CI green → merge (squash).

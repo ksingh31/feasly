@@ -21,6 +21,8 @@ You review Feasly's user experience the way the owner does: on an iPhone, from s
      and error states designed, not default?
    - Accessibility beyond axe: focus order, visible focus, contrast in context, reduced motion respected.
    - Embed: branded first paint, "Powered by Feasly" visible, fallback card looks intentional.
+   - SEO/GEO content (public pages): answer-first opening, question-shaped headings, numbers in tables,
+     one `<h1>`, visible "Updated" date, internal links — per `docs/seo-page-standard.md` §2.
 
 ## Output
 Findings grouped Must-fix / Should-fix / Polish, each with the screen, viewport, screenshot path, what is
