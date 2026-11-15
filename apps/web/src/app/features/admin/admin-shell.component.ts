@@ -1,3 +1,5 @@
+import { Dialog, type DialogRef } from '@angular/cdk/dialog';
+import { Overlay } from '@angular/cdk/overlay';
 import {
   Component,
   DestroyRef,
@@ -30,6 +32,7 @@ import {
   findAdminNavItem,
 } from './admin-nav';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { AdminCommandPaletteComponent } from './admin-command-palette.component';
 
 /** One rendered sidebar link. */
 interface ShellNavItem {
@@ -54,7 +57,8 @@ interface ShellNavGroup {
  * - Left sidebar grouped Pipeline · Partners · Money · System, with queue
  *   badges. ≥1024px it is a 240px column that collapses to a 64px rail;
  *   below 1024px it is an off-canvas panel (scrim, Esc, focus in/out).
- * - 56px top bar: breadcrumbs, ⌘K search placeholder, env chip, user menu.
+ * - 56px top bar: breadcrumbs, ⌘K search, env chip, user menu. ⌘K / Ctrl+K
+ *   (and `/` on pages without a FilterBar) open the command palette (#538).
  * - Errors stay inside the shell: GlobalErrorHandler routes uncaught admin
  *   failures to the `/admin/error` child route (rendered in this outlet).
  *
@@ -80,6 +84,8 @@ export class AdminShellComponent {
   private readonly entraAuth = inject(AdminEntraAuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly dialog = inject(Dialog);
+  private readonly overlay = inject(Overlay);
 
   protected readonly copy = this.config.get('copy').admin.shell;
   protected readonly environmentLabel = this.config.get('admin').environmentLabel;
@@ -90,12 +96,12 @@ export class AdminShellComponent {
   protected readonly collapsed = signal(false);
   /** User menu disclosure. */
   protected readonly userMenuOpen = signal(false);
-  /** ⌘K placeholder hint visible. */
-  protected readonly searchHintVisible = signal(false);
+  /** ⌘K command palette open. */
+  protected readonly paletteOpen = signal(false);
+  private paletteRef: DialogRef<void, AdminCommandPaletteComponent> | null = null;
 
   private readonly menuToggle = viewChild<ElementRef<HTMLButtonElement>>('menuToggle');
   private readonly sidebar = viewChild<ElementRef<HTMLElement>>('sidebar');
-  private readonly searchButton = viewChild<ElementRef<HTMLButtonElement>>('searchButton');
   private readonly userMenuButton = viewChild<ElementRef<HTMLButtonElement>>('userMenuButton');
 
   protected readonly email = this.store.selectSignal(AdminAuthState.email);
@@ -241,13 +247,36 @@ export class AdminShellComponent {
 
   // ── Top bar ──────────────────────────────────────────────────────────
 
-  /** ⌘K placeholder: the command palette lands in a later story. */
-  protected showSearchHint(): void {
-    this.searchHintVisible.set(true);
+  /** Open the ⌘K command palette (CDK dialog: focus trap, Esc, focus return). */
+  protected openPalette(): void {
+    if (this.paletteRef) return;
+    this.userMenuOpen.set(false);
+    this.closeMenu();
+    const ref = this.dialog.open<void, unknown, AdminCommandPaletteComponent>(
+      AdminCommandPaletteComponent,
+      {
+        role: 'dialog',
+        ariaModal: true,
+        ariaLabelledBy: 'admin-palette-title',
+        autoFocus: 'first-tabbable',
+        restoreFocus: true,
+        panelClass: 'admin-palette-pane',
+        backdropClass: 'admin-palette-scrim',
+        positionStrategy: this.overlay.position().global().centerHorizontally().top('12vh'),
+        injector: this.injector,
+      },
+    );
+    this.paletteRef = ref;
+    this.paletteOpen.set(true);
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.paletteRef = null;
+      this.paletteOpen.set(false);
+    });
+    this.destroyRef.onDestroy(() => ref.close());
   }
 
-  protected hideSearchHint(): void {
-    this.searchHintVisible.set(false);
+  protected closePalette(): void {
+    this.paletteRef?.close();
   }
 
   protected toggleUserMenu(): void {
@@ -255,20 +284,34 @@ export class AdminShellComponent {
   }
 
   protected onDocumentKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
-      this.searchButton()?.nativeElement.focus();
-      this.showSearchHint();
+      if (this.paletteRef) this.closePalette();
+      else this.openPalette();
       return;
     }
-    if (event.key !== 'Escape') return;
+    // `/` is page search (portal-ui-kit §5): a page with a FilterBar
+    // focuses its own search box; everywhere else it opens the palette.
+    if (
+      event.key === '/' &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !this.paletteRef &&
+      !isTextEntry(event.target) &&
+      !this.host.nativeElement.querySelector('#admin-main ui-filter-bar')
+    ) {
+      event.preventDefault();
+      this.openPalette();
+      return;
+    }
+    // The palette dialog handles its own Esc.
+    if (event.key !== 'Escape' || this.paletteRef) return;
     if (this.userMenuOpen()) {
       this.userMenuOpen.set(false);
       this.userMenuButton()?.nativeElement.focus();
     } else if (this.menuOpen()) {
       this.closeMenu(true);
-    } else if (this.searchHintVisible()) {
-      this.hideSearchHint();
     }
   }
 
@@ -303,4 +346,10 @@ export class AdminShellComponent {
         error: () => void this.router.navigate(['/admin/login']),
       });
   }
+}
+
+function isTextEntry(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.tagName !== 'string') return false;
+  return /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
 }

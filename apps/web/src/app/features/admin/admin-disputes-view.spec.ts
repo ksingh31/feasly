@@ -3,6 +3,7 @@ import type { BillingEvent, DisputeDetailResponse } from '@feasly/contracts';
 import {
   acceptConfirmOptions,
   disputeEvidenceItems,
+  disputeTechnicalIds,
   disputeSlaChip,
   disputeTimeline,
   humanisePayload,
@@ -104,6 +105,12 @@ describe('humanisePayload', () => {
     expect(humanisePayload({ someNewField: 'x' })).toBe('Some new field x');
   });
 
+  it('never renders raw identifiers (#538 — they live in Technical IDs)', () => {
+    expect(
+      humanisePayload({ invoiceId: 'inv-1', refundId: 're_1', leadId: 'l-1', reason: 'Wrong amount' }),
+    ).toBe('Reason Wrong amount');
+  });
+
   it('is empty for a null payload', () => {
     expect(humanisePayload(null)).toBe('');
   });
@@ -139,14 +146,32 @@ describe('disputeEvidenceItems', () => {
     expect(byLabel['Contract value (excl. land)']).toBe('$980,000');
     expect(byLabel['Commission (1%)']).toBe('$9,800');
     expect(byLabel['Review window ended']).toBe('—');
-    expect(byLabel['Payment intent']).toBeNull();
+    expect(byLabel['Builder']).toBe('elite-craft');
+    // #538: no raw ids in the evidence list.
+    expect(Object.keys(byLabel)).not.toContain('Lead ID');
+    expect(Object.keys(byLabel)).not.toContain('Attribution ID');
+    expect(Object.keys(byLabel)).not.toContain('Payment intent');
+  });
+});
+
+describe('disputeTechnicalIds (#538)', () => {
+  it('lists dispute, invoice, lead and attribution ids; payment intent only when charged', () => {
+    const ids = disputeTechnicalIds(DETAIL);
+    expect(ids.map((i) => i.label)).toEqual(['Dispute ID', 'Invoice ID', 'Lead ID', 'Attribution ID']);
+    expect(ids[1].value).toBe('inv-1');
+    const charged = disputeTechnicalIds({
+      ...DETAIL,
+      evidenceSnapshot: { ...DETAIL.evidenceSnapshot, stripePaymentIntentId: 'pi_1' },
+    });
+    expect(charged.at(-1)).toEqual({ label: 'Payment intent', value: 'pi_1' });
   });
 });
 
 describe('confirm copy', () => {
   it('Accept states the void and the refund amount (AC2)', () => {
     const options = acceptConfirmOptions(DETAIL);
-    expect(options.title).toContain('void invoice inv-1');
+    expect(options.title).toBe('Accept dispute and void the elite-craft invoice?');
+    expect(options.title).not.toContain('inv-1');
     expect(options.body).toContain('voids this $9,800 commission invoice for elite-craft');
     expect(options.body).toContain('$9,800 is refunded to the card first');
     expect(options.verb).toBe('Accept and void');

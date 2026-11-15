@@ -867,6 +867,8 @@ export interface AppConfig {
       /** "Quoting > N days" saved view: quoting leads created more than N days ago. */
       quotingStaleDays: number;
     };
+    /** ⌘K palette query cap — matches GET /api/v1/admin/search's max (#538). */
+    searchMaxQueryLength: number;
     /**
      * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
      * deploy-time values — the compiled defaults are placeholders that
@@ -1818,8 +1820,25 @@ export interface AppConfig {
         breadcrumbLabel: string;
         searchLabel: string;
         searchShortcut: string;
-        /** Shown when the ⌘K placeholder is used before the palette ships. */
-        searchComingSoon: string;
+        /** `aria-keyshortcuts` for the search button. */
+        searchKeyShortcuts: string;
+        /** ⌘K command palette (#538). */
+        palette: {
+          title: string;
+          placeholder: string;
+          hint: string;
+          loading: string;
+          noResults: string;
+          error: string;
+          retry: string;
+          close: string;
+          escKey: string;
+          resultsLabel: string;
+          /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
+          navHint: string;
+          /** Group headings per hit kind. */
+          kinds: { lead: string; invoice: string; builder: string; user: string };
+        };
         environmentLabel: string;
         userMenuLabel: string;
         signOut: string;
@@ -1955,6 +1974,17 @@ export interface AppConfig {
           noActivity: string;
           honeypotBadge: string;
         };
+      },
+      /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
+      entities: {
+        technicalIds: string;
+        copyId: string;
+        idCopied: string;
+        /** Link text when a record has no human label in the payload. */
+        viewLead: string;
+        viewInvoice: string;
+        /** Disclosure label for an audit event's raw JSON payload. */
+        rawPayload: string;
       };
       funnels: {
         /** Page heading. */

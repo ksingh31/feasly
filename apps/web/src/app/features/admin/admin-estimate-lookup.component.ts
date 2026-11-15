@@ -22,9 +22,12 @@ import {
   KitMoneyPipe,
   PageHeaderComponent,
   SkeletonComponent,
+  type TechnicalId,
+  TechnicalIdsComponent,
   UiButtonComponent,
   UiTextFieldComponent,
 } from '../../shared/ui';
+import { ConfigService } from '../../core/config/config.service';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
 
 /** Lookup lifecycle for the admin estimate view. */
@@ -86,6 +89,7 @@ const RENO_TYPE_LABELS: Record<string, string> = {
     EmptyStateComponent,
     ErrorStateComponent,
     SkeletonComponent,
+    TechnicalIdsComponent,
     KitDateTimePipe,
     KitMoneyPipe,
   ],
@@ -99,6 +103,9 @@ export class AdminEstimateLookupComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly dateTime = new KitDateTimePipe();
   private readonly money = new KitMoneyPipe();
+
+  /** Technical IDs copy (#538). */
+  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
 
   /** Estimate ID being looked up (from the `:id` route param). */
   protected readonly lookupId = signal<string | null>(null);
@@ -140,10 +147,24 @@ export class AdminEstimateLookupComponent {
     () => this.detail()?.projectType === 'renovation',
   );
 
-  /** Breadcrumbs: Estimates › <id> on the detail view. */
+  /**
+   * Breadcrumbs: Estimates › <created date> on the detail view — never the
+   * raw UUID (#538; it lives in Technical IDs).
+   */
   protected readonly breadcrumbs = computed<readonly Breadcrumb[]>(() => {
-    const id = this.lookupId();
-    return id ? [{ label: 'Estimates', link: '/admin/estimates' }, { label: id }] : [];
+    if (!this.lookupId()) return [];
+    const d = this.detail();
+    const label = d && d.id === this.lookupId() ? this.dateTime.transform(d.createdAt) : 'Estimate';
+    return [{ label: 'Estimates', link: '/admin/estimates' }, { label }];
+  });
+
+  /** Raw identifiers, only inside the collapsed Technical IDs section (#538). */
+  protected readonly technicalIds = computed<readonly TechnicalId[]>(() => {
+    const d = this.detail();
+    if (!d) return [];
+    const ids: TechnicalId[] = [{ label: 'Estimate ID', value: d.id }];
+    if (d.linkedLeadId) ids.push({ label: 'Lead ID', value: d.linkedLeadId });
+    return ids;
   });
 
   /** Ops facts (version verbatim, dates via the kit pipe). */
@@ -151,11 +172,10 @@ export class AdminEstimateLookupComponent {
     const d = this.detail();
     if (!d) return [];
     return [
-      { label: 'Estimate ID', value: d.id },
       { label: 'Cost data version', value: d.costDataVersion },
       { label: 'Created', value: this.dateTime.transform(d.createdAt) },
       { label: 'Project type', value: d.projectType === 'renovation' ? 'Renovation' : 'New build' },
-      { label: 'Linked lead', value: d.linkedLeadId ?? 'No lead yet — gate not completed.' },
+      { label: 'Linked lead', value: d.linkedLeadId ? 'Linked' : 'No lead yet — gate not completed.' },
     ];
   });
 

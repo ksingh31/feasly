@@ -114,8 +114,7 @@
 
 .timeline__id {
   min-width: 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
+  font: var(--type-meta);
   color: var(--accent-text);
   overflow-wrap: anywhere;
   text-decoration: underline;

@@ -6,7 +6,15 @@
     <div class="create-invoice__feedback create-invoice__feedback--ok" role="status">
       <p>
         <strong>Invoice created.</strong>
-        {{ invoice.invoiceId }} · status {{ invoice.status }} ·
+        <ui-entity-link
+          [entityId]="invoice.invoiceId"
+          [label]="entityCopy.viewInvoice"
+          kind="invoice"
+          [copyLabel]="entityCopy.copyId"
+          [copiedLabel]="entityCopy.idCopied"
+          (opened)="openInvoice($event)"
+        />
+        · status {{ invoice.status }} ·
         commission {{ formatCad(invoice.commissionCents) }}
         @if (invoice.reviewDueAt) {
           · review window ends {{ invoice.reviewDueAt | date: 'medium' }}
@@ -40,7 +48,7 @@
           </div>
           <div>
             <dt>Lead</dt>
-            <dd>{{ form.controls.leadId.value }}</dd>
+            <dd>{{ pickedLead()?.label }}</dd>
           </div>
           <div>
             <dt>Contract value</dt>
@@ -109,22 +117,19 @@
         </div>
 
         <div class="create-invoice__field">
-          <label for="create-invoice-lead">Lead ID</label>
-          <input
-            id="create-invoice-lead"
-            type="text"
+          <ui-entity-combobox
+            class="create-invoice__lead"
+            label="Lead"
             formControlName="leadId"
-            placeholder="UUID of the converted lead"
-            autocomplete="off"
-            spellcheck="false"
-            [attr.aria-invalid]="form.controls.leadId.invalid && form.controls.leadId.touched"
+            placeholder="Search by lead name, email or address"
+            hint="The Feasly lead this contract came from. Attribution is lead-keyed."
+            [options]="leadOptions()"
+            [loading]="leadSearchLoading()"
+            [filterLocally]="false"
+            [error]="form.controls.leadId.touched && form.controls.leadId.invalid ? 'Choose the lead this contract came from.' : undefined"
+            (queryChange)="searchLeads($event)"
+            (selectionChange)="pickedLead.set($event)"
           />
-          <p class="create-invoice__hint">
-            The Feasly lead this contract came from. Attribution is lead-keyed.
-          </p>
-          @if (form.controls.leadId.touched && form.controls.leadId.invalid) {
-            <p class="create-invoice__error">Enter the lead's UUID.</p>
-          }
         </div>
 
         <div class="create-invoice__field">
