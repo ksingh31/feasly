@@ -3,8 +3,8 @@
  * Merger (no AI) — runs on GitHub every 10 minutes and when checks finish.
  * Owner rule (2026-11-13): merge only when EVERY check is green and the PR is
  * approved (agent PRs: reviewer verdict APPROVE / agent:approved; owner PRs by
- * authorship). Updates at most one stale branch per run (each merge makes the
- * others stale again), re-runs red environment checks (≤3 attempts), and after
+ * authorship). Merges every eligible PR per run (main is not strict up-to-date),
+ * updates at most one BEHIND branch, re-runs red environment checks (≤3 attempts), and after
  * merging triggers CI + the dev deploy on main (a GITHUB_TOKEN merge fires no
  * push workflows).
  *
@@ -57,9 +57,15 @@ for (const p of prs) {
   }
 
   if (d.action === 'merge') {
-    ghWrite(['pr', 'merge', String(p.number), '--squash', '--delete-branch']);
-    merged += 1;
-    break; // main moved: everything else is behind now; next run continues
+    // main no longer requires branches to be up to date (owner, 2026-11-15), so merge
+    // every eligible PR in one pass. A PR that conflicts after an earlier merge fails
+    // here and gets a fix round on the next run (DIRTY → agent-fix).
+    try {
+      ghWrite(['pr', 'merge', String(p.number), '--squash', '--delete-branch']);
+      merged += 1;
+    } catch (err) {
+      console.log(`  #${p.number} merge failed: ${String(err.message).split('\n')[0]}`);
+    }
   } else if (d.action === 'update' && !updated) {
     ghWrite(['pr', 'update-branch', String(p.number)]);
     updated = true;
