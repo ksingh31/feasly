@@ -221,19 +221,25 @@ apps/web/src/app/features/admin/admin-create-invoice.component.html
 # label; the server's response figure is authoritative.
 apps/web/src/app/features/admin/admin-create-invoice.component.ts
 
-# Manage-invoice modal copy (billing, /admin/billing): the rate-override and
-# record-payment explanatory copy and the success/error feedback are
-# admin-facing money-action copy that changes by product decision, not by
-# deploy tuning. Pinned by admin-manage-invoice.component.spec.ts.
-apps/web/src/app/features/admin/admin-manage-invoice.component.html
+# Invoice drawer + action modals (#543, replace the manage-invoice modal):
+# the rate / payment-method / record-payment consequence copy and the
+# drawer labels are admin-facing money-action copy that changes by product
+# decision, not by deploy tuning. Pinned by admin-invoice-drawer.component.spec.ts
+# and admin-invoice-modals.spec.ts.
+apps/web/src/app/features/admin/admin-invoice-drawer.component.html
+apps/web/src/app/features/admin/admin-invoice-method-modal.component.html
+apps/web/src/app/features/admin/admin-invoice-payment-modal.component.html
+apps/web/src/app/features/admin/admin-invoice-rate-modal.component.html
 
-# Manage-invoice modal implementation constants: `10` is the server's
+# Invoice action implementation constants (#543): `10` is the server's
 # 0 < rate <= 10 percent bound mirrored from the commission-rate zod schema,
 # `120` is the reference maxlength mirrored from the mark-paid schema, and
 # `100` is the percent-math divisor — none are deploy-tunable; changing any
 # requires the backend contract to change in lockstep. Pinned by
-# admin-manage-invoice.component.spec.ts.
-apps/web/src/app/features/admin/admin-manage-invoice.component.ts
+# admin-invoice-view.spec.ts and admin-invoice-modals.spec.ts.
+apps/web/src/app/features/admin/admin-invoice-view.ts
+apps/web/src/app/features/admin/admin-invoice-rate-modal.component.ts
+apps/web/src/app/features/admin/admin-invoice-payment-modal.component.ts
 
 # Calgary coverage heuristic (core/utils/coverage.ts, port of
 # apps/api/src/lib/coverage.ts): the T2/T3 FSA prefixes and non-Calgary city
