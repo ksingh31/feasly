@@ -1,0 +1,31 @@
+# Agent pipeline — reacts to the reviewer's verdict. The reviewer runs with the
+# Claude App token, which cannot dispatch workflows, so merge-gate.mjs's
+# "REQUEST_CHANGES → start a fix round" never fired (e.g. #566). A review
+# submitted by claude[bot] does trigger this workflow, and GITHUB_TOKEN here
+# may dispatch agent-fix.yml.
+name: Agent · Review follow-up
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write # gh workflow run agent-fix.yml
+
+jobs:
+  follow-up:
+    if: >-
+      vars.AGENTS_ENABLED == 'true' &&
+      github.event.review.user.login == 'claude[bot]' &&
+      contains(github.event.review.body, 'Verdict: REQUEST_CHANGES') &&
+      contains(github.event.pull_request.labels.*.name, 'agent:pr')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start a fix round
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh workflow run agent-fix.yml -R "$GITHUB_REPOSITORY" -f pr="$PR" -f reason="review requested changes"
