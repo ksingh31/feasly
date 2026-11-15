@@ -45,7 +45,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     chargeDelayDays: 7,
   },
   propertyData: {
-    source: 'live',
+    source: 'backend',
     baseUrl: 'https://data.calgary.ca',
     datasetId: '4bsw-nn7w',
     searchRowLimit: 50,
