@@ -56,6 +56,24 @@ class RateModalComponent {
   }
 }
 
+/** Issue #668 — a modal that locks dismissal while an operation is in flight. */
+@Component({
+  standalone: true,
+  imports: [UiModalComponent, UiButtonComponent],
+  template: `
+    <ui-modal heading="Update card" [closeLocked]="saving()">
+      <p>Card form</p>
+      <ng-container uiModalFooter>
+        <button type="button" ui-button class="cancel" [disabled]="saving()" (click)="ref.close()">Cancel</button>
+      </ng-container>
+    </ui-modal>
+  `,
+})
+class SavingModalComponent {
+  readonly ref = inject<DialogRef<boolean>>(DialogRef);
+  readonly saving = signal(false);
+}
+
 @Component({
   standalone: true,
   template: `<button type="button" class="trigger">Open</button>`,
@@ -196,6 +214,69 @@ describe('UI kit overlays', () => {
       expect(q('.ui-modal__close')!.getAttribute('aria-label')).toBe('Close');
       q('.ui-modal__close')!.click();
       await until(() => !q('.ui-modal'), 'closed');
+    });
+  });
+
+  describe('close guard (#668)', () => {
+    it('[closeLocked]: Esc, scrim and × leave the dialog open while saving; programmatic close still works', async () => {
+      const modals = TestBed.inject(UiModalService);
+      const ref = modals.open<SavingModalComponent, boolean>(SavingModalComponent);
+      await until(() => !!q('.ui-modal__close'), 'modal rendered');
+      const closed = vi.fn();
+      ref.closed.subscribe(closed);
+
+      ref.componentInstance!.saving.set(true);
+      await until(() => q<HTMLButtonElement>('.ui-modal__close')!.disabled, '× disabled');
+
+      pressEscape();
+      TestBed.tick();
+      q('.ui-modal-scrim')!.click();
+      TestBed.tick();
+      q<HTMLButtonElement>('.ui-modal__close')!.click();
+      TestBed.tick();
+      expect(q('.ui-modal')).not.toBeNull();
+      expect(closed).not.toHaveBeenCalled();
+
+      // The in-flight operation finishing may close the modal itself.
+      ref.close(true);
+      await until(() => !q('.ui-modal'), 'closed programmatically');
+      expect(closed).toHaveBeenCalledWith(true);
+    });
+
+    it('[closeLocked]: dismissal works again once saving ends', async () => {
+      const modals = TestBed.inject(UiModalService);
+      const ref = modals.open<SavingModalComponent, boolean>(SavingModalComponent);
+      await until(() => !!q('.ui-modal__close'), 'modal rendered');
+
+      ref.componentInstance!.saving.set(true);
+      await until(() => q<HTMLButtonElement>('.ui-modal__close')!.disabled, '× disabled');
+      pressEscape();
+      TestBed.tick();
+      expect(q('.ui-modal')).not.toBeNull();
+
+      ref.componentInstance!.saving.set(false);
+      await until(() => !q<HTMLButtonElement>('.ui-modal__close')!.disabled, '× enabled');
+      pressEscape();
+      await until(() => !q('.ui-modal'), 'closed by Esc');
+    });
+
+    it('canClose option guards Esc, scrim and ×', async () => {
+      const modals = TestBed.inject(UiModalService);
+      let allowed = false;
+      modals.open(RateModalComponent, { data: { rate: '1' }, canClose: () => allowed });
+      await until(() => !!q('.ui-modal__close'), 'modal rendered');
+
+      pressEscape();
+      TestBed.tick();
+      q('.ui-modal-scrim')!.click();
+      TestBed.tick();
+      q<HTMLButtonElement>('.ui-modal__close')!.click();
+      TestBed.tick();
+      expect(q('.ui-modal')).not.toBeNull();
+
+      allowed = true;
+      q<HTMLButtonElement>('.ui-modal__close')!.click();
+      await until(() => !q('.ui-modal'), 'closed by ×');
     });
   });
 

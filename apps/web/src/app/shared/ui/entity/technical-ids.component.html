@@ -1,0 +1,30 @@
+<details class="technical-ids" (pointerleave)="reset()" (focusout)="reset()">
+  <summary class="technical-ids__summary">{{ summary() }}</summary>
+  <dl class="technical-ids__list">
+    @for (row of ids(); track row.label) {
+      <div class="technical-ids__row">
+        <dt>{{ row.label }}</dt>
+        <dd>
+          <code class="technical-ids__value">{{ row.value }}</code>
+          <button
+            type="button"
+            class="technical-ids__copy"
+            [attr.aria-label]="copyLabel() + ' (' + row.label + ')'"
+            [attr.title]="copyLabel()"
+            (click)="copy(row)"
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+              @if (copied() === row.label) {
+                <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" />
+              } @else {
+                <rect x="5" y="5" width="8" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+                <path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H10" fill="none" stroke="currentColor" stroke-width="1.4" />
+              }
+            </svg>
+          </button>
+        </dd>
+      </div>
+    }
+  </dl>
+  <span class="sr-only" aria-live="polite">{{ copied() ? copiedLabel() : '' }}</span>
+</details>

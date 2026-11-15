@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
 import { catchError, of, tap } from 'rxjs';
 import type {
+  AdminLeadListItem,
   AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
   BuilderPaymentMethod,
@@ -13,13 +14,16 @@ import {
   AdminBillingApiService,
   PLANNED_PAYMENT_METHOD_LABELS,
 } from './admin-billing-api.service';
+import { AdminLeadsApiService } from './admin-leads-api.service';
 import {
+  ClearInvoiceLeads,
   CreateManualInvoice,
   DismissCreateInvoiceFeedback,
   DismissInvoiceFeedback,
   LoadBillingHealth,
   MarkInvoicePaid,
   RetryInvoiceCharge,
+  SearchInvoiceLeads,
   SetCommissionRate,
   SetInvoicePlannedPaymentMethod,
 } from './billing-health.actions';
@@ -32,6 +36,12 @@ export type CreateInvoiceStatus = 'idle' | 'submitting' | 'error';
 
 /** Lifecycle of the mark-paid / rate-override submit in the manage modal. */
 export type InvoiceActionStatus = 'idle' | 'submitting' | 'error';
+
+/** Lifecycle of the create-invoice lead-picker search (#544). */
+export type InvoiceLeadSearchStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** Results per lead-picker search; the admin narrows by typing. */
+export const INVOICE_LEAD_SEARCH_LIMIT = 20;
 
 export interface BillingHealthStateModel {
   /** The latest dashboard payload, or null before the first load. */
@@ -72,6 +82,9 @@ export interface BillingHealthStateModel {
       | AdminSetInvoicePaymentMethodResponse
       | null;
   } | null;
+  /** Create-invoice lead picker results for the chosen builder (#544). */
+  invoiceLeads: readonly AdminLeadListItem[];
+  invoiceLeadSearchStatus: InvoiceLeadSearchStatus;
 }
 
 const defaults: BillingHealthStateModel = {
@@ -84,6 +97,8 @@ const defaults: BillingHealthStateModel = {
   createFeedback: null,
   invoiceActionStatus: 'idle',
   invoiceFeedback: null,
+  invoiceLeads: [],
+  invoiceLeadSearchStatus: 'idle',
 };
 
 /**
@@ -104,6 +119,7 @@ const defaults: BillingHealthStateModel = {
 @Injectable()
 export class BillingHealthState {
   private readonly api = inject(AdminBillingApiService);
+  private readonly leadsApi = inject(AdminLeadsApiService);
 
   @Selector()
   static health(
@@ -180,6 +196,61 @@ export class BillingHealthState {
     state: BillingHealthStateModel,
   ): BillingHealthStateModel['invoiceFeedback'] {
     return state.invoiceFeedback;
+  }
+
+  /** Lead-picker results for the create-invoice modal (#544). */
+  @Selector()
+  static invoiceLeads(
+    state: BillingHealthStateModel,
+  ): readonly AdminLeadListItem[] {
+    return state.invoiceLeads;
+  }
+
+  @Selector()
+  static invoiceLeadSearchStatus(
+    state: BillingHealthStateModel,
+  ): InvoiceLeadSearchStatus {
+    return state.invoiceLeadSearchStatus;
+  }
+
+  /**
+   * Lead-picker search (#544): the builder's assigned leads, optionally
+   * narrowed by free text. `cancelUncompleted` drops a slower earlier
+   * search so stale results never replace newer ones.
+   */
+  @Action(SearchInvoiceLeads, { cancelUncompleted: true })
+  searchInvoiceLeads(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: SearchInvoiceLeads,
+  ) {
+    ctx.patchState({ invoiceLeadSearchStatus: 'loading' });
+    const search = action.search.trim();
+    return this.leadsApi
+      .listLeads(
+        {
+          builderId: action.builderId,
+          ...(search.length > 0 ? { search } : {}),
+        },
+        null,
+        INVOICE_LEAD_SEARCH_LIMIT,
+      )
+      .pipe(
+        tap((res) =>
+          ctx.patchState({
+            invoiceLeads: res.leads,
+            invoiceLeadSearchStatus: 'ready',
+          }),
+        ),
+        catchError(() => {
+          ctx.patchState({ invoiceLeads: [], invoiceLeadSearchStatus: 'error' });
+          return of(null);
+        }),
+      );
+  }
+
+  @Action(ClearInvoiceLeads)
+  clearInvoiceLeads(ctx: StateContext<BillingHealthStateModel>) {
+    ctx.patchState({ invoiceLeads: [], invoiceLeadSearchStatus: 'idle' });
   }
 
   @Action(LoadBillingHealth)

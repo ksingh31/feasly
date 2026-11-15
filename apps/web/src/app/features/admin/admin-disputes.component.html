@@ -38,7 +38,14 @@
     (retry)="reload()"
   >
     <ng-template uiCell="invoice" let-d>
-      <ui-entity-link kind="Invoice" [entityId]="d.invoiceId" [label]="d.invoiceId" (opened)="openInvoice($event)" />
+      <ui-entity-link
+        kind="invoice"
+        [entityId]="d.invoiceId"
+        [label]="entityCopy.viewInvoice"
+        [copyLabel]="entityCopy.copyId"
+        [copiedLabel]="entityCopy.idCopied"
+        (opened)="openInvoice($event)"
+      />
     </ng-template>
     <ng-template uiCell="sla" let-d>
       <ui-status-chip domain="disputeSla" [status]="sla(d).key" [label]="sla(d).label" data-testid="sla-chip" />

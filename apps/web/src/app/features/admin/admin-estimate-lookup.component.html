@@ -54,14 +54,20 @@
       <section class="estimate-page__card ops" aria-labelledby="estimate-ops-heading">
         <h2 id="estimate-ops-heading" class="estimate-page__card-title">Ops</h2>
         <ui-key-value-list [items]="opsItems()" />
+        <ui-technical-ids
+          data-testid="estimate-technical-ids"
+          [ids]="technicalIds()"
+          [summary]="entityCopy.technicalIds"
+          [copyLabel]="entityCopy.copyId"
+          [copiedLabel]="entityCopy.idCopied"
+        />
 
         <h3 class="estimate-page__sub-title">Snapshot timeline</h3>
         @if (d.snapshots.length > 0) {
           <ol class="timeline">
             @for (s of d.snapshots; track s.id; let first = $first) {
               <li class="timeline__item" [class.timeline__item--current]="s.id === d.id">
-                <a [routerLink]="['/admin/estimates', s.id]" class="timeline__id">{{ s.id }}</a>
-                <span class="timeline__date">{{ s.createdAt | kitDateTime }}</span>
+                <a [routerLink]="['/admin/estimates', s.id]" class="timeline__id">{{ s.createdAt | kitDateTime }}</a>
                 <span class="timeline__tags">
                   @if (first) {
                     <span class="timeline__tag">Latest</span>

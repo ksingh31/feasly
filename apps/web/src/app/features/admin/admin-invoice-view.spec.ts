@@ -56,7 +56,7 @@ describe('admin-invoice-view', () => {
       { id: 'a', tenantKey: null, eventType: 'invoice_charge_failed', entityType: 'invoice', entityId: 'i', payload: { code: 'card_declined' }, createdAt: '2026-11-01T00:00:00Z' },
       { id: 'b', tenantKey: null, eventType: 'something_new', entityType: 'invoice', entityId: 'i', payload: null, createdAt: '2026-11-02T00:00:00Z' },
     ]);
-    expect(failed).toMatchObject({ title: 'Charge failed', tone: 'danger', payload: { code: 'card_declined' } });
+    expect(failed).toMatchObject({ title: 'Charge failed', tone: 'danger', payload: 'Code card_declined' });
     expect(unknown.title).toBeUndefined();
     expect(unknown.type).toBe('something_new');
   });

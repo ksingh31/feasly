@@ -89,3 +89,23 @@ export class SetInvoicePlannedPaymentMethod {
     public readonly method: BuilderPaymentMethod,
   ) {}
 }
+
+/**
+ * Search a builder's leads for the create-invoice lead picker (#544).
+ * Leads are matched by builder assignment (`builderId`) — the same scope
+ * the server checks when the invoice is created — plus an optional
+ * free-text `search` (name, email or address). A newer search cancels an
+ * in-flight one.
+ */
+export class SearchInvoiceLeads {
+  static readonly type = '[BillingHealth] Search invoice leads';
+  constructor(
+    public readonly builderId: string,
+    public readonly search: string,
+  ) {}
+}
+
+/** Clear the lead-picker results (builder changed or modal closed). */
+export class ClearInvoiceLeads {
+  static readonly type = '[BillingHealth] Clear invoice leads';
+}

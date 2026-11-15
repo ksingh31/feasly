@@ -3,10 +3,11 @@
  *
  * Covers: grouped sidebar + permission gating, active state, off-canvas
  * menu (toggle, scrim, Esc, focus in/out), sidebar keyboard navigation,
- * collapsible rail, breadcrumbs, queue badges, the ⌘K placeholder, the user
- * menu, and the admin error boundary (an admin failure renders inside the
+ * collapsible rail, breadcrumbs, queue badges, the ⌘K / `/` command palette
+ * (#538), the user menu, and the admin error boundary (an admin failure renders inside the
  * shell, not on the public /error page).
  */
+import { InteractivityChecker } from '@angular/cdk/a11y';
 import { Component, ErrorHandler, signal, type WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -18,11 +19,14 @@ import { GlobalErrorHandler } from '../../core/errors/global-error.handler';
 import { SeoService } from '../../core/seo/seo.service';
 import { LoadAdminDisputes } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
+import { RefreshQuarantineCount } from './admin-quarantine.actions';
+import { AdminQuarantineState } from './admin-quarantine.state';
 import { AdminAuthState } from './admin-auth.state';
 import { LogoutAdmin } from './admin-auth.actions';
 import { AdminErrorComponent } from './admin-error.component';
 import { AdminShellComponent } from './admin-shell.component';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
+import { AdminSearchState } from './admin-search.state';
 
 @Component({ standalone: true, template: '<p class="blank-page">page</p>' })
 class BlankComponent {}
@@ -30,14 +34,18 @@ class BlankComponent {}
 interface StoreSignals {
   permissions: WritableSignal<string[] | null>;
   disputes: WritableSignal<unknown[]>;
+  quarantine: WritableSignal<number | null>;
   email: WritableSignal<string | null>;
   name: WritableSignal<string | null>;
 }
 
-function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown[] }> = {}) {
+function makeStore(
+  overrides: Partial<{ permissions: string[]; disputes: unknown[]; quarantine: number | null }> = {},
+) {
   const signals: StoreSignals = {
     permissions: signal(overrides.permissions ?? ['billing:read']),
     disputes: signal(overrides.disputes ?? []),
+    quarantine: signal(overrides.quarantine ?? null),
     email: signal('ops@example.com'),
     name: signal('Riley Ops'),
   };
@@ -46,6 +54,8 @@ function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown
     [AdminAuthState.email, signals.email],
     [AdminAuthState.name, signals.name],
     [AdminDisputesState.disputes, signals.disputes],
+    [AdminQuarantineState.queueCount, signals.quarantine],
+    [AdminSearchState.palette, signal({ query: '', hits: [], status: 'idle', error: null })],
   ]);
   const store = {
     dispatch: vi.fn().mockReturnValue(of({})),
@@ -55,7 +65,7 @@ function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown
 }
 
 async function setup(
-  opts: { permissions?: string[]; disputes?: unknown[]; url?: string } = {},
+  opts: { permissions?: string[]; disputes?: unknown[]; quarantine?: number | null; url?: string } = {},
 ) {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
@@ -67,6 +77,16 @@ async function setup(
       { provide: SeoService, useValue: seo },
       { provide: Store, useValue: store },
       { provide: AdminEntraAuthService, useValue: { consumeSignOutRedirect: () => false } },
+      // jsdom has no layout: let the CDK focus trap treat elements as tabbable.
+      {
+        provide: InteractivityChecker,
+        useValue: {
+          isFocusable: (el: HTMLElement) => el.tabIndex >= 0,
+          isTabbable: (el: HTMLElement) => el.tabIndex >= 0,
+          isVisible: () => true,
+          isDisabled: (el: HTMLElement) => !!(el as HTMLButtonElement).disabled,
+        },
+      },
     ],
   });
   const router = TestBed.inject(Router);
@@ -101,6 +121,7 @@ async function waitFor(check: () => boolean, label: string): Promise<void> {
   while (!check()) {
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
     await new Promise((resolve) => setTimeout(resolve, 5));
+    TestBed.tick();
   }
 }
 
@@ -119,6 +140,7 @@ describe('AdminShellComponent — sidebar', () => {
     ]);
     expect(qa(fixture, '.admin-nav__link').map((a) => a.getAttribute('href'))).toEqual([
       '/admin/leads',
+      '/admin/quarantine',
       '/admin/estimates',
       '/admin/builders',
       '/admin/users',
@@ -153,6 +175,13 @@ describe('AdminShellComponent — sidebar', () => {
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(LoadAdminDisputes));
     // Other items carry no badge.
     expect(qa(fixture, '.admin-nav__badge')).toHaveLength(1);
+  });
+
+  it('shows the quarantine queue badge and refreshes its count on load', async () => {
+    const { fixture, store } = await setup({ permissions: [], quarantine: 3 });
+    const badge = q(fixture, 'a[href="/admin/quarantine"] .admin-nav__badge');
+    expect(text(badge)).toBe('3 open');
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(RefreshQuarantineCount));
   });
 
   it('does not prefetch the disputes queue without billing:read', async () => {
@@ -249,21 +278,64 @@ describe('AdminShellComponent — top bar', () => {
     expect(fixture.nativeElement.querySelector('.admin-topbar__crumbs ol')).toBeNull();
   });
 
-  it('⌘K / Ctrl+K focuses the search placeholder and says it is coming soon; Esc hides it', async () => {
+  const palette = (): HTMLElement | null => document.querySelector('app-admin-command-palette');
+  const paletteInput = (): HTMLInputElement | null =>
+    document.querySelector<HTMLInputElement>('.admin-palette__input');
+
+  it('⌘K / Ctrl+K toggles the command palette with focus in its search box (#538)', async () => {
     const { fixture } = await setup();
     const event = keydown(document, 'k', { metaKey: true });
     fixture.detectChanges();
     expect(event.defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(q(fixture, '.admin-topbar__search-button'));
-    expect(text(q(fixture, '#admin-search-hint'))).toBe('Command search is coming soon.');
+    await waitFor(() => palette() !== null, 'palette open');
+    await waitFor(() => document.activeElement === paletteInput(), 'focus in palette');
+    expect(q(fixture, '.admin-topbar__search-button').getAttribute('aria-expanded')).toBe('true');
 
-    keydown(document, 'Escape');
+    keydown(document, 'k', { metaKey: true });
     fixture.detectChanges();
-    expect(text(q(fixture, '#admin-search-hint'))).toBe('');
+    await waitFor(() => palette() === null, 'palette closed');
 
     keydown(document, 'K', { ctrlKey: true });
     fixture.detectChanges();
-    expect(text(q(fixture, '#admin-search-hint'))).toBe('Command search is coming soon.');
+    await waitFor(() => palette() !== null, 'palette reopened via Ctrl+K');
+  });
+
+  it('Esc closes the palette and returns focus to the trigger', async () => {
+    const { fixture } = await setup();
+    const trigger = q<HTMLButtonElement>(fixture, '.admin-topbar__search-button');
+    trigger.focus();
+    trigger.click();
+    fixture.detectChanges();
+    await waitFor(() => document.activeElement === paletteInput(), 'focus in palette');
+    keydown(paletteInput()!, 'Escape', { keyCode: 27 });
+    fixture.detectChanges();
+    await waitFor(() => palette() === null, 'palette closed');
+    await waitFor(() => document.activeElement === trigger, 'focus back on trigger');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('/ opens the palette, but not while typing in a field', async () => {
+    const { fixture } = await setup();
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    const typed = keydown(field, '/');
+    fixture.detectChanges();
+    expect(typed.defaultPrevented).toBe(false);
+    expect(palette()).toBeNull();
+
+    const event = keydown(document.body, '/');
+    fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true);
+    await waitFor(() => palette() !== null, 'palette open via /');
+  });
+
+  it('/ leaves page search to a FilterBar when the page has one', async () => {
+    const { fixture } = await setup();
+    q(fixture, '#admin-main').appendChild(document.createElement('ui-filter-bar'));
+    const event = keydown(document.body, '/');
+    fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(false);
+    expect(palette()).toBeNull();
   });
 
   it('opens the user menu with identity + sign out; Esc closes and refocuses', async () => {

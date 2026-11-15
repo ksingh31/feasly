@@ -17,6 +17,7 @@ import {
   type DisputeSlaKey,
   type KeyValueItem,
   type StatusTone,
+  type TechnicalId,
   type TimelineEvent,
   type UiConfirmOptions,
   disputeSlaKey,
@@ -64,10 +65,24 @@ export function disputeEvidenceItems(s: DisputeEvidenceSnapshot): KeyValueItem[]
     { label: 'Disputed at', value: formatEdmontonDateTime(s.disputedAt) },
     { label: 'Review window ended', value: formatEdmontonDateTime(s.reviewDueAt) },
     { label: 'Builder', value: s.tenantKey },
+  ];
+}
+
+/**
+ * Raw identifiers for the collapsed "Technical IDs" section (#538,
+ * portal-ui-kit §5: no raw UUIDs anywhere else). Payment intent only when
+ * the invoice was charged.
+ */
+export function disputeTechnicalIds(d: DisputeDetailResponse): TechnicalId[] {
+  const s = d.evidenceSnapshot;
+  const ids: TechnicalId[] = [
+    { label: 'Dispute ID', value: d.id },
+    { label: 'Invoice ID', value: d.invoiceId },
     { label: 'Lead ID', value: s.leadId },
     { label: 'Attribution ID', value: s.attributionId },
-    { label: 'Payment intent', value: s.stripePaymentIntentId },
   ];
+  if (s.stripePaymentIntentId) ids.push({ label: 'Payment intent', value: s.stripePaymentIntentId });
+  return ids;
 }
 
 /** Audit event titles; unknown types fall back to the sentence-cased type. */
@@ -120,14 +135,26 @@ const PAYLOAD_FIELDS: Readonly<Record<string, readonly [string, FieldKind]>> = {
   resolvedBy: ['Resolved by', 'text'],
   adminEmail: ['By', 'text'],
   invoiceNumber: ['Invoice', 'text'],
-  invoiceId: ['Invoice ID', 'text'],
-  refundId: ['Refund', 'text'],
   slaDueAt: ['SLA due', 'date'],
   attempted: ['Charge attempted', 'bool'],
   slaBreached: ['Late report', 'bool'],
   autoResolved: ['Auto-resolved', 'bool'],
   backfilled: ['Backfilled', 'bool'],
 };
+
+/**
+ * Raw identifier keys never rendered in the timeline (#538): they live in
+ * the drawer's Technical IDs section instead.
+ */
+const HIDDEN_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
+  'invoiceId',
+  'disputeId',
+  'leadId',
+  'attributionId',
+  'refundId',
+  'stripePaymentIntentId',
+  'paymentIntentId',
+]);
 
 function formatField(kind: FieldKind, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -154,6 +181,7 @@ function formatField(kind: FieldKind, value: unknown): string {
 export function humanisePayload(payload: Record<string, unknown> | null): string {
   if (!payload) return '';
   return Object.entries(payload)
+    .filter(([key]) => !HIDDEN_PAYLOAD_KEYS.has(key))
     .map(([key, value]) => {
       const field = PAYLOAD_FIELDS[key];
       const label = field ? field[0] : enumLabel(key.replace(/([a-z])([A-Z])/g, '$1_$2'));
@@ -203,7 +231,7 @@ export function disputeTimeline(events: readonly BillingEvent[]): TimelineEvent[
 export function acceptConfirmOptions(d: DisputeDetailResponse): UiConfirmOptions {
   const amount = formatCentsToCad(d.commissionCents);
   return {
-    title: `Accept dispute and void invoice ${d.invoiceId}?`,
+    title: `Accept dispute and void the ${d.tenantKey} invoice?`,
     body:
       `Accepting voids this ${amount} commission invoice for ${d.tenantKey}. ` +
       `If it was already charged, ${amount} is refunded to the card first. ` +
@@ -217,7 +245,7 @@ export function acceptConfirmOptions(d: DisputeDetailResponse): UiConfirmOptions
 /** Reject confirm: the invoice goes back to review with a fresh window. */
 export function rejectConfirmOptions(d: DisputeDetailResponse): UiConfirmOptions {
   return {
-    title: `Reject dispute on invoice ${d.invoiceId}?`,
+    title: `Reject dispute on the ${d.tenantKey} invoice?`,
     body:
       `The ${formatCentsToCad(d.commissionCents)} invoice for ${d.tenantKey} goes back to review ` +
       'with a fresh 7-day window. This is recorded in the audit trail.',

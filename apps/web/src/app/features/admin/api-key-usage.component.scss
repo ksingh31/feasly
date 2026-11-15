@@ -1,9 +1,111 @@
 @use '../../shared/stacked-table' as *;
 
+/** API key usage panel (#546): per-day bar chart + collapsed table. Tokens only. */
+
+:host {
+  display: block;
+}
+
+.usage__figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.usage__caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font: var(--type-body-sm);
+}
+
+.usage__caption-title {
+  font-weight: 600;
+}
+
+.usage__caption-total {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage__chart {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  height: 140px;
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.usage__day {
+  flex: 1 1 0;
+  min-width: 1.25rem;
+  max-width: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.usage__bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.usage__bar {
+  display: block;
+  width: 100%;
+  height: calc(var(--share, 0) * 100%);
+  min-height: 2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--accent);
+}
+
+.usage__day-label {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.usage__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.usage__details {
+  margin-top: var(--space-4);
+}
+
+.usage__summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
 .usage__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font: var(--type-body-sm);
 
   /* Phones: each usage row stacks into a card (#476). */
   @include feasly-stacked-table;
@@ -12,16 +114,27 @@
 .usage__table th,
 .usage__table td {
   text-align: left;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-border, #e5e5e5);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
 }
 
 .usage__table th {
   font-weight: 600;
 }
 
+.usage__table code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+}
+
+.usage__table .usage__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .usage__empty,
 .usage__loading {
-  color: var(--color-text-muted, #666);
-  font-size: 0.875rem;
+  margin: 0;
+  color: var(--muted);
+  font: var(--type-body-sm);
 }

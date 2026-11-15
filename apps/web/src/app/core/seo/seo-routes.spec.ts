@@ -78,6 +78,7 @@ describe('seo-routes', () => {
       ['admin/api-keys', 'adminApiKeysTitle'],
       ['admin/funnels', 'adminFunnelsTitle'],
       ['admin/webhooks', 'adminWebhooksTitle'],
+      ['admin/quarantine', 'adminQuarantineTitle'],
       ['admin/login', 'adminLoginTitle'],
       ['admin/auth/callback', 'adminCallbackTitle'],
     ];
@@ -128,6 +129,7 @@ describe('seo-routes', () => {
       'admin/api-keys': 'admin/api-keys',
       'admin/funnels': 'admin/funnels',
       'admin/webhooks': 'admin/webhooks',
+      'admin/quarantine': 'admin/quarantine',
       'admin/login': 'admin/login',
       'admin/auth/callback': 'admin/auth/callback',
       'admin/**': 'admin/unknown-section',

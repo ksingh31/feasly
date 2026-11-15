@@ -3,14 +3,10 @@
 # Migrate a page to tokens, then lower its count (or delete the line at zero).
 # `node apps/web/tools/check-scss-colours.mjs --update` does this for you.
 apps/web/src/app/features/admin/_admin-lead-badges.scss 18
-apps/web/src/app/features/admin/admin-billing.component.scss 43
-apps/web/src/app/features/admin/admin-create-invoice.component.scss 20
 apps/web/src/app/features/admin/admin-error.component.scss 3
 apps/web/src/app/features/admin/admin-invoices.component.scss 3
 apps/web/src/app/features/admin/admin-login.component.scss 6
 apps/web/src/app/features/admin/admin-users.component.scss 22
-apps/web/src/app/features/admin/api-key-usage.component.scss 2
-apps/web/src/app/features/admin/api-keys-page.component.scss 22
 apps/web/src/app/features/builder/builder-billing.component.scss 30
 apps/web/src/app/features/builder/builder-invoices.component.scss 36
 apps/web/src/app/features/builder/builder-login.component.scss 11

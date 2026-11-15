@@ -31,41 +31,6 @@
     </p>
   }
 
-  <div class="leads-page__tabs" role="tablist" [attr.aria-label]="copy.tabsLabel">
-    <button
-      type="button"
-      role="tab"
-      class="leads-page__tab"
-      [class.leads-page__tab--active]="tab() === 'all'"
-      [attr.aria-selected]="tab() === 'all'"
-      (click)="setTab('all')"
-    >
-      {{ copy.tabAll }}
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="leads-page__tab"
-      [class.leads-page__tab--active]="tab() === 'quarantine'"
-      [attr.aria-selected]="tab() === 'quarantine'"
-      (click)="setTab('quarantine')"
-    >
-      {{ copy.tabQuarantine }}
-    </button>
-  </div>
-
-  @if (tab() === 'quarantine') {
-    <p class="leads-page__note">{{ copy.quarantineNote }}</p>
-    @if (quarantineActionError(); as err) {
-      <p class="leads-page__alert" role="alert">
-        <span>{{ err }}</span>
-        <button type="button" ui-button variant="ghost" size="sm" (click)="dismissQuarantineError()">
-          {{ copy.dismiss }}
-        </button>
-      </p>
-    }
-  }
-
   <div class="leads-page__totals" role="group" [attr.aria-label]="copy.totalsLabel">
     @for (s of pipelineStatuses; track s) {
       <button
@@ -149,9 +114,6 @@
           @if (row.sandbox) {
             <span class="leads-page__badge">{{ copy.sandboxBadge }}</span>
           }
-          @if (row.quarantined) {
-            <span class="leads-page__badge leads-page__badge--warn">{{ copy.quarantineBadge }}</span>
-          }
         </span>
         <span class="leads-page__lead-email">{{ row.email }}</span>
       </span>
@@ -162,32 +124,6 @@
         [class.leads-page__consent--out]="row.contactConsent === 'out'"
       >{{ row.contactConsent === 'in' ? copy.consentIn : copy.consentOut }}</span>
     </ng-template>
-    @if (tab() === 'quarantine' && canManageLeads()) {
-      <ng-template uiRowActions let-row>
-        <span class="leads-page__row-actions">
-          <button
-            type="button"
-            ui-button
-            size="sm"
-            [loading]="quarantineBusy(row.id) && quarantineActionKind() === 'approve'"
-            [disabled]="quarantineBusy(row.id)"
-            (click)="approveLead(row)"
-          >
-            {{ quarantineBusy(row.id) && quarantineActionKind() === 'approve' ? copy.approving : copy.approve }}
-          </button>
-          <button
-            type="button"
-            ui-button
-            variant="danger"
-            size="sm"
-            [disabled]="quarantineBusy(row.id)"
-            (click)="discardLead(row)"
-          >
-            {{ copy.discard }}
-          </button>
-        </span>
-      </ng-template>
-    }
   </ui-data-table>
 
   @if (hasMore() && listStatus() !== 'error') {
