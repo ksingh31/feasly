@@ -784,9 +784,11 @@ export interface AppConfig {
   propertyData: {
     /**
      * Which property backend serves autocomplete + property records:
-     * - 'live': City of Calgary open-data Socrata API (free, no key).
+     * - 'backend': our own /api/v1 property routes (served default, #752).
      * - 'mock': FE0-003 fixture harness (offline dev / CI).
-     * - 'backend': our own /api/v1 property routes (BE-3+, when they exist).
+     * - 'live': City of Calgary Socrata API from the browser (local dev only;
+     *   misses the API's address normalisation and current district).
+     * `baseUrl`/`datasetId`/`searchRowLimit`/`cacheTtlMs` apply to 'live' only.
      * Independent from `api.useMockApi`, which still switches the estimate /
      * lead / magic-link contracts.
      */
@@ -866,7 +868,7 @@ export interface AppConfig {
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
-     * arrives direct from Socrata (propertyData.source 'live'), so the
+     * carries no eligibility verdict (on every propertyData.source), so the
      * client needs the assessed-value bounds for the early coverage guard.
      * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot
      * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the
