@@ -941,6 +941,31 @@ VALUES
    '', '#0F766E', '["https://demo.example.com"]'::jsonb, NULL, 'active')
 ON CONFLICT ("tenant_key") DO NOTHING;
 
+-- #710 (2026-11-15): tenants backfill for every builder. Admin "Create
+-- builder" wrote only the builders table, but builder_sessions,
+-- builder_allowlist, commission_invoices, billing_disputes and the Stripe
+-- customer id all FK/hang off tenants(tenant_key) — so any builder created
+-- in the admin console could not sign in, save a card or be invoiced (the
+-- same FK failure as the 2026-09-29 incident). BuilderService now upserts
+-- the tenants row on create/update; this backfills builders created before
+-- that fix. Runs after the builder-seed guard above. ON CONFLICT DO NOTHING:
+-- idempotent, and never touches an existing row (stripe_customer_id kept).
+-- tenants columns are NOT NULL where builders allows null; '' mirrors the
+-- embed config's null fallback.
+INSERT INTO "tenants"
+  ("tenant_key", "business_name", "display_name", "logo_url",
+   "accent_color", "allowed_origins", "fallback_phone", "fallback_email",
+   "plan")
+SELECT
+  b."tenant_key", b."business_name", b."display_name",
+  COALESCE(b."logo_url", ''), COALESCE(b."accent_color", ''),
+  CASE WHEN jsonb_typeof(b."allowed_origins") = 'array'
+    THEN ARRAY(SELECT jsonb_array_elements_text(b."allowed_origins"))
+    ELSE ARRAY[]::text[] END,
+  COALESCE(b."phone", ''), COALESCE(b."email", ''), b."plan"
+FROM "builders" b
+ON CONFLICT ("tenant_key") DO NOTHING;
+
 -- P0 2026-09-28: builder-QA membership guard. drizzle-kit silently skipped
 -- migration 0042 on dev (the membership row never materialized), so Karan's
 -- builder Entra sign-in 403s at the membership gate even though the user row
