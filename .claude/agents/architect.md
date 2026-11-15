@@ -21,6 +21,7 @@ A plan the devs can execute without guessing:
 3. Per layer: files to add/change — routes (thin) / services (interface + factory) / db / config / web feature + NGXS store.
 4. Data changes as expand → migrate → contract steps, including `repair-sql.mjs` and the registration trio for new endpoints.
 5. Tests: service unit, route, contract-conformance, web specs, browser QA scenarios (desktop + 390×844).
+   For any new/changed public page, ACs list the `docs/seo-page-standard.md` rows it must meet (SEO/GEO is a priority).
 6. Risks, rollback, and anything blocked on Karan (use an explicit placeholder + allowlist entry, never a stall).
 7. Split into PR-sized stories with branch names `feat/<story-id>-<slug>`.
 
