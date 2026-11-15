@@ -863,6 +863,11 @@ export interface AppConfig {
       /** "Quoting > N days" saved view: quoting leads created more than N days ago. */
       quotingStaleDays: number;
     };
+    /** Admin Quarantine (#540). */
+    quarantine: {
+      /** Parallel approve/discard calls in a bulk run (no bulk endpoint exists). */
+      bulkConcurrency: number;
+    };
     /**
      * Microsoft Entra External ID (auth/02 pivot, AUTH-02). All three are
      * deploy-time values — the compiled defaults are placeholders that
@@ -1559,6 +1564,8 @@ export interface AppConfig {
       adminFunnels: string;
       adminWebhooksTitle: string;
       adminWebhooks: string;
+      adminQuarantineTitle: string;
+      adminQuarantine: string;
       adminLoginTitle: string;
       adminLogin: string;
       adminCallbackTitle: string;
@@ -1804,6 +1811,7 @@ export interface AppConfig {
           sheets: string;
           funnels: string;
           webhooks: string;
+          quarantine: string;
         };
         /** Screen-reader suffix for a queue badge, e.g. "3 open". */
         badgeSuffix: string;
@@ -1821,6 +1829,55 @@ export interface AppConfig {
         signOut: string;
       };
       /**
+       * Admin Quarantine (#540): honeypot-flagged leads on their own route,
+       * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
+       * and `{total}` are filled in by the page.
+       */
+      quarantine: {
+        title: string;
+        description: string;
+        searchLabel: string;
+        searchPlaceholder: string;
+        clearFilters: string;
+        countOne: string;
+        countMany: string;
+        tableLabel: string;
+        columns: { lead: string; address: string; source: string; tenant: string; created: string };
+        emptyHeading: string;
+        emptyMessage: string;
+        noResultsHeading: string;
+        noResultsMessage: string;
+        errorHeading: string;
+        loadError: string;
+        retry: string;
+        loading: string;
+        actionsHeader: string;
+        loadMore: string;
+        loadingMore: string;
+        selectAll: string;
+        selectRow: string;
+        selectedCount: string;
+        approve: string;
+        approving: string;
+        discard: string;
+        discarding: string;
+        approveSelected: string;
+        discardSelected: string;
+        cancel: string;
+        approveConfirmTitleMany: string;
+        approveConfirmBody: string;
+        discardConfirmTitle: string;
+        discardConfirmTitleMany: string;
+        discardConfirmBody: string;
+        approvedOne: string;
+        approvedMany: string;
+        discardedOne: string;
+        discardedMany: string;
+        failedOne: string;
+        failedMany: string;
+        dismiss: string;
+      };
+      /**
        * Admin Leads (#539, admin review S5/S6): saved views, the kit
        * DataTable and the lead drawer with one footer Save.
        */
@@ -1831,10 +1888,6 @@ export interface AppConfig {
         exportCsv: string;
         exporting: string;
         dismiss: string;
-        tabsLabel: string;
-        tabAll: string;
-        tabQuarantine: string;
-        quarantineNote: string;
         totalsLabel: string;
         viewsLabel: string;
         /** Saved views. `quotingStale` takes `{days}`. */
@@ -1868,7 +1921,6 @@ export interface AppConfig {
         consentIn: string;
         consentOut: string;
         sandboxBadge: string;
-        quarantineBadge: string;
         emptyHeading: string;
         emptyMessage: string;
         noResultsHeading: string;
@@ -1879,12 +1931,6 @@ export interface AppConfig {
         actionsHeader: string;
         loadMore: string;
         loadingMore: string;
-        approve: string;
-        approving: string;
-        discard: string;
-        /** Confirm dialog; `{name}` is the lead name. */
-        discardConfirmTitle: string;
-        discardConfirmBody: string;
         drawer: {
           loading: string;
           refreshing: string;

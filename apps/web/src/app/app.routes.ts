@@ -289,6 +289,11 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/admin-disputes.state')).adminDisputesStateProvider,
       ),
+      // Quarantine (#540): on the parent so the sidebar badge can count it.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-quarantine.state')).adminQuarantineStateProvider,
+      ),
       lazyProvider(
         async () =>
           (await import('./features/admin/admin-calibration.state')).calibrationStateProvider,
@@ -318,6 +323,13 @@ export const routes: Routes = [
         path: 'leads',
         loadComponent: () =>
           import('./features/admin/admin-leads.component').then((m) => m.AdminLeadsComponent),
+      },
+      // Quarantine (#540, admin review page map): honeypot-flagged leads,
+      // promoted from a Leads tab to its own section with bulk decisions.
+      {
+        path: 'quarantine',
+        loadComponent: () =>
+          import('./features/admin/admin-quarantine.component').then((m) => m.AdminQuarantineComponent),
       },
       // Builders management (embed/02 admin-UI migration): the builders
       // table — branding, sign-in keys, allowed embed origins, plans.

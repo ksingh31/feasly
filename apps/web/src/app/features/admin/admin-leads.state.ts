@@ -15,22 +15,17 @@ import { AdminLeadsApiService } from './admin-leads-api.service';
 import { ConfigService } from '../../core/config/config.service';
 import {
   AddAdminLeadNote,
-  ApproveQuarantinedLead,
   ClearSelectedAdminLead,
-  DiscardQuarantinedLead,
   DismissAdminLeadNoteError,
   DismissAdminLeadStatusError,
   DismissAdminLeadStatusSuccess,
   DismissExportError,
-  DismissQuarantineActionError,
   ExportAdminLeadsCsv,
   LoadAdminLeads,
   LoadMoreAdminLeads,
   SelectAdminLead,
-  SetAdminLeadsTab,
   ToggleAdminLeadsSandbox,
   UpdateAdminLeadStatus,
-  type AdminLeadsTab,
 } from './admin-leads.actions';
 
 /** List loading lifecycle. */
@@ -50,7 +45,6 @@ export interface AdminLeadsStateModel {
   nextCursor: string | null;
   /** Active filter values (drives the filter form). */
   filters: AdminLeadFilters;
-  tab: AdminLeadsTab;
   includeSandbox: boolean;
   listStatus: AdminLeadsListStatus;
   listError: string | null;
@@ -71,12 +65,6 @@ export interface AdminLeadsStateModel {
   exporting: boolean;
   /** Last failed CSV-export message; null when the last export succeeded. */
   exportError: string | null;
-  /** Lead id with an in-flight quarantine approve/discard; null when idle. */
-  quarantineActionId: string | null;
-  /** Which quarantine action is in flight for `quarantineActionId`. */
-  quarantineActionKind: 'approve' | 'discard' | null;
-  /** Last failed quarantine-action message; null when the last one succeeded. */
-  quarantineActionError: string | null;
 }
 
 const defaults: AdminLeadsStateModel = {
@@ -85,7 +73,6 @@ const defaults: AdminLeadsStateModel = {
   statusCounts: { new: 0, contacted: 0, quoting: 0, won: 0, lost: 0 },
   nextCursor: null,
   filters: {},
-  tab: 'all',
   includeSandbox: false,
   listStatus: 'idle',
   listError: null,
@@ -101,9 +88,6 @@ const defaults: AdminLeadsStateModel = {
   detailRefreshError: null,
   exporting: false,
   exportError: null,
-  quarantineActionId: null,
-  quarantineActionKind: null,
-  quarantineActionError: null,
 };
 
 /**
@@ -151,11 +135,6 @@ export class AdminLeadsState {
   @Selector()
   static filters(state: AdminLeadsStateModel): AdminLeadFilters {
     return state.filters;
-  }
-
-  @Selector()
-  static tab(state: AdminLeadsStateModel): AdminLeadsTab {
-    return state.tab;
   }
 
   @Selector()
@@ -233,42 +212,18 @@ export class AdminLeadsState {
     return state.exportError;
   }
 
-  @Selector()
-  static quarantineActionId(state: AdminLeadsStateModel): string | null {
-    return state.quarantineActionId;
-  }
-
-  @Selector()
-  static quarantineActionKind(
-    state: AdminLeadsStateModel,
-  ): 'approve' | 'discard' | null {
-    return state.quarantineActionKind;
-  }
-
-  @Selector()
-  static quarantineActionError(state: AdminLeadsStateModel): string | null {
-    return state.quarantineActionError;
-  }
-
   // ------------------------------------------------------------------ helpers
 
   /**
-   * Merges tab/sandbox state into the effective backend filters.
+   * Merges the sandbox toggle into the effective backend filters.
    *
-   * The quarantine tab forces `quarantinedOnly: true` so it lists only
-   * honeypot-flagged rows (never the full lead list); everywhere else
-   * quarantined rows stay hidden. Sandbox rows are excluded unless the
-   * admin toggles them in (they're badged "Sandbox" in the table).
+   * Quarantined rows stay hidden here (backend default) — they have their
+   * own page, /admin/quarantine (#540). Sandbox rows are excluded unless
+   * the admin toggles them in (they're badged "Sandbox" in the table).
    */
-  private effectiveFilters(
-    state: AdminLeadsStateModel,
-    filters: AdminLeadFilters,
-    tab: AdminLeadsTab,
-  ): AdminLeadFilters {
+  private effectiveFilters(state: AdminLeadsStateModel, filters: AdminLeadFilters): AdminLeadFilters {
     return {
       ...filters,
-      includeQuarantined: tab === 'quarantine' ? true : undefined,
-      quarantinedOnly: tab === 'quarantine' ? true : undefined,
       includeSandbox: state.includeSandbox ? true : undefined,
     };
   }
@@ -279,7 +234,7 @@ export class AdminLeadsState {
     append: boolean,
   ): Observable<AdminLeadListResponse> {
     const state = ctx.getState();
-    const filters = this.effectiveFilters(state, state.filters, state.tab);
+    const filters = this.effectiveFilters(state, state.filters);
     ctx.patchState({ listStatus: append ? 'loading-more' : 'loading', listError: null });
     return this.api.listLeads(filters, cursor).pipe(
       tap({
@@ -313,10 +268,7 @@ export class AdminLeadsState {
     // The open lead (if any) is left alone: the drawer is URL-driven
     // (`?open=<id>`, #539) and owns the selection, so a filter change or a
     // deep link loading the list must not wipe the drawer's detail.
-    ctx.patchState({
-      filters: { ...action.filters },
-      tab: action.tab,
-    });
+    ctx.patchState({ filters: { ...action.filters } });
     return this.loadPage(ctx, null, false);
   }
 
@@ -515,7 +467,7 @@ export class AdminLeadsState {
       return;
     }
     const state = ctx.getState();
-    const filters = this.effectiveFilters(state, state.filters, state.tab);
+    const filters = this.effectiveFilters(state, state.filters);
     ctx.patchState({ exporting: true, exportError: null });
     return this.api.exportCsv(filters).pipe(
       tap({
@@ -542,24 +494,6 @@ export class AdminLeadsState {
     ctx.patchState({ exportError: null });
   }
 
-  @Action(SetAdminLeadsTab)
-  setTab(
-    ctx: StateContext<AdminLeadsStateModel>,
-    action: SetAdminLeadsTab,
-  ): Observable<AdminLeadListResponse> | void {
-    if (ctx.getState().tab === action.tab) {
-      return;
-    }
-    ctx.patchState({
-      tab: action.tab,
-      selectedLeadId: null,
-      detail: null,
-      detailStatus: 'idle',
-      detailError: null,
-    });
-    return this.loadPage(ctx, null, false);
-  }
-
   @Action(ToggleAdminLeadsSandbox)
   toggleSandbox(
     ctx: StateContext<AdminLeadsStateModel>,
@@ -570,86 +504,6 @@ export class AdminLeadsState {
     }
     ctx.patchState({ includeSandbox: action.include });
     return this.loadPage(ctx, null, false);
-  }
-
-  @Action(ApproveQuarantinedLead)
-  approveQuarantine(
-    ctx: StateContext<AdminLeadsStateModel>,
-    action: ApproveQuarantinedLead,
-  ): Observable<unknown> | void {
-    return this.runQuarantineAction(ctx, action.id, 'approve');
-  }
-
-  @Action(DiscardQuarantinedLead)
-  discardQuarantine(
-    ctx: StateContext<AdminLeadsStateModel>,
-    action: DiscardQuarantinedLead,
-  ): Observable<unknown> | void {
-    return this.runQuarantineAction(ctx, action.id, 'discard');
-  }
-
-  @Action(DismissQuarantineActionError)
-  dismissQuarantineActionError(ctx: StateContext<AdminLeadsStateModel>): void {
-    ctx.patchState({ quarantineActionError: null });
-  }
-
-  /**
-   * Shared quarantine approve/discard runner. On success the lead leaves
-   * the quarantine tab either way (approved → back in the pipeline, no
-   * longer matching `quarantinedOnly`; discarded → excluded from every
-   * listing), so it is removed from the local list and the count
-   * decrements — no refetch needed.
-   */
-  private runQuarantineAction(
-    ctx: StateContext<AdminLeadsStateModel>,
-    id: string,
-    kind: 'approve' | 'discard',
-  ): Observable<unknown> | void {
-    if (ctx.getState().quarantineActionId !== null) {
-      return;
-    }
-    ctx.patchState({
-      quarantineActionId: id,
-      quarantineActionKind: kind,
-      quarantineActionError: null,
-    });
-    const call =
-      kind === 'approve'
-        ? this.api.approveQuarantine(id)
-        : this.api.discardQuarantine(id);
-    return call.pipe(
-      tap({
-        next: () => {
-          const current = ctx.getState();
-          const wasSelected = current.selectedLeadId === id;
-          ctx.patchState({
-            quarantineActionId: null,
-            quarantineActionKind: null,
-            quarantineActionError: null,
-            leads: current.leads.filter((lead) => lead.id !== id),
-            totalCount: Math.max(0, current.totalCount - 1),
-            // The detail modal may be open on this lead — its quarantine
-            // context just changed, so close it rather than show stale data.
-            selectedLeadId: wasSelected ? null : current.selectedLeadId,
-            detail: wasSelected ? null : current.detail,
-            detailStatus: wasSelected ? 'idle' : current.detailStatus,
-          });
-        },
-        error: (err: { message?: string }) => {
-          ctx.patchState({
-            quarantineActionId: null,
-            quarantineActionKind: null,
-            quarantineActionError:
-              err?.message ?? 'Could not update the lead. Please try again.',
-          });
-        },
-      }),
-      // Swallow the error into user-facing state (same as the CSV export):
-      // without this the ApiError propagates through the NGXS dispatch
-      // stream as an unhandled error and lands the admin on the branded
-      // /error page.
-      catchError(() => EMPTY),
-    );
   }
 
   // ------------------------------------------------------------------ download

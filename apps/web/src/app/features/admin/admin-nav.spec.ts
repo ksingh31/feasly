@@ -43,6 +43,7 @@ describe('findAdminNavItem', () => {
   it.each([
     ['/admin/leads', 'pipeline', 'leads'],
     ['/admin/leads?status=new', 'pipeline', 'leads'],
+    ['/admin/quarantine', 'pipeline', 'quarantine'],
     ['/admin/estimates/abc', 'pipeline', 'estimates'],
     ['/admin/billing', 'money', 'billing'],
     ['/admin/billing/invoices', 'money', 'invoices'],
