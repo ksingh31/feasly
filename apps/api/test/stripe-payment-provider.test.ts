@@ -1,0 +1,130 @@
+/**
+ * StripePaymentProvider contract tests (#753) — the Stripe SDK client
+ * honours the same PaymentProvider contract as the simulated provider.
+ * The SDK is mocked with Stripe-shaped fixtures; no network, no keys.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  paymentMethodsList: vi.fn(),
+  paymentMethodsDetach: vi.fn(),
+  paymentIntentsCreate: vi.fn(),
+  refundsCreate: vi.fn(),
+  constructEvent: vi.fn(),
+}));
+
+vi.mock('stripe', () => {
+  class FakeStripe {
+    paymentMethods = { list: mocks.paymentMethodsList, detach: mocks.paymentMethodsDetach };
+    paymentIntents = { create: mocks.paymentIntentsCreate };
+    refunds = { create: mocks.refundsCreate };
+    webhooks = { constructEvent: mocks.constructEvent };
+    constructor() {}
+  }
+  return { default: FakeStripe };
+});
+
+import { createStripeSdkClient } from '../src/services/billing/stripe.service';
+import { normalizeStripeEvent } from '../src/services/billing/payment-provider';
+
+const INPUT = {
+  amountCents: 1000,
+  currency: 'CAD',
+  customerId: 'cus_123',
+  description: 'Feasly commission',
+};
+
+beforeEach(() => {
+  for (const m of Object.values(mocks)) m.mockReset();
+  mocks.paymentMethodsList.mockResolvedValue({
+    data: [{ id: 'pm_1', card: { brand: 'visa', last4: '4242', exp_month: 1, exp_year: 2030 } }],
+  });
+});
+
+describe('StripePaymentProvider (createStripeSdkClient)', () => {
+  it('identifies itself as the stripe provider', () => {
+    expect(createStripeSdkClient('sk_test_fake').name).toBe('stripe');
+  });
+
+  it('lists cards with their payment method id and display-safe fields', async () => {
+    const cards = await createStripeSdkClient('sk_test_fake').listPaymentMethods('cus_123');
+    expect(cards).toEqual([{ id: 'pm_1', brand: 'visa', last4: '4242', expMonth: 1, expYear: 2030 }]);
+  });
+
+  it('detaches a payment method', async () => {
+    mocks.paymentMethodsDetach.mockResolvedValue({ id: 'pm_1' });
+    await expect(createStripeSdkClient('sk_test_fake').detachPaymentMethod('pm_1')).resolves.toEqual({
+      id: 'pm_1',
+    });
+    expect(mocks.paymentMethodsDetach).toHaveBeenCalledWith('pm_1');
+  });
+
+  it('returns a declined off-session charge as a status instead of throwing', async () => {
+    // Stripe's StripeCardError carries the PaymentIntent it created.
+    mocks.paymentIntentsCreate.mockRejectedValue(
+      Object.assign(new Error('Your card was declined.'), {
+        type: 'StripeCardError',
+        code: 'card_declined',
+        payment_intent: { id: 'pi_declined', status: 'requires_payment_method' },
+      }),
+    );
+    await expect(
+      createStripeSdkClient('sk_test_fake').createOffSessionPaymentIntent(INPUT, 'k'),
+    ).resolves.toEqual({ id: 'pi_declined', status: 'requires_payment_method' });
+  });
+
+  it('still throws non-card errors (network, auth, a card error with no PaymentIntent)', async () => {
+    const client = createStripeSdkClient('sk_test_fake');
+    mocks.paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('boom'), { type: 'StripeConnectionError' }),
+    );
+    await expect(client.createOffSessionPaymentIntent(INPUT, 'k')).rejects.toThrow('boom');
+    mocks.paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('declined'), { type: 'StripeCardError' }),
+    );
+    await expect(client.createOffSessionPaymentIntent(INPUT, 'k')).rejects.toThrow('declined');
+  });
+
+  it('refunds in full, or partially when an amount is given', async () => {
+    mocks.refundsCreate.mockResolvedValue({ id: 're_1', status: 'succeeded' });
+    const client = createStripeSdkClient('sk_test_fake');
+    await client.refundPaymentIntent('pi_1', 'k1');
+    await client.refundPaymentIntent('pi_1', 'k2', 250);
+    expect(mocks.refundsCreate).toHaveBeenNthCalledWith(1, { payment_intent: 'pi_1' }, { idempotencyKey: 'k1' });
+    expect(mocks.refundsCreate).toHaveBeenNthCalledWith(
+      2,
+      { payment_intent: 'pi_1', amount: 250 },
+      { idempotencyKey: 'k2' },
+    );
+  });
+
+  it('normalizes verified webhook events with the shared normalizer', () => {
+    mocks.constructEvent.mockReturnValue({
+      id: 'evt_1',
+      type: 'charge.refunded',
+      data: { object: { id: 'ch_1', payment_intent: 'pi_1', customer: 'cus_1' } },
+    });
+    expect(createStripeSdkClient('sk_test_fake').constructWebhookEvent(Buffer.from('{}'), 'sig', 'whsec')).toEqual(
+      expect.objectContaining({ id: 'evt_1', type: 'charge.refunded', paymentIntentId: 'pi_1', customerId: 'cus_1' }),
+    );
+  });
+});
+
+describe('normalizeStripeEvent', () => {
+  it('reads the PaymentIntent of disputes and the decline message of failures', () => {
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_d',
+        type: 'charge.dispute.created',
+        data: { object: { id: 'dp_1', payment_intent: 'pi_9' } },
+      }).paymentIntentId,
+    ).toBe('pi_9');
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_f',
+        type: 'payment_intent.payment_failed',
+        data: { object: { id: 'pi_2', last_payment_error: { message: 'Your card was declined.' } } },
+      }),
+    ).toMatchObject({ paymentIntentId: 'pi_2', failureMessage: 'Your card was declined.' });
+  });
+});

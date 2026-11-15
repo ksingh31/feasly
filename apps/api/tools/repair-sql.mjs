@@ -785,6 +785,23 @@ ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "window_start" timest
 ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "count" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 CREATE INDEX IF NOT EXISTS "rate_limit_counters_expires_at_idx" ON "rate_limit_counters" USING btree ("expires_at");
+CREATE TABLE IF NOT EXISTS "simulated_payment_objects" (
+
+	"id" text PRIMARY KEY NOT NULL,
+	"object_type" text NOT NULL,
+	"customer_id" text,
+	"data" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"delivered_at" timestamp with time zone
+);
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "id" text PRIMARY KEY NOT NULL;
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "object_type" text NOT NULL;
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "customer_id" text;
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "delivered_at" timestamp with time zone;
+CREATE INDEX IF NOT EXISTS "simulated_payment_objects_customer_idx" ON "simulated_payment_objects" USING btree ("customer_id","object_type");
+CREATE INDEX IF NOT EXISTS "simulated_payment_objects_type_delivered_idx" ON "simulated_payment_objects" USING btree ("object_type","delivered_at");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

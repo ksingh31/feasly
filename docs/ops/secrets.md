@@ -24,6 +24,10 @@
 - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` — GitHub
   **variables** (not secrets). Azure auth is OIDC-federated; there is no
   `AZURE_CLIENT_SECRET` anywhere.
+- `PAYMENTS_PROVIDER`, `PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS` and
+  `PAYMENTS_SIMULATED_WEBHOOK_SECRET` (#753). The simulated provider's
+  signing secret only signs dev-only simulated events and cannot move money.
+  It is optional: unset means a random secret per process.
 - `STRIPE_FLAT_PRICE_ID`, Socrata dataset IDs, queue names, rate-limit
   tunables — identifiers and configuration, not credentials.
 - Stripe *publishable* keys (`pk_…`) — safe for the client by design; none

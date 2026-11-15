@@ -164,6 +164,12 @@ describe('loadConfig', () => {
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
       },
+      // #753: payment provider — `stripe` outside development by default.
+      payments: {
+        provider: 'stripe',
+        simulatedWebhookSecret: undefined,
+        simulatedWebhookDelayMs: 1_500,
+      },
       sandboxPurge: {
         retentionDays: 30,
         dryRun: true,
@@ -483,6 +489,40 @@ describe('loadConfig', () => {
       expect.stringContaining('not an sk_test_ key'),
     );
     warnSpy.mockRestore();
+  });
+
+  it('PAYMENTS_PROVIDER (#753): simulated in development by default, stripe elsewhere', () => {
+    expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'development' }).payments).toEqual({
+      provider: 'simulated',
+      simulatedWebhookSecret: undefined,
+      simulatedWebhookDelayMs: 1_500,
+    });
+    expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'staging' }).payments.provider).toBe('stripe');
+    expect(loadConfig({ ...VALID_ENV, NODE_ENV: 'production' }).payments.provider).toBe('stripe');
+    const explicit = loadConfig({
+      ...VALID_ENV,
+      PAYMENTS_PROVIDER: 'simulated',
+      PAYMENTS_SIMULATED_WEBHOOK_SECRET: 'sim-secret-0123456789',
+      PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS: '0',
+    });
+    expect(explicit.payments).toEqual({
+      provider: 'simulated',
+      simulatedWebhookSecret: 'sim-secret-0123456789',
+      simulatedWebhookDelayMs: 0,
+    });
+    expect(
+      loadConfig({ ...VALID_ENV, NODE_ENV: 'development', PAYMENTS_PROVIDER: 'stripe' })
+        .payments.provider,
+    ).toBe('stripe');
+    expect(() => loadConfig({ ...VALID_ENV, PAYMENTS_PROVIDER: 'paypal' })).toThrow(
+      /PAYMENTS_PROVIDER/,
+    );
+  });
+
+  it('production refuses to boot with the simulated payment provider (#753)', () => {
+    expect(() =>
+      loadConfig({ ...VALID_ENV, NODE_ENV: 'production', PAYMENTS_PROVIDER: 'simulated' }),
+    ).toThrow(/PAYMENTS_PROVIDER: production cannot use the simulated payment provider/);
   });
 
   it('requires sk_live_ Stripe keys in production', () => {

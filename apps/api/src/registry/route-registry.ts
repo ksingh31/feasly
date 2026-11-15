@@ -1055,6 +1055,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/simulated/invoices/{id}/events',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Test mode only (#753): fire a dispute, dashboard refund (full or ' +
+      "partial) or delayed failure against an invoice's simulated " +
+      'PaymentIntent; the Stripe-shaped event goes through the production ' +
+      'webhook handler. 404 unless the simulated payment provider is active.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/invoices/{id}/mark-paid',
     auth: 'admin',
     permissions: ['billing:manage'] as const,
@@ -1238,6 +1251,31 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Builder creates a SetupIntent to save a card on file (commission ' +
       'model). Idempotent: ensures the tenant\'s Stripe customer first. ' +
       'Returns the client secret for Stripe Elements.',
+  },
+  // ── Simulated payment provider (#753) — 404 unless PAYMENTS_PROVIDER=simulated
+  {
+    method: 'POST',
+    path: '/api/v1/billing/simulated/confirm-setup',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Test mode only: builder saves one of the Stripe test cards against ' +
+      'their SetupIntent (stand-in for Stripe Elements). 3DS cards return ' +
+      'requires_action. 404 unless the simulated payment provider is active.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/simulated/authenticate',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Test mode only: complete or fail the 3D Secure challenge on the ' +
+      "builder's SetupIntent / PaymentIntent in requires_action. 404 unless " +
+      'the simulated payment provider is active.',
   },
   {
     method: 'GET',

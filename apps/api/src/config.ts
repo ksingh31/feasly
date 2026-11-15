@@ -362,6 +362,25 @@ const EnvSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   // Flat-plan Stripe Price id (`price_…`) — only used when BILLING_MODEL=flat.
   STRIPE_FLAT_PRICE_ID: z.string().min(1).optional(),
+  // --- Payment provider (#753) ---
+  // `simulated` = Stripe-shaped simulation (test cards, signed webhook
+  // events through the production handler, no real money). `stripe` = the
+  // Stripe SDK with STRIPE_* secrets. Unset → `simulated` in development,
+  // `stripe` everywhere else. Production refuses to boot with `simulated`.
+  PAYMENTS_PROVIDER: z.enum(['simulated', 'stripe']).optional(),
+  // Signing secret for simulated webhook events. Optional: unset → a random
+  // per-process secret (events are signed and verified in the same process
+  // at delivery time). Not a real credential — it can never move money.
+  PAYMENTS_SIMULATED_WEBHOOK_SECRET: z.string().min(16).optional(),
+  // How long after a simulated charge its webhook is delivered (Stripe's
+  // webhooks are asynchronous too). Undelivered events are also flushed on
+  // the next simulated payment call.
+  PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(60_000)
+    .default(1_500),
 
   // --- Transactional email (story email/01) ---
   // Provider: Azure Communication Services (Karan-approved 2026-09-24).
@@ -813,6 +832,15 @@ export interface BillingConfig {
   readonly isProduction: boolean;
 }
 
+/** #753: payment provider selection (simulated until Stripe exists). */
+export interface PaymentsConfig {
+  readonly provider: 'simulated' | 'stripe';
+  /** Simulated provider only; undefined → random per-process secret. */
+  readonly simulatedWebhookSecret: string | undefined;
+  /** Simulated provider only: webhook delivery delay after a charge. */
+  readonly simulatedWebhookDelayMs: number;
+}
+
 /** #703: post-report follow-up email (hourly timer, flag default off). */
 export interface FollowUpEmailConfig {
   readonly enabled: boolean;
@@ -986,6 +1014,8 @@ export interface ApiConfig {
   readonly landUse: LandUseConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
+  /** #753: which payment provider billing talks to. */
+  readonly payments: PaymentsConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
@@ -1038,6 +1068,24 @@ function enforceStripeTestMode(
     return undefined;
   }
   return secretKey;
+}
+
+/**
+ * #753: resolve the payment provider. Unset → `simulated` in development
+ * only. Production refuses `simulated` — no simulated money in prod.
+ */
+function resolvePaymentsProvider(
+  requested: 'simulated' | 'stripe' | undefined,
+  nodeEnv: NodeEnv,
+): 'simulated' | 'stripe' {
+  const provider =
+    requested ?? (nodeEnv === 'development' ? 'simulated' : 'stripe');
+  if (provider === 'simulated' && nodeEnv === 'production') {
+    throw new Error(
+      'Invalid configuration:\n  - PAYMENTS_PROVIDER: production cannot use the simulated payment provider',
+    );
+  }
+  return provider;
 }
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
@@ -1227,6 +1275,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
+    },
+    payments: {
+      provider: resolvePaymentsProvider(e.PAYMENTS_PROVIDER, e.NODE_ENV),
+      simulatedWebhookSecret: e.PAYMENTS_SIMULATED_WEBHOOK_SECRET,
+      simulatedWebhookDelayMs: e.PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS,
     },
     followUpEmail: {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,

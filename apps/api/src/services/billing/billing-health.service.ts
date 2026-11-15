@@ -486,6 +486,7 @@ export function createBillingHealthService(
       stripe: {
         configured: stripe.isConfigured,
         testMode: stripe.testMode,
+        ...(stripe.provider ? { provider: stripe.provider } : {}),
       },
       generatedAt: generatedAt.toISOString(),
       mrr:
