@@ -505,6 +505,55 @@ describe('AddressAutocompleteComponent', () => {
     expect(emitted[0].address).toContain('222 7 Ave NE');
   });
 
+  describe('prefill (#692 estimator deep link)', () => {
+    it('looks the text up at once and picks a sole match like a click', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      const emitted: PropertyRecord[] = [];
+      component.selected.subscribe((p) => emitted.push(p));
+      component.prefill('222 7');
+      expect(component.query.value).toBe('222 7');
+      const deadline = Date.now() + 2000;
+      while (emitted.length === 0) {
+        if (Date.now() > deadline) throw new Error('prefill never emitted');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(emitted[0].address).toContain('222 7 Ave NE');
+    });
+
+    it('opens the picker without picking when several match', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      const emitted: PropertyRecord[] = [];
+      component.selected.subscribe((p) => emitted.push(p));
+      // Nothing may enter the typed-input pipeline: a queued value (e.g. a
+      // clearSearch() '') lands one debounce later and closes the picker
+      // (#692 QA, seen in a real browser with the 250 ms production debounce).
+      const typed: string[] = [];
+      const sub = component.query.valueChanges.subscribe((v) => typed.push(v));
+      component.prefill('14 st');
+      sub.unsubscribe();
+      expect(typed).toEqual([]);
+      await awaitSearchSettled(fixture);
+      expect(component.suggestions().length).toBeGreaterThan(1);
+      expect(component.open()).toBe(true);
+      expect(component.query.value).toBe('14 st');
+      expect(emitted).toEqual([]);
+    });
+
+    it('typing over the prefill wins: the late prefill result is dropped', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      const emitted: PropertyRecord[] = [];
+      component.selected.subscribe((p) => emitted.push(p));
+      component.prefill('222 7');
+      component.query.setValue('14 st');
+      await awaitSearchSettled(fixture);
+      expect(component.query.value).toBe('14 st');
+      expect(emitted).toEqual([]);
+    });
+  });
+
   it('nudgeOnSubmit re-opens a closed list with several matches and shows the select hint (#486)', async () => {
     const fixture = create();
     const component = fixture.componentInstance;

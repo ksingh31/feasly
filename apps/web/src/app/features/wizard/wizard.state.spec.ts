@@ -6,7 +6,7 @@ import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, ClearComparison, GoToStep, ResetWizard, SelectProperty, StorePreviewEstimate, UpdateComparison, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
+import { ChooseProjectType, ClearComparison, GoToStep, ResetWizard, SelectProperty, SetEntrySource, StorePreviewEstimate, UpdateComparison, UpdateInputs, UpdateRenoInputs } from './wizard.actions';
 import { WizardState, type WizardStateModel } from './wizard.state';
 
 /** FE1-001: wizard state transitions + config-seeded input defaults. */
@@ -167,6 +167,17 @@ describe('WizardState', () => {
       key: null,
       tenantKey: null,
     });
+  });
+
+  it('entrySource starts null; SetEntrySource records it; ResetWizard clears it (#692)', () => {
+    expect(store.selectSnapshot(WizardState.entrySource)).toBeNull();
+    store.dispatch(new SetEntrySource('community-lots'));
+    expect(store.selectSnapshot(WizardState.entrySource)).toBe('community-lots');
+    // Picking a property inside the same funnel keeps the source.
+    store.dispatch(new SelectProperty(fakeProperty));
+    expect(store.selectSnapshot(WizardState.entrySource)).toBe('community-lots');
+    store.dispatch(new ResetWizard());
+    expect(store.selectSnapshot(WizardState.entrySource)).toBeNull();
   });
 
   it('selectors expose property, inputs, and step', () => {

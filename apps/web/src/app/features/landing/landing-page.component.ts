@@ -1,6 +1,7 @@
-import { Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { afterNextRender, Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config';
@@ -9,11 +10,16 @@ import { DataFreshnessService, formatFreshnessLine } from '../../core/data-fresh
 import { pricingCoverageIssue, type PricingCoverageIssue } from '../../core/utils/coverage';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema, buildWebSiteSchema } from '../../core/seo/jsonld-schemas';
-import { ClearLead, GoToStep, SelectProperty } from '../wizard';
+import { ClearLead, GoToStep, ResetWizard, SelectProperty, SetEntrySource } from '../wizard';
 import { ClearReport } from '../report/report.actions';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { parseDeepLinkAddress, parseDeepLinkSource } from '../../shared/utils/deep-link';
 import { CommunityService } from '../../core/community/community.service';
 import { SetProfilePropertyContext } from '../communities/community-profile.actions';
+
+/** Estimator deep-link query parameters (#692). */
+const DEEP_LINK_ADDRESS_PARAM = 'address';
+const DEEP_LINK_SOURCE_PARAM = 'src';
 
 /** Stable key of the trust item rewritten into the shared freshness line. */
 const CITY_DATA_FRESHNESS_KEY = 'city-data-freshness';
@@ -47,6 +53,15 @@ export class LandingPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly dataFreshness = inject(DataFreshnessService);
   private readonly communityService = inject(CommunityService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly location = inject(Location);
+
+  constructor() {
+    // #692: the deep link is read in the browser only, after hydration. The
+    // prerendered `/` HTML is what every `/?address=…` request gets first,
+    // so the server render must never depend on the query string.
+    afterNextRender(() => this.applyDeepLink());
+  }
 
   /** Landing + search copy (config-owned). */
   readonly copy = this.config.get('copy').landing;
@@ -111,6 +126,54 @@ export class LandingPageComponent implements OnInit {
         return rest;
       }),
     });
+  }
+
+  /**
+   * Estimator deep link (#692): `/?address=<text>&src=<source>`.
+   *
+   * - Any `address`/`src` parameter marks the page noindex (the canonical
+   *   already points at the parameter-free landing URL).
+   * - Both parameters are removed from the address bar once read, so Back
+   *   from the scope step returns to a plain landing page instead of
+   *   running the lookup again (no forward loop). Other parameters stay.
+   * - A valid address starts a fresh wizard and is looked up exactly like
+   *   typed input; the autocomplete takes it from there (sole match →
+   *   `onSelected`, several → picker, none/out of coverage → its message).
+   * - An over-long or malformed address is ignored: plain landing page.
+   * - `src` is kept only when it is on the config allowlist.
+   */
+  private applyDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    if (!params.has(DEEP_LINK_ADDRESS_PARAM) && !params.has(DEEP_LINK_SOURCE_PARAM)) return;
+
+    this.seo.setNoindex();
+    this.removeDeepLinkParams();
+
+    const deepLink = this.config.get('deepLink');
+    const address = parseDeepLinkAddress(params.get(DEEP_LINK_ADDRESS_PARAM), {
+      minLength: deepLink.addressMinLength,
+      maxLength: deepLink.addressMaxLength,
+    });
+    const source = parseDeepLinkSource(params.get(DEEP_LINK_SOURCE_PARAM), deepLink.sources);
+
+    if (address !== null) {
+      // Fresh funnel: nothing from an earlier estimate mixes into this one.
+      this.store.dispatch([new ClearLead(), new ClearReport(), new ResetWizard()]);
+    }
+    if (source !== null) {
+      this.store.dispatch(new SetEntrySource(source));
+    }
+    if (address !== null) {
+      this.autocomplete?.prefill(address);
+    }
+  }
+
+  /** Drops the deep-link parameters from the address bar (no navigation, no history entry). */
+  private removeDeepLinkParams(): void {
+    const tree = this.router.parseUrl(this.location.path());
+    delete tree.queryParams[DEEP_LINK_ADDRESS_PARAM];
+    delete tree.queryParams[DEEP_LINK_SOURCE_PARAM];
+    this.location.replaceState(this.router.serializeUrl(tree));
   }
 
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */
