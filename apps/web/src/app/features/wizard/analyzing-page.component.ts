@@ -9,6 +9,7 @@ import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
+import { isServerPlatform } from '../../core/utils/platform';
 import { SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { SetReportToken } from '../report/report.actions';
@@ -60,6 +61,7 @@ export class AnalyzingPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly isServer = isServerPlatform();
 
   /** Analyzing copy (config-owned). */
   protected readonly copy = this.config.get('copy').analyzing;
@@ -75,6 +77,11 @@ export class AnalyzingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/analyzing');
+    // SSR (#515): the server has no rehydrated wizard state, so it neither
+    // redirects nor runs the pipeline — the browser decides after hydration.
+    if (this.isServer) {
+      return;
+    }
     // Renovation is out of launch scope (Karan 2026-09-27): reno users get
     // the designed coming-soon page, never the analyzing pipeline — no
     // spinner, no 503 error card. This redirect also covers deep links and
