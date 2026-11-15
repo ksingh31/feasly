@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
-import { ConfigService } from '../../core/config';
+import { ConfigService, DEFAULT_APP_CONFIG } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
 import { CommunityProfileState } from './community-profile.state';
@@ -111,6 +111,7 @@ describe('CommunityPageComponent', () => {
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
     copy: { seo: {}, communities: communitiesCopy },
+    limits: DEFAULT_APP_CONFIG.limits,
   };
 
   /**
@@ -274,6 +275,14 @@ describe('CommunityPageComponent', () => {
     expect(cards.length).toBe(3);
     const labels = [...cards].map((c: Element) => c.querySelector('h3')?.textContent);
     expect(labels).toEqual(['Standard', 'Premium', 'Luxury']);
+  });
+
+  it('rounds estimate bands to $1,000 but keeps assessed values exact (#488)', async () => {
+    await setup('mahogany');
+    const cmp = fixture.componentInstance;
+    expect(cmp.formatBand(3314460)).toBe('$3,314,000');
+    expect(cmp.formatBand(3235979)).toBe('$3,236,000');
+    expect(cmp.formatCad(420123)).toBe('$420,123');
   });
 
   it('leads each tier card with one hero total-investment number', async () => {

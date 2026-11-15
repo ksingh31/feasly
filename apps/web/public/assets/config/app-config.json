@@ -423,7 +423,8 @@
     "minLotSizeSqft": 1200,
     "maxLotSizeSqft": 20000,
     "minAssessedLandValue": 25000,
-    "maxAssessedLandValue": 10000000
+    "maxAssessedLandValue": 10000000,
+    "estimateRoundingDollars": 1000
   },
   "site": {
     "name": "Feasly",

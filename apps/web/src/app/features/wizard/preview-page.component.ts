@@ -5,6 +5,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
+import { formatBandCad } from '../../shared/utils/money';
 import { EmbedState } from '../embed/embed.state';
 import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
@@ -79,8 +80,9 @@ export class PreviewPageComponent implements OnInit {
     return this.formatCad(range.low) + ' – ' + this.formatCad(range.high);
   }
 
+  /** Estimate band figure, rounded to the configured $1,000 granularity (#488). */
   protected formatCad(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-CA')}`;
+    return formatBandCad(value, this.config.get('limits').estimateRoundingDollars);
   }
   /** Display name for the chosen garage (config-owned; falls back to the id). */
   protected garageName(): string {

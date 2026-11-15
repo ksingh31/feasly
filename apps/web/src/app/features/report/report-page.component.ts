@@ -12,7 +12,7 @@ import { SiteFooterComponent, SiteNavComponent, BuilderMatchingExplainerComponen
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import { isUnitLikeAddress } from '../../shared/utils/address';
-import { dollarsToCents, formatCentsToCad, formatWholeCad } from '../../shared/utils/money';
+import { formatBandCad, formatWholeCad } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
@@ -336,11 +336,9 @@ export class ReportPageComponent implements OnInit {
   /**
    * Per-sq-ft context from the SERVER's build base and sqft — display only.
    * New-build only: the reno engine deliberately avoids per-sqft framing
-   * (reno/04), so reno reports never surface this figure. The exact
-   * quotient (not a rounded dollar) so the shown rate × the shown sqft
-   * reconciles with the shown build cost as closely as display rounding
-   * allows — "$242 × 2,400" used to imply $580,800 against a $580,830
-   * build cost; the cents-precision display below closes that gap.
+   * (reno/04), so reno reports never surface this figure. Shown as whole
+   * dollars (#488): the build cost itself displays rounded to $1,000, so a
+   * cents-precision rate would only suggest precision the band doesn't have.
    */
   protected readonly perSqft = computed(() => {
     if (this.isReno()) {
@@ -354,17 +352,12 @@ export class ReportPageComponent implements OnInit {
     return f.build.base / snap.inputs.sqft;
   });
 
-  /**
-   * Formats a per-sq-ft rate: whole dollars when exact ("$242"), otherwise
-   * cents precision ("$242.01") — so the shown rate × the shown sqft
-   * reconciles with the shown build cost. Delegates to the shared money
-   * util (integer-cent math only, no float formatting drift).
-   */
+  /** Formats a per-sq-ft rate as whole dollars ("$247.48" -> "$247", #488). */
   protected formatPerSqft(value: number): string {
     if (!Number.isFinite(value) || value < 0) {
       return this.formatCad(0);
     }
-    return formatCentsToCad(dollarsToCents(value));
+    return formatWholeCad(value);
   }
 
   protected readonly snapshotSqft = computed(() => this.snapshot()?.inputs.sqft ?? 0);
@@ -482,13 +475,19 @@ export class ReportPageComponent implements OnInit {
     }
   }
 
+  /** Whole-dollar figure — the City-assessed land value is a fact, never rounded. */
   protected formatCad(value: number): string {
     return formatWholeCad(value);
   }
 
+  /** Estimate band figure (build/total/buckets), rounded to $1,000 (#488). */
+  protected formatBand(value: number): string {
+    return formatBandCad(value, this.config.get('limits').estimateRoundingDollars);
+  }
+
   /** Blurred pre-gate range, e.g. "$608,000 – $735,000". */
   protected previewRange(range: CostRange): string {
-    return this.formatCad(range.low) + ' – ' + this.formatCad(range.high);
+    return this.formatBand(range.low) + ' – ' + this.formatBand(range.high);
   }
 
   protected formatSqft(value: number): string {

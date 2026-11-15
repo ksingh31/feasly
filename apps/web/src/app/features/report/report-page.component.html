@@ -40,10 +40,10 @@
       @if (unlocked() && figures(); as f) {
         <div class="figure-card hero-total">
           <h2>{{ copy.totalLabel }}</h2>
-          <p class="hero-value">{{ formatCad(f.total.base) }}</p>
+          <p class="hero-value">{{ formatBand(f.total.base) }}</p>
           <p class="planning-range">
             {{ copy.planningRangeLabel }}
-            <strong>{{ formatCad(f.total.low) }}–{{ formatCad(f.total.high) }}</strong>
+            <strong>{{ formatBand(f.total.low) }}–{{ formatBand(f.total.high) }}</strong>
           </p>
           @if (version(); as v) {
             <p class="version">{{ copy.versionLabel }} {{ v }}</p>
@@ -112,7 +112,7 @@
         <div class="hero-sub">
           <div class="figure-card build-highlight">
             <h2>{{ copy.buildLabel }}</h2>
-            <p class="figure-single">{{ formatCad(f.build.base) }}</p>
+            <p class="figure-single">{{ formatBand(f.build.base) }}</p>
             <p class="build-note">{{ copy.buildCostNote }}</p>
             <p class="build-note" role="note">{{ copy.buildSourceNote }}</p>
             @if (perSqft(); as psqft) {
@@ -206,7 +206,7 @@
             <li>
               <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
               <span class="bucket-label">{{ b.label }}</span>
-              <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
+              <span class="bucket-amount">{{ formatBand(b.range.base) }}</span>
             </li>
           }
         </ul>

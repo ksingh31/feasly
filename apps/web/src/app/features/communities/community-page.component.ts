@@ -20,6 +20,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { roundToNearest } from '../../shared/utils/money';
 import type {
   CommunityProfileCopy,
   CommunityProfileView,
@@ -339,6 +340,14 @@ export class CommunityPageComponent implements OnInit {
   }
 
   /**
+   * Estimate band figure (tier build/total ranges), rounded to the
+   * configured $1,000 granularity (#488). Assessed values use formatCad.
+   */
+  formatBand(value: number): string {
+    return this.formatCad(roundToNearest(value, this.config.get('limits').estimateRoundingDollars));
+  }
+
+  /**
    * Land's share of the tier total as a 0–100 percentage, computed against
    * the build-range midpoint (land is a fixed value, build is a range).
    * Drives the CSS-only land-vs-build split bar.
@@ -363,7 +372,7 @@ export class CommunityPageComponent implements OnInit {
     return this.copy.splitBarLabelTemplate
       .replace('{land}', this.formatCad(tier.landValue))
       .replace('{landPct}', String(landPct))
-      .replace('{build}', `${this.formatCad(tier.buildLow)}–${this.formatCad(tier.buildHigh)}`)
+      .replace('{build}', `${this.formatBand(tier.buildLow)}–${this.formatBand(tier.buildHigh)}`)
       .replace('{buildPct}', String(100 - landPct));
   }
 

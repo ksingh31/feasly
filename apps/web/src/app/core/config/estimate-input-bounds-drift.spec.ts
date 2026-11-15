@@ -44,4 +44,11 @@ describe('estimate input-bounds drift', () => {
     expect(limits.minAssessedLandValue).toBe(bounds['minAssessedLandValue']);
     expect(limits.maxAssessedLandValue).toBe(bounds['maxAssessedLandValue']);
   });
+
+  it('estimate display rounding mirrors the cost-data roundTo granularity (#488)', () => {
+    const costData = JSON.parse(readFileSync(pinnedCostDataPath(), 'utf8')) as {
+      reno: { roundTo: number };
+    };
+    expect(DEFAULT_APP_CONFIG.limits.estimateRoundingDollars).toBe(costData.reno.roundTo);
+  });
 });

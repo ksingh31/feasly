@@ -115,6 +115,21 @@ describe('PreviewPageComponent', () => {
     expect(text()).toContain('Your numbers are ready.');
   });
 
+  it('shows every blurred band figure rounded to $1,000 (#488)', () => {
+    const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
+    lockedValues.forEach((el: HTMLElement) => {
+      const figures = el.textContent?.match(/\$[\d,]+/g) ?? [];
+      expect(figures.length).toBe(2);
+      figures.forEach((f) => expect(f).toMatch(/,000$/));
+    });
+    const cmp = fixture.componentInstance as unknown as {
+      previewRange(r: { low: number; base: number; high: number }): string;
+    };
+    expect(cmp.previewRange({ low: 3235979, base: 3314460, high: 3392942 })).toBe(
+      '$3,236,000 – $3,393,000',
+    );
+  });
+
   it('shows the visible estimate basis: property facts + chosen sqft/tier', () => {
     expect(text()).toContain('918 16 Ave NW, Calgary, AB');
     expect(text()).toContain('2,200 sq ft');

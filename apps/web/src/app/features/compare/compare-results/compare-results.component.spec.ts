@@ -149,6 +149,8 @@ describe('CompareResultsComponent', () => {
 
     const stats = store.selectSnapshot(ComparisonState.stats);
     const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    // Bands (build/total) display rounded to $1,000 (#488); assessed stays exact.
+    const band = (v: number) => `$${(Math.round(v / 1000) * 1000).toLocaleString('en-CA')}`;
     result?.rowSets.forEach((rowSet, i) => {
       const buildLocked = el.querySelectorAll('[data-testid="build-range-locked"]')[i];
       const totalLocked = el.querySelectorAll('[data-testid="total-range-locked"]')[i];
@@ -157,11 +159,11 @@ describe('CompareResultsComponent', () => {
       // The blurred figures are the real numbers: build range and the
       // derived total (assessed + build).
       expect(buildLocked.textContent?.trim()).toBe(
-        `${fmt(rowSet.build.low)} – ${fmt(rowSet.build.high)}`,
+        `${band(rowSet.build.low)} – ${band(rowSet.build.high)}`,
       );
       const assessed = stats[rowSet.slug].avg_assessed_value;
       expect(totalLocked.textContent?.trim()).toBe(
-        `${fmt(assessed + rowSet.build.low)} – ${fmt(assessed + rowSet.build.high)}`,
+        `${band(assessed + rowSet.build.low)} – ${band(assessed + rowSet.build.high)}`,
       );
       // Blurred, non-interactive, hidden from assistive tech.
       for (const node of [buildLocked, totalLocked]) {
@@ -253,17 +255,19 @@ describe('CompareResultsComponent', () => {
     expect(maths).toHaveLength(2);
 
     const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    // Bands (build/total) display rounded to $1,000 (#488); assessed stays exact.
+    const band = (v: number) => `$${(Math.round(v / 1000) * 1000).toLocaleString('en-CA')}`;
     result?.rowSets.forEach((rowSet, i) => {
       const assessed = stats[rowSet.slug].avg_assessed_value;
       const expectedLow = assessed + rowSet.build.low;
       const expectedHigh = assessed + rowSet.build.high;
       // The displayed total is assessed + build — never the API's land-spread total.
       expect(totals[i].textContent?.trim()).toBe(
-        `${fmt(expectedLow)} – ${fmt(expectedHigh)}`,
+        `${band(expectedLow)} – ${band(expectedHigh)}`,
       );
       // The derivation is visible: "$assessed + $buildLow – $buildHigh".
       expect(maths[i].textContent?.trim()).toBe(
-        `${fmt(assessed)} + ${fmt(rowSet.build.low)} – ${fmt(rowSet.build.high)}`,
+        `${fmt(assessed)} + ${band(rowSet.build.low)} – ${band(rowSet.build.high)}`,
       );
     });
   });

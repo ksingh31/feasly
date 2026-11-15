@@ -98,6 +98,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     maxLotSizeSqft: 20000,
     minAssessedLandValue: 25000,
     maxAssessedLandValue: 10000000,
+    /** Estimate bands display rounded to the nearest $1,000 (#488). */
+    estimateRoundingDollars: 1000,
   },
   analytics: {
     enabled: false,

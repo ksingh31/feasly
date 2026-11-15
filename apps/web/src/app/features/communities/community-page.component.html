@@ -77,7 +77,7 @@
           <p class="total-hero">
             <span class="total-hero-label">{{ copy.totalLabel }}</span>
             <span class="total-hero-value"
-              >{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</span
+              >{{ formatBand(tier.totalLow) }} – {{ formatBand(tier.totalHigh) }}</span
             >
           </p>
           <div class="split-bar" role="img" [attr.aria-label]="splitBarLabel(tier)">
@@ -90,8 +90,8 @@
             <span class="legend-sep" aria-hidden="true">·</span>
             <span class="legend-swatch build" aria-hidden="true"></span>
             <span
-              >{{ copy.buildSplitLabel }} {{ formatCad(tier.buildLow) }} –
-              {{ formatCad(tier.buildHigh) }}</span
+              >{{ copy.buildSplitLabel }} {{ formatBand(tier.buildLow) }} –
+              {{ formatBand(tier.buildHigh) }}</span
             >
           </p>
         </article>

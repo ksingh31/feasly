@@ -502,6 +502,14 @@ export interface AppConfig {
     maxLotSizeSqft: number;
     minAssessedLandValue: number;
     maxAssessedLandValue: number;
+    /**
+     * Display granularity (whole dollars) for estimate bands — build, total,
+     * report buckets (#488). Mirrors the cost-data `reno.roundTo` and the
+     * engine spec (docs/plan/epics/02-cost-engine.md: "round all bands to
+     * nearest $1,000"). A defensive display round only; the engine owns the
+     * figures. City-assessed values are facts and are never rounded.
+     */
+    estimateRoundingDollars: number;
   };
   /** Analytics consent. */
   analytics: {

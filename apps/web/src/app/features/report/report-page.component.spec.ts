@@ -469,7 +469,7 @@ describe('ReportPageComponent', () => {
       expect(panel).not.toBeNull();
       expect(panel.textContent).toContain('$674,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
-      expect(panel.textContent).toContain('$306.36 per sq ft');
+      expect(panel.textContent).toContain('$306 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
@@ -816,26 +816,40 @@ describe('ReportPageComponent', () => {
       expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({});
     });
 
-    it('per-sqft line uses cents precision so the shown rate reconciles with the shown build cost', async () => {
+    it('per-sqft line shows whole dollars — the rounded quotient of build base / sqft (#488)', async () => {
       await setup({ leadSubmitted: true });
       const snap = store.selectSnapshot(ReportState.snapshot)!;
       const line = fixture.nativeElement.querySelector('.per-sqft')?.textContent ?? '';
-      const m = line.match(/\$([\d,]+(?:\.\d{2})?) per sq ft · ([\d,]+) sq ft/);
+      const m = line.match(/\$([\d,]+) per sq ft · ([\d,]+) sq ft/);
       expect(m).not.toBeNull();
-      const rate = parseFloat(m![1].replace(/,/g, ''));
+      expect(line).not.toMatch(/\$[\d,]+\.\d+ per sq ft/);
+      const rate = parseInt(m![1].replace(/,/g, ''), 10);
       const sqft = parseInt(m![2].replace(/,/g, ''), 10);
       expect(sqft).toBe(snap.inputs.sqft);
-      // The displayed rate is the exact quotient rounded to cents: the
-      // residual against the build base is pure display rounding (< $0.005/sqft).
-      expect(Math.abs(rate * sqft - snap.buildRange.base)).toBeLessThan(sqft * 0.005 + 1);
+      expect(rate).toBe(Math.round(snap.buildRange.base / snap.inputs.sqft));
     });
 
-    it('formatPerSqft renders whole dollars without cents and fractional rates with cents', async () => {
+    it('formatPerSqft renders whole dollars, never cents (#488)', async () => {
       await setup({ leadSubmitted: true });
       const cmp = fixture.componentInstance as unknown as { formatPerSqft(v: number): string };
-      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242.01');
+      expect(cmp.formatPerSqft(247.48)).toBe('$247');
+      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242');
       expect(cmp.formatPerSqft(242)).toBe('$242');
       expect(cmp.formatPerSqft(0)).toBe('$0');
+    });
+
+    it('rounds band figures (total, build, buckets) to $1,000; keeps the assessed land value exact (#488)', async () => {
+      await setup({ leadSubmitted: true });
+      const cmp = fixture.componentInstance as unknown as {
+        formatBand(v: number): string;
+        formatCad(v: number): string;
+        previewRange(r: { low: number; base: number; high: number }): string;
+      };
+      expect(cmp.formatBand(3314460)).toBe('$3,314,000');
+      expect(cmp.previewRange({ low: 3235979, base: 3314460, high: 3392942 })).toBe(
+        '$3,236,000 – $3,393,000',
+      );
+      expect(cmp.formatCad(420123)).toBe('$420,123');
     });
 
     it('shows the whole-building lot notice for unit addresses', async () => {

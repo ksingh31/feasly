@@ -8,6 +8,7 @@ import { CommunityService } from '../../../core/community/community.service';
 import type { CommunityStats } from '../../../core/api/api.service';
 import { OptionSelectorComponent } from '../../../shared/components';
 import type { TierOption } from '../../../shared/components';
+import { formatBandCad, formatWholeCad } from '../../../shared/utils/money';
 import { ComparisonState } from '../comparison.state';
 import { ReviseComparisonTier } from '../comparison.actions';
 import { WizardState } from '../../wizard/wizard.state';
@@ -127,12 +128,15 @@ export class CompareResultsComponent {
     );
   }
 
+  /** Whole-dollar figure — City-assessed values are facts, never rounded. */
   protected formatMoney(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-CA')}`;
+    return formatWholeCad(value);
   }
 
+  /** Estimate band range (build/total), each end rounded to $1,000 (#488). */
   protected formatRange(range: CostRange): string {
-    return this.formatMoney(range.low) + ' – ' + this.formatMoney(range.high);
+    const step = this.config.get('limits').estimateRoundingDollars;
+    return formatBandCad(range.low, step) + ' – ' + formatBandCad(range.high, step);
   }
 
   /**

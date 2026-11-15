@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import type { ReportSnapshot } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
-import { dollarsToCents, formatCentsToCad, formatWholeCad } from '../../shared/utils/money';
+import { formatBandCad, formatWholeCad } from '../../shared/utils/money';
 
 /**
  * Strips characters jsPDF 4.x cannot encode in its WinAnsi core-font path.
@@ -453,10 +453,9 @@ class PdfLayout {
   }
 
   /** Legend row: color dot + label + right-aligned amount (sample: .bucket-legend). */
-  bucketRow(width: number, bucket: CostBucket): Atom {
+  bucketRow(width: number, bucket: CostBucket, amount: string): Atom {
     const labelRun: TextRun = { font: 'body', bold: false, size: 11, color: THEME.text };
     const amountRun: TextRun = { font: 'body', bold: true, size: 11, color: THEME.text };
-    const amount = formatWholeCad(bucket.range.base);
     const labelLines = this.lines(bucket.label, labelRun, width - 170);
     const height = Math.max(14, labelLines.length * labelRun.size * 1.35) + 8;
     return {
@@ -729,6 +728,8 @@ export class ReportPdfService {
     const L = new PdfLayout(doc, useHeading, useBody, useBodyBold);
     const snap = input.snapshot;
     const reportCopy = this.config.get('copy').report;
+    const step = this.config.get('limits').estimateRoundingDollars;
+    const band = (value: number): string => formatBandCad(value, step);
     const w = L.contentW;
     const inner = w - 40; // card pad 20 each side
     const isReno = snap.projectType === 'renovation';
@@ -746,7 +747,7 @@ export class ReportPdfService {
       color: THEME.text,
     });
     const range = (low: number, high: number): string =>
-      `${formatWholeCad(low)} – ${formatWholeCad(high)}`;
+      `${band(low)} – ${band(high)}`;
 
     // -- Header: wordmark + title, brass rule. --
     L.flow([
@@ -766,7 +767,7 @@ export class ReportPdfService {
     L.card(
       [
         L.eyebrow(inner, reportCopy.totalLabel),
-        L.heroFigure(inner, formatWholeCad(snap.totalRange.base)),
+        L.heroFigure(inner, band(snap.totalRange.base)),
         L.mixed(
           inner,
           [
@@ -793,11 +794,11 @@ export class ReportPdfService {
     const colInner = (w - 12) / 2 - 40;
     const buildAtoms: Atom[] = [
       L.eyebrow(colInner, reportCopy.buildLabel),
-      L.figure(colInner, formatWholeCad(snap.buildRange.base)),
+      L.figure(colInner, band(snap.buildRange.base)),
       L.text(colInner, reportCopy.buildCostNote, muted(9.5), 6),
     ];
     if (!isReno && snap.inputs.sqft > 0) {
-      const perSqft = formatCentsToCad(dollarsToCents(snap.buildRange.base / snap.inputs.sqft));
+      const perSqft = formatWholeCad(snap.buildRange.base / snap.inputs.sqft);
       buildAtoms.push(
         L.mixed(
           colInner,
@@ -846,7 +847,7 @@ export class ReportPdfService {
     if (snap.rows.length > 0) {
       const bAtoms: Atom[] = [L.heading(inner, reportCopy.breakdownTitle), L.bucketBar(inner, buckets)];
       for (const bucket of buckets) {
-        bAtoms.push(L.bucketRow(inner, bucket));
+        bAtoms.push(L.bucketRow(inner, bucket, band(bucket.range.base)));
       }
       L.card(bAtoms);
     }

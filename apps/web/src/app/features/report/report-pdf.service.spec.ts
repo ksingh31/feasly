@@ -390,7 +390,9 @@ describe('ReportPdfService', () => {
     // Each bucket's base figure, summed from the raw rows (land excluded).
     expect(text).toContain('$274,000'); // 90k+66k+72k+46k
     expect(text).toContain('$188,000'); // 120k+68k
-    expect(text).toContain('$85,803'); // 26k+7k+52,803
+    // 26k+7k+52,803 = 85,803 → shown rounded to $1,000 (#488).
+    expect(text).toContain('$86,000');
+    expect(text).not.toContain('$85,803');
     // No per-row dump, and no land breakdown row duplicating the summary's.
     expect(text).not.toContain('Land (assessed value)');
     expect(text).not.toContain('Framing & structure');

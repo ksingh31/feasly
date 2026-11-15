@@ -43,6 +43,32 @@ export function formatWholeCad(value: number): string {
 }
 
 /**
+ * Rounds whole dollars to the nearest `granularity` (e.g. 1000). A
+ * DEFENSIVE display round for estimate bands (#488) — the engine owns the
+ * figures; this only keeps unrounded engine output off the screen.
+ * A non-positive or non-finite granularity falls back to whole dollars.
+ * Non-finite values render as 0.
+ */
+export function roundToNearest(value: number, granularity: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (!Number.isFinite(granularity) || granularity <= 0) {
+    return Math.round(value);
+  }
+  // `+ 0` normalises -0 (e.g. -400 rounds to -0) so it never prints "-$0".
+  return Math.round(value / granularity) * granularity + 0;
+}
+
+/**
+ * Formats an estimate band figure rounded to `granularity` dollars.
+ * 3314460 at 1000 -> "$3,314,000".
+ */
+export function formatBandCad(value: number, granularity: number): string {
+  return formatWholeCad(roundToNearest(value, granularity));
+}
+
+/**
  * Converts a dollar amount to integer cents (rounds the float).
  * Centralizes the dollars→cents conversion so components never carry a
  * magic 100 — the per-sqft rate on the report is a dollar float.
