@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Watchdog: finds stalled agent work and moves it (requeue / re-review /
- * fix round / escalate to needs:karan). Never merges, closes, or deletes.
+ * fix round / park as agent:stuck). Never merges, closes, or deletes.
  * Writes a JSON summary (default watchdog-summary.json) that the architect
  * agent turns into the daily digest.
  *
@@ -34,8 +34,9 @@ for (const issue of listIssues(LABELS.claimed)) {
     ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', LABELS.ready]);
     ghWrite(['issue', 'comment', String(issue.number), '--body', `${MARKERS.requeue}\nWatchdog: ${verdict.reason} — requeued.`]);
   } else if (verdict.action === 'escalate') {
-    ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', LABELS.needsKaran]);
-    ghWrite(['issue', 'comment', String(issue.number), '--body', `Watchdog: ${verdict.reason}. Parked for Karan.`]);
+    ghWrite(['issue', 'edit', String(issue.number), '--remove-label', LABELS.claimed, '--add-label', 'agent:stuck']);
+    // Escalation policy: repeated agent failures are the orchestrator's to fix, not an owner decision.
+    ghWrite(['issue', 'comment', String(issue.number), '--body', `Watchdog: ${verdict.reason}. Parked as agent:stuck for the orchestrator.`]);
   } else if (verdict.action === 'overdue') {
     ghWrite(['issue', 'comment', String(issue.number), '--body', `${MARKERS.overdue}\nWatchdog: ${verdict.reason}. The architect will look at splitting or re-planning it in the next digest.`]);
   }

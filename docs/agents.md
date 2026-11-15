@@ -59,7 +59,7 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 - **Verify before push**: every agent runs `bash tools/verify-local.sh` and pushes only on `VERIFY: PASS`.
 - **Fix until merged**: any failed CI run on an agent/Dependabot PR triggers a fix round (CI triage); each round
   reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then `needs:karan`.
-- **Requeues**: a claimed issue with no PR for 4h is requeued; after 2 requeues → `needs:karan`.
+- **Requeues**: a claimed issue with no PR for 4h, or a dev run that ends without a PR, is requeued; after 2 requeues → `agent:stuck` (the orchestrator investigates; not an owner decision).
 - **QA reopen cap**: a bug that fails QA twice goes to `needs:karan`.
 - **Trust**: reviews run only for PRs from collaborators, `claude[bot]`,
   `dependabot[bot]`; the dispatcher only starts issues written by
